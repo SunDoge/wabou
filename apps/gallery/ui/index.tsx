@@ -40,7 +40,8 @@ import {
   View,
 } from "@wabou/primitives";
 import { type Handle, mount } from "@wabou/solid-renderer";
-import { px, number as styleNumber } from "@wabou/style";
+import { px, rgba, number as styleNumber } from "@wabou/style";
+import wabouUtilityManifest from "@wabou/unocss-preset/manifest";
 import {
   createSignal,
   For,
@@ -62,6 +63,7 @@ type ComponentId =
   | "fps"
   | "animation"
   | "platform"
+  | "colors"
   | "utilities"
   | "scroll-area"
   | "alert"
@@ -90,6 +92,10 @@ const groups: Array<{
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
     ],
+  },
+  {
+    label: "Foundations",
+    items: [{ id: "colors", name: "Colors" }],
   },
   {
     label: "Feedback",
@@ -122,6 +128,7 @@ const descriptions: Record<ComponentId, string> = {
   fps: "Measures native host frames and highlights performance regressions.",
   animation: "Pure JavaScript value animations rendered by the native host.",
   platform: "Native windows and Rust-powered custom widgets.",
+  colors: "Every color token exported by the native Wabou utility theme.",
   utilities: "Tailwind-style static classes parsed by the native Rust preset.",
   "scroll-area": "A native scrolling viewport with intrinsic flex content.",
   alert: "Calls attention to information that needs user awareness.",
@@ -845,6 +852,151 @@ function UtilitiesPage() {
   );
 }
 
+const COLOR_STOPS = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+const COLOR_FAMILIES = [
+  "rose",
+  "pink",
+  "fuchsia",
+  "purple",
+  "violet",
+  "indigo",
+  "blue",
+  "sky",
+  "cyan",
+  "teal",
+  "emerald",
+  "green",
+  "lime",
+  "yellow",
+  "amber",
+  "orange",
+  "red",
+  "gray",
+  "slate",
+  "zinc",
+  "neutral",
+  "stone",
+] as const;
+
+const colorHex = (value: number) =>
+  `#${(value >>> 8).toString(16).padStart(6, "0")}`;
+
+const darkTextOn = (value: number) => {
+  const red = (value >>> 24) & 0xff;
+  const green = (value >>> 16) & 0xff;
+  const blue = (value >>> 8) & 0xff;
+  return red * 299 + green * 587 + blue * 114 > 160_000;
+};
+
+function ColorSwatch(props: { value: number; label: string }) {
+  return (
+    <View
+      class="h-16 flex-1 min-w-0 p-2 flex flex-col justify-between rounded-md"
+      style={{ "background-color": rgba(props.value) }}
+    >
+      <Text
+        class={
+          darkTextOn(props.value)
+            ? "text-xs font-mono font-semibold text-slate-950"
+            : "text-xs font-mono font-semibold text-white"
+        }
+      >
+        {props.label}
+      </Text>
+      <Text
+        class={
+          darkTextOn(props.value)
+            ? "text-xs font-mono text-slate-700"
+            : "text-xs font-mono text-slate-200"
+        }
+      >
+        {colorHex(props.value)}
+      </Text>
+    </View>
+  );
+}
+
+function ColorsPage() {
+  const theme = useComponentsTheme();
+  const colors: Readonly<Record<string, number>> = wabouUtilityManifest.colors;
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Base colors">
+        <View class="w-full flex gap-3">
+          <For each={["transparent", "black", "white"]}>
+            {(token) => (
+              <View
+                class={
+                  theme() === "dark"
+                    ? "h-20 flex-1 p-3 flex flex-col justify-between rounded-lg border border-slate-700"
+                    : "h-20 flex-1 p-3 flex flex-col justify-between rounded-lg border border-slate-300"
+                }
+                style={{ "background-color": rgba(colors[token]) }}
+              >
+                <Text
+                  class={
+                    token === "black"
+                      ? "text-sm font-mono font-semibold text-white"
+                      : token === "white" || theme() === "light"
+                        ? "text-sm font-mono font-semibold text-slate-900"
+                        : "text-sm font-mono font-semibold text-slate-100"
+                  }
+                >
+                  {token}
+                </Text>
+                <Text
+                  class={
+                    token === "black"
+                      ? "text-xs font-mono text-slate-300"
+                      : token === "white" || theme() === "light"
+                        ? "text-xs font-mono text-slate-600"
+                        : "text-xs font-mono text-slate-400"
+                  }
+                >
+                  0x{colors[token].toString(16).padStart(8, "0")}
+                </Text>
+              </View>
+            )}
+          </For>
+        </View>
+      </Preview>
+
+      <View class="flex flex-col gap-5">
+        <For each={COLOR_FAMILIES}>
+          {(family) => (
+            <View class="flex flex-col gap-2">
+              <View class="flex items-center justify-between">
+                <ThemeText
+                  dark="text-sm font-semibold text-slate-200"
+                  light="text-sm font-semibold text-slate-800"
+                >
+                  {family}
+                </ThemeText>
+                <ThemeText
+                  dark="text-xs font-mono text-slate-500"
+                  light="text-xs font-mono text-slate-500"
+                >
+                  text-{family}-* · bg-{family}-* · border-{family}-*
+                </ThemeText>
+              </View>
+              <View class="flex gap-1">
+                <For each={COLOR_STOPS}>
+                  {(stop) => {
+                    const token = `${family}-${stop}`;
+                    return (
+                      <ColorSwatch value={colors[token]} label={String(stop)} />
+                    );
+                  }}
+                </For>
+              </View>
+            </View>
+          )}
+        </For>
+      </View>
+    </View>
+  );
+}
+
 function SeparatorPage() {
   return (
     <Preview title="Orientations">
@@ -1006,7 +1158,10 @@ function App() {
                 : "flex-none p-4 border-t border-slate-200"
             }
           >
-            <Badge variant="outline">12 showcases</Badge>
+            <Badge variant="outline">
+              {groups.reduce((total, group) => total + group.items.length, 0)}{" "}
+              showcases
+            </Badge>
           </View>
         </View>
 
@@ -1131,6 +1286,9 @@ function App() {
                 </Match>
                 <Match when={selected() === "utilities"}>
                   <UtilitiesPage />
+                </Match>
+                <Match when={selected() === "colors"}>
+                  <ColorsPage />
                 </Match>
                 <Match when={selected() === "alert"}>
                   <AlertPage />
