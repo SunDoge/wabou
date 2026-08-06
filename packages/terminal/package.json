@@ -1,0 +1,12 @@
+{
+  "name": "@wabou/terminal",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "dependencies": {
+    "@wabou/solid-renderer": "workspace:*",
+    "solid-js": "1.9.14"
+  }
+}

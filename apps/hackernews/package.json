@@ -1,0 +1,25 @@
+{
+  "name": "@wabou/hackernews",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
+    "dev:live": "VITE_HN_LIVE=1 vite --host 127.0.0.1 --port 5174 --strictPort",
+    "build": "vite build",
+    "build:live": "VITE_HN_LIVE=1 vite build"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.16.1",
+    "@wabou/core": "workspace:*",
+    "@wabou/primitives": "workspace:*",
+    "@wabou/solid-renderer": "workspace:*",
+    "lucide-solid": "^1.24.0",
+    "solid-js": "1.9.14"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "@wabou/vite": "workspace:*",
+    "vite": "^5.4.0"
+  }
+}

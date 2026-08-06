@@ -1,0 +1,26 @@
+{
+  "name": "wabou",
+  "private": true,
+  "scripts": {
+    "wabou": "cargo run -p wabou-cli --",
+    "format": "biome format --write .",
+    "check": "bun x tsc --noEmit",
+    "commit:check": "cog check",
+    "commit:hook": "cog install-hook commit-msg",
+    "test:solid-refresh": "bun --conditions=browser --conditions=development test packages/solid-renderer/src/hmr.test.ts",
+    "gen": "bun run scripts/gen-utility-manifest.ts && bun run scripts/gen-rust-op.ts && bun run scripts/gen-core-prelude.ts && bun run scripts/gen-vite-runtime.ts && bun run scripts/gen-test-runtime.ts && bun run scripts/gen-motion-test-runtime.ts",
+    "build": "bun run gen && bun run wabou build --app-dir apps/gallery",
+    "dev": "bun run wabou dev --app-dir apps/gallery"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "2.5.3",
+    "@types/bun": "^1.3.14",
+    "@wabou/unocss-preset": "workspace:*",
+    "bun-types": "^1.3.14",
+    "unocss": "^66.7.5"
+  }
+}

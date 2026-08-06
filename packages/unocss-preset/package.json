@@ -1,0 +1,13 @@
+{
+  "name": "@wabou/unocss-preset",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest": "./generated/manifest.json"
+  },
+  "dependencies": {
+    "@unocss/core": "^66.7.5"
+  }
+}

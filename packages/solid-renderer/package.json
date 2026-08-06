@@ -1,0 +1,15 @@
+{
+  "name": "@wabou/solid-renderer",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wabou/style": "workspace:*",
+    "@wabou/protocol": "workspace:*",
+    "solid-refresh": "0.6.3",
+    "solid-js": "1.9.14",
+    "ts-pattern": "^5.9.0"
+  }
+}

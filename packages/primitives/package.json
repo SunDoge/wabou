@@ -1,0 +1,14 @@
+{
+  "name": "@wabou/primitives",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@floating-ui/core": "^1.8.0",
+    "@wabou/solid-renderer": "workspace:*",
+    "@wabou/style": "workspace:*",
+    "solid-js": "1.9.14"
+  }
+}

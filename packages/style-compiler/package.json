@@ -1,0 +1,16 @@
+{
+  "name": "@wabou/style-compiler",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@wabou/unocss-preset": "workspace:*",
+    "@unocss/core": "^66.7.5",
+    "unocss": "^66.7.5",
+    "vite": "^5.4.0"
+  }
+}

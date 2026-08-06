@@ -1,0 +1,18 @@
+from_latest_tag = false
+ignore_merge_commits = true
+ignore_fixup_commits = true
+disable_changelog = true
+disable_bump_commit = true
+
+[git_hooks.commit-msg]
+script = """#!/bin/sh
+set -e
+exec cog verify --file "$1"
+"""
+
+[commit_types]
+
+[changelog]
+path = "CHANGELOG.md"
+
+[bump_profiles]

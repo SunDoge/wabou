@@ -1,0 +1,18 @@
+{
+  "name": "@wabou/core",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wabou/protocol": "workspace:*",
+    "@wabou/solid-renderer": "workspace:*",
+    "solid-js": "1.9.14",
+    "@ungap/structured-clone": "^1.3.3",
+    "whatwg-url": "^17.1.0"
+  },
+  "devDependencies": {
+    "@types/ungap__structured-clone": "^1.2.0"
+  }
+}
