@@ -12,8 +12,8 @@ serde_json = "1"
 teletypewriter = "0.5.5"
 tracing = "0.1"
 vello = "0.9.0"
-wabou-quick = { path = "../wabou-quick" }
-wabou-shell = { path = "../wabou-shell" }
+wabou-quick = { workspace = true }
+wabou-shell = { workspace = true }
 
-[target.'cfg(unix)'.dependencies]
+[target."cfg(unix)".dependencies]
 libc = "0.2"
