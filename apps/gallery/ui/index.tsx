@@ -1031,6 +1031,29 @@ function ShadowTile(props: {
 function ShadowsPage() {
   return (
     <View class="flex flex-col gap-5">
+      <Preview title="Wabou shadow scale">
+        <View class="w-full flex flex-wrap gap-6 p-6">
+          <View class="flex-1 min-w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 shadow-xs">
+            <Text class="text-xs font-mono text-slate-700">shadow-xs</Text>
+          </View>
+          <View class="flex-1 min-w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 shadow-sm">
+            <Text class="text-xs font-mono text-slate-700">shadow-sm</Text>
+          </View>
+          <View class="flex-1 min-w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 shadow">
+            <Text class="text-xs font-mono text-slate-700">shadow</Text>
+          </View>
+          <View class="flex-1 min-w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 shadow-md">
+            <Text class="text-xs font-mono text-slate-700">shadow-md</Text>
+          </View>
+          <View class="flex-1 min-w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 shadow-lg">
+            <Text class="text-xs font-mono text-slate-700">shadow-lg</Text>
+          </View>
+          <View class="flex-1 min-w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 shadow-xl">
+            <Text class="text-xs font-mono text-slate-700">shadow-xl</Text>
+          </View>
+        </View>
+      </Preview>
+
       <Preview title="Gaussian standard deviation">
         <View class="w-full flex flex-wrap gap-2">
           <For each={[0, 2, 6, 12]}>

@@ -1744,7 +1744,286 @@
                   "type": "color",
                   "value": {
                     "kind": "literal",
-                    "rgba": 26
+                    "rgba": 253176340
+                  }
+                },
+                "spread": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 2.0
+                  }
+                },
+                "x": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "y": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 1.0
+                  }
+                }
+              }
+            },
+            {
+              "type": "record",
+              "fields": {
+                "color": {
+                  "type": "color",
+                  "value": {
+                    "kind": "literal",
+                    "rgba": 253176351
+                  }
+                },
+                "spread": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": -1.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 1.0
+                  }
+                },
+                "x": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "y": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 2.0
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "shadow-lg": [
+      {
+        "property": "box-shadow",
+        "value": {
+          "type": "list",
+          "values": [
+            {
+              "type": "record",
+              "fields": {
+                "color": {
+                  "type": "color",
+                  "value": {
+                    "kind": "literal",
+                    "rgba": 253176351
+                  }
+                },
+                "spread": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 10.0
+                  }
+                },
+                "x": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "y": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 6.0
+                  }
+                }
+              }
+            },
+            {
+              "type": "record",
+              "fields": {
+                "color": {
+                  "type": "color",
+                  "value": {
+                    "kind": "literal",
+                    "rgba": 253176361
+                  }
+                },
+                "spread": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": -4.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 4.0
+                  }
+                },
+                "x": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "y": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 12.0
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "shadow-md": [
+      {
+        "property": "box-shadow",
+        "value": {
+          "type": "list",
+          "values": [
+            {
+              "type": "record",
+              "fields": {
+                "color": {
+                  "type": "color",
+                  "value": {
+                    "kind": "literal",
+                    "rgba": 253176346
+                  }
+                },
+                "spread": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 6.0
+                  }
+                },
+                "x": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "y": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 3.0
+                  }
+                }
+              }
+            },
+            {
+              "type": "record",
+              "fields": {
+                "color": {
+                  "type": "color",
+                  "value": {
+                    "kind": "literal",
+                    "rgba": 253176356
+                  }
+                },
+                "spread": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": -2.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 2.5
+                  }
+                },
+                "x": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 0.0
+                  }
+                },
+                "y": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 5.0
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "shadow-none": [
+      {
+        "property": "box-shadow",
+        "value": {
+          "type": "list",
+          "values": []
+        }
+      }
+    ],
+    "shadow-sm": [
+      {
+        "property": "box-shadow",
+        "value": {
+          "type": "list",
+          "values": [
+            {
+              "type": "record",
+              "fields": {
+                "color": {
+                  "type": "color",
+                  "value": {
+                    "kind": "literal",
+                    "rgba": 253176346
                   }
                 },
                 "spread": {
@@ -1781,7 +2060,7 @@
         }
       }
     ],
-    "shadow-lg": [
+    "shadow-xl": [
       {
         "property": "box-shadow",
         "value": {
@@ -1794,21 +2073,21 @@
                   "type": "color",
                   "value": {
                     "kind": "literal",
-                    "rgba": 26
+                    "rgba": 253176356
                   }
                 },
                 "spread": {
                   "type": "length",
                   "value": {
                     "unit": "px",
-                    "value": -3.0
+                    "value": 0.0
                   }
                 },
                 "stdDev": {
                   "type": "length",
                   "value": {
                     "unit": "px",
-                    "value": 7.5
+                    "value": 16.0
                   }
                 },
                 "x": {
@@ -1826,17 +2105,7 @@
                   }
                 }
               }
-            }
-          ]
-        }
-      }
-    ],
-    "shadow-md": [
-      {
-        "property": "box-shadow",
-        "value": {
-          "type": "list",
-          "values": [
+            },
             {
               "type": "record",
               "fields": {
@@ -1844,21 +2113,21 @@
                   "type": "color",
                   "value": {
                     "kind": "literal",
-                    "rgba": 26
+                    "rgba": 253176366
                   }
                 },
                 "spread": {
                   "type": "length",
                   "value": {
                     "unit": "px",
-                    "value": -1.0
+                    "value": -6.0
                   }
                 },
                 "stdDev": {
                   "type": "length",
                   "value": {
                     "unit": "px",
-                    "value": 3.0
+                    "value": 6.0
                   }
                 },
                 "x": {
@@ -1872,7 +2141,7 @@
                   "type": "length",
                   "value": {
                     "unit": "px",
-                    "value": 4.0
+                    "value": 20.0
                   }
                 }
               }
@@ -1881,16 +2150,7 @@
         }
       }
     ],
-    "shadow-none": [
-      {
-        "property": "box-shadow",
-        "value": {
-          "type": "list",
-          "values": []
-        }
-      }
-    ],
-    "shadow-sm": [
+    "shadow-xs": [
       {
         "property": "box-shadow",
         "value": {
@@ -1903,7 +2163,7 @@
                   "type": "color",
                   "value": {
                     "kind": "literal",
-                    "rgba": 13
+                    "rgba": 253176340
                   }
                 },
                 "spread": {
@@ -1917,7 +2177,7 @@
                   "type": "length",
                   "value": {
                     "unit": "px",
-                    "value": 1.0
+                    "value": 0.75
                   }
                 },
                 "x": {
@@ -3352,21 +3612,21 @@
                     "type": "color",
                     "value": {
                       "kind": "literal",
-                      "rgba": 26
+                      "rgba": 253176346
                     }
                   },
                   "spread": {
                     "type": "length",
                     "value": {
                       "unit": "px",
-                      "value": -1.0
+                      "value": 0.0
                     }
                   },
                   "stdDev": {
                     "type": "length",
                     "value": {
                       "unit": "px",
-                      "value": 3.0
+                      "value": 6.0
                     }
                   },
                   "x": {
@@ -3380,7 +3640,47 @@
                     "type": "length",
                     "value": {
                       "unit": "px",
-                      "value": 4.0
+                      "value": 3.0
+                    }
+                  }
+                }
+              },
+              {
+                "type": "record",
+                "fields": {
+                  "color": {
+                    "type": "color",
+                    "value": {
+                      "kind": "literal",
+                      "rgba": 253176356
+                    }
+                  },
+                  "spread": {
+                    "type": "length",
+                    "value": {
+                      "unit": "px",
+                      "value": -2.0
+                    }
+                  },
+                  "stdDev": {
+                    "type": "length",
+                    "value": {
+                      "unit": "px",
+                      "value": 2.5
+                    }
+                  },
+                  "x": {
+                    "type": "length",
+                    "value": {
+                      "unit": "px",
+                      "value": 0.0
+                    }
+                  },
+                  "y": {
+                    "type": "length",
+                    "value": {
+                      "unit": "px",
+                      "value": 5.0
                     }
                   }
                 }

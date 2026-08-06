@@ -103,6 +103,8 @@ export type WabouStaticUtility =
   | "shadow-md"
   | "shadow-none"
   | "shadow-sm"
+  | "shadow-xl"
+  | "shadow-xs"
   | "shrink"
   | "shrink-0"
   | "text-2xl"
