@@ -1,9 +1,26 @@
 # Wabou
 
+[![CI](https://github.com/SunDoge/wabou/actions/workflows/ci.yml/badge.svg)](https://github.com/SunDoge/wabou/actions/workflows/ci.yml)
+
 Wabou is an experimental native UI runtime for building desktop applications with SolidJS and Rust. It runs application logic in QuickJS, then performs layout, painting, and native integration in Rust—without embedding a browser or a WebView.
 
-> Wabou is under active development. The architecture is usable for
-> experimentation, but the public API and platform support are not stable yet.
+> Wabou is under active development. The architecture is usable for experimentation, but the public API and platform support are not stable yet.
+
+## Showcase
+
+### Component Gallery
+
+An interactive catalogue of Wabou components and platform features, including
+animations, native windows, and Rust-powered custom widgets.
+
+<!-- Add the gallery image here: ![Wabou component gallery](path/to/gallery.png) -->
+
+### Terminal
+
+A native terminal widget demonstrating keyboard and pointer input, text
+selection, clipboard integration, scrolling, and system font discovery.
+
+<!-- Add the terminal image here: ![Wabou terminal](path/to/terminal.png) -->
 
 ## Why Wabou?
 
@@ -88,7 +105,7 @@ You need a current Rust toolchain and
 ```bash
 mise install
 mise exec -- bun install
-mise exec -- bun run wabou dev --app-dir apps/gallery --devtools
+mise exec -- bun run wabou run --app-dir apps/gallery
 ```
 
 Other examples include a [Hacker News client](apps/hackernews) and a
