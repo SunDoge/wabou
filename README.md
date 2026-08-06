@@ -13,14 +13,18 @@ Wabou is an experimental native UI runtime for building desktop applications wit
 An interactive catalogue of Wabou components and platform features, including
 animations, native windows, and Rust-powered custom widgets.
 
-<!-- Add the gallery image here: ![Wabou component gallery](path/to/gallery.png) -->
+<p align="center">
+<img width="45%" alt="image" src="https://github.com/user-attachments/assets/b0863daf-7255-443e-b8df-d54eb4074c43" />
+<img width="45%" alt="image" src="https://github.com/user-attachments/assets/85b7ac8d-eade-46d5-9022-4c46f9f99509" />
+</p>
 
 ### Terminal
 
-A native terminal widget demonstrating keyboard and pointer input, text
+A native terminal widget powered by [rio-vt](https://crates.io/crates/rio-vt), demonstrating keyboard and pointer input, text
 selection, clipboard integration, scrolling, and system font discovery.
 
-<!-- Add the terminal image here: ![Wabou terminal](path/to/terminal.png) -->
+<img width="1068" height="776" alt="image" src="https://github.com/user-attachments/assets/8575bd24-30f2-42d0-be9f-f456b124b998" />
+
 
 ## Why Wabou?
 
