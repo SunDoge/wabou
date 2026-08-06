@@ -3,37 +3,55 @@ name = "wabou-quick"
 version = "0.1.0"
 edition = "2024"
 
+license.workspace = true
+
 [lib]
 name = "wabou_quick"
 path = "src/lib.rs"
 
-[features]
-# Live vite dev-server integration (module fetching + HMR). Step 2.
-vite = ["dep:ureq", "dep:tungstenite"]
-
 [dependencies]
-wabou-shell = { path = "../wabou-shell" }
-wabou-devtools = { path = "../wabou-devtools" }
-wabou-style = { workspace = true }
-vello = "0.9.0"
-parley = "0.10"
-taffy = { version = "0.12.2", features = ["parse", "content_size"] }
-rquickjs = { version = "0.12.1", features = ["full-async", "rust-alloc", "loader"] }
-tokio = { version = "1", features = ["rt-multi-thread", "time"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-futures-lite = "2"
-bon = { workspace = true }
 bitflags = { workspace = true }
-snafu = { workspace = true }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-url = "2.5"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+bon = { workspace = true }
+futures-lite = "2"
+image = {
+  version = "0.25",
+  default-features = false,
+  features = ["bmp", "gif", "jpeg", "png", "webp"]
+}
 lasso = "0.7.3"
 open = "5.4.0"
+parley = "0.10"
+reqwest = {
+  version = "0.12",
+  default-features = false,
+  features = ["rustls-tls"]
+}
+rquickjs = {
+  version = "0.12.1",
+  features = ["full-async", "loader", "rust-alloc"]
+}
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+snafu = { workspace = true }
+taffy = { version = "0.12.2", features = ["content_size", "parse"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2.5"
+vello = "0.9.0"
+wabou-devtools = { path = "../wabou-devtools" }
+wabou-shell = { path = "../wabou-shell" }
+wabou-style = { workspace = true }
 
+tungstenite = {
+  version = "0.28",
+  default-features = false,
+  features = ["handshake"],
+  optional = true
+}
 # vite feature only
 ureq = { version = "3.3", optional = true }
-tungstenite = { version = "0.28", default-features = false, features = ["handshake"], optional = true }
+
+[features]
+# Live vite dev-server integration (module fetching + HMR). Step 2.
+vite = ["dep:tungstenite", "dep:ureq"]
