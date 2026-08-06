@@ -7,6 +7,8 @@
 
 use vello::peniko::Color;
 
+pub use wabou_accessibility::{SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot};
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -332,6 +334,15 @@ pub trait FrameSource {
     /// Lay out for `width x height` and return the paint-ordered node list.
     /// Borrowed `tcx` is used for text measurement (parley).
     fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode>;
+
+    /// Latest retained accessibility snapshot, in logical window coordinates.
+    fn semantic_snapshot(&self) -> Option<SemanticSnapshot> {
+        None
+    }
+
+    fn handle_semantic_action(&mut self, _action: SemanticAction) -> bool {
+        false
+    }
 
     /// Paint optional diagnostics after the application scene. Decorations are
     /// deliberately outside the retained tree, so they cannot affect layout,

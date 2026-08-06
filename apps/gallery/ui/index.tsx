@@ -39,7 +39,7 @@ import {
   translate2d,
   View,
 } from "@wabou/primitives";
-import { type Handle, mount } from "@wabou/solid-renderer";
+import { type Handle, mount, Portal } from "@wabou/solid-renderer";
 import { px, rgba, shadow, number as styleNumber } from "@wabou/style";
 import wabouUtilityManifest from "@wabou/unocss-preset/manifest";
 import {
@@ -49,6 +49,7 @@ import {
   Match,
   onCleanup,
   onMount,
+  Show,
   Switch as ShowCase,
 } from "solid-js";
 import "virtual:wabou-stylesheet";
@@ -67,6 +68,7 @@ type ComponentId =
   | "shadows"
   | "utilities"
   | "scroll-area"
+  | "overlay"
   | "alert"
   | "separator";
 
@@ -99,6 +101,7 @@ const groups: Array<{
     items: [
       { id: "colors", name: "Colors" },
       { id: "shadows", name: "Shadows" },
+      { id: "overlay", name: "Overlay" },
     ],
   },
   {
@@ -137,6 +140,7 @@ const descriptions: Record<ComponentId, string> = {
     "Vello-native blurred rounded rectangles with explicit Gaussian parameters.",
   utilities: "Tailwind-style static classes parsed by the native Rust preset.",
   "scroll-area": "A native scrolling viewport with intrinsic flex content.",
+  overlay: "Explicit floating and modal planes shared by JavaScript portals.",
   alert: "Calls attention to information that needs user awareness.",
   separator: "Visually separates content in a list or layout.",
 };
@@ -491,6 +495,46 @@ function ScrollAreaPage() {
         </View>
       </Preview>
     </View>
+  );
+}
+
+function OverlayPage() {
+  const [open, setOpen] = createSignal(false);
+  return (
+    <Preview title="Modal plane and semantic isolation">
+      <View class="p-4 flex items-start">
+        <Button onClick={() => setOpen(true)}>Open modal overlay</Button>
+      </View>
+      <Show when={open()}>
+        <Portal
+          plane="modal"
+          role="dialog"
+          aria-label="Overlay settings"
+          class="absolute left-0 top-0 w-full h-full flex items-center justify-center bg-slate-950"
+          onClick={() => setOpen(false)}
+          onKeyDown={(event: { key?: string }) => {
+            if (event.key === "Escape") setOpen(false);
+          }}
+        >
+          <View
+            class="w-96 p-6 flex flex-col gap-4 rounded-xl border border-slate-700 bg-slate-900"
+            onClick={(event: { stopPropagation(): void }) =>
+              event.stopPropagation()
+            }
+          >
+            <Text class="text-xl font-semibold text-white">Modal overlay</Text>
+            <Text class="text-sm text-slate-300">
+              {
+                "This subtree is painted and hit-tested above floating content. While open, AccessKit exposes only this modal plane beneath the window."
+              }
+            </Text>
+            <View class="flex justify-end">
+              <Button onClick={() => setOpen(false)}>Close</Button>
+            </View>
+          </View>
+        </Portal>
+      </Show>
+    </Preview>
   );
 }
 
@@ -1467,6 +1511,9 @@ function App() {
                 </Match>
                 <Match when={selected() === "scroll-area"}>
                   <ScrollAreaPage />
+                </Match>
+                <Match when={selected() === "overlay"}>
+                  <OverlayPage />
                 </Match>
                 <Match when={selected() === "utilities"}>
                   <UtilitiesPage />

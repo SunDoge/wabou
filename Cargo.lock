@@ -4779,6 +4779,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wabou-accessibility"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "accesskit_xplat",
+ "raw-window-handle",
+ "winit",
+]
+
+[[package]]
 name = "wabou-cli"
 version = "0.1.0"
 dependencies = [
@@ -4848,8 +4858,6 @@ dependencies = [
 name = "wabou-shell"
 version = "0.1.0"
 dependencies = [
- "accesskit",
- "accesskit_xplat",
  "arboard",
  "bitflags 2.13.1",
  "clap",
@@ -4858,7 +4866,6 @@ dependencies = [
  "open",
  "parley",
  "pollster",
- "raw-window-handle",
  "serde",
  "snafu",
  "taffy",
@@ -4866,6 +4873,7 @@ dependencies = [
  "url",
  "vello",
  "vello_svg",
+ "wabou-accessibility",
  "wgpu_context",
  "winit",
 ]

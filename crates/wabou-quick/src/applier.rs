@@ -39,7 +39,7 @@ use wabou_shell::style::{
 use wabou_shell::text::{TextContext, layout_text_styled};
 use wabou_shell::{
     EventResponse, FrameSource, FrameStats, KeyPhase, Modifiers, PointerButton, PointerPhase,
-    UiEvent, WakeCallback,
+    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, UiEvent, WakeCallback,
 };
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
@@ -475,6 +475,7 @@ pub struct Applier {
     scrollbar_drag: Option<ScrollbarDrag>,
     hovered_scrollbar: Option<(NodeId, ScrollAxis)>,
     scrollbar_activity: HashMap<NodeId, Instant>,
+    semantic_snapshot: SemanticSnapshot,
     /// Rust-side widgets (TextInput, Canvas, …) keyed by taffy NodeId.
     /// Painted every frame after layout; composited by `build_scene`.
     widgets: HashMap<NodeId, Box<dyn crate::widget::Widget>>,
@@ -742,6 +743,7 @@ impl Applier {
             scrollbar_drag: None,
             hovered_scrollbar: None,
             scrollbar_activity: HashMap::new(),
+            semantic_snapshot: SemanticSnapshot::default(),
             widgets: HashMap::new(),
             widget_styles: HashMap::new(),
             pending_host_actions,
@@ -986,6 +988,7 @@ impl Applier {
         self.scrollbar_drag = None;
         self.hovered_scrollbar = None;
         self.scrollbar_activity.clear();
+        self.semantic_snapshot = SemanticSnapshot::default();
         self.pending_value_sync.clear();
         self.dirty_styles.clear();
         self.pointer_down_target = None;
@@ -2157,6 +2160,20 @@ impl Applier {
         self.node_to_solid.get(&node).copied()
     }
 
+    fn is_logical_descendant(&self, node: NodeId, ancestor: NodeId) -> bool {
+        let mut current = Some(node);
+        while let Some(node) = current {
+            if node == ancestor {
+                return true;
+            }
+            current = self
+                .children
+                .iter()
+                .find_map(|(parent, children)| children.contains(&node).then_some(*parent));
+        }
+        false
+    }
+
     fn hit_test(&self, x: f64, y: f64) -> Option<u32> {
         let point = Point::new(x, y);
         for item in self.hit_items.iter().rev() {
@@ -2286,6 +2303,158 @@ impl Applier {
                 0
             };
         }
+    }
+
+    fn rebuild_semantic_snapshot(&mut self, placed: &[PlacedNode]) {
+        let present: HashSet<_> = placed.iter().map(|node| node.node_id).collect();
+        let semantic_transforms: HashMap<_, _> = self
+            .hit_items
+            .iter()
+            .filter_map(|item| match item {
+                HitItem::Content(node) => Some((node.solid_id, node.transform)),
+                HitItem::Scrollbar(_) => None,
+            })
+            .collect();
+        let modal_node = placed
+            .iter()
+            .rev()
+            .find(|node| {
+                node.parent_node_id == Some(self.root)
+                    && node.paint.overlay_plane == OverlayPlane::Modal
+            })
+            .map(|node| node.node_id);
+        let modal_root = modal_node
+            .and_then(|node| self.solid_id_for_node(node))
+            .map(u64::from);
+        let atoms = self.atoms.borrow();
+        let attribute = |declared: &Declared, wanted: &str| {
+            declared.attrs.iter().find_map(|(name, value)| {
+                (atoms.resolve(*name) == Some(wanted)).then(|| value.clone())
+            })
+        };
+        let role_for = |tag: &str, declared: &Declared| {
+            let role = attribute(declared, "role");
+            match role.as_deref().unwrap_or(tag) {
+                "button" => SemanticRole::Button,
+                "textbox" | "input" | "textarea" => SemanticRole::TextInput,
+                "img" | "image" => SemanticRole::Image,
+                "link" | "a" => SemanticRole::Link,
+                "dialog" | "alertdialog" => SemanticRole::Dialog,
+                "text" | "#text" | "label" => SemanticRole::Label,
+                _ => SemanticRole::Generic,
+            }
+        };
+        let mut nodes = Vec::new();
+        for placed_node in placed {
+            if placed_node.node_id == self.root {
+                continue;
+            }
+            let Some(&solid_id) = self.node_to_solid.get(&placed_node.node_id) else {
+                continue;
+            };
+            let Some(declared) = self.declared.get(&placed_node.node_id) else {
+                continue;
+            };
+            let tag = declared
+                .tag
+                .and_then(|tag| atoms.resolve(tag))
+                .unwrap_or("view");
+            let label = attribute(declared, "aria-label")
+                .or_else(|| attribute(declared, "alt"))
+                .map(|value| value.to_string())
+                .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
+            let children = self
+                .children
+                .get(&placed_node.node_id)
+                .into_iter()
+                .flatten()
+                .filter(|child| present.contains(child))
+                .filter_map(|child| self.node_to_solid.get(child).copied())
+                .map(u64::from)
+                .collect();
+            let bounds = semantic_transforms
+                .get(&solid_id)
+                .map_or(placed_node.rect, |transform| {
+                    let [x0, y0, x1, y1] = placed_node.rect.map(f64::from);
+                    let points = [
+                        *transform * Point::new(x0, y0),
+                        *transform * Point::new(x1, y0),
+                        *transform * Point::new(x0, y1),
+                        *transform * Point::new(x1, y1),
+                    ];
+                    [
+                        points
+                            .iter()
+                            .map(|point| point.x)
+                            .fold(f64::INFINITY, f64::min) as f32,
+                        points
+                            .iter()
+                            .map(|point| point.y)
+                            .fold(f64::INFINITY, f64::min) as f32,
+                        points
+                            .iter()
+                            .map(|point| point.x)
+                            .fold(f64::NEG_INFINITY, f64::max) as f32,
+                        points
+                            .iter()
+                            .map(|point| point.y)
+                            .fold(f64::NEG_INFINITY, f64::max) as f32,
+                    ]
+                });
+            nodes.push(SemanticNode {
+                id: u64::from(solid_id),
+                role: role_for(tag, declared),
+                label,
+                bounds,
+                children,
+                disabled: attribute(declared, "disabled").is_some()
+                    || attribute(declared, "aria-disabled").as_deref() == Some("true"),
+            });
+        }
+        let root_children = self
+            .children
+            .get(&self.root)
+            .into_iter()
+            .flatten()
+            .filter(|child| present.contains(child))
+            .filter_map(|child| self.node_to_solid.get(child).copied())
+            .map(u64::from)
+            .collect();
+        let focused = self.focused_target.map(u64::from);
+        let focus = if let (Some(modal), Some(modal_node)) = (modal_root, modal_node) {
+            let inside_modal = |solid: u64| {
+                self.solid_to_node
+                    .get(&(solid as u32))
+                    .is_some_and(|node| self.is_logical_descendant(*node, modal_node))
+            };
+            let focused_inside = focused.is_some_and(inside_modal);
+            let fallback = nodes
+                .iter()
+                .find(|node| {
+                    inside_modal(node.id)
+                        && matches!(
+                            node.role,
+                            SemanticRole::Dialog
+                                | SemanticRole::Button
+                                | SemanticRole::TextInput
+                                | SemanticRole::Link
+                        )
+                })
+                .map(|node| node.id)
+                .unwrap_or(modal);
+            focused_inside
+                .then_some(focused)
+                .flatten()
+                .or(Some(fallback))
+        } else {
+            focused
+        };
+        self.semantic_snapshot = SemanticSnapshot {
+            nodes,
+            root_children,
+            focus,
+            modal_root,
+        };
     }
 
     fn scrollbar_at(&self, x: f64, y: f64) -> Option<(NodeId, ScrollbarTarget)> {
@@ -3530,6 +3699,8 @@ impl Applier {
                     opacity: placed_node.paint.opacity,
                     pointer_events: placed_node.paint.pointer_events,
                     z_index: placed_node.paint.z_index,
+                    overlay_plane: format!("{:?}", placed_node.paint.overlay_plane),
+                    scrollbar_opacity: placed_node.scroll.opacity,
                     text_color: format!("{:x}", placed_node.paint.text_color.to_rgba8()),
                     background: placed_node
                         .paint
@@ -3787,6 +3958,7 @@ impl FrameSource for Applier {
         if self.pointer_buttons & 1 == 0 {
             self.sync_text_selection_change();
         }
+        self.rebuild_semantic_snapshot(&placed);
         // After paint applied pending edits, sync widget values → JS.
         self.flush_value_sync();
         self.publish_debug_snapshot(&placed);
@@ -3795,6 +3967,53 @@ impl FrameSource for Applier {
 
     fn base_color(&self) -> Color {
         self.base_color
+    }
+
+    fn semantic_snapshot(&self) -> Option<SemanticSnapshot> {
+        Some(self.semantic_snapshot.clone())
+    }
+
+    fn handle_semantic_action(&mut self, action: SemanticAction) -> bool {
+        let target = match action {
+            SemanticAction::Click { target }
+            | SemanticAction::Focus { target }
+            | SemanticAction::Blur { target } => u32::try_from(target).ok(),
+        };
+        let Some(target) = target.filter(|target| self.solid_to_node.contains_key(target)) else {
+            return false;
+        };
+        if let Some(modal) = self.semantic_snapshot.modal_root {
+            let Some(modal_node) = u32::try_from(modal)
+                .ok()
+                .and_then(|modal| self.solid_to_node.get(&modal).copied())
+            else {
+                return false;
+            };
+            if !self
+                .solid_to_node
+                .get(&target)
+                .is_some_and(|node| self.is_logical_descendant(*node, modal_node))
+            {
+                return false;
+            }
+        }
+        match action {
+            SemanticAction::Click { .. } => {
+                self.dispatch_pointer(target, event::CLICK, None, Modifiers::empty())
+            }
+            SemanticAction::Focus { .. } => {
+                let changed = self.focused_target != Some(target);
+                self.set_focused_target(Some(target));
+                changed
+            }
+            SemanticAction::Blur { .. } => {
+                let changed = self.focused_target == Some(target);
+                if changed {
+                    self.set_focused_target(None);
+                }
+                changed
+            }
+        }
     }
 
     fn paint_debug_overlay(
@@ -4740,6 +4959,7 @@ mod tests {
     #[test]
     fn imperative_focus_uses_the_same_host_focus_state_as_pointer_input() {
         let js = JsRuntime::new().expect("runtime");
+        install_host_frame_test_hook(&js);
         let mut applier = Applier::from_runtime(js, Color::BLACK);
         let div = applier.atoms.borrow_mut().intern("div");
         applier.apply_op(&Op::CreateElement {
@@ -6905,5 +7125,113 @@ mod tests {
         applier.rebuild_hit_geometry(&[owner_placed, overlay_placed]);
         assert_eq!(applier.scrollbar_at(95.0, 16.0), None);
         assert_eq!(applier.hit_test(95.0, 16.0), Some(3));
+    }
+
+    #[test]
+    fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
+        let js = JsRuntime::new().expect("runtime");
+        install_host_frame_test_hook(&js);
+        let mut applier = Applier::from_runtime(js, Color::BLACK);
+        let (button, view, role, aria_label) = {
+            let mut atoms = applier.atoms.borrow_mut();
+            (
+                atoms.intern("button"),
+                atoms.intern("view"),
+                atoms.intern("role"),
+                atoms.intern("aria-label"),
+            )
+        };
+        applier.apply_op(&Op::CreateElement {
+            id: 2,
+            tag: button,
+            attrs: vec![(aria_label, "Background")],
+        });
+        applier.apply_op(&Op::CreateElement {
+            id: 3,
+            tag: view,
+            attrs: vec![(role, "dialog"), (aria_label, "Settings")],
+        });
+        applier.apply_op(&Op::CreateElement {
+            id: 4,
+            tag: button,
+            attrs: vec![(aria_label, "Save")],
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 3,
+            child: 4,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 1,
+            child: 2,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 1,
+            child: 3,
+        });
+        applier.rebuild_layout_boxes();
+        applier.apply_op(&Op::SetOverlayPlane { id: 3, plane: 2 });
+        applier.focused_target = Some(4);
+
+        let root = applier.root;
+        let background = applier.solid_to_node[&2];
+        let modal = applier.solid_to_node[&3];
+        let save = applier.solid_to_node[&4];
+        let paint = |plane| {
+            let mut paint = Paint::default();
+            paint.overlay_plane = plane;
+            paint
+        };
+        let node = |node_id, parent_node_id, depth, paint| PlacedNode {
+            node_id,
+            parent_node_id,
+            depth,
+            rect: [0.0, 0.0, 100.0, 100.0],
+            content_origin: [0.0, 0.0],
+            content_size: [100.0, 100.0],
+            clip: None,
+            clip_radius: 0.0,
+            clip_depth: None,
+            own_clip: None,
+            own_clip_radius: 0.0,
+            border_widths: [0.0; 4],
+            scroll: layout::ScrollMetrics::default(),
+            paint,
+        };
+        let mut save_paint = paint(OverlayPlane::Content);
+        save_paint.runtime_transform = Some([1.0, 0.0, 0.0, 1.0, 10.0, 5.0]);
+        let placed = vec![
+            node(background, Some(root), 1, paint(OverlayPlane::Content)),
+            node(modal, Some(root), 1, paint(OverlayPlane::Modal)),
+            node(save, Some(modal), 2, save_paint),
+        ];
+        applier.rebuild_hit_geometry(&placed);
+        applier.rebuild_semantic_snapshot(&placed);
+        let snapshot = &applier.semantic_snapshot;
+        assert_eq!(snapshot.root_children, vec![2, 3]);
+        assert_eq!(snapshot.modal_root, Some(3));
+        assert_eq!(snapshot.focus, Some(4));
+        assert!(snapshot.nodes.iter().any(|node| {
+            node.id == 3
+                && node.role == SemanticRole::Dialog
+                && node.label.as_deref() == Some("Settings")
+        }));
+        assert_eq!(
+            snapshot
+                .nodes
+                .iter()
+                .find(|node| node.id == 4)
+                .unwrap()
+                .bounds,
+            [10.0, 5.0, 110.0, 105.0]
+        );
+        applier.apply_op(&Op::AddEventListener {
+            id: 4,
+            event_type: event::CLICK,
+        });
+        assert!(!applier.handle_semantic_action(SemanticAction::Click { target: 2 }));
+        assert!(applier.handle_semantic_action(SemanticAction::Click { target: 4 }));
+        applier.focused_target = None;
+        assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 4 }));
+        assert_eq!(applier.focused_target, Some(4));
     }
 }

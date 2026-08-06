@@ -6,6 +6,7 @@ members = ["apps/*", "crates/*"]
 license = "Apache-2.0"
 
 [workspace.dependencies]
+wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-devtools = { path = "crates/wabou-devtools" }
 wabou-quick = { path = "crates/wabou-quick" }
 wabou-shell = { path = "crates/wabou-shell" }

@@ -24,6 +24,9 @@ export function Portal(props: PortalProps): JSX.Element {
   const root = acquireOverlayRoot(plane);
   const container = createElement("view") as Handle;
   spread(container, containerProps, false);
+  if (plane === "modal") {
+    spread(container, { "aria-modal": "true" }, false);
+  }
   insertNode(root, container, undefined);
   insert(container, () => local.children);
   onCleanup(() => {
