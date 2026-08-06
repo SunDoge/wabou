@@ -35,7 +35,63 @@ pub struct PlacedNode {
     pub own_clip_radius: f32,
     /// Resolved physical border widths: top, right, bottom, left.
     pub border_widths: [f32; 4],
+    pub scroll: ScrollMetrics,
     pub paint: Paint,
+}
+
+/// Finite scroll geometry in logical window coordinates. Axis-specific clips
+/// are intentionally separate because their unconstrained edges may be infinite.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ScrollMetrics {
+    pub port: [f32; 4],
+    pub scrollable: [bool; 2],
+    pub range: [f32; 2],
+    pub offset: [f32; 2],
+    /// Host-owned overlay visibility. Zero also disables native hit testing.
+    pub opacity: f32,
+}
+
+/// A depth-derived traversal boundary for the flattened retained tree.
+/// `Exit` is the reusable paint/hit boundary for owner-local overlays.
+#[derive(Clone, Copy)]
+pub enum SubtreeEvent<'a> {
+    Enter(&'a PlacedNode),
+    Exit(&'a PlacedNode),
+}
+
+pub struct SubtreeEvents<'a> {
+    nodes: &'a [PlacedNode],
+    index: usize,
+    open: Vec<&'a PlacedNode>,
+}
+
+pub fn subtree_events(nodes: &[PlacedNode]) -> SubtreeEvents<'_> {
+    SubtreeEvents {
+        nodes,
+        index: 0,
+        open: Vec::new(),
+    }
+}
+
+impl<'a> Iterator for SubtreeEvents<'a> {
+    type Item = SubtreeEvent<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(next) = self.nodes.get(self.index)
+            && self
+                .open
+                .last()
+                .is_some_and(|open| open.depth >= next.depth)
+        {
+            return self.open.pop().map(SubtreeEvent::Exit);
+        }
+        if let Some(node) = self.nodes.get(self.index) {
+            self.index += 1;
+            self.open.push(node);
+            return Some(SubtreeEvent::Enter(node));
+        }
+        self.open.pop().map(SubtreeEvent::Exit)
+    }
 }
 
 pub fn compute_and_walk_with_scroll(
@@ -173,6 +229,18 @@ fn walk(
     let content_height =
         (h - layout.border.top - layout.border.bottom - layout.padding.top - layout.padding.bottom)
             .max(0.0);
+    let scroll = scroll_offsets.get(&node).copied().unwrap_or([0.0, 0.0]);
+    let style = tree.style(node).ok();
+    let scrollable = style.map_or([false; 2], |style| {
+        [
+            style.overflow.x == taffy::Overflow::Scroll,
+            style.overflow.y == taffy::Overflow::Scroll,
+        ]
+    });
+    let scroll_range = [
+        (layout.content_size.width - (w - layout.border.left - layout.border.right)).max(0.0),
+        (layout.content_size.height - (h - layout.border.top - layout.border.bottom)).max(0.0),
+    ];
 
     if let Some(paint) = tree.get_node_context(node) {
         if w > 0.0 && h > 0.0 {
@@ -194,6 +262,18 @@ fn walk(
                     layout.border.bottom,
                     layout.border.left,
                 ],
+                scroll: ScrollMetrics {
+                    port: [
+                        x0 + layout.border.left,
+                        y0 + layout.border.top,
+                        x0 + w - layout.border.right,
+                        y0 + h - layout.border.bottom,
+                    ],
+                    scrollable,
+                    range: scroll_range,
+                    offset: scroll,
+                    opacity: 0.0,
+                },
                 paint: paint.clone(),
             });
         }
@@ -247,10 +327,12 @@ fn walk(
             }
         }
     }
-    let scroll = scroll_offsets.get(&node).copied().unwrap_or([0.0, 0.0]);
     // Sibling-relative z order (Slint/Qt-Quick model): higher z paints later.
     let mut children: Vec<NodeId> = tree.child_ids(node).collect();
-    children.sort_by_key(|c| tree.get_node_context(*c).map_or(0, |p| p.z_index));
+    children.sort_by_key(|c| {
+        tree.get_node_context(*c)
+            .map_or(Default::default(), |p| (p.overlay_plane, p.z_index))
+    });
     for child in children {
         walk(
             tree,

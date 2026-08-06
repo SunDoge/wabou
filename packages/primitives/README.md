@@ -106,7 +106,10 @@ middleware are exported alongside it.
 Wabou entry point. It batches both handles into one `host.layout.snapshot()` so
 all middleware uses rectangles from the same completed layout revision.
 
-`Popover` composes that positioner with a native root-layer `Portal`:
+`Popover` composes that positioner with a native root-layer `Portal`. Portals
+default to the host's `floating` overlay plane, so they render above content
+without a magic `z-index`; use `plane="modal"` for dialogs and blocking
+backdrops. `z-index` only orders siblings within the same plane:
 
 ```tsx
 <Popover

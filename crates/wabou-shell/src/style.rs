@@ -1022,6 +1022,7 @@ impl DeclaredPaint {
             opacity: self.opacity,
             transform: self.transform.clone(),
             runtime_transform: host.runtime_transform,
+            overlay_plane: host.overlay_plane,
             shadows: self.shadows.clone(),
             border_radius: self.border_radius,
             border: self.border,
@@ -1046,6 +1047,18 @@ impl DeclaredPaint {
     }
 }
 
+/// Host-owned stacking plane. CSS `z-index` only orders siblings inside one
+/// plane; it cannot move content above modal or system UI.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub enum OverlayPlane {
+    #[default]
+    Content,
+    Floating,
+    Modal,
+    System,
+    Debug,
+}
+
 /// Host-owned paint content that is not part of the CSS cascade.
 #[derive(Clone, Default)]
 pub struct HostPaint {
@@ -1056,6 +1069,7 @@ pub struct HostPaint {
     pub widget: Option<Arc<vello::Scene>>,
     pub intrinsic_size: Option<[f32; 2]>,
     pub runtime_transform: Option<[f32; 6]>,
+    pub overlay_plane: OverlayPlane,
 }
 
 /// Fully resolved paint used by layout and rendering.
@@ -1070,6 +1084,8 @@ pub struct Paint {
     pub transform: Vec<PaintTransform>,
     /// Host-driven state, composed after the static CSS transform.
     pub runtime_transform: Option<[f32; 6]>,
+    /// Explicit host stacking plane, ordered before sibling `z-index`.
+    pub overlay_plane: OverlayPlane,
     pub shadows: Vec<Shadow>,
     /// Uniform corner radius in px.
     pub border_radius: f32,

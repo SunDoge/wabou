@@ -6,7 +6,8 @@ use vello::Scene;
 use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 
-use crate::layout::PlacedNode;
+use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
+use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb};
 use crate::style::{IrLength, PaintTransform, Shadow};
 use crate::text::{TextContext, layout_text_styled};
 
@@ -102,6 +103,29 @@ fn shadow_geometry(rect: Rect, node_radius: f64, shadow: &Shadow) -> (Rect, f64,
     (shadow_rect, radius, f64::from(shadow.std_dev))
 }
 
+fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
+    if node.scroll.opacity <= 0.0 {
+        return;
+    }
+    let color = Color::from_rgba8(100, 116, 139, (190.0 * node.scroll.opacity) as u8);
+    for axis in [ScrollAxis::Vertical, ScrollAxis::Horizontal] {
+        let Some(rect) = scrollbar_thumb(node, axis) else {
+            continue;
+        };
+        let radius = match axis {
+            ScrollAxis::Horizontal => rect.height() * 0.5,
+            ScrollAxis::Vertical => rect.width() * 0.5,
+        };
+        scene.fill(
+            Fill::NonZero,
+            transform,
+            color,
+            None,
+            &rect.to_rounded_rect(radius),
+        );
+    }
+}
+
 /// Paint `nodes` into `scene` over a `base_color` background. Text nodes are
 /// laid out with parley and rendered as vello glyph runs.
 pub fn build_scene(
@@ -145,15 +169,23 @@ pub fn build_scene_scaled(
         }
     }
     let mut layers = Vec::new();
-
-    for n in nodes {
-        while layers
-            .last()
-            .is_some_and(|layer: &Layer| layer.depth() >= n.depth)
-        {
-            scene.pop_layer();
-            layers.pop();
-        }
+    for event in subtree_events(nodes) {
+        let SubtreeEvent::Enter(n) = event else {
+            let SubtreeEvent::Exit(n) = event else {
+                unreachable!()
+            };
+            if let Some(transform) = transforms.get(&n.node_id).copied() {
+                draw_scrollbars(scene, n, device * transform);
+            }
+            while layers
+                .last()
+                .is_some_and(|layer: &Layer| layer.depth() >= n.depth)
+            {
+                scene.pop_layer();
+                layers.pop();
+            }
+            continue;
+        };
         let [x0, y0, x1, y1] = n.rect;
         let rect = Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64);
         let r = n.paint.border_radius as f64;
@@ -368,6 +400,7 @@ mod tests {
             own_clip: None,
             own_clip_radius: 0.0,
             border_widths: [0.0; 4],
+            scroll: crate::layout::ScrollMetrics::default(),
             paint,
         }
     }
