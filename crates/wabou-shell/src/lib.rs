@@ -11,6 +11,7 @@ pub mod error;
 pub mod layout;
 pub mod renderer;
 pub mod scene;
+pub mod scrollbar;
 pub mod shell;
 pub mod source;
 pub mod style;

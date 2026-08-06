@@ -124,6 +124,10 @@ pub enum Op<'a> {
         id: u32,
         matrix: [f32; 6],
     },
+    SetOverlayPlane {
+        id: u32,
+        plane: u8,
+    },
     FocusNode {
         id: u32,
     },
@@ -164,6 +168,9 @@ pub enum DecodeError {
 
     #[snafu(display("invalid Vello shadow record"))]
     BadShadow,
+
+    #[snafu(display("unknown overlay plane {plane}"))]
+    BadOverlayPlane { plane: u8 },
 }
 
 struct Reader<'a> {
@@ -404,6 +411,14 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             let id = r.u32()?;
             let matrix = [r.f32()?, r.f32()?, r.f32()?, r.f32()?, r.f32()?, r.f32()?];
             Op::SetTransform2D { id, matrix }
+        }
+        op::SET_OVERLAY_PLANE => {
+            let id = r.u32()?;
+            let plane = r.u8()?;
+            if plane > 2 {
+                return Err(DecodeError::BadOverlayPlane { plane });
+            }
+            Op::SetOverlayPlane { id, plane }
         }
         op::FOCUS_NODE => {
             let id = r.u32()?;

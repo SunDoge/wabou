@@ -30,6 +30,7 @@ export const OP = {
   ScrollBy: 0x15,
   SetStyleValue: 0x16,
   SetShadows: 0x17,
+  SetOverlayPlane: 0x18,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -375,6 +376,11 @@ export class Writer {
     this.emit(OP.SetTransform2D);
     this.u32(id);
     for (const part of matrix) this.f32(part);
+  }
+  setOverlayPlane(id: number, plane: number): void {
+    this.emit(OP.SetOverlayPlane);
+    this.u32(id);
+    this.u8(plane);
   }
   removeStyle(id: number, prop: string): void {
     this.emit(OP.RemoveStyle);

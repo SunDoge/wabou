@@ -128,4 +128,16 @@ describe("Writer limits", () => {
     expect(view.getFloat32(26, true)).toBe(0);
     expect(view.getFloat32(30, true)).toBe(-20);
   });
+
+  test("encodes an explicit host overlay plane", () => {
+    const writer = new Writer();
+    writer.setOverlayPlane(42, 2);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame.byteLength).toBe(14);
+    expect(frame[8]).toBe(OP.SetOverlayPlane);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(frame[13]).toBe(2);
+  });
 });

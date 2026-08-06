@@ -215,6 +215,11 @@ function applyProperty(
   prev: unknown,
 ): void {
   if (value === prev) return;
+  if (name === "overlayPlane") {
+    const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
+    writer.setOverlayPlane(node.id, plane);
+    return;
+  }
   if (name === "transform") {
     const matrix =
       value == null || value === false ? [1, 0, 0, 1, 0, 0] : value;
