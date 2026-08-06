@@ -18,6 +18,7 @@ use wgpu_context::{
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowAttributes};
 
+use crate::accessibility::AccessibilityState;
 use crate::source::WindowOptions;
 use crate::text::TextContext;
 
@@ -27,6 +28,7 @@ pub struct Shell {
     pub renderer: VelloRenderer,
     pub scene: Scene,
     pub tcx: TextContext,
+    pub accessibility: AccessibilityState,
 }
 
 impl Shell {
@@ -40,6 +42,7 @@ impl Shell {
     ) -> crate::Result<Shell> {
         let mut attrs = WindowAttributes::default()
             .with_title(options.title.clone())
+            .with_visible(false)
             .with_resizable(options.resizable)
             .with_surface_size(winit::dpi::LogicalSize::new(
                 options.initial_inner_size.0,
@@ -55,6 +58,8 @@ impl Shell {
                 .context(crate::error::CreateWindowSnafu)?,
         );
         let physical_size = window.surface_size();
+        let accessibility = AccessibilityState::new(window.clone(), options.title.clone());
+        window.set_visible(true);
         let surface_width = physical_size.width.max(1);
         let surface_height = physical_size.height.max(1);
 
@@ -97,6 +102,7 @@ impl Shell {
             renderer,
             scene: Scene::new(),
             tcx: TextContext::new(),
+            accessibility,
         })
     }
 
@@ -132,6 +138,7 @@ impl Shell {
     /// Encode `self.scene` and blit+present to the surface (vsync-blocks on
     /// `PresentMode::AutoVsync`).
     pub fn present(&mut self, base_color: Color) -> bool {
+        self.accessibility.publish_root(self.window.as_ref());
         let (w, h) = self.size();
         let Ok(view) = self.surface.target_texture_view() else {
             self.surface.clear_surface_texture();
