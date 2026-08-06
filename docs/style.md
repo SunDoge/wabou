@@ -117,9 +117,12 @@ radius. `color` is packed sRGBA in `0xRRGGBBAA` order. An optional `radius`
 overrides the node-derived rounded-rectangle radius for that layer. Shadows
 follow the node's affine transform and do not affect layout.
 
-The `shadow-*` utilities are convenience presets, not a Tailwind compatibility
-contract. CSS inset and gradient shadows are not exposed because Vello's
-blurred-rounded-rectangle primitive accepts neither.
+The `shadow-none`, `shadow-xs`, `shadow-sm`, `shadow`, `shadow-md`, `shadow-lg`,
+and `shadow-xl` utilities form Wabou's native elevation scale. Medium and larger
+presets combine an ambient layer with a tighter key layer. These are convenience
+presets, not a Tailwind compatibility contract. CSS inset and gradient shadows
+are not exposed because Vello's blurred-rounded-rectangle primitive accepts
+neither.
 
 The same package exports generated `WabouUtility` and `classes()` types:
 

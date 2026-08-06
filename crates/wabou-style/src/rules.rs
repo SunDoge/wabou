@@ -658,20 +658,40 @@ pub(super) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("select-all", vec![keyword("user-select", "all")]),
         ("shadow-none", vec![shadows(vec![])]),
         (
+            "shadow-xs",
+            vec![shadows(vec![shadow(0.0, 1.0, 0.75, 0.0, 0x0f172a14)])],
+        ),
+        (
             "shadow-sm",
-            vec![shadows(vec![shadow(0.0, 1.0, 1.0, 0.0, 0x0000000d)])],
+            vec![shadows(vec![shadow(0.0, 1.0, 1.5, 0.0, 0x0f172a1a)])],
         ),
         (
             "shadow",
-            vec![shadows(vec![shadow(0.0, 1.0, 1.5, 0.0, 0x0000001a)])],
+            vec![shadows(vec![
+                shadow(0.0, 1.0, 2.0, 0.0, 0x0f172a14),
+                shadow(0.0, 2.0, 1.0, -1.0, 0x0f172a1f),
+            ])],
         ),
         (
             "shadow-md",
-            vec![shadows(vec![shadow(0.0, 4.0, 3.0, -1.0, 0x0000001a)])],
+            vec![shadows(vec![
+                shadow(0.0, 3.0, 6.0, 0.0, 0x0f172a1a),
+                shadow(0.0, 5.0, 2.5, -2.0, 0x0f172a24),
+            ])],
         ),
         (
             "shadow-lg",
-            vec![shadows(vec![shadow(0.0, 10.0, 7.5, -3.0, 0x0000001a)])],
+            vec![shadows(vec![
+                shadow(0.0, 6.0, 10.0, 0.0, 0x0f172a1f),
+                shadow(0.0, 12.0, 4.0, -4.0, 0x0f172a29),
+            ])],
+        ),
+        (
+            "shadow-xl",
+            vec![shadows(vec![
+                shadow(0.0, 10.0, 16.0, 0.0, 0x0f172a24),
+                shadow(0.0, 20.0, 6.0, -6.0, 0x0f172a2e),
+            ])],
         ),
         (
             "translate-x-4",
@@ -1202,6 +1222,40 @@ mod tests {
                 if matches!(&values[0], Value::Record { fields }
                     if fields.get("kind") == Some(&Value::Keyword { value: "translateX".into() }))
         ));
+    }
+
+    #[test]
+    fn vello_shadow_scale_uses_ordered_ambient_and_key_layers() {
+        for candidate in ["shadow", "shadow-md", "shadow-lg", "shadow-xl"] {
+            let parsed = parse_utility(candidate).unwrap();
+            assert!(matches!(
+                &parsed.declarations[0].value,
+                Value::List { values } if values.len() == 2
+            ));
+        }
+
+        let parsed = parse_utility("shadow-xl").unwrap();
+        let Value::List { values } = &parsed.declarations[0].value else {
+            panic!("shadow-xl must emit an ordered layer list");
+        };
+        let Value::Record { fields: ambient } = &values[0] else {
+            panic!("ambient layer must be a record");
+        };
+        let Value::Record { fields: key } = &values[1] else {
+            panic!("key layer must be a record");
+        };
+        assert_eq!(
+            ambient.get("stdDev"),
+            Some(&Value::Length {
+                value: Length::Px { value: 16.0 }
+            })
+        );
+        assert_eq!(
+            key.get("spread"),
+            Some(&Value::Length {
+                value: Length::Px { value: -6.0 }
+            })
+        );
     }
 
     #[test]
