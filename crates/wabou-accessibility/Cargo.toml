@@ -1,0 +1,12 @@
+[package]
+name = "wabou-accessibility"
+version = "0.1.0"
+edition = "2024"
+
+license.workspace = true
+
+[dependencies]
+accesskit = "0.24.1"
+accesskit_xplat = "=0.1.1"
+raw-window-handle = "0.6"
+winit = "=0.31.0-beta.2"

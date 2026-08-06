@@ -419,9 +419,15 @@ impl ApplicationHandler for App {
                 let Some(shell) = self.state.as_mut() else {
                     return;
                 };
+                for action in shell.accessibility.take_actions() {
+                    self.source.handle_semantic_action(action);
+                }
                 let base_color = self.source.base_color();
                 let (node_count, build_frame_ms, scene_ms) =
                     Self::build(shell, self.source.as_mut(), base_color);
+                shell
+                    .accessibility
+                    .set_snapshot(self.source.semantic_snapshot());
                 if let Some(path) = self.source.take_screenshot_request() {
                     let (width, height) = shell.size();
                     let result = crate::renderer::render_to_png(

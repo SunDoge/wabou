@@ -468,4 +468,59 @@ mod tests {
         assert_eq!(placed[1].own_clip, Some([1.0, 1.0, 99.0, 99.0]));
         assert_eq!(placed[1].own_clip_radius, 11.0);
     }
+
+    #[test]
+    fn overlay_plane_orders_before_z_index() {
+        use crate::style::OverlayPlane;
+
+        let mut tree = TaffyTree::<Paint>::new();
+        let leaf_style = taffy::Style {
+            size: Size {
+                width: taffy::Dimension::length(10.0),
+                height: taffy::Dimension::length(10.0),
+            },
+            ..Default::default()
+        };
+        let modal = tree.new_leaf(leaf_style.clone()).unwrap();
+        let content = tree.new_leaf(leaf_style).unwrap();
+        let root = tree
+            .new_with_children(
+                taffy::Style {
+                    size: Size {
+                        width: taffy::Dimension::length(100.0),
+                        height: taffy::Dimension::length(100.0),
+                    },
+                    ..Default::default()
+                },
+                &[modal, content],
+            )
+            .unwrap();
+        tree.set_node_context(root, Some(Paint::default())).unwrap();
+        tree.set_node_context(
+            content,
+            Some(Paint {
+                overlay_plane: OverlayPlane::Content,
+                z_index: 10_000,
+                ..Paint::default()
+            }),
+        )
+        .unwrap();
+        tree.set_node_context(
+            modal,
+            Some(Paint {
+                overlay_plane: OverlayPlane::Modal,
+                z_index: -10_000,
+                ..Paint::default()
+            }),
+        )
+        .unwrap();
+
+        let mut text = TextContext::new();
+        let placed =
+            compute_and_walk_with_scroll(&mut tree, root, 100.0, 100.0, &mut text, &HashMap::new());
+        assert_eq!(
+            placed.iter().map(|node| node.node_id).collect::<Vec<_>>(),
+            vec![root, content, modal]
+        );
+    }
 }

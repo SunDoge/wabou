@@ -107,6 +107,8 @@ pub struct DebugComputedStyle {
     pub opacity: f32,
     pub pointer_events: bool,
     pub z_index: i32,
+    pub overlay_plane: String,
+    pub scrollbar_opacity: f32,
     pub text_color: String,
     pub background: Option<String>,
 }
@@ -124,6 +126,8 @@ impl Default for DebugComputedStyle {
             opacity: 1.0,
             pointer_events: true,
             z_index: 0,
+            overlay_plane: "Content".into(),
+            scrollbar_opacity: 0.0,
             text_color: String::new(),
             background: None,
         }
@@ -691,20 +695,22 @@ pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHa
                                     let deadline = std::time::Instant::now()
                                         + std::time::Duration::from_secs(10);
                                     loop {
-                                        let result = state
-                                            .read()
-                                            .map_err(|_| "debug state poisoned".to_string())?;
-                                        let result = if capture_case {
-                                            result.capture_case_result().cloned().map(|result| {
-                                                result.and_then(|capture| {
-                                                    serde_json::to_value(capture)
-                                                        .map_err(|error| error.to_string())
+                                        let result = {
+                                            let state = state
+                                                .read()
+                                                .map_err(|_| "debug state poisoned".to_string())?;
+                                            if capture_case {
+                                                state.capture_case_result().cloned().map(|result| {
+                                                    result.and_then(|capture| {
+                                                        serde_json::to_value(capture)
+                                                            .map_err(|error| error.to_string())
+                                                    })
                                                 })
-                                            })
-                                        } else {
-                                            result.screenshot_result().cloned().map(|result| {
-                                                result.map(|path| json!({"path": path}))
-                                            })
+                                            } else {
+                                                state.screenshot_result().cloned().map(|result| {
+                                                    result.map(|path| json!({"path": path}))
+                                                })
+                                            }
                                         };
                                         if let Some(result) = result {
                                             break result;
@@ -1013,7 +1019,9 @@ mod tests {
         let response = call(&path, &request(2, "captureScreenshot", empty_params())).unwrap();
         worker.join().unwrap();
         assert!(
-            response.result.unwrap()["path"]
+            response
+                .result
+                .unwrap_or_else(|| panic!("capture failed: {:?}", response.error))["path"]
                 .as_str()
                 .unwrap()
                 .ends_with(".png")

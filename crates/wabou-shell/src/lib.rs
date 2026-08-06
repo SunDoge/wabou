@@ -5,7 +5,7 @@
 //! vello renderer and presents at vsync. The `wabou-quick` crate provides the
 //! SolidJS-driven (op-protocol) source.
 
-pub mod accessibility;
+pub use wabou_accessibility as accessibility;
 pub mod app;
 pub mod error;
 pub mod layout;
@@ -27,7 +27,7 @@ pub use shell::Shell;
 pub use source::{
     ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
     KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerPhase,
-    UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand, WindowMetrics,
-    WindowOptions,
+    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, UiEvent, WHEEL_LINE_DELTA,
+    WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;

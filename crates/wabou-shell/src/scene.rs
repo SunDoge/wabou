@@ -489,4 +489,50 @@ mod tests {
 
         assert_eq!(radius, 24.0);
     }
+
+    #[test]
+    fn overlay_scrollbar_pixels_scale_once_at_one_and_two_x() {
+        let mut node = placed_node(Paint::default());
+        node.rect = [0.0, 0.0, 100.0, 100.0];
+        node.content_origin = [0.0, 0.0];
+        node.scroll = crate::layout::ScrollMetrics {
+            port: [0.0, 0.0, 100.0, 100.0],
+            scrollable: [false, true],
+            range: [0.0, 900.0],
+            offset: [0.0, 0.0],
+            opacity: 1.0,
+            interaction: 0,
+        };
+        node.paint.scrollbar.thumb_color = Color::from_rgba8(56, 189, 248, 255);
+        let mut tcx = TextContext::new();
+        for scale in [1_u32, 2] {
+            let mut scene = Scene::new();
+            build_scene_scaled(
+                &mut scene,
+                std::slice::from_ref(&node),
+                &mut tcx,
+                100,
+                100,
+                Color::BLACK,
+                f64::from(scale),
+            );
+            let path = std::env::temp_dir().join(format!(
+                "wabou-scrollbar-pixel-{}-{scale}.png",
+                std::process::id()
+            ));
+            crate::renderer::render_to_png(
+                &scene,
+                100 * scale,
+                100 * scale,
+                Color::BLACK,
+                &path.to_string_lossy(),
+            )
+            .expect("offscreen scrollbar render");
+            let image = image::open(&path).expect("rendered png").into_rgba8();
+            let thumb = image.get_pixel(93 * scale, 16 * scale).0;
+            assert!(thumb[2] > 200 && thumb[1] > 150, "thumb pixel: {thumb:?}");
+            assert_eq!(image.get_pixel(50 * scale, 50 * scale).0[..3], [0, 0, 0]);
+            std::fs::remove_file(path).expect("remove owned test png");
+        }
+    }
 }
