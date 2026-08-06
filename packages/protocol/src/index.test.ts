@@ -75,6 +75,33 @@ describe("Writer limits", () => {
     expect(view.getFloat32(18, true)).toBe(12.5);
   });
 
+  test("encodes ordered Vello shadow layers as fixed binary records", () => {
+    const writer = new Writer();
+    writer.setShadows(7, [
+      {
+        offsetX: 1,
+        offsetY: 2,
+        spread: -3,
+        stdDev: 4.5,
+        color: 0x336699cc,
+        radius: 8,
+      },
+    ]);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame.byteLength).toBe(39);
+    expect(frame[8]).toBe(OP.SetShadows);
+    expect(view.getUint32(9, true)).toBe(7);
+    expect(view.getUint16(13, true)).toBe(1);
+    expect(view.getFloat32(15, true)).toBe(1);
+    expect(view.getFloat32(19, true)).toBe(2);
+    expect(view.getFloat32(23, true)).toBe(-3);
+    expect(view.getFloat32(27, true)).toBe(4.5);
+    expect(view.getUint32(31, true)).toBe(0x336699cc);
+    expect(view.getFloat32(35, true)).toBe(8);
+  });
+
   test("encodes imperative focus as a node-only operation", () => {
     const writer = new Writer();
     writer.focusNode(42);

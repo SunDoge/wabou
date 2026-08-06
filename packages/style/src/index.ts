@@ -45,6 +45,52 @@ export const bool = (value: boolean): TypedStyleValue =>
 export const rgba = (value: number): TypedStyleValue =>
   typed(StyleValueKind.Color, value >>> 0);
 
+/** One Vello blurred-rounded-rectangle shadow layer. */
+export interface Shadow {
+  readonly offsetX: number;
+  readonly offsetY: number;
+  readonly spread: number;
+  /** Gaussian standard deviation passed directly to Vello. */
+  readonly stdDev: number;
+  /** Packed sRGBA in `0xRRGGBBAA` order. */
+  readonly color: number;
+  /** Override the rounded-rectangle radius; defaults to the node radius plus spread. */
+  readonly radius?: number;
+}
+
+export interface ShadowOptions {
+  offsetX?: number;
+  offsetY?: number;
+  spread?: number;
+  stdDev: number;
+  color: number;
+  radius?: number;
+}
+
+/** Construct and validate a Vello-native shadow layer. */
+export function shadow(options: ShadowOptions): Shadow {
+  const result: Shadow = {
+    offsetX: options.offsetX ?? 0,
+    offsetY: options.offsetY ?? 0,
+    spread: options.spread ?? 0,
+    stdDev: options.stdDev,
+    color: options.color >>> 0,
+    ...(options.radius === undefined ? {} : { radius: options.radius }),
+  };
+  for (const [name, value] of Object.entries(result)) {
+    if (name === "color") continue;
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError(`shadow ${name} must be a finite number`);
+    }
+  }
+  if (result.stdDev < 0)
+    throw new RangeError("shadow stdDev cannot be negative");
+  if (result.radius !== undefined && result.radius < 0) {
+    throw new RangeError("shadow radius cannot be negative");
+  }
+  return result;
+}
+
 export const auto = (): TypedStyleValue => typed(StyleValueKind.Auto);
 
 export function isTypedStyleValue(value: unknown): value is TypedStyleValue {

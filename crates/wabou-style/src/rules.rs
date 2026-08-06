@@ -304,7 +304,7 @@ fn color(property: &str, rgba: u32) -> Declaration {
     }
 }
 
-fn shadow(x: f32, y: f32, blur: f32, spread: f32, rgba: u32) -> Value {
+fn shadow(x: f32, y: f32, std_dev: f32, spread: f32, rgba: u32) -> Value {
     Value::Record {
         fields: BTreeMap::from([
             (
@@ -320,9 +320,9 @@ fn shadow(x: f32, y: f32, blur: f32, spread: f32, rgba: u32) -> Value {
                 },
             ),
             (
-                "blur".into(),
+                "stdDev".into(),
                 Value::Length {
-                    value: Length::Px { value: blur },
+                    value: Length::Px { value: std_dev },
                 },
             ),
             (
@@ -337,7 +337,6 @@ fn shadow(x: f32, y: f32, blur: f32, spread: f32, rgba: u32) -> Value {
                     value: Color::Literal { rgba },
                 },
             ),
-            ("inset".into(), Value::Boolean { value: false }),
         ]),
     }
 }
@@ -660,19 +659,19 @@ pub(super) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("shadow-none", vec![shadows(vec![])]),
         (
             "shadow-sm",
-            vec![shadows(vec![shadow(0.0, 1.0, 2.0, 0.0, 0x0000000d)])],
+            vec![shadows(vec![shadow(0.0, 1.0, 1.0, 0.0, 0x0000000d)])],
         ),
         (
             "shadow",
-            vec![shadows(vec![shadow(0.0, 1.0, 3.0, 0.0, 0x0000001a)])],
+            vec![shadows(vec![shadow(0.0, 1.0, 1.5, 0.0, 0x0000001a)])],
         ),
         (
             "shadow-md",
-            vec![shadows(vec![shadow(0.0, 4.0, 6.0, -1.0, 0x0000001a)])],
+            vec![shadows(vec![shadow(0.0, 4.0, 3.0, -1.0, 0x0000001a)])],
         ),
         (
             "shadow-lg",
-            vec![shadows(vec![shadow(0.0, 10.0, 15.0, -3.0, 0x0000001a)])],
+            vec![shadows(vec![shadow(0.0, 10.0, 7.5, -3.0, 0x0000001a)])],
         ),
         (
             "translate-x-4",

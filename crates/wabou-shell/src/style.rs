@@ -790,7 +790,7 @@ pub fn apply_ir(
         }
         "box-shadow" => {
             if let IrValue::List { values } = value {
-                paint.box_shadows = values.iter().filter_map(BoxShadow::from_ir).collect();
+                paint.shadows = values.iter().filter_map(Shadow::from_ir).collect();
             }
         }
         "user-select" => match value.keyword() {
@@ -872,16 +872,16 @@ impl PaintTransform {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct BoxShadow {
-    pub x: f32,
-    pub y: f32,
-    pub blur: f32,
+pub struct Shadow {
+    pub offset_x: f32,
+    pub offset_y: f32,
     pub spread: f32,
+    pub std_dev: f32,
     pub color: Color,
-    pub inset: bool,
+    pub radius: Option<f32>,
 }
 
-impl BoxShadow {
+impl Shadow {
     fn from_ir(value: &IrValue) -> Option<Self> {
         let px = |name| match field(value, name)? {
             IrValue::Length {
@@ -890,16 +890,13 @@ impl BoxShadow {
             IrValue::Number { value } => Some(*value),
             _ => None,
         };
-        let IrValue::Boolean { value: inset } = field(value, "inset")? else {
-            return None;
-        };
         Some(Self {
-            x: px("x")?,
-            y: px("y")?,
-            blur: px("blur")?,
+            offset_x: px("x")?,
+            offset_y: px("y")?,
             spread: px("spread")?,
+            std_dev: px("stdDev")?,
             color: ir_color(field(value, "color")?)?,
-            inset: *inset,
+            radius: field(value, "radius").and_then(|_| px("radius")),
         })
     }
 }
@@ -949,7 +946,7 @@ pub struct DeclaredPaint {
     pub background: Option<Color>,
     pub opacity: f32,
     pub transform: Vec<PaintTransform>,
-    pub box_shadows: Vec<BoxShadow>,
+    pub shadows: Vec<Shadow>,
     /// Uniform corner radius in px.
     pub border_radius: f32,
     /// Uniform border (width px, color).
@@ -976,7 +973,7 @@ impl Default for DeclaredPaint {
             background: None,
             opacity: 1.0,
             transform: Vec::new(),
-            box_shadows: Vec::new(),
+            shadows: Vec::new(),
             border_radius: 0.0,
             border: None,
             text_color: None,
@@ -1025,7 +1022,7 @@ impl DeclaredPaint {
             opacity: self.opacity,
             transform: self.transform.clone(),
             runtime_transform: host.runtime_transform,
-            box_shadows: self.box_shadows.clone(),
+            shadows: self.shadows.clone(),
             border_radius: self.border_radius,
             border: self.border,
             text: host.text,
@@ -1073,7 +1070,7 @@ pub struct Paint {
     pub transform: Vec<PaintTransform>,
     /// Host-driven state, composed after the static CSS transform.
     pub runtime_transform: Option<[f32; 6]>,
-    pub box_shadows: Vec<BoxShadow>,
+    pub shadows: Vec<Shadow>,
     /// Uniform corner radius in px.
     pub border_radius: f32,
     /// Uniform border (width px, color).
@@ -1432,7 +1429,7 @@ mod tests {
             values: vec![record([
                 ("x", px(1.0)),
                 ("y", px(2.0)),
-                ("blur", px(8.0)),
+                ("stdDev", px(8.0)),
                 ("spread", px(0.0)),
                 (
                     "color",
@@ -1440,14 +1437,13 @@ mod tests {
                         value: IrColor::Literal { rgba: 0x00000080 },
                     },
                 ),
-                ("inset", IrValue::Boolean { value: false }),
             ])],
         };
         assert!(apply_ir(&mut layout, &mut paint, "box-shadow", &shadow));
         assert_eq!(paint.opacity, 0.4);
         assert_eq!(paint.transform, vec![PaintTransform::Scale(2.0, 3.0)]);
-        assert_eq!(paint.box_shadows.len(), 1);
-        assert_eq!(paint.box_shadows[0].blur, 8.0);
+        assert_eq!(paint.shadows.len(), 1);
+        assert_eq!(paint.shadows[0].std_dev, 8.0);
     }
 
     #[test]

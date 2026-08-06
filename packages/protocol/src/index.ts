@@ -29,6 +29,7 @@ export const OP = {
   ScrollTo: 0x14,
   ScrollBy: 0x15,
   SetStyleValue: 0x16,
+  SetShadows: 0x17,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -339,6 +340,32 @@ export class Writer {
       if (kind === 5) this.u32(value >>> 0);
       else if (kind === 4) this.u8(value ? 1 : 0);
       else this.f32(value);
+    }
+  }
+  setShadows(
+    id: number,
+    shadows: readonly {
+      offsetX: number;
+      offsetY: number;
+      spread: number;
+      stdDev: number;
+      color: number;
+      radius?: number;
+    }[],
+  ): void {
+    if (shadows.length > 0xffff) {
+      throw new RangeError("a node cannot have more than 65535 shadow layers");
+    }
+    this.emit(OP.SetShadows);
+    this.u32(id);
+    this.u16(shadows.length);
+    for (const shadow of shadows) {
+      this.f32(shadow.offsetX);
+      this.f32(shadow.offsetY);
+      this.f32(shadow.spread);
+      this.f32(shadow.stdDev);
+      this.u32(shadow.color >>> 0);
+      this.f32(shadow.radius ?? Number.NaN);
     }
   }
   setTransform2D(

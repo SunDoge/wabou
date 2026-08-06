@@ -1740,13 +1740,6 @@
             {
               "type": "record",
               "fields": {
-                "blur": {
-                  "type": "length",
-                  "value": {
-                    "unit": "px",
-                    "value": 3.0
-                  }
-                },
                 "color": {
                   "type": "color",
                   "value": {
@@ -1754,15 +1747,18 @@
                     "rgba": 26
                   }
                 },
-                "inset": {
-                  "type": "boolean",
-                  "value": false
-                },
                 "spread": {
                   "type": "length",
                   "value": {
                     "unit": "px",
                     "value": 0.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 1.5
                   }
                 },
                 "x": {
@@ -1794,13 +1790,6 @@
             {
               "type": "record",
               "fields": {
-                "blur": {
-                  "type": "length",
-                  "value": {
-                    "unit": "px",
-                    "value": 15.0
-                  }
-                },
                 "color": {
                   "type": "color",
                   "value": {
@@ -1808,15 +1797,18 @@
                     "rgba": 26
                   }
                 },
-                "inset": {
-                  "type": "boolean",
-                  "value": false
-                },
                 "spread": {
                   "type": "length",
                   "value": {
                     "unit": "px",
                     "value": -3.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 7.5
                   }
                 },
                 "x": {
@@ -1848,13 +1840,6 @@
             {
               "type": "record",
               "fields": {
-                "blur": {
-                  "type": "length",
-                  "value": {
-                    "unit": "px",
-                    "value": 6.0
-                  }
-                },
                 "color": {
                   "type": "color",
                   "value": {
@@ -1862,15 +1847,18 @@
                     "rgba": 26
                   }
                 },
-                "inset": {
-                  "type": "boolean",
-                  "value": false
-                },
                 "spread": {
                   "type": "length",
                   "value": {
                     "unit": "px",
                     "value": -1.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 3.0
                   }
                 },
                 "x": {
@@ -1911,13 +1899,6 @@
             {
               "type": "record",
               "fields": {
-                "blur": {
-                  "type": "length",
-                  "value": {
-                    "unit": "px",
-                    "value": 2.0
-                  }
-                },
                 "color": {
                   "type": "color",
                   "value": {
@@ -1925,15 +1906,18 @@
                     "rgba": 13
                   }
                 },
-                "inset": {
-                  "type": "boolean",
-                  "value": false
-                },
                 "spread": {
                   "type": "length",
                   "value": {
                     "unit": "px",
                     "value": 0.0
+                  }
+                },
+                "stdDev": {
+                  "type": "length",
+                  "value": {
+                    "unit": "px",
+                    "value": 1.0
                   }
                 },
                 "x": {
@@ -3364,13 +3348,6 @@
               {
                 "type": "record",
                 "fields": {
-                  "blur": {
-                    "type": "length",
-                    "value": {
-                      "unit": "px",
-                      "value": 6.0
-                    }
-                  },
                   "color": {
                     "type": "color",
                     "value": {
@@ -3378,15 +3355,18 @@
                       "rgba": 26
                     }
                   },
-                  "inset": {
-                    "type": "boolean",
-                    "value": false
-                  },
                   "spread": {
                     "type": "length",
                     "value": {
                       "unit": "px",
                       "value": -1.0
+                    }
+                  },
+                  "stdDev": {
+                    "type": "length",
+                    "value": {
+                      "unit": "px",
+                      "value": 3.0
                     }
                   },
                   "x": {

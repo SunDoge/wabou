@@ -1,9 +1,9 @@
 import { createElement, type Handle, spread } from "@wabou/solid-renderer";
-import type { Affine2D, WabouStyle } from "@wabou/style";
+import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
 import type { JSX } from "solid-js";
 
-export { translate2d } from "@wabou/style";
 export type { Affine2D, WabouStyle } from "@wabou/style";
+export { translate2d } from "@wabou/style";
 export type WabouClassList = Record<string, boolean | undefined>;
 
 export interface TextSelectionChangeEvent {
@@ -19,6 +19,8 @@ interface PrimitiveProps {
   style?: WabouStyle;
   /** Explicit runtime state, composed after the static CSS transform. */
   transform?: Affine2D | null;
+  /** Ordered Vello blurred-rounded-rectangle shadow layers. */
+  shadows?: readonly Shadow[] | null;
   children?: JSX.Element;
   /** Native host node, useful for imperative primitives and measurement. */
   ref?: (node: Handle) => void;

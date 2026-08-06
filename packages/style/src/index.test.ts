@@ -5,6 +5,7 @@ import {
   percent,
   px,
   rgba,
+  shadow,
   type WabouUtility,
 } from "./index.ts";
 
@@ -21,6 +22,24 @@ describe("typed style", () => {
     const utility = "bg-slate-900" satisfies WabouUtility;
     expect(classes("flex", "px-[13px]", utility)).toBe(
       "flex px-[13px] bg-slate-900",
+    );
+  });
+
+  test("constructs Vello-native shadows in stdDev units", () => {
+    expect(
+      shadow({ stdDev: 6, spread: -2, offsetY: 8, color: 0x11223344 }),
+    ).toEqual({
+      offsetX: 0,
+      offsetY: 8,
+      spread: -2,
+      stdDev: 6,
+      color: 0x11223344,
+    });
+    expect(() => shadow({ stdDev: -1, color: 0 })).toThrow(
+      "stdDev cannot be negative",
+    );
+    expect(() => shadow({ stdDev: 1, radius: -1, color: 0 })).toThrow(
+      "radius cannot be negative",
     );
   });
 });

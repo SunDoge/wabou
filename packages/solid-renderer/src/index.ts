@@ -13,7 +13,7 @@
 // load and re-export its methods as named exports below.
 
 import { EVENT_CODE, type EventType, OP, Writer } from "@wabou/protocol";
-import { type Affine2D, isTypedStyleValue } from "@wabou/style";
+import { type Affine2D, isTypedStyleValue, type Shadow } from "@wabou/style";
 import { createMemo, splitProps, untrack } from "solid-js";
 export const isServer = false;
 export const getRequestEvent = () => undefined;
@@ -244,6 +244,14 @@ function applyProperty(
     }
     classesByNode.set(node, state);
     emitClasses(writer, node);
+    return;
+  }
+  if (name === "shadows") {
+    if (value == null || value === false) {
+      writer.removeStyle(node.id, "box-shadow");
+    } else if (Array.isArray(value)) {
+      writer.setShadows(node.id, value as readonly Shadow[]);
+    }
     return;
   }
   if (value == null || value === false) {

@@ -24,6 +24,7 @@ pub mod op {
     pub const SCROLL_TO: u8 = 0x14;
     pub const SCROLL_BY: u8 = 0x15;
     pub const SET_STYLE_VALUE: u8 = 0x16;
+    pub const SET_SHADOWS: u8 = 0x17;
 }
 
 pub mod event {
