@@ -81,51 +81,172 @@ pub(super) const SPACING: &[(&str, f32)] = &[
     ("96", 384.0),
 ];
 
-pub(super) const COLORS: &[(&str, u32)] = &[
+pub(super) const BASE_COLORS: &[(&str, u32)] = &[
     ("transparent", 0x00000000),
     ("black", 0x000000ff),
     ("white", 0xffffffff),
-    ("slate-50", 0xf8fafcff),
-    ("slate-100", 0xf1f5f9ff),
-    ("slate-200", 0xe2e8f0ff),
-    ("slate-300", 0xcbd5e1ff),
-    ("slate-400", 0x94a3b8ff),
-    ("slate-500", 0x64748bff),
-    ("slate-600", 0x475569ff),
-    ("slate-700", 0x334155ff),
-    ("slate-800", 0x1e293bff),
-    ("slate-900", 0x0f172aff),
-    ("slate-950", 0x020617ff),
-    ("red-50", 0xfef2f2ff),
-    ("red-100", 0xfee2e2ff),
-    ("red-200", 0xfecacaff),
-    ("red-300", 0xfca5a5ff),
-    ("red-500", 0xef4444ff),
-    ("red-600", 0xdc2626ff),
-    ("red-700", 0xb91c1cff),
-    ("red-800", 0x991b1bff),
-    ("red-900", 0x7f1d1dff),
-    ("red-950", 0x450a0aff),
-    ("sky-400", 0x38bdf8ff),
-    ("sky-500", 0x0ea5e9ff),
-    ("sky-600", 0x0284c7ff),
-    ("sky-700", 0x0369a1ff),
-    ("emerald-50", 0xecfdf5ff),
-    ("emerald-100", 0xd1fae5ff),
-    ("emerald-200", 0xa7f3d0ff),
-    ("emerald-300", 0x6ee7b7ff),
-    ("emerald-400", 0x34d399ff),
-    ("emerald-600", 0x059669ff),
-    ("emerald-700", 0x047857ff),
-    ("emerald-800", 0x065f46ff),
-    ("emerald-950", 0x022c22ff),
-    ("blue-600", 0x2563ebff),
-    ("cyan-400", 0x22d3eeff),
-    ("purple-300", 0xd8b4feff),
-    ("purple-900", 0x581c87ff),
-    ("violet-400", 0xa78bfaff),
-    ("violet-950", 0x2e1065ff),
-    ("amber-300", 0xfcd34dff),
+];
+
+/// Predictable Tailwind-compatible color families. Every family has the same
+/// 50..950 stops; keeping this as a matrix makes incomplete palettes
+/// structurally impossible.
+pub(super) const COLOR_STOPS: &[u16; 11] = &[50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+
+pub(super) const COLOR_SCALES: &[(&str, [u32; 11])] = &[
+    (
+        "rose",
+        [
+            0xfff1f2ff, 0xffe4e6ff, 0xfecdd3ff, 0xfda4afff, 0xfb7185ff, 0xf43f5eff, 0xe11d48ff,
+            0xbe123cff, 0x9f1239ff, 0x881337ff, 0x4c0519ff,
+        ],
+    ),
+    (
+        "pink",
+        [
+            0xfdf2f8ff, 0xfce7f3ff, 0xfbcfe8ff, 0xf9a8d4ff, 0xf472b6ff, 0xec4899ff, 0xdb2777ff,
+            0xbe185dff, 0x9d174dff, 0x831843ff, 0x500724ff,
+        ],
+    ),
+    (
+        "fuchsia",
+        [
+            0xfdf4ffff, 0xfae8ffff, 0xf5d0feff, 0xf0abfcff, 0xe879f9ff, 0xd946efff, 0xc026d3ff,
+            0xa21cafff, 0x86198fff, 0x701a75ff, 0x4a044eff,
+        ],
+    ),
+    (
+        "purple",
+        [
+            0xfaf5ffff, 0xf3e8ffff, 0xe9d5ffff, 0xd8b4feff, 0xc084fcff, 0xa855f7ff, 0x9333eaff,
+            0x7e22ceff, 0x6b21a8ff, 0x581c87ff, 0x3b0764ff,
+        ],
+    ),
+    (
+        "violet",
+        [
+            0xf5f3ffff, 0xede9feff, 0xddd6feff, 0xc4b5fdff, 0xa78bfaff, 0x8b5cf6ff, 0x7c3aedff,
+            0x6d28d9ff, 0x5b21b6ff, 0x4c1d95ff, 0x2e1065ff,
+        ],
+    ),
+    (
+        "indigo",
+        [
+            0xeef2ffff, 0xe0e7ffff, 0xc7d2feff, 0xa5b4fcff, 0x818cf8ff, 0x6366f1ff, 0x4f46e5ff,
+            0x4338caff, 0x3730a3ff, 0x312e81ff, 0x1e1b4bff,
+        ],
+    ),
+    (
+        "blue",
+        [
+            0xeff6ffff, 0xdbeafeff, 0xbfdbfeff, 0x93c5fdff, 0x60a5faff, 0x3b82f6ff, 0x2563ebff,
+            0x1d4ed8ff, 0x1e40afff, 0x1e3a8aff, 0x172554ff,
+        ],
+    ),
+    (
+        "sky",
+        [
+            0xf0f9ffff, 0xe0f2feff, 0xbae6fdff, 0x7dd3fcff, 0x38bdf8ff, 0x0ea5e9ff, 0x0284c7ff,
+            0x0369a1ff, 0x075985ff, 0x0c4a6eff, 0x082f49ff,
+        ],
+    ),
+    (
+        "cyan",
+        [
+            0xecfeffff, 0xcffafeff, 0xa5f3fcff, 0x67e8f9ff, 0x22d3eeff, 0x06b6d4ff, 0x0891b2ff,
+            0x0e7490ff, 0x155e75ff, 0x164e63ff, 0x083344ff,
+        ],
+    ),
+    (
+        "teal",
+        [
+            0xf0fdfaff, 0xccfbf1ff, 0x99f6e4ff, 0x5eead4ff, 0x2dd4bfff, 0x14b8a6ff, 0x0d9488ff,
+            0x0f766eff, 0x115e59ff, 0x134e4aff, 0x042f2eff,
+        ],
+    ),
+    (
+        "emerald",
+        [
+            0xecfdf5ff, 0xd1fae5ff, 0xa7f3d0ff, 0x6ee7b7ff, 0x34d399ff, 0x10b981ff, 0x059669ff,
+            0x047857ff, 0x065f46ff, 0x064e3bff, 0x022c22ff,
+        ],
+    ),
+    (
+        "green",
+        [
+            0xf0fdf4ff, 0xdcfce7ff, 0xbbf7d0ff, 0x86efacff, 0x4ade80ff, 0x22c55eff, 0x16a34aff,
+            0x15803dff, 0x166534ff, 0x14532dff, 0x052e16ff,
+        ],
+    ),
+    (
+        "lime",
+        [
+            0xf7fee7ff, 0xecfccbff, 0xd9f99dff, 0xbef264ff, 0xa3e635ff, 0x84cc16ff, 0x65a30dff,
+            0x4d7c0fff, 0x3f6212ff, 0x365314ff, 0x1a2e05ff,
+        ],
+    ),
+    (
+        "yellow",
+        [
+            0xfefce8ff, 0xfef9c3ff, 0xfef08aff, 0xfde047ff, 0xfacc15ff, 0xeab308ff, 0xca8a04ff,
+            0xa16207ff, 0x854d0eff, 0x713f12ff, 0x422006ff,
+        ],
+    ),
+    (
+        "amber",
+        [
+            0xfffbebff, 0xfef3c7ff, 0xfde68aff, 0xfcd34dff, 0xfbbf24ff, 0xf59e0bff, 0xd97706ff,
+            0xb45309ff, 0x92400eff, 0x78350fff, 0x451a03ff,
+        ],
+    ),
+    (
+        "orange",
+        [
+            0xfff7edff, 0xffedd5ff, 0xfed7aaff, 0xfdba74ff, 0xfb923cff, 0xf97316ff, 0xea580cff,
+            0xc2410cff, 0x9a3412ff, 0x7c2d12ff, 0x431407ff,
+        ],
+    ),
+    (
+        "red",
+        [
+            0xfef2f2ff, 0xfee2e2ff, 0xfecacaff, 0xfca5a5ff, 0xf87171ff, 0xef4444ff, 0xdc2626ff,
+            0xb91c1cff, 0x991b1bff, 0x7f1d1dff, 0x450a0aff,
+        ],
+    ),
+    (
+        "gray",
+        [
+            0xf9fafbff, 0xf3f4f6ff, 0xe5e7ebff, 0xd1d5dbff, 0x9ca3afff, 0x6b7280ff, 0x4b5563ff,
+            0x374151ff, 0x1f2937ff, 0x111827ff, 0x030712ff,
+        ],
+    ),
+    (
+        "slate",
+        [
+            0xf8fafcff, 0xf1f5f9ff, 0xe2e8f0ff, 0xcbd5e1ff, 0x94a3b8ff, 0x64748bff, 0x475569ff,
+            0x334155ff, 0x1e293bff, 0x0f172aff, 0x020617ff,
+        ],
+    ),
+    (
+        "zinc",
+        [
+            0xfafafaff, 0xf4f4f5ff, 0xe4e4e7ff, 0xd4d4d8ff, 0xa1a1aaff, 0x71717aff, 0x52525bff,
+            0x3f3f46ff, 0x27272aff, 0x18181bff, 0x09090bff,
+        ],
+    ),
+    (
+        "neutral",
+        [
+            0xfafafaff, 0xf5f5f5ff, 0xe5e5e5ff, 0xd4d4d4ff, 0xa3a3a3ff, 0x737373ff, 0x525252ff,
+            0x404040ff, 0x262626ff, 0x171717ff, 0x0a0a0aff,
+        ],
+    ),
+    (
+        "stone",
+        [
+            0xfafaf9ff, 0xf5f5f4ff, 0xe7e5e4ff, 0xd6d3d1ff, 0xa8a29eff, 0x78716cff, 0x57534eff,
+            0x44403cff, 0x292524ff, 0x1c1917ff, 0x0c0a09ff,
+        ],
+    ),
 ];
 
 fn keyword(property: &str, value: &str) -> Declaration {

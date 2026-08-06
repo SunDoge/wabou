@@ -35,6 +35,51 @@ describe("presetWabou", () => {
     });
   });
 
+  test("exports every stop for every default color family", () => {
+    const families = [
+      "rose",
+      "pink",
+      "fuchsia",
+      "purple",
+      "violet",
+      "indigo",
+      "blue",
+      "sky",
+      "cyan",
+      "teal",
+      "emerald",
+      "green",
+      "lime",
+      "yellow",
+      "amber",
+      "orange",
+      "red",
+      "gray",
+      "slate",
+      "zinc",
+      "neutral",
+      "stone",
+    ];
+    const stops = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950];
+    for (const family of families) {
+      for (const stop of stops) {
+        const token = `${family}-${stop}`;
+        expect(wabouUtilityManifest.colors[token]).toBeNumber();
+        expect(resolveWabouUtility(`text-${token}`)?.declarations[0]).toEqual({
+          property: "color",
+          value: {
+            type: "color",
+            value: {
+              kind: "literal",
+              rgba: wabouUtilityManifest.colors[token],
+            },
+          },
+        });
+      }
+    }
+    expect(wabouUtilityManifest.colors["red-400"]).toBe(0xf87171ff);
+  });
+
   test("rejects unsupported CSS expressions", () => {
     expect(validateWabouUtility("p-[var(--space)]")?.message).toContain(
       "invalid Wabou spacing",

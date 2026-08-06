@@ -52,6 +52,16 @@ width. Transform utilities use independent translate/scale/rotate slots, so
 different slots compose while a later utility for the same slot replaces the
 earlier value.
 
+The default color palette includes the complete `50`, `100`, `200`, `300`,
+`400`, `500`, `600`, `700`, `800`, `900`, and `950` scale for `rose`, `pink`,
+`fuchsia`, `purple`, `violet`, `indigo`, `blue`, `sky`, `cyan`, `teal`,
+`emerald`, `green`, `lime`, `yellow`, `amber`, `orange`, `red`, `gray`, `slate`,
+`zinc`, `neutral`, and `stone`. The same tokens work with `text-`, `bg-`, and
+`border-`; literal `[#rrggbb]` and `[#rrggbbaa]` colors remain available.
+
+Projects should add stable brand or semantic colors to the theme instead of
+constructing utility names dynamically.
+
 The default theme can be extended at generation time with a JSON file:
 
 ```json
