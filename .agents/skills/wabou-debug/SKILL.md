@@ -1,0 +1,125 @@
+---
+name: wabou-debug
+description: Reproduce and diagnose Wabou native UI bugs using layout snapshots, DevTools sockets, debug overlays, headless PNG rendering, protocol tests, and platform/HiDPI comparisons. Use for incorrect layout, clipping, custom-widget rendering, blank or stale windows, resize/maximize failures, HMR discrepancies, hit-testing issues, Linux-versus-macOS differences, and performance regressions in this repository.
+---
+
+# Debug Wabou
+
+Gather evidence at the failing layer before editing. Do not treat a passing Linux 1× render as proof of macOS 2× correctness.
+
+## Start with state
+
+Run:
+
+```bash
+git status --short
+git rev-parse --short HEAD
+```
+
+Preserve unrelated changes. Record whether the user runs `dev`, `run`, or a packaged binary.
+
+Restart the native process after Rust changes. Vite/Solid HMR updates JS and Style IR only; it does not reload `wabou-shell`, `wabou-quick`, Vello scene code, or Rust widgets.
+
+## Isolate the failing layer
+
+Trace one suspect node through these layers:
+
+1. Static JSX candidate extraction and Wabou preset output.
+2. Applied classes and typed style in `ComputedNodeSnapshot`.
+3. Taffy `PlacedNode`: border box, content box, overflow clip, radius, depth.
+4. Vello scene composition: transform, clip stack, `Scene::append`, layer lifetime.
+5. Surface/backend: logical size, physical size, device scale, GPU backend.
+
+Prefer an assertion at the earliest incorrect layer. If geometry is correct but pixels are wrong, add an offscreen render or platform-specific reproduction instead of more layout assertions.
+
+## Inspect a running app
+
+Start with DevTools enabled:
+
+```bash
+mise exec -- bun run wabou dev --app-dir apps/gallery --devtools
+```
+
+Then inspect the discovered socket:
+
+```bash
+mise exec -- bun run wabou inspect status
+mise exec -- bun run wabou inspect query fractal
+mise exec -- bun run wabou inspect node <id>
+mise exec -- bun run wabou inspect screenshot
+```
+
+Use the DevTools `Layout` control for native overlays:
+
+- blue: layout bounds
+- orange: overflow/scroll clips
+- red: current hit target
+- purple: selected node
+
+The MCP tool `wabou_set_layout_overlay` exposes the same target-window overlay for agent-driven diagnosis.
+
+## Capture without a display server
+
+Use `scripts/capture-png.sh` for a deterministic 1× render:
+
+```bash
+.agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery.png 1440 900
+.agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/platform.png 1440 900 80 825
+```
+
+Inspect the resulting PNG with an image viewer/tool, not by file existence alone.
+
+Limitations:
+
+- `wabou-quick --mode png` currently renders at device scale 1.
+- Its synthetic runtime uses window id 0; multi-window apps may select a child-window branch that a normal main window does not.
+- A coordinate click is suitable only after first capturing the current layout.
+
+Do not patch app logic merely to obtain a screenshot and accidentally commit the patch. If a temporary diagnostic edit is unavoidable, revert it immediately and verify `git diff`.
+
+## Diagnose platform and HiDPI differences
+
+Compare these values before blaming Taffy:
+
+- `WindowMetrics.logical_*`
+- surface physical dimensions
+- `window.scale_factor()`
+- transform applied to the parent scene
+- scale already encoded inside widget glyph/image fragments
+
+Keep layout and hit testing in logical pixels. Apply the device transform once at scene encoding. Bitmap/glyph resources may be generated at physical resolution, but compensate when appended.
+
+For custom widgets, prefer clipping inside the widget fragment before appending it. A parent clip wrapped around `Scene::append` can expose backend-specific behavior, especially with Metal and HiDPI. Test 1× and 2× paths separately.
+
+When behavior differs only on macOS:
+
+1. Confirm a full Rust process restart.
+2. Capture `scale_factor`, logical size, and physical size.
+3. Reduce the scene to one solid widget rectangle plus one rounded clip.
+4. Compare local-fragment clipping with parent-scene clipping.
+5. Search current Vello/wgpu issues only after the minimal case proves the framework geometry is correct.
+
+## Choose the right test
+
+- Parser/preset bug: TypeScript unit test for candidate → typed Style IR.
+- Cascade bug: `computed_style` snapshot test.
+- Layout/clip bug: `layout_fixtures` or `wabou-shell::layout` geometry test.
+- Event bug: encoded op/event replay test with hit target assertions.
+- Scene/backend bug: offscreen pixel test or a minimal platform reproduction.
+- Resize/maximize bug: dispatch real `WindowMetrics` transitions; do not test only the initial size.
+
+An op replay can verify deterministic tree, style, layout, invalidation, and events. It cannot alone verify GPU pixels or OS surface behavior. Pair it with a screenshot/pixel assertion for rendering regressions.
+
+## Validate proportionally
+
+Run the narrow test first, then the affected app build:
+
+```bash
+cargo test -p wabou-shell --lib
+cargo test -p wabou-quick --lib
+mise exec -- bun x tsc --noEmit
+mise exec -- bun run wabou build --app-dir apps/gallery
+git diff --check
+```
+
+Report what was directly reproduced, the platform/scale tested, and what remains inferred. Never say a visual bug is fixed based only on compilation or geometry tests.

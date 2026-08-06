@@ -1,0 +1,390 @@
+//! Build a `vello::Scene` from the flattened layout list.
+
+use std::collections::HashMap;
+
+use vello::Scene;
+use vello::kurbo::{Affine, Rect, Stroke};
+use vello::peniko::{Color, Fill};
+
+use crate::layout::PlacedNode;
+use crate::style::{IrLength, PaintTransform};
+use crate::text::{TextContext, layout_text_styled};
+
+/// Resolve the node-local static CSS and runtime affine transforms separately.
+pub fn resolve_local_transforms(node: &PlacedNode) -> (Affine, Affine) {
+    let [x0, y0, x1, y1] = node.rect;
+    let resolve = |length: &IrLength, size: f32| match length {
+        IrLength::Px { value } => *value as f64,
+        IrLength::Percent { value } => (*value * size) as f64,
+        IrLength::Auto => 0.0,
+    };
+    let mut static_transform = Affine::IDENTITY;
+    for transform in &node.paint.transform {
+        static_transform *= match transform {
+            PaintTransform::Translate(x, y) => {
+                Affine::translate((resolve(x, x1 - x0), resolve(y, y1 - y0)))
+            }
+            PaintTransform::Scale(x, y) => Affine::scale_non_uniform(*x as f64, *y as f64),
+            PaintTransform::Rotate(angle) => Affine::rotate(*angle as f64),
+            PaintTransform::Skew(x, y) => Affine::skew(*x as f64, *y as f64),
+            PaintTransform::Matrix(matrix) => Affine::new(matrix.map(f64::from)),
+        };
+    }
+    let runtime_transform = node
+        .paint
+        .runtime_transform
+        .map_or(Affine::IDENTITY, |matrix| {
+            Affine::new(matrix.map(f64::from))
+        });
+    (static_transform, runtime_transform)
+}
+
+/// Resolve static CSS and host-driven runtime state into window coordinates.
+pub fn resolve_node_transform(node: &PlacedNode, parent_transform: Affine) -> Affine {
+    let [x0, y0, x1, y1] = node.rect;
+    let rect = Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64);
+    let (static_transform, runtime_transform) = resolve_local_transforms(node);
+    let center = rect.center().to_vec2();
+    parent_transform
+        * Affine::translate(center)
+        * static_transform
+        * runtime_transform
+        * Affine::translate(-center)
+}
+
+fn widget_clip(node: &PlacedNode) -> Option<([f32; 4], f64)> {
+    let [x0, y0, x1, y1] = node.rect;
+    let [top, right, bottom, left] = node.border_widths;
+    let radius = node.paint.border_radius as f64;
+    if radius > 0.0 {
+        let border_inset = top.max(right).max(bottom).max(left);
+        return Some((
+            [x0 + left, y0 + top, x1 - right, y1 - bottom],
+            (radius - border_inset as f64).max(0.0),
+        ));
+    }
+    node.own_clip
+        .map(|clip| (clip, node.own_clip_radius as f64))
+}
+
+fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform: Affine) {
+    let radius = node.paint.border_radius as f64;
+    if radius <= 0.0 {
+        scene.append(widget, Some(transform));
+        return;
+    }
+    let [top, right, bottom, left] = node.border_widths;
+    let inner_radius = (radius - top.max(right).max(bottom).max(left) as f64).max(0.0);
+    let [width, height] = node.content_size;
+    let mut clipped = Scene::new();
+    clipped.push_clip_layer(
+        Fill::NonZero,
+        Affine::IDENTITY,
+        &Rect::new(0.0, 0.0, width as f64, height as f64).to_rounded_rect(inner_radius),
+    );
+    clipped.append(widget, None);
+    clipped.pop_layer();
+    scene.append(&clipped, Some(transform));
+}
+
+/// Paint `nodes` into `scene` over a `base_color` background. Text nodes are
+/// laid out with parley and rendered as vello glyph runs.
+pub fn build_scene(
+    scene: &mut Scene,
+    nodes: &[PlacedNode],
+    tcx: &mut TextContext,
+    width: u32,
+    height: u32,
+    base_color: Color,
+) {
+    build_scene_scaled(scene, nodes, tcx, width, height, base_color, 1.0);
+}
+
+/// Build a logical-pixel scene and transform it to physical pixels at encode
+/// time. Layout, hit testing and font sizes stay in CSS-like logical units.
+pub fn build_scene_scaled(
+    scene: &mut Scene,
+    nodes: &[PlacedNode],
+    tcx: &mut TextContext,
+    width: u32,
+    height: u32,
+    base_color: Color,
+    device_scale: f64,
+) {
+    scene.reset();
+    let device = Affine::scale(device_scale);
+
+    let bg = Rect::new(0.0, 0.0, width as f64, height as f64);
+    scene.fill(Fill::NonZero, device, base_color, None, &bg);
+
+    let mut transforms = HashMap::new();
+    enum Layer {
+        Clip { depth: usize },
+        Opacity { depth: usize },
+    }
+    impl Layer {
+        fn depth(&self) -> usize {
+            match self {
+                Self::Clip { depth } | Self::Opacity { depth } => *depth,
+            }
+        }
+    }
+    let mut layers = Vec::new();
+
+    for n in nodes {
+        while layers
+            .last()
+            .is_some_and(|layer: &Layer| layer.depth() >= n.depth)
+        {
+            scene.pop_layer();
+            layers.pop();
+        }
+        let [x0, y0, x1, y1] = n.rect;
+        let rect = Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64);
+        let r = n.paint.border_radius as f64;
+        let parent_transform = n
+            .parent_node_id
+            .and_then(|parent| transforms.get(&parent).copied())
+            .unwrap_or(Affine::IDENTITY);
+        let css_transform = resolve_node_transform(n, parent_transform);
+        transforms.insert(n.node_id, css_transform);
+        let node_transform = device * css_transform;
+
+        if css_transform == Affine::IDENTITY
+            && (x1 <= 0.0 || y1 <= 0.0 || x0 >= width as f32 || y0 >= height as f32)
+        {
+            continue;
+        }
+        if n.paint.opacity < 1.0 {
+            scene.push_layer(
+                Fill::NonZero,
+                vello::peniko::Mix::Normal,
+                n.paint.opacity,
+                device,
+                &bg,
+            );
+            layers.push(Layer::Opacity { depth: n.depth });
+        }
+
+        for shadow in n.paint.box_shadows.iter().filter(|shadow| !shadow.inset) {
+            let shadow_rect = Rect::new(
+                rect.x0 + shadow.x as f64 - shadow.spread as f64,
+                rect.y0 + shadow.y as f64 - shadow.spread as f64,
+                rect.x1 + shadow.x as f64 + shadow.spread as f64,
+                rect.y1 + shadow.y as f64 + shadow.spread as f64,
+            );
+            scene.draw_blurred_rounded_rect(
+                node_transform,
+                shadow_rect,
+                shadow.color,
+                (r + shadow.spread as f64).max(0.0),
+                (shadow.blur as f64 * 0.5).max(0.0),
+            );
+        }
+
+        if let Some(bg) = n.paint.background {
+            let rr = rect.to_rounded_rect(r);
+            scene.fill(Fill::NonZero, node_transform, bg, None, &rr);
+        }
+
+        if let Some((_, bc)) = n.paint.border {
+            let [top, right, bottom, left] = n.border_widths;
+            if top > 0.0 && top == right && top == bottom && top == left {
+                let bw = top as f64;
+                let half = bw / 2.0;
+                let inset = Rect::new(
+                    x0 as f64 + half,
+                    y0 as f64 + half,
+                    x1 as f64 - half,
+                    y1 as f64 - half,
+                );
+                let ir = (r - half).max(0.0);
+                scene.stroke(
+                    &Stroke::new(bw),
+                    node_transform,
+                    bc,
+                    None,
+                    &inset.to_rounded_rect(ir),
+                );
+            } else {
+                // Side-specific utility borders (`border-b`, `border-r`, ...)
+                // must not turn into a uniform rectangle.
+                let sides = [
+                    (top, (x0, y0 + top * 0.5), (x1, y0 + top * 0.5)),
+                    (right, (x1 - right * 0.5, y0), (x1 - right * 0.5, y1)),
+                    (bottom, (x0, y1 - bottom * 0.5), (x1, y1 - bottom * 0.5)),
+                    (left, (x0 + left * 0.5, y0), (x0 + left * 0.5, y1)),
+                ];
+                for (width, from, to) in sides {
+                    if width > 0.0 {
+                        let line = vello::kurbo::Line::new(
+                            (from.0 as f64, from.1 as f64),
+                            (to.0 as f64, to.1 as f64),
+                        );
+                        scene.stroke(&Stroke::new(width as f64), node_transform, bc, None, &line);
+                    }
+                }
+            }
+        }
+
+        if let Some([cx0, cy0, cx1, cy1]) = n.own_clip {
+            let extent = f64::from(width.max(height)) * 4.0 + 4096.0;
+            let finite = |value: f32| {
+                if value == f32::NEG_INFINITY {
+                    -extent
+                } else if value == f32::INFINITY {
+                    extent
+                } else {
+                    f64::from(value)
+                }
+            };
+            let clip_rect = Rect::new(finite(cx0), finite(cy0), finite(cx1), finite(cy1));
+            scene.push_clip_layer(
+                Fill::NonZero,
+                node_transform,
+                &clip_rect.to_rounded_rect(n.own_clip_radius as f64),
+            );
+            layers.push(Layer::Clip { depth: n.depth });
+        }
+
+        if let Some(svg) = &n.paint.svg {
+            let [sw, sh] = svg.size();
+            let width = (x1 - x0).max(0.0);
+            let height = (y1 - y0).max(0.0);
+            if sw > 0.0 && sh > 0.0 && width > 0.0 && height > 0.0 {
+                // SVG's default preserveAspectRatio is xMidYMid meet. usvg has
+                // already applied the viewBox transform within the fragment;
+                // this transform fits its viewport into the CSS border box.
+                let scale = (width / sw).min(height / sh) as f64;
+                let dx = x0 as f64 + (width as f64 - sw as f64 * scale) * 0.5;
+                let dy = y0 as f64 + (height as f64 - sh as f64 * scale) * 0.5;
+                let transform = node_transform * Affine::translate((dx, dy)) * Affine::scale(scale);
+                scene.append(svg.scene(), Some(transform));
+            }
+        }
+
+        if let Some(ws) = &n.paint.widget {
+            // Keep rounded widget clipping inside the fragment itself. Some
+            // GPU backends do not reliably carry a parent clip across an
+            // appended scene at HiDPI; local encoding also avoids mixing
+            // absolute logical and fragment coordinates.
+            let outer_widget_clip = (r <= 0.0).then(|| widget_clip(n)).flatten();
+            if let Some(([cx0, cy0, cx1, cy1], radius)) = outer_widget_clip {
+                let widget_clip = Rect::new(
+                    cx0.max(0.0) as f64,
+                    cy0.max(0.0) as f64,
+                    cx1.min(width as f32) as f64,
+                    cy1.min(height as f32) as f64,
+                );
+                scene.push_clip_layer(
+                    Fill::NonZero,
+                    node_transform,
+                    &widget_clip.to_rounded_rect(radius),
+                );
+            }
+            append_widget(
+                scene,
+                n,
+                ws,
+                node_transform
+                    * Affine::translate((n.content_origin[0] as f64, n.content_origin[1] as f64)),
+            );
+            if outer_widget_clip.is_some() {
+                scene.pop_layer();
+            }
+        }
+
+        if let Some(text) = &n.paint.text {
+            let layout = layout_text_styled(
+                tcx,
+                text.clone(),
+                n.paint.font_size,
+                n.paint.font_weight,
+                n.paint.line_height,
+                n.paint.text_align,
+                crate::text::brush_for_color(n.paint.text_color),
+                n.paint.text_runs.clone(),
+                n.paint.font_family.as_ref(),
+                n.paint
+                    .wrap_text
+                    .then_some((n.rect[2] - n.rect[0]).max(0.0)),
+            );
+            let text_transform = node_transform
+                * Affine::translate((n.content_origin[0] as f64, n.content_origin[1] as f64));
+            for &[x0, y0, x1, y1] in n.paint.selection_rects.iter() {
+                scene.fill(
+                    Fill::NonZero,
+                    text_transform,
+                    Color::from_rgba8(59, 130, 246, 105),
+                    None,
+                    &Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64),
+                );
+            }
+            let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
+            scene.append(
+                &glyph_scene,
+                Some(
+                    node_transform
+                        * Affine::translate((
+                            n.content_origin[0] as f64,
+                            n.content_origin[1] as f64,
+                        ))
+                        * Affine::scale(device_scale.recip()),
+                ),
+            );
+        }
+    }
+    while layers.pop().is_some() {
+        scene.pop_layer();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::style::{Paint, PaintTransform};
+
+    fn placed_node(paint: Paint) -> PlacedNode {
+        PlacedNode {
+            node_id: taffy::NodeId::from(taffy::tree::NodeId::from(0_u64)),
+            parent_node_id: None,
+            depth: 0,
+            rect: [10.0, 20.0, 110.0, 120.0],
+            content_origin: [10.0, 20.0],
+            content_size: [100.0, 100.0],
+            clip: None,
+            clip_radius: 0.0,
+            clip_depth: None,
+            own_clip: None,
+            own_clip_radius: 0.0,
+            border_widths: [0.0; 4],
+            paint,
+        }
+    }
+
+    #[test]
+    fn runtime_transform_composes_after_static_css_transform() {
+        let node = placed_node(Paint {
+            transform: vec![PaintTransform::Scale(2.0, 2.0)],
+            runtime_transform: Some([1.0, 0.0, 0.0, 1.0, 5.0, 7.0]),
+            ..Paint::default()
+        });
+        let actual = resolve_node_transform(&node, Affine::IDENTITY);
+        let center = Rect::new(10.0, 20.0, 110.0, 120.0).center().to_vec2();
+        let expected = Affine::translate(center)
+            * Affine::scale(2.0)
+            * Affine::translate((5.0, 7.0))
+            * Affine::translate(-center);
+        assert_eq!(actual.as_coeffs(), expected.as_coeffs());
+    }
+
+    #[test]
+    fn rounded_native_widget_is_clipped_without_overflow_hidden() {
+        let node = placed_node(Paint {
+            border_radius: 12.0,
+            ..Paint::default()
+        });
+
+        assert_eq!(widget_clip(&node), Some(([10.0, 20.0, 110.0, 120.0], 12.0)));
+    }
+}

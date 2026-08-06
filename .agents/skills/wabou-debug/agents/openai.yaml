@@ -1,0 +1,4 @@
+interface:
+  display_name: "Debug Wabou"
+  short_description: "Reproduce and diagnose Wabou rendering and runtime bugs"
+  default_prompt: "Use $wabou-debug to reproduce and diagnose this Wabou rendering or runtime issue with evidence."

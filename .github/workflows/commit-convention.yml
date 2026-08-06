@@ -1,0 +1,38 @@
+name: Commit convention
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  pull-request-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Conventional Commit title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|refactor|perf|test|docs|build|ci|chore|revert)(\([a-z0-9][a-z0-9._/-]*\))?!?: .+'
+          if ! printf '%s\n' "$PR_TITLE" | grep -Eq "$pattern"; then
+            echo "Invalid pull-request title: $PR_TITLE"
+            echo "Expected: <type>(<optional-scope>): <description>"
+            exit 1
+          fi
+
+  main-history:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Validate merged commit with Cocogitto
+        run: |
+          git log -1 --pretty=%B |
+            docker run --rm -i ghcr.io/cocogitto/cog:7.0.0 verify --file -

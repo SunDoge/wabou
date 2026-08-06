@@ -1,0 +1,31 @@
+//! wabou-shell: render a UI tree with winit + taffy + vello + parley.
+//!
+//! The shell is a reusable host: a [`source::FrameSource`] produces a flattened
+//! layout list each frame; [`shell::Shell`] owns the window + wgpu surface +
+//! vello renderer and presents at vsync. The `wabou-quick` crate provides the
+//! SolidJS-driven (op-protocol) source.
+
+pub mod app;
+pub mod error;
+pub mod layout;
+pub mod renderer;
+pub mod scene;
+pub mod shell;
+pub mod source;
+pub mod style;
+pub mod svg;
+pub mod text;
+
+pub use app::{
+    FrameSourceFactory, run_window, run_window_with_options, run_window_with_size, run_windows,
+    run_windows_with_factory,
+};
+pub use error::{Error, Result};
+pub use shell::Shell;
+pub use source::{
+    ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
+    KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerPhase,
+    UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand, WindowMetrics,
+    WindowOptions,
+};
+pub use text::TextContext;

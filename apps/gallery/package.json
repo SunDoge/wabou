@@ -1,0 +1,25 @@
+{
+  "name": "@wabou/gallery",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.16.3",
+    "@wabou/animation": "workspace:*",
+    "@wabou/components": "workspace:*",
+    "@wabou/core": "workspace:*",
+    "@wabou/primitives": "workspace:*",
+    "@wabou/solid-renderer": "workspace:*",
+    "@wabou/style": "workspace:*",
+    "solid-js": "1.9.14"
+  },
+  "devDependencies": {
+    "@wabou/vite": "workspace:*",
+    "@types/node": "^26.1.1",
+    "vite": "^5.4.0"
+  }
+}
