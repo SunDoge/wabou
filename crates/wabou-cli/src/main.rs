@@ -11,7 +11,14 @@ use std::time::{Duration, Instant};
 
 use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
+use vello::Scene;
 use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
+use wabou_quick::{AppConfig, Applier, JsRuntime};
+use wabou_shell::renderer::render_to_png;
+use wabou_shell::scene as scene_builder;
+use wabou_shell::{
+    FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, TextContext, UiEvent,
+};
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 #[derive(Parser)]
@@ -45,6 +52,26 @@ enum Commands {
         app_dir: Option<PathBuf>,
         #[arg(long)]
         release: bool,
+    },
+    /// Render an application to a PNG without opening a native window.
+    Render {
+        #[arg(long, value_name = "PATH")]
+        app_dir: Option<PathBuf>,
+        #[arg(long, value_name = "PNG")]
+        out: PathBuf,
+        #[arg(long, default_value_t = 1440)]
+        width: u32,
+        #[arg(long, default_value_t = 900)]
+        height: u32,
+        /// Keep driving asynchronous JavaScript work before capture.
+        #[arg(long, default_value_t = 0)]
+        wait_ms: u64,
+        /// Dispatch a primary click at X Y before capture.
+        #[arg(long, num_args = 2, value_names = ["X", "Y"])]
+        click: Option<Vec<f64>>,
+        /// Commit text to the element focused by --click before capture.
+        #[arg(long, requires = "click")]
+        text: Option<String>,
     },
     /// Open the native Wabou inspector.
     Devtools,
@@ -125,6 +152,27 @@ fn main() -> Result<()> {
                 &workspace,
                 &load_app(&workspace, &cwd, app_dir.as_deref())?,
                 release,
+            )
+        }
+        Commands::Render {
+            app_dir,
+            out,
+            width,
+            height,
+            wait_ms,
+            click,
+            text,
+        } => {
+            let workspace = find_workspace(&cwd)?;
+            render(
+                &workspace,
+                &load_app(&workspace, &cwd, app_dir.as_deref())?,
+                &out,
+                width,
+                height,
+                wait_ms,
+                click.as_deref(),
+                text.as_deref(),
             )
         }
         Commands::Devtools => run_devtools(&find_workspace(&cwd).unwrap_or(cwd)),
@@ -234,6 +282,91 @@ fn run(workspace: &Path, app: &App, release: bool) -> Result<()> {
     }
     cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app));
     ensure(cargo.status()?, "Rust host")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render(
+    workspace: &Path,
+    app: &App,
+    out: &Path,
+    width: u32,
+    height: u32,
+    wait_ms: u64,
+    click: Option<&[f64]>,
+    text: Option<&str>,
+) -> Result<()> {
+    ensure(frontend(app, "build", &[])?, "Vite build")?;
+    let path = bundle_path(workspace, app);
+    let source = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "failed to read JavaScript bundle {}: {error}",
+            path.display()
+        )
+    })?;
+    let mut js =
+        JsRuntime::new().map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
+    js.boot(&source)
+        .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
+
+    let base_color = AppConfig::new("").base_color;
+    let mut applier = Applier::from_runtime(js, base_color);
+    let mut text_context = TextContext::new();
+    let mut nodes = applier.build_frame(&mut text_context, width, height);
+
+    if wait_ms > 0 {
+        let deadline = Instant::now() + Duration::from_millis(wait_ms);
+        while Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(10));
+            nodes = applier.build_frame(&mut text_context, width, height);
+        }
+    }
+
+    if let Some(position) = click {
+        let point = Point {
+            x: position[0],
+            y: position[1],
+        };
+        applier.handle_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Down,
+            position: point,
+            button: Some(PointerButton::Primary),
+            buttons: 1,
+            modifiers: Modifiers::default(),
+        }));
+        applier.handle_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Up,
+            position: point,
+            button: Some(PointerButton::Primary),
+            buttons: 0,
+            modifiers: Modifiers::default(),
+        }));
+        if let Some(text) = text {
+            applier.handle_event(UiEvent::TextInput(text.to_owned()));
+        }
+        for _ in 0..4 {
+            nodes = applier.build_frame(&mut text_context, width, height);
+        }
+    }
+
+    if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        fs::create_dir_all(parent)?;
+    }
+    let mut scene = Scene::new();
+    scene_builder::build_scene(
+        &mut scene,
+        &nodes,
+        &mut text_context,
+        width,
+        height,
+        base_color,
+    );
+    let out_text = out
+        .to_str()
+        .ok_or_else(|| format!("output path is not valid UTF-8: {}", out.display()))?;
+    render_to_png(&scene, width, height, base_color, out_text)
+        .map_err(|error| format!("failed to render {}: {error:?}", out.display()))?;
+    println!("[wabou] rendered {}", out.display());
+    Ok(())
 }
 
 fn dev(workspace: &Path, app: App, port: u16, open_devtools: bool) -> Result<()> {

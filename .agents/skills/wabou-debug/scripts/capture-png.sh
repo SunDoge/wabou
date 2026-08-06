@@ -10,13 +10,9 @@ app=$1
 out=$2
 width=${3:-1440}
 height=${4:-900}
-bundle="dist/${app}/resources/bundle.js"
-
-mise exec -- bun run wabou build --app-dir "apps/${app}"
-
 args=(
-  --js "$bundle"
-  --mode png
+  render
+  --app-dir "apps/${app}"
   --out "$out"
   --width "$width"
   --height "$height"
@@ -25,5 +21,5 @@ if (( $# == 6 )); then
   args+=(--click "$5" "$6")
 fi
 
-cargo run -q -p wabou-quick -- "${args[@]}"
+mise exec -- bun run wabou -- "${args[@]}"
 echo "$out"

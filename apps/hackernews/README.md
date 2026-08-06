@@ -12,25 +12,13 @@ are available as `bun run dev:live` and `bun run build:live`.
 From the workspace root:
 
 ```sh
-bun run --cwd apps/hackernews build
-cargo run -p wabou-quick --bin wabou-quick -- \
-  --js dist/hackernews/resources/bundle.js
+mise exec -- bun run wabou run --app-dir apps/hackernews
 ```
 
 ## Development with HMR
 
-Run Vite in one terminal:
-
 ```sh
-bun run --cwd apps/hackernews dev
-```
-
-Then start Wabou in another terminal:
-
-```sh
-cargo run -p wabou-quick --features vite --bin wabou-quick -- \
-  --vite http://127.0.0.1:5174 \
-  --entry ui/index.tsx
+mise exec -- bun run wabou dev --app-dir apps/hackernews
 ```
 
 Changes to TSX update the Solid component and regenerate the typed Style IR in
