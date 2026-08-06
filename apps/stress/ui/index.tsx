@@ -8,7 +8,7 @@
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
 import { type AnimationControls, animate } from "@wabou/animation";
-import { Button, translate2d } from "@wabou/primitives";
+import { Button, Text, translate2d } from "@wabou/primitives";
 import {
   type Handle,
   mount,
@@ -16,7 +16,14 @@ import {
   useFps,
   useHost,
 } from "@wabou/solid-renderer";
-import { createEffect, createSignal, For, Index, onCleanup } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For,
+  Index,
+  onCleanup,
+  Show,
+} from "solid-js";
 
 const PRESETS = [100, 1_000, 5_000, 10_000, 25_000];
 const JS_WORK = [0, 50_000, 500_000, 5_000_000];
@@ -35,7 +42,7 @@ const CHARS = [
   "🎈",
 ];
 const SIZE = 28;
-const HEADER_H = 44;
+const HEADER_H = 68;
 const TRANSFORM_STYLE = "trans" + "form";
 let _jsSink = 0;
 
@@ -105,6 +112,7 @@ function App() {
   const [jsWork, setJsWork] = createSignal(0);
   const [driver, setDriver] = createSignal<Driver>("raf");
   const [stats, setStats] = createSignal<Stats>(null);
+  const [statsError, setStatsError] = createSignal<string | null>(null);
   const [bodies, setBodies] = createSignal<Body[]>(makeBodies(1_000));
   let movingBodies = bodies();
   const handles: Array<Handle | undefined> = [];
@@ -138,8 +146,9 @@ function App() {
     }
     try {
       setStats(host.diagnostics.frameStats());
-    } catch {
-      /* frameStats not ready yet */
+      setStatsError(null);
+    } catch (error) {
+      setStatsError(error instanceof Error ? error.message : String(error));
     }
   };
   createEffect(() => {
@@ -166,11 +175,10 @@ function App() {
     });
   });
 
-  const s = stats();
   return (
     <div class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
       <div class="flex-none p-2 flex items-center gap-2 border-b border-slate-700">
-        <span class="text-sm font-semibold mr-1">emoji stress</span>
+        <Text class="text-sm font-semibold mr-1">emoji stress</Text>
         <For each={PRESETS}>
           {(p) => (
             <Button
@@ -183,8 +191,8 @@ function App() {
             </Button>
           )}
         </For>
-        <span class="ml-1 text-xs text-slate-500">emojis</span>
-        <span class="mx-2 text-slate-600">|</span>
+        <Text class="ml-1 text-xs text-slate-500">emojis</Text>
+        <Text class="mx-2 text-slate-600">|</Text>
         <For each={JS_WORK}>
           {(w) => (
             <Button
@@ -197,8 +205,8 @@ function App() {
             </Button>
           )}
         </For>
-        <span class="ml-1 text-xs text-slate-500">js iters</span>
-        <span class="mx-2 text-slate-600">|</span>
+        <Text class="ml-1 text-xs text-slate-500">js iters</Text>
+        <Text class="mx-2 text-slate-600">|</Text>
         <Button
           class="px-2 py-1 text-xs rounded border border-slate-600"
           tone="sky"
@@ -215,14 +223,33 @@ function App() {
         >
           Motion
         </Button>
-        <span class="ml-auto text-xs font-mono text-slate-400">
+        <Text class="ml-auto text-xs font-mono text-slate-400">
           {n().toLocaleString()}n · {driver()} · {fps()} fps
-          {s
-            ? ` · js ${fmt(s.js_tick_ms)} bf ${fmt(s.build_frame_ms)} scene ${fmt(
-                s.scene_ms,
-              )} present ${fmt(s.present_ms)}ms`
-            : ""}
-        </span>
+        </Text>
+      </div>
+
+      <div class="flex-none px-2 py-1 border-b border-slate-800 bg-slate-900 text-xs font-mono text-slate-300">
+        <Show
+          when={stats()}
+          fallback={
+            <Text class={statsError() ? "text-red-400" : "text-slate-500"}>
+              {statsError()
+                ? `frameStats error: ${statsError()}`
+                : "frameStats: waiting for first completed frame"}
+            </Text>
+          }
+        >
+          {(current) => (
+            <Text>
+              js {fmt(current().js_tick_ms)}ms · build{" "}
+              {fmt(current().build_frame_ms)}ms
+              {" · "}scene {fmt(current().scene_ms)}ms · present{" "}
+              {fmt(current().present_ms)}ms · nodes{" "}
+              {current().node_count.toLocaleString()}
+              {" · "}viewport {current().viewport_w}×{current().viewport_h}
+            </Text>
+          )}
+        </Show>
       </div>
 
       <div class="flex-1 min-h-0 overflow-hidden relative">
