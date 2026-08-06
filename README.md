@@ -108,6 +108,7 @@ packaging commands.
   rendering; verify frame timing and output on the target platform and display.
 
 Read more about [styling](docs/style.md), [windows](docs/windows.md),
+[accessibility](docs/accessibility.md),
 [host-to-JavaScript communication](docs/host-to-js.md), and
 [composable events](docs/composable-events.md).
 

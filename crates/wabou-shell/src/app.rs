@@ -405,6 +405,11 @@ impl ApplicationHandler for App {
         _window_id: WindowId,
         event: WindowEvent,
     ) {
+        if let Some(shell) = self.state.as_mut() {
+            shell
+                .accessibility
+                .process_window_event(shell.window.as_ref(), &event);
+        }
         match event {
             WindowEvent::CloseRequested => {
                 self.state = None;
