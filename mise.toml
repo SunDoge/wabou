@@ -1,4 +1,5 @@
 [tools]
+act = "latest"
 bun = "latest"
 cocogitto = "latest"
 just = "latest"
