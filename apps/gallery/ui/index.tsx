@@ -40,7 +40,7 @@ import {
   View,
 } from "@wabou/primitives";
 import { type Handle, mount } from "@wabou/solid-renderer";
-import { px, rgba, number as styleNumber } from "@wabou/style";
+import { px, rgba, shadow, number as styleNumber } from "@wabou/style";
 import wabouUtilityManifest from "@wabou/unocss-preset/manifest";
 import {
   createSignal,
@@ -64,6 +64,7 @@ type ComponentId =
   | "animation"
   | "platform"
   | "colors"
+  | "shadows"
   | "utilities"
   | "scroll-area"
   | "alert"
@@ -95,7 +96,10 @@ const groups: Array<{
   },
   {
     label: "Foundations",
-    items: [{ id: "colors", name: "Colors" }],
+    items: [
+      { id: "colors", name: "Colors" },
+      { id: "shadows", name: "Shadows" },
+    ],
   },
   {
     label: "Feedback",
@@ -129,6 +133,8 @@ const descriptions: Record<ComponentId, string> = {
   animation: "Pure JavaScript value animations rendered by the native host.",
   platform: "Native windows and Rust-powered custom widgets.",
   colors: "Every color token exported by the native Wabou utility theme.",
+  shadows:
+    "Vello-native blurred rounded rectangles with explicit Gaussian parameters.",
   utilities: "Tailwind-style static classes parsed by the native Rust preset.",
   "scroll-area": "A native scrolling viewport with intrinsic flex content.",
   alert: "Calls attention to information that needs user awareness.",
@@ -997,6 +1003,146 @@ function ColorsPage() {
   );
 }
 
+function ShadowTile(props: {
+  title: string;
+  detail: string;
+  shadows: Parameters<typeof View>[0]["shadows"];
+  shape?: "rounded" | "square" | "rotated";
+}) {
+  return (
+    <View class="flex-1 min-w-40 flex flex-col items-center gap-5 p-6">
+      <View
+        class={
+          props.shape === "square"
+            ? "w-32 h-24 flex items-center justify-center rounded-none bg-slate-50"
+            : props.shape === "rotated"
+              ? "w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50 rotate-6"
+              : "w-32 h-24 flex items-center justify-center rounded-xl bg-slate-50"
+        }
+        shadows={props.shadows}
+      >
+        <Text class="text-xs font-semibold text-slate-700">{props.title}</Text>
+      </View>
+      <Text class="text-xs font-mono text-slate-500">{props.detail}</Text>
+    </View>
+  );
+}
+
+function ShadowsPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Gaussian standard deviation">
+        <View class="w-full flex flex-wrap gap-2">
+          <For each={[0, 2, 6, 12]}>
+            {(stdDev) => (
+              <ShadowTile
+                title={`${stdDev}`}
+                detail={`stdDev: ${stdDev}`}
+                shadows={[
+                  shadow({
+                    offsetY: 6,
+                    stdDev,
+                    color: 0x0f172a66,
+                  }),
+                ]}
+              />
+            )}
+          </For>
+        </View>
+      </Preview>
+
+      <Preview title="Signed spread and two-axis offset">
+        <View class="w-full flex flex-wrap gap-2">
+          <ShadowTile
+            title="contract"
+            detail="spread: -5"
+            shadows={[
+              shadow({ offsetY: 8, spread: -5, stdDev: 5, color: 0x0f172a80 }),
+            ]}
+          />
+          <ShadowTile
+            title="neutral"
+            detail="spread: 0"
+            shadows={[shadow({ offsetY: 8, stdDev: 5, color: 0x0f172a80 })]}
+          />
+          <ShadowTile
+            title="expand"
+            detail="spread: 6"
+            shadows={[
+              shadow({ offsetY: 4, spread: 6, stdDev: 4, color: 0x0ea5e94d }),
+            ]}
+          />
+          <ShadowTile
+            title="offset"
+            detail="offset: 12, -8"
+            shadows={[
+              shadow({
+                offsetX: 12,
+                offsetY: -8,
+                stdDev: 5,
+                color: 0x7c3aed66,
+              }),
+            ]}
+          />
+        </View>
+      </Preview>
+
+      <Preview title="Ordered layers, color, radius and transform">
+        <View class="w-full flex flex-wrap gap-2">
+          <ShadowTile
+            title="layers"
+            detail="3 ordered layers"
+            shadows={[
+              shadow({ offsetX: -8, stdDev: 8, color: 0x06b6d466 }),
+              shadow({ offsetX: 8, stdDev: 8, color: 0xd946ef66 }),
+              shadow({ offsetY: 10, spread: -3, stdDev: 4, color: 0x0f172a80 }),
+            ]}
+          />
+          <ShadowTile
+            title="radius"
+            detail="radius: 24"
+            shape="square"
+            shadows={[
+              shadow({
+                offsetY: 6,
+                spread: 2,
+                stdDev: 5,
+                radius: 24,
+                color: 0x10b98180,
+              }),
+            ]}
+          />
+          <ShadowTile
+            title="affine"
+            detail="rotate: 6deg"
+            shape="rotated"
+            shadows={[
+              shadow({
+                offsetX: 8,
+                offsetY: 8,
+                stdDev: 5,
+                color: 0x0f172a80,
+              }),
+            ]}
+          />
+        </View>
+      </Preview>
+
+      <PropertyRow name="offsetX / offsetY" value="finite logical pixels" />
+      <PropertyRow name="spread" value="signed logical pixels" />
+      <PropertyRow
+        name="stdDev"
+        value="Gaussian standard deviation passed directly to Vello"
+      />
+      <PropertyRow name="color" value="packed sRGBA (0xRRGGBBAA)" />
+      <PropertyRow
+        name="radius"
+        value="optional independent rounded-rectangle radius"
+      />
+    </View>
+  );
+}
+
 function SeparatorPage() {
   return (
     <Preview title="Orientations">
@@ -1289,6 +1435,9 @@ function App() {
                 </Match>
                 <Match when={selected() === "colors"}>
                   <ColorsPage />
+                </Match>
+                <Match when={selected() === "shadows"}>
+                  <ShadowsPage />
                 </Match>
                 <Match when={selected() === "alert"}>
                   <AlertPage />
