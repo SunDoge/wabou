@@ -71,6 +71,11 @@
     "pointer-events": "none",
     "user-select": "none",
     "transform": "translate(1px, 2px)",
+    "transform-component": { "sample": "translateX(1px)", "rustOnly": true },
+    "transform-translate-x": { "sample": "translateX(1px)", "rustOnly": true },
+    "transform-translate-y": { "sample": "translateY(1px)", "rustOnly": true },
+    "transform-scale": { "sample": "scale(1.5)", "rustOnly": true },
+    "transform-rotate": { "sample": "rotate(45deg)", "rustOnly": true },
     "box-shadow": "0 1px 2px #00000080"
   },
   "unsupported": {

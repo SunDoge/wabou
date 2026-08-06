@@ -27,7 +27,7 @@ mod tests {
     }
 
     fn sample_value(property: &str) -> IrValue {
-        if property == "transform" {
+        if property == "transform" || property.starts_with("transform-") {
             return IrValue::List { values: Vec::new() };
         }
         keyword("auto")

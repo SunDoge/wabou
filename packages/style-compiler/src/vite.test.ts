@@ -95,10 +95,16 @@ describe("utility source extraction", () => {
       extractUtilitySource(
         String.raw`<View class={\`flex p-[\${gap()}px]\`} />`,
       ),
-    ).toThrow("put dynamic numeric values in typed style");
+    ).toThrow("put continuous values in typed style");
     expect(() =>
       extractUtilitySource('<View class={"flex p-[" + gap() + "px]"} />'),
-    ).toThrow("put dynamic numeric values in typed style");
+    ).toThrow("put continuous values in typed style");
+    expect(() =>
+      extractUtilitySource(String.raw`<View class={\`bg-\${color()}\`} />`),
+    ).toThrow("select complete static utilities with classList");
+    expect(() =>
+      extractUtilitySource('<View class={"bg-" + color()} />'),
+    ).toThrow("select complete static utilities with classList");
   });
 
   test("allows reactive selection between complete static utilities", () => {

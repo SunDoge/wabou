@@ -23,6 +23,20 @@ type Manifest = {
   spacing: Record<string, number>;
   colors: Record<string, number>;
   staticUtilities: Record<string, WabouStyleDeclaration[]>;
+  dynamicRules: {
+    resolver:
+      | "spacing"
+      | "dimension"
+      | "color"
+      | "opacity"
+      | "number"
+      | "ratio"
+      | "length"
+      | "translate"
+      | "scale"
+      | "rotate";
+    prefixes: { name: string; properties: string[] }[];
+  }[];
   conformance: RustParsedUtility[];
 };
 
@@ -39,63 +53,32 @@ export type ResolvedUtility = {
   declarations: WabouStyleDeclaration[];
 };
 
-const spacingPrefixes = [
-  "gap",
-  "px",
-  "py",
-  "pt",
-  "pr",
-  "pb",
-  "pl",
-  "mx",
-  "my",
-  "mt",
-  "mr",
-  "mb",
-  "ml",
-  "p",
-  "m",
-] as const;
-const dimensionPrefixes = [
-  "min-w",
-  "min-h",
-  "max-w",
-  "max-h",
-  "inset",
-  "right",
-  "bottom",
-  "left",
-  "top",
-  "w",
-  "h",
-] as const;
-
-const edges: Record<string, string[]> = {
-  p: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
-  px: ["padding-left", "padding-right"],
-  py: ["padding-top", "padding-bottom"],
-  pt: ["padding-top"],
-  pr: ["padding-right"],
-  pb: ["padding-bottom"],
-  pl: ["padding-left"],
-  m: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
-  mx: ["margin-left", "margin-right"],
-  my: ["margin-top", "margin-bottom"],
-  mt: ["margin-top"],
-  mr: ["margin-right"],
-  mb: ["margin-bottom"],
-  ml: ["margin-left"],
-  gap: ["row-gap", "column-gap"],
-};
-
-function splitPrefix(
+function matchDynamic(
   utility: string,
-  prefixes: readonly string[],
-): [string, string] | undefined {
-  for (const prefix of prefixes) {
-    const marker = `${prefix}-`;
-    if (utility.startsWith(marker))
-      return [prefix, utility.slice(marker.length)];
+  resolver: Manifest["dynamicRules"][number]["resolver"],
+):
+  | { name: string; token: string; properties: string[]; negative: boolean }
+  | undefined {
+  const negative =
+    (["spacing", "dimension", "translate", "rotate"] as string[]).includes(
+      resolver,
+    ) && utility.startsWith("-");
+  const normalized = negative ? utility.slice(1) : utility;
+  const rule = wabouUtilityManifest.dynamicRules.find(
+    (candidate) => candidate.resolver === resolver,
+  );
+  for (const prefix of [...(rule?.prefixes ?? [])].sort(
+    (left, right) => right.name.length - left.name.length,
+  )) {
+    const marker = `${prefix.name}-`;
+    if (normalized.startsWith(marker)) {
+      return {
+        name: prefix.name,
+        token: normalized.slice(marker.length),
+        properties: prefix.properties,
+        negative,
+      };
+    }
   }
 }
 
@@ -128,12 +111,46 @@ function parseLength(token: string, spacing: boolean): Length | undefined {
   }
 }
 
+function negateLength(value: Length): Length | undefined {
+  if (value.unit === "auto") return;
+  return { ...value, value: -value.value };
+}
+
+const rustF32 = Math.fround;
+
 const lengthDeclaration = (
   property: string,
   value: Length,
 ): WabouStyleDeclaration => ({
   property,
   value: { type: "length", value },
+});
+
+const transformDeclaration = (
+  kind: string,
+  value: WabouStyleValue,
+): WabouStyleDeclaration => ({
+  property:
+    (
+      {
+        translateX: "transform-translate-x",
+        translateY: "transform-translate-y",
+        scale: "transform-scale",
+        rotate: "transform-rotate",
+      } as Record<string, string>
+    )[kind] ?? "transform-component",
+  value: {
+    type: "list",
+    values: [
+      {
+        type: "record",
+        fields: {
+          kind: { type: "keyword", value: kind },
+          value,
+        },
+      },
+    ],
+  },
 });
 
 function parseCandidate(
@@ -147,46 +164,81 @@ function parseCandidate(
     };
 
   let declarations = wabouUtilityManifest.staticUtilities[matcher];
-  const spacing = splitPrefix(matcher, spacingPrefixes);
+  const spacing = matchDynamic(matcher, "spacing");
   if (!declarations && spacing) {
-    const value = parseLength(spacing[1], true);
+    let value = parseLength(spacing.token, true);
+    if (
+      value?.unit === "auto" &&
+      !spacing.properties.every((property) => property.startsWith("margin-"))
+    )
+      return {
+        candidate,
+        message: `invalid Wabou spacing in \`${candidate}\`; auto is only valid for margins`,
+      };
+    if (spacing.negative) {
+      if (
+        !spacing.properties.every((property) => property.startsWith("margin-"))
+      )
+        return {
+          candidate,
+          message: `invalid negative Wabou spacing in \`${candidate}\`; only margins may be negative`,
+        };
+      value = value && negateLength(value);
+    }
     if (!value)
       return {
         candidate,
         message: `invalid Wabou spacing in \`${candidate}\`; expected a scale token, px, rem, or percentage`,
       };
-    declarations = edges[spacing[0]].map((property) =>
+    declarations = spacing.properties.map((property) =>
       lengthDeclaration(property, value),
     );
   }
-  const dimension = splitPrefix(matcher, dimensionPrefixes);
+  const dimension = matchDynamic(matcher, "dimension");
   if (!declarations && dimension) {
-    const value =
-      parseLength(dimension[1], false) ?? parseLength(dimension[1], true);
+    let value =
+      parseLength(dimension.token, false) ?? parseLength(dimension.token, true);
+    if (dimension.negative) {
+      if (
+        !dimension.properties.every((property) =>
+          ["top", "right", "bottom", "left"].includes(property),
+        )
+      )
+        return {
+          candidate,
+          message: `invalid negative Wabou dimension in \`${candidate}\`; only positioned edges may be negative`,
+        };
+      value = value && negateLength(value);
+    }
     if (!value)
       return {
         candidate,
         message: `invalid Wabou dimension in \`${candidate}\`; expected auto, full, a scale token, px, rem, or percentage`,
       };
-    const property =
-      (
-        {
-          w: "width",
-          h: "height",
-          "min-w": "min-width",
-          "min-h": "min-height",
-          "max-w": "max-width",
-          "max-h": "max-height",
-        } as Record<string, string>
-      )[dimension[0]] ?? dimension[0];
-    declarations = (
-      dimension[0] === "inset" ? ["top", "right", "bottom", "left"] : [property]
-    ).map((name) => lengthDeclaration(name, value));
+    declarations = dimension.properties.map((name) =>
+      lengthDeclaration(name, value),
+    );
   }
-  const color = splitPrefix(matcher, ["border", "text", "bg"]);
+  const lengthRule = matchDynamic(matcher, "length");
+  if (!declarations && lengthRule) {
+    const value = parseLength(lengthRule.token, false);
+    if (value) {
+      declarations = lengthRule.properties.map((property) =>
+        lengthDeclaration(property, value),
+      );
+    }
+  }
+  const color = matchDynamic(matcher, "color");
   if (!declarations && color) {
-    const [colorName, opacityToken] = color[1].split("/", 2);
+    const [colorName, opacityToken] = color.token.split("/", 2);
     let rgba: number | undefined = wabouUtilityManifest.colors[colorName];
+    const arbitrary = colorName.match(
+      /^\[#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})\]$/,
+    )?.[1];
+    if (rgba === undefined && arbitrary) {
+      rgba = Number.parseInt(arbitrary, 16);
+      if (arbitrary.length === 6) rgba = ((rgba << 8) | 0xff) >>> 0;
+    }
     if (rgba !== undefined && opacityToken !== undefined) {
       const opacity = Number(opacityToken);
       rgba =
@@ -201,25 +253,130 @@ function parseCandidate(
       };
     declarations = [
       {
-        property:
-          color[0] === "bg"
-            ? "background-color"
-            : color[0] === "text"
-              ? "color"
-              : "border-color",
+        property: color.properties[0],
         value: { type: "color", value: { kind: "literal", rgba } },
       },
     ];
   }
-  if (!declarations && matcher.startsWith("opacity-")) {
-    const opacity = Number(matcher.slice(8));
+  const opacityRule = matchDynamic(matcher, "opacity");
+  if (!declarations && opacityRule) {
+    const opacity = Number(opacityRule.token);
     if (!Number.isFinite(opacity) || opacity < 0 || opacity > 100)
       return {
         candidate,
         message: `invalid Wabou opacity in \`${candidate}\``,
       };
     declarations = [
-      { property: "opacity", value: { type: "number", value: opacity / 100 } },
+      {
+        property: opacityRule.properties[0],
+        value: { type: "number", value: opacity / 100 },
+      },
+    ];
+  }
+  const numberRule = matchDynamic(matcher, "number");
+  if (!declarations && numberRule) {
+    const raw = numberRule.token.match(
+      /^\[(-?(?:\d+(?:\.\d*)?|\.\d+))\]$/,
+    )?.[1];
+    const value = raw === undefined ? Number.NaN : Number(raw);
+    if (!Number.isFinite(value))
+      return {
+        candidate,
+        message: `invalid Wabou number in \`${candidate}\`; expected an arbitrary finite number`,
+      };
+    declarations = [
+      { property: numberRule.properties[0], value: { type: "number", value } },
+    ];
+  }
+  const ratioRule = matchDynamic(matcher, "ratio");
+  if (!declarations && ratioRule) {
+    const raw =
+      ratioRule.token.startsWith("[") && ratioRule.token.endsWith("]")
+        ? ratioRule.token.slice(1, -1)
+        : undefined;
+    const parts = raw?.split("/", 2);
+    const value = rustF32(
+      parts?.length === 2 ? Number(parts[0]) / Number(parts[1]) : Number(raw),
+    );
+    if (!Number.isFinite(value) || value <= 0)
+      return {
+        candidate,
+        message: `invalid Wabou ratio in \`${candidate}\`; expected an arbitrary positive ratio`,
+      };
+    declarations = [
+      { property: ratioRule.properties[0], value: { type: "number", value } },
+    ];
+  }
+  const translateRule = matchDynamic(matcher, "translate");
+  if (!declarations && translateRule) {
+    let value = parseLength(translateRule.token, true);
+    if (translateRule.negative) value = value && negateLength(value);
+    if (!value)
+      return {
+        candidate,
+        message: `invalid Wabou translate in \`${candidate}\``,
+      };
+    declarations = [
+      {
+        property: translateRule.properties[0],
+        value: {
+          type: "list",
+          values: [
+            {
+              type: "record",
+              fields: {
+                kind: {
+                  type: "keyword",
+                  value:
+                    translateRule.name === "translate-x"
+                      ? "translateX"
+                      : "translateY",
+                },
+                value: { type: "length", value },
+              },
+            },
+          ],
+        },
+      },
+    ];
+  }
+  const scaleRule = matchDynamic(matcher, "scale");
+  if (!declarations && scaleRule) {
+    const arbitrary = scaleRule.token.match(
+      /^\[(-?(?:\d+(?:\.\d*)?|\.\d+))\]$/,
+    )?.[1];
+    const scale = rustF32(
+      arbitrary === undefined
+        ? Number(scaleRule.token) / 100
+        : Number(arbitrary),
+    );
+    if (!Number.isFinite(scale))
+      return { candidate, message: `invalid Wabou scale in \`${candidate}\`` };
+    declarations = [
+      transformDeclaration("scale", {
+        type: "list",
+        values: [
+          { type: "number", value: scale },
+          { type: "number", value: scale },
+        ],
+      }),
+    ];
+  }
+  const rotateRule = matchDynamic(matcher, "rotate");
+  if (!declarations && rotateRule) {
+    const arbitrary = rotateRule.token.match(
+      /^\[(-?(?:\d+(?:\.\d*)?|\.\d+))\]$/,
+    )?.[1];
+    let degrees = Number(arbitrary ?? rotateRule.token);
+    if (rotateRule.negative) degrees = -degrees;
+    const radians = rustF32((degrees * Math.PI) / 180);
+    if (!Number.isFinite(radians))
+      return {
+        candidate,
+        message: `invalid Wabou rotation in \`${candidate}\``,
+      };
+    declarations = [
+      transformDeclaration("rotate", { type: "number", value: radians }),
     ];
   }
   if (!declarations)
@@ -260,7 +417,16 @@ function cssValue(value: WabouStyleValue): string | number {
           if (item.type !== "record") return cssValue(item);
           const kind = item.fields.kind;
           const argument = item.fields.value;
-          if (kind?.type !== "keyword" || !argument) return "";
+          if (kind?.type !== "keyword") return "";
+          if (kind.value === "repeat") {
+            const count = item.fields.count;
+            const tracks = item.fields.values;
+            if (count?.type !== "number" || tracks?.type !== "list") return "";
+            return `repeat(${count.value}, ${tracks.values.map(cssValue).join(" ")})`;
+          }
+          if (!argument) return "";
+          if (kind.value === "breadth") return cssValue(argument);
+          if (kind.value === "flex") return `${cssValue(argument)}fr`;
           const text =
             argument.type === "list"
               ? argument.values.map(cssValue).join(", ")
@@ -268,8 +434,14 @@ function cssValue(value: WabouStyleValue): string | number {
           return `${kind.value}(${text})`;
         })
         .join(" ");
-    case "record":
+    case "record": {
+      const kind = value.fields.kind;
+      const argument = value.fields.value;
+      if (kind?.type !== "keyword" || !argument) return "";
+      if (kind.value === "breadth") return cssValue(argument);
+      if (kind.value === "flex") return `${cssValue(argument)}fr`;
       return "";
+    }
   }
 }
 
@@ -281,7 +453,7 @@ function unoRule(): Rule {
       if (!resolved) return;
       return Object.fromEntries(
         resolved.declarations.map(({ property, value }) => [
-          property,
+          property.startsWith("transform-") ? "transform" : property,
           cssValue(value),
         ]),
       );
