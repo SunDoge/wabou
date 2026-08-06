@@ -4277,7 +4277,10 @@ dependencies = [
  "clap",
  "ctrlc",
  "serde_json",
+ "vello",
  "wabou-devtools",
+ "wabou-quick",
+ "wabou-shell",
 ]
 
 [[package]]
@@ -4310,7 +4313,6 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.1",
  "bon",
- "clap",
  "futures-lite",
  "image",
  "lasso",

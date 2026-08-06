@@ -12,3 +12,6 @@ clap = { version = "4.6.4", features = ["derive", "env"] }
 ctrlc = "3.5"
 serde_json = "1"
 wabou-devtools = { workspace = true }
+wabou-quick = { workspace = true }
+wabou-shell = { workspace = true }
+vello = "0.9.0"

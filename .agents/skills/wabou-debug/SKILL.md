@@ -71,7 +71,7 @@ Inspect the resulting PNG with an image viewer/tool, not by file existence alone
 
 Limitations:
 
-- `wabou-quick --mode png` currently renders at device scale 1.
+- `wabou render` currently renders at device scale 1.
 - Its synthetic runtime uses window id 0; multi-window apps may select a child-window branch that a normal main window does not.
 - A coordinate click is suitable only after first capturing the current layout.
 
