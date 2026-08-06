@@ -3,19 +3,19 @@ resolver = "3"
 members = ["apps/*", "crates/*"]
 
 [workspace.dependencies]
+wabou-devtools = { path = "crates/wabou-devtools" }
 wabou-quick = { path = "crates/wabou-quick" }
 wabou-shell = { path = "crates/wabou-shell" }
-wabou-devtools = { path = "crates/wabou-devtools" }
 wabou-style = { path = "crates/wabou-style" }
+wabou-terminal = { path = "crates/wabou-terminal" }
 
-# shared
-bon = "3.9.3"
 bitflags = "2.10.0"
+bon = "3.9.3"
 snafu = "0.9.2"
+taffy = "0.12.2"
 
 [profile.dev.package."*"]
 opt-level = 2
 
 [profile.release]
-opt-level = "s"
-strip = true
+lto = "thin"
