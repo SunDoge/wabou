@@ -111,6 +111,31 @@ default to the host's `floating` overlay plane, so they render above content
 without a magic `z-index`; use `plane="modal"` for dialogs and blocking
 backdrops. `z-index` only orders siblings within the same plane:
 
+The renderer retains one synthetic root per overlay plane. Portal instances
+share that root and release it when the last instance unmounts. The host paints
+and hit-tests the same ordered planes: content, floating, modal, system, then
+debug. System and debug remain native-only.
+
+`ScrollArea` uses a node-local overlay attachment instead of a window portal.
+Its native scrollbar is painted after the owner's descendants but before the
+next sibling, and the same order is used for hit testing. Appearance can be
+configured without moving pointer capture into JavaScript:
+
+```tsx
+<ScrollArea
+  scrollbar={{
+    visibility: "always",
+    thickness: 12,
+    minThumbLength: 36,
+    thumbColor: 0x38bdf8cc,
+    hoverColor: 0x38bdf8ff,
+    activeColor: 0x0284c7ff,
+  }}
+>
+  {children}
+</ScrollArea>
+```
+
 ```tsx
 <Popover
   placement="bottom-start"

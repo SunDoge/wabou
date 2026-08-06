@@ -27,13 +27,14 @@ use taffy::{NodeId, TaffyTree};
 use vello::Scene;
 use vello::kurbo::{Affine, Point, Rect, Stroke};
 use vello::peniko::{Color, Fill};
-use wabou_shell::layout::{self, PlacedNode};
+use wabou_shell::layout::{self, PlacedNode, SubtreeEvent, subtree_events};
 use wabou_shell::scrollbar::{
-    ScrollAxis, drag_ratio as scrollbar_drag_ratio, hit as scrollbar_hit,
+    ScrollAxis, ScrollbarPart, ScrollbarTarget, drag_ratio as scrollbar_drag_ratio,
+    hit as scrollbar_hit,
 };
 use wabou_shell::style::{
     self, DeclaredPaint, HostPaint, InheritedPaint, IrValue, OverlayPlane, Paint, PaintTransform,
-    TextAlign,
+    ScrollbarStyle, ScrollbarVisibility, TextAlign,
 };
 use wabou_shell::text::{TextContext, layout_text_styled};
 use wabou_shell::{
@@ -83,6 +84,43 @@ struct ScrollbarHit {
     node: NodeId,
     placed: PlacedNode,
     transform: Affine,
+}
+
+#[derive(Clone)]
+enum HitItem {
+    Content(HitNode),
+    Scrollbar(ScrollbarHit),
+}
+
+fn hit_contains(rect: [f32; 4], radius: f32, transform: Affine, point: Point) -> bool {
+    let [a, b, c, d, _, _] = transform.as_coeffs();
+    let determinant = a * d - b * c;
+    if !determinant.is_finite() || determinant.abs() <= f64::EPSILON {
+        return false;
+    }
+    let local = transform.inverse() * point;
+    let [x0, y0, x1, y1] = rect.map(f64::from);
+    if local.x < x0 || local.y < y0 || local.x >= x1 || local.y >= y1 {
+        return false;
+    }
+    let radius = f64::from(radius).min((x1 - x0) / 2.0).min((y1 - y0) / 2.0);
+    if radius <= 0.0
+        || (local.x >= x0 + radius && local.x < x1 - radius)
+        || (local.y >= y0 + radius && local.y < y1 - radius)
+    {
+        return true;
+    }
+    let center_x = if local.x < x0 + radius {
+        x0 + radius
+    } else {
+        x1 - radius
+    };
+    let center_y = if local.y < y0 + radius {
+        y0 + radius
+    } else {
+        y1 - radius
+    };
+    (local.x - center_x).powi(2) + (local.y - center_y).powi(2) <= radius.powi(2)
 }
 
 #[derive(Clone, Copy)]
@@ -381,6 +419,7 @@ pub struct Applier {
     runtime_transforms: HashMap<NodeId, [f32; 6]>,
     /// Explicit host stacking planes, independent from CSS cascade/z-index.
     overlay_planes: HashMap<NodeId, OverlayPlane>,
+    scrollbar_styles: HashMap<NodeId, ScrollbarStyle>,
     base_color: Color,
     atoms: Rc<RefCell<AtomPool>>,
     /// Listeners keyed by solidId. Presence is also used to avoid crossing the
@@ -431,9 +470,10 @@ pub struct Applier {
     last_text_click: Option<(Instant, u32, f64, f64, u8)>,
     next_text_selection_scroll: Option<Instant>,
     placed_rects: HashMap<NodeId, [f32; 4]>,
-    hit_nodes: Vec<HitNode>,
+    hit_items: Vec<HitItem>,
     scrollbar_hits: Vec<ScrollbarHit>,
     scrollbar_drag: Option<ScrollbarDrag>,
+    hovered_scrollbar: Option<(NodeId, ScrollAxis)>,
     scrollbar_activity: HashMap<NodeId, Instant>,
     /// Rust-side widgets (TextInput, Canvas, …) keyed by taffy NodeId.
     /// Painted every frame after layout; composited by `build_scene`.
@@ -664,6 +704,7 @@ impl Applier {
             svg_cache: HashMap::new(),
             runtime_transforms: HashMap::new(),
             overlay_planes: HashMap::new(),
+            scrollbar_styles: HashMap::new(),
             base_color,
             atoms,
             listeners: HashMap::new(),
@@ -696,9 +737,10 @@ impl Applier {
             last_text_click: None,
             next_text_selection_scroll: None,
             placed_rects: HashMap::new(),
-            hit_nodes: Vec::new(),
+            hit_items: Vec::new(),
             scrollbar_hits: Vec::new(),
             scrollbar_drag: None,
+            hovered_scrollbar: None,
             scrollbar_activity: HashMap::new(),
             widgets: HashMap::new(),
             widget_styles: HashMap::new(),
@@ -935,12 +977,14 @@ impl Applier {
         self.svg_cache.clear();
         self.runtime_transforms.clear();
         self.overlay_planes.clear();
+        self.scrollbar_styles.clear();
         self.widgets.clear();
         self.widget_styles.clear();
         self.listeners.clear();
         self.scroll_offsets.clear();
         self.scrollbar_hits.clear();
         self.scrollbar_drag = None;
+        self.hovered_scrollbar = None;
         self.scrollbar_activity.clear();
         self.pending_value_sync.clear();
         self.dirty_styles.clear();
@@ -1311,6 +1355,47 @@ impl Applier {
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
                 }
             }
+            Op::SetScrollbarStyle {
+                id,
+                visibility,
+                thickness,
+                margin,
+                min_thumb_length,
+                radius,
+                colors,
+            } => {
+                if let Some(&n) = self.solid_to_node.get(id) {
+                    let color = |rgba| {
+                        Color::from_rgba8(
+                            (rgba >> 24) as u8,
+                            (rgba >> 16) as u8,
+                            (rgba >> 8) as u8,
+                            rgba as u8,
+                        )
+                    };
+                    let style = ScrollbarStyle {
+                        visibility: match visibility {
+                            1 => ScrollbarVisibility::Always,
+                            2 => ScrollbarVisibility::Hidden,
+                            _ => ScrollbarVisibility::Auto,
+                        },
+                        thickness: *thickness,
+                        margin: *margin,
+                        min_thumb_length: *min_thumb_length,
+                        radius: *radius,
+                        track_color: color(colors[0]),
+                        thumb_color: color(colors[1]),
+                        hover_color: color(colors[2]),
+                        active_color: color(colors[3]),
+                    };
+                    self.scrollbar_styles.insert(n, style);
+                    if let Some(paint) = self.tree.get_node_context(n) {
+                        let mut paint = paint.clone();
+                        paint.scrollbar = style;
+                        let _ = self.tree.set_node_context(n, Some(paint));
+                    }
+                }
+            }
             Op::FocusNode { id } => {
                 if self.solid_to_node.contains_key(id) {
                     self.set_focused_target(Some(*id));
@@ -1424,6 +1509,7 @@ impl Applier {
                 if let Some(n) = self.solid_to_node.remove(id) {
                     self.runtime_transforms.remove(&n);
                     self.overlay_planes.remove(&n);
+                    self.scrollbar_styles.remove(&n);
                     self.node_to_solid.remove(&n);
                     self.scroll_offsets.remove(&n);
                     self.declared.remove(&n);
@@ -1681,6 +1767,11 @@ impl Applier {
             intrinsic_size: prev.and_then(|p| p.intrinsic_size),
             runtime_transform: self.runtime_transforms.get(&node).copied(),
             overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
+            scrollbar: self
+                .scrollbar_styles
+                .get(&node)
+                .copied()
+                .unwrap_or_default(),
         };
         if let Some(source) = self.serialize_svg(node, inherited.text_color) {
             let cached = self
@@ -2049,6 +2140,11 @@ impl Applier {
             intrinsic_size: host_intrinsic,
             runtime_transform: self.runtime_transforms.get(&node).copied(),
             overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
+            scrollbar: self
+                .scrollbar_styles
+                .get(&node)
+                .copied()
+                .unwrap_or_default(),
         };
         let paint = declared_paint.resolve(&parent_inherited, host);
         let _ = self.tree.set_node_context(node, Some(paint));
@@ -2062,54 +2158,37 @@ impl Applier {
     }
 
     fn hit_test(&self, x: f64, y: f64) -> Option<u32> {
-        fn contains(rect: [f32; 4], radius: f32, transform: Affine, point: Point) -> bool {
-            let [a, b, c, d, _, _] = transform.as_coeffs();
-            let determinant = a * d - b * c;
-            if !determinant.is_finite() || determinant.abs() <= f64::EPSILON {
-                return false;
-            }
-            let local = transform.inverse() * point;
-            let [x0, y0, x1, y1] = rect.map(f64::from);
-            if local.x < x0 || local.y < y0 || local.x >= x1 || local.y >= y1 {
-                return false;
-            }
-            let radius = f64::from(radius).min((x1 - x0) / 2.0).min((y1 - y0) / 2.0);
-            if radius <= 0.0
-                || (local.x >= x0 + radius && local.x < x1 - radius)
-                || (local.y >= y0 + radius && local.y < y1 - radius)
-            {
-                return true;
-            }
-            let center_x = if local.x < x0 + radius {
-                x0 + radius
-            } else {
-                x1 - radius
-            };
-            let center_y = if local.y < y0 + radius {
-                y0 + radius
-            } else {
-                y1 - radius
-            };
-            (local.x - center_x).powi(2) + (local.y - center_y).powi(2) <= radius.powi(2)
-        }
         let point = Point::new(x, y);
-        self.hit_nodes.iter().rev().find_map(|node| {
-            (node.pointer_events
-                && node
-                    .clips
-                    .iter()
-                    .all(|clip| contains(clip.rect, clip.radius, clip.transform, point))
-                && contains(node.rect, 0.0, node.transform, point))
-            .then_some(node.solid_id)
-        })
+        for item in self.hit_items.iter().rev() {
+            match item {
+                HitItem::Content(node)
+                    if node.pointer_events
+                        && node.clips.iter().all(|clip| {
+                            hit_contains(clip.rect, clip.radius, clip.transform, point)
+                        })
+                        && hit_contains(node.rect, 0.0, node.transform, point) =>
+                {
+                    return Some(node.solid_id);
+                }
+                HitItem::Scrollbar(hit)
+                    if scrollbar_hit(&hit.placed, hit.transform.inverse() * point).is_some() =>
+                {
+                    return None;
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {
-        self.hit_nodes.clear();
+        self.hit_items.clear();
         self.scrollbar_hits.clear();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut transforms = HashMap::with_capacity(placed.len());
         let mut clip_chains: HashMap<NodeId, Vec<HitClip>> = HashMap::with_capacity(placed.len());
+        let mut content_hits = HashMap::new();
+        let mut scrollbar_hits = HashMap::new();
         for node in placed {
             let parent_transform = node
                 .parent_node_id
@@ -2131,23 +2210,42 @@ impl Applier {
                 });
             }
             if let Some(&solid_id) = self.node_to_solid.get(&node.node_id) {
-                self.hit_nodes.push(HitNode {
-                    solid_id,
-                    rect: node.rect,
-                    transform,
-                    clips: clips.clone(),
-                    pointer_events: node.paint.pointer_events,
-                });
+                content_hits.insert(
+                    node.node_id,
+                    HitNode {
+                        solid_id,
+                        rect: node.rect,
+                        transform,
+                        clips: clips.clone(),
+                        pointer_events: node.paint.pointer_events,
+                    },
+                );
             }
             if node.scroll.opacity > 0.0 && node.scroll.range.iter().any(|range| *range > 0.5) {
-                self.scrollbar_hits.push(ScrollbarHit {
+                let hit = ScrollbarHit {
                     node: node.node_id,
                     placed: node.clone(),
                     transform,
-                });
+                };
+                self.scrollbar_hits.push(hit.clone());
+                scrollbar_hits.insert(node.node_id, hit);
             }
             transforms.insert(node.node_id, transform);
             clip_chains.insert(node.node_id, clips);
+        }
+        for event in subtree_events(placed) {
+            match event {
+                SubtreeEvent::Enter(node) => {
+                    if let Some(hit) = content_hits.remove(&node.node_id) {
+                        self.hit_items.push(HitItem::Content(hit));
+                    }
+                }
+                SubtreeEvent::Exit(node) => {
+                    if let Some(hit) = scrollbar_hits.remove(&node.node_id) {
+                        self.hit_items.push(HitItem::Scrollbar(hit));
+                    }
+                }
+            }
         }
     }
 
@@ -2157,27 +2255,63 @@ impl Applier {
             now.duration_since(*started) < SCROLLBAR_FADE_DELAY + SCROLLBAR_FADE_DURATION
         });
         for node in placed {
-            node.scroll.opacity = self
-                .scrollbar_activity
-                .get(&node.node_id)
-                .map_or(0.0, |started| {
-                    let elapsed = now.duration_since(*started);
-                    if elapsed <= SCROLLBAR_FADE_DELAY {
-                        1.0
-                    } else {
-                        1.0 - (elapsed - SCROLLBAR_FADE_DELAY).as_secs_f32()
-                            / SCROLLBAR_FADE_DURATION.as_secs_f32()
-                    }
-                })
-                .clamp(0.0, 1.0);
+            node.scroll.opacity = match node.paint.scrollbar.visibility {
+                ScrollbarVisibility::Always => 1.0,
+                ScrollbarVisibility::Hidden => 0.0,
+                ScrollbarVisibility::Auto => self
+                    .scrollbar_activity
+                    .get(&node.node_id)
+                    .map_or(0.0, |started| {
+                        let elapsed = now.duration_since(*started);
+                        if elapsed <= SCROLLBAR_FADE_DELAY {
+                            1.0
+                        } else {
+                            1.0 - (elapsed - SCROLLBAR_FADE_DELAY).as_secs_f32()
+                                / SCROLLBAR_FADE_DURATION.as_secs_f32()
+                        }
+                    })
+                    .clamp(0.0, 1.0),
+            };
+            node.scroll.interaction = if self
+                .scrollbar_drag
+                .is_some_and(|drag| drag.node == node.node_id)
+            {
+                2
+            } else if self
+                .hovered_scrollbar
+                .is_some_and(|(owner, _)| owner == node.node_id)
+            {
+                1
+            } else {
+                0
+            };
         }
     }
 
-    fn scrollbar_at(&self, x: f64, y: f64) -> Option<(NodeId, ScrollAxis)> {
-        self.scrollbar_hits.iter().rev().find_map(|hit| {
-            let local = hit.transform.inverse() * Point::new(x, y);
-            scrollbar_hit(&hit.placed, local).map(|axis| (hit.node, axis))
-        })
+    fn scrollbar_at(&self, x: f64, y: f64) -> Option<(NodeId, ScrollbarTarget)> {
+        let point = Point::new(x, y);
+        for item in self.hit_items.iter().rev() {
+            match item {
+                HitItem::Scrollbar(hit) => {
+                    if let Some(target) =
+                        scrollbar_hit(&hit.placed, hit.transform.inverse() * point)
+                    {
+                        return Some((hit.node, target));
+                    }
+                }
+                HitItem::Content(node)
+                    if node.pointer_events
+                        && node.clips.iter().all(|clip| {
+                            hit_contains(clip.rect, clip.radius, clip.transform, point)
+                        })
+                        && hit_contains(node.rect, 0.0, node.transform, point) =>
+                {
+                    return None;
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     fn drag_scrollbar(&mut self, x: f64, y: f64) -> bool {
@@ -4022,11 +4156,19 @@ impl FrameSource for Applier {
                 let (x, y) = (pointer.position.x, pointer.position.y);
                 self.pointer_buttons = pointer.buttons;
                 self.pointer_position = (x, y);
+                let hovered_scrollbar = self
+                    .scrollbar_at(x, y)
+                    .map(|(node, target)| (node, target.axis));
+                let scrollbar_hover_changed = hovered_scrollbar != self.hovered_scrollbar;
+                self.hovered_scrollbar = hovered_scrollbar;
+                if let Some((node, _)) = hovered_scrollbar {
+                    self.scrollbar_activity.insert(node, Instant::now());
+                }
                 if self.scrollbar_drag.is_some() {
                     let changed = self.drag_scrollbar(x, y);
                     return EventResponse {
                         handled: true,
-                        request_redraw: changed,
+                        request_redraw: changed || scrollbar_hover_changed,
                         ..EventResponse::IGNORED
                     };
                 }
@@ -4038,7 +4180,7 @@ impl FrameSource for Applier {
                     self.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
                 }
                 let target = self.hit_test(x, y);
-                let mut changed = false;
+                let mut changed = scrollbar_hover_changed;
                 if let Some(captured) = self.pointer_down_target
                     && let Some(response) =
                         self.handle_widget_event(captured, &UiEvent::Pointer(pointer.clone()))
@@ -4080,15 +4222,35 @@ impl FrameSource for Applier {
                 self.pointer_position = (x, y);
                 self.pointer_buttons = pointer.buttons;
                 if button == PointerButton::Primary
-                    && let Some((node, axis)) = self.scrollbar_at(x, y)
+                    && let Some((node, target)) = self.scrollbar_at(x, y)
                     && let Some(hit) = self.scrollbar_hits.iter().find(|hit| hit.node == node)
                 {
                     self.scrollbar_activity.insert(node, Instant::now());
+                    if target.part != ScrollbarPart::Thumb {
+                        let index = usize::from(target.axis == ScrollAxis::Vertical);
+                        let viewport = match target.axis {
+                            ScrollAxis::Horizontal => {
+                                hit.placed.scroll.port[2] - hit.placed.scroll.port[0]
+                            }
+                            ScrollAxis::Vertical => {
+                                hit.placed.scroll.port[3] - hit.placed.scroll.port[1]
+                            }
+                        };
+                        let direction = if target.part == ScrollbarPart::TrackBefore {
+                            -1.0
+                        } else {
+                            1.0
+                        };
+                        let offset = self.scroll_offsets.entry(node).or_insert([0.0; 2]);
+                        offset[index] = (offset[index] + direction * viewport)
+                            .clamp(0.0, hit.placed.scroll.range[index]);
+                        return Self::response(true);
+                    }
                     let local = hit.transform.inverse() * Point::new(x, y);
                     self.scrollbar_drag = Some(ScrollbarDrag {
                         node,
-                        axis,
-                        last_position: match axis {
+                        axis: target.axis,
+                        last_position: match target.axis {
                             ScrollAxis::Horizontal => local.x,
                             ScrollAxis::Vertical => local.y,
                         },
@@ -6638,6 +6800,15 @@ mod tests {
         assert!(applier.scrollbar_drag.is_none());
 
         applier.scroll_offsets.insert(container, [0.0, 0.0]);
+        let mut placed =
+            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        applier.update_scrollbar_visuals(&mut placed);
+        applier.rebuild_hit_geometry(&placed);
+        let track = applier.handle_event(pointer(PointerPhase::Down, 95.0, 80.0, 1));
+        assert!(track.handled);
+        assert_eq!(applier.scroll_offsets[&container][1], 100.0);
+
+        applier.scroll_offsets.insert(container, [0.0, 0.0]);
         let mut tcx = TextContext::new();
         let mut placed =
             layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
@@ -6685,5 +6856,54 @@ mod tests {
             applier.selected_text().as_deref(),
             Some("scroll selectable")
         );
+    }
+
+    #[test]
+    fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut applier = Applier::from_runtime(js, Color::BLACK);
+        let view = applier.atoms.borrow_mut().intern("view");
+        for id in [2, 3] {
+            applier.apply_op(&Op::CreateElement {
+                id,
+                tag: view,
+                attrs: vec![],
+            });
+        }
+        let owner = applier.solid_to_node[&2];
+        let overlay = applier.solid_to_node[&3];
+        let root = applier.root;
+        let placed = |node_id, scroll| PlacedNode {
+            node_id,
+            parent_node_id: Some(root),
+            depth: 1,
+            rect: [0.0, 0.0, 100.0, 100.0],
+            content_origin: [0.0, 0.0],
+            content_size: [100.0, 100.0],
+            clip: None,
+            clip_radius: 0.0,
+            clip_depth: None,
+            own_clip: None,
+            own_clip_radius: 0.0,
+            border_widths: [0.0; 4],
+            scroll,
+            paint: Paint::default(),
+        };
+        let owner_scroll = layout::ScrollMetrics {
+            port: [0.0, 0.0, 100.0, 100.0],
+            scrollable: [false, true],
+            range: [0.0, 900.0],
+            offset: [0.0, 0.0],
+            opacity: 1.0,
+            interaction: 0,
+        };
+        let owner_placed = placed(owner, owner_scroll);
+        applier.rebuild_hit_geometry(std::slice::from_ref(&owner_placed));
+        assert!(applier.scrollbar_at(95.0, 16.0).is_some());
+
+        let overlay_placed = placed(overlay, layout::ScrollMetrics::default());
+        applier.rebuild_hit_geometry(&[owner_placed, overlay_placed]);
+        assert_eq!(applier.scrollbar_at(95.0, 16.0), None);
+        assert_eq!(applier.hit_test(95.0, 16.0), Some(3));
     }
 }

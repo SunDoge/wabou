@@ -443,39 +443,54 @@ function FpsPage() {
 function ScrollAreaPage() {
   const theme = useComponentsTheme();
   return (
-    <Preview title="Intrinsic content height">
-      <View
-        class={
-          theme() === "dark"
-            ? "w-96 h-48 flex flex-col m-4 rounded-lg border border-slate-700 overflow-hidden"
-            : "w-96 h-48 flex flex-col m-4 rounded-lg border border-slate-200 overflow-hidden"
-        }
-      >
-        <ScrollArea contentClass="p-2 gap-1">
-          <For each={Array.from({ length: 16 }, (_, index) => index + 1)}>
-            {(index) => (
-              <View
-                class={
-                  theme() === "dark"
-                    ? "h-8 flex-none px-3 flex items-center rounded bg-slate-800"
-                    : "h-8 flex-none px-3 flex items-center rounded bg-slate-100"
-                }
-              >
-                <Text
+    <View class="flex flex-col gap-4">
+      <Preview title="Custom native overlay scrollbar">
+        <View
+          class={
+            theme() === "dark"
+              ? "w-96 h-48 flex flex-col m-4 rounded-lg border border-slate-700 overflow-hidden"
+              : "w-96 h-48 flex flex-col m-4 rounded-lg border border-slate-200 overflow-hidden"
+          }
+        >
+          <ScrollArea
+            contentClass="p-2 gap-1"
+            scrollbar={{
+              visibility: "always",
+              thickness: 12,
+              margin: 3,
+              minThumbLength: 36,
+              radius: 6,
+              trackColor: 0x0f172a22,
+              thumbColor: 0x38bdf8cc,
+              hoverColor: 0x38bdf8ff,
+              activeColor: 0x0284c7ff,
+            }}
+          >
+            <For each={Array.from({ length: 16 }, (_, index) => index + 1)}>
+              {(index) => (
+                <View
                   class={
                     theme() === "dark"
-                      ? "text-sm text-slate-300"
-                      : "text-sm text-slate-700"
+                      ? "h-8 flex-none px-3 flex items-center rounded bg-slate-800"
+                      : "h-8 flex-none px-3 flex items-center rounded bg-slate-100"
                   }
                 >
-                  Scrollable row {index}
-                </Text>
-              </View>
-            )}
-          </For>
-        </ScrollArea>
-      </View>
-    </Preview>
+                  <Text
+                    class={
+                      theme() === "dark"
+                        ? "text-sm text-slate-300"
+                        : "text-sm text-slate-700"
+                    }
+                  >
+                    Scrollable row {index}
+                  </Text>
+                </View>
+              )}
+            </For>
+          </ScrollArea>
+        </View>
+      </Preview>
+    </View>
   );
 }
 
