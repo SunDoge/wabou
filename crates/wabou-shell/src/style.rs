@@ -719,6 +719,75 @@ pub fn apply_ir(
             };
             paint.transform = values.iter().filter_map(PaintTransform::from_ir).collect();
         }
+        "transform-translate-x" | "transform-translate-y" => {
+            let IrValue::List { values } = value else {
+                return false;
+            };
+            let Some(PaintTransform::Translate(x, y)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return true;
+            };
+            if let Some(PaintTransform::Translate(current_x, current_y)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Translate(_, _)))
+            {
+                if property == "transform-translate-x" {
+                    *current_x = x;
+                } else {
+                    *current_y = y;
+                }
+            } else {
+                paint.transform.push(PaintTransform::Translate(x, y));
+            }
+        }
+        "transform-scale" => {
+            let IrValue::List { values } = value else {
+                return false;
+            };
+            let Some(component @ PaintTransform::Scale(_, _)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return true;
+            };
+            if let Some(current @ PaintTransform::Scale(_, _)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Scale(_, _)))
+            {
+                *current = component;
+            } else {
+                paint.transform.push(component);
+            }
+        }
+        "transform-rotate" => {
+            let IrValue::List { values } = value else {
+                return false;
+            };
+            let Some(component @ PaintTransform::Rotate(_)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return true;
+            };
+            if let Some(current @ PaintTransform::Rotate(_)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Rotate(_)))
+            {
+                *current = component;
+            } else {
+                paint.transform.push(component);
+            }
+        }
+        "transform-component" => {
+            let IrValue::List { values } = value else {
+                return false;
+            };
+            paint
+                .transform
+                .extend(values.iter().filter_map(PaintTransform::from_ir));
+        }
         "box-shadow" => {
             if let IrValue::List { values } = value {
                 paint.box_shadows = values.iter().filter_map(BoxShadow::from_ir).collect();

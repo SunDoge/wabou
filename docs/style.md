@@ -40,6 +40,36 @@ silently omitted. The supported syntax is called **Wabou Utilities**; it uses
 familiar Tailwind conventions but does not claim browser CSS or full UnoCSS
 compatibility.
 
+Utility declarations are applied in class-list order. Later classes override
+earlier classes after shorthands have expanded to their native properties:
+
+```tsx
+<View class="p-4 px-2 w-4 w-8" />
+```
+
+This resolves to 16px vertical padding, 8px horizontal padding, and a 32px
+width. Transform utilities use independent translate/scale/rotate slots, so
+different slots compose while a later utility for the same slot replaces the
+earlier value.
+
+The default theme can be extended at generation time with a JSON file:
+
+```json
+{
+  "spacing": { "18.5": 74 },
+  "colors": { "brand": 862362111 }
+}
+```
+
+```sh
+WABOU_THEME=./wabou-theme.json bun run gen
+```
+
+Theme files extend the defaults. They are static build inputs: runtime theme
+switching belongs in explicit component state and `classList`, not in a CSS
+variant. Rust integrations can use `Theme`, `parse_utility_with_theme`, and
+`manifest_with_theme` directly.
+
 ## Typed dynamic styles
 
 Import value constructors from `@wabou/style` when a value changes at runtime:
@@ -80,3 +110,8 @@ const hover = createHover();
 
 `hover:`, `focus:`, `active:`, `disabled:` and authored CSS pseudo-classes are
 build errors rather than approximate browser behavior.
+
+The same rule applies to responsive/theme variants, transitions, animations,
+and dynamically assembled names such as `` `bg-${color()}` ``. Select between
+complete static utilities in `classList`; use typed style values for continuous
+runtime values.

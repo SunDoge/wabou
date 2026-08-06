@@ -150,6 +150,67 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
 }
 
 #[test]
+fn utility_order_is_last_wins_and_transform_components_compose() {
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, width_4, width_8, translate_x_4, translate_y_6, translate_x_2, scale, rotate) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("div"),
+            atoms.intern("w-4"),
+            atoms.intern("w-8"),
+            atoms.intern("translate-x-4"),
+            atoms.intern("translate-y-6"),
+            atoms.intern("translate-x-2"),
+            atoms.intern("scale-150"),
+            atoms.intern("rotate-45"),
+        )
+    };
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement {
+                id: 2,
+                tag: div,
+                attrs: vec![],
+            },
+            Op::SetClassName {
+                id: 2,
+                classes: vec![
+                    width_4,
+                    width_8,
+                    translate_x_4,
+                    translate_y_6,
+                    translate_x_2,
+                    scale,
+                    rotate,
+                ],
+            },
+            Op::AppendChild {
+                parent: 1,
+                child: 2,
+            },
+            Op::FrameEnd,
+        ],
+    });
+
+    let mut text = wabou_shell::TextContext::new();
+    applier.build_frame(&mut text, 800, 600);
+    let snapshot = applier.computed_node_snapshot(2).unwrap();
+    assert_eq!(snapshot.layout.size.width, taffy::Dimension::length(32.0));
+    assert_eq!(
+        snapshot.transforms,
+        vec![
+            wabou_shell::style::PaintTransform::Translate(
+                wabou_shell::style::IrLength::Px { value: 8.0 },
+                wabou_shell::style::IrLength::Px { value: 24.0 },
+            ),
+            wabou_shell::style::PaintTransform::Scale(1.5, 1.5),
+            wabou_shell::style::PaintTransform::Rotate(std::f32::consts::FRAC_PI_4),
+        ]
+    );
+}
+
+#[test]
 fn typed_inline_style_reaches_layout_without_string_parsing() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, width, opacity) = {
@@ -223,7 +284,7 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
-    assert!(matches!(applier.utility_cache.get(&unknown), Some(None)));
+    assert!(matches!(applier.utility_cache.get(&unknown), Some(Err(_))));
     assert!(applier.warned_utility_classes.contains(&unknown));
 }
 

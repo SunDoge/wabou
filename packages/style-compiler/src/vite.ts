@@ -64,25 +64,58 @@ export function extractUtilitySource(source: string): string {
         "",
       );
     }
-    // Reactive selection between complete, static utilities is valid. Only
-    // reject interpolation/string concatenation *inside* an arbitrary value,
-    // which would manufacture a new class (and force runtime parsing) on each
-    // value change.
-    const constructsArbitraryValue =
-      /\[[^\]\n]*\$\{/.test(value) ||
-      (expression && /\[["'`]\s*\+/.test(value));
-    if (constructsArbitraryValue) {
+    // Reactive selection between complete static utilities is valid, but
+    // manufacturing utility names from runtime fragments bypasses build-time
+    // validation and theme/conformance guarantees.
+    const interpolations = [...value.matchAll(/\$\{([^}]+)\}/g)];
+    const selectsCompleteUtilities = (code: string) =>
+      /^\s*[\s\S]+?\?\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*:\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*$/.test(
+        code,
+      );
+    const constructsClass =
+      interpolations.some((match) => !selectsCompleteUtilities(match[1])) ||
+      (expression && /(?:["'`]\s*\+|\+\s*["'`])/.test(value));
+    if (constructsClass) {
       throw new Error(
-        "dynamic class construction is not supported; keep class utilities static and put dynamic numeric values in typed style",
+        "dynamic class construction is not supported; select complete static utilities with classList and put continuous values in typed style",
       );
     }
     values.push(value);
   };
-  const classProp =
-    /\bclass(?:Name)?\s*=\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`|\{([^}]*)\})/g;
+  const classProp = /\bclass(?:Name)?\s*=\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g;
   for (const match of source.matchAll(classProp)) {
-    const value = match[1] ?? match[2] ?? match[3] ?? match[4] ?? "";
-    pushValue(value, match[4] !== undefined);
+    pushValue(match[1] ?? match[2] ?? match[3] ?? "");
+  }
+  const expressionStart = /\bclass(?:Name)?\s*=\s*\{/g;
+  for (const match of source.matchAll(expressionStart)) {
+    const start = (match.index ?? 0) + match[0].length;
+    let depth = 1;
+    let quote = "";
+    let escaped = false;
+    let end = start;
+    for (; end < source.length && depth > 0; end++) {
+      const character = source[end];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (character === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (quote) {
+        if (character === quote) quote = "";
+        continue;
+      }
+      if (character === '"' || character === "'" || character === "`") {
+        quote = character;
+      } else if (character === "{") {
+        depth++;
+      } else if (character === "}") {
+        depth--;
+      }
+    }
+    pushValue(source.slice(start, depth === 0 ? end - 1 : end), true);
   }
   const classListProp = /\bclassList\s*=\s*\{\{([\s\S]*?)\}\}/g;
   for (const match of source.matchAll(classListProp)) {

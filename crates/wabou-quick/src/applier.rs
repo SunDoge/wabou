@@ -349,7 +349,7 @@ pub struct Applier {
     universal_rules: Vec<usize>,
     /// Runtime utility fallback cache. Each interned class is parsed at most
     /// once; build-time stylesheet rules bypass this map entirely.
-    utility_cache: HashMap<Atom, Option<wabou_style::ParsedUtility>>,
+    utility_cache: HashMap<Atom, Result<wabou_style::ParsedUtility, String>>,
     warned_utility_classes: HashSet<Atom>,
     warned_ir_properties: HashSet<Atom>,
     /// Serialized source + parsed Vello fragment for each inline `<svg>` root.
@@ -1754,78 +1754,97 @@ impl Applier {
                 layout.flex_shrink = 0.0;
                 paint.wrap_text = Some(false);
             }
+            // Wabou has no CSS cascade: utility declarations are applied in
+            // class-list order, with later classes overriding earlier ones.
+            // Universal rules run first; inline style still runs last below.
+            let mut declarations = Vec::new();
             if let Some(sheet) = &self.style_ir {
-                let mut declarations = Vec::new();
-                // Match in O(C) via the class→rules index built when the sheet
-                // arrived: universal (`*`) rules + the node's own class buckets,
-                // The sort below still orders
-                // by (important, specificity, source_order).
-                for group in std::iter::once(&self.universal_rules).chain(
-                    decl.classes
-                        .iter()
-                        .filter_map(|class| self.rule_index.get(class)),
-                ) {
-                    for &idx in group {
+                for &idx in &self.universal_rules {
+                    let rule = &sheet.rules[idx];
+                    for (index, declaration) in rule.declarations.iter().enumerate() {
+                        declarations.push((
+                            declaration.important,
+                            rule.specificity,
+                            0usize,
+                            rule.source_order,
+                            index,
+                            declaration.property.clone(),
+                            declaration.value.clone(),
+                        ));
+                    }
+                }
+                for (class_position, class) in decl.classes.iter().enumerate() {
+                    let Some(indices) = self.rule_index.get(class) else {
+                        continue;
+                    };
+                    for &idx in indices {
                         let rule = &sheet.rules[idx];
                         for (index, declaration) in rule.declarations.iter().enumerate() {
                             declarations.push((
                                 declaration.important,
                                 rule.specificity,
+                                class_position + 1,
                                 rule.source_order,
                                 index,
-                                declaration,
+                                declaration.property.clone(),
+                                declaration.value.clone(),
                             ));
                         }
                     }
                 }
-                declarations.sort_by_key(|(important, specificity, order, index, _)| {
-                    (*important, *specificity, *order, *index)
-                });
-                for (_, _, _, _, declaration) in declarations {
-                    display_explicit |= declaration.property == "display";
-                    if !style::apply_ir(
-                        &mut layout,
-                        &mut paint,
-                        &declaration.property,
-                        &declaration.value,
-                    ) && self.warned_ir_properties.insert(
-                        atoms
-                            .get(&declaration.property)
-                            .expect("stylesheet properties are interned when installed"),
-                    ) {
-                        tracing::warn!(property = %declaration.property, "unsupported Style IR property");
-                    }
-                }
             }
-            // Native utility fallback. Build tooling normally installs the
-            // precompiled class rule, but runtime-created class names and
-            // tests can be resolved directly from the same Rust parser.
-            for class in &decl.classes {
+            // Runtime-created class names use the same ordering and IR as
+            // precompiled classes, rather than forming a higher-priority
+            // fallback layer.
+            for (class_position, class) in decl.classes.iter().enumerate() {
                 if self.rule_index.contains_key(class) {
                     continue;
                 }
                 let utility = self.utility_cache.entry(*class).or_insert_with(|| {
                     atoms
                         .resolve(*class)
-                        .and_then(|name| wabou_style::parse_utility(name).ok())
+                        .ok_or_else(|| "unknown class atom".to_string())
+                        .and_then(|name| {
+                            wabou_style::parse_utility(name).map_err(|error| error.to_string())
+                        })
                 });
-                let Some(utility) = utility.as_ref() else {
-                    if self.warned_utility_classes.insert(*class) {
-                        tracing::warn!(
-                            class = atoms.resolve(*class).unwrap_or("<unknown>"),
-                            "unsupported runtime utility class"
-                        );
+                let utility = match utility {
+                    Ok(utility) => utility,
+                    Err(diagnostic) => {
+                        if self.warned_utility_classes.insert(*class) {
+                            tracing::warn!(
+                                class = atoms.resolve(*class).unwrap_or("<unknown>"),
+                                    %diagnostic,
+                                    "rejected runtime utility class"
+                            );
+                        }
+                        continue;
                     }
-                    continue;
                 };
-                for declaration in &utility.declarations {
-                    display_explicit |= declaration.property == "display";
-                    style::apply_ir(
-                        &mut layout,
-                        &mut paint,
-                        &declaration.property,
-                        &style_ir::utility_value(&declaration.value),
-                    );
+                for (index, declaration) in utility.declarations.iter().enumerate() {
+                    declarations.push((
+                        false,
+                        10,
+                        class_position + 1,
+                        0,
+                        index,
+                        declaration.property.clone(),
+                        style_ir::utility_value(&declaration.value),
+                    ));
+                }
+            }
+            declarations.sort_by_key(
+                |(important, specificity, class_position, order, index, _, _)| {
+                    (*important, *specificity, *class_position, *order, *index)
+                },
+            );
+            for (_, _, _, _, _, property, value) in declarations {
+                display_explicit |= property == "display";
+                if !style::apply_ir(&mut layout, &mut paint, &property, &value)
+                    && let Some(atom) = atoms.get(&property)
+                    && self.warned_ir_properties.insert(atom)
+                {
+                    tracing::warn!(property, "unsupported Style IR property");
                 }
             }
             for (property, value) in &decl.inline {
