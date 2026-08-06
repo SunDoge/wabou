@@ -1,4 +1,9 @@
-import { createElement, type Handle, spread } from "@wabou/solid-renderer";
+import {
+  createElement,
+  type Handle,
+  type NativeScrollbarStyle,
+  spread,
+} from "@wabou/solid-renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
 import type { JSX } from "solid-js";
 
@@ -21,6 +26,8 @@ interface PrimitiveProps {
   transform?: Affine2D | null;
   /** Ordered Vello blurred-rounded-rectangle shadow layers. */
   shadows?: readonly Shadow[] | null;
+  /** Native overlay scrollbar appearance and visibility policy. */
+  scrollbar?: NativeScrollbarStyle | null;
   children?: JSX.Element;
   /** Native host node, useful for imperative primitives and measurement. */
   ref?: (node: Handle) => void;

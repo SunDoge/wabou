@@ -1,10 +1,11 @@
 import { onCleanup, splitProps, type JSX } from "solid-js";
 import {
   createElement,
-  getMountRoot,
+  acquireOverlayRoot,
   insert,
   insertNode,
   removeNode,
+  releaseOverlayRoot,
   spread,
   type Handle,
 } from "./index";
@@ -16,17 +17,18 @@ export interface PortalProps {
   [name: string]: unknown;
 }
 
-/** Render a native host subtree directly under the mounted window root. */
+/** Render a native host subtree under its shared synthetic overlay root. */
 export function Portal(props: PortalProps): JSX.Element {
   const [local, containerProps] = splitProps(props, ["children", "plane"]);
-  const root = getMountRoot();
+  const plane = local.plane ?? "floating";
+  const root = acquireOverlayRoot(plane);
   const container = createElement("view") as Handle;
   spread(container, containerProps, false);
-  spread(container, { get overlayPlane() { return local.plane ?? "floating"; } }, false);
   insertNode(root, container, undefined);
   insert(container, () => local.children);
   onCleanup(() => {
     if (container.parent) removeNode(container.parent, container);
+    releaseOverlayRoot(plane);
   });
   return null;
 }

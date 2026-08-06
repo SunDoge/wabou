@@ -1023,6 +1023,7 @@ impl DeclaredPaint {
             transform: self.transform.clone(),
             runtime_transform: host.runtime_transform,
             overlay_plane: host.overlay_plane,
+            scrollbar: host.scrollbar,
             shadows: self.shadows.clone(),
             border_radius: self.border_radius,
             border: self.border,
@@ -1059,6 +1060,45 @@ pub enum OverlayPlane {
     Debug,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ScrollbarVisibility {
+    #[default]
+    Auto,
+    Always,
+    Hidden,
+}
+
+/// Host-owned appearance for native overlay scrollbars.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScrollbarStyle {
+    pub visibility: ScrollbarVisibility,
+    pub thickness: f32,
+    pub margin: f32,
+    pub min_thumb_length: f32,
+    /// Negative means half the thumb thickness.
+    pub radius: f32,
+    pub track_color: Color,
+    pub thumb_color: Color,
+    pub hover_color: Color,
+    pub active_color: Color,
+}
+
+impl Default for ScrollbarStyle {
+    fn default() -> Self {
+        Self {
+            visibility: ScrollbarVisibility::Auto,
+            thickness: 10.0,
+            margin: 2.0,
+            min_thumb_length: 32.0,
+            radius: -1.0,
+            track_color: Color::TRANSPARENT,
+            thumb_color: Color::from_rgba8(100, 116, 139, 190),
+            hover_color: Color::from_rgba8(100, 116, 139, 225),
+            active_color: Color::from_rgba8(71, 85, 105, 255),
+        }
+    }
+}
+
 /// Host-owned paint content that is not part of the CSS cascade.
 #[derive(Clone, Default)]
 pub struct HostPaint {
@@ -1070,6 +1110,7 @@ pub struct HostPaint {
     pub intrinsic_size: Option<[f32; 2]>,
     pub runtime_transform: Option<[f32; 6]>,
     pub overlay_plane: OverlayPlane,
+    pub scrollbar: ScrollbarStyle,
 }
 
 /// Fully resolved paint used by layout and rendering.
@@ -1086,6 +1127,7 @@ pub struct Paint {
     pub runtime_transform: Option<[f32; 6]>,
     /// Explicit host stacking plane, ordered before sibling `z-index`.
     pub overlay_plane: OverlayPlane,
+    pub scrollbar: ScrollbarStyle,
     pub shadows: Vec<Shadow>,
     /// Uniform corner radius in px.
     pub border_radius: f32,

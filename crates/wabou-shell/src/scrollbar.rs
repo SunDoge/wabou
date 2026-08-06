@@ -4,14 +4,38 @@ use vello::kurbo::{Point, Rect};
 
 use crate::layout::PlacedNode;
 
-const THUMB_THICKNESS: f64 = 10.0;
-const THUMB_MARGIN: f64 = 2.0;
-const MIN_THUMB_LENGTH: f64 = 32.0;
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScrollAxis {
     Horizontal,
     Vertical,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScrollbarPart {
+    Thumb,
+    TrackBefore,
+    TrackAfter,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScrollbarTarget {
+    pub axis: ScrollAxis,
+    pub part: ScrollbarPart,
+}
+
+pub fn track(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
+    let index = usize::from(axis == ScrollAxis::Vertical);
+    if node.scroll.range[index] <= 0.5 || !node.scroll.scrollable[index] {
+        return None;
+    }
+    let [x0, y0, x1, y1] = node.scroll.port.map(f64::from);
+    let style = node.paint.scrollbar;
+    let thickness = f64::from(style.thickness);
+    let margin = f64::from(style.margin);
+    Some(match axis {
+        ScrollAxis::Horizontal => Rect::new(x0, y1 - margin - thickness, x1, y1 - margin),
+        ScrollAxis::Vertical => Rect::new(x1 - margin - thickness, y0, x1 - margin, y1),
+    })
 }
 
 pub fn thumb(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
@@ -29,8 +53,11 @@ pub fn thumb(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
         ScrollAxis::Horizontal => port.width(),
         ScrollAxis::Vertical => port.height(),
     };
+    let style = node.paint.scrollbar;
+    let thickness = f64::from(style.thickness).min(viewport);
+    let margin = f64::from(style.margin).min((viewport - thickness).max(0.0));
     let length = (viewport * viewport / (viewport + range))
-        .max(MIN_THUMB_LENGTH)
+        .max(f64::from(style.min_thumb_length))
         .min(viewport);
     let progress = (f64::from(node.scroll.offset[index]) / range).clamp(0.0, 1.0);
     let start = match progress * (viewport - length) {
@@ -40,23 +67,46 @@ pub fn thumb(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
     Some(match axis {
         ScrollAxis::Horizontal => Rect::new(
             port.x0 + start,
-            port.y1 - THUMB_MARGIN - THUMB_THICKNESS,
+            port.y1 - margin - thickness,
             port.x0 + start + length,
-            port.y1 - THUMB_MARGIN,
+            port.y1 - margin,
         ),
         ScrollAxis::Vertical => Rect::new(
-            port.x1 - THUMB_MARGIN - THUMB_THICKNESS,
+            port.x1 - margin - thickness,
             port.y0 + start,
-            port.x1 - THUMB_MARGIN,
+            port.x1 - margin,
             port.y0 + start + length,
         ),
     })
 }
 
-pub fn hit(node: &PlacedNode, point: Point) -> Option<ScrollAxis> {
-    [ScrollAxis::Vertical, ScrollAxis::Horizontal]
-        .into_iter()
-        .find(|axis| thumb(node, *axis).is_some_and(|rect| rect.contains(point)))
+pub fn hit(node: &PlacedNode, point: Point) -> Option<ScrollbarTarget> {
+    for axis in [ScrollAxis::Vertical, ScrollAxis::Horizontal] {
+        let Some(thumb) = thumb(node, axis) else {
+            continue;
+        };
+        if thumb.contains(point) {
+            return Some(ScrollbarTarget {
+                axis,
+                part: ScrollbarPart::Thumb,
+            });
+        }
+        if track(node, axis).is_some_and(|track| track.contains(point)) {
+            let before = match axis {
+                ScrollAxis::Horizontal => point.x < thumb.x0,
+                ScrollAxis::Vertical => point.y < thumb.y0,
+            };
+            return Some(ScrollbarTarget {
+                axis,
+                part: if before {
+                    ScrollbarPart::TrackBefore
+                } else {
+                    ScrollbarPart::TrackAfter
+                },
+            });
+        }
+    }
+    None
 }
 
 pub fn drag_ratio(node: &PlacedNode, axis: ScrollAxis) -> f64 {
@@ -103,6 +153,7 @@ mod tests {
                 range: [0.0, 900.0],
                 offset: [0.0, offset],
                 opacity: 1.0,
+                interaction: 0,
             },
             paint: Paint::default(),
         }
@@ -118,7 +169,29 @@ mod tests {
         assert!((drag_ratio(&node, ScrollAxis::Vertical) - 900.0 / 68.0).abs() < 0.001);
         assert_eq!(
             hit(&node, Point::new(95.0, 50.0)),
-            Some(ScrollAxis::Vertical)
+            Some(ScrollbarTarget {
+                axis: ScrollAxis::Vertical,
+                part: ScrollbarPart::Thumb
+            })
+        );
+    }
+
+    #[test]
+    fn custom_appearance_changes_shared_paint_and_hit_geometry() {
+        let mut node = node(450.0);
+        node.paint.scrollbar.thickness = 14.0;
+        node.paint.scrollbar.margin = 3.0;
+        node.paint.scrollbar.min_thumb_length = 40.0;
+        assert_eq!(
+            thumb(&node, ScrollAxis::Vertical),
+            Some(Rect::new(83.0, 30.0, 97.0, 70.0))
+        );
+        assert_eq!(
+            hit(&node, Point::new(90.0, 90.0)),
+            Some(ScrollbarTarget {
+                axis: ScrollAxis::Vertical,
+                part: ScrollbarPart::TrackAfter,
+            })
         );
     }
 }

@@ -26,6 +26,7 @@ pub mod op {
     pub const SET_STYLE_VALUE: u8 = 0x16;
     pub const SET_SHADOWS: u8 = 0x17;
     pub const SET_OVERLAY_PLANE: u8 = 0x18;
+    pub const SET_SCROLLBAR_STYLE: u8 = 0x19;
 }
 
 pub mod event {

@@ -49,6 +49,8 @@ pub struct ScrollMetrics {
     pub offset: [f32; 2],
     /// Host-owned overlay visibility. Zero also disables native hit testing.
     pub opacity: f32,
+    /// 0 resting, 1 hovered, 2 actively dragged.
+    pub interaction: u8,
 }
 
 /// A depth-derived traversal boundary for the flattened retained tree.
@@ -273,6 +275,7 @@ fn walk(
                     range: scroll_range,
                     offset: scroll,
                     opacity: 0.0,
+                    interaction: 0,
                 },
                 paint: paint.clone(),
             });

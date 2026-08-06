@@ -5,6 +5,7 @@ import {
   createElement,
   dispatchEvent,
   EVENT_CODE,
+  OP,
   mount,
   runSweep,
   setProp,
@@ -80,6 +81,34 @@ test("handles expose imperative native focus through the bridge", () => {
   expect(frame.byteLength).toBe(13);
   expect(frame[8]).toBe(0x13);
   expect(view.getUint32(9, true)).toBe(button.id);
+});
+
+test("native scrollbar customization uses one typed host operation", () => {
+  writer.flush();
+  const view = createElement("view");
+  writer.flush();
+  setProp(
+    view,
+    "scrollbar",
+    {
+      visibility: "always",
+      thickness: 14,
+      margin: 3,
+      minThumbLength: 40,
+      radius: 5,
+      trackColor: 0x11182788,
+      thumbColor: 0x38bdf8ff,
+    },
+    undefined,
+  );
+  const frame = writer.flush()!;
+  const bytes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+  expect(frame[8]).toBe(OP.SetScrollbarStyle);
+  expect(frame[13]).toBe(1);
+  expect(bytes.getFloat32(14, true)).toBe(14);
+  expect(bytes.getUint32(30, true)).toBe(0x11182788);
+  expect(bytes.getUint32(34, true)).toBe(0x38bdf8ff);
 });
 
 test("typed inline style bypasses UTF-8 serialization", () => {

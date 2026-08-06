@@ -1,4 +1,4 @@
-import type { Handle } from "@wabou/solid-renderer";
+import type { Handle, NativeScrollbarStyle } from "@wabou/solid-renderer";
 import type { JSX } from "solid-js";
 import { View, type WabouStyle } from "./view";
 
@@ -13,6 +13,7 @@ export interface ScrollAreaProps {
   contentClass?: string;
   style?: WabouStyle;
   ref?: (node: Handle) => void;
+  scrollbar?: NativeScrollbarStyle;
 }
 
 /**
@@ -28,6 +29,7 @@ export function ScrollArea(props: ScrollAreaProps): JSX.Element {
       ref={props.ref}
       class={join("flex-1 min-h-0 overflow-y-auto", props.class)}
       style={props.style}
+      scrollbar={props.scrollbar}
     >
       <View
         class={join("flex-none flex flex-col min-h-full", props.contentClass)}

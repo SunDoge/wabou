@@ -22,6 +22,20 @@ export const delegateEvents = () => {};
 import type { JSX } from "solid-js";
 import { createRenderer as solidCreateRenderer } from "solid-js/universal";
 
+export interface NativeScrollbarStyle {
+  visibility?: "auto" | "always" | "hidden";
+  thickness?: number;
+  margin?: number;
+  minThumbLength?: number;
+  /** Negative or omitted uses a pill radius. */
+  radius?: number;
+  /** Packed colors in `0xRRGGBBAA` order. */
+  trackColor?: number;
+  thumbColor?: number;
+  hoverColor?: number;
+  activeColor?: number;
+}
+
 // Host-provided global (injected by Rust) for logging from the renderer.
 declare function __wabou_log(level: "error", message: string): void;
 
@@ -218,6 +232,28 @@ function applyProperty(
   if (name === "overlayPlane") {
     const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
     writer.setOverlayPlane(node.id, plane);
+    return;
+  }
+  if (name === "scrollbar") {
+    const style = (
+      value && typeof value === "object" ? value : {}
+    ) as NativeScrollbarStyle;
+    writer.setScrollbarStyle(node.id, {
+      visibility:
+        style.visibility === "always"
+          ? 1
+          : style.visibility === "hidden"
+            ? 2
+            : 0,
+      thickness: style.thickness ?? 10,
+      margin: style.margin ?? 2,
+      minThumbLength: style.minThumbLength ?? 32,
+      radius: style.radius ?? -1,
+      trackColor: style.trackColor ?? 0x00000000,
+      thumbColor: style.thumbColor ?? 0x64748fbe,
+      hoverColor: style.hoverColor ?? 0x64748fe1,
+      activeColor: style.activeColor ?? 0x475569ff,
+    });
     return;
   }
   if (name === "transform") {
@@ -434,11 +470,51 @@ export function registerRoot(root: Handle): void {
 /** Dispose callback for the last `mount()` — used by in-process HMR full reload. */
 let activeMountDispose: (() => void) | null = null;
 let mountedRoot: Handle | null = null;
+type PublicOverlayPlane = "floating" | "modal";
+const overlayRoots = new Map<
+  PublicOverlayPlane,
+  { node: Handle; users: number }
+>();
 
 /** Current native window root, used by renderer-level facilities like Portal. */
 export function getMountRoot(): Handle {
   if (!mountedRoot) throw new Error("Portal must be rendered inside mount()");
   return mountedRoot;
+}
+
+/** Acquire the shared synthetic host root for one public overlay plane. */
+export function acquireOverlayRoot(plane: PublicOverlayPlane): Handle {
+  const existing = overlayRoots.get(plane);
+  if (existing) {
+    existing.users++;
+    return existing.node;
+  }
+  const node = createElement("view") as Handle;
+  spread(
+    node,
+    {
+      overlayPlane: plane,
+      style: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        "pointer-events": "none",
+      },
+    },
+    false,
+  );
+  insertNode(getMountRoot(), node, undefined);
+  overlayRoots.set(plane, { node, users: 1 });
+  return node;
+}
+
+export function releaseOverlayRoot(plane: PublicOverlayPlane): void {
+  const entry = overlayRoots.get(plane);
+  if (!entry || --entry.users > 0) return;
+  overlayRoots.delete(plane);
+  if (entry.node.parent) removeNode(entry.node.parent, entry.node);
 }
 
 /** Mount a Solid application into the host-provided root node. */
@@ -464,10 +540,12 @@ export function mount(code: () => JSX.Element): () => void {
     ...imperativeMethods(1),
   };
   mountedRoot = root;
+  overlayRoots.clear();
   registerRoot(root);
   const dispose = render(code, root);
   activeMountDispose = () => {
     dispose();
+    overlayRoots.clear();
     if (mountedRoot === root) mountedRoot = null;
     runSweep();
     writer.flush();

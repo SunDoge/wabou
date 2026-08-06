@@ -7,7 +7,7 @@ use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
-use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb};
+use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
 use crate::style::{IrLength, PaintTransform, Shadow};
 use crate::text::{TextContext, layout_text_styled};
 
@@ -107,19 +107,45 @@ fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     if node.scroll.opacity <= 0.0 {
         return;
     }
-    let color = Color::from_rgba8(100, 116, 139, (190.0 * node.scroll.opacity) as u8);
+    let fade = |color: Color| {
+        let rgba = color.to_rgba8();
+        Color::from_rgba8(
+            rgba.r,
+            rgba.g,
+            rgba.b,
+            ((rgba.a as f32) * node.scroll.opacity) as u8,
+        )
+    };
     for axis in [ScrollAxis::Vertical, ScrollAxis::Horizontal] {
+        if let Some(track) = scrollbar_track(node, axis) {
+            scene.fill(
+                Fill::NonZero,
+                transform,
+                fade(node.paint.scrollbar.track_color),
+                None,
+                &track,
+            );
+        }
         let Some(rect) = scrollbar_thumb(node, axis) else {
             continue;
         };
-        let radius = match axis {
-            ScrollAxis::Horizontal => rect.height() * 0.5,
-            ScrollAxis::Vertical => rect.width() * 0.5,
+        let radius = if node.paint.scrollbar.radius < 0.0 {
+            match axis {
+                ScrollAxis::Horizontal => rect.height() * 0.5,
+                ScrollAxis::Vertical => rect.width() * 0.5,
+            }
+        } else {
+            f64::from(node.paint.scrollbar.radius)
+        };
+        let color = match node.scroll.interaction {
+            2 => node.paint.scrollbar.active_color,
+            1 => node.paint.scrollbar.hover_color,
+            _ => node.paint.scrollbar.thumb_color,
         };
         scene.fill(
             Fill::NonZero,
             transform,
-            color,
+            fade(color),
             None,
             &rect.to_rounded_rect(radius),
         );

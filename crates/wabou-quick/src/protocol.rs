@@ -128,6 +128,15 @@ pub enum Op<'a> {
         id: u32,
         plane: u8,
     },
+    SetScrollbarStyle {
+        id: u32,
+        visibility: u8,
+        thickness: f32,
+        margin: f32,
+        min_thumb_length: f32,
+        radius: f32,
+        colors: [u32; 4],
+    },
     FocusNode {
         id: u32,
     },
@@ -171,6 +180,9 @@ pub enum DecodeError {
 
     #[snafu(display("unknown overlay plane {plane}"))]
     BadOverlayPlane { plane: u8 },
+
+    #[snafu(display("invalid native scrollbar style"))]
+    BadScrollbarStyle,
 }
 
 struct Reader<'a> {
@@ -420,6 +432,34 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             }
             Op::SetOverlayPlane { id, plane }
         }
+        op::SET_SCROLLBAR_STYLE => {
+            let id = r.u32()?;
+            let visibility = r.u8()?;
+            let thickness = r.f32()?;
+            let margin = r.f32()?;
+            let min_thumb_length = r.f32()?;
+            let radius = r.f32()?;
+            if visibility > 2
+                || !thickness.is_finite()
+                || thickness <= 0.0
+                || !margin.is_finite()
+                || margin < 0.0
+                || !min_thumb_length.is_finite()
+                || min_thumb_length <= 0.0
+                || !radius.is_finite()
+            {
+                return Err(DecodeError::BadScrollbarStyle);
+            }
+            Op::SetScrollbarStyle {
+                id,
+                visibility,
+                thickness,
+                margin,
+                min_thumb_length,
+                radius,
+                colors: [r.u32()?, r.u32()?, r.u32()?, r.u32()?],
+            }
+        }
         op::FOCUS_NODE => {
             let id = r.u32()?;
             Op::FocusNode { id }
@@ -503,6 +543,36 @@ mod tests {
 
         let frame = decode_frame(&bytes).unwrap();
         assert!(matches!(&frame.ops[0], Op::FocusNode { id: 42 }));
+    }
+
+    #[test]
+    fn decodes_native_scrollbar_style_without_strings() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 1);
+        bytes.push(op::SET_SCROLLBAR_STYLE);
+        push_u32(&mut bytes, 42);
+        bytes.push(1);
+        for value in [14.0_f32, 3.0, 40.0, 5.0] {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        for color in [0x11182788, 0x38bdf8ff, 0x7dd3fcff, 0x0284c7ff] {
+            push_u32(&mut bytes, color);
+        }
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetScrollbarStyle {
+                id: 42,
+                visibility: 1,
+                thickness: 14.0,
+                margin: 3.0,
+                min_thumb_length: 40.0,
+                radius: 5.0,
+                colors: [0x11182788, 0x38bdf8ff, 0x7dd3fcff, 0x0284c7ff],
+            }
+        ));
     }
 
     #[test]

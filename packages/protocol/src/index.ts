@@ -31,6 +31,7 @@ export const OP = {
   SetStyleValue: 0x16,
   SetShadows: 0x17,
   SetOverlayPlane: 0x18,
+  SetScrollbarStyle: 0x19,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -381,6 +382,32 @@ export class Writer {
     this.emit(OP.SetOverlayPlane);
     this.u32(id);
     this.u8(plane);
+  }
+  setScrollbarStyle(
+    id: number,
+    style: {
+      visibility: number;
+      thickness: number;
+      margin: number;
+      minThumbLength: number;
+      radius: number;
+      trackColor: number;
+      thumbColor: number;
+      hoverColor: number;
+      activeColor: number;
+    },
+  ): void {
+    this.emit(OP.SetScrollbarStyle);
+    this.u32(id);
+    this.u8(style.visibility);
+    this.f32(style.thickness);
+    this.f32(style.margin);
+    this.f32(style.minThumbLength);
+    this.f32(style.radius);
+    this.u32(style.trackColor >>> 0);
+    this.u32(style.thumbColor >>> 0);
+    this.u32(style.hoverColor >>> 0);
+    this.u32(style.activeColor >>> 0);
   }
   removeStyle(id: number, prop: string): void {
     this.emit(OP.RemoveStyle);
