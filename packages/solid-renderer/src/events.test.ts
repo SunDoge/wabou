@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { px } from "@wabou/style";
+import { px, shadow } from "@wabou/style";
 import type { JSX } from "solid-js";
 import {
   createElement,
@@ -95,6 +95,29 @@ test("typed inline style bypasses UTF-8 serialization", () => {
   expect(view.getUint32(9, true)).toBe(viewNode.id);
   expect(frame[17]).toBe(1);
   expect(view.getFloat32(18, true)).toBe(24.5);
+});
+
+test("Vello shadows bypass string style serialization", () => {
+  writer.flush();
+  const viewNode = createElement("view");
+  writer.flush();
+
+  setProp(
+    viewNode,
+    "shadows",
+    [shadow({ offsetY: 4, stdDev: 3, spread: -1, color: 0x00000066 })],
+    undefined,
+  );
+  const frame = writer.flush()!;
+  const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+  expect(frame[8]).toBe(0x17);
+  expect(view.getUint32(9, true)).toBe(viewNode.id);
+  expect(view.getUint16(13, true)).toBe(1);
+  expect(view.getFloat32(19, true)).toBe(4);
+  expect(view.getFloat32(23, true)).toBe(-1);
+  expect(view.getFloat32(27, true)).toBe(3);
+  expect(view.getUint32(31, true)).toBe(0x00000066);
 });
 
 test("classList explicitly merges interaction classes with static class", () => {

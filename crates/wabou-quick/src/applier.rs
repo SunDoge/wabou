@@ -199,7 +199,7 @@ pub struct ComputedNodeSnapshot {
     pub background: Option<Color>,
     pub opacity: f32,
     pub transforms: Vec<PaintTransform>,
-    pub box_shadows: Vec<wabou_shell::style::BoxShadow>,
+    pub shadows: Vec<wabou_shell::style::Shadow>,
     pub border_radius: f32,
     pub border: Option<(f32, Color)>,
     pub text_color: Color,
@@ -942,7 +942,7 @@ impl Applier {
             background: paint.background,
             opacity: paint.opacity,
             transforms: paint.transform.clone(),
-            box_shadows: paint.box_shadows.clone(),
+            shadows: paint.shadows.clone(),
             border_radius: paint.border_radius,
             border: paint.border,
             text_color: paint.text_color,
@@ -1208,6 +1208,47 @@ impl Applier {
                     }
                 }
             }
+            Op::SetShadows { id, shadows } => {
+                if let Some(&n) = self.solid_to_node.get(id) {
+                    let prop = self.atoms.borrow_mut().intern("box-shadow");
+                    let values = shadows
+                        .iter()
+                        .map(|shadow| {
+                            let length = |value| IrValue::Length {
+                                value: wabou_shell::style::IrLength::Px { value },
+                            };
+                            let mut fields = HashMap::from([
+                                ("x".to_owned(), length(shadow.offset_x)),
+                                ("y".to_owned(), length(shadow.offset_y)),
+                                ("spread".to_owned(), length(shadow.spread)),
+                                ("stdDev".to_owned(), length(shadow.std_dev)),
+                                (
+                                    "color".to_owned(),
+                                    IrValue::Color {
+                                        value: wabou_shell::style::IrColor::Literal {
+                                            rgba: shadow.color,
+                                        },
+                                    },
+                                ),
+                            ]);
+                            if let Some(radius) = shadow.radius {
+                                fields.insert("radius".to_owned(), length(radius));
+                            }
+                            IrValue::Record { fields }
+                        })
+                        .collect();
+                    let ir = IrValue::List { values };
+                    if let Some(declared) = self.declared.get_mut(&n) {
+                        declared.inline.insert(prop, InlineValue::Typed(ir.clone()));
+                    }
+                    if !self.apply_inline_ir_fast(n, "box-shadow", &ir) {
+                        if let Some(declared) = self.declared.get_mut(&n) {
+                            declared.inline.remove(&prop);
+                        }
+                        tracing::warn!("invalid Vello shadow list");
+                    }
+                }
+            }
             Op::SetTransform2D { id, matrix } => {
                 if let Some(&n) = self.solid_to_node.get(id) {
                     self.runtime_transforms.insert(n, *matrix);
@@ -1424,7 +1465,7 @@ impl Applier {
             if paint.background.is_some()
                 || paint.border.is_some()
                 || paint.border_radius > 0.0
-                || !paint.box_shadows.is_empty()
+                || !paint.shadows.is_empty()
             {
                 return true;
             }
@@ -1720,7 +1761,7 @@ impl Applier {
             paint.background = declared.background;
             paint.opacity = declared.opacity;
             paint.transform = declared.transform;
-            paint.box_shadows = declared.box_shadows;
+            paint.shadows = declared.shadows;
             paint.border_radius = declared.border_radius;
             paint.border = declared.border;
             paint.pointer_events = declared.pointer_events;
@@ -6210,6 +6251,43 @@ mod tests {
         assert_eq!(
             applier.runtime_transforms.get(&node),
             Some(&[1.0, 0.0, 0.0, 1.0, 12.5, -3.25])
+        );
+    }
+
+    #[test]
+    fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut applier = Applier::from_runtime(js, Color::BLACK);
+        let div = applier.atoms.borrow_mut().intern("div");
+        applier.apply_op(&Op::CreateElement {
+            id: 2,
+            tag: div,
+            attrs: Vec::new(),
+        });
+        applier.apply_op(&Op::SetShadows {
+            id: 2,
+            shadows: vec![crate::protocol::ShadowValue {
+                offset_x: 3.0,
+                offset_y: 7.0,
+                spread: -2.0,
+                std_dev: 5.5,
+                color: 0x336699cc,
+                radius: Some(11.0),
+            }],
+        });
+
+        let node = applier.solid_to_node[&2];
+        let paint = applier.tree.get_node_context(node).unwrap();
+        assert_eq!(
+            paint.shadows,
+            vec![wabou_shell::style::Shadow {
+                offset_x: 3.0,
+                offset_y: 7.0,
+                spread: -2.0,
+                std_dev: 5.5,
+                color: Color::from_rgba8(0x33, 0x66, 0x99, 0xcc),
+                radius: Some(11.0),
+            }]
         );
     }
 

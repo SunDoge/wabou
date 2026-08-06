@@ -28,6 +28,16 @@ pub enum StyleValue {
     Auto,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ShadowValue {
+    pub offset_x: f32,
+    pub offset_y: f32,
+    pub spread: f32,
+    pub std_dev: f32,
+    pub color: u32,
+    pub radius: Option<f32>,
+}
+
 /// A decoded operation. String operands borrow from the frame buffer
 /// (`'a`) so decode is allocation-free; the applier owns them into `String`s.
 #[derive(Debug)]
@@ -85,6 +95,10 @@ pub enum Op<'a> {
         id: u32,
         prop: Atom,
         value: StyleValue,
+    },
+    SetShadows {
+        id: u32,
+        shadows: Vec<ShadowValue>,
     },
     RemoveStyle {
         id: u32,
@@ -147,6 +161,9 @@ pub enum DecodeError {
 
     #[snafu(display("unknown typed style value tag {tag}"))]
     BadStyleValue { tag: u8 },
+
+    #[snafu(display("invalid Vello shadow record"))]
+    BadShadow,
 }
 
 struct Reader<'a> {
@@ -323,6 +340,37 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             };
             Op::SetStyleValue { id, prop, value }
         }
+        op::SET_SHADOWS => {
+            let id = r.u32()?;
+            let count = r.u16()?;
+            let mut shadows = Vec::with_capacity(count as usize);
+            for _ in 0..count {
+                let offset_x = r.f32()?;
+                let offset_y = r.f32()?;
+                let spread = r.f32()?;
+                let std_dev = r.f32()?;
+                let color = r.u32()?;
+                let radius = r.f32()?;
+                if !offset_x.is_finite()
+                    || !offset_y.is_finite()
+                    || !spread.is_finite()
+                    || !std_dev.is_finite()
+                    || std_dev < 0.0
+                    || (!radius.is_nan() && (!radius.is_finite() || radius < 0.0))
+                {
+                    return Err(DecodeError::BadShadow);
+                }
+                shadows.push(ShadowValue {
+                    offset_x,
+                    offset_y,
+                    spread,
+                    std_dev,
+                    color,
+                    radius: (!radius.is_nan()).then_some(radius),
+                });
+            }
+            Op::SetShadows { id, shadows }
+        }
         op::REMOVE_STYLE => {
             let id = r.u32()?;
             let prop = Atom::from_raw(r.u32()?);
@@ -461,6 +509,35 @@ mod tests {
                 prop,
                 value: StyleValue::Px(value),
             } if prop.get() == 9 && *value == 12.5
+        ));
+    }
+
+    #[test]
+    fn decodes_ordered_vello_shadow_records() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 1);
+        bytes.push(op::SET_SHADOWS);
+        push_u32(&mut bytes, 7);
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        for value in [1.0_f32, 2.0, -3.0, 4.5] {
+            push_u32(&mut bytes, value.to_bits());
+        }
+        push_u32(&mut bytes, 0x336699cc);
+        push_u32(&mut bytes, 8.0_f32.to_bits());
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetShadows { id: 7, shadows }
+                if shadows == &[ShadowValue {
+                    offset_x: 1.0,
+                    offset_y: 2.0,
+                    spread: -3.0,
+                    std_dev: 4.5,
+                    color: 0x336699cc,
+                    radius: Some(8.0),
+                }]
         ));
     }
 }

@@ -7,7 +7,7 @@ use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 
 use crate::layout::PlacedNode;
-use crate::style::{IrLength, PaintTransform};
+use crate::style::{IrLength, PaintTransform, Shadow};
 use crate::text::{TextContext, layout_text_styled};
 
 /// Resolve the node-local static CSS and runtime affine transforms separately.
@@ -85,6 +85,21 @@ fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform
     clipped.append(widget, None);
     clipped.pop_layer();
     scene.append(&clipped, Some(transform));
+}
+
+fn shadow_geometry(rect: Rect, node_radius: f64, shadow: &Shadow) -> (Rect, f64, f64) {
+    let spread = f64::from(shadow.spread);
+    let shadow_rect = Rect::new(
+        rect.x0 + f64::from(shadow.offset_x) - spread,
+        rect.y0 + f64::from(shadow.offset_y) - spread,
+        rect.x1 + f64::from(shadow.offset_x) + spread,
+        rect.y1 + f64::from(shadow.offset_y) + spread,
+    );
+    let radius = shadow
+        .radius
+        .map(f64::from)
+        .unwrap_or_else(|| (node_radius + spread).max(0.0));
+    (shadow_rect, radius, f64::from(shadow.std_dev))
 }
 
 /// Paint `nodes` into `scene` over a `base_color` background. Text nodes are
@@ -166,19 +181,14 @@ pub fn build_scene_scaled(
             layers.push(Layer::Opacity { depth: n.depth });
         }
 
-        for shadow in n.paint.box_shadows.iter().filter(|shadow| !shadow.inset) {
-            let shadow_rect = Rect::new(
-                rect.x0 + shadow.x as f64 - shadow.spread as f64,
-                rect.y0 + shadow.y as f64 - shadow.spread as f64,
-                rect.x1 + shadow.x as f64 + shadow.spread as f64,
-                rect.y1 + shadow.y as f64 + shadow.spread as f64,
-            );
+        for shadow in &n.paint.shadows {
+            let (shadow_rect, radius, std_dev) = shadow_geometry(rect, r, shadow);
             scene.draw_blurred_rounded_rect(
                 node_transform,
                 shadow_rect,
                 shadow.color,
-                (r + shadow.spread as f64).max(0.0),
-                (shadow.blur as f64 * 0.5).max(0.0),
+                radius,
+                std_dev,
             );
         }
 
@@ -342,7 +352,7 @@ pub fn build_scene_scaled(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::style::{Paint, PaintTransform};
+    use crate::style::{Paint, PaintTransform, Shadow};
 
     fn placed_node(paint: Paint) -> PlacedNode {
         PlacedNode {
@@ -386,5 +396,38 @@ mod tests {
         });
 
         assert_eq!(widget_clip(&node), Some(([10.0, 20.0, 110.0, 120.0], 12.0)));
+    }
+
+    #[test]
+    fn shadow_geometry_preserves_vello_parameters() {
+        let shadow = Shadow {
+            offset_x: 6.0,
+            offset_y: -4.0,
+            spread: 3.0,
+            std_dev: 7.5,
+            color: Color::BLACK,
+            radius: None,
+        };
+        let (rect, radius, std_dev) =
+            shadow_geometry(Rect::new(10.0, 20.0, 110.0, 120.0), 8.0, &shadow);
+
+        assert_eq!(rect, Rect::new(13.0, 13.0, 119.0, 119.0));
+        assert_eq!(radius, 11.0);
+        assert_eq!(std_dev, 7.5);
+    }
+
+    #[test]
+    fn shadow_radius_can_be_independent_from_node_radius_and_spread() {
+        let shadow = Shadow {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            spread: -20.0,
+            std_dev: 2.0,
+            color: Color::BLACK,
+            radius: Some(24.0),
+        };
+        let (_, radius, _) = shadow_geometry(Rect::new(0.0, 0.0, 100.0, 100.0), 8.0, &shadow);
+
+        assert_eq!(radius, 24.0);
     }
 }
