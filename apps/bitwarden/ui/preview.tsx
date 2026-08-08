@@ -67,6 +67,10 @@ function detailsFor(id: string): ItemDetails {
     favorite: item.favorite,
     hasPassword: item.hasPassword,
     hasTotp: item.hasTotp,
+    notes: item.kind === "note" ? "A synthetic secure note used by the preview." : undefined,
+    password: item.hasPassword ? "synthetic-password" : undefined,
+    totp: item.hasTotp ? "JBSWY3DPEHPK3PXP" : undefined,
+    editable: true,
   };
 }
 
@@ -88,6 +92,19 @@ function Preview() {
       lock={() => setNotice("Fixture lock requested.")}
       selectItem={(id) => setSelected(detailsFor(id))}
       copy={(field) => setNotice(`Fixture ${field} copy requested.`)}
+      createItem={async () => {
+        setNotice("Fixture create requested.");
+        return true;
+      }}
+      updateItem={async () => {
+        setNotice("Fixture update requested.");
+        return true;
+      }}
+      deleteItem={async () => {
+        setSelected(undefined);
+        setNotice("Fixture delete requested.");
+        return true;
+      }}
     />
   );
 }

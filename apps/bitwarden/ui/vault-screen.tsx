@@ -1,18 +1,23 @@
 import { Button, Input } from "@wabou/components";
 import { ScrollArea, Text, View } from "@wabou/primitives";
 import Copy from "lucide-solid/icons/copy";
+import CreditCard from "lucide-solid/icons/credit-card";
 import Eye from "lucide-solid/icons/eye";
 import KeyRound from "lucide-solid/icons/key-round";
 import LayoutGrid from "lucide-solid/icons/layout-grid";
 import LockKeyhole from "lucide-solid/icons/lock-keyhole";
 import RefreshCw from "lucide-solid/icons/refresh-cw";
+import Pencil from "lucide-solid/icons/pencil";
+import Plus from "lucide-solid/icons/plus";
 import ShieldCheck from "lucide-solid/icons/shield-check";
 import Star from "lucide-solid/icons/star";
 import StickyNote from "lucide-solid/icons/sticky-note";
+import Trash2 from "lucide-solid/icons/trash-2";
 import Settings from "lucide-solid/icons/settings";
 import { For, Show, createMemo, createSignal, type Accessor } from "solid-js";
-import type { ItemDetails, VaultSnapshot } from "./model";
+import type { ItemDetails, ItemDraft, VaultSnapshot } from "./model";
 import { matches } from "./model";
+import { ItemEditor } from "./item-editor";
 import { SettingsScreen } from "./settings-screen";
 
 export interface VaultScreenProps {
@@ -27,6 +32,9 @@ export interface VaultScreenProps {
   lock(): void;
   selectItem(id: string): void;
   copy(field: "username" | "password"): void;
+  createItem(draft: ItemDraft): Promise<boolean>;
+  updateItem(id: string, draft: ItemDraft): Promise<boolean>;
+  deleteItem(id: string): Promise<boolean>;
 }
 
 export function VaultScreen(props: VaultScreenProps) {
@@ -34,6 +42,8 @@ export function VaultScreen(props: VaultScreenProps) {
   type Section = "vault" | "settings";
   const [filter, setFilter] = createSignal<Filter>("all");
   const [section, setSection] = createSignal<Section>("vault");
+  const [editor, setEditor] = createSignal<"new" | "edit">();
+  const [confirmDelete, setConfirmDelete] = createSignal(false);
   const visibleItems = createMemo(() =>
     props.snapshot().items.filter((item) => {
       const selected = filter();
@@ -59,7 +69,9 @@ export function VaultScreen(props: VaultScreenProps) {
   }
 
   function itemIcon(kind: string) {
-    return kind === "note" ? <StickyNote size={16} /> : <KeyRound size={16} />;
+    if (kind === "note") return <StickyNote size={16} />;
+    if (kind === "card") return <CreditCard size={16} />;
+    return <KeyRound size={16} />;
   }
 
   return (
@@ -124,6 +136,9 @@ export function VaultScreen(props: VaultScreenProps) {
           <View class="flex items-center gap-2">
             <Text class="text-lg font-semibold text-slate-100">My vault</Text>
             <View class="flex-1" />
+            <Button size="icon" variant="outline" aria-label="New item" onClick={() => setEditor("new")}>
+              <Plus size={15} />
+            </Button>
             <Button size="sm" variant="ghost" disabled={props.busy()} onClick={props.refresh}>
               <View class="flex items-center gap-2">
                 <RefreshCw size={15} />
@@ -173,6 +188,23 @@ export function VaultScreen(props: VaultScreenProps) {
           </View>
         </ScrollArea>
         </View>
+        <Show
+          when={!editor()}
+          fallback={
+            <ItemEditor
+              item={editor() === "edit" ? props.selected() : undefined}
+              busy={props.busy()}
+              onCancel={() => setEditor(undefined)}
+              onSave={async (draft) => {
+                const selected = props.selected();
+                const saved = editor() === "edit" && selected
+                  ? await props.updateItem(selected.id, draft)
+                  : await props.createItem(draft);
+                if (saved) setEditor(undefined);
+              }}
+            />
+          }
+        >
         <View class="min-w-0 flex-1 flex flex-col">
         <View class="h-16 shrink-0 border-b border-slate-800 px-6 flex items-center">
           <View class="flex items-center gap-2 text-slate-500">
@@ -180,7 +212,11 @@ export function VaultScreen(props: VaultScreenProps) {
             <Text class="text-sm">Item details</Text>
           </View>
           <View class="flex-1" />
-          <Text class="text-xs text-slate-600">Read only</Text>
+          <Show when={props.selected()?.editable}>
+            <Button size="sm" variant="outline" disabled={props.busy()} onClick={() => setEditor("edit")}>
+              <View class="flex items-center gap-2"><Pencil size={14} /><Text>Edit</Text></View>
+            </Button>
+          </Show>
         </View>
         <ScrollArea class="min-h-0 flex-1">
           <View class="p-8">
@@ -236,12 +272,47 @@ export function VaultScreen(props: VaultScreenProps) {
                     </View>
                   )}
                 </For>
+                <Show when={details().notes}>
+                  <View class="rounded-lg border border-slate-800 p-4 flex flex-col gap-1">
+                    <Text class="text-xs text-slate-500">Notes</Text>
+                    <Text class="text-sm text-slate-300">{details().notes}</Text>
+                  </View>
+                </Show>
+                <Show when={details().kind === "card"}>
+                  <View class="rounded-lg border border-slate-800 p-4 flex flex-col gap-2">
+                    <Text class="text-xs text-slate-500">Card</Text>
+                    <Text class="text-sm text-slate-100">{details().cardholderName || "No cardholder"}</Text>
+                    <Text class="text-sm text-slate-300">{details().cardBrand || "Card"} · •••• {details().cardNumber?.slice(-4) || "—"}</Text>
+                    <Text class="text-xs text-slate-500">Expires {details().cardExpMonth || "—"}/{details().cardExpYear || "—"}</Text>
+                  </View>
+                </Show>
+                <Show when={details().editable}>
+                  <Show
+                    when={confirmDelete()}
+                    fallback={
+                      <Button variant="outline" disabled={props.busy()} onClick={() => setConfirmDelete(true)}>
+                        <View class="flex items-center gap-2"><Trash2 size={15} /><Text>Move to trash</Text></View>
+                      </Button>
+                    }
+                  >
+                    <View class="rounded-lg border border-red-900 bg-slate-900 p-4 flex flex-col gap-3">
+                      <Text class="text-sm text-red-500">Move this item to trash?</Text>
+                      <View class="flex gap-2">
+                        <Button variant="outline" disabled={props.busy()} onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                        <Button disabled={props.busy()} onClick={async () => {
+                          if (await props.deleteItem(details().id)) setConfirmDelete(false);
+                        }}>Confirm delete</Button>
+                      </View>
+                    </View>
+                  </Show>
+                </Show>
               </View>
             )}
           </Show>
           </View>
         </ScrollArea>
         </View>
+        </Show>
       </Show>
     </View>
   );

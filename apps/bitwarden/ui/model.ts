@@ -31,10 +31,44 @@ export interface ItemDetails {
   name: string;
   kind: string;
   username?: string;
+  password?: string;
   uris: string[];
+  notes?: string;
+  totp?: string;
+  cardholderName?: string;
+  cardBrand?: string;
+  cardNumber?: string;
+  cardExpMonth?: string;
+  cardExpYear?: string;
+  cardCode?: string;
   favorite: boolean;
   hasPassword: boolean;
   hasTotp: boolean;
+  editable: boolean;
+}
+
+export type EditableItemKind = "login" | "note" | "card";
+
+export interface ItemDraft {
+  kind: EditableItemKind;
+  name: string;
+  notes?: string;
+  favorite: boolean;
+  username?: string;
+  password?: string;
+  uri?: string;
+  totp?: string;
+  cardholderName?: string;
+  cardBrand?: string;
+  cardNumber?: string;
+  cardExpMonth?: string;
+  cardExpYear?: string;
+  cardCode?: string;
+}
+
+export interface MutationOutcome {
+  snapshot: VaultSnapshot;
+  id?: string;
 }
 
 interface Envelope<T> {

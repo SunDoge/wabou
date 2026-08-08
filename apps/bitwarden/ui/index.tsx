@@ -5,7 +5,14 @@ import { Button, Input } from "@wabou/components";
 import { Text, View } from "@wabou/primitives";
 import { mount, useHost } from "@wabou/solid-renderer";
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
-import type { ItemDetails, LoginOutcome, TwoFactorOption, VaultSnapshot } from "./model";
+import type {
+  ItemDetails,
+  ItemDraft,
+  LoginOutcome,
+  MutationOutcome,
+  TwoFactorOption,
+  VaultSnapshot,
+} from "./model";
 import { unwrap } from "./model";
 import { TwoFactorScreen } from "./two-factor-screen";
 import { VaultScreen } from "./vault-screen";
@@ -20,6 +27,9 @@ declare module "@wabou/solid-renderer" {
       refresh(): Promise<string>;
       details(id: string): Promise<string>;
       copy(id: string, field: "username" | "password"): Promise<string>;
+      createItem(request: string): Promise<string>;
+      updateItem(id: string, request: string): Promise<string>;
+      deleteItem(id: string): Promise<string>;
       lock(): Promise<string>;
       isLocked(): Promise<string>;
     };
@@ -158,6 +168,39 @@ function App() {
     if (copied) setNotice("Copied. The clipboard is cleared after 30 seconds if unchanged.");
   }
 
+  async function createItem(draft: ItemDraft) {
+    const result = await run(async () =>
+      unwrap<MutationOutcome>(await host.vault.createItem(JSON.stringify(draft))),
+    );
+    if (!result) return false;
+    setSnapshot(result.snapshot);
+    if (result.id) await selectItem(result.id);
+    setNotice("Vault item created.");
+    return true;
+  }
+
+  async function updateItem(id: string, draft: ItemDraft) {
+    const result = await run(async () =>
+      unwrap<MutationOutcome>(await host.vault.updateItem(id, JSON.stringify(draft))),
+    );
+    if (!result) return false;
+    setSnapshot(result.snapshot);
+    await selectItem(id);
+    setNotice("Vault item updated.");
+    return true;
+  }
+
+  async function deleteItem(id: string) {
+    const result = await run(async () =>
+      unwrap<MutationOutcome>(await host.vault.deleteItem(id)),
+    );
+    if (!result) return false;
+    setSnapshot(result.snapshot);
+    setSelected(undefined);
+    setNotice("Vault item moved to trash.");
+    return true;
+  }
+
   async function lock() {
     await host.vault.lock();
     setSnapshot(undefined);
@@ -256,6 +299,9 @@ function App() {
           lock={lock}
           selectItem={selectItem}
           copy={copy}
+          createItem={createItem}
+          updateItem={updateItem}
+          deleteItem={deleteItem}
         />
       </Show>
     </View>
