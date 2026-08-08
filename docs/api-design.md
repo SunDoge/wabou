@@ -52,9 +52,10 @@ Host-facing APIs need evidence at three distinct boundaries:
 
 1. TypeScript unit tests inject host functions or `PlatformProvider` services
    and verify public API behavior, reactivity, errors, and concurrent requests.
-2. ABI drift tests parse the host-provided declarations in
-   `packages/core/src/host.ts` and compare them with the globals installed in a
-   real QuickJS `Applier`. Adding or renaming one side without the other fails.
+2. ABI drift tests use the generated inventory from
+   `packages/core/host-abi.json` and compare it with the globals installed in a
+   real QuickJS `Applier`. Adding or renaming one side without regenerating or
+   implementing it fails.
 3. Embedded integration tests bundle the real public `@wabou/core` entry into
    `gen/test-runtime.js`, execute it in QuickJS, inspect emitted Rust
    `HostAction`s, complete them as the shell would, run Promise jobs, and assert
@@ -73,7 +74,7 @@ native/platform test.
 
 For a new host API:
 
-1. Add the private ABI declaration to `packages/core/src/host.ts`.
+1. Add the private ABI entry to `packages/core/host-abi.json` and regenerate.
 2. Install the Rust function before the application bundle boots.
 3. Expose a typed public API; do not expose the private global directly.
 4. Provide a context injection seam when the API is consumed as `useXxx`.

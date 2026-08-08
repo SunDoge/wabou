@@ -315,8 +315,8 @@ fn unsupported_inline_css_never_enters_cascade_state() {
         value: "translate(10px, 0px)",
     });
 
-    let node = applier.solid_to_node[&2];
-    let inline = &applier.declared[&node].inline;
+    let node = applier.node_store.solid_to_node[&2];
+    let inline = &applier.node_store.declared[&node].inline;
     assert!(!inline.contains_key(&transition));
     assert!(!inline.contains_key(&transform));
 }

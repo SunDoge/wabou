@@ -1,0 +1,259 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "name": "__wabou_capabilities",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "const",
+      "type": "Record<string, object>"
+    },
+    {
+      "name": "__wabou_intern",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["value", "string"]],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_open_url",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["url", "string"]],
+      "returns": "boolean"
+    },
+    {
+      "name": "__wabou_set_stylesheet",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["json", "string"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_load_font",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["path", "string"]],
+      "returns": "boolean"
+    },
+    {
+      "name": "__wabou_frame_stats",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_layout_snapshot",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["ids", "Uint32Array"]],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_flush",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["buf", "Uint8Array"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_log",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["level", "\"debug\" | \"info\" | \"warn\" | \"error\" | \"log\""],
+        ["message", "string"]
+      ],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_utf8_encode",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["value", "string"]],
+      "returns": "Uint8Array"
+    },
+    {
+      "name": "__wabou_utf8_decode",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["bytes", "Uint8Array"]],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_fetch",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["url", "string"], ["initJson", "string"]],
+      "returns": "Promise<string>"
+    },
+    {
+      "name": "__wabou_sleep",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["delayMs", "number"]],
+      "returns": "Promise<void>"
+    },
+    {
+      "name": "__wabou_resize_observe",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["solidId", "number"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_resize_unobserve",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["solidId", "number"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_clipboard_write",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "function",
+      "params": [["text", "string"]],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_clipboard_read",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "function",
+      "params": [],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_window_id",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "const",
+      "type": "number"
+    },
+    {
+      "name": "__wabou_window_create",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "function",
+      "params": [["optionsJson", "string"]],
+      "returns": "number"
+    },
+    {
+      "name": "__wabou_window_close",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "function",
+      "params": [["windowId", "number"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_window_set_maximized",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "function",
+      "params": [["windowId", "number"], ["value", "boolean"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_window_set_title",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "function",
+      "params": [["windowId", "number"], ["title", "string"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_vite_update_style",
+      "direction": "host",
+      "owner": "vite",
+      "feature": "vite",
+      "kind": "function",
+      "params": [["id", "string"], ["css", "string"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_vite_remove_style",
+      "direction": "host",
+      "owner": "vite",
+      "feature": "vite",
+      "kind": "function",
+      "params": [["id", "string"]],
+      "returns": "void"
+    },
+
+    {
+      "name": "__wabou_tick",
+      "direction": "guest",
+      "owner": "core",
+      "kind": "function",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "name": "__wabou_has_raf",
+      "direction": "guest",
+      "owner": "core",
+      "kind": "function",
+      "params": [],
+      "returns": "boolean"
+    },
+    {
+      "name": "__wabou_dispatch_host_frame",
+      "direction": "guest",
+      "owner": "core",
+      "kind": "function",
+      "params": [["data", "Uint8Array | ArrayBuffer"]],
+      "returns": "{ preventedEventIds?: Uint32Array; needsTick: boolean }"
+    },
+    {
+      "name": "__wabou_apply_hmr",
+      "direction": "guest",
+      "owner": "vite",
+      "feature": "vite",
+      "kind": "function",
+      "params": [
+        ["path", "string"],
+        ["acceptedPath", "string"],
+        ["timestamp", "number"]
+      ],
+      "returns": "Promise<boolean>"
+    },
+    {
+      "name": "__wabou_hmr_clear_records",
+      "direction": "guest",
+      "owner": "vite",
+      "feature": "vite",
+      "kind": "function",
+      "params": [],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_clipboard_complete",
+      "direction": "guest",
+      "owner": "core",
+      "kind": "function",
+      "params": [
+        ["requestId", "number"],
+        ["text", "string | null"],
+        ["success", "boolean"]
+      ],
+      "returns": "void"
+    }
+  ]
+}

@@ -90,7 +90,7 @@ impl Harness {
     }
 
     fn rect(&self, placed: &[PlacedNode], solid_id: u32) -> [f32; 4] {
-        let node = self.applier.solid_to_node[&solid_id];
+        let node = self.applier.node_store.solid_to_node[&solid_id];
         placed
             .iter()
             .find(|item| item.node_id == node)
@@ -105,7 +105,7 @@ impl Harness {
     }
 
     fn solid_node(&self, solid_id: u32) -> taffy::NodeId {
-        self.applier.solid_to_node[&solid_id]
+        self.applier.node_store.solid_to_node[&solid_id]
     }
 }
 
@@ -504,8 +504,13 @@ fn metadata_gap_2_is_exactly_8px() {
     ]);
 
     let placed = h.layout(800, 600);
-    assert_eq!(h.applier.tree.child_count(h.solid_node(row)), 3);
-    assert!(!h.applier.inline_roots.contains(&h.solid_node(row)));
+    assert_eq!(h.applier.node_store.tree.child_count(h.solid_node(row)), 3);
+    assert!(
+        !h.applier
+            .node_store
+            .inline_roots
+            .contains(&h.solid_node(row))
+    );
 
     let a = h.rect(&placed, item_ids[0]);
     let b = h.rect(&placed, item_ids[1]);
@@ -957,7 +962,7 @@ fn theme_switch_preserves_all_rects() {
     assert_eq!(panel_before, panel_after);
     assert_eq!(
         h.solid_node(shell),
-        h.applier.solid_to_node[&shell],
+        h.applier.node_store.solid_to_node[&shell],
         "theme must not remount"
     );
 }
@@ -1202,6 +1207,7 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
     let scroller_node = h.solid_node(scroller);
     assert!(
         h.applier
+            .node_store
             .tree
             .layout(scroller_node)
             .unwrap()

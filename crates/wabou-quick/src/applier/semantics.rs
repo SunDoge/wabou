@@ -12,6 +12,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .find_map(|(name, value)| (atoms.resolve(*name) == Some(wanted)).then(|| value.clone()))
     };
     let semantic_transforms: HashMap<_, _> = applier
+        .input
         .hit_items
         .iter()
         .filter_map(|item| match item {
@@ -24,13 +25,17 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .rev()
         .find(|node| {
             node.paint.overlay_plane == OverlayPlane::Modal
-                && applier.declared.get(&node.node_id).is_some_and(|declared| {
-                    attribute(declared, "aria-modal").as_deref() == Some("true")
-                })
+                && applier
+                    .node_store
+                    .declared
+                    .get(&node.node_id)
+                    .is_some_and(|declared| {
+                        attribute(declared, "aria-modal").as_deref() == Some("true")
+                    })
         })
         .map(|node| node.node_id);
     let modal_root = modal_node
-        .and_then(|node| applier.solid_id_for_node(node))
+        .and_then(|node| applier.node_store.solid_id_for_node(node))
         .map(u64::from);
     let role_for = |tag: &str, declared: &Declared| {
         let role = attribute(declared, "role");
@@ -46,13 +51,13 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     };
     let mut nodes = Vec::with_capacity(placed.len().saturating_sub(1));
     for placed_node in placed {
-        if placed_node.node_id == applier.root {
+        if placed_node.node_id == applier.node_store.root {
             continue;
         }
-        let Some(&solid_id) = applier.node_to_solid.get(&placed_node.node_id) else {
+        let Some(&solid_id) = applier.node_store.node_to_solid.get(&placed_node.node_id) else {
             continue;
         };
-        let Some(declared) = applier.declared.get(&placed_node.node_id) else {
+        let Some(declared) = applier.node_store.declared.get(&placed_node.node_id) else {
             continue;
         };
         let tag = declared
@@ -64,12 +69,13 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .map(|value| value.to_string())
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
         let children = applier
+            .node_store
             .children
             .get(&placed_node.node_id)
             .into_iter()
             .flatten()
             .filter(|child| present.contains(child))
-            .filter_map(|child| applier.node_to_solid.get(child).copied())
+            .filter_map(|child| applier.node_store.node_to_solid.get(child).copied())
             .map(u64::from)
             .collect();
         let bounds = semantic_transforms
@@ -112,21 +118,23 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         });
     }
     let root_children = applier
+        .node_store
         .children
-        .get(&applier.root)
+        .get(&applier.node_store.root)
         .into_iter()
         .flatten()
         .filter(|child| present.contains(child))
-        .filter_map(|child| applier.node_to_solid.get(child).copied())
+        .filter_map(|child| applier.node_store.node_to_solid.get(child).copied())
         .map(u64::from)
         .collect();
-    let focused = applier.focused_target.map(u64::from);
+    let focused = applier.input.focused_target.map(u64::from);
     let focus = if let (Some(modal), Some(modal_node)) = (modal_root, modal_node) {
         let inside_modal = |solid: u64| {
             applier
+                .node_store
                 .solid_to_node
                 .get(&(solid as u32))
-                .is_some_and(|node| applier.is_logical_descendant(*node, modal_node))
+                .is_some_and(|node| applier.node_store.is_logical_descendant(*node, modal_node))
         };
         let fallback = nodes
             .iter()
@@ -148,7 +156,13 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     } else {
         focused
     };
-    applier.semantic_snapshot = Arc::new(SemanticSnapshot {
+    applier.projections.semantic_snapshot = Arc::new(SemanticSnapshot {
+        revision: applier
+            .projections
+            .semantic_snapshot
+            .revision
+            .wrapping_add(1)
+            .max(1),
         nodes,
         root_children,
         focus,

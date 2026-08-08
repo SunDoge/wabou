@@ -44,7 +44,11 @@ use wabou_shell::{
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 
+mod input_router;
+mod node_store;
+mod projections;
 mod semantics;
+mod widget_manager;
 use crate::host_msg::{DEFAULT_HOST_MSG_CAPACITY, HostMsgHandle, HostMsgInbox, host_msg_channel};
 use crate::inline_context::{
     InlineFormattingContext, NodeFacts, rect_has_nonzero_lp, rect_has_nonzero_lpa, size_is_explicit,
@@ -55,6 +59,12 @@ use crate::protocol::{event, event_data};
 use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
 use crate::widget::builtin_factories;
 use crate::{Atom, AtomPool};
+#[cfg(test)]
+use input_router::EventMask;
+use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
+use node_store::NodeStore;
+use projections::FrameProjections;
+use widget_manager::WidgetManager;
 
 const SCROLLBAR_FADE_DELAY: Duration = Duration::from_millis(500);
 const SCROLLBAR_FADE_DURATION: Duration = Duration::from_millis(200);
@@ -83,63 +93,10 @@ enum InlineValue {
 }
 
 #[derive(Clone)]
-struct HitClip {
-    rect: [f32; 4],
-    radius: f32,
-    transform: Affine,
-}
-
-#[derive(Clone)]
-struct HitNode {
-    solid_id: u32,
-    rect: [f32; 4],
-    transform: Affine,
-    clips: Vec<HitClip>,
-    pointer_events: bool,
-}
-
-#[derive(Clone)]
 struct ScrollbarHit {
     node: NodeId,
     placed: PlacedNode,
     transform: Affine,
-}
-
-#[derive(Clone)]
-enum HitItem {
-    Content(HitNode),
-    Scrollbar(Box<ScrollbarHit>),
-}
-
-fn hit_contains(rect: [f32; 4], radius: f32, transform: Affine, point: Point) -> bool {
-    let [a, b, c, d, _, _] = transform.as_coeffs();
-    let determinant = a * d - b * c;
-    if !determinant.is_finite() || determinant.abs() <= f64::EPSILON {
-        return false;
-    }
-    let local = transform.inverse() * point;
-    let [x0, y0, x1, y1] = rect.map(f64::from);
-    if local.x < x0 || local.y < y0 || local.x >= x1 || local.y >= y1 {
-        return false;
-    }
-    let radius = f64::from(radius).min((x1 - x0) / 2.0).min((y1 - y0) / 2.0);
-    if radius <= 0.0
-        || (local.x >= x0 + radius && local.x < x1 - radius)
-        || (local.y >= y0 + radius && local.y < y1 - radius)
-    {
-        return true;
-    }
-    let center_x = if local.x < x0 + radius {
-        x0 + radius
-    } else {
-        x1 - radius
-    };
-    let center_y = if local.y < y0 + radius {
-        y0 + radius
-    } else {
-        y1 - radius
-    };
-    (local.x - center_x).powi(2) + (local.y - center_y).powi(2) <= radius.powi(2)
 }
 
 #[derive(Clone, Copy)]
@@ -344,41 +301,6 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-struct EventMask(u32);
-
-impl EventMask {
-    fn bit(code: u8) -> Option<u32> {
-        code.checked_sub(1)
-            .filter(|bit| u32::from(*bit) < u32::BITS)
-            .map(|bit| 1 << bit)
-    }
-
-    fn insert(&mut self, code: u8) {
-        if let Some(bit) = Self::bit(code) {
-            self.0 |= bit;
-        }
-    }
-
-    fn remove(&mut self, code: u8) {
-        if let Some(bit) = Self::bit(code) {
-            self.0 &= !bit;
-        }
-    }
-
-    fn contains(self, code: u8) -> bool {
-        Self::bit(code).is_some_and(|bit| self.0 & bit != 0)
-    }
-
-    fn is_empty(self) -> bool {
-        self.0 == 0
-    }
-
-    fn codes(self) -> impl Iterator<Item = u8> {
-        (1..=u32::BITS as u8).filter(move |&code| self.contains(code))
-    }
-}
-
 impl ReloadHandle {
     pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
         self.tx.send(message)?;
@@ -406,19 +328,7 @@ const INHERITED_PROPERTIES: &[&str] = &[
 
 pub struct Applier {
     js: JsRuntime,
-    tree: TaffyTree<Paint>,
-    root: NodeId,
-    solid_to_node: HashMap<u32, NodeId>,
-    node_to_solid: HashMap<NodeId, u32>,
-    /// Logical child order per parent (Solid/DOM tree). Taffy children are a
-    /// projection of this via [`InlineFormattingContext`].
-    children: HashMap<NodeId, Vec<NodeId>>,
-    logical_parent: HashMap<NodeId, NodeId>,
-    declared: HashMap<NodeId, Declared>,
-    /// Latest IFC build: which parents are Parley leaves and their plain text.
-    /// Layout boxes are applied to Taffy; styled runs are filled in inherit.
-    collapsed_text: HashMap<NodeId, Arc<str>>,
-    inline_roots: HashSet<NodeId>,
+    node_store: NodeStore,
     style_ir: Option<StyleSheet>,
     /// `class atom → indices` into `style_ir.rules`, built when the sheet
     /// arrives so per-node matching is O(C) (the node's classes) instead of
@@ -442,18 +352,7 @@ pub struct Applier {
     scrollbar_styles: HashMap<NodeId, ScrollbarStyle>,
     base_color: Color,
     atoms: Rc<RefCell<AtomPool>>,
-    /// Listeners keyed by solidId. Presence is also used to avoid crossing the
-    /// JS bridge when neither the target nor an ancestor handles an event.
-    listeners: HashMap<u32, EventMask>,
-    pointer_position: (f64, f64),
-    pointer_buttons: u32,
-    pointer_down_target: Option<u32>,
-    pointer_down_position: Option<(f64, f64)>,
-    pointer_dragged: bool,
-    next_host_event_id: u32,
-    hovered_target: Option<u32>,
-    focused_target: Option<u32>,
-    window_focused: bool,
+    input: InputRouter,
     /// Last tick's `has_raf` — gates the continuous-redraw loop.
     has_raf: bool,
     /// Receives Vite HMR signals from the background websocket client.
@@ -470,7 +369,7 @@ pub struct Applier {
     /// Latest per-frame render-stage timings (EMA), written by
     /// `push_frame_stats` and read by the Host diagnostics API.
     frame_stats: Option<Rc<RefCell<Option<FrameStats>>>>,
-    layout_metrics: Rc<RefCell<LayoutMetricsSnapshot>>,
+    projections: FrameProjections,
     resize_targets: ResizeTargets,
     /// Main-thread invalidation causes. `INHERIT` gates the O(N) cascade pass,
     /// while non-inherited animation can request only `LAYOUT`.
@@ -490,35 +389,16 @@ pub struct Applier {
     last_text_click: Option<(Instant, u32, f64, f64, u8)>,
     next_text_selection_scroll: Option<Instant>,
     placed_rects: HashMap<NodeId, [f32; 4]>,
-    hit_items: Vec<HitItem>,
     scrollbar_hits: Vec<ScrollbarHit>,
     scrollbar_drag: Option<ScrollbarDrag>,
     hovered_scrollbar: Option<(NodeId, ScrollAxis)>,
     scrollbar_activity: HashMap<NodeId, Instant>,
-    semantics_enabled: bool,
-    semantics_dirty: bool,
-    semantic_snapshot: Arc<SemanticSnapshot>,
-    /// Rust-side widgets (TextInput, Canvas, …) keyed by taffy NodeId.
-    /// Painted every frame after layout; composited by `build_scene`.
-    widgets: HashMap<NodeId, Box<dyn crate::widget::Widget>>,
-    /// Last resolved content style delivered to each native widget.
-    widget_styles: HashMap<NodeId, crate::widget::WidgetStyle>,
+    widget_manager: WidgetManager,
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
     pending_js_clipboard_requests: Rc<RefCell<HashSet<u64>>>,
     host_action_wake: Rc<RefCell<Option<WakeCallback>>>,
-    next_host_action_id: u64,
-    host_action_routes: HashMap<u64, (NodeId, u64)>,
-    /// Widget factory registry: tag atom → factory. Populated by `HostBuilder`;
-    /// keys are interned into [`atoms`](Self::atoms) at construction so lookup
-    /// on `CreateElement` is a direct `Atom` hash with no `str::to_owned`.
-    widget_factories: HashMap<Atom, crate::widget::WidgetFactory>,
     wake_callback: Option<WakeCallback>,
     scroll_offsets: HashMap<NodeId, [f32; 2]>,
-    /// Solid IDs whose widget reported `value_changed` in `handle_event` but
-    /// whose `current_value()` isn't fresh yet — pending edits are only applied
-    /// in `paint_widgets`. Drained in `build_frame` after paint to read the
-    /// updated value, sync the `value` attr, and dispatch `INPUT` to JS.
-    pending_value_sync: HashSet<u32>,
     /// Protocol frames commonly create a node and then set several properties
     /// on it. Resolve style once at FrameEnd instead of after every operation.
     batching_styles: bool,
@@ -533,8 +413,6 @@ pub struct Applier {
     /// Bounded host→JS message inbox. Producers use [`HostMsgHandle`].
     host_msg_inbox: HostMsgInbox,
     host_msg_handle: HostMsgHandle,
-    debug_state: Option<wabou_devtools::SharedDebugState>,
-    debug_revision: u64,
 }
 
 fn install_window_functions(
@@ -728,30 +606,6 @@ impl Applier {
             .into_iter()
             .map(|(k, v)| (atoms.borrow_mut().intern(&k), v))
             .collect();
-        let mut tree: TaffyTree<Paint> = TaffyTree::new();
-        // Solid renderer's `mount` creates a #root handle with id 1; pre-create
-        // the corresponding taffy node so AppendChild(1, …) has a parent. Size
-        // it to 100% so it fills the viewport (the app's top div is w-full/h-full
-        // of this root); without it, `100%` resolves against an auto-sized root.
-        let root_style = taffy::Style {
-            size: taffy::geometry::Size {
-                width: taffy::Dimension::percent(1.0),
-                height: taffy::Dimension::percent(1.0),
-            },
-            ..taffy::Style::default()
-        };
-        let root = tree.new_leaf(root_style).expect("root leaf");
-        let _ = tree.set_node_context(root, Some(Paint::default()));
-
-        let mut solid_to_node = HashMap::new();
-        let mut node_to_solid = HashMap::new();
-        let mut declared = HashMap::new();
-        let mut children = HashMap::new();
-        solid_to_node.insert(1, root);
-        node_to_solid.insert(root, 1);
-        declared.insert(root, Declared::default());
-        children.insert(root, Vec::new());
-
         let (host_msg_handle, host_msg_inbox) = host_msg_channel(DEFAULT_HOST_MSG_CAPACITY);
 
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
@@ -766,15 +620,7 @@ impl Applier {
         );
         Self {
             js,
-            tree,
-            root,
-            solid_to_node,
-            node_to_solid,
-            children,
-            logical_parent: HashMap::new(),
-            declared,
-            collapsed_text: HashMap::new(),
-            inline_roots: HashSet::new(),
+            node_store: NodeStore::new(),
             style_ir: None,
             rule_index: HashMap::new(),
             universal_rules: Vec::new(),
@@ -787,23 +633,14 @@ impl Applier {
             scrollbar_styles: HashMap::new(),
             base_color,
             atoms,
-            listeners: HashMap::new(),
-            pointer_position: (0.0, 0.0),
-            pointer_buttons: 0,
-            pointer_down_target: None,
-            pointer_down_position: None,
-            pointer_dragged: false,
-            next_host_event_id: 0,
-            hovered_target: None,
-            focused_target: None,
-            window_focused: true,
+            input: InputRouter::new(),
             has_raf: true,
             reload_rx: None,
             has_hmr_pending: Arc::new(AtomicBool::new(false)),
             pending_css: Some(pending_css),
             pending_fonts: Some(pending_fonts),
             frame_stats: Some(frame_stats),
-            layout_metrics,
+            projections: FrameProjections::new(layout_metrics),
             resize_targets,
             invalidation: InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT,
             js_tick_ema: 0.0,
@@ -817,25 +654,16 @@ impl Applier {
             last_text_click: None,
             next_text_selection_scroll: None,
             placed_rects: HashMap::new(),
-            hit_items: Vec::new(),
             scrollbar_hits: Vec::new(),
             scrollbar_drag: None,
             hovered_scrollbar: None,
             scrollbar_activity: HashMap::new(),
-            semantics_enabled: false,
-            semantics_dirty: true,
-            semantic_snapshot: Arc::new(SemanticSnapshot::default()),
-            widgets: HashMap::new(),
-            widget_styles: HashMap::new(),
+            widget_manager: WidgetManager::new(widget_factories),
             pending_host_actions,
             pending_js_clipboard_requests,
             host_action_wake,
-            next_host_action_id: 1,
-            host_action_routes: HashMap::new(),
-            widget_factories,
             wake_callback: None,
             scroll_offsets: HashMap::new(),
-            pending_value_sync: HashSet::new(),
             batching_styles: false,
             dirty_styles: HashSet::new(),
             layout_viewport: None,
@@ -843,8 +671,6 @@ impl Applier {
             last_hmr_result: HmrDrainResult::Idle,
             host_msg_inbox,
             host_msg_handle,
-            debug_state: None,
-            debug_revision: 0,
         }
     }
 
@@ -861,7 +687,8 @@ impl Applier {
 
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
         self.js.set_debug_state(state.clone());
-        self.debug_state = Some(state);
+        self.projections.debug_state = Some(state);
+        self.projections.debug_dirty = true;
     }
 
     /// Cloneable handle for background tasks / streams to push application
@@ -1042,44 +869,49 @@ impl Applier {
     /// Clear retained UI state down to the host root (solid id 1).
     fn reset_scene_tree(&mut self) {
         let doomed: Vec<NodeId> = self
+            .node_store
             .solid_to_node
             .iter()
             .filter(|(solid, _)| **solid != 1)
             .map(|(_, node)| *node)
             .collect();
         for node in doomed {
-            let _ = self.tree.remove(node);
+            let _ = self.node_store.tree.remove(node);
         }
-        self.solid_to_node.retain(|id, _| *id == 1);
-        self.node_to_solid.retain(|_, id| *id == 1);
-        self.declared.retain(|node, _| *node == self.root);
-        self.children.clear();
-        self.children.insert(self.root, Vec::new());
-        let _ = self.tree.set_children(self.root, &[]);
-        self.collapsed_text.clear();
-        self.inline_roots.clear();
+        self.node_store.solid_to_node.retain(|id, _| *id == 1);
+        self.node_store.node_to_solid.retain(|_, id| *id == 1);
+        self.node_store
+            .declared
+            .retain(|node, _| *node == self.node_store.root);
+        self.node_store.children.clear();
+        self.node_store
+            .children
+            .insert(self.node_store.root, Vec::new());
+        let _ = self.node_store.tree.set_children(self.node_store.root, &[]);
+        self.node_store.collapsed_text.clear();
+        self.node_store.inline_roots.clear();
         self.svg_cache.clear();
         self.runtime_transforms.clear();
         self.overlay_planes.clear();
         self.scrollbar_styles.clear();
-        self.widgets.clear();
-        self.widget_styles.clear();
-        self.listeners.clear();
+        self.widget_manager.widgets.clear();
+        self.widget_manager.styles.clear();
+        self.input.listeners.clear();
         self.scroll_offsets.clear();
         self.scrollbar_hits.clear();
         self.scrollbar_drag = None;
         self.hovered_scrollbar = None;
         self.scrollbar_activity.clear();
-        self.logical_parent.clear();
-        self.semantic_snapshot = Arc::new(SemanticSnapshot::default());
-        self.semantics_dirty = true;
-        self.pending_value_sync.clear();
+        self.node_store.logical_parent.clear();
+        self.projections.semantic_snapshot = Arc::new(SemanticSnapshot::default());
+        self.projections.semantics_dirty = true;
+        self.widget_manager.pending_value_sync.clear();
         self.dirty_styles.clear();
-        self.pointer_down_target = None;
-        self.pointer_down_position = None;
-        self.pointer_dragged = false;
-        self.hovered_target = None;
-        self.focused_target = None;
+        self.input.pointer_down_target = None;
+        self.input.pointer_down_position = None;
+        self.input.pointer_dragged = false;
+        self.input.hovered_target = None;
+        self.input.focused_target = None;
         self.invalidation
             .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
         if let Ok(mut targets) = self.resize_targets.try_borrow_mut() {
@@ -1092,9 +924,9 @@ impl Applier {
     /// Call this after the relevant op frame/build tick. It performs no style
     /// recomputation and cannot mutate renderer state.
     pub fn computed_node_snapshot(&self, solid_id: u32) -> Option<ComputedNodeSnapshot> {
-        let &node = self.solid_to_node.get(&solid_id)?;
-        let paint = self.tree.get_node_context(node)?;
-        let declared = self.declared.get(&node)?;
+        let &node = self.node_store.solid_to_node.get(&solid_id)?;
+        let paint = self.node_store.tree.get_node_context(node)?;
+        let declared = self.node_store.declared.get(&node)?;
         let atoms = self.atoms.borrow();
         Some(ComputedNodeSnapshot {
             solid_id,
@@ -1103,7 +935,7 @@ impl Applier {
                 .iter()
                 .filter_map(|class| atoms.resolve(*class).map(str::to_owned))
                 .collect(),
-            layout: self.tree.style(node).ok()?.clone(),
+            layout: self.node_store.tree.style(node).ok()?.clone(),
             background: paint.background,
             opacity: paint.opacity,
             transforms: paint.transform.clone(),
@@ -1141,14 +973,10 @@ impl Applier {
     }
 
     fn apply_op(&mut self, op: &Op) {
-        self.semantics_dirty = true;
+        self.projections.semantics_dirty = true;
         match op {
             Op::CreateElement { id, tag, attrs } => {
                 let id = *id;
-                let node = self
-                    .tree
-                    .new_leaf(taffy::Style::default())
-                    .expect("new_leaf");
                 let mut decl = Declared {
                     tag: Some(*tag),
                     ..Declared::default()
@@ -1176,15 +1004,15 @@ impl Applier {
                 for (name, value) in attrs {
                     decl.attrs.insert(*name, Arc::from(*value));
                 }
-                self.solid_to_node.insert(id, node);
-                self.node_to_solid.insert(node, id);
-                self.declared.insert(node, decl);
-                self.children.insert(node, Vec::new());
+                let node = self.node_store.create_leaf(id, decl);
                 self.recompute_solid(id);
                 // Rust-side widget creation: when the tag matches a known widget
                 // type, create + store it. The widget paints custom content
                 // (shapes, text+caret, …) that the standard renderer can't.
-                if let Some(mut widget) = self.create_widget(*tag) {
+                if let Some(mut widget) = self
+                    .widget_manager
+                    .create(*tag, self.wake_callback.as_ref())
+                {
                     // Feed initial attrs to the widget so it receives JS params.
                     let atoms = self.atoms.borrow();
                     for (name, value) in attrs {
@@ -1193,87 +1021,39 @@ impl Applier {
                         }
                     }
                     drop(atoms);
-                    self.widgets.insert(node, widget);
+                    self.widget_manager.widgets.insert(node, widget);
                     self.recompute_node(node);
                 }
             }
             Op::CreateText { id, text } => {
                 let id = *id;
-                let node = self
-                    .tree
-                    .new_leaf(taffy::Style::default())
-                    .expect("new_leaf");
                 let decl = Declared {
                     text: Some(Arc::from(*text)),
                     ..Declared::default()
                 };
-                self.solid_to_node.insert(id, node);
-                self.node_to_solid.insert(node, id);
-                self.declared.insert(node, decl);
-                self.children.insert(node, Vec::new());
+                self.node_store.create_leaf(id, decl);
                 self.recompute_solid(id);
             }
             Op::AppendChild { parent, child } => {
-                let (Some(&p), Some(&c)) = (
-                    self.solid_to_node.get(parent),
-                    self.solid_to_node.get(child),
-                ) else {
+                let Some(child) = self.node_store.append(*parent, *child) else {
                     return;
                 };
-                self.children.entry(p).or_default().push(c);
-                self.logical_parent.insert(c, p);
-                let kids = self.children[&p].clone();
-                let _ = self.tree.set_children(p, &kids);
                 // Nodes are styled when created, before they have a parent.
-                self.recompute_subtree(c);
+                self.recompute_subtree(child);
             }
             Op::InsertBefore {
                 parent,
                 child,
                 ref_id,
             } => {
-                let (Some(&p), Some(&c)) = (
-                    self.solid_to_node.get(parent),
-                    self.solid_to_node.get(child),
-                ) else {
+                let Some(child) = self.node_store.insert_before(*parent, *child, *ref_id) else {
                     return;
                 };
-                // Compute the insertion index before mutably borrowing children.
-                let idx = if *ref_id == 0 {
-                    self.children.get(&p).map_or(0, Vec::len)
-                } else {
-                    self.solid_to_node
-                        .get(ref_id)
-                        .and_then(|r| {
-                            self.children
-                                .get(&p)
-                                .and_then(|k| k.iter().position(|x| x == r))
-                        })
-                        .unwrap_or_else(|| self.children.get(&p).map_or(0, Vec::len))
-                };
-                let kids = self.children.entry(p).or_default();
-                let idx = idx.min(kids.len());
-                kids.insert(idx, c);
-                self.logical_parent.insert(c, p);
-                let kids = kids.clone();
-                let _ = self.tree.set_children(p, &kids);
-                self.recompute_subtree(c);
+                self.recompute_subtree(child);
             }
             Op::RemoveChild { parent, child } => {
-                let (Some(&p), Some(&c)) = (
-                    self.solid_to_node.get(parent),
-                    self.solid_to_node.get(child),
-                ) else {
-                    return;
-                };
-                if let Some(kids) = self.children.get_mut(&p) {
-                    kids.retain(|x| *x != c);
-                    let k = kids.clone();
-                    let _ = self.tree.set_children(p, &k);
+                if self.node_store.remove_child(*parent, *child) {
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
-                }
-                if self.logical_parent.get(&c) == Some(&p) {
-                    self.logical_parent.remove(&c);
                 }
             }
             Op::ReplaceNode {
@@ -1281,47 +1061,34 @@ impl Applier {
                 old_id,
                 new_id,
             } => {
-                let (Some(&p), Some(&old), Some(&new)) = (
-                    self.solid_to_node.get(parent),
-                    self.solid_to_node.get(old_id),
-                    self.solid_to_node.get(new_id),
-                ) else {
+                let Some(new) = self.node_store.replace(*parent, *old_id, *new_id) else {
                     return;
                 };
-                if let Some(kids) = self.children.get_mut(&p) {
-                    if let Some(i) = kids.iter().position(|x| *x == old) {
-                        kids[i] = new;
-                    }
-                    let k = kids.clone();
-                    let _ = self.tree.set_children(p, &k);
-                }
-                self.logical_parent.remove(&old);
-                self.logical_parent.insert(new, p);
                 self.recompute_subtree(new);
             }
             Op::SetText { id, text } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
-                    if let Some(d) = self.declared.get_mut(&n) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.text = Some(Arc::from(*text));
                     }
                     self.recompute_node(n);
                 }
             }
             Op::SetClassName { id, classes } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
-                    if let Some(d) = self.declared.get_mut(&n) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.classes.clone_from(classes);
                     }
                     self.recompute_node(n);
                 }
             }
             Op::SetStyle { id, prop, value } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     let Some(name) = self.atoms.borrow().resolve(*prop).map(str::to_owned) else {
                         tracing::warn!(atom = prop.get(), "unknown style-property atom");
                         return;
                     };
-                    if let Some(d) = self.declared.get_mut(&n) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.inline.insert(*prop, InlineValue::Text(Arc::from(*value)));
                     }
                     // Fast path: a non-inherited inline property can be applied
@@ -1335,7 +1102,7 @@ impl Applier {
                     if INHERITED_PROPERTIES.contains(&name.as_str()) || name == "font" {
                         self.recompute_node(n);
                     } else if !self.apply_inline_fast(n, &name, value) {
-                        if let Some(d) = self.declared.get_mut(&n) {
+                        if let Some(d) = self.node_store.declared.get_mut(&n) {
                             d.inline.remove(prop);
                         }
                         if self.warned_ir_properties.insert(*prop) {
@@ -1345,7 +1112,7 @@ impl Applier {
                 }
             }
             Op::SetStyleValue { id, prop, value } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     let Some(name) = self.atoms.borrow().resolve(*prop).map(str::to_owned) else {
                         tracing::warn!(atom = prop.get(), "unknown style-property atom");
                         return;
@@ -1370,13 +1137,13 @@ impl Applier {
                             value: wabou_shell::style::IrLength::Auto,
                         },
                     };
-                    if let Some(d) = self.declared.get_mut(&n) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.inline.insert(*prop, InlineValue::Typed(ir.clone()));
                     }
                     if INHERITED_PROPERTIES.contains(&name.as_str()) || name == "font" {
                         self.recompute_node(n);
                     } else if !self.apply_inline_ir_fast(n, &name, &ir) {
-                        if let Some(d) = self.declared.get_mut(&n) {
+                        if let Some(d) = self.node_store.declared.get_mut(&n) {
                             d.inline.remove(prop);
                         }
                         if self.warned_ir_properties.insert(*prop) {
@@ -1386,7 +1153,7 @@ impl Applier {
                 }
             }
             Op::SetShadows { id, shadows } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     let prop = self.atoms.borrow_mut().intern("box-shadow");
                     let values = shadows
                         .iter()
@@ -1415,11 +1182,11 @@ impl Applier {
                         })
                         .collect();
                     let ir = IrValue::List { values };
-                    if let Some(declared) = self.declared.get_mut(&n) {
+                    if let Some(declared) = self.node_store.declared.get_mut(&n) {
                         declared.inline.insert(prop, InlineValue::Typed(ir.clone()));
                     }
                     if !self.apply_inline_ir_fast(n, "box-shadow", &ir) {
-                        if let Some(declared) = self.declared.get_mut(&n) {
+                        if let Some(declared) = self.node_store.declared.get_mut(&n) {
                             declared.inline.remove(&prop);
                         }
                         tracing::warn!("invalid Vello shadow list");
@@ -1427,17 +1194,17 @@ impl Applier {
                 }
             }
             Op::SetTransform2D { id, matrix } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     self.runtime_transforms.insert(n, *matrix);
-                    if let Some(paint) = self.tree.get_node_context(n) {
+                    if let Some(paint) = self.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.runtime_transform = Some(*matrix);
-                        let _ = self.tree.set_node_context(n, Some(paint));
+                        let _ = self.node_store.tree.set_node_context(n, Some(paint));
                     }
                 }
             }
             Op::SetOverlayPlane { id, plane } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     let plane = match plane {
                         0 => OverlayPlane::Content,
                         1 => OverlayPlane::Floating,
@@ -1446,10 +1213,10 @@ impl Applier {
                         _ => OverlayPlane::Content,
                     };
                     self.overlay_planes.insert(n, plane);
-                    if let Some(paint) = self.tree.get_node_context(n) {
+                    if let Some(paint) = self.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.overlay_plane = plane;
-                        let _ = self.tree.set_node_context(n, Some(paint));
+                        let _ = self.node_store.tree.set_node_context(n, Some(paint));
                     }
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
                 }
@@ -1463,7 +1230,7 @@ impl Applier {
                 radius,
                 colors,
             } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     let color = |rgba| {
                         Color::from_rgba8(
                             (rgba >> 24) as u8,
@@ -1488,15 +1255,15 @@ impl Applier {
                         active_color: color(colors[3]),
                     };
                     self.scrollbar_styles.insert(n, style);
-                    if let Some(paint) = self.tree.get_node_context(n) {
+                    if let Some(paint) = self.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.scrollbar = style;
-                        let _ = self.tree.set_node_context(n, Some(paint));
+                        let _ = self.node_store.tree.set_node_context(n, Some(paint));
                     }
                 }
             }
             Op::FocusNode { id } => {
-                if self.solid_to_node.contains_key(id) {
+                if self.node_store.solid_to_node.contains_key(id) {
                     self.set_focused_target(Some(*id));
                 }
             }
@@ -1507,8 +1274,8 @@ impl Applier {
                 self.scroll_node(*id, *x, *y, true);
             }
             Op::RemoveStyle { id, prop } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
-                    if let Some(d) = self.declared.get_mut(&n) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.inline.remove(prop);
                     }
                     self.recompute_node(n);
@@ -1520,8 +1287,8 @@ impl Applier {
                     Some("class" | "className")
                 ) =>
             {
-                if let Some(&n) = self.solid_to_node.get(id) {
-                    if let Some(d) = self.declared.get_mut(&n) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         let mut atoms = self.atoms.borrow_mut();
                         d.classes = value
                             .split_whitespace()
@@ -1533,12 +1300,12 @@ impl Applier {
                 }
             }
             Op::SetAttribute { id, name, value } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
-                    if let Some(d) = self.declared.get_mut(&n) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.attrs.insert(*name, Arc::from(*value));
                     }
                     // Forward attribute changes to Rust-side widgets.
-                    if let Some(widget) = self.widgets.get_mut(&n) {
+                    if let Some(widget) = self.widget_manager.widgets.get_mut(&n) {
                         let atoms = self.atoms.borrow();
                         if let Some(n_str) = atoms.resolve(*name) {
                             widget.attribute_changed(n_str, value);
@@ -1548,18 +1315,18 @@ impl Applier {
                 }
             }
             Op::RemoveAttribute { id, name } => {
-                if let Some(&n) = self.solid_to_node.get(id) {
+                if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     let is_class = matches!(
                         self.atoms.borrow().resolve(*name),
                         Some("class" | "className")
                     );
-                    if let Some(d) = self.declared.get_mut(&n) {
+                    if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.attrs.remove(name);
                         if is_class {
                             d.classes.clear();
                         }
                     }
-                    if let Some(widget) = self.widgets.get_mut(&n)
+                    if let Some(widget) = self.widget_manager.widgets.get_mut(&n)
                         && let Some(n_str) = self.atoms.borrow().resolve(*name)
                     {
                         widget.attribute_removed(n_str);
@@ -1568,18 +1335,22 @@ impl Applier {
                 }
             }
             Op::AddEventListener { id, event_type } => {
-                self.listeners.entry(*id).or_default().insert(*event_type);
+                self.input
+                    .listeners
+                    .entry(*id)
+                    .or_default()
+                    .insert(*event_type);
             }
             Op::RemoveEventListener { id, event_type } => {
-                if let Some(s) = self.listeners.get_mut(id) {
+                if let Some(s) = self.input.listeners.get_mut(id) {
                     s.remove(*event_type);
                 }
             }
             Op::DropNode { id } => {
-                if self.pointer_down_target == Some(*id) {
+                if self.input.pointer_down_target == Some(*id) {
                     self.cancel_active_pointer_gesture();
                 }
-                let node = self.solid_to_node.get(id).copied();
+                let node = self.node_store.solid_to_node.get(id).copied();
                 let selection_dropped = self.active_text_selection.as_ref().is_some_and(|active| {
                     active.anchor_target == *id || active.focus_target == *id
                 });
@@ -1588,43 +1359,39 @@ impl Applier {
                     self.next_text_selection_scroll = None;
                     self.sync_text_selection_change();
                 }
-                if self.focused_target == Some(*id) {
-                    if self.window_focused
-                        && let Some(widget) = node.and_then(|node| self.widgets.get_mut(&node))
+                if self.input.focused_target == Some(*id) {
+                    if self.input.window_focused
+                        && let Some(widget) =
+                            node.and_then(|node| self.widget_manager.widgets.get_mut(&node))
                     {
                         widget.focus_changed(false);
                     }
-                    self.focused_target = None;
+                    self.input.focused_target = None;
                 }
-                self.listeners.remove(id);
+                self.input.listeners.remove(id);
                 self.resize_targets.borrow_mut().remove(id);
                 // Keep the cached hover/focus targets from dangling at a solid
                 // id whose node was just torn down — a stale hit would make
                 // wheel/scroll (and keyboard delivery) silently no-op until a
                 // pointer move re-establishes the hit.
-                if self.hovered_target == Some(*id) {
-                    self.hovered_target = None;
+                if self.input.hovered_target == Some(*id) {
+                    self.input.hovered_target = None;
                 }
-                if let Some(n) = self.solid_to_node.remove(id) {
+                if let Some(n) = self.node_store.remove(*id) {
                     self.runtime_transforms.remove(&n);
                     self.overlay_planes.remove(&n);
                     self.scrollbar_styles.remove(&n);
-                    self.node_to_solid.remove(&n);
                     self.scroll_offsets.remove(&n);
-                    self.declared.remove(&n);
-                    self.collapsed_text.remove(&n);
-                    self.children.remove(&n);
-                    self.logical_parent.remove(&n);
                     self.svg_cache.remove(&n);
-                    if let Some(widget) = self.widgets.get_mut(&n) {
+                    if let Some(widget) = self.widget_manager.widgets.get_mut(&n) {
                         widget.unmount();
                     }
                     self.drain_widget_host_actions(n);
-                    self.widgets.remove(&n);
-                    self.widget_styles.remove(&n);
-                    self.host_action_routes
+                    self.widget_manager.widgets.remove(&n);
+                    self.widget_manager.styles.remove(&n);
+                    self.widget_manager
+                        .host_action_routes
                         .retain(|_, (widget_node, _)| *widget_node != n);
-                    let _ = self.tree.remove(n);
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
                 }
             }
@@ -1633,14 +1400,19 @@ impl Applier {
     }
 
     fn recompute_solid(&mut self, solid_id: u32) {
-        if let Some(&n) = self.solid_to_node.get(&solid_id) {
+        if let Some(&n) = self.node_store.solid_to_node.get(&solid_id) {
             self.recompute_node(n);
         }
     }
 
     fn recompute_subtree(&mut self, node: NodeId) {
         self.recompute_node(node);
-        let children = self.children.get(&node).cloned().unwrap_or_default();
+        let children = self
+            .node_store
+            .children
+            .get(&node)
+            .cloned()
+            .unwrap_or_default();
         for child in children {
             self.recompute_subtree(child);
         }
@@ -1649,7 +1421,7 @@ impl Applier {
     /// Re-derive every node's `ComputedStyle` from the current `css` dict —
     /// called after a stylesheet host update.
     fn recompute_all(&mut self) {
-        let nodes: Vec<NodeId> = self.solid_to_node.values().copied().collect();
+        let nodes: Vec<NodeId> = self.node_store.solid_to_node.values().copied().collect();
         for n in nodes {
             self.recompute_node(n);
         }
@@ -1659,22 +1431,24 @@ impl Applier {
     /// Facts for [`InlineFormattingContext::build`] from the retained tree.
     fn node_facts(&self, node: NodeId) -> NodeFacts {
         let atoms = self.atoms.borrow();
-        let decl = self.declared.get(&node);
+        let decl = self.node_store.declared.get(&node);
         let tag = decl
             .and_then(|d| d.tag)
             .and_then(|t| atoms.resolve(t).map(str::to_owned));
         let text = decl.and_then(|d| d.text.clone());
         let display = self
+            .node_store
             .tree
             .style(node)
             .map(|s| s.display)
             .unwrap_or(taffy::Display::DEFAULT);
         let is_svg = tag.as_deref() == Some("svg");
-        let replaced = is_svg || self.widgets.contains_key(&node);
+        let replaced = is_svg || self.widget_manager.widgets.contains_key(&node);
         let has_listeners = self
+            .node_store
             .node_to_solid
             .get(&node)
-            .and_then(|id| self.listeners.get(id))
+            .and_then(|id| self.input.listeners.get(id))
             .is_some_and(|s| !s.is_empty());
         let independent_box = self.node_has_independent_box(node);
         NodeFacts {
@@ -1691,7 +1465,7 @@ impl Applier {
     /// Principal-box signals: background, border, padding, margin, explicit size.
     /// Inline margin/padding is not modeled — any non-zero box edge keeps the node.
     fn node_has_independent_box(&self, node: NodeId) -> bool {
-        if let Ok(style) = self.tree.style(node)
+        if let Ok(style) = self.node_store.tree.style(node)
             && (rect_has_nonzero_lp(&style.padding)
                 || rect_has_nonzero_lpa(&style.margin)
                 || rect_has_nonzero_lp(&style.border)
@@ -1699,7 +1473,7 @@ impl Applier {
         {
             return true;
         }
-        if let Some(paint) = self.tree.get_node_context(node)
+        if let Some(paint) = self.node_store.tree.get_node_context(node)
             && (paint.background.is_some()
                 || paint.border.is_some()
                 || paint.border_radius > 0.0
@@ -1714,29 +1488,32 @@ impl Applier {
     /// [`InlineFormattingContext`]. Only applies IFC output (children +
     /// collapsed text); does not re-implement formatting rules here.
     fn rebuild_layout_boxes(&mut self) {
-        let ifc = InlineFormattingContext::build(&self.children, &|node| self.node_facts(node));
+        let ifc = InlineFormattingContext::build(&self.node_store.children, &|node| {
+            self.node_facts(node)
+        });
 
         let mut changed = Vec::new();
-        self.inline_roots = ifc.roots;
+        self.node_store.inline_roots = ifc.roots;
         // Drop collapsed_text for parents that no longer collapse.
         let stale: Vec<NodeId> = self
+            .node_store
             .collapsed_text
             .keys()
             .copied()
             .filter(|n| !ifc.collapsed_text.contains_key(n))
             .collect();
         for n in stale {
-            self.collapsed_text.remove(&n);
+            self.node_store.collapsed_text.remove(&n);
             changed.push(n);
         }
         for (parent, text) in ifc.collapsed_text {
-            if self.collapsed_text.get(&parent) != Some(&text) {
-                self.collapsed_text.insert(parent, text);
+            if self.node_store.collapsed_text.get(&parent) != Some(&text) {
+                self.node_store.collapsed_text.insert(parent, text);
                 changed.push(parent);
             }
         }
         for (parent, kids) in ifc.layout_children {
-            let _ = self.tree.set_children(parent, &kids);
+            let _ = self.node_store.tree.set_children(parent, &kids);
         }
         for node in changed {
             self.recompute_node_now(node);
@@ -1749,7 +1526,7 @@ impl Applier {
     /// without a full CSS engine. Run after `apply_frame` and before layout
     /// (the measure callback reads the effective `font_size`).
     fn inherit(&mut self) {
-        self.inherit_node(self.root, &InheritedPaint::default());
+        self.inherit_node(self.node_store.root, &InheritedPaint::default());
     }
 
     fn serialize_svg(&self, root: NodeId, color: Color) -> Option<String> {
@@ -1786,7 +1563,7 @@ impl Applier {
             root: bool,
             out: &mut String,
         ) -> Option<()> {
-            let decl = this.declared.get(&node)?;
+            let decl = this.node_store.declared.get(&node)?;
             if let Some(text) = &decl.text {
                 escape_text(out, text);
                 return Some(());
@@ -1816,7 +1593,12 @@ impl Applier {
                 escape_attr(out, value, current_color);
                 out.push('"');
             }
-            let children = this.children.get(&node).map(Vec::as_slice).unwrap_or(&[]);
+            let children = this
+                .node_store
+                .children
+                .get(&node)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
             if children.is_empty() {
                 out.push_str("/>");
             } else {
@@ -1832,7 +1614,7 @@ impl Applier {
         }
 
         let atoms = self.atoms.borrow();
-        let decl = self.declared.get(&root)?;
+        let decl = self.node_store.declared.get(&root)?;
         if decl.tag.and_then(|tag| atoms.resolve(tag)) != Some("svg") {
             return None;
         }
@@ -1843,7 +1625,7 @@ impl Applier {
     }
 
     fn inherit_node(&mut self, node: NodeId, parent: &InheritedPaint) {
-        let Some(decl) = self.declared.get(&node) else {
+        let Some(decl) = self.node_store.declared.get(&node) else {
             return;
         };
         let declared = decl.paint.clone();
@@ -1851,7 +1633,7 @@ impl Applier {
 
         // Preserve host-owned content from the previous computed paint (text,
         // widget scene, intrinsic size). Cascade never owns these.
-        let prev = self.tree.get_node_context(node);
+        let prev = self.node_store.tree.get_node_context(node);
         let mut host = HostPaint {
             text: prev.and_then(|p| p.text.clone()),
             text_runs: prev
@@ -1899,23 +1681,34 @@ impl Applier {
         }
 
         let paint = declared.resolve(parent, host);
-        let _ = self.tree.set_node_context(node, Some(paint));
+        let _ = self.node_store.tree.set_node_context(node, Some(paint));
 
-        let kids = self.children.get(&node).cloned().unwrap_or_default();
+        let kids = self
+            .node_store
+            .children
+            .get(&node)
+            .cloned()
+            .unwrap_or_default();
         for c in kids {
             self.inherit_node(c, &inherited);
         }
 
-        if self.inline_roots.contains(&node) {
+        if self.node_store.inline_roots.contains(&node) {
             let mut text = String::new();
             let mut runs = Vec::new();
-            for child in self.children.get(&node).cloned().unwrap_or_default() {
+            for child in self
+                .node_store
+                .children
+                .get(&node)
+                .cloned()
+                .unwrap_or_default()
+            {
                 self.collect_styled_inline_runs(child, &mut text, &mut runs);
             }
-            if let Some(mut paint) = self.tree.get_node_context(node).cloned() {
+            if let Some(mut paint) = self.node_store.tree.get_node_context(node).cloned() {
                 paint.text = Some(Arc::from(text));
                 paint.text_runs = Arc::from(runs);
-                let _ = self.tree.set_node_context(node, Some(paint));
+                let _ = self.node_store.tree.set_node_context(node, Some(paint));
             }
         }
     }
@@ -1926,7 +1719,7 @@ impl Applier {
         text: &mut String,
         runs: &mut Vec<wabou_shell::text::TextRun>,
     ) {
-        let Some(decl) = self.declared.get(&node) else {
+        let Some(decl) = self.node_store.declared.get(&node) else {
             return;
         };
         if let Some(value) = &decl.text {
@@ -1934,7 +1727,7 @@ impl Applier {
             text.push_str(value);
             let end = text.len();
             if start != end {
-                let paint = self.tree.get_node_context(node);
+                let paint = self.node_store.tree.get_node_context(node);
                 runs.push(wabou_shell::text::TextRun {
                     range: start..end,
                     font_size: paint.map(|p| p.font_size).unwrap_or(16.0),
@@ -1947,7 +1740,7 @@ impl Applier {
             }
             return;
         }
-        if let Some(children) = self.children.get(&node) {
+        if let Some(children) = self.node_store.children.get(&node) {
             for child in children {
                 self.collect_styled_inline_runs(*child, text, runs);
             }
@@ -1979,10 +1772,10 @@ impl Applier {
     }
 
     fn apply_inline_ir_fast(&mut self, node: NodeId, prop: &str, ir: &IrValue) -> bool {
-        let Ok(existing) = self.tree.style(node) else {
+        let Ok(existing) = self.node_store.tree.style(node) else {
             return false;
         };
-        let Some(decl) = self.declared.get_mut(&node) else {
+        let Some(decl) = self.node_store.declared.get_mut(&node) else {
             return false;
         };
         let mut layout = existing.clone();
@@ -1995,12 +1788,12 @@ impl Applier {
         let declared = decl.paint.clone();
         let layout_changed = existing != &layout;
         if layout_changed {
-            let _ = self.tree.set_style(node, layout);
+            let _ = self.node_store.tree.set_style(node, layout);
             self.invalidation.insert(InvalidationFlags::LAYOUT);
         }
         // Patch only non-inherited computed fields; inherited fields stay at
         // their last resolved values (INHERIT is clear on this path).
-        if let Some(mut paint) = self.tree.get_node_context(node).cloned() {
+        if let Some(mut paint) = self.node_store.tree.get_node_context(node).cloned() {
             paint.background = declared.background;
             paint.opacity = declared.opacity;
             paint.transform = declared.transform;
@@ -2009,16 +1802,16 @@ impl Applier {
             paint.border = declared.border;
             paint.pointer_events = declared.pointer_events;
             paint.z_index = declared.z_index;
-            let _ = self.tree.set_node_context(node, Some(paint));
+            let _ = self.node_store.tree.set_node_context(node, Some(paint));
         }
         true
     }
 
     fn recompute_node_now(&mut self, node: NodeId) {
-        if node == self.root {
+        if node == self.node_store.root {
             return;
         }
-        let Some(decl) = self.declared.get(&node) else {
+        let Some(decl) = self.node_store.declared.get(&node) else {
             return;
         };
         let (layout, declared_paint, host_text, host_intrinsic, display_explicit) = {
@@ -2180,15 +1973,17 @@ impl Applier {
             }
             // Replaced elements paint their own content. Standard text would
             // otherwise be drawn a second time underneath the widget scene.
-            let host_text = (!self.widgets.contains_key(&node))
+            let host_text = (!self.widget_manager.widgets.contains_key(&node))
                 .then(|| {
-                    self.collapsed_text
+                    self.node_store
+                        .collapsed_text
                         .get(&node)
                         .cloned()
                         .or_else(|| decl.text.clone())
                 })
                 .flatten();
             if let Some(size) = self
+                .widget_manager
                 .widgets
                 .get(&node)
                 .and_then(|widget| widget.intrinsic_size())
@@ -2198,20 +1993,21 @@ impl Applier {
             (layout, paint, host_text, host_intrinsic, display_explicit)
         };
         // Persist cascade output for the inherit pass (and future resolves).
-        if let Some(decl) = self.declared.get_mut(&node) {
+        if let Some(decl) = self.node_store.declared.get_mut(&node) {
             decl.paint = declared_paint.clone();
             decl.display_explicit = display_explicit;
         }
-        let _ = self.tree.set_style(node, layout);
+        let _ = self.node_store.tree.set_style(node, layout);
 
         // Resolve this node immediately against the parent so non-inherited
         // fields (background, …) and own inherited decls are correct without
         // waiting for the next build_frame inherit walk. Descendants still
         // need the full inherit pass when inherited props change.
         let parent_inherited = self
+            .node_store
             .tree
             .parent(node)
-            .and_then(|parent| self.tree.get_node_context(parent))
+            .and_then(|parent| self.node_store.tree.get_node_context(parent))
             .map(|p| InheritedPaint {
                 text_color: p.text_color,
                 font_size: p.font_size,
@@ -2224,7 +2020,7 @@ impl Applier {
                 font_family: p.font_family.clone(),
             })
             .unwrap_or_default();
-        let prev = self.tree.get_node_context(node);
+        let prev = self.node_store.tree.get_node_context(node);
         let host = HostPaint {
             text: host_text,
             text_runs: prev
@@ -2245,53 +2041,14 @@ impl Applier {
                 .unwrap_or_default(),
         };
         let paint = declared_paint.resolve(&parent_inherited, host);
-        let _ = self.tree.set_node_context(node, Some(paint));
+        let _ = self.node_store.tree.set_node_context(node, Some(paint));
         self.invalidation.insert(InvalidationFlags::LAYOUT);
         // Cascade may have changed declared inherited props → re-resolve tree.
         self.invalidation.insert(InvalidationFlags::INHERIT);
     }
 
-    fn solid_id_for_node(&self, node: NodeId) -> Option<u32> {
-        self.node_to_solid.get(&node).copied()
-    }
-
-    fn is_logical_descendant(&self, node: NodeId, ancestor: NodeId) -> bool {
-        let mut current = Some(node);
-        while let Some(node) = current {
-            if node == ancestor {
-                return true;
-            }
-            current = self.logical_parent.get(&node).copied();
-        }
-        false
-    }
-
-    fn hit_test(&self, x: f64, y: f64) -> Option<u32> {
-        let point = Point::new(x, y);
-        for item in self.hit_items.iter().rev() {
-            match item {
-                HitItem::Content(node)
-                    if node.pointer_events
-                        && node.clips.iter().all(|clip| {
-                            hit_contains(clip.rect, clip.radius, clip.transform, point)
-                        })
-                        && hit_contains(node.rect, 0.0, node.transform, point) =>
-                {
-                    return Some(node.solid_id);
-                }
-                HitItem::Scrollbar(hit)
-                    if scrollbar_hit(&hit.placed, hit.transform.inverse() * point).is_some() =>
-                {
-                    return None;
-                }
-                _ => {}
-            }
-        }
-        None
-    }
-
     fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {
-        self.hit_items.clear();
+        self.input.hit_items.clear();
         self.scrollbar_hits.clear();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut transforms = HashMap::with_capacity(placed.len());
@@ -2318,7 +2075,7 @@ impl Applier {
                     transform: transforms[&parent],
                 });
             }
-            if let Some(&solid_id) = self.node_to_solid.get(&node.node_id) {
+            if let Some(&solid_id) = self.node_store.node_to_solid.get(&node.node_id) {
                 content_hits.insert(
                     node.node_id,
                     HitNode {
@@ -2346,12 +2103,12 @@ impl Applier {
             match event {
                 SubtreeEvent::Enter(node) => {
                     if let Some(hit) = content_hits.remove(&node.node_id) {
-                        self.hit_items.push(HitItem::Content(hit));
+                        self.input.hit_items.push(HitItem::Content(hit));
                     }
                 }
                 SubtreeEvent::Exit(node) => {
                     if let Some(hit) = scrollbar_hits.remove(&node.node_id) {
-                        self.hit_items.push(HitItem::Scrollbar(Box::new(hit)));
+                        self.input.hit_items.push(HitItem::Scrollbar(Box::new(hit)));
                     }
                 }
             }
@@ -2403,7 +2160,7 @@ impl Applier {
 
     fn scrollbar_at(&self, x: f64, y: f64) -> Option<(NodeId, ScrollbarTarget)> {
         let point = Point::new(x, y);
-        for item in self.hit_items.iter().rev() {
+        for item in self.input.hit_items.iter().rev() {
             match item {
                 HitItem::Scrollbar(hit) => {
                     if let Some(target) =
@@ -2448,22 +2205,22 @@ impl Applier {
         let old = offset[index];
         offset[index] = (offset[index] + delta as f32).clamp(0.0, hit.placed.scroll.range[index]);
         let changed = offset[index] != old;
-        self.semantics_dirty |= changed;
+        self.projections.semantics_dirty |= changed;
         self.scrollbar_activity.insert(drag.node, Instant::now());
         changed
     }
 
     fn scroll_nearest(&mut self, target: u32, delta_x: f32, delta_y: f32) -> bool {
-        let Some(mut node) = self.solid_to_node.get(&target).copied() else {
+        let Some(mut node) = self.node_store.solid_to_node.get(&target).copied() else {
             return false;
         };
         loop {
-            let scrollable = self.tree.style(node).ok().is_some_and(|style| {
+            let scrollable = self.node_store.tree.style(node).ok().is_some_and(|style| {
                 style.overflow.x == taffy::Overflow::Scroll
                     || style.overflow.y == taffy::Overflow::Scroll
             });
             if scrollable {
-                let Ok(layout) = self.tree.layout(node) else {
+                let Ok(layout) = self.node_store.tree.layout(node) else {
                     return false;
                 };
                 let viewport_width =
@@ -2472,7 +2229,11 @@ impl Applier {
                     (layout.size.height - layout.border.top - layout.border.bottom).max(0.0);
                 let max_x = (layout.content_size.width - viewport_width).max(0.0);
                 let max_y = (layout.content_size.height - viewport_height).max(0.0);
-                let style = self.tree.style(node).expect("style checked above");
+                let style = self
+                    .node_store
+                    .tree
+                    .style(node)
+                    .expect("style checked above");
                 let offset = self.scroll_offsets.entry(node).or_insert([0.0, 0.0]);
                 let old = *offset;
                 if style.overflow.x == taffy::Overflow::Scroll {
@@ -2482,12 +2243,12 @@ impl Applier {
                     offset[1] = (offset[1] + delta_y).clamp(0.0, max_y);
                 }
                 if *offset != old {
-                    self.semantics_dirty = true;
+                    self.projections.semantics_dirty = true;
                     self.scrollbar_activity.insert(node, Instant::now());
                     return true;
                 }
             }
-            let Some(parent) = self.tree.parent(node) else {
+            let Some(parent) = self.node_store.tree.parent(node) else {
                 return false;
             };
             node = parent;
@@ -2495,10 +2256,10 @@ impl Applier {
     }
 
     fn scroll_node(&mut self, target: u32, x: f32, y: f32, relative: bool) -> bool {
-        let Some(&node) = self.solid_to_node.get(&target) else {
+        let Some(&node) = self.node_store.solid_to_node.get(&target) else {
             return false;
         };
-        let Ok(style) = self.tree.style(node) else {
+        let Ok(style) = self.node_store.tree.style(node) else {
             return false;
         };
         let scroll_x = style.overflow.x == taffy::Overflow::Scroll;
@@ -2506,7 +2267,7 @@ impl Applier {
         if !scroll_x && !scroll_y {
             return false;
         }
-        let Ok(layout) = self.tree.layout(node) else {
+        let Ok(layout) = self.node_store.tree.layout(node) else {
             return false;
         };
         let viewport_width =
@@ -2527,12 +2288,12 @@ impl Applier {
         if changed {
             self.scrollbar_activity.insert(node, Instant::now());
         }
-        self.semantics_dirty |= changed;
+        self.projections.semantics_dirty |= changed;
         changed
     }
 
     fn text_selection_scroll_delta(&self) -> Option<(u32, f32, f32)> {
-        if self.pointer_buttons & 1 == 0 {
+        if self.input.pointer_buttons & 1 == 0 {
             return None;
         }
         let active = self.active_text_selection.as_ref()?;
@@ -2540,10 +2301,10 @@ impl Applier {
         // The stable anchor can live in a different scroll container during
         // a cross-panel selection.
         let target = active.focus_target;
-        let mut node = *self.solid_to_node.get(&target)?;
+        let mut node = *self.node_store.solid_to_node.get(&target)?;
         let pointer = [
-            self.pointer_position.0 as f32,
-            self.pointer_position.1 as f32,
+            self.input.pointer_position.0 as f32,
+            self.input.pointer_position.1 as f32,
         ];
         let axis_delta = |position: f32, start: f32, end: f32| {
             let outside = if position < start {
@@ -2561,12 +2322,14 @@ impl Applier {
         };
 
         loop {
-            let style = self.tree.style(node).ok()?;
+            let style = self.node_store.tree.style(node).ok()?;
             let scroll_x = style.overflow.x == taffy::Overflow::Scroll;
             let scroll_y = style.overflow.y == taffy::Overflow::Scroll;
             if (scroll_x || scroll_y)
-                && let (Some(rect), Ok(layout)) =
-                    (self.placed_rects.get(&node), self.tree.layout(node))
+                && let (Some(rect), Ok(layout)) = (
+                    self.placed_rects.get(&node),
+                    self.node_store.tree.layout(node),
+                )
             {
                 let x0 = rect[0] + layout.border.left;
                 let y0 = rect[1] + layout.border.top;
@@ -2586,7 +2349,7 @@ impl Applier {
                     return Some((target, dx, dy));
                 }
             }
-            node = self.tree.parent(node)?;
+            node = self.node_store.tree.parent(node)?;
         }
     }
 
@@ -2617,19 +2380,20 @@ impl Applier {
     fn has_listener_in_chain(&self, mut solid_id: u32, code: u8) -> bool {
         loop {
             if self
+                .input
                 .listeners
                 .get(&solid_id)
                 .is_some_and(|events| events.contains(code))
             {
                 return true;
             }
-            let Some(&node) = self.solid_to_node.get(&solid_id) else {
+            let Some(&node) = self.node_store.solid_to_node.get(&solid_id) else {
                 return false;
             };
-            let Some(parent) = self.tree.parent(node) else {
+            let Some(parent) = self.node_store.tree.parent(node) else {
                 return false;
             };
-            let Some(parent_id) = self.solid_id_for_node(parent) else {
+            let Some(parent_id) = self.node_store.solid_id_for_node(parent) else {
                 return false;
             };
             solid_id = parent_id;
@@ -2647,10 +2411,10 @@ impl Applier {
             return false;
         }
         let mut data = [0.0; event_data::LEN];
-        data[event_data::CLIENT_X as usize] = self.pointer_position.0;
-        data[event_data::CLIENT_Y as usize] = self.pointer_position.1;
+        data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
+        data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
         data[event_data::BUTTON as usize] = button.map_or(0, Self::web_button) as f64;
-        data[event_data::BUTTONS as usize] = Self::web_buttons(self.pointer_buttons) as f64;
+        data[event_data::BUTTONS as usize] = Self::web_buttons(self.input.pointer_buttons) as f64;
         data[event_data::MODS as usize] = modifiers.bits() as f64;
         let event = HostEvent::Node(HostNodeEvent {
             target,
@@ -2675,8 +2439,8 @@ impl Applier {
         if !self.has_listener_in_chain(target, code) {
             return (false, false);
         }
-        self.next_host_event_id = self.next_host_event_id.wrapping_add(1).max(1);
-        let event_id = self.next_host_event_id;
+        self.input.next_host_event_id = self.input.next_host_event_id.wrapping_add(1).max(1);
+        let event_id = self.input.next_host_event_id;
         let event = HostEvent::Node(HostNodeEvent {
             target,
             event_code: code,
@@ -2702,8 +2466,8 @@ impl Applier {
         if !self.has_listener_in_chain(target, code) {
             return (false, false);
         }
-        self.next_host_event_id = self.next_host_event_id.wrapping_add(1).max(1);
-        let event_id = self.next_host_event_id;
+        self.input.next_host_event_id = self.input.next_host_event_id.wrapping_add(1).max(1);
+        let event_id = self.input.next_host_event_id;
         let event = HostEvent::Node(HostNodeEvent {
             target,
             event_code: code,
@@ -2723,8 +2487,8 @@ impl Applier {
     fn link_url(&self, mut target: u32) -> Option<String> {
         let atoms = self.atoms.borrow();
         loop {
-            let node = *self.solid_to_node.get(&target)?;
-            if let Some(declared) = self.declared.get(&node)
+            let node = *self.node_store.solid_to_node.get(&target)?;
+            if let Some(declared) = self.node_store.declared.get(&node)
                 && declared.tag.and_then(|tag| atoms.resolve(tag)) == Some("a")
                 && let Some((_, href)) = declared
                     .attrs
@@ -2733,8 +2497,8 @@ impl Applier {
             {
                 return Some(href.to_string());
             }
-            let parent = self.tree.parent(node)?;
-            target = self.solid_id_for_node(parent)?;
+            let parent = self.node_store.tree.parent(node)?;
+            target = self.node_store.solid_id_for_node(parent)?;
         }
     }
 
@@ -2790,10 +2554,11 @@ impl Applier {
     }
 
     fn is_text_input_target(&self, target: u32) -> bool {
-        let Some(&node) = self.solid_to_node.get(&target) else {
+        let Some(&node) = self.node_store.solid_to_node.get(&target) else {
             return false;
         };
         if self
+            .widget_manager
             .widgets
             .get(&node)
             .is_some_and(|widget| widget.accepts_focus())
@@ -2801,7 +2566,8 @@ impl Applier {
             return true;
         }
         let atoms = self.atoms.borrow();
-        self.declared
+        self.node_store
+            .declared
             .get(&node)
             .and_then(|decl| decl.tag)
             .and_then(|tag| atoms.resolve(tag))
@@ -2809,17 +2575,17 @@ impl Applier {
     }
 
     fn set_focused_target(&mut self, target: Option<u32>) -> bool {
-        let old = self.focused_target;
+        let old = self.input.focused_target;
         if old == target {
             return false;
         }
-        self.semantics_dirty = true;
-        self.focused_target = target;
+        self.projections.semantics_dirty = true;
+        self.input.focused_target = target;
         let mut changed = false;
         if let Some(old) = old {
-            if self.window_focused
-                && let Some(node) = self.solid_to_node.get(&old)
-                && let Some(widget) = self.widgets.get_mut(node)
+            if self.input.window_focused
+                && let Some(node) = self.node_store.solid_to_node.get(&old)
+                && let Some(widget) = self.widget_manager.widgets.get_mut(node)
             {
                 widget.focus_changed(false);
             }
@@ -2827,9 +2593,9 @@ impl Applier {
             changed |= self.dispatch_json(old, event::FOCUSOUT, "");
         }
         if let Some(new) = target {
-            if self.window_focused
-                && let Some(node) = self.solid_to_node.get(&new)
-                && let Some(widget) = self.widgets.get_mut(node)
+            if self.input.window_focused
+                && let Some(node) = self.node_store.solid_to_node.get(&new)
+                && let Some(widget) = self.widget_manager.widgets.get_mut(node)
             {
                 widget.focus_changed(true);
             }
@@ -2840,16 +2606,16 @@ impl Applier {
     }
 
     fn set_window_focused(&mut self, focused: bool) -> bool {
-        if self.window_focused == focused {
+        if self.input.window_focused == focused {
             return false;
         }
-        self.window_focused = focused;
-        let Some(target) = self.focused_target else {
+        self.input.window_focused = focused;
+        let Some(target) = self.input.focused_target else {
             return false;
         };
         let mut changed = false;
-        if let Some(node) = self.solid_to_node.get(&target)
-            && let Some(widget) = self.widgets.get_mut(node)
+        if let Some(node) = self.node_store.solid_to_node.get(&target)
+            && let Some(widget) = self.widget_manager.widgets.get_mut(node)
         {
             widget.focus_changed(focused);
             changed = true;
@@ -2865,9 +2631,9 @@ impl Applier {
     }
 
     fn handle_widget_event(&mut self, target: u32, input: &UiEvent) -> Option<EventResponse> {
-        let node = *self.solid_to_node.get(&target)?;
+        let node = *self.node_store.solid_to_node.get(&target)?;
         let result = {
-            let widget = self.widgets.get_mut(&node)?;
+            let widget = self.widget_manager.widgets.get_mut(&node)?;
             widget.handle_event(input)
         };
         self.drain_widget_host_actions(node);
@@ -2880,7 +2646,7 @@ impl Applier {
         // pending edits queued above. Reading + dispatching here would send a
         // stale value to JS. `flush_value_sync` drains this set after paint.
         if result.value_changed() {
-            self.pending_value_sync.insert(target);
+            self.widget_manager.pending_value_sync.insert(target);
         }
         Some(EventResponse {
             handled: true,
@@ -2894,10 +2660,13 @@ impl Applier {
     fn enqueue_widget_host_action(&mut self, node: NodeId, action: wabou_shell::HostAction) {
         let action = match action {
             wabou_shell::HostAction::ReadClipboard { request_id } => {
-                let host_request_id = self.next_host_action_id;
-                self.next_host_action_id =
-                    (self.next_host_action_id.wrapping_add(1) & HOST_ACTION_SEQUENCE_MASK).max(1);
-                self.host_action_routes
+                let host_request_id = self.widget_manager.next_host_action_id;
+                self.widget_manager.next_host_action_id =
+                    (self.widget_manager.next_host_action_id.wrapping_add(1)
+                        & HOST_ACTION_SEQUENCE_MASK)
+                        .max(1);
+                self.widget_manager
+                    .host_action_routes
                     .insert(host_request_id, (node, request_id));
                 wabou_shell::HostAction::ReadClipboard {
                     request_id: host_request_id,
@@ -2910,6 +2679,7 @@ impl Applier {
 
     fn drain_widget_host_actions(&mut self, node: NodeId) {
         while let Some(action) = self
+            .widget_manager
             .widgets
             .get_mut(&node)
             .and_then(|widget| widget.take_host_action())
@@ -2919,11 +2689,12 @@ impl Applier {
     }
 
     fn drain_widget_node_events(&mut self, node: NodeId) -> bool {
-        let Some(target) = self.solid_id_for_node(node) else {
+        let Some(target) = self.node_store.solid_id_for_node(node) else {
             return false;
         };
         let mut events = Vec::new();
         while let Some(event) = self
+            .widget_manager
             .widgets
             .get_mut(&node)
             .and_then(|widget| widget.take_node_event())
@@ -2940,22 +2711,28 @@ impl Applier {
     /// edits, read each widget's now-fresh `current_value()`, sync the `value`
     /// attr, and dispatch `INPUT` to JS.
     fn flush_value_sync(&mut self) {
-        if self.pending_value_sync.is_empty() {
+        if self.widget_manager.pending_value_sync.is_empty() {
             return;
         }
         let value_atom = self.atoms.borrow_mut().intern("value");
-        for target in self.pending_value_sync.drain().collect::<Vec<_>>() {
-            let Some(&node) = self.solid_to_node.get(&target) else {
+        for target in self
+            .widget_manager
+            .pending_value_sync
+            .drain()
+            .collect::<Vec<_>>()
+        {
+            let Some(&node) = self.node_store.solid_to_node.get(&target) else {
                 continue;
             };
             let Some(value) = self
+                .widget_manager
                 .widgets
                 .get(&node)
                 .and_then(|w| w.current_value().map(str::to_owned))
             else {
                 continue;
             };
-            if let Some(decl) = self.declared.get_mut(&node) {
+            if let Some(decl) = self.node_store.declared.get_mut(&node) {
                 decl.attrs.insert(value_atom, Arc::from(value.as_str()));
             }
             let payload = serde_json::json!({ "value": value }).to_string();
@@ -2967,10 +2744,10 @@ impl Applier {
         let mut targets = self.resize_targets.borrow_mut();
         let mut changes = Vec::new();
         for (&solid_id, last) in targets.iter_mut() {
-            let Some(&node) = self.solid_to_node.get(&solid_id) else {
+            let Some(&node) = self.node_store.solid_to_node.get(&solid_id) else {
                 continue;
             };
-            let Ok(layout) = self.tree.layout(node) else {
+            let Ok(layout) = self.node_store.tree.layout(node) else {
                 continue;
             };
             let width = (layout.size.width
@@ -3011,29 +2788,16 @@ impl Applier {
         true
     }
 
-    /// Create a Rust-side widget for a tag by looking up the factory registry.
-    /// Built-in widgets (Canvas) are pre-registered by `HostBuilder::new()`;
-    /// users add their own via `.widget("tag", || Box::new(MyWidget))`.
-    fn create_widget(&self, tag: Atom) -> Option<Box<dyn crate::widget::Widget>> {
-        self.widget_factories.get(&tag).map(|f| {
-            let mut widget = f();
-            if let Some(wake) = &self.wake_callback {
-                widget.set_wake_callback(wake.clone());
-            }
-            widget
-        })
-    }
-
     /// Deliver resolved content styles before widget measurement.
     fn sync_widget_styles(&mut self) {
-        for (&node, widget) in &mut self.widgets {
-            let Some(paint) = self.tree.get_node_context(node) else {
+        for (&node, widget) in &mut self.widget_manager.widgets {
+            let Some(paint) = self.node_store.tree.get_node_context(node) else {
                 continue;
             };
             let style = crate::widget::WidgetStyle::from(paint);
-            if self.widget_styles.get(&node) != Some(&style) {
+            if self.widget_manager.styles.get(&node) != Some(&style) {
                 widget.style_changed(&style);
-                self.widget_styles.insert(node, style);
+                self.widget_manager.styles.insert(node, style);
             }
         }
     }
@@ -3050,7 +2814,7 @@ impl Applier {
                 .unwrap_or(Affine::IDENTITY);
             let transform = wabou_shell::scene::resolve_node_transform(n, parent_transform);
             transforms.insert(n.node_id, transform);
-            if let Some(w) = self.widgets.get_mut(&n.node_id) {
+            if let Some(w) = self.widget_manager.widgets.get_mut(&n.node_id) {
                 w.set_position(n.rect[0], n.rect[1]);
                 let window_to_local =
                     Affine::translate((-f64::from(n.rect[0]), -f64::from(n.rect[1])))
@@ -3067,11 +2831,13 @@ impl Applier {
 
     fn measure_widgets(&mut self, tcx: &mut TextContext) {
         let changed: Vec<_> = self
+            .widget_manager
             .widgets
             .iter_mut()
             .filter_map(|(&node, widget)| {
                 let measured = widget.measure(tcx);
                 let current = self
+                    .node_store
                     .tree
                     .get_node_context(node)
                     .and_then(|paint| paint.intrinsic_size);
@@ -3079,9 +2845,9 @@ impl Applier {
             })
             .collect();
         for (node, measured) in changed {
-            if let Some(mut paint) = self.tree.get_node_context(node).cloned() {
+            if let Some(mut paint) = self.node_store.tree.get_node_context(node).cloned() {
                 paint.intrinsic_size = measured;
-                let _ = self.tree.set_node_context(node, Some(paint));
+                let _ = self.node_store.tree.set_node_context(node, Some(paint));
                 self.invalidation.insert(InvalidationFlags::LAYOUT);
             }
         }
@@ -3095,10 +2861,12 @@ impl Applier {
             let Some(text) = node.paint.text.clone() else {
                 continue;
             };
-            if !node.paint.text_selectable || self.widgets.contains_key(&node.node_id) {
+            if !node.paint.text_selectable
+                || self.widget_manager.widgets.contains_key(&node.node_id)
+            {
                 continue;
             }
-            let Some(&target) = self.node_to_solid.get(&node.node_id) else {
+            let Some(&target) = self.node_store.node_to_solid.get(&node.node_id) else {
                 continue;
             };
             let layout = layout_text_styled(
@@ -3143,7 +2911,7 @@ impl Applier {
             active.focus_selection = active.focus_selection.refresh(focus);
         }
         for node in placed.iter_mut() {
-            let Some(&target) = self.node_to_solid.get(&node.node_id) else {
+            let Some(&target) = self.node_store.node_to_solid.get(&node.node_id) else {
                 continue;
             };
             let Some(range) = self.text_selection_range(target) else {
@@ -3395,13 +3163,13 @@ impl Applier {
             width: width as f32,
             height: height as f32,
         };
-        let mut snapshot = self.layout_metrics.borrow_mut();
+        let mut snapshot = self.projections.layout_metrics.borrow_mut();
         snapshot.revision = snapshot.revision.wrapping_add(1);
         snapshot.viewport = viewport;
         snapshot.nodes.clear();
         snapshot.nodes.reserve(placed.len());
         for placed_node in placed {
-            let Some(&id) = self.node_to_solid.get(&placed_node.node_id) else {
+            let Some(&id) = self.node_store.node_to_solid.get(&placed_node.node_id) else {
                 continue;
             };
             let rect = |value: [f32; 4]| LayoutRect {
@@ -3421,10 +3189,10 @@ impl Applier {
     }
 
     fn publish_debug_snapshot(&mut self, placed: &[PlacedNode]) {
-        let Some(state) = self.debug_state.clone() else {
+        let Some(state) = self.projections.debug_state.clone() else {
             return;
         };
-        self.debug_revision = self.debug_revision.wrapping_add(1);
+        self.projections.debug_revision = self.projections.debug_revision.wrapping_add(1);
         let atoms = self.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut css_transforms = HashMap::with_capacity(placed.len());
@@ -3440,10 +3208,10 @@ impl Applier {
         }
         let mut nodes = Vec::with_capacity(placed.len());
         for placed_node in placed {
-            let Some(&id) = self.node_to_solid.get(&placed_node.node_id) else {
+            let Some(&id) = self.node_store.node_to_solid.get(&placed_node.node_id) else {
                 continue;
             };
-            let declared = self.declared.get(&placed_node.node_id);
+            let declared = self.node_store.declared.get(&placed_node.node_id);
             let tag = declared
                 .and_then(|declared| declared.tag)
                 .and_then(|tag| atoms.resolve(tag))
@@ -3469,6 +3237,7 @@ impl Applier {
                 .collect();
             attrs.sort_by(|left, right| left.0.cmp(&right.0));
             let mut listeners: Vec<_> = self
+                .input
                 .listeners
                 .get(&id)
                 .into_iter()
@@ -3506,7 +3275,7 @@ impl Applier {
             let content_transform =
                 css_transforms[&placed_node.node_id] * Affine::translate((cx as f64, cy as f64));
             let (static_transform, _) = wabou_shell::scene::resolve_local_transforms(placed_node);
-            let layout = self.tree.style(placed_node.node_id).ok();
+            let layout = self.node_store.tree.style(placed_node.node_id).ok();
             let debug_rect = |[x0, y0, x1, y1]: [f32; 4]| wabou_devtools::Rect {
                 x: x0,
                 y: y0,
@@ -3529,7 +3298,12 @@ impl Applier {
                 };
                 if let Some(rect) = ancestor.own_clip {
                     clip_ancestors.push(wabou_devtools::DebugClip {
-                        node_id: self.node_to_solid.get(&node_id).copied().unwrap_or(0),
+                        node_id: self
+                            .node_store
+                            .node_to_solid
+                            .get(&node_id)
+                            .copied()
+                            .unwrap_or(0),
                         kind: "ancestor-overflow".into(),
                         coordinate_space: "layout-window-logical".into(),
                         rect: debug_rect(rect),
@@ -3550,22 +3324,26 @@ impl Applier {
                     transform: css_transforms[&placed_node.node_id].as_coeffs(),
                 });
             }
-            let widget_local = self.widgets.contains_key(&placed_node.node_id).then(|| {
-                let border_inset = placed_node.border_widths.into_iter().fold(0.0, f32::max);
-                wabou_devtools::DebugClip {
-                    node_id: id,
-                    kind: "widget-content".into(),
-                    coordinate_space: "content-local".into(),
-                    rect: wabou_devtools::Rect {
-                        x: 0.0,
-                        y: 0.0,
-                        width: cw,
-                        height: ch,
-                    },
-                    radius: (placed_node.paint.border_radius - border_inset).max(0.0),
-                    transform: content_transform.as_coeffs(),
-                }
-            });
+            let widget_local = self
+                .widget_manager
+                .widgets
+                .contains_key(&placed_node.node_id)
+                .then(|| {
+                    let border_inset = placed_node.border_widths.into_iter().fold(0.0, f32::max);
+                    wabou_devtools::DebugClip {
+                        node_id: id,
+                        kind: "widget-content".into(),
+                        coordinate_space: "content-local".into(),
+                        rect: wabou_devtools::Rect {
+                            x: 0.0,
+                            y: 0.0,
+                            width: cw,
+                            height: ch,
+                        },
+                        radius: (placed_node.paint.border_radius - border_inset).max(0.0),
+                        transform: content_transform.as_coeffs(),
+                    }
+                });
             let widget_self_clip = widget_local.as_ref().and_then(|clip| {
                 if clip.radius > 0.0 {
                     Some(([cx, cy, cx + cw, cy + ch], clip.radius))
@@ -3602,7 +3380,7 @@ impl Applier {
                 id,
                 parent_id: placed_node
                     .parent_node_id
-                    .and_then(|parent| self.node_to_solid.get(&parent).copied()),
+                    .and_then(|parent| self.node_store.node_to_solid.get(&parent).copied()),
                 tag,
                 text: placed_node
                     .paint
@@ -3626,6 +3404,7 @@ impl Applier {
                 },
                 listeners,
                 widget: self
+                    .widget_manager
                     .widgets
                     .contains_key(&placed_node.node_id)
                     .then(|| "native".into()),
@@ -3667,13 +3446,13 @@ impl Applier {
             status: wabou_devtools::DebugStatus {
                 protocol_version: wabou_devtools::PROTOCOL_VERSION,
                 pid: std::process::id(),
-                revision: self.debug_revision,
+                revision: self.projections.debug_revision,
                 viewport_width: self.last_viewport.0,
                 viewport_height: self.last_viewport.1,
                 device_scale: self.device_scale,
                 node_count: nodes.len(),
-                focused_node: self.focused_target,
-                hovered_node: self.hovered_target,
+                focused_node: self.input.focused_target,
+                hovered_node: self.input.hovered_target,
             },
             nodes,
         };
@@ -3686,16 +3465,17 @@ impl Applier {
 
 impl Applier {
     fn cancel_pointer_gesture(&mut self, pointer: wabou_shell::PointerEvent) -> bool {
-        self.pointer_position = (pointer.position.x, pointer.position.y);
-        self.pointer_buttons = pointer.buttons;
+        self.input.pointer_position = (pointer.position.x, pointer.position.y);
+        self.input.pointer_buttons = pointer.buttons;
         self.next_text_selection_scroll = None;
-        if self.pointer_down_target.is_some() {
+        if self.input.pointer_down_target.is_some() {
             self.last_text_click = None;
         }
-        let old_active = self.pointer_down_target.take();
-        self.pointer_down_position = None;
-        self.pointer_dragged = false;
-        let target = old_active.or_else(|| self.hit_test(pointer.position.x, pointer.position.y));
+        let old_active = self.input.pointer_down_target.take();
+        self.input.pointer_down_position = None;
+        self.input.pointer_dragged = false;
+        let target =
+            old_active.or_else(|| self.input.hit_test(pointer.position.x, pointer.position.y));
         let mut changed = old_active.is_some_and(|captured| {
             self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                 .is_some_and(|response| response.handled || response.request_redraw)
@@ -3713,15 +3493,15 @@ impl Applier {
     }
 
     fn cancel_active_pointer_gesture(&mut self) -> bool {
-        if self.pointer_down_target.is_none() {
-            self.pointer_buttons = 0;
+        if self.input.pointer_down_target.is_none() {
+            self.input.pointer_buttons = 0;
             return false;
         }
         self.cancel_pointer_gesture(wabou_shell::PointerEvent {
             phase: PointerPhase::Cancel,
             position: wabou_shell::Point {
-                x: self.pointer_position.0,
-                y: self.pointer_position.1,
+                x: self.input.pointer_position.0,
+                y: self.input.pointer_position.1,
             },
             button: None,
             buttons: 0,
@@ -3833,7 +3613,7 @@ impl FrameSource for Applier {
         if !bytes.is_empty() {
             match decode_frame(&bytes) {
                 Ok(frame) => {
-                    if let Some(state) = &self.debug_state
+                    if let Some(state) = &self.projections.debug_state
                         && let Ok(mut state) = state.write()
                     {
                         state.push_frame(wabou_devtools::DebugFrame {
@@ -3867,60 +3647,78 @@ impl FrameSource for Applier {
         let viewport_changed = self.layout_viewport != Some(viewport);
         let semantic_layout_dirty =
             self.invalidation.contains(InvalidationFlags::LAYOUT) || viewport_changed;
-        let mut placed =
-            if self.invalidation.contains(InvalidationFlags::LAYOUT) || viewport_changed {
-                // A root percentage has no containing block in taffy and resolves
-                // to zero. Only update it when the viewport changes: set_style
-                // invalidates Taffy's retained layout cache.
-                if viewport_changed && let Ok(style) = self.tree.style(self.root) {
-                    let mut style = style.clone();
-                    style.size.width = taffy::Dimension::length(width as f32);
-                    style.size.height = taffy::Dimension::length(height as f32);
-                    let _ = self.tree.set_style(self.root, style);
-                }
-                let mut placed = layout::compute_and_walk_with_scroll(
-                    &mut self.tree,
-                    self.root,
-                    width as f32,
-                    height as f32,
-                    tcx,
-                    &self.scroll_offsets,
-                );
-                self.invalidation.remove(InvalidationFlags::LAYOUT);
-                self.layout_viewport = Some(viewport);
-                let resize_changed = self.dispatch_resize_changes();
-                self.invalidation
-                    .set(InvalidationFlags::TICK, resize_changed);
-                self.paint_widgets(&mut placed, tcx);
-                placed
-            } else {
-                let mut placed =
-                    layout::flatten_with_scroll(&self.tree, self.root, &self.scroll_offsets);
-                self.paint_widgets(&mut placed, tcx);
-                placed
-            };
+        let mut placed = if self.invalidation.contains(InvalidationFlags::LAYOUT)
+            || viewport_changed
+        {
+            // A root percentage has no containing block in taffy and resolves
+            // to zero. Only update it when the viewport changes: set_style
+            // invalidates Taffy's retained layout cache.
+            if viewport_changed && let Ok(style) = self.node_store.tree.style(self.node_store.root)
+            {
+                let mut style = style.clone();
+                style.size.width = taffy::Dimension::length(width as f32);
+                style.size.height = taffy::Dimension::length(height as f32);
+                let _ = self.node_store.tree.set_style(self.node_store.root, style);
+            }
+            let mut placed = layout::compute_and_walk_with_scroll(
+                &mut self.node_store.tree,
+                self.node_store.root,
+                width as f32,
+                height as f32,
+                tcx,
+                &self.scroll_offsets,
+            );
+            self.invalidation.remove(InvalidationFlags::LAYOUT);
+            self.layout_viewport = Some(viewport);
+            let resize_changed = self.dispatch_resize_changes();
+            self.invalidation
+                .set(InvalidationFlags::TICK, resize_changed);
+            self.paint_widgets(&mut placed, tcx);
+            placed
+        } else {
+            let mut placed = layout::flatten_with_scroll(
+                &self.node_store.tree,
+                self.node_store.root,
+                &self.scroll_offsets,
+            );
+            self.paint_widgets(&mut placed, tcx);
+            placed
+        };
         self.update_scrollbar_visuals(&mut placed);
         self.placed_rects.clear();
         self.placed_rects
             .extend(placed.iter().map(|placed| (placed.node_id, placed.rect)));
         self.rebuild_hit_geometry(&placed);
-        self.publish_layout_metrics(&placed, width, height);
+        let projection_dirty =
+            self.projections.semantics_dirty || semantic_layout_dirty || selection_scrolled;
+        if projection_dirty {
+            self.publish_layout_metrics(&placed, width, height);
+        }
         self.prepare_text_selection(&mut placed, tcx);
         if selection_scrolled {
-            let target = self.hit_test(self.pointer_position.0, self.pointer_position.1);
-            self.extend_text_selection(target, self.pointer_position.0, self.pointer_position.1);
+            let target = self
+                .input
+                .hit_test(self.input.pointer_position.0, self.input.pointer_position.1);
+            self.extend_text_selection(
+                target,
+                self.input.pointer_position.0,
+                self.input.pointer_position.1,
+            );
             self.prepare_text_selection(&mut placed, tcx);
         }
-        if self.pointer_buttons & 1 == 0 {
+        if self.input.pointer_buttons & 1 == 0 {
             self.sync_text_selection_change();
         }
-        if self.semantics_enabled && (self.semantics_dirty || semantic_layout_dirty) {
+        if self.projections.semantics_enabled && projection_dirty {
             self.rebuild_semantic_snapshot(&placed);
-            self.semantics_dirty = false;
         }
+        self.projections.semantics_dirty = false;
         // After paint applied pending edits, sync widget values → JS.
         self.flush_value_sync();
-        self.publish_debug_snapshot(&placed);
+        if projection_dirty || self.projections.debug_dirty {
+            self.publish_debug_snapshot(&placed);
+            self.projections.debug_dirty = false;
+        }
         placed
     }
 
@@ -3929,18 +3727,11 @@ impl FrameSource for Applier {
     }
 
     fn set_semantics_enabled(&mut self, enabled: bool) {
-        if enabled && !self.semantics_enabled {
-            self.semantics_dirty = true;
-        }
-        self.semantics_enabled = enabled;
-        if !enabled {
-            self.semantic_snapshot = Arc::new(SemanticSnapshot::default());
-        }
+        self.projections.set_semantics_enabled(enabled);
     }
 
     fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
-        self.semantics_enabled
-            .then(|| self.semantic_snapshot.clone())
+        self.projections.semantic_snapshot()
     }
 
     fn handle_semantic_action(&mut self, action: SemanticAction) -> bool {
@@ -3949,20 +3740,23 @@ impl FrameSource for Applier {
             | SemanticAction::Focus { target }
             | SemanticAction::Blur { target } => u32::try_from(target).ok(),
         };
-        let Some(target) = target.filter(|target| self.solid_to_node.contains_key(target)) else {
+        let Some(target) =
+            target.filter(|target| self.node_store.solid_to_node.contains_key(target))
+        else {
             return false;
         };
-        if let Some(modal) = self.semantic_snapshot.modal_root {
+        if let Some(modal) = self.projections.semantic_snapshot.modal_root {
             let Some(modal_node) = u32::try_from(modal)
                 .ok()
-                .and_then(|modal| self.solid_to_node.get(&modal).copied())
+                .and_then(|modal| self.node_store.solid_to_node.get(&modal).copied())
             else {
                 return false;
             };
             if !self
+                .node_store
                 .solid_to_node
                 .get(&target)
-                .is_some_and(|node| self.is_logical_descendant(*node, modal_node))
+                .is_some_and(|node| self.node_store.is_logical_descendant(*node, modal_node))
             {
                 return false;
             }
@@ -3972,12 +3766,12 @@ impl FrameSource for Applier {
                 self.dispatch_pointer(target, event::CLICK, None, Modifiers::empty())
             }
             SemanticAction::Focus { .. } => {
-                let changed = self.focused_target != Some(target);
+                let changed = self.input.focused_target != Some(target);
                 self.set_focused_target(Some(target));
                 changed
             }
             SemanticAction::Blur { .. } => {
-                let changed = self.focused_target == Some(target);
+                let changed = self.input.focused_target == Some(target);
                 if changed {
                     self.set_focused_target(None);
                 }
@@ -3993,7 +3787,7 @@ impl FrameSource for Applier {
         tcx: &mut TextContext,
         device_scale: f64,
     ) {
-        let Some(state) = &self.debug_state else {
+        let Some(state) = &self.projections.debug_state else {
             return;
         };
         let Ok(state) = state.read() else { return };
@@ -4002,11 +3796,11 @@ impl FrameSource for Applier {
             return;
         }
         let device = Affine::scale(device_scale);
-        let hovered = self.hovered_target;
+        let hovered = self.input.hovered_target;
         let mut clips = HashSet::new();
 
         for node in placed {
-            let Some(&solid_id) = self.node_to_solid.get(&node.node_id) else {
+            let Some(&solid_id) = self.node_store.node_to_solid.get(&node.node_id) else {
                 continue;
             };
             let [x0, y0, x1, y1] = node.rect;
@@ -4059,6 +3853,7 @@ impl FrameSource for Applier {
 
             let atoms = self.atoms.borrow();
             let tag = self
+                .node_store
                 .declared
                 .get(&node.node_id)
                 .and_then(|declared| declared.tag)
@@ -4130,7 +3925,8 @@ impl FrameSource for Applier {
                 now + Duration::from_millis(16)
             }
         });
-        self.widgets
+        self.widget_manager
+            .widgets
             .values()
             .filter_map(|widget| widget.animation_deadline())
             .chain(self.next_text_selection_scroll)
@@ -4139,13 +3935,13 @@ impl FrameSource for Applier {
     }
 
     fn set_wake_callback(&mut self, wake: WakeCallback) {
-        if let Some(state) = &self.debug_state
+        if let Some(state) = &self.projections.debug_state
             && let Ok(mut state) = state.write()
         {
             state.set_wake(wake.clone());
         }
         self.js.set_wake_callback(wake.clone());
-        for widget in self.widgets.values_mut() {
+        for widget in self.widget_manager.widgets.values_mut() {
             widget.set_wake_callback(wake.clone());
         }
         self.host_msg_inbox.set_wake(wake.clone());
@@ -4159,7 +3955,7 @@ impl FrameSource for Applier {
         let mut widget_woken = false;
         let mut host_actions = Vec::new();
         let mut node_events = Vec::new();
-        for (node, widget) in &mut self.widgets {
+        for (node, widget) in &mut self.widget_manager.widgets {
             widget_woken |= widget.poll_async();
             while let Some(action) = widget.take_host_action() {
                 host_actions.push((*node, action));
@@ -4172,17 +3968,19 @@ impl FrameSource for Applier {
             self.enqueue_widget_host_action(node, action);
         }
         for (node, event) in node_events {
-            let Some(target) = self.solid_id_for_node(node) else {
+            let Some(target) = self.node_store.solid_id_for_node(node) else {
                 continue;
             };
             widget_woken |= self.dispatch_json(target, event.event_code, &event.json);
         }
         let screenshot_pending = self
+            .projections
             .debug_state
             .as_ref()
             .and_then(|state| state.read().ok())
             .is_some_and(|state| state.has_screenshot_request());
         let overlay_changed = self
+            .projections
             .debug_state
             .as_ref()
             .and_then(|state| state.write().ok())
@@ -4205,11 +4003,12 @@ impl FrameSource for Applier {
                     complete_js_clipboard(&self.js, request_id, text, true);
                     return;
                 }
-                let Some((node, widget_request_id)) = self.host_action_routes.remove(&request_id)
+                let Some((node, widget_request_id)) =
+                    self.widget_manager.host_action_routes.remove(&request_id)
                 else {
                     return;
                 };
-                if let Some(widget) = self.widgets.get_mut(&node) {
+                if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
                     widget.complete_host_action(wabou_shell::HostActionResult::Clipboard {
                         request_id: widget_request_id,
                         text,
@@ -4232,7 +4031,8 @@ impl FrameSource for Applier {
     }
 
     fn take_screenshot_request(&mut self) -> Option<std::path::PathBuf> {
-        self.debug_state
+        self.projections
+            .debug_state
             .as_ref()?
             .write()
             .ok()?
@@ -4240,7 +4040,7 @@ impl FrameSource for Applier {
     }
 
     fn complete_screenshot(&mut self, result: Result<std::path::PathBuf, String>) {
-        if let Some(state) = &self.debug_state
+        if let Some(state) = &self.projections.debug_state
             && let Ok(mut state) = state.write()
         {
             state.complete_screenshot(result);
@@ -4248,6 +4048,7 @@ impl FrameSource for Applier {
     }
 
     fn handle_event(&mut self, input: UiEvent) -> EventResponse {
+        self.projections.debug_dirty |= self.projections.debug_state.is_some();
         if let UiEvent::WindowMetrics(metrics) = &input {
             let payload = serde_json::json!({
                 "windowId": metrics.window_id,
@@ -4291,7 +4092,7 @@ impl FrameSource for Applier {
         // Cmd+T out of a terminal PTY while ordinary keys continue unchanged.
         let keydown_dispatched = if let UiEvent::Key(key) = &input
             && key.phase == KeyPhase::Down
-            && let Some(target) = self.focused_target
+            && let Some(target) = self.input.focused_target
         {
             let payload = key_event_payload(key);
             let (dispatched, prevented) =
@@ -4314,7 +4115,7 @@ impl FrameSource for Applier {
         let widget_response = if matches!(
             input,
             UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Paste(_)
-        ) && let Some(target) = self.focused_target
+        ) && let Some(target) = self.input.focused_target
         {
             self.handle_widget_event(target, &input)
         } else {
@@ -4351,8 +4152,8 @@ impl FrameSource for Applier {
         let handled = match input {
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Move => {
                 let (x, y) = (pointer.position.x, pointer.position.y);
-                self.pointer_buttons = pointer.buttons;
-                self.pointer_position = (x, y);
+                self.input.pointer_buttons = pointer.buttons;
+                self.input.pointer_position = (x, y);
                 let hovered_scrollbar = self
                     .scrollbar_at(x, y)
                     .map(|(node, target)| (node, target.axis));
@@ -4370,15 +4171,15 @@ impl FrameSource for Applier {
                     };
                 }
                 if pointer.buttons & 1 != 0
-                    && let Some((down_x, down_y)) = self.pointer_down_position
+                    && let Some((down_x, down_y)) = self.input.pointer_down_position
                 {
                     let dx = x - down_x;
                     let dy = y - down_y;
-                    self.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+                    self.input.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
                 }
-                let target = self.hit_test(x, y);
+                let target = self.input.hit_test(x, y);
                 let mut changed = scrollbar_hover_changed;
-                if let Some(captured) = self.pointer_down_target
+                if let Some(captured) = self.input.pointer_down_target
                     && let Some(response) =
                         self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                 {
@@ -4388,8 +4189,8 @@ impl FrameSource for Applier {
                     changed |= self.extend_text_selection(target, x, y);
                     self.arm_text_selection_autoscroll();
                 }
-                if target != self.hovered_target {
-                    if let Some(old) = self.hovered_target {
+                if target != self.input.hovered_target {
+                    if let Some(old) = self.input.hovered_target {
                         changed |= self.dispatch_pointer(
                             old,
                             event::POINTERLEAVE,
@@ -4405,7 +4206,7 @@ impl FrameSource for Applier {
                             pointer.modifiers,
                         );
                     }
-                    self.hovered_target = target;
+                    self.input.hovered_target = target;
                 }
                 if let Some(target) = target {
                     changed |=
@@ -4416,8 +4217,8 @@ impl FrameSource for Applier {
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Down => {
                 let (x, y) = (pointer.position.x, pointer.position.y);
                 let button = pointer.button.unwrap_or(PointerButton::Primary);
-                self.pointer_position = (x, y);
-                self.pointer_buttons = pointer.buttons;
+                self.input.pointer_position = (x, y);
+                self.input.pointer_buttons = pointer.buttons;
                 if button == PointerButton::Primary
                     && let Some((node, target)) = self.scrollbar_at(x, y)
                     && let Some(hit) = self.scrollbar_hits.iter().find(|hit| hit.node == node)
@@ -4441,7 +4242,7 @@ impl FrameSource for Applier {
                         let offset = self.scroll_offsets.entry(node).or_insert([0.0; 2]);
                         offset[index] = (offset[index] + direction * viewport)
                             .clamp(0.0, hit.placed.scroll.range[index]);
-                        self.semantics_dirty = true;
+                        self.projections.semantics_dirty = true;
                         return Self::response(true);
                     }
                     let local = hit.transform.inverse() * Point::new(x, y);
@@ -4455,10 +4256,10 @@ impl FrameSource for Applier {
                     });
                     return Self::response(true);
                 }
-                let target = self.hit_test(x, y);
-                self.pointer_down_target = target;
-                self.pointer_down_position = Some((x, y));
-                self.pointer_dragged = false;
+                let target = self.input.hit_test(x, y);
+                self.input.pointer_down_target = target;
+                self.input.pointer_down_position = Some((x, y));
+                self.input.pointer_dragged = false;
                 let mut changed = self.set_focused_target(target);
                 if button == PointerButton::Primary {
                     self.next_text_selection_scroll = None;
@@ -4495,20 +4296,20 @@ impl FrameSource for Applier {
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Up => {
                 let (x, y) = (pointer.position.x, pointer.position.y);
                 let button = pointer.button.unwrap_or(PointerButton::Primary);
-                self.pointer_position = (x, y);
-                self.pointer_buttons = pointer.buttons;
+                self.input.pointer_position = (x, y);
+                self.input.pointer_buttons = pointer.buttons;
                 if self.scrollbar_drag.take().is_some() {
                     return Self::response(true);
                 }
                 if button == PointerButton::Primary
-                    && let Some((down_x, down_y)) = self.pointer_down_position
+                    && let Some((down_x, down_y)) = self.input.pointer_down_position
                 {
                     let dx = x - down_x;
                     let dy = y - down_y;
-                    self.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+                    self.input.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
                 }
-                let target = self.hit_test(x, y);
-                let captured = self.pointer_down_target;
+                let target = self.input.hit_test(x, y);
+                let captured = self.input.pointer_down_target;
                 let mut changed = captured.is_some_and(|captured| {
                     self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                         .is_some_and(|response| response.handled || response.request_redraw)
@@ -4516,7 +4317,7 @@ impl FrameSource for Applier {
                 if button == PointerButton::Primary {
                     changed |= self.extend_text_selection(target, x, y);
                     self.next_text_selection_scroll = None;
-                    if self.pointer_dragged {
+                    if self.input.pointer_dragged {
                         self.last_text_click = None;
                     }
                 }
@@ -4525,15 +4326,15 @@ impl FrameSource for Applier {
                 });
                 if let Some(target) = target
                     && button == PointerButton::Primary
-                    && !self.pointer_dragged
-                    && Some(target) == self.pointer_down_target
+                    && !self.input.pointer_dragged
+                    && Some(target) == self.input.pointer_down_target
                 {
                     let mut data = [0.0; event_data::LEN];
-                    data[event_data::CLIENT_X as usize] = self.pointer_position.0;
-                    data[event_data::CLIENT_Y as usize] = self.pointer_position.1;
+                    data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
+                    data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
                     data[event_data::BUTTON as usize] = Self::web_button(button) as f64;
                     data[event_data::BUTTONS as usize] =
-                        Self::web_buttons(self.pointer_buttons) as f64;
+                        Self::web_buttons(self.input.pointer_buttons) as f64;
                     data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
                     let (dispatched, prevented) =
                         self.dispatch_cancellable_numeric(target, event::CLICK, data);
@@ -4542,9 +4343,9 @@ impl FrameSource for Applier {
                         changed |= self.open_link_default(target);
                     }
                 }
-                self.pointer_down_target.take();
-                self.pointer_down_position = None;
-                self.pointer_dragged = false;
+                self.input.pointer_down_target.take();
+                self.input.pointer_down_position = None;
+                self.input.pointer_dragged = false;
                 changed |= self.sync_text_selection_change();
                 changed
             }
@@ -4555,7 +4356,7 @@ impl FrameSource for Applier {
                 self.cancel_pointer_gesture(pointer)
             }
             UiEvent::Wheel(wheel) => {
-                self.pointer_position = (wheel.position.x, wheel.position.y);
+                self.input.pointer_position = (wheel.position.x, wheel.position.y);
                 // A wheel gesture remains targeted at the element under the
                 // last pointer move. Re-running a full-tree hit test for every
                 // high-frequency trackpad sample is both redundant and a
@@ -4566,13 +4367,15 @@ impl FrameSource for Applier {
                 // no-op until the user wiggles the mouse. Lazily validate +
                 // refresh the cache here so wheel keeps dispatching.
                 if !self
+                    .input
                     .hovered_target
-                    .is_some_and(|t| self.solid_to_node.contains_key(&t))
+                    .is_some_and(|t| self.node_store.solid_to_node.contains_key(&t))
                 {
-                    self.hovered_target =
-                        self.hit_test(self.pointer_position.0, self.pointer_position.1);
+                    self.input.hovered_target = self
+                        .input
+                        .hit_test(self.input.pointer_position.0, self.input.pointer_position.1);
                 }
-                let Some(target) = self.hovered_target else {
+                let Some(target) = self.input.hovered_target else {
                     return EventResponse::IGNORED;
                 };
                 // Route wheel to a Rust widget at the hit target first (e.g.
@@ -4583,8 +4386,8 @@ impl FrameSource for Applier {
                     return response;
                 }
                 let mut data = [0.0; event_data::LEN];
-                data[event_data::CLIENT_X as usize] = self.pointer_position.0;
-                data[event_data::CLIENT_Y as usize] = self.pointer_position.1;
+                data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
+                data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
                 data[event_data::MODS as usize] = wheel.modifiers.bits() as f64;
                 data[event_data::DELTA_X as usize] = wheel.delta_x;
                 data[event_data::DELTA_Y as usize] = wheel.delta_y;
@@ -4596,16 +4399,16 @@ impl FrameSource for Applier {
             }
             UiEvent::Key(key) if key.phase == KeyPhase::Down => keydown_dispatched,
             UiEvent::Key(key) if key.phase == KeyPhase::Up => {
-                self.focused_target.is_some_and(|target| {
+                self.input.focused_target.is_some_and(|target| {
                     let payload = key_event_payload(&key);
                     self.dispatch_json(target, event::KEYUP, &payload)
                 })
             }
-            UiEvent::TextInput(text) => self.focused_target.is_some_and(|target| {
+            UiEvent::TextInput(text) => self.input.focused_target.is_some_and(|target| {
                 let payload = serde_json::json!({ "data": text }).to_string();
                 self.dispatch_json(target, event::IMECOMMIT, &payload)
             }),
-            UiEvent::Paste(text) => self.focused_target.is_some_and(|target| {
+            UiEvent::Paste(text) => self.input.focused_target.is_some_and(|target| {
                 let payload = serde_json::json!({ "data": text }).to_string();
                 self.dispatch_json(target, event::IMECOMMIT, &payload)
             }),
@@ -4624,6 +4427,7 @@ impl FrameSource for Applier {
                     text_input: Some(
                         focused
                             && self
+                                .input
                                 .focused_target
                                 .is_some_and(|target| self.is_text_input_target(target)),
                     ),
@@ -4907,12 +4711,13 @@ mod tests {
             id: 2,
             event_type: event::KEYDOWN,
         });
-        let node = applier.solid_to_node[&2];
+        let node = applier.node_store.solid_to_node[&2];
         let received = Arc::new(std::sync::Mutex::new(0));
         applier
+            .widget_manager
             .widgets
             .insert(node, Box::new(KeyCaptureWidget(received.clone())));
-        applier.focused_target = Some(2);
+        applier.input.focused_target = Some(2);
 
         let response = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
             phase: KeyPhase::Down,
@@ -4978,11 +4783,11 @@ mod tests {
         });
 
         applier.apply_op(&Op::FocusNode { id: 2 });
-        assert_eq!(applier.focused_target, Some(2));
+        assert_eq!(applier.input.focused_target, Some(2));
 
         applier.apply_op(&Op::FocusNode { id: 999 });
         assert_eq!(
-            applier.focused_target,
+            applier.input.focused_target,
             Some(2),
             "a stale JS handle must not clear valid native focus"
         );
@@ -5002,8 +4807,9 @@ mod tests {
             parent: 1,
             child: 2,
         });
-        let node = applier.solid_to_node[&2];
+        let node = applier.node_store.solid_to_node[&2];
         applier
+            .widget_manager
             .widgets
             .insert(node, Box::new(MeasuringWidget([123.0, 45.0])));
         assert_eq!(
@@ -5026,8 +4832,8 @@ mod tests {
         let js = JsRuntime::new().expect("runtime");
         let mut applier = Applier::from_runtime(js, Color::BLACK);
         let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
-        applier.widgets.insert(
-            applier.root,
+        applier.widget_manager.widgets.insert(
+            applier.node_store.root,
             Box::new(StyleAwareMeasuringWidget(calls.clone())),
         );
 
@@ -5038,11 +4844,17 @@ mod tests {
 
         assert_eq!(*calls.lock().unwrap(), ["style", "measure"]);
 
-        let mut paint = applier.tree.get_node_context(applier.root).unwrap().clone();
+        let mut paint = applier
+            .node_store
+            .tree
+            .get_node_context(applier.node_store.root)
+            .unwrap()
+            .clone();
         paint.font_size += 1.0;
         applier
+            .node_store
             .tree
-            .set_node_context(applier.root, Some(paint))
+            .set_node_context(applier.node_store.root, Some(paint))
             .unwrap();
         applier.sync_widget_styles();
 
@@ -5054,11 +4866,12 @@ mod tests {
         let js = JsRuntime::new().expect("runtime");
         let mut applier = Applier::from_runtime(js, Color::BLACK);
         let received = Arc::new(std::sync::Mutex::new(Vec::new()));
-        applier
-            .widgets
-            .insert(applier.root, Box::new(WheelCaptureWidget(received.clone())));
-        applier.hovered_target = Some(1);
-        applier.pointer_position = (42.0, 73.0);
+        applier.widget_manager.widgets.insert(
+            applier.node_store.root,
+            Box::new(WheelCaptureWidget(received.clone())),
+        );
+        applier.input.hovered_target = Some(1);
+        applier.input.pointer_position = (42.0, 73.0);
 
         let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
             position: Point { x: 42.0, y: 73.0 },
@@ -5095,8 +4908,8 @@ mod tests {
     fn widget_host_actions_reach_the_frame_source() {
         let js = JsRuntime::new().expect("runtime");
         let mut applier = Applier::from_runtime(js, Color::BLACK);
-        applier.widgets.insert(
-            applier.root,
+        applier.widget_manager.widgets.insert(
+            applier.node_store.root,
             Box::new(HostActionWidget(Some(
                 wabou_shell::HostAction::SetWindowTitle(Some("terminal".into())),
             ))),
@@ -5119,8 +4932,8 @@ mod tests {
             id: 2,
             event_type: event::TERMINALEXIT,
         });
-        let node = applier.solid_to_node[&2];
-        applier.widgets.insert(
+        let node = applier.node_store.solid_to_node[&2];
+        applier.widget_manager.widgets.insert(
             node,
             Box::new(NodeEventWidget(Some(crate::widget::WidgetNodeEvent::json(
                 event::TERMINALEXIT,
@@ -5147,8 +4960,8 @@ mod tests {
     fn widget_event_host_actions_are_available_without_an_async_poll() {
         let js = JsRuntime::new().expect("runtime");
         let mut applier = Applier::from_runtime(js, Color::BLACK);
-        applier.widgets.insert(
-            applier.root,
+        applier.widget_manager.widgets.insert(
+            applier.node_store.root,
             Box::new(EventHostActionWidget(Some(
                 wabou_shell::HostAction::OpenUrl("https://example.com".into()),
             ))),
@@ -5176,8 +4989,9 @@ mod tests {
             tag: div,
             attrs: vec![],
         });
-        let node = applier.solid_to_node[&2];
+        let node = applier.node_store.solid_to_node[&2];
         applier
+            .widget_manager
             .widgets
             .insert(node, Box::new(UnmountActionWidget(None)));
 
@@ -5187,7 +5001,7 @@ mod tests {
             FrameSource::take_host_action(&mut applier),
             Some(wabou_shell::HostAction::SetWindowTitle(None))
         );
-        assert!(!applier.widgets.contains_key(&node));
+        assert!(!applier.widget_manager.widgets.contains_key(&node));
     }
 
     #[test]
@@ -5200,15 +5014,16 @@ mod tests {
             tag: div,
             attrs: vec![],
         });
-        let node = applier.solid_to_node[&2];
+        let node = applier.node_store.solid_to_node[&2];
         let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
         applier
+            .widget_manager
             .widgets
             .insert(node, Box::new(LifecycleWidget(lifecycle.clone())));
-        applier.focused_target = Some(2);
-        applier.pointer_down_target = Some(2);
-        applier.pointer_down_position = Some((10.0, 20.0));
-        applier.pointer_dragged = true;
+        applier.input.focused_target = Some(2);
+        applier.input.pointer_down_target = Some(2);
+        applier.input.pointer_down_position = Some((10.0, 20.0));
+        applier.input.pointer_dragged = true;
 
         applier.apply_op(&Op::DropNode { id: 2 });
 
@@ -5216,10 +5031,10 @@ mod tests {
             *lifecycle.lock().unwrap(),
             ["pointer-cancel", "focus-out", "unmount"]
         );
-        assert_eq!(applier.focused_target, None);
-        assert_eq!(applier.pointer_down_target, None);
-        assert_eq!(applier.pointer_down_position, None);
-        assert!(!applier.pointer_dragged);
+        assert_eq!(applier.input.focused_target, None);
+        assert_eq!(applier.input.pointer_down_target, None);
+        assert_eq!(applier.input.pointer_down_position, None);
+        assert!(!applier.input.pointer_dragged);
     }
 
     #[test]
@@ -5232,29 +5047,30 @@ mod tests {
             tag: div,
             attrs: vec![],
         });
-        let node = applier.solid_to_node[&2];
+        let node = applier.node_store.solid_to_node[&2];
         let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
         applier
+            .widget_manager
             .widgets
             .insert(node, Box::new(LifecycleWidget(lifecycle.clone())));
-        applier.focused_target = Some(2);
-        applier.pointer_down_target = Some(2);
-        applier.pointer_down_position = Some((10.0, 20.0));
-        applier.pointer_position = (15.0, 25.0);
-        applier.pointer_buttons = 1;
-        applier.pointer_dragged = true;
+        applier.input.focused_target = Some(2);
+        applier.input.pointer_down_target = Some(2);
+        applier.input.pointer_down_position = Some((10.0, 20.0));
+        applier.input.pointer_position = (15.0, 25.0);
+        applier.input.pointer_buttons = 1;
+        applier.input.pointer_dragged = true;
         applier.last_text_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
 
         let blurred = applier.handle_event(UiEvent::Focus(false));
 
         assert_eq!(*lifecycle.lock().unwrap(), ["pointer-cancel", "focus-out"]);
         assert_eq!(blurred.text_input, Some(false));
-        assert_eq!(applier.focused_target, Some(2));
-        assert!(!applier.window_focused);
-        assert_eq!(applier.pointer_down_target, None);
-        assert_eq!(applier.pointer_down_position, None);
-        assert_eq!(applier.pointer_buttons, 0);
-        assert!(!applier.pointer_dragged);
+        assert_eq!(applier.input.focused_target, Some(2));
+        assert!(!applier.input.window_focused);
+        assert_eq!(applier.input.pointer_down_target, None);
+        assert_eq!(applier.input.pointer_down_position, None);
+        assert_eq!(applier.input.pointer_buttons, 0);
+        assert!(!applier.input.pointer_dragged);
         assert!(applier.last_text_click.is_none());
 
         let focused = applier.handle_event(UiEvent::Focus(true));
@@ -5263,8 +5079,8 @@ mod tests {
             *lifecycle.lock().unwrap(),
             ["pointer-cancel", "focus-out", "focus-in"]
         );
-        assert_eq!(applier.focused_target, Some(2));
-        assert!(applier.window_focused);
+        assert_eq!(applier.input.focused_target, Some(2));
+        assert!(applier.input.window_focused);
 
         applier.last_text_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
         applier.handle_event(UiEvent::TextInput("x".into()));
@@ -5284,17 +5100,17 @@ mod tests {
             tag: div,
             attrs: vec![],
         });
-        let second_node = applier.solid_to_node[&2];
+        let second_node = applier.node_store.solid_to_node[&2];
         let first_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
         let second_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
-        applier.widgets.insert(
-            applier.root,
+        applier.widget_manager.widgets.insert(
+            applier.node_store.root,
             Box::new(ClipboardReadWidget {
                 action: Some(wabou_shell::HostAction::ReadClipboard { request_id: 7 }),
                 completed: first_completed.clone(),
             }),
         );
-        applier.widgets.insert(
+        applier.widget_manager.widgets.insert(
             second_node,
             Box::new(ClipboardReadWidget {
                 action: Some(wabou_shell::HostAction::ReadClipboard { request_id: 7 }),
@@ -5312,8 +5128,8 @@ mod tests {
         assert_eq!(requests.len(), 2);
         assert_ne!(requests[0], requests[1]);
         for request_id in requests.into_iter().rev() {
-            let (node, _) = applier.host_action_routes[&request_id];
-            let text = if node == applier.root {
+            let (node, _) = applier.widget_manager.host_action_routes[&request_id];
+            let text = if node == applier.node_store.root {
                 "first"
             } else {
                 "second"
@@ -5545,29 +5361,14 @@ mod tests {
     }
 
     #[test]
-    fn applier_host_ffi_surface_matches_the_typescript_contract() {
-        const CONTRACT: &str = include_str!("../../../packages/core/src/host.ts");
-        let host_section = CONTRACT
-            .split("Internal bridge: host-provided")
-            .nth(1)
-            .and_then(|section| section.split("Internal bridge: guest-provided").next())
-            .expect("host-provided contract section");
-        let mut expected = host_section
-            .lines()
-            .filter_map(|line| {
-                let line = line.trim();
-                line.strip_prefix("function __wabou_")
-                    .and_then(|rest| rest.split('(').next())
-                    .map(|name| format!("__wabou_{name}"))
-                    .or_else(|| {
-                        line.strip_prefix("const __wabou_")
-                            .and_then(|rest| rest.split(':').next())
-                            .map(|name| format!("__wabou_{name}"))
-                    })
+    fn applier_host_ffi_surface_matches_the_generated_schema() {
+        let mut expected = crate::host_abi::HOST_ABI
+            .iter()
+            .filter(|entry| {
+                entry.direction == crate::host_abi::Direction::Host && entry.feature.is_none()
             })
-            .filter(|name| !name.starts_with("__wabou_vite_"))
+            .map(|entry| entry.name.to_owned())
             .collect::<Vec<_>>();
-        expected.push("__wabou_capabilities".into());
         expected.sort();
 
         let applier = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
@@ -5580,7 +5381,7 @@ mod tests {
             })
             .expect("enumerate installed host ABI");
         actual.sort();
-        assert_eq!(actual, expected, "TypeScript and embedded host ABI drifted");
+        assert_eq!(actual, expected, "schema and embedded host ABI drifted");
     }
 
     #[test]
@@ -5701,11 +5502,14 @@ mod tests {
             parent: 1,
             child: 2,
         });
-        assert!(applier.solid_to_node.contains_key(&2));
+        assert!(applier.node_store.solid_to_node.contains_key(&2));
         applier.perform_full_reload("test");
-        assert!(!applier.solid_to_node.contains_key(&2));
-        assert!(applier.solid_to_node.contains_key(&1));
-        assert_eq!(applier.tree.child_count(applier.root), 0);
+        assert!(!applier.node_store.solid_to_node.contains_key(&2));
+        assert!(applier.node_store.solid_to_node.contains_key(&1));
+        assert_eq!(
+            applier.node_store.tree.child_count(applier.node_store.root),
+            0
+        );
     }
 
     #[test]
@@ -5805,10 +5609,11 @@ mod tests {
         applier.rebuild_layout_boxes();
         applier.inherit();
 
-        let svg_node = applier.solid_to_node[&2];
-        assert_eq!(applier.tree.child_count(svg_node), 0);
+        let svg_node = applier.node_store.solid_to_node[&2];
+        assert_eq!(applier.node_store.tree.child_count(svg_node), 0);
         assert_eq!(
             applier
+                .node_store
                 .tree
                 .get_node_context(svg_node)
                 .unwrap()
@@ -5817,6 +5622,7 @@ mod tests {
         );
         assert!(
             applier
+                .node_store
                 .tree
                 .get_node_context(svg_node)
                 .unwrap()
@@ -5875,10 +5681,10 @@ mod tests {
         // build_frame computes layout + paints widgets + drains value sync.
         applier.build_frame(&mut tcx, 800, 600);
         let focus = applier.handle_event(pointer(PointerPhase::Down, 10.0, 10.0, 1));
-        let node = applier.solid_to_node[&2];
-        assert!(applier.tree.layout(node).unwrap().size.height > 0.0);
+        let node = applier.node_store.solid_to_node[&2];
+        assert!(applier.node_store.tree.layout(node).unwrap().size.height > 0.0);
         assert_eq!(focus.text_input, Some(true));
-        assert_eq!(applier.focused_target, Some(2));
+        assert_eq!(applier.input.focused_target, Some(2));
 
         // Widgets receive the complete captured pointer stream, including
         // moves/releases outside their hit-test bounds. Text selection relies
@@ -5893,7 +5699,7 @@ mod tests {
                 .handle_event(pointer(PointerPhase::Up, 400.0, 10.0, 0))
                 .handled
         );
-        assert!(applier.pointer_down_target.is_none());
+        assert!(applier.input.pointer_down_target.is_none());
 
         // Text edits resolve at paint (pending-edit pattern: handle_event has
         // no FontContext), so the value sync + INPUT dispatch are deferred to
@@ -5904,8 +5710,14 @@ mod tests {
                 .handled
         );
         applier.build_frame(&mut tcx, 800, 600);
-        assert_eq!(applier.widgets[&node].current_value(), Some("ab"));
-        assert_eq!(applier.declared[&node].attrs[&value].as_ref(), "ab");
+        assert_eq!(
+            applier.widget_manager.widgets[&node].current_value(),
+            Some("ab")
+        );
+        assert_eq!(
+            applier.node_store.declared[&node].attrs[&value].as_ref(),
+            "ab"
+        );
         let payload = applier
             .js
             .with(|ctx| ctx.eval::<String, _>("globalThis.dispatched[0][2]"))
@@ -5924,8 +5736,14 @@ mod tests {
             repeat: false,
         }));
         applier.build_frame(&mut tcx, 800, 600);
-        assert_eq!(applier.widgets[&node].current_value(), Some("a"));
-        assert_eq!(applier.declared[&node].attrs[&value].as_ref(), "a");
+        assert_eq!(
+            applier.widget_manager.widgets[&node].current_value(),
+            Some("a")
+        );
+        assert_eq!(
+            applier.node_store.declared[&node].attrs[&value].as_ref(),
+            "a"
+        );
 
         for _ in 0..2 {
             applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
@@ -5941,8 +5759,14 @@ mod tests {
             }));
         }
         applier.build_frame(&mut tcx, 800, 600);
-        assert_eq!(applier.widgets[&node].current_value(), Some(""));
-        assert_eq!(applier.declared[&node].attrs[&value].as_ref(), "");
+        assert_eq!(
+            applier.widget_manager.widgets[&node].current_value(),
+            Some("")
+        );
+        assert_eq!(
+            applier.node_store.declared[&node].attrs[&value].as_ref(),
+            ""
+        );
         // A control char (backspace as text) is filtered out → IGNORED, no
         // value sync, handled stays false.
         assert!(
@@ -5951,7 +5775,10 @@ mod tests {
                 .handled
         );
         applier.build_frame(&mut tcx, 800, 600);
-        assert_eq!(applier.widgets[&node].current_value(), Some(""));
+        assert_eq!(
+            applier.widget_manager.widgets[&node].current_value(),
+            Some("")
+        );
     }
 
     #[test]
@@ -5986,10 +5813,11 @@ mod tests {
         });
         applier.rebuild_layout_boxes();
 
-        let parent = applier.solid_to_node[&2];
-        assert_eq!(applier.tree.child_count(parent), 0);
+        let parent = applier.node_store.solid_to_node[&2];
+        assert_eq!(applier.node_store.tree.child_count(parent), 0);
         assert_eq!(
             applier
+                .node_store
                 .tree
                 .get_node_context(parent)
                 .unwrap()
@@ -6005,6 +5833,7 @@ mod tests {
         applier.rebuild_layout_boxes();
         assert_eq!(
             applier
+                .node_store
                 .tree
                 .get_node_context(parent)
                 .unwrap()
@@ -6046,8 +5875,8 @@ mod tests {
 
         let mut tcx = TextContext::new();
         let mut placed = layout::compute_and_walk_with_scroll(
-            &mut applier.tree,
-            applier.root,
+            &mut applier.node_store.tree,
+            applier.node_store.root,
             400.0,
             100.0,
             &mut tcx,
@@ -6120,7 +5949,7 @@ mod tests {
         assert!(
             !placed
                 .iter()
-                .find(|node| node.node_id == applier.solid_to_node[&2])
+                .find(|node| node.node_id == applier.node_store.solid_to_node[&2])
                 .unwrap()
                 .paint
                 .selection_rects
@@ -6205,8 +6034,8 @@ mod tests {
         });
         applier.inherit();
         let mut placed = layout::compute_and_walk_with_scroll(
-            &mut applier.tree,
-            applier.root,
+            &mut applier.node_store.tree,
+            applier.node_store.root,
             400.0,
             100.0,
             &mut tcx,
@@ -6230,8 +6059,8 @@ mod tests {
         });
         applier.inherit();
         let mut placed = layout::compute_and_walk_with_scroll(
-            &mut applier.tree,
-            applier.root,
+            &mut applier.node_store.tree,
+            applier.node_store.root,
             400.0,
             100.0,
             &mut tcx,
@@ -6321,8 +6150,8 @@ mod tests {
 
         let mut tcx = TextContext::new();
         let mut placed = layout::compute_and_walk_with_scroll(
-            &mut applier.tree,
-            applier.root,
+            &mut applier.node_store.tree,
+            applier.node_store.root,
             300.0,
             100.0,
             &mut tcx,
@@ -6380,16 +6209,19 @@ mod tests {
         };
         let first_start = point(&applier.selectable_text[&2], 0);
         let second_end = point(&applier.selectable_text[&6], 4);
-        assert_eq!(applier.hit_test(first_start.0, first_start.1), Some(2));
-        assert_eq!(applier.hit_test(second_end.0, second_end.1), Some(6));
+        assert_eq!(
+            applier.input.hit_test(first_start.0, first_start.1),
+            Some(2)
+        );
+        assert_eq!(applier.input.hit_test(second_end.0, second_end.1), Some(6));
         applier.handle_event(pointer(PointerPhase::Down, first_start.0, first_start.1, 1));
         applier.handle_event(pointer(PointerPhase::Move, second_end.0, second_end.1, 1));
         applier.handle_event(pointer(PointerPhase::Up, second_end.0, second_end.1, 0));
         assert_eq!(applier.selected_text().as_deref(), Some("alpha\nbeta"));
-        assert!(applier.pointer_down_target.is_none());
+        assert!(applier.input.pointer_down_target.is_none());
         applier.prepare_text_selection(&mut placed, &mut tcx);
         for target in [2, 6] {
-            let node = applier.solid_to_node[&target];
+            let node = applier.node_store.solid_to_node[&target];
             assert!(
                 !placed
                     .iter()
@@ -6414,8 +6246,8 @@ mod tests {
         });
         applier.inherit();
         let mut placed = layout::compute_and_walk_with_scroll(
-            &mut applier.tree,
-            applier.root,
+            &mut applier.node_store.tree,
+            applier.node_store.root,
             300.0,
             100.0,
             &mut tcx,
@@ -6430,8 +6262,8 @@ mod tests {
         });
         applier.apply_op(&Op::DropNode { id: 6 });
         let mut placed = layout::compute_and_walk_with_scroll(
-            &mut applier.tree,
-            applier.root,
+            &mut applier.node_store.tree,
+            applier.node_store.root,
             300.0,
             100.0,
             &mut tcx,
@@ -6504,8 +6336,8 @@ mod tests {
         applier.inherit();
         let mut tcx = TextContext::new();
         let mut placed = layout::compute_and_walk_with_scroll(
-            &mut applier.tree,
-            applier.root,
+            &mut applier.node_store.tree,
+            applier.node_store.root,
             300.0,
             60.0,
             &mut tcx,
@@ -6582,9 +6414,9 @@ mod tests {
         applier.rebuild_layout_boxes();
         applier.inherit();
 
-        let parent = applier.solid_to_node[&2];
-        let paint = applier.tree.get_node_context(parent).unwrap();
-        assert_eq!(applier.tree.child_count(parent), 0);
+        let parent = applier.node_store.solid_to_node[&2];
+        let paint = applier.node_store.tree.get_node_context(parent).unwrap();
+        assert_eq!(applier.node_store.tree.child_count(parent), 0);
         assert_eq!(paint.text.as_deref(), Some("Hello world"));
         assert_eq!(paint.text_runs.len(), 2);
         assert_eq!(paint.text_runs[0].range, 0..6);
@@ -6632,28 +6464,34 @@ mod tests {
             });
         }
         let mut root_style = applier
+            .node_store
             .tree
-            .style(applier.root)
+            .style(applier.node_store.root)
             .expect("root style")
             .clone();
         root_style.size.width = taffy::Dimension::length(800.0);
         root_style.size.height = taffy::Dimension::length(600.0);
         applier
+            .node_store
             .tree
-            .set_style(applier.root, root_style)
+            .set_style(applier.node_store.root, root_style)
             .expect("viewport style");
         applier
+            .node_store
             .tree
             .compute_layout(
-                applier.root,
+                applier.node_store.root,
                 taffy::geometry::Size {
                     width: taffy::AvailableSpace::Definite(800.0),
                     height: taffy::AvailableSpace::Definite(600.0),
                 },
             )
             .expect("layout");
-        let mut placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let mut placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.update_scrollbar_visuals(&mut placed);
         applier.rebuild_hit_geometry(&placed);
         applier
@@ -6663,8 +6501,11 @@ mod tests {
     fn host_layout_snapshot_reports_completed_rects_and_viewport() {
         const CORE_FIXTURE: &str = include_str!("gen/test-runtime.js");
         let mut applier = interactive_applier();
-        let placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.publish_layout_metrics(&placed, 800, 600);
         applier
             .boot(CORE_FIXTURE)
@@ -6687,6 +6528,42 @@ mod tests {
         assert_eq!(snapshot["nodes"][0]["rect"]["width"], 100.0);
         assert_eq!(snapshot["nodes"][0]["rect"]["height"], 50.0);
         assert_eq!(snapshot["nodes"][0]["clip"], snapshot["viewport"]);
+    }
+
+    #[test]
+    fn stable_frames_do_not_republish_layout_or_empty_semantics() {
+        let mut applier = interactive_applier();
+        let empty_semantics = applier.projections.semantic_snapshot.clone();
+        applier.set_semantics_enabled(false);
+        assert!(Arc::ptr_eq(
+            &empty_semantics,
+            &applier.projections.semantic_snapshot
+        ));
+        applier
+            .boot(
+                "globalThis.__wabou_tick = () => false; \
+                 globalThis.__wabou_has_raf = () => false;",
+            )
+            .expect("boot stable-frame fixture");
+        let debug = wabou_devtools::DebugState::shared();
+        applier.set_debug_state(debug.clone());
+
+        let mut text = TextContext::new();
+        applier.build_frame(&mut text, 801, 600);
+        let revision = applier.projections.layout_metrics.borrow().revision;
+        let debug_revision = debug.read().unwrap().snapshot().status.revision;
+        assert!(revision > 0);
+        assert!(debug_revision > 0);
+
+        applier.build_frame(&mut text, 801, 600);
+        assert_eq!(
+            applier.projections.layout_metrics.borrow().revision,
+            revision
+        );
+        assert_eq!(
+            debug.read().unwrap().snapshot().status.revision,
+            debug_revision
+        );
     }
 
     #[test]
@@ -6716,7 +6593,7 @@ mod tests {
     #[test]
     fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
         let mut applier = interactive_applier();
-        assert_eq!(applier.hit_test(20.0, 20.0), Some(2));
+        assert_eq!(applier.input.hit_test(20.0, 20.0), Some(2));
         assert!(
             applier
                 .handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1))
@@ -6752,9 +6629,9 @@ mod tests {
         assert!(codes.contains(&event::POINTERDOWN));
         assert!(codes.contains(&event::POINTERUP));
         assert!(!codes.contains(&event::CLICK));
-        assert!(applier.pointer_down_target.is_none());
-        assert!(applier.pointer_down_position.is_none());
-        assert!(!applier.pointer_dragged);
+        assert!(applier.input.pointer_down_target.is_none());
+        assert!(applier.input.pointer_down_position.is_none());
+        assert!(!applier.input.pointer_dragged);
     }
 
     #[test]
@@ -6777,8 +6654,11 @@ mod tests {
         let mut applier = interactive_applier();
         let state = wabou_devtools::DebugState::shared();
         applier.set_debug_state(state.clone());
-        let placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.last_viewport = (800, 600);
         applier.publish_debug_snapshot(&placed);
         applier.handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1));
@@ -6803,15 +6683,19 @@ mod tests {
         let mut applier = interactive_applier();
         let state = wabou_devtools::DebugState::shared();
         applier.set_debug_state(state.clone());
-        let widget_node = applier.solid_to_node[&2];
+        let widget_node = applier.node_store.solid_to_node[&2];
         applier
+            .widget_manager
             .widgets
             .insert(widget_node, Box::new(MeasuringWidget([100.0, 50.0])));
-        let mut placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let mut placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         let root = placed
             .iter_mut()
-            .find(|node| node.node_id == applier.root)
+            .find(|node| node.node_id == applier.node_store.root)
             .unwrap();
         root.own_clip = Some([0.0, 0.0, 80.0, 40.0]);
         root.own_clip_radius = 6.0;
@@ -6892,8 +6776,11 @@ mod tests {
         });
         let state = wabou_devtools::DebugState::shared();
         applier.set_debug_state(state.clone());
-        let placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.last_viewport = (800, 600);
         applier.publish_debug_snapshot(&placed);
 
@@ -6924,20 +6811,24 @@ mod tests {
         });
 
         assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
-        let node = applier.solid_to_node[&2];
+        let node = applier.node_store.solid_to_node[&2];
         assert_eq!(
             applier
+                .node_store
                 .tree
                 .get_node_context(node)
                 .unwrap()
                 .runtime_transform,
             Some([1.0, 0.0, 0.0, 1.0, 12.5, -3.25])
         );
-        let placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.rebuild_hit_geometry(&placed);
-        assert_ne!(applier.hit_test(5.0, 20.0), Some(2));
-        assert_eq!(applier.hit_test(32.5, 16.75), Some(2));
+        assert_ne!(applier.input.hit_test(5.0, 20.0), Some(2));
+        assert_eq!(applier.input.hit_test(32.5, 16.75), Some(2));
 
         let transform = applier.atoms.borrow_mut().intern("transform");
         applier.apply_op(&Op::SetStyle {
@@ -6945,7 +6836,7 @@ mod tests {
             prop: transform,
             value: "translate(2px, 3px)",
         });
-        let paint = applier.tree.get_node_context(node).unwrap();
+        let paint = applier.node_store.tree.get_node_context(node).unwrap();
         assert_eq!(
             paint.runtime_transform,
             Some([1.0, 0.0, 0.0, 1.0, 12.5, -3.25])
@@ -6978,8 +6869,8 @@ mod tests {
             }],
         });
 
-        let node = applier.solid_to_node[&2];
-        let paint = applier.tree.get_node_context(node).unwrap();
+        let node = applier.node_store.solid_to_node[&2];
+        let paint = applier.node_store.tree.get_node_context(node).unwrap();
         assert_eq!(
             paint.shadows,
             vec![wabou_shell::style::Shadow {
@@ -7060,38 +6951,44 @@ mod tests {
         applier.inherit();
 
         let mut root_style = applier
+            .node_store
             .tree
-            .style(applier.root)
+            .style(applier.node_store.root)
             .expect("root style")
             .clone();
         root_style.size.width = taffy::Dimension::length(800.0);
         root_style.size.height = taffy::Dimension::length(600.0);
         applier
+            .node_store
             .tree
-            .set_style(applier.root, root_style)
+            .set_style(applier.node_store.root, root_style)
             .expect("viewport style");
         applier
+            .node_store
             .tree
             .compute_layout(
-                applier.root,
+                applier.node_store.root,
                 taffy::geometry::Size {
                     width: taffy::AvailableSpace::Definite(800.0),
                     height: taffy::AvailableSpace::Definite(600.0),
                 },
             )
             .expect("layout");
-        let placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.rebuild_hit_geometry(&placed);
 
-        let container = applier.solid_to_node[&2];
+        let container = applier.node_store.solid_to_node[&2];
         applier.invalidation.remove(InvalidationFlags::LAYOUT);
         assert_eq!(
-            applier.tree.style(container).unwrap().overflow.y,
+            applier.node_store.tree.style(container).unwrap().overflow.y,
             taffy::Overflow::Scroll
         );
         assert_ne!(
-            applier.hit_test(10.0, 150.0),
+            applier.input.hit_test(10.0, 150.0),
             Some(3),
             "overflow must clip hits"
         );
@@ -7099,17 +6996,23 @@ mod tests {
             id: 2,
             matrix: [1.0, 0.0, 0.0, 1.0, 200.0, 0.0],
         });
-        let placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.rebuild_hit_geometry(&placed);
-        assert_eq!(applier.hit_test(210.0, 50.0), Some(3));
-        assert_ne!(applier.hit_test(210.0, 150.0), Some(3));
+        assert_eq!(applier.input.hit_test(210.0, 50.0), Some(3));
+        assert_ne!(applier.input.hit_test(210.0, 150.0), Some(3));
         applier.apply_op(&Op::SetTransform2D {
             id: 2,
             matrix: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         });
-        let placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.rebuild_hit_geometry(&placed);
         let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
             position: Point { x: 10.0, y: 10.0 },
@@ -7143,8 +7046,11 @@ mod tests {
         });
         assert_eq!(applier.scroll_offsets[&container], [0.0, 0.0]);
 
-        let mut placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let mut placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.update_scrollbar_visuals(&mut placed);
         applier.rebuild_hit_geometry(&placed);
         let down = applier.handle_event(pointer(PointerPhase::Down, 95.0, 16.0, 1));
@@ -7173,8 +7079,11 @@ mod tests {
         assert!(applier.scrollbar_drag.is_none());
 
         applier.scroll_offsets.insert(container, [0.0, 0.0]);
-        let mut placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let mut placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.update_scrollbar_visuals(&mut placed);
         applier.rebuild_hit_geometry(&placed);
         let track = applier.handle_event(pointer(PointerPhase::Down, 95.0, 80.0, 1));
@@ -7183,8 +7092,11 @@ mod tests {
 
         applier.scroll_offsets.insert(container, [0.0, 0.0]);
         let mut tcx = TextContext::new();
-        let mut placed =
-            layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
+        let mut placed = layout::flatten_with_scroll(
+            &applier.node_store.tree,
+            applier.node_store.root,
+            &applier.scroll_offsets,
+        );
         applier.placed_rects = placed
             .iter()
             .map(|placed| (placed.node_id, placed.rect))
@@ -7197,8 +7109,8 @@ mod tests {
             f64::from(origin[1] + 5.0),
             Modifiers::empty(),
         );
-        applier.pointer_buttons = 1;
-        applier.pointer_position = (200.0, 140.0);
+        applier.input.pointer_buttons = 1;
+        applier.input.pointer_position = (200.0, 140.0);
         applier.extend_text_selection(None, 200.0, 140.0);
         // Model a cross-panel drag: the stable anchor is outside this
         // overflow container while the focus endpoint remains inside it.
@@ -7216,7 +7128,7 @@ mod tests {
         applier.next_text_selection_scroll = Some(Instant::now() - Duration::from_millis(1));
         assert!(applier.tick_text_selection_autoscroll());
         assert!(applier.scroll_offsets[&container][1] > first_scroll);
-        applier.pointer_buttons = 0;
+        applier.input.pointer_buttons = 0;
         applier.next_text_selection_scroll = Some(Instant::now() - Duration::from_millis(1));
         assert!(!applier.tick_text_selection_autoscroll());
         assert!(applier.next_text_selection_scroll.is_none());
@@ -7243,9 +7155,9 @@ mod tests {
                 attrs: vec![],
             });
         }
-        let owner = applier.solid_to_node[&2];
-        let overlay = applier.solid_to_node[&3];
-        let root = applier.root;
+        let owner = applier.node_store.solid_to_node[&2];
+        let overlay = applier.node_store.solid_to_node[&3];
+        let root = applier.node_store.root;
         let placed = |node_id, scroll| PlacedNode {
             node_id,
             parent_node_id: Some(root),
@@ -7277,7 +7189,7 @@ mod tests {
         let overlay_placed = placed(overlay, layout::ScrollMetrics::default());
         applier.rebuild_hit_geometry(&[owner_placed, overlay_placed]);
         assert_eq!(applier.scrollbar_at(95.0, 16.0), None);
-        assert_eq!(applier.hit_test(95.0, 16.0), Some(3));
+        assert_eq!(applier.input.hit_test(95.0, 16.0), Some(3));
     }
 
     #[test]
@@ -7328,12 +7240,12 @@ mod tests {
         });
         applier.rebuild_layout_boxes();
         applier.apply_op(&Op::SetOverlayPlane { id: 3, plane: 2 });
-        applier.focused_target = Some(4);
+        applier.input.focused_target = Some(4);
 
-        let root = applier.root;
-        let background = applier.solid_to_node[&2];
-        let modal = applier.solid_to_node[&3];
-        let save = applier.solid_to_node[&4];
+        let root = applier.node_store.root;
+        let background = applier.node_store.solid_to_node[&2];
+        let modal = applier.node_store.solid_to_node[&3];
+        let save = applier.node_store.solid_to_node[&4];
         let paint = |plane| Paint {
             overlay_plane: plane,
             ..Paint::default()
@@ -7363,7 +7275,7 @@ mod tests {
         ];
         applier.rebuild_hit_geometry(&placed);
         applier.rebuild_semantic_snapshot(&placed);
-        let snapshot = &applier.semantic_snapshot;
+        let snapshot = &applier.projections.semantic_snapshot;
         assert_eq!(snapshot.root_children, vec![2, 3]);
         assert_eq!(snapshot.modal_root, Some(3));
         assert_eq!(snapshot.focus, Some(4));
@@ -7387,9 +7299,9 @@ mod tests {
         });
         assert!(!applier.handle_semantic_action(SemanticAction::Click { target: 2 }));
         assert!(applier.handle_semantic_action(SemanticAction::Click { target: 4 }));
-        applier.focused_target = None;
+        applier.input.focused_target = None;
         assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 4 }));
-        assert_eq!(applier.focused_target, Some(4));
+        assert_eq!(applier.input.focused_target, Some(4));
 
         applier.apply_op(&Op::CreateElement {
             id: 5,
@@ -7414,8 +7326,8 @@ mod tests {
             child: 5,
         });
         applier.apply_op(&Op::SetOverlayPlane { id: 5, plane: 2 });
-        let confirm = applier.solid_to_node[&5];
-        let continue_button = applier.solid_to_node[&6];
+        let confirm = applier.node_store.solid_to_node[&5];
+        let continue_button = applier.node_store.solid_to_node[&6];
         let mut continue_paint = paint(OverlayPlane::Content);
         continue_paint.runtime_transform = Some([1.0, 0.0, 0.0, 1.0, 20.0, 10.0]);
         let placed = vec![
@@ -7427,8 +7339,8 @@ mod tests {
         ];
         applier.rebuild_hit_geometry(&placed);
         applier.rebuild_semantic_snapshot(&placed);
-        assert_eq!(applier.semantic_snapshot.modal_root, Some(5));
-        assert_eq!(applier.semantic_snapshot.focus, Some(5));
+        assert_eq!(applier.projections.semantic_snapshot.modal_root, Some(5));
+        assert_eq!(applier.projections.semantic_snapshot.focus, Some(5));
         assert!(
             !applier.handle_semantic_action(SemanticAction::Focus { target: 4 }),
             "an older modal must be inert while a newer modal is topmost"

@@ -133,6 +133,9 @@ Read more about [styling](docs/style.md), [windows](docs/windows.md),
 [host-to-JavaScript communication](docs/host-to-js.md), and
 [composable events](docs/composable-events.md). Public API naming and embedded
 host testing are documented in the [JavaScript API design guide](docs/api-design.md).
+The supported browser-like surface is defined by the
+[Web compatibility contract](docs/web-compatibility.md); the private bridge is
+listed in the generated [Host ABI inventory](docs/host-abi.md).
 
 ## Contributing
 

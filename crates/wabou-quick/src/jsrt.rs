@@ -1058,26 +1058,15 @@ mod tests {
             })
             .expect("enumerate __wabou_* globals");
         bridge.sort();
-        let mut expected = vec![
-            "__wabou_capabilities",
-            "__wabou_fetch",
-            "__wabou_frame_stats",
-            "__wabou_flush",
-            "__wabou_intern",
-            "__wabou_layout_snapshot",
-            "__wabou_load_font",
-            "__wabou_log",
-            "__wabou_open_url",
-            "__wabou_resize_observe",
-            "__wabou_resize_unobserve",
-            "__wabou_set_stylesheet",
-            "__wabou_sleep",
-            "__wabou_utf8_decode",
-            "__wabou_utf8_encode",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+        let mut expected = crate::host_abi::HOST_ABI
+            .iter()
+            .filter(|entry| {
+                entry.direction == crate::host_abi::Direction::Host
+                    && entry.owner == "runtime"
+                    && entry.feature.is_none()
+            })
+            .map(|entry| entry.name.to_owned())
+            .collect::<Vec<_>>();
         expected.sort();
         assert_eq!(bridge, expected, "Rust-registered __wabou_* set drifted");
 

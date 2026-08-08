@@ -13,6 +13,28 @@ use crate::{SemanticAction, SemanticRole, SemanticSnapshot};
 
 const ROOT_ID: NodeId = NodeId(0);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PublicationKey {
+    semantic_revision: u64,
+    width: u32,
+    height: u32,
+    scale_bits: u64,
+}
+
+fn publication_key(
+    snapshot: Option<&SemanticSnapshot>,
+    width: u32,
+    height: u32,
+    scale: f64,
+) -> PublicationKey {
+    PublicationKey {
+        semantic_revision: snapshot.map_or(0, |snapshot| snapshot.revision),
+        width,
+        height,
+        scale_bits: scale.to_bits(),
+    }
+}
+
 fn root_update(
     title: String,
     width: f64,
@@ -135,6 +157,7 @@ pub struct AccessibilityState {
     snapshot: Option<Arc<SemanticSnapshot>>,
     active: bool,
     initialize_pending: bool,
+    last_published: Option<PublicationKey>,
 }
 
 impl AccessibilityState {
@@ -158,6 +181,7 @@ impl AccessibilityState {
             snapshot: None,
             active: false,
             initialize_pending: false,
+            last_published: None,
         }
     }
 
@@ -189,6 +213,7 @@ impl AccessibilityState {
                     self.active = false;
                     self.initialize_pending = false;
                     self.snapshot = None;
+                    self.last_published = None;
                     false
                 }
                 AccessKitEvent::ActionRequested(_) => true,
@@ -231,6 +256,16 @@ impl AccessibilityState {
         let snapshot = self.snapshot.clone();
         let size = window.surface_size().cast::<f64>();
         let scale = window.scale_factor();
+        let key = publication_key(
+            snapshot.as_deref(),
+            size.width as u32,
+            size.height as u32,
+            scale,
+        );
+        if !requested && self.last_published == Some(key) {
+            return;
+        }
+        self.last_published = Some(key);
         self.adapter.update_if_active(move || {
             root_update(
                 title,
@@ -283,6 +318,7 @@ mod tests {
     #[test]
     fn modal_snapshot_exposes_only_the_modal_at_the_window_root() {
         let snapshot = SemanticSnapshot {
+            revision: 1,
             nodes: vec![
                 crate::SemanticNode {
                     id: 2,
@@ -325,5 +361,20 @@ mod tests {
         );
         assert!(update.nodes[2].1.supports_action(Action::Click));
         assert!(update.nodes[2].1.supports_action(Action::Focus));
+    }
+
+    #[test]
+    fn publication_revision_changes_only_for_semantics_or_window_geometry() {
+        let snapshot = SemanticSnapshot {
+            revision: 7,
+            ..SemanticSnapshot::default()
+        };
+        let initial = publication_key(Some(&snapshot), 800, 600, 2.0);
+        assert_eq!(initial, publication_key(Some(&snapshot), 800, 600, 2.0));
+
+        let mut changed = snapshot;
+        changed.revision += 1;
+        assert_ne!(initial, publication_key(Some(&changed), 800, 600, 2.0));
+        assert_ne!(initial, publication_key(Some(&changed), 801, 600, 2.0));
     }
 }

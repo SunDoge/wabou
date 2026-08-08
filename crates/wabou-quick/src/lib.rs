@@ -11,6 +11,8 @@ pub mod clock;
 pub mod config;
 pub mod error;
 pub mod host;
+#[cfg(test)]
+pub(crate) mod host_abi;
 pub mod host_ffi;
 pub mod host_frame;
 pub mod host_msg;

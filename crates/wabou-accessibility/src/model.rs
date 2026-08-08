@@ -23,6 +23,8 @@ pub struct SemanticNode {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SemanticSnapshot {
+    /// Monotonic source revision; unchanged revisions need not be republished.
+    pub revision: u64,
     pub nodes: Vec<SemanticNode>,
     pub root_children: Vec<u64>,
     pub focus: Option<u64>,
