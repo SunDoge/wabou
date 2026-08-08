@@ -1,4 +1,4 @@
-import type { Handle } from "@wabou/solid-renderer";
+import type { Handle, WabouElementProps } from "@wabou/solid-renderer";
 import type { JSX } from "solid-js";
 
 export type TerminalStyle = Record<string, string | number>;
@@ -103,35 +103,30 @@ export function Terminal(props: TerminalProps): JSX.Element {
   );
 }
 
-declare module "solid-js" {
-  namespace JSX {
-    interface IntrinsicElements {
-      /** Low-level native widget. Prefer the typed PascalCase `Terminal`. */
-      terminal: {
-        class?: string;
-        style?: TerminalStyle;
-        ref?: (node: Handle) => void;
-        command?: string;
-        args?: string;
-        cwd?: string;
-        "font-family"?: string;
-        "font-size"?: string;
-        "line-height"?: string;
-        "selection-background"?: string;
-        "selection-foreground"?: string;
-        "inherit-theme"?: string;
-        "allow-clipboard-read"?: string;
-        "sync-window-title"?: string;
-        onTerminalExit?: (event: TerminalExitEvent) => void;
-        onTerminalProgress?: (event: TerminalProgressEvent) => void;
-        onTerminalNotification?: (event: TerminalNotificationEvent) => void;
-        onTerminalTitleChange?: (event: TerminalTitleChangeEvent) => void;
-        onTerminalCwdChange?: (event: TerminalCwdChangeEvent) => void;
-        onTerminalSelectionChange?: (
-          event: TerminalSelectionChangeEvent,
-        ) => void;
-        onTerminalBell?: (event: TerminalBellEvent) => void;
-      };
-    }
+declare module "@wabou/solid-renderer" {
+  interface WabouIntrinsicElements {
+    /** Low-level native widget. Prefer the typed PascalCase `Terminal`. */
+    terminal: Omit<WabouElementProps, "style" | "ref"> & {
+      style?: TerminalStyle;
+      ref?: (node: Handle) => void;
+      command?: string;
+      args?: string;
+      cwd?: string;
+      "font-family"?: string;
+      "font-size"?: string;
+      "line-height"?: string;
+      "selection-background"?: string;
+      "selection-foreground"?: string;
+      "inherit-theme"?: string;
+      "allow-clipboard-read"?: string;
+      "sync-window-title"?: string;
+      onTerminalExit?: (event: TerminalExitEvent) => void;
+      onTerminalProgress?: (event: TerminalProgressEvent) => void;
+      onTerminalNotification?: (event: TerminalNotificationEvent) => void;
+      onTerminalTitleChange?: (event: TerminalTitleChangeEvent) => void;
+      onTerminalCwdChange?: (event: TerminalCwdChangeEvent) => void;
+      onTerminalSelectionChange?: (event: TerminalSelectionChangeEvent) => void;
+      onTerminalBell?: (event: TerminalBellEvent) => void;
+    };
   }
 }

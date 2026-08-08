@@ -22,6 +22,52 @@ export const delegateEvents = () => {};
 import type { JSX } from "solid-js";
 import { createRenderer as solidCreateRenderer } from "solid-js/universal";
 
+/**
+ * Application and widget-package additions to the native Host API.
+ *
+ * Augment this interface through `declare module "@wabou/solid-renderer"`.
+ * It intentionally lives at the package root: augmenting a re-exported
+ * interface does not merge into the module where that interface was declared.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: declaration merging requires an interface.
+export interface HostCapabilities {}
+
+/**
+ * Low-level native JSX elements supplied by applications and widget packages.
+ * Prefer a typed PascalCase component for public widgets, but augment this
+ * registry when exposing the underlying custom tag is useful.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: declaration merging requires an interface.
+export interface WabouIntrinsicElements {}
+
+/** Props shared by low-level native JSX elements. */
+export interface WabouElementProps {
+  class?: string;
+  classList?: Record<string, boolean | undefined>;
+  style?: string | JSX.CSSProperties;
+  children?: JSX.Element;
+  ref?: Handle | ((node: Handle) => void);
+}
+
+/** Event shape emitted by a native Wabou node or custom widget. */
+export interface WabouNodeEvent<T extends object = Record<string, unknown>> {
+  readonly type: string;
+  readonly target: Handle;
+  readonly currentTarget: Handle;
+  readonly defaultPrevented: boolean;
+  readonly propagationStopped: boolean;
+  preventDefault(): void;
+  stopPropagation(): void;
+  stopImmediatePropagation(): void;
+  readonly payload: T;
+}
+
+declare module "solid-js" {
+  namespace JSX {
+    interface IntrinsicElements extends WabouIntrinsicElements {}
+  }
+}
+
 export interface NativeScrollbarStyle {
   visibility?: "auto" | "always" | "hidden";
   thickness?: number;

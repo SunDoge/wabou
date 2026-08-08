@@ -1,13 +1,10 @@
-import "solid-js";
+import "@wabou/solid-renderer";
 
-declare module "solid-js" {
-  namespace JSX {
-    interface IntrinsicElements {
-      fractal: {
-        class?: string;
-        cx?: string;
-        cy?: string;
-      };
-    }
+declare module "@wabou/solid-renderer" {
+  interface WabouIntrinsicElements {
+    fractal: import("@wabou/solid-renderer").WabouElementProps & {
+      cx?: string;
+      cy?: string;
+    };
   }
 }

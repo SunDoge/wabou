@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { createComponent, createRoot } from "solid-js";
-import { type Host, HostProvider, useHost } from "./host";
+import { type BuiltinHost, type Host, HostProvider, useHost } from "./host";
 
-const fakeHost: Host = {
+const fakeBuiltinHost: BuiltinHost = {
   system: { openUrl: () => true },
   fonts: { load: () => true },
   diagnostics: { frameStats: () => null },
@@ -17,6 +17,7 @@ const fakeHost: Host = {
     viewport: () => ({ x: 0, y: 0, width: 0, height: 0 }),
   },
 };
+const fakeHost = fakeBuiltinHost as Host;
 
 describe("host context", () => {
   test("binds a host to a Solid subtree", () => {

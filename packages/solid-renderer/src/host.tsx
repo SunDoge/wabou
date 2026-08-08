@@ -1,4 +1,5 @@
 import { createComponent, createContext, type JSX, useContext } from "solid-js";
+import type { HostCapabilities } from "./index";
 
 declare function __wabou_open_url(url: string): boolean;
 declare function __wabou_load_font(path: string): boolean;
@@ -37,9 +38,6 @@ export interface LayoutSnapshot {
 }
 
 export type LayoutTarget = number | { readonly id: number };
-
-/** Platform capabilities currently implemented by the native host. */
-export interface HostCapabilities {}
 
 export interface BuiltinHost {
   readonly system: {
@@ -105,7 +103,7 @@ const builtinHost: BuiltinHost = {
 export const defaultHost: Host = Object.assign(
   builtinHost,
   typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities,
-) as Host;
+) as unknown as Host;
 
 const HostContext = createContext<Host>(defaultHost);
 
