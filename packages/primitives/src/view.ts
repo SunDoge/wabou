@@ -58,6 +58,7 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
   placeholder?: string;
   disabled?: boolean;
   "aria-label"?: string;
+  onKeyDown?: (event: { key: string; preventDefault(): void }) => void;
 }
 
 function primitive(
