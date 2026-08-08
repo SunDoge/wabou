@@ -23,7 +23,8 @@ use vello::Scene;
 /// this value so high-resolution trackpads and discrete wheels share one unit.
 pub const WHEEL_LINE_DELTA: f64 = 40.0;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WindowOptions {
     pub title: String,
     pub initial_inner_size: (u32, u32),
@@ -86,7 +87,8 @@ pub struct WindowMetrics {
     pub focused: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum WindowCommand {
     Close,
     SetMaximized(bool),
@@ -435,6 +437,14 @@ pub trait FrameSource {
     }
 
     fn complete_host_action(&mut self, _result: HostActionResult) {}
+
+    /// Drain one typed desktop effect. Unlike render ops, effects represent
+    /// OS interaction and may complete asynchronously at a later frame boundary.
+    fn take_effect(&mut self) -> Option<crate::EffectRequest> {
+        None
+    }
+
+    fn complete_effect(&mut self, _completion: crate::EffectCompletion) {}
 
     /// Deliver a native Wabou event to the source.
     fn handle_event(&mut self, _event: UiEvent) -> EventResponse {

@@ -23,13 +23,13 @@ declare global {
   function __wabou_sleep(delayMs: number): Promise<void>;
   function __wabou_resize_observe(solidId: number): void;
   function __wabou_resize_unobserve(solidId: number): void;
-  function __wabou_clipboard_write(text: string): number;
-  function __wabou_clipboard_read(): number;
+  const __wabou_effect_abi: number;
+  function __wabou_effect_submit(
+    capability: number,
+    method: number,
+    payloadJson: string,
+  ): number;
   const __wabou_window_id: number;
-  function __wabou_window_create(optionsJson: string): number;
-  function __wabou_window_close(windowId: number): void;
-  function __wabou_window_set_maximized(windowId: number, value: boolean): void;
-  function __wabou_window_set_title(windowId: number, title: string): void;
   function __wabou_vite_update_style(id: string, css: string): void;
   function __wabou_vite_remove_style(id: string): void;
   function __wabou_tick(): boolean;
@@ -44,9 +44,11 @@ declare global {
     timestamp: number,
   ): Promise<boolean>;
   function __wabou_hmr_clear_records(): void;
-  function __wabou_clipboard_complete(
+  function __wabou_effect_complete(
     requestId: number,
-    text: string | null,
-    success: boolean,
+    capability: number,
+    method: number,
+    status: number,
+    payloadJson: string,
   ): void;
 }

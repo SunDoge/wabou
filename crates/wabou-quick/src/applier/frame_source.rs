@@ -555,14 +555,6 @@ impl FrameSource for Applier {
     fn complete_host_action(&mut self, result: wabou_shell::HostActionResult) {
         match result {
             wabou_shell::HostActionResult::Clipboard { request_id, text } => {
-                if self
-                    .pending_js_clipboard_requests
-                    .borrow_mut()
-                    .remove(&request_id)
-                {
-                    complete_js_clipboard(&self.js, request_id, text, true);
-                    return;
-                }
                 let Some((node, widget_request_id)) =
                     self.widget_manager.host_action_routes.remove(&request_id)
                 else {
@@ -579,14 +571,22 @@ impl FrameSource for Applier {
                 request_id,
                 success,
             } => {
-                if self
-                    .pending_js_clipboard_requests
-                    .borrow_mut()
-                    .remove(&request_id)
-                {
-                    complete_js_clipboard(&self.js, request_id, None, success);
-                }
+                let _ = (request_id, success);
             }
+        }
+    }
+
+    fn take_effect(&mut self) -> Option<wabou_shell::EffectRequest> {
+        self.pending_effects.borrow_mut().pop_front()
+    }
+
+    fn complete_effect(&mut self, completion: wabou_shell::EffectCompletion) {
+        if self
+            .pending_js_effects
+            .borrow_mut()
+            .remove(&completion.id.0)
+        {
+            complete_js_effect(&self.js, &completion);
         }
     }
 

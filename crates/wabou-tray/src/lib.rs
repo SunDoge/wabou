@@ -7,14 +7,31 @@
 //! runtime. Wabou hosts the GTK loop on a dedicated thread so it can coexist
 //! with winit on both Wayland and X11.
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
-use tray_icon::menu::{ContextMenu, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
+use tray_icon::menu::{
+    CheckMenuItem, ContextMenu, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu,
+};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 use wabou_shell::{ExtensionContext, ShellExtension, WakeCallback};
 
 type Action = Box<dyn FnMut(&mut ExtensionContext<'_>)>;
+
+enum PendingEvent {
+    Item(String),
+    #[cfg(target_os = "linux")]
+    Dismiss(wabou_shell::EffectId),
+}
+
+#[cfg(target_os = "linux")]
+enum GtkCommand {
+    Static,
+    Effect {
+        id: wabou_shell::EffectId,
+        items: Vec<wabou_shell::ContextMenuItem>,
+    },
+}
 
 struct Item {
     id: String,
@@ -65,13 +82,15 @@ pub struct SystemTray {
     separators: Vec<usize>,
     context_items: Vec<Item>,
     context_separators: Vec<usize>,
-    pending: Arc<Mutex<VecDeque<String>>>,
+    pending: Arc<Mutex<VecDeque<PendingEvent>>>,
+    effect_routes: HashMap<String, (wabou_shell::EffectId, u64, wabou_shell::EffectOp, String)>,
+    active_effects: HashSet<wabou_shell::EffectId>,
     #[cfg(not(target_os = "linux"))]
     native: Option<TrayIcon>,
     #[cfg(not(target_os = "linux"))]
     native_context_menu: Option<Menu>,
     #[cfg(target_os = "linux")]
-    context_sender: Option<gtk::glib::Sender<()>>,
+    context_sender: Option<gtk::glib::Sender<GtkCommand>>,
     hide_window_on_close: Option<u64>,
 }
 
@@ -85,6 +104,8 @@ impl SystemTray {
             context_items: Vec::new(),
             context_separators: Vec::new(),
             pending: Arc::new(Mutex::new(VecDeque::new())),
+            effect_routes: HashMap::new(),
+            active_effects: HashSet::new(),
             #[cfg(not(target_os = "linux"))]
             native: None,
             #[cfg(not(target_os = "linux"))]
@@ -165,6 +186,98 @@ impl SystemTray {
         Ok(menu)
     }
 
+    fn build_effect_menu(items: &[wabou_shell::ContextMenuItem]) -> Result<Menu, String> {
+        fn build_items(
+            items: &[wabou_shell::ContextMenuItem],
+        ) -> Result<Vec<Box<dyn tray_icon::menu::IsMenuItem>>, String> {
+            let mut native_items: Vec<Box<dyn tray_icon::menu::IsMenuItem>> = Vec::new();
+            for item in items {
+                match item {
+                    wabou_shell::ContextMenuItem::Item {
+                        id,
+                        label,
+                        enabled,
+                        checked,
+                    } => {
+                        let item: Box<dyn tray_icon::menu::IsMenuItem> = if *checked {
+                            Box::new(CheckMenuItem::with_id(
+                                MenuId::new(id.clone()),
+                                label,
+                                *enabled,
+                                true,
+                                None,
+                            ))
+                        } else {
+                            Box::new(MenuItem::with_id(
+                                MenuId::new(id.clone()),
+                                label,
+                                *enabled,
+                                None,
+                            ))
+                        };
+                        native_items.push(item);
+                    }
+                    wabou_shell::ContextMenuItem::Separator => {
+                        native_items.push(Box::new(PredefinedMenuItem::separator()));
+                    }
+                    wabou_shell::ContextMenuItem::Submenu { label, items } => {
+                        let children = build_items(items)?;
+                        let refs = children.iter().map(Box::as_ref).collect::<Vec<_>>();
+                        native_items.push(Box::new(
+                            Submenu::with_items(label, true, &refs)
+                                .map_err(|error| error.to_string())?,
+                        ));
+                    }
+                }
+            }
+            Ok(native_items)
+        }
+
+        let items = build_items(items)?;
+        let refs = items.iter().map(Box::as_ref).collect::<Vec<_>>();
+        Menu::with_items(&refs).map_err(|error| error.to_string())
+    }
+
+    fn route_effect_items(
+        effect_id: wabou_shell::EffectId,
+        window_id: u64,
+        op: wabou_shell::EffectOp,
+        items: &[wabou_shell::ContextMenuItem],
+        routes: &mut HashMap<String, (wabou_shell::EffectId, u64, wabou_shell::EffectOp, String)>,
+        next: &mut usize,
+    ) -> Vec<wabou_shell::ContextMenuItem> {
+        items
+            .iter()
+            .map(|item| match item {
+                wabou_shell::ContextMenuItem::Item {
+                    id,
+                    label,
+                    enabled,
+                    checked,
+                } => {
+                    let native_id = format!("wabou.effect.{}.{}", effect_id.0, *next);
+                    *next += 1;
+                    routes.insert(native_id.clone(), (effect_id, window_id, op, id.clone()));
+                    wabou_shell::ContextMenuItem::Item {
+                        id: native_id,
+                        label: label.clone(),
+                        enabled: *enabled,
+                        checked: *checked,
+                    }
+                }
+                wabou_shell::ContextMenuItem::Separator => wabou_shell::ContextMenuItem::Separator,
+                wabou_shell::ContextMenuItem::Submenu { label, items } => {
+                    wabou_shell::ContextMenuItem::Submenu {
+                        label: label.clone(),
+                        items: Self::route_effect_items(
+                            effect_id, window_id, op, items, routes, next,
+                        ),
+                    }
+                }
+            })
+            .collect()
+    }
+
     fn validate_item_ids(&self) -> Result<(), String> {
         let mut ids = HashSet::new();
         for item in self.items.iter().chain(&self.context_items) {
@@ -180,7 +293,7 @@ impl SystemTray {
         tooltip: Option<String>,
         items: Vec<(String, String)>,
         separators: Vec<usize>,
-        pending: Arc<Mutex<VecDeque<String>>>,
+        pending: Arc<Mutex<VecDeque<PendingEvent>>>,
         wake: WakeCallback,
     ) -> Result<TrayIcon, String> {
         let menu = Self::build_menu(items, separators)?;
@@ -189,7 +302,7 @@ impl SystemTray {
             pending
                 .lock()
                 .expect("tray event queue mutex poisoned")
-                .push_back(event.id().0.clone());
+                .push_back(PendingEvent::Item(event.id().0.clone()));
             wake();
         }));
 
@@ -227,6 +340,8 @@ impl ShellExtension for SystemTray {
             let separators = self.separators.clone();
             let context_separators = self.context_separators.clone();
             let pending = self.pending.clone();
+            let menu_pending = pending.clone();
+            let menu_wake = wake.clone();
             #[allow(deprecated)] // glib 0.18's channel is the GTK-loop wake primitive.
             let (context_sender, context_receiver) =
                 gtk::glib::MainContext::channel(gtk::glib::Priority::DEFAULT);
@@ -242,8 +357,24 @@ impl ShellExtension for SystemTray {
                             )?;
                             let context_menu = Self::build_menu(context_items, context_separators)?;
                             let anchor = gtk::Window::new(gtk::WindowType::Popup);
-                            context_receiver.attach(None, move |()| {
-                                context_menu.show_context_menu_for_gtk_window(&anchor, None);
+                            context_receiver.attach(None, move |command| {
+                                match command {
+                                    GtkCommand::Static => {
+                                        context_menu
+                                            .show_context_menu_for_gtk_window(&anchor, None);
+                                    }
+                                    GtkCommand::Effect { id, items } => {
+                                        if let Ok(menu) = Self::build_effect_menu(&items) {
+                                            menu.show_context_menu_for_gtk_window(&anchor, None);
+                                        } else {
+                                            menu_pending
+                                                .lock()
+                                                .expect("tray event queue mutex poisoned")
+                                                .push_back(PendingEvent::Dismiss(id));
+                                            menu_wake();
+                                        }
+                                    }
+                                }
                                 gtk::glib::ControlFlow::Continue
                             });
                             Ok(native)
@@ -287,11 +418,55 @@ impl ShellExtension for SystemTray {
                 .lock()
                 .expect("tray event queue mutex poisoned")
                 .pop_front();
-            let Some(id) = id else { break };
-            if let Some(item) = self.items.iter_mut().find(|item| item.id == id) {
-                (item.action)(context);
-            } else if let Some(item) = self.context_items.iter_mut().find(|item| item.id == id) {
-                (item.action)(context);
+            let Some(event) = id else { break };
+            match event {
+                PendingEvent::Item(id) => {
+                    if let Some((effect_id, window_id, op, selection)) =
+                        self.effect_routes.get(&id).cloned()
+                    {
+                        self.active_effects.remove(&effect_id);
+                        self.effect_routes.retain(|_, route| route.0 != effect_id);
+                        context.complete_effect(
+                            window_id,
+                            wabou_shell::EffectCompletion {
+                                id: effect_id,
+                                op,
+                                result: wabou_shell::EffectResult::ContextMenuSelection(Some(
+                                    selection,
+                                )),
+                            },
+                        );
+                    } else if let Some(item) = self.items.iter_mut().find(|item| item.id == id) {
+                        (item.action)(context);
+                    } else if let Some(item) =
+                        self.context_items.iter_mut().find(|item| item.id == id)
+                    {
+                        (item.action)(context);
+                    }
+                }
+                #[cfg(target_os = "linux")]
+                PendingEvent::Dismiss(effect_id) => {
+                    if self.active_effects.remove(&effect_id)
+                        && let Some((_, window_id, op, _)) = self
+                            .effect_routes
+                            .values()
+                            .find(|route| route.0 == effect_id)
+                            .cloned()
+                    {
+                        context.complete_effect(
+                            window_id,
+                            wabou_shell::EffectCompletion {
+                                id: effect_id,
+                                op,
+                                result: wabou_shell::EffectResult::Error {
+                                    code: wabou_shell::EffectErrorCode::PlatformFailure,
+                                    message: "failed to create native context menu".into(),
+                                },
+                            },
+                        );
+                    }
+                    self.effect_routes.retain(|_, route| route.0 != effect_id);
+                }
             }
         }
     }
@@ -326,7 +501,7 @@ impl ShellExtension for SystemTray {
             return self
                 .context_sender
                 .as_ref()
-                .is_some_and(|sender| sender.send(()).is_ok());
+                .is_some_and(|sender| sender.send(GtkCommand::Static).is_ok());
         }
 
         #[cfg(target_os = "windows")]
@@ -357,6 +532,111 @@ impl ShellExtension for SystemTray {
 
         #[allow(unreachable_code)]
         false
+    }
+
+    fn submit_effect(
+        &mut self,
+        request: &wabou_shell::EffectRequest,
+        context: &mut ExtensionContext<'_>,
+    ) -> bool {
+        let wabou_shell::EffectPayload::ContextMenuShow(menu_request) = &request.payload else {
+            return false;
+        };
+        let window_id = match request.scope {
+            wabou_shell::EffectScope::Window(id) => id,
+            wabou_shell::EffectScope::Runtime(_) => menu_request.window_id,
+        };
+        if menu_request.items.is_empty() {
+            context.complete_effect(
+                window_id,
+                wabou_shell::EffectCompletion {
+                    id: request.id,
+                    op: request.payload.op(),
+                    result: wabou_shell::EffectResult::Error {
+                        code: wabou_shell::EffectErrorCode::InvalidRequest,
+                        message: "a native context menu needs at least one item".into(),
+                    },
+                },
+            );
+            return true;
+        }
+        let mut next = 0;
+        let items = Self::route_effect_items(
+            request.id,
+            window_id,
+            request.payload.op(),
+            &menu_request.items,
+            &mut self.effect_routes,
+            &mut next,
+        );
+        self.active_effects.insert(request.id);
+
+        #[cfg(target_os = "linux")]
+        {
+            let _ = context;
+            let sent = self.context_sender.as_ref().is_some_and(|sender| {
+                sender
+                    .send(GtkCommand::Effect {
+                        id: request.id,
+                        items,
+                    })
+                    .is_ok()
+            });
+            if !sent {
+                self.active_effects.remove(&request.id);
+                self.effect_routes.retain(|_, route| route.0 != request.id);
+            }
+            return sent;
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            let Ok(menu) = Self::build_effect_menu(&items) else {
+                self.active_effects.remove(&request.id);
+                self.effect_routes.retain(|_, route| route.0 != request.id);
+                return false;
+            };
+
+            #[cfg(target_os = "windows")]
+            if let Some(wabou_shell::raw_window_handle::RawWindowHandle::Win32(handle)) =
+                context.window_handle(window_id)
+            {
+                let scale = context.window_scale_factor(window_id).unwrap_or(1.0);
+                let position = menu_request.position.as_ref().map(|position| {
+                    tray_icon::menu::dpi::PhysicalPosition::new(
+                        f64::from(position.x) * scale,
+                        f64::from(position.y) * scale,
+                    )
+                    .into()
+                });
+                let shown = unsafe { menu.show_context_menu_for_hwnd(handle.hwnd.get(), position) };
+                if !shown {
+                    self.active_effects.remove(&request.id);
+                    self.effect_routes.retain(|_, route| route.0 != request.id);
+                }
+                return shown;
+            }
+
+            #[cfg(target_os = "macos")]
+            if let Some(wabou_shell::raw_window_handle::RawWindowHandle::AppKit(handle)) =
+                context.window_handle(window_id)
+            {
+                let position = menu_request.position.as_ref().map(|position| {
+                    tray_icon::menu::dpi::LogicalPosition::new(position.x, position.y).into()
+                });
+                let shown =
+                    unsafe { menu.show_context_menu_for_nsview(handle.ns_view.as_ptr(), position) };
+                if !shown {
+                    self.active_effects.remove(&request.id);
+                    self.effect_routes.retain(|_, route| route.0 != request.id);
+                }
+                return shown;
+            }
+
+            self.active_effects.remove(&request.id);
+            self.effect_routes.retain(|_, route| route.0 != request.id);
+            false
+        }
     }
 }
 

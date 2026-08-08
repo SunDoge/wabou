@@ -1,20 +1,17 @@
 import { expect, test } from "bun:test";
-import { createWindow, currentWindow } from "./window";
 
-test("createWindow returns a handle that targets the created window", () => {
+test("createWindow returns a handle that targets the created window", async () => {
   const calls: unknown[][] = [];
+  let nextRequest = 42;
   Object.assign(globalThis, {
+    __wabou_effect_abi: 1,
     __wabou_window_id: 3,
-    __wabou_window_create: (json: string) => {
-      calls.push(["create", JSON.parse(json)]);
-      return 42;
+    __wabou_effect_submit: (capability: number, method: number, json: string) => {
+      calls.push([capability, method, JSON.parse(json)]);
+      return nextRequest++;
     },
-    __wabou_window_close: (id: number) => calls.push(["close", id]),
-    __wabou_window_set_maximized: (id: number, value: boolean) =>
-      calls.push(["maximize", id, value]),
-    __wabou_window_set_title: (id: number, title: string) =>
-      calls.push(["title", id, title]),
   });
+  const { createWindow, currentWindow } = await import("./window");
 
   const child = createWindow({
     title: "Inspector",
@@ -29,13 +26,10 @@ test("createWindow returns a handle that targets the created window", () => {
   currentWindow().close();
 
   expect(calls).toEqual([
-    [
-      "create",
-      { title: "Inspector", width: 640, height: 480, transparent: true },
-    ],
-    ["title", 42, "Details"],
-    ["maximize", 42, true],
-    ["close", 42],
-    ["close", 3],
+    [2, 1, { title: "Inspector", width: 640, height: 480, transparent: true }],
+    [2, 4, { windowId: 42, title: "Details" }],
+    [2, 3, { windowId: 42, value: true }],
+    [2, 2, { windowId: 42 }],
+    [2, 2, { windowId: 3 }],
   ]);
 });

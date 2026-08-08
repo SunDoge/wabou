@@ -23,6 +23,7 @@ import "./glue/resize-observer";
 import "./glue/host-messages";
 import "./glue/host-frame";
 import "./glue/window-metrics";
+import "./glue/effects";
 import "./glue/clipboard";
 
 export {
@@ -50,6 +51,20 @@ export {
 } from "./glue/window";
 
 export { clipboard, type Clipboard, useClipboard } from "./glue/clipboard";
+export {
+  showNativeMenu,
+  type NativeMenuItem,
+  type NativeMenuOptions,
+  type NativeMenuPosition,
+} from "./glue/native-menu";
+export {
+  EFFECT_ABI_VERSION,
+  dispatchEffect,
+  dispatchFireAndForget,
+  dispatchResourceEffect,
+  effectOps,
+  type EffectOp,
+} from "./glue/effects";
 export {
   type PlatformProviderProps,
   PlatformProvider,

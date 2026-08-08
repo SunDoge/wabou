@@ -7,6 +7,7 @@
 
 pub use wabou_accessibility as accessibility;
 pub mod app;
+pub mod effect;
 pub mod error;
 pub mod layout;
 pub mod renderer;
@@ -23,6 +24,13 @@ pub use app::{
     ExtensionContext, FrameSourceFactory, ShellExtension, run_window, run_window_with_options,
     run_window_with_size, run_windows, run_windows_with_factory,
     run_windows_with_factory_and_extensions,
+};
+pub use effect::{
+    CapabilityDescriptor, CapabilityId, CapabilityRegistry, CapabilityRegistryError,
+    ContextMenuItem, ContextMenuRequest, EFFECT_ABI_VERSION, EffectCompletion, EffectDispatch,
+    EffectErrorCode, EffectExecutor, EffectId, EffectOp, EffectPayload, EffectRequest,
+    EffectResult, EffectScope, EffectTapeEntry, MenuPosition, MethodDescriptor, MethodId,
+    RecordingEffectExecutor, ReplayEffectExecutor, ReplayPolicy, ThreadAffinity,
 };
 pub use error::{Error, Result};
 pub use shell::Shell;

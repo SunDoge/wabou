@@ -1,3 +1,9 @@
+import {
+  dispatchFireAndForget,
+  dispatchResourceEffect,
+  effectOps,
+} from "./effects";
+
 export interface CreateWindowOptions {
   title?: string;
   width?: number;
@@ -17,26 +23,23 @@ export interface WindowHandle {
 }
 
 function handle(id: number): WindowHandle {
-  const host = globalThis as typeof globalThis & {
-    __wabou_window_close(id: number): void;
-    __wabou_window_set_maximized(id: number, value: boolean): void;
-    __wabou_window_set_title(id: number, title: string): void;
-  };
   return Object.freeze({
     id,
-    close: () => host.__wabou_window_close(id),
+    close: () =>
+      dispatchFireAndForget(effectOps.windowClose, { windowId: id }),
     setMaximized: (value: boolean) =>
-      host.__wabou_window_set_maximized(id, value),
-    setTitle: (title: string) => host.__wabou_window_set_title(id, title),
+      dispatchFireAndForget(effectOps.windowSetMaximized, {
+        windowId: id,
+        value,
+      }),
+    setTitle: (title: string) =>
+      dispatchFireAndForget(effectOps.windowSetTitle, { windowId: id, title }),
   });
 }
 
 /** Create an independent native window running this application's bundle. */
 export function createWindow(options: CreateWindowOptions = {}): WindowHandle {
-  const host = globalThis as typeof globalThis & {
-    __wabou_window_create(optionsJson: string): number;
-  };
-  return handle(host.__wabou_window_create(JSON.stringify(options)));
+  return handle(dispatchResourceEffect(effectOps.windowCreate, options));
 }
 
 /** An imperative handle for the native window that owns this JS runtime. */

@@ -148,19 +148,18 @@
       "returns": "void"
     },
     {
-      "name": "__wabou_clipboard_write",
+      "name": "__wabou_effect_abi",
       "direction": "host",
       "owner": "applier",
-      "kind": "function",
-      "params": [["text", "string"]],
-      "returns": "number"
+      "kind": "const",
+      "type": "number"
     },
     {
-      "name": "__wabou_clipboard_read",
+      "name": "__wabou_effect_submit",
       "direction": "host",
       "owner": "applier",
       "kind": "function",
-      "params": [],
+      "params": [["capability", "number"], ["method", "number"], ["payloadJson", "string"]],
       "returns": "number"
     },
     {
@@ -169,38 +168,6 @@
       "owner": "applier",
       "kind": "const",
       "type": "number"
-    },
-    {
-      "name": "__wabou_window_create",
-      "direction": "host",
-      "owner": "applier",
-      "kind": "function",
-      "params": [["optionsJson", "string"]],
-      "returns": "number"
-    },
-    {
-      "name": "__wabou_window_close",
-      "direction": "host",
-      "owner": "applier",
-      "kind": "function",
-      "params": [["windowId", "number"]],
-      "returns": "void"
-    },
-    {
-      "name": "__wabou_window_set_maximized",
-      "direction": "host",
-      "owner": "applier",
-      "kind": "function",
-      "params": [["windowId", "number"], ["value", "boolean"]],
-      "returns": "void"
-    },
-    {
-      "name": "__wabou_window_set_title",
-      "direction": "host",
-      "owner": "applier",
-      "kind": "function",
-      "params": [["windowId", "number"], ["title", "string"]],
-      "returns": "void"
     },
     {
       "name": "__wabou_vite_update_style",
@@ -268,15 +235,11 @@
       "returns": "void"
     },
     {
-      "name": "__wabou_clipboard_complete",
+      "name": "__wabou_effect_complete",
       "direction": "guest",
       "owner": "core",
       "kind": "function",
-      "params": [
-        ["requestId", "number"],
-        ["text", "string | null"],
-        ["success", "boolean"]
-      ],
+      "params": [["requestId", "number"], ["capability", "number"], ["method", "number"], ["status", "number"], ["payloadJson", "string"]],
       "returns": "void"
     }
   ]

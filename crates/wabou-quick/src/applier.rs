@@ -10,7 +10,7 @@
 //! a redundant second generational layer. Reclamation is explicit on `DropNode`
 //! (deterministic, sweep-driven) to keep frames recordable/replayable.
 
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -77,10 +77,11 @@ use widget_manager::WidgetManager;
 
 const SCROLLBAR_FADE_DELAY: Duration = Duration::from_millis(500);
 const SCROLLBAR_FADE_DURATION: Duration = Duration::from_millis(200);
-// Keep JS request IDs exactly representable as JavaScript numbers while
-// separating them from widget-local host action IDs.
+// Widget actions retain their tagged 32-bit namespace. Native effects use a
+// process-wide sequence so window resource handles stay unique across runtimes.
 const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
 const HOST_ACTION_SEQUENCE_MASK: u64 = JS_HOST_ACTION_NAMESPACE - 1;
+static NEXT_EFFECT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1 << 32);
 const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
 
 #[derive(Clone)]
@@ -132,7 +133,6 @@ impl InlineValue {
 }
 
 const CLICK_DRAG_THRESHOLD_SQUARED: f64 = 16.0;
-static NEXT_WINDOW_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1 << 32);
 
 /// Per-node declared state (what the Solid reconciler wrote + cascaded CSS).
 ///
@@ -427,7 +427,8 @@ pub struct Applier {
     scrollbar_activity: HashMap<NodeId, Instant>,
     widget_manager: WidgetManager,
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
-    pending_js_clipboard_requests: Rc<RefCell<HashSet<u64>>>,
+    pending_effects: Rc<RefCell<VecDeque<wabou_shell::EffectRequest>>>,
+    pending_js_effects: Rc<RefCell<HashSet<u64>>>,
     host_action_wake: Rc<RefCell<Option<WakeCallback>>>,
     wake_callback: Option<WakeCallback>,
     scroll_offsets: HashMap<NodeId, [f32; 2]>,
@@ -447,163 +448,180 @@ pub struct Applier {
     host_msg_handle: HostMsgHandle,
 }
 
-fn install_window_functions(
+fn install_effect_functions(
     js: &JsRuntime,
     window_id: u64,
-    actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
+    effects: Rc<RefCell<VecDeque<wabou_shell::EffectRequest>>>,
     action_wake: Rc<RefCell<Option<WakeCallback>>>,
-    clipboard_requests: Rc<RefCell<HashSet<u64>>>,
+    pending: Rc<RefCell<HashSet<u64>>>,
 ) {
     js.with(|ctx| -> rquickjs::Result<()> {
-        let create_actions = actions.clone();
-        let create_wake = action_wake.clone();
+        let submit_effects = effects.clone();
+        let submit_wake = action_wake.clone();
+        let submit_pending = pending.clone();
         ctx.globals().set(
-            "__wabou_window_create",
-            rquickjs::Function::new(ctx.clone(), move |json: String| -> u64 {
-                let value: serde_json::Value = serde_json::from_str(&json).unwrap_or_default();
-                let id = NEXT_WINDOW_ID.fetch_add(1, Ordering::Relaxed).max(2);
-                let mut options = wabou_shell::WindowOptions::new();
-                if let Some(title) = value.get("title").and_then(|value| value.as_str()) {
-                    options = options.title(title);
-                }
-                let width = value
-                    .get("width")
-                    .and_then(|value| value.as_u64())
-                    .unwrap_or(800) as u32;
-                let height = value
-                    .get("height")
-                    .and_then(|value| value.as_u64())
-                    .unwrap_or(600) as u32;
-                options = options.initial_inner_size(width, height);
-                if let Some(resizable) = value.get("resizable").and_then(|value| value.as_bool()) {
-                    options = options.resizable(resizable);
-                }
-                if let Some(transparent) =
-                    value.get("transparent").and_then(|value| value.as_bool())
-                {
-                    options = options.transparent(transparent);
-                }
-                if let (Some(width), Some(height)) = (
-                    value.get("minWidth").and_then(|value| value.as_u64()),
-                    value.get("minHeight").and_then(|value| value.as_u64()),
-                ) {
-                    options = options.min_inner_size(width as u32, height as u32);
-                }
-                create_actions
-                    .borrow_mut()
-                    .push_back(wabou_shell::HostAction::CreateWindow {
-                        window_id: id,
-                        options,
-                    });
-                if let Some(wake) = create_wake.borrow().as_ref() {
-                    wake();
-                }
-                id
-            })?,
+            "__wabou_effect_submit",
+            rquickjs::Function::new(
+                ctx.clone(),
+                move |capability: u32, method: u16, payload_json: String| -> u64 {
+                    let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
+                    let op = wabou_shell::EffectOp::new(capability, method);
+                    let parse =
+                        |message: String| wabou_shell::EffectPayload::Invalid { op, message };
+                    let payload = match op {
+                        wabou_shell::effect::builtin::CLIPBOARD_READ => {
+                            wabou_shell::EffectPayload::ClipboardRead
+                        }
+                        wabou_shell::effect::builtin::CLIPBOARD_WRITE => {
+                            #[derive(serde::Deserialize)]
+                            struct Request {
+                                text: String,
+                            }
+                            serde_json::from_str::<Request>(&payload_json)
+                                .map(|request| wabou_shell::EffectPayload::ClipboardWrite {
+                                    text: request.text,
+                                })
+                                .unwrap_or_else(|error| parse(error.to_string()))
+                        }
+                        wabou_shell::effect::builtin::WINDOW_CREATE => {
+                            let value: serde_json::Value =
+                                serde_json::from_str(&payload_json).unwrap_or_default();
+                            let mut options = wabou_shell::WindowOptions::new();
+                            if let Some(title) = value.get("title").and_then(|value| value.as_str())
+                            {
+                                options = options.title(title);
+                            }
+                            options = options.initial_inner_size(
+                                value
+                                    .get("width")
+                                    .and_then(|value| value.as_u64())
+                                    .unwrap_or(800) as u32,
+                                value
+                                    .get("height")
+                                    .and_then(|value| value.as_u64())
+                                    .unwrap_or(600) as u32,
+                            );
+                            if let Some(resizable) =
+                                value.get("resizable").and_then(|value| value.as_bool())
+                            {
+                                options = options.resizable(resizable);
+                            }
+                            if let Some(transparent) =
+                                value.get("transparent").and_then(|value| value.as_bool())
+                            {
+                                options = options.transparent(transparent);
+                            }
+                            if let (Some(width), Some(height)) = (
+                                value.get("minWidth").and_then(|value| value.as_u64()),
+                                value.get("minHeight").and_then(|value| value.as_u64()),
+                            ) {
+                                options = options.min_inner_size(width as u32, height as u32);
+                            }
+                            wabou_shell::EffectPayload::WindowCreate(
+                                wabou_shell::effect::WindowCreateRequest {
+                                    window_id: id,
+                                    options,
+                                },
+                            )
+                        }
+                        wabou_shell::effect::builtin::WINDOW_CLOSE
+                        | wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED
+                        | wabou_shell::effect::builtin::WINDOW_SET_TITLE => {
+                            let value: serde_json::Value =
+                                serde_json::from_str(&payload_json).unwrap_or_default();
+                            let target = value
+                                .get("windowId")
+                                .and_then(|value| value.as_u64())
+                                .unwrap_or(window_id);
+                            let command = if op == wabou_shell::effect::builtin::WINDOW_CLOSE {
+                                wabou_shell::WindowCommand::Close
+                            } else if op == wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED {
+                                wabou_shell::WindowCommand::SetMaximized(
+                                    value
+                                        .get("value")
+                                        .and_then(|value| value.as_bool())
+                                        .unwrap_or(false),
+                                )
+                            } else {
+                                wabou_shell::WindowCommand::SetTitle(
+                                    value
+                                        .get("title")
+                                        .and_then(|value| value.as_str())
+                                        .unwrap_or_default()
+                                        .to_owned(),
+                                )
+                            };
+                            wabou_shell::EffectPayload::WindowControl {
+                                window_id: target,
+                                command,
+                            }
+                        }
+                        wabou_shell::effect::builtin::CONTEXT_MENU_SHOW => {
+                            serde_json::from_str::<wabou_shell::ContextMenuRequest>(&payload_json)
+                                .map(wabou_shell::EffectPayload::ContextMenuShow)
+                                .unwrap_or_else(|error| parse(error.to_string()))
+                        }
+                        _ => wabou_shell::EffectPayload::Extension {
+                            op,
+                            bytes: payload_json.into_bytes(),
+                        },
+                    };
+                    submit_pending.borrow_mut().insert(id);
+                    submit_effects
+                        .borrow_mut()
+                        .push_back(wabou_shell::EffectRequest {
+                            id: wabou_shell::EffectId(id),
+                            scope: wabou_shell::EffectScope::Window(window_id),
+                            payload,
+                        });
+                    if let Some(wake) = submit_wake.borrow().as_ref() {
+                        wake();
+                    }
+                    id
+                },
+            )?,
         )?;
-        let close_actions = actions.clone();
-        let close_wake = action_wake.clone();
-        ctx.globals().set(
-            "__wabou_window_close",
-            rquickjs::Function::new(ctx.clone(), move |target_window_id: u64| {
-                close_actions
-                    .borrow_mut()
-                    .push_back(wabou_shell::HostAction::ControlWindow {
-                        window_id: target_window_id,
-                        command: wabou_shell::WindowCommand::Close,
-                    });
-                if let Some(wake) = close_wake.borrow().as_ref() {
-                    wake();
-                }
-            })?,
-        )?;
-        let maximize_actions = actions.clone();
-        let maximize_wake = action_wake.clone();
-        ctx.globals().set(
-            "__wabou_window_set_maximized",
-            rquickjs::Function::new(ctx.clone(), move |target_window_id: u64, value: bool| {
-                maximize_actions
-                    .borrow_mut()
-                    .push_back(wabou_shell::HostAction::ControlWindow {
-                        window_id: target_window_id,
-                        command: wabou_shell::WindowCommand::SetMaximized(value),
-                    });
-                if let Some(wake) = maximize_wake.borrow().as_ref() {
-                    wake();
-                }
-            })?,
-        )?;
-        let title_actions = actions.clone();
-        let title_wake = action_wake.clone();
-        ctx.globals().set(
-            "__wabou_window_set_title",
-            rquickjs::Function::new(ctx.clone(), move |target_window_id: u64, title: String| {
-                title_actions
-                    .borrow_mut()
-                    .push_back(wabou_shell::HostAction::ControlWindow {
-                        window_id: target_window_id,
-                        command: wabou_shell::WindowCommand::SetTitle(title),
-                    });
-                if let Some(wake) = title_wake.borrow().as_ref() {
-                    wake();
-                }
-            })?,
-        )?;
+        ctx.globals()
+            .set("__wabou_effect_abi", wabou_shell::EFFECT_ABI_VERSION)?;
         ctx.globals().set("__wabou_window_id", window_id)?;
-
-        let next_clipboard_request = Rc::new(Cell::new(1_u64));
-        let write_actions = actions.clone();
-        let write_wake = action_wake.clone();
-        let write_requests = clipboard_requests.clone();
-        let write_sequence = next_clipboard_request.clone();
-        ctx.globals().set(
-            "__wabou_clipboard_write",
-            rquickjs::Function::new(ctx.clone(), move |text: String| -> u64 {
-                let sequence = write_sequence.get();
-                write_sequence.set((sequence.wrapping_add(1) & HOST_ACTION_SEQUENCE_MASK).max(1));
-                let request_id = JS_HOST_ACTION_NAMESPACE | sequence;
-                write_requests.borrow_mut().insert(request_id);
-                write_actions
-                    .borrow_mut()
-                    .push_back(wabou_shell::HostAction::WriteClipboard { request_id, text });
-                if let Some(wake) = write_wake.borrow().as_ref() {
-                    wake();
-                }
-                request_id
-            })?,
-        )?;
-        let read_actions = actions.clone();
-        let read_wake = action_wake.clone();
-        let read_requests = clipboard_requests.clone();
-        ctx.globals().set(
-            "__wabou_clipboard_read",
-            rquickjs::Function::new(ctx.clone(), move || -> u64 {
-                let sequence = next_clipboard_request.get();
-                next_clipboard_request
-                    .set((sequence.wrapping_add(1) & HOST_ACTION_SEQUENCE_MASK).max(1));
-                let request_id = JS_HOST_ACTION_NAMESPACE | sequence;
-                read_requests.borrow_mut().insert(request_id);
-                read_actions
-                    .borrow_mut()
-                    .push_back(wabou_shell::HostAction::ReadClipboard { request_id });
-                if let Some(wake) = read_wake.borrow().as_ref() {
-                    wake();
-                }
-                request_id
-            })?,
-        )?;
         Ok(())
     })
-    .expect("install window host functions");
+    .expect("install effect host functions");
 }
 
-fn complete_js_clipboard(js: &JsRuntime, request_id: u64, text: Option<String>, success: bool) {
+fn complete_js_effect(js: &JsRuntime, completion: &wabou_shell::EffectCompletion) {
+    let (status, payload) = match &completion.result {
+        wabou_shell::EffectResult::Unit => (0_u8, "null".to_owned()),
+        wabou_shell::EffectResult::ClipboardText(text) => (
+            0,
+            serde_json::to_string(text).unwrap_or_else(|_| "null".into()),
+        ),
+        wabou_shell::EffectResult::ContextMenuSelection(selection) => (
+            0,
+            serde_json::to_string(selection).unwrap_or_else(|_| "null".into()),
+        ),
+        wabou_shell::EffectResult::Cancelled => (1, "null".to_owned()),
+        wabou_shell::EffectResult::Error { code, message } => (
+            2,
+            serde_json::json!({ "code": code, "message": message }).to_string(),
+        ),
+    };
     let result = js.with(|ctx| -> rquickjs::Result<()> {
-        let callback: rquickjs::Function = ctx.globals().get("__wabou_clipboard_complete")?;
-        callback.call::<_, ()>((request_id, text, success))
+        let callback: rquickjs::Function = ctx.globals().get("__wabou_effect_complete")?;
+        callback.call::<_, ()>((
+            completion.id.0,
+            completion.op.capability.0,
+            completion.op.method.0,
+            status,
+            payload,
+        ))
     });
     if let Err(error) = result {
-        tracing::warn!(?error, request_id, "clipboard completion callback failed");
+        tracing::warn!(
+            ?error,
+            effect_id = completion.id.0,
+            "effect completion callback failed"
+        );
     }
 }
 
@@ -649,13 +667,14 @@ impl Applier {
 
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
         let host_action_wake = Rc::new(RefCell::new(None));
-        let pending_js_clipboard_requests = Rc::new(RefCell::new(HashSet::new()));
-        install_window_functions(
+        let pending_js_effects = Rc::new(RefCell::new(HashSet::new()));
+        let pending_effects = Rc::new(RefCell::new(VecDeque::new()));
+        install_effect_functions(
             &js,
             window_id,
-            pending_host_actions.clone(),
+            pending_effects.clone(),
             host_action_wake.clone(),
-            pending_js_clipboard_requests.clone(),
+            pending_js_effects.clone(),
         );
         Self {
             js,
@@ -709,7 +728,8 @@ impl Applier {
             scrollbar_activity: HashMap::new(),
             widget_manager: WidgetManager::new(widget_factories),
             pending_host_actions,
-            pending_js_clipboard_requests,
+            pending_effects,
+            pending_js_effects,
             host_action_wake,
             wake_callback: None,
             scroll_offsets: HashMap::new(),

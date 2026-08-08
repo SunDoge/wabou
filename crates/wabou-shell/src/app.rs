@@ -69,6 +69,7 @@ pub struct App {
     clipboard: Option<arboard::Clipboard>,
     pending_windows: Vec<(u64, WindowOptions)>,
     pending_window_commands: Vec<(u64, WindowCommand)>,
+    pending_extension_effects: Vec<crate::EffectRequest>,
     close_requested: bool,
 }
 
@@ -126,6 +127,7 @@ impl App {
             clipboard: None,
             pending_windows: Vec::new(),
             pending_window_commands: Vec::new(),
+            pending_extension_effects: Vec::new(),
             close_requested: false,
         }
     }
@@ -277,8 +279,9 @@ impl App {
             }
         }
         let host_action = self.drain_host_actions();
-        response.handled |= host_action;
-        response.request_redraw |= host_action;
+        let effect = self.drain_effects();
+        response.handled |= host_action || effect;
+        response.request_redraw |= host_action || effect;
         if let Some(allowed) = response.text_input
             && allowed != self.ime_enabled
             && let Some(shell) = self.state.as_ref()
@@ -398,6 +401,86 @@ impl App {
                 }
                 HostAction::ControlWindow { window_id, command } => {
                     self.pending_window_commands.push((window_id, command));
+                }
+            }
+        }
+        handled
+    }
+
+    fn drain_effects(&mut self) -> bool {
+        let mut handled = false;
+        while let Some(request) = self.source.take_effect() {
+            handled = true;
+            let id = request.id;
+            let op = request.payload.op();
+            match request.payload {
+                crate::EffectPayload::ClipboardRead => {
+                    if self.clipboard.is_none() {
+                        self.clipboard = arboard::Clipboard::new().ok();
+                    }
+                    let text = self
+                        .clipboard
+                        .as_mut()
+                        .and_then(|clipboard| clipboard.get_text().ok());
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::ClipboardText(text),
+                    });
+                }
+                crate::EffectPayload::ClipboardWrite { text } => {
+                    if self.clipboard.is_none() {
+                        self.clipboard = arboard::Clipboard::new().ok();
+                    }
+                    let result = if self
+                        .clipboard
+                        .as_mut()
+                        .is_some_and(|clipboard| clipboard.set_text(text).is_ok())
+                    {
+                        crate::EffectResult::Unit
+                    } else {
+                        crate::EffectResult::Error {
+                            code: crate::EffectErrorCode::PlatformFailure,
+                            message: "native clipboard write failed".into(),
+                        }
+                    };
+                    self.source
+                        .complete_effect(crate::EffectCompletion { id, op, result });
+                }
+                crate::EffectPayload::WindowCreate(request) => {
+                    self.pending_windows
+                        .push((request.window_id, request.options));
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::Unit,
+                    });
+                }
+                crate::EffectPayload::WindowControl { window_id, command } => {
+                    self.pending_window_commands.push((window_id, command));
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::Unit,
+                    });
+                }
+                payload @ (crate::EffectPayload::ContextMenuShow(_)
+                | crate::EffectPayload::Extension { .. }) => {
+                    self.pending_extension_effects.push(crate::EffectRequest {
+                        id,
+                        scope: request.scope,
+                        payload,
+                    });
+                }
+                crate::EffectPayload::Invalid { message, .. } => {
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::Error {
+                            code: crate::EffectErrorCode::InvalidRequest,
+                            message,
+                        },
+                    });
                 }
             }
         }
@@ -709,6 +792,19 @@ pub struct ExtensionContext<'a> {
 }
 
 impl ExtensionContext<'_> {
+    pub fn complete_effect(
+        &mut self,
+        logical_window_id: u64,
+        completion: crate::EffectCompletion,
+    ) -> bool {
+        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+        else {
+            return false;
+        };
+        app.source.complete_effect(completion);
+        true
+    }
+
     pub fn window_handle(&self, logical_window_id: u64) -> Option<RawWindowHandle> {
         self.windows
             .values()
@@ -789,6 +885,16 @@ pub trait ShellExtension {
     ) -> bool {
         false
     }
+
+    /// Submit an application effect owned by this extension. Returning true
+    /// transfers responsibility for eventually completing the request.
+    fn submit_effect(
+        &mut self,
+        _request: &crate::EffectRequest,
+        _context: &mut ExtensionContext<'_>,
+    ) -> bool {
+        false
+    }
 }
 
 pub type FrameSourceFactory =
@@ -853,6 +959,42 @@ impl MultiWindowApp {
         let mut context = Self::extension_context(&mut self.windows, event_loop);
         for extension in &mut self.extensions {
             extension.poll(&mut context);
+        }
+    }
+
+    fn apply_extension_effects(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let requests = self
+            .windows
+            .values_mut()
+            .flat_map(|app| {
+                let logical_window_id = app.logical_window_id;
+                std::mem::take(&mut app.pending_extension_effects)
+                    .into_iter()
+                    .map(move |request| (logical_window_id, request))
+            })
+            .collect::<Vec<_>>();
+        for (logical_window_id, request) in requests {
+            let mut context = Self::extension_context(&mut self.windows, event_loop);
+            let handled = self
+                .extensions
+                .iter_mut()
+                .any(|extension| extension.submit_effect(&request, &mut context));
+            if !handled {
+                context.complete_effect(
+                    logical_window_id,
+                    crate::EffectCompletion {
+                        id: request.id,
+                        op: request.payload.op(),
+                        result: crate::EffectResult::Error {
+                            code: crate::EffectErrorCode::Unsupported,
+                            message: format!(
+                                "unsupported native effect {:?}",
+                                request.payload.op()
+                            ),
+                        },
+                    },
+                );
+            }
         }
     }
 
@@ -934,6 +1076,7 @@ impl ApplicationHandler for MultiWindowApp {
         // wake callback is not installed until the source enters this event
         // loop, so explicitly drain those boot-time requests here.
         self.apply_window_requests(event_loop);
+        self.apply_extension_effects(event_loop);
         if self.windows.is_empty() {
             event_loop.exit();
         }
@@ -951,6 +1094,7 @@ impl ApplicationHandler for MultiWindowApp {
             app.proxy_wake_up(event_loop);
         }
         self.poll_extensions(event_loop);
+        self.apply_extension_effects(event_loop);
         self.apply_window_requests(event_loop);
     }
 
@@ -1006,6 +1150,7 @@ impl ApplicationHandler for MultiWindowApp {
         if let Some(app) = self.windows.get_mut(&window_id) {
             app.window_event(event_loop, window_id, event);
         }
+        self.apply_extension_effects(event_loop);
         self.apply_window_requests(event_loop);
     }
 

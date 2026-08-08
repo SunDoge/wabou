@@ -58,7 +58,7 @@ Host-facing APIs need evidence at three distinct boundaries:
    implementing it fails.
 3. Embedded integration tests bundle the real public `@wabou/core` entry into
    `gen/test-runtime.js`, execute it in QuickJS, inspect emitted Rust
-   `HostAction`s, complete them as the shell would, run Promise jobs, and assert
+   native effects, complete them as the shell would, run Promise jobs, and assert
    the public JavaScript result.
 
 The generated fixture exposes only a test namespace,

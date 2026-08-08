@@ -166,15 +166,17 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
             .expect("current window id"),
         17
     );
-    let created = match applier.take_host_action() {
-        Some(wabou_shell::HostAction::CreateWindow { window_id, options }) => {
+    let created = match applier.take_effect().map(|request| request.payload) {
+        Some(wabou_shell::EffectPayload::WindowCreate(request)) => {
+            let window_id = request.window_id;
+            let options = request.options;
             assert_eq!(options.title, "Child");
             assert_eq!(options.initial_inner_size, (640, 480));
             assert!(!options.resizable);
             assert!(options.transparent);
             window_id
         }
-        action => panic!("unexpected action: {action:?}"),
+        effect => panic!("unexpected effect: {effect:?}"),
     };
     for command in [
         wabou_shell::WindowCommand::SetTitle("Renamed".into()),
@@ -182,8 +184,8 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         wabou_shell::WindowCommand::Close,
     ] {
         assert_eq!(
-            applier.take_host_action(),
-            Some(wabou_shell::HostAction::ControlWindow {
+            applier.take_effect().map(|request| request.payload),
+            Some(wabou_shell::EffectPayload::WindowControl {
                 window_id: created,
                 command,
             })
@@ -217,26 +219,37 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
         })
         .expect("call public clipboard bridge");
 
-    let write_request = match applier.take_host_action() {
-        Some(wabou_shell::HostAction::WriteClipboard { request_id, text }) => {
+    let write_request = match applier.take_effect() {
+        Some(wabou_shell::EffectRequest {
+            id,
+            payload: wabou_shell::EffectPayload::ClipboardWrite { text },
+            ..
+        }) => {
             assert_eq!(text, "hello");
-            request_id
+            id
         }
-        action => panic!("unexpected write action: {action:?}"),
+        effect => panic!("unexpected write effect: {effect:?}"),
     };
-    assert!(write_request < (1_u64 << 32));
-    let read_request = match applier.take_host_action() {
-        Some(wabou_shell::HostAction::ReadClipboard { request_id }) => request_id,
-        action => panic!("unexpected read action: {action:?}"),
+    assert!(write_request.0 >= (1_u64 << 31));
+    let read_request = match applier.take_effect() {
+        Some(wabou_shell::EffectRequest {
+            id,
+            payload: wabou_shell::EffectPayload::ClipboardRead,
+            ..
+        }) => id,
+        effect => panic!("unexpected read effect: {effect:?}"),
     };
 
-    applier.complete_host_action(wabou_shell::HostActionResult::ClipboardWrite {
-        request_id: write_request,
-        success: true,
+    applier.complete_effect(wabou_shell::EffectCompletion {
+        id: write_request,
+        op: wabou_shell::effect::builtin::CLIPBOARD_WRITE,
+        result: wabou_shell::EffectResult::Unit,
     });
-    applier.complete_host_action(wabou_shell::HostActionResult::Clipboard {
-        request_id: read_request,
-        text: Some("world".into()),
+    applier.js.poll_async_runtime();
+    applier.complete_effect(wabou_shell::EffectCompletion {
+        id: read_request,
+        op: wabou_shell::effect::builtin::CLIPBOARD_READ,
+        result: wabou_shell::EffectResult::ClipboardText(Some("world".into())),
     });
     for _ in 0..4 {
         applier.js.poll_async_runtime();
@@ -285,10 +298,10 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
     let mut first = make(1);
     let mut second = make(2);
     first
-        .boot("globalThis.localState = 'first'; __wabou_window_close(1)")
+        .boot(r#"globalThis.localState = 'first'; __wabou_effect_submit(2, 2, '{"windowId":1}')"#)
         .expect("boot first");
     second
-        .boot("globalThis.localState = 'second'; __wabou_window_close(2)")
+        .boot(r#"globalThis.localState = 'second'; __wabou_effect_submit(2, 2, '{"windowId":2}')"#)
         .expect("boot second");
 
     assert_eq!(
@@ -305,22 +318,25 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
             .unwrap(),
         "second"
     );
+    let first_effect = first.take_effect().expect("first window effect");
+    let second_effect = second.take_effect().expect("second window effect");
+    assert_ne!(first_effect.id, second_effect.id);
     assert_eq!(
-        first.take_host_action(),
-        Some(wabou_shell::HostAction::ControlWindow {
+        first_effect.payload,
+        wabou_shell::EffectPayload::WindowControl {
             window_id: 1,
             command: wabou_shell::WindowCommand::Close,
-        })
+        }
     );
     assert_eq!(
-        second.take_host_action(),
-        Some(wabou_shell::HostAction::ControlWindow {
+        second_effect.payload,
+        wabou_shell::EffectPayload::WindowControl {
             window_id: 2,
             command: wabou_shell::WindowCommand::Close,
-        })
+        }
     );
-    assert_eq!(first.take_host_action(), None);
-    assert_eq!(second.take_host_action(), None);
+    assert_eq!(first.take_effect(), None);
+    assert_eq!(second.take_effect(), None);
 }
 
 #[test]

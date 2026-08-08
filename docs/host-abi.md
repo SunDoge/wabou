@@ -23,13 +23,9 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_sleep` | host | runtime | always |
 | `__wabou_resize_observe` | host | runtime | always |
 | `__wabou_resize_unobserve` | host | runtime | always |
-| `__wabou_clipboard_write` | host | applier | always |
-| `__wabou_clipboard_read` | host | applier | always |
+| `__wabou_effect_abi` | host | applier | always |
+| `__wabou_effect_submit` | host | applier | always |
 | `__wabou_window_id` | host | applier | always |
-| `__wabou_window_create` | host | applier | always |
-| `__wabou_window_close` | host | applier | always |
-| `__wabou_window_set_maximized` | host | applier | always |
-| `__wabou_window_set_title` | host | applier | always |
 | `__wabou_vite_update_style` | host | vite | vite |
 | `__wabou_vite_remove_style` | host | vite | vite |
 | `__wabou_tick` | guest | core | always |
@@ -37,4 +33,4 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_dispatch_host_frame` | guest | core | always |
 | `__wabou_apply_hmr` | guest | vite | vite |
 | `__wabou_hmr_clear_records` | guest | vite | vite |
-| `__wabou_clipboard_complete` | guest | core | always |
+| `__wabou_effect_complete` | guest | core | always |
