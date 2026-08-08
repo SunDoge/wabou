@@ -426,6 +426,7 @@ impl Applier {
                     self.scrollbar_styles.remove(&n);
                     self.scroll_offsets.remove(&n);
                     self.svg_cache.remove(&n);
+                    self.style_diagnostics.remove(&n);
                     if let Some(widget) = self.widget_manager.widgets.get_mut(&n) {
                         widget.unmount();
                     }

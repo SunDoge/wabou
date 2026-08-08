@@ -234,6 +234,11 @@ impl Applier {
                     .map(|text| text.chars().take(4096).collect()),
                 classes,
                 matched_rules,
+                style_diagnostics: self
+                    .style_diagnostics
+                    .get(&placed_node.node_id)
+                    .cloned()
+                    .unwrap_or_default(),
                 attrs,
                 rect: wabou_devtools::Rect {
                     x: x0,

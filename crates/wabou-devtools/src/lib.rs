@@ -143,6 +143,8 @@ pub struct DebugNode {
     pub text: Option<String>,
     pub classes: Vec<String>,
     pub matched_rules: Vec<String>,
+    #[serde(default)]
+    pub style_diagnostics: Vec<String>,
     pub attrs: Vec<(String, String)>,
     pub rect: Rect,
     pub content_rect: Rect,

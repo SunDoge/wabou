@@ -327,6 +327,9 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
 
     assert!(matches!(applier.utility_cache.get(&unknown), Some(Err(_))));
     assert!(applier.warned_utility_classes.contains(&unknown));
+    let node = applier.node_store.solid_to_node[&2];
+    assert_eq!(applier.style_diagnostics[&node].len(), 1);
+    assert!(applier.style_diagnostics[&node][0].contains("stateful-magic"));
 }
 
 #[test]

@@ -33,6 +33,7 @@ interface DebugNode {
   tag: string;
   text?: string;
   classes: string[];
+  styleDiagnostics: string[];
   attrs: Array<[string, string]>;
   rect: Rect;
   contentRect: Rect;
@@ -570,6 +571,13 @@ function App() {
                     {([name, value]) => <Row label={name} value={value} />}
                   </For>
                 </Panel>
+                <Show when={node().styleDiagnostics.length > 0}>
+                  <Panel title="Style diagnostics">
+                    <For each={node().styleDiagnostics}>
+                      {(diagnostic) => <Row label="rejected" value={diagnostic} />}
+                    </For>
+                  </Panel>
+                </Show>
                 <Panel title="Computed">
                   <For each={Object.entries(node().computed)}>
                     {([name, value]) => (

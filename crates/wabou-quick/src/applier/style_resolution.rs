@@ -416,6 +416,7 @@ impl Applier {
         let Some(decl) = self.node_store.declared.get(&node) else {
             return;
         };
+        let mut style_diagnostics = Vec::new();
         let (layout, declared_paint, host_text, host_intrinsic, display_explicit) = {
             let atoms = self.atoms.borrow();
             let mut layout = taffy::Style::default();
@@ -491,6 +492,10 @@ impl Applier {
                 let utility = match utility {
                     Ok(utility) => utility,
                     Err(diagnostic) => {
+                        style_diagnostics.push(format!(
+                            ".{}: {diagnostic}",
+                            atoms.resolve(*class).unwrap_or("<unknown>")
+                        ));
                         if self.warned_utility_classes.insert(*class) {
                             tracing::warn!(
                                 class = atoms.resolve(*class).unwrap_or("<unknown>"),
@@ -520,18 +525,25 @@ impl Applier {
             );
             for (_, _, _, _, _, property, value) in declarations {
                 display_explicit |= property == "display";
-                if !style::apply_ir(&mut layout, &mut paint, &property, &value)
-                    && let Some(atom) = atoms.get(&property)
-                    && self.warned_ir_properties.insert(atom)
-                {
-                    tracing::warn!(property, "unsupported Style IR property");
+                if !style::apply_ir(&mut layout, &mut paint, &property, &value) {
+                    style_diagnostics.push(format!(
+                        "{property}: unsupported Style IR property or value"
+                    ));
+                    if let Some(atom) = atoms.get(&property)
+                        && self.warned_ir_properties.insert(atom)
+                    {
+                        tracing::warn!(property, "unsupported Style IR property");
+                    }
                 }
             }
             for (property, value) in &decl.inline {
                 if let Some(property) = atoms.resolve(*property) {
                     display_explicit |= property == "display";
                     let ir = value.ir();
-                    style::apply_ir(&mut layout, &mut paint, property, &ir);
+                    if !style::apply_ir(&mut layout, &mut paint, property, &ir) {
+                        style_diagnostics
+                            .push(format!("inline {property}: unsupported property or value"));
+                    }
                 }
             }
             let mut host_intrinsic = None;
@@ -595,6 +607,7 @@ impl Applier {
             }
             (layout, paint, host_text, host_intrinsic, display_explicit)
         };
+        self.style_diagnostics.insert(node, style_diagnostics);
         // Persist cascade output for the inherit pass (and future resolves).
         if let Some(decl) = self.node_store.declared.get_mut(&node) {
             decl.paint = declared_paint.clone();

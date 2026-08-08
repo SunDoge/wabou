@@ -353,6 +353,9 @@ pub struct Applier {
     utility_cache: HashMap<Atom, Result<wabou_style::ParsedUtility, String>>,
     warned_utility_classes: HashSet<Atom>,
     warned_ir_properties: HashSet<Atom>,
+    /// Rejections from the latest cascade pass, keyed by native node for
+    /// DevTools inspection.
+    style_diagnostics: HashMap<NodeId, Vec<String>>,
     /// Serialized source + parsed Vello fragment for each inline `<svg>` root.
     /// Source comparison makes attribute/child changes self-invalidating while
     /// keeping parsing out of the per-frame paint path.
@@ -641,6 +644,7 @@ impl Applier {
             utility_cache: HashMap::new(),
             warned_utility_classes: HashSet::new(),
             warned_ir_properties: HashSet::new(),
+            style_diagnostics: HashMap::new(),
             svg_cache: HashMap::new(),
             runtime_transforms: HashMap::new(),
             overlay_planes: HashMap::new(),
