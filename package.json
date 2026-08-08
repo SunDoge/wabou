@@ -8,6 +8,7 @@
     "commit:check": "cog check",
     "commit:hook": "cog install-hook commit-msg",
     "test:solid-refresh": "bun --conditions=browser --conditions=development test packages/solid-renderer/src/hmr.test.ts",
+    "test:router": "bun --conditions=browser test packages/router/src/index.test.tsx",
     "gen": "bun run scripts/gen-utility-manifest.ts && bun run scripts/gen-rust-op.ts && bun run scripts/gen-core-prelude.ts && bun run scripts/gen-vite-runtime.ts && bun run scripts/gen-test-runtime.ts && bun run scripts/gen-motion-test-runtime.ts",
     "build": "bun run gen && bun run wabou build --app-dir apps/gallery",
     "dev": "bun run wabou dev --app-dir apps/gallery"

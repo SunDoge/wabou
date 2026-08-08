@@ -5,7 +5,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
-} from "@solidjs/router";
+} from "@wabou/router";
 import {
   type AnimationControls,
   animate,
@@ -1466,7 +1466,7 @@ function App() {
 }
 
 mount(() => (
-  <MemoryRouter history={history} preload={false} explicitLinks>
+  <MemoryRouter history={history}>
     <Route path={["/", "/components/:component"]} component={App} />
   </MemoryRouter>
 ));

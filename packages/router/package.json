@@ -1,0 +1,14 @@
+{
+  "name": "@wabou/router",
+  "version": "0.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.tsx"
+  },
+  "dependencies": {
+    "solid-js": "1.9.14"
+  },
+  "devDependencies": {
+    "@wabou/solid-renderer": "workspace:*"
+  }
+}

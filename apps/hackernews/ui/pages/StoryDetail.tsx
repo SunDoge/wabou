@@ -1,5 +1,5 @@
 // Story detail page.
-import { useNavigate, useParams } from "@solidjs/router";
+import { useNavigate, useParams } from "@wabou/router";
 import { Button, Text } from "@wabou/primitives";
 import ArrowLeft from "lucide-solid/icons/arrow-left";
 import Bookmark from "lucide-solid/icons/bookmark";

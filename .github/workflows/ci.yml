@@ -62,8 +62,13 @@ jobs:
       - name: Test packages
         run: bun test packages
 
-      - name: Build Gallery frontend
-        run: bun --cwd apps/gallery run build
+      - name: Test reactive router integration
+        run: bun run test:router
+
+      - name: Build application frontends
+        run: |
+          bun --cwd apps/gallery run build
+          bun --cwd apps/hackernews run build
 
       - name: Check generated artifacts
         run: |

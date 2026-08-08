@@ -11,7 +11,7 @@
 
 import "./host";
 
-// URL/structuredClone are installed by the host's core-prelude (platform.ts,
+// URL and URLSearchParams are installed by the host's core-prelude (platform.ts,
 // bundled with whatwg-url/@ungap via gen-core-prelude) BEFORE the app boots.
 // We don't re-import them here: in vite dev the live `import { URL } from
 // "whatwg-url"` fails to resolve CJS named exports via raw /@fs/ serving.

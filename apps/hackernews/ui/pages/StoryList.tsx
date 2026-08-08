@@ -1,5 +1,5 @@
 // Story list page.
-import { useNavigate } from "@solidjs/router";
+import { useNavigate } from "@wabou/router";
 import { Button, createHover, Text } from "@wabou/primitives";
 import Bookmark from "lucide-solid/icons/bookmark";
 import MessageSquare from "lucide-solid/icons/message-square";

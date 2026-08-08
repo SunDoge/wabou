@@ -77,21 +77,6 @@ for (const level of ["log", "info", "warn", "error", "debug"] as const) {
 // `window` is the global object in browsers. Keeping identity here avoids
 // libraries observing two diverging sets of globals.
 runtime.window ??= runtime;
-runtime.history ??= {
-  state: {},
-  length: 1,
-  replaceState(state: unknown) {
-    this.state = state;
-  },
-  go() {},
-};
-runtime.location ??= {
-  href: "http://localhost/",
-  origin: "http://localhost",
-  pathname: "/",
-  search: "",
-  hash: "",
-};
 runtime.scrollX ??= 0;
 runtime.scrollY ??= 0;
 runtime.scrollTo ??= () => {};

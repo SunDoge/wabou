@@ -8,11 +8,11 @@
     "dev": "vite --host 127.0.0.1"
   },
   "dependencies": {
-    "@solidjs/router": "^0.16.3",
     "@wabou/animation": "workspace:*",
     "@wabou/components": "workspace:*",
     "@wabou/core": "workspace:*",
     "@wabou/primitives": "workspace:*",
+    "@wabou/router": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style": "workspace:*",
     "@wabou/unocss-preset": "workspace:*",

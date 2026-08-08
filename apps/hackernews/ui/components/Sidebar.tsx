@@ -1,5 +1,5 @@
 // Hacker News navigation sidebar.
-import { useNavigate } from "@solidjs/router";
+import { useNavigate } from "@wabou/router";
 import {
   Button,
   createActive,

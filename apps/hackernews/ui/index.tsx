@@ -2,7 +2,7 @@
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
 import { mount } from "@wabou/solid-renderer";
-import { MemoryRouter, Route } from "@solidjs/router";
+import { MemoryRouter, Route } from "@wabou/router";
 import { AppShell } from "./AppShell";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { StoryDetail } from "./pages/StoryDetail";
