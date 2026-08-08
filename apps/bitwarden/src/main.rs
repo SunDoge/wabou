@@ -14,7 +14,8 @@ use wabou_quick::{HostBuilder, WindowOptions};
 
 use secure_input::{SharedSecret, take_secret};
 use service::{
-    LoginOutcome, LoginRequest, SharedVaultService, TwoFactorSubmitRequest, VaultService,
+    ItemWriteRequest, LoginOutcome, LoginRequest, SharedVaultService, TwoFactorSubmitRequest,
+    VaultService,
 };
 
 fn response<T: Serialize>(result: Result<T, String>) -> String {
@@ -191,6 +192,56 @@ fn main() -> Result<(), Whatever> {
                                     .map(|()| true),
                             )
                         }
+                    }),
+                )?,
+            )?;
+
+            let create_service = service.clone();
+            capability.set(
+                "createItem",
+                Function::new(
+                    ctx.clone(),
+                    Async(move |raw: String| {
+                        let service = create_service.clone();
+                        async move {
+                            let request = serde_json::from_str::<ItemWriteRequest>(&raw)
+                                .map_err(|_| "Invalid vault item.".to_string());
+                            response(match request {
+                                Ok(request) => service.lock().await.create_item(request).await,
+                                Err(error) => Err(error),
+                            })
+                        }
+                    }),
+                )?,
+            )?;
+
+            let update_service = service.clone();
+            capability.set(
+                "updateItem",
+                Function::new(
+                    ctx.clone(),
+                    Async(move |id: String, raw: String| {
+                        let service = update_service.clone();
+                        async move {
+                            let request = serde_json::from_str::<ItemWriteRequest>(&raw)
+                                .map_err(|_| "Invalid vault item.".to_string());
+                            response(match request {
+                                Ok(request) => service.lock().await.update_item(&id, request).await,
+                                Err(error) => Err(error),
+                            })
+                        }
+                    }),
+                )?,
+            )?;
+
+            let delete_service = service.clone();
+            capability.set(
+                "deleteItem",
+                Function::new(
+                    ctx.clone(),
+                    Async(move |id: String| {
+                        let service = delete_service.clone();
+                        async move { response(service.lock().await.delete_item(&id).await) }
                     }),
                 )?,
             )?;

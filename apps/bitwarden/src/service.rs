@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex as StdMutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use bitwarden_api_api::models::SyncResponseModel;
+use bitwarden_api_api::models::{CipherRequestModel, SyncResponseModel};
 use bitwarden_core::auth::login::{
     PasswordLoginRequest, TwoFactorEmailRequest, TwoFactorProvider, TwoFactorRequest,
     response::two_factor::TwoFactorProviders,
@@ -11,7 +11,11 @@ use bitwarden_core::{ClientSettings, DeviceType};
 use bitwarden_crypto_sync_handler::CryptoSyncHandler;
 use bitwarden_pm::PasswordManagerClient;
 use bitwarden_sync::{SyncClient, SyncHandler, SyncHandlerError, SyncRequest};
-use bitwarden_vault::{Cipher, CipherListViewType, CipherType, CipherView};
+use bitwarden_vault::{
+    CardView, Cipher, CipherListViewType, CipherRepromptType, CipherType, CipherView, LoginUriView,
+    LoginView, SecureNoteType, SecureNoteView,
+};
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 use url::Url;
@@ -79,10 +83,46 @@ pub struct ItemDetails {
     pub name: String,
     pub kind: &'static str,
     pub username: Option<String>,
+    pub password: Option<String>,
     pub uris: Vec<String>,
+    pub notes: Option<String>,
+    pub totp: Option<String>,
+    pub cardholder_name: Option<String>,
+    pub card_brand: Option<String>,
+    pub card_number: Option<String>,
+    pub card_exp_month: Option<String>,
+    pub card_exp_year: Option<String>,
+    pub card_code: Option<String>,
     pub favorite: bool,
     pub has_password: bool,
     pub has_totp: bool,
+    pub editable: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemWriteRequest {
+    pub kind: String,
+    pub name: String,
+    pub notes: Option<String>,
+    pub favorite: bool,
+    pub username: Option<String>,
+    pub password: Option<String>,
+    pub uri: Option<String>,
+    pub totp: Option<String>,
+    pub cardholder_name: Option<String>,
+    pub card_brand: Option<String>,
+    pub card_number: Option<String>,
+    pub card_exp_month: Option<String>,
+    pub card_exp_year: Option<String>,
+    pub card_code: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MutationOutcome {
+    pub snapshot: VaultSnapshot,
+    pub id: Option<String>,
 }
 
 #[derive(Default)]
@@ -316,21 +356,83 @@ impl VaultService {
     pub async fn details(&self, id: &str) -> Result<ItemDetails, String> {
         let view = self.decrypt_one(id).await?;
         let login = view.login.as_ref();
+        let card = view.card.as_ref();
         Ok(ItemDetails {
             id: view.id.map(|id| id.to_string()).unwrap_or_default(),
             name: view.name,
             kind: cipher_kind(view.r#type),
             username: login.and_then(|login| login.username.clone()),
+            password: login.and_then(|login| login.password.clone()),
             uris: login
                 .and_then(|login| login.uris.as_ref())
                 .into_iter()
                 .flatten()
                 .filter_map(|uri| uri.uri.clone())
                 .collect(),
+            notes: view.notes.clone(),
+            totp: login.and_then(|login| login.totp.clone()),
+            cardholder_name: card.and_then(|card| card.cardholder_name.clone()),
+            card_brand: card.and_then(|card| card.brand.clone()),
+            card_number: card.and_then(|card| card.number.clone()),
+            card_exp_month: card.and_then(|card| card.exp_month.clone()),
+            card_exp_year: card.and_then(|card| card.exp_year.clone()),
+            card_code: card.and_then(|card| card.code.clone()),
             favorite: view.favorite,
             has_password: login.and_then(|login| login.password.as_ref()).is_some(),
             has_totp: login.and_then(|login| login.totp.as_ref()).is_some(),
+            editable: view.organization_id.is_none() && view.edit,
         })
+    }
+
+    pub async fn create_item(&self, request: ItemWriteRequest) -> Result<MutationOutcome, String> {
+        let session = self.session.as_ref().ok_or_else(locked)?;
+        touch(session);
+        let view = new_cipher_view(request)?;
+        let response = submit_cipher(session, view, None).await?;
+        let id = response.id.map(|id| id.to_string());
+        let snapshot = self.refresh().await?;
+        Ok(MutationOutcome { snapshot, id })
+    }
+
+    pub async fn update_item(
+        &self,
+        id: &str,
+        request: ItemWriteRequest,
+    ) -> Result<MutationOutcome, String> {
+        let session = self.session.as_ref().ok_or_else(locked)?;
+        let mut view = self.decrypt_one(id).await?;
+        if view.organization_id.is_some() || !view.edit {
+            return Err("This prototype edits personal vault items only.".into());
+        }
+        apply_write_request(&mut view, request)?;
+        let cipher_id = view.id.ok_or_else(|| "Vault item has no id.".to_string())?;
+        submit_cipher(session, view, Some(cipher_id.into())).await?;
+        let snapshot = self.refresh().await?;
+        Ok(MutationOutcome {
+            snapshot,
+            id: Some(id.to_owned()),
+        })
+    }
+
+    pub async fn delete_item(&self, id: &str) -> Result<MutationOutcome, String> {
+        let session = self.session.as_ref().ok_or_else(locked)?;
+        let view = self.decrypt_one(id).await?;
+        if view.organization_id.is_some() || !view.edit {
+            return Err("This prototype deletes personal vault items only.".into());
+        }
+        let cipher_id = view.id.ok_or_else(|| "Vault item has no id.".to_string())?;
+        session
+            .client
+            .0
+            .internal
+            .get_api_configurations()
+            .api_client
+            .ciphers_api()
+            .put_delete(cipher_id.into())
+            .await
+            .map_err(|_| "The server could not move this item to trash.".to_string())?;
+        let snapshot = self.refresh().await?;
+        Ok(MutationOutcome { snapshot, id: None })
     }
 
     pub async fn copy_field(&self, id: &str, field: &str) -> Result<(), String> {
@@ -396,6 +498,134 @@ impl VaultService {
     pub fn is_locked(&self) -> bool {
         self.session.is_none()
     }
+}
+
+async fn submit_cipher(
+    session: &Session,
+    view: CipherView,
+    id: Option<uuid::Uuid>,
+) -> Result<bitwarden_api_api::models::CipherResponseModel, String> {
+    let encrypted = session
+        .client
+        .vault()
+        .ciphers()
+        .encrypt(view)
+        .await
+        .map_err(|_| "The SDK could not encrypt this item.".to_string())?;
+    let mut model: CipherRequestModel = encrypted
+        .cipher
+        .try_into()
+        .map_err(|_| "The SDK could not encode this item.".to_string())?;
+    model.encrypted_for = Some(encrypted.encrypted_for.into());
+    let api = &session
+        .client
+        .0
+        .internal
+        .get_api_configurations()
+        .api_client;
+    match id {
+        Some(id) => api.ciphers_api().put(id, Some(model)).await,
+        None => api.ciphers_api().post(Some(model)).await,
+    }
+    .map_err(|_| "The server rejected the vault item.".to_string())
+}
+
+fn new_cipher_view(request: ItemWriteRequest) -> Result<CipherView, String> {
+    let now = Utc::now();
+    let mut view = CipherView {
+        id: None,
+        organization_id: None,
+        folder_id: None,
+        collection_ids: Vec::new(),
+        key: None,
+        name: String::new(),
+        notes: None,
+        r#type: CipherType::Login,
+        login: None,
+        identity: None,
+        card: None,
+        secure_note: None,
+        ssh_key: None,
+        bank_account: None,
+        drivers_license: None,
+        passport: None,
+        favorite: false,
+        reprompt: CipherRepromptType::None,
+        organization_use_totp: false,
+        edit: true,
+        permissions: None,
+        view_password: true,
+        local_data: None,
+        attachments: None,
+        attachment_decryption_failures: None,
+        fields: Some(Vec::new()),
+        password_history: None,
+        creation_date: now,
+        deleted_date: None,
+        revision_date: now,
+        archived_date: None,
+    };
+    apply_write_request(&mut view, request)?;
+    Ok(view)
+}
+
+fn apply_write_request(view: &mut CipherView, request: ItemWriteRequest) -> Result<(), String> {
+    let name = request.name.trim();
+    if name.is_empty() {
+        return Err("Enter a name for this item.".into());
+    }
+    view.name = name.to_owned();
+    view.notes = non_empty(request.notes);
+    view.favorite = request.favorite;
+    view.login = None;
+    view.card = None;
+    view.secure_note = None;
+    match request.kind.as_str() {
+        "login" => {
+            view.r#type = CipherType::Login;
+            view.login = Some(LoginView {
+                username: non_empty(request.username),
+                password: non_empty(request.password),
+                password_revision_date: None,
+                uris: non_empty(request.uri).map(|uri| {
+                    vec![LoginUriView {
+                        uri: Some(uri),
+                        r#match: None,
+                        uri_checksum: None,
+                    }]
+                }),
+                totp: non_empty(request.totp),
+                autofill_on_page_load: None,
+                fido2_credentials: None,
+            });
+        }
+        "note" => {
+            view.r#type = CipherType::SecureNote;
+            view.secure_note = Some(SecureNoteView {
+                r#type: SecureNoteType::Generic,
+            });
+        }
+        "card" => {
+            view.r#type = CipherType::Card;
+            view.card = Some(CardView {
+                cardholder_name: non_empty(request.cardholder_name),
+                brand: non_empty(request.card_brand),
+                number: non_empty(request.card_number),
+                exp_month: non_empty(request.card_exp_month),
+                exp_year: non_empty(request.card_exp_year),
+                code: non_empty(request.card_code),
+            });
+        }
+        _ => return Err("Choose a supported item type.".into()),
+    }
+    Ok(())
+}
+
+fn non_empty(value: Option<String>) -> Option<String> {
+    value.and_then(|value| {
+        let trimmed = value.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_owned())
+    })
 }
 
 fn two_factor_options(providers: &TwoFactorProviders) -> Vec<TwoFactorOption> {
@@ -626,5 +856,47 @@ mod tests {
         ));
         assert!(parse_two_factor_provider("duo").is_err());
         assert!(parse_two_factor_provider("webauthn").is_err());
+    }
+
+    #[test]
+    fn write_request_builds_supported_cipher_types() {
+        let login = new_cipher_view(write_request("login")).unwrap();
+        assert_eq!(login.r#type, CipherType::Login);
+        assert_eq!(login.login.unwrap().username.as_deref(), Some("user"));
+
+        let note = new_cipher_view(write_request("note")).unwrap();
+        assert_eq!(note.r#type, CipherType::SecureNote);
+        assert!(note.secure_note.is_some());
+
+        let card = new_cipher_view(write_request("card")).unwrap();
+        assert_eq!(card.r#type, CipherType::Card);
+        assert!(card.card.is_some());
+    }
+
+    #[test]
+    fn write_request_rejects_empty_names_and_unknown_types() {
+        let mut empty = write_request("login");
+        empty.name = "  ".into();
+        assert!(new_cipher_view(empty).is_err());
+        assert!(new_cipher_view(write_request("identity")).is_err());
+    }
+
+    fn write_request(kind: &str) -> ItemWriteRequest {
+        ItemWriteRequest {
+            kind: kind.into(),
+            name: "Example".into(),
+            notes: Some("notes".into()),
+            favorite: false,
+            username: Some("user".into()),
+            password: Some("password".into()),
+            uri: Some("https://example.test".into()),
+            totp: None,
+            cardholder_name: Some("Test User".into()),
+            card_brand: Some("Visa".into()),
+            card_number: Some("4111111111111111".into()),
+            card_exp_month: Some("12".into()),
+            card_exp_year: Some("2030".into()),
+            card_code: Some("123".into()),
+        }
     }
 }
