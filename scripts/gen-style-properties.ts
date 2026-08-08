@@ -50,6 +50,7 @@ add(
     "overflow-y",
     "box-sizing",
     "white-space",
+    "text-overflow",
     "text-align",
     "pointer-events",
     "user-select",

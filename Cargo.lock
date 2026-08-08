@@ -7820,6 +7820,7 @@ dependencies = [
  "snafu",
  "taffy",
  "tracing",
+ "unicode-segmentation",
  "url",
  "vello",
  "vello_svg",

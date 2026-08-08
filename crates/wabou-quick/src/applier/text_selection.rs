@@ -14,6 +14,7 @@ impl Applier {
                 continue;
             };
             if !node.paint.text_selectable
+                || node.paint.text_ellipsis
                 || self.widget_manager.widgets.contains_key(&node.node_id)
             {
                 continue;
@@ -21,7 +22,7 @@ impl Applier {
             let Some(&target) = self.node_store.node_to_solid.get(&node.node_id) else {
                 continue;
             };
-            let layout = layout_text_styled(
+            let layout = wabou_shell::text::layout_text_styled_overflow(
                 tcx,
                 text.clone(),
                 node.paint.font_size,
@@ -31,9 +32,9 @@ impl Applier {
                 wabou_shell::text::brush_for_color(node.paint.text_color),
                 node.paint.text_runs.clone(),
                 node.paint.font_family.as_ref(),
-                node.paint
-                    .wrap_text
+                (node.paint.wrap_text || node.paint.text_ellipsis)
                     .then_some((node.rect[2] - node.rect[0]).max(0.0)),
+                node.paint.text_ellipsis,
             );
             let selectable = SelectableText {
                 text,

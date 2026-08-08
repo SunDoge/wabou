@@ -65,6 +65,7 @@
     "border-left-width": "1px",
     "box-sizing": "border-box",
     "white-space": "nowrap",
+    "text-overflow": "ellipsis",
     "text-align": "center",
     "opacity": "0.5",
     "z-index": "1",
@@ -88,7 +89,6 @@
     "outline-width": "Outline painting is not implemented.",
     "outline-color": "Outline painting is not implemented.",
     "outline-style": "Outline painting is not implemented.",
-    "text-overflow": "Ellipsis painting is not implemented.",
     "list-style-type": "List marker painting is not implemented.",
     "transition": "CSS is stateless; drive runtime transform state from JS or Rust.",
     "animation": "CSS is stateless; drive runtime transform state from JS or Rust."

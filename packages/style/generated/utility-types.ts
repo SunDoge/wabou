@@ -119,6 +119,7 @@ export type WabouStaticUtility =
   | "text-xs"
   | "translate-x-4"
   | "translate-y-4"
+  | "truncate"
   | "whitespace-normal"
   | "whitespace-nowrap"
   | "z-0"

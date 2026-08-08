@@ -697,6 +697,9 @@ pub fn apply_ir(
             let wrap = !matches!(value.keyword(), Some("nowrap" | "pre"));
             paint.wrap_text = Some(wrap);
         }
+        "text-overflow" => {
+            paint.text_ellipsis = value.keyword() == Some("ellipsis");
+        }
         "text-align" => {
             paint.text_align = Some(match value.keyword() {
                 Some("center") => TextAlign::Center,

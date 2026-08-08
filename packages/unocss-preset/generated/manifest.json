@@ -2451,6 +2451,29 @@
         }
       }
     ],
+    "truncate": [
+      {
+        "property": "overflow",
+        "value": {
+          "type": "keyword",
+          "value": "hidden"
+        }
+      },
+      {
+        "property": "white-space",
+        "value": {
+          "type": "keyword",
+          "value": "nowrap"
+        }
+      },
+      {
+        "property": "text-overflow",
+        "value": {
+          "type": "keyword",
+          "value": "ellipsis"
+        }
+      }
+    ],
     "whitespace-normal": [
       {
         "property": "white-space",

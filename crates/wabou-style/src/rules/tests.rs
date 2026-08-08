@@ -14,6 +14,19 @@ fn parses_dynamic_spacing() {
 }
 
 #[test]
+fn truncate_emits_clipping_nowrap_and_ellipsis() {
+    let parsed = parse_utility("truncate").unwrap();
+    assert_eq!(
+        parsed
+            .declarations
+            .iter()
+            .map(|declaration| declaration.property.as_str())
+            .collect::<Vec<_>>(),
+        ["overflow", "white-space", "text-overflow"]
+    );
+}
+
+#[test]
 fn static_transform_utilities_emit_typed_nested_ir() {
     let parsed = parse_utility("translate-x-4").unwrap();
     assert!(matches!(

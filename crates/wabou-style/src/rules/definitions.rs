@@ -603,6 +603,14 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("whitespace-nowrap", vec![keyword("white-space", "nowrap")]),
         ("whitespace-normal", vec![keyword("white-space", "normal")]),
         (
+            "truncate",
+            vec![
+                keyword("overflow", "hidden"),
+                keyword("white-space", "nowrap"),
+                keyword("text-overflow", "ellipsis"),
+            ],
+        ),
+        (
             "pointer-events-none",
             vec![keyword("pointer-events", "none")],
         ),

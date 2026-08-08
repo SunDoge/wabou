@@ -9,7 +9,7 @@ use vello::peniko::{Color, Fill};
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
 use crate::style::{IrLength, PaintTransform, Shadow};
-use crate::text::{TextContext, layout_text_styled};
+use crate::text::TextContext;
 
 /// Resolve the node-local static CSS and runtime affine transforms separately.
 pub fn resolve_local_transforms(node: &PlacedNode) -> (Affine, Affine) {
@@ -362,7 +362,7 @@ pub fn build_scene_scaled(
         }
 
         if let Some(text) = &n.paint.text {
-            let layout = layout_text_styled(
+            let layout = crate::text::layout_text_styled_overflow(
                 tcx,
                 text.clone(),
                 n.paint.font_size,
@@ -372,9 +372,9 @@ pub fn build_scene_scaled(
                 crate::text::brush_for_color(n.paint.text_color),
                 n.paint.text_runs.clone(),
                 n.paint.font_family.as_ref(),
-                n.paint
-                    .wrap_text
+                (n.paint.wrap_text || n.paint.text_ellipsis)
                     .then_some((n.rect[2] - n.rect[0]).max(0.0)),
+                n.paint.text_ellipsis,
             );
             let text_transform = node_transform
                 * Affine::translate((n.content_origin[0] as f64, n.content_origin[1] as f64));

@@ -136,6 +136,8 @@ pub struct DeclaredPaint {
     pub line_height: Option<(f32, bool)>,
     /// Own `white-space` → wrap mapping. `None` = inherit.
     pub wrap_text: Option<bool>,
+    /// Whether overflowing inline text is shortened with an ellipsis.
+    pub text_ellipsis: bool,
     /// Own `user-select` mapping. `None` = inherit.
     pub text_selectable: Option<bool>,
     pub text_select_all: Option<bool>,
@@ -159,6 +161,7 @@ impl Default for DeclaredPaint {
             font_weight: None,
             line_height: None,
             wrap_text: None,
+            text_ellipsis: false,
             text_selectable: None,
             text_select_all: None,
             text_align: None,
@@ -213,6 +216,7 @@ impl DeclaredPaint {
             font_weight: inherited.font_weight,
             line_height: inherited.line_height,
             wrap_text: inherited.wrap_text,
+            text_ellipsis: self.text_ellipsis,
             text_selectable: inherited.text_selectable,
             text_select_all: inherited.text_select_all,
             text_align: inherited.text_align,
@@ -323,6 +327,8 @@ pub struct Paint {
     pub line_height: Option<(f32, bool)>,
     /// Whether normal line wrapping is allowed (resolved `white-space`).
     pub wrap_text: bool,
+    /// Whether a constrained single line is shortened with an ellipsis.
+    pub text_ellipsis: bool,
     pub text_selectable: bool,
     pub text_select_all: bool,
     pub text_align: TextAlign,

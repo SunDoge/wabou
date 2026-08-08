@@ -14,6 +14,7 @@ use parley::{
     Alignment, AlignmentOptions, FontContext, Layout, LayoutContext, PositionedLayoutItem,
     StyleProperty,
 };
+use unicode_segmentation::UnicodeSegmentation;
 use vello::Glyph as VelloGlyph;
 use vello::Scene;
 use vello::kurbo::Affine;
@@ -63,6 +64,7 @@ pub struct TextContext {
     pub font_cx: FontContext,
     pub layout_cx: LayoutContext,
     cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
+    ellipsis_cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
     glyph_cache: LruCache<(usize, u64), GlyphSceneEntry>,
 }
 
@@ -81,6 +83,7 @@ impl TextContext {
             font_cx: FontContext::new(),
             layout_cx: LayoutContext::new(),
             cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
+            ellipsis_cache: LruCache::new(NonZeroUsize::new(1024).unwrap()),
             glyph_cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
         }
     }
@@ -93,6 +96,7 @@ impl TextContext {
         let blob = parley::fontique::Blob::from(bytes);
         self.font_cx.collection.register_fonts(blob, None);
         self.cache.clear();
+        self.ellipsis_cache.clear();
         self.glyph_cache.clear();
     }
 
@@ -187,6 +191,44 @@ pub fn layout_text(tcx: &mut TextContext, text: &str, font_size: f32) -> Arc<Lay
 }
 
 #[allow(clippy::too_many_arguments)]
+fn text_layout_key(
+    text: Arc<str>,
+    font_size: f32,
+    font_weight: f32,
+    line_height: Option<(f32, bool)>,
+    alignment: TextAlign,
+    color: [u8; 4],
+    runs: &[TextRun],
+    font_family: Option<&Arc<str>>,
+    max_width: Option<f32>,
+) -> TextLayoutKey {
+    TextLayoutKey {
+        text,
+        font_size: font_size.to_bits(),
+        font_weight: font_weight.to_bits(),
+        line_height: line_height.map(|(value, relative)| (value.to_bits(), relative)),
+        max_width: max_width.map(f32::to_bits),
+        alignment,
+        color,
+        runs: runs
+            .iter()
+            .map(|run| TextRunKey {
+                start: run.range.start,
+                end: run.range.end,
+                font_size: run.font_size.to_bits(),
+                font_weight: run.font_weight.to_bits(),
+                line_height: run
+                    .line_height
+                    .map(|(value, relative)| (value.to_bits(), relative)),
+                color: run.color,
+            })
+            .collect::<Vec<_>>()
+            .into(),
+        font_family: font_family.cloned(),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn layout_text_styled(
     tcx: &mut TextContext,
     text: Arc<str>,
@@ -199,30 +241,17 @@ pub fn layout_text_styled(
     font_family: Option<&Arc<str>>,
     max_width: Option<f32>,
 ) -> Arc<Layout<[u8; 4]>> {
-    let run_keys: Arc<[TextRunKey]> = runs
-        .iter()
-        .map(|run| TextRunKey {
-            start: run.range.start,
-            end: run.range.end,
-            font_size: run.font_size.to_bits(),
-            font_weight: run.font_weight.to_bits(),
-            line_height: run
-                .line_height
-                .map(|(value, relative)| (value.to_bits(), relative)),
-            color: run.color,
-        })
-        .collect();
-    let key = TextLayoutKey {
-        text: text.clone(),
-        font_size: font_size.to_bits(),
-        font_weight: font_weight.to_bits(),
-        line_height: line_height.map(|(value, relative)| (value.to_bits(), relative)),
-        max_width: max_width.map(f32::to_bits),
+    let key = text_layout_key(
+        text.clone(),
+        font_size,
+        font_weight,
+        line_height,
         alignment,
         color,
-        runs: run_keys,
-        font_family: font_family.cloned(),
-    };
+        &runs,
+        font_family,
+        max_width,
+    );
     if let Some(layout) = tcx.cache.get(&key) {
         return layout.clone();
     }
@@ -235,8 +264,6 @@ pub fn layout_text_styled(
         font_weight,
     )));
     if let Some(family) = font_family {
-        // Keep the complete ordered CSS family stack. Parley resolves named
-        // families and generic fallbacks against fontique in order.
         builder.push_default(StyleProperty::FontFamily(parley::FontFamily::from(
             family.as_ref(),
         )));
@@ -282,6 +309,139 @@ pub fn layout_text_styled(
     layout
 }
 
+/// Layout text with CSS-style single-line ellipsis when it exceeds `max_width`.
+/// Truncation follows grapheme boundaries, so emoji sequences and combining
+/// marks are never split in the middle.
+#[allow(clippy::too_many_arguments)]
+pub fn layout_text_styled_overflow(
+    tcx: &mut TextContext,
+    text: Arc<str>,
+    font_size: f32,
+    font_weight: f32,
+    line_height: Option<(f32, bool)>,
+    alignment: TextAlign,
+    color: [u8; 4],
+    runs: Arc<[TextRun]>,
+    font_family: Option<&Arc<str>>,
+    max_width: Option<f32>,
+    ellipsis: bool,
+) -> Arc<Layout<[u8; 4]>> {
+    let Some(max_width) = max_width.filter(|width| width.is_finite()) else {
+        return layout_text_styled(
+            tcx,
+            text,
+            font_size,
+            font_weight,
+            line_height,
+            alignment,
+            color,
+            runs,
+            font_family,
+            max_width,
+        );
+    };
+    if !ellipsis {
+        return layout_text_styled(
+            tcx,
+            text,
+            font_size,
+            font_weight,
+            line_height,
+            alignment,
+            color,
+            runs,
+            font_family,
+            Some(max_width),
+        );
+    }
+
+    let overflow_key = text_layout_key(
+        text.clone(),
+        font_size,
+        font_weight,
+        line_height,
+        alignment,
+        color,
+        &runs,
+        font_family,
+        Some(max_width),
+    );
+    if let Some(layout) = tcx.ellipsis_cache.get(&overflow_key) {
+        return layout.clone();
+    }
+
+    let unconstrained = layout_text_styled(
+        tcx,
+        text.clone(),
+        font_size,
+        font_weight,
+        line_height,
+        alignment,
+        color,
+        runs.clone(),
+        font_family,
+        None,
+    );
+    if unconstrained.width() <= max_width.max(0.0) {
+        tcx.ellipsis_cache.put(overflow_key, unconstrained.clone());
+        return unconstrained;
+    }
+
+    let boundaries = text
+        .grapheme_indices(true)
+        .map(|(index, _)| index)
+        .chain(std::iter::once(text.len()))
+        .collect::<Vec<_>>();
+    let mut low = 0;
+    let mut high = boundaries.len();
+    let mut best = layout_text_styled(
+        tcx,
+        Arc::from(""),
+        font_size,
+        font_weight,
+        line_height,
+        alignment,
+        color,
+        Arc::from([]),
+        font_family,
+        None,
+    );
+    while low < high {
+        let middle = (low + high) / 2;
+        let prefix_end = boundaries[middle];
+        let candidate: Arc<str> = Arc::from(format!("{}…", &text[..prefix_end]));
+        let candidate_runs: Arc<[TextRun]> = runs
+            .iter()
+            .filter(|run| run.range.start < prefix_end)
+            .map(|run| TextRun {
+                range: run.range.start..run.range.end.min(prefix_end),
+                ..run.clone()
+            })
+            .collect::<Vec<_>>()
+            .into();
+        let layout = layout_text_styled(
+            tcx,
+            candidate,
+            font_size,
+            font_weight,
+            line_height,
+            alignment,
+            color,
+            candidate_runs,
+            font_family,
+            None,
+        );
+        if layout.width() <= max_width.max(0.0) {
+            best = layout;
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    tcx.ellipsis_cache.put(overflow_key, best.clone());
+    best
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,6 +477,56 @@ mod tests {
 
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(context.cache.len(), 1);
+    }
+
+    #[test]
+    fn ellipsis_layout_respects_width_and_grapheme_boundaries() {
+        let mut context = TextContext::new();
+        let text: Arc<str> = Arc::from("Family 👨‍👩‍👧‍👦 credentials and recovery material");
+        let full = layout_text_styled_overflow(
+            &mut context,
+            text.clone(),
+            16.0,
+            400.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            None,
+            true,
+        );
+        let truncated = layout_text_styled_overflow(
+            &mut context,
+            text,
+            16.0,
+            400.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            Some(120.0),
+            true,
+        );
+        let cached = layout_text_styled_overflow(
+            &mut context,
+            Arc::from("Family 👨‍👩‍👧‍👦 credentials and recovery material"),
+            16.0,
+            400.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            Some(120.0),
+            true,
+        );
+
+        assert!(full.width() > 120.0);
+        assert!(truncated.width() <= 120.0);
+        assert_eq!(truncated.lines().count(), 1);
+        assert!(Arc::ptr_eq(&truncated, &cached));
     }
 
     #[test]

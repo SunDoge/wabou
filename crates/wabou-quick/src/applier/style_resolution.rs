@@ -402,6 +402,7 @@ impl Applier {
             paint.shadows = declared.shadows;
             paint.border_radius = declared.border_radius;
             paint.border = declared.border;
+            paint.text_ellipsis = declared.text_ellipsis;
             paint.pointer_events = declared.pointer_events;
             paint.z_index = declared.z_index;
             let _ = self.node_store.tree.set_node_context(node, Some(paint));
@@ -553,7 +554,7 @@ impl Applier {
                     style_diagnostics.push(format!(
                         "{property}: unsupported Style IR property or value"
                     ));
-                    if let Some(atom) = atoms.get(&property)
+                    if let Some(atom) = atoms.get(property)
                         && self.warned_ir_properties.insert(atom)
                     {
                         tracing::warn!(property, "unsupported Style IR property");

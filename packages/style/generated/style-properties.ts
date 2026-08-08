@@ -281,6 +281,11 @@ export const INLINE_STYLE_CONTRACT = {
     number: false,
     typed: [],
   },
+  "text-overflow": {
+    string: true,
+    number: false,
+    typed: [],
+  },
   top: {
     string: true,
     number: true,
