@@ -64,6 +64,9 @@ fn should_build_sequence(
     kitty_seq: bool,
     modifiers: Modifiers,
 ) -> bool {
+    if key.phase == KeyPhase::Up && !mode.contains(Mode::REPORT_EVENT_TYPES) {
+        return false;
+    }
     if mode.contains(Mode::REPORT_ALL_KEYS_AS_ESC) {
         return true;
     }
@@ -444,6 +447,16 @@ mod tests {
         event.repeat = false;
         event.phase = KeyPhase::Up;
         assert_eq!(build_key_sequence(&event, mode), b"\x1b[120;1:3u");
+    }
+
+    #[test]
+    fn ignores_release_without_report_event_types() {
+        let mut event = key("Backspace", Modifiers::empty());
+        let mode = Mode::DISAMBIGUATE_ESC_CODES;
+        assert_eq!(build_key_sequence(&event, mode), b"\x1b[127u");
+
+        event.phase = KeyPhase::Up;
+        assert!(build_key_sequence(&event, mode).is_empty());
     }
 
     #[test]

@@ -3005,6 +3005,28 @@ mod tests {
     }
 
     #[test]
+    fn kitty_disambiguation_does_not_repeat_key_on_release() {
+        let mut widget = TerminalWidget::headless(20, 4);
+        widget.feed(b"\x1b[>1u");
+        let mut key = KeyEvent {
+            phase: KeyPhase::Down,
+            key: "Backspace".into(),
+            key_without_modifiers: "Backspace".into(),
+            code: "Backspace".into(),
+            text: None,
+            text_with_all_modifiers: None,
+            location: KeyLocation::Standard,
+            modifiers: Modifiers::empty(),
+            repeat: false,
+        };
+
+        assert!(widget.handle_event(&UiEvent::Key(key.clone())).is_handled());
+        key.phase = KeyPhase::Up;
+        assert!(!widget.handle_event(&UiEvent::Key(key)).is_handled());
+        assert_eq!(widget.take_input(), b"\x1b[127u");
+    }
+
+    #[test]
     fn legacy_control_keys_cover_ascii_control_range() {
         let mut widget = TerminalWidget::headless(20, 4);
         let key = |name: &str, modifiers: Modifiers| {
