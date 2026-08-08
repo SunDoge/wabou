@@ -100,6 +100,31 @@ and frame-matched runtime evidence in one call. The MCP server uses the
 official Rust `rmcp` SDK; tool schemas come from the serde/schemars parameter
 types rather than hand-maintained JSON.
 
+## Headless screenshots
+
+`wabou render` evaluates the application with the same host-global ordering as
+the native runtime. It defaults to logical window 1 and a 1× device scale:
+
+```sh
+wabou render --app-dir apps/gallery --out /tmp/gallery.png
+```
+
+Multi-window and HiDPI states can be selected explicitly. Width, height, and
+interaction coordinates remain logical pixels; the PNG dimensions are scaled:
+
+```sh
+wabou render --app-dir apps/gallery --out /tmp/gallery@2x.png \
+  --width 1440 --height 900 --window-id 1 --scale-factor 2
+```
+
+Repeat `--click X Y` to replay a short navigation path. `--text` is committed
+to the element focused by the final click:
+
+```sh
+wabou render --app-dir apps/gallery --out /tmp/input.png \
+  --click 45 250 --click 700 760 --text $'hello\nworld'
+```
+
 ## Runtime API and security
 
 `HostBuilder` enables DevTools by default only in debug builds. Override it

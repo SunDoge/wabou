@@ -310,7 +310,7 @@ function InputPage() {
           />
           <TextArea
             readOnly
-            value="Read-only multiline\ncontent remains selectable."
+            value={"Read-only multiline\ncontent remains selectable."}
           />
         </View>
       </Preview>

@@ -60,19 +60,23 @@ The MCP tool `wabou_set_layout_overlay` exposes the same target-window overlay f
 
 ## Capture without a display server
 
-Use `scripts/capture-png.sh` for a deterministic 1× render:
+Use `scripts/capture-png.sh` for a deterministic offscreen render:
 
 ```bash
 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery.png 1440 900
 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/platform.png 1440 900 80 825
+WABOU_CAPTURE_SCALE_FACTOR=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery@2x.png 1440 900
+WABOU_CAPTURE_WINDOW_ID=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/child.png 800 600
 ```
 
 Inspect the resulting PNG with an image viewer/tool, not by file existence alone.
 
 Limitations:
 
-- `wabou render` currently renders at device scale 1.
-- Its synthetic runtime uses window id 0; multi-window apps may select a child-window branch that a normal main window does not.
+- The script defaults to logical window id 1 and device scale 1. Override them
+  with `WABOU_CAPTURE_WINDOW_ID` and `WABOU_CAPTURE_SCALE_FACTOR`.
+- `wabou render` can replay multiple `--click X Y` arguments in order and
+  commits `--text` to the element focused by the final click.
 - A coordinate click is suitable only after first capturing the current layout.
 
 Do not patch app logic merely to obtain a screenshot and accidentally commit the patch. If a temporary diagnostic edit is unavoidable, revert it immediately and verify `git diff`.

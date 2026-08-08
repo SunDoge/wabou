@@ -63,13 +63,24 @@ enum Commands {
         width: u32,
         #[arg(long, default_value_t = 900)]
         height: u32,
+        /// Logical window id exposed to the application during boot.
+        #[arg(long, default_value_t = 1)]
+        window_id: u64,
+        /// Device scale used for widget encoding and physical PNG dimensions.
+        #[arg(long, default_value_t = 1.0)]
+        scale_factor: f64,
         /// Keep driving asynchronous JavaScript work before capture.
         #[arg(long, default_value_t = 0)]
         wait_ms: u64,
         /// Dispatch a primary click at X Y before capture.
-        #[arg(long, num_args = 2, value_names = ["X", "Y"])]
-        click: Option<Vec<f64>>,
-        /// Commit text to the element focused by --click before capture.
+        #[arg(
+            long,
+            num_args = 2,
+            value_names = ["X", "Y"],
+            action = clap::ArgAction::Append
+        )]
+        click: Vec<f64>,
+        /// Commit text to the element focused by the final --click before capture.
         #[arg(long, requires = "click")]
         text: Option<String>,
     },
@@ -159,6 +170,8 @@ fn main() -> Result<()> {
             out,
             width,
             height,
+            window_id,
+            scale_factor,
             wait_ms,
             click,
             text,
@@ -170,8 +183,10 @@ fn main() -> Result<()> {
                 &out,
                 width,
                 height,
+                window_id,
+                scale_factor,
                 wait_ms,
-                click.as_deref(),
+                &click,
                 text.as_deref(),
             )
         }
@@ -291,10 +306,15 @@ fn render(
     out: &Path,
     width: u32,
     height: u32,
+    window_id: u64,
+    scale_factor: f64,
     wait_ms: u64,
-    click: Option<&[f64]>,
+    clicks: &[f64],
     text: Option<&str>,
 ) -> Result<()> {
+    if !scale_factor.is_finite() || scale_factor <= 0.0 {
+        return Err("--scale-factor must be a finite number greater than zero".into());
+    }
     ensure(frontend(app, "build", &[])?, "Vite build")?;
     let path = bundle_path(workspace, app);
     let source = fs::read_to_string(&path).map_err(|error| {
@@ -303,13 +323,39 @@ fn render(
             path.display()
         )
     })?;
-    let mut js =
+    let js =
         JsRuntime::new().map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
-    js.boot(&source)
-        .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
 
     let base_color = AppConfig::new("").base_color;
-    let mut applier = Applier::from_runtime(js, base_color);
+    // Install host globals before evaluating the bundle. Hooks such as
+    // useWindow() read the logical id during module initialization, so booting
+    // first would permanently expose the fallback window id 0 in screenshots.
+    let mut applier = Applier::from_runtime_with_factories_and_window(
+        js,
+        wabou_quick::widget::builtin_factories(),
+        base_color,
+        window_id,
+    );
+    applier
+        .boot(&source)
+        .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
+    applier.set_device_scale(scale_factor);
+    let physical_width = (f64::from(width) * scale_factor)
+        .round()
+        .clamp(1.0, f64::from(u32::MAX)) as u32;
+    let physical_height = (f64::from(height) * scale_factor)
+        .round()
+        .clamp(1.0, f64::from(u32::MAX)) as u32;
+    applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
+        window_id,
+        logical_width: width,
+        logical_height: height,
+        physical_width,
+        physical_height,
+        scale_factor,
+        maximized: false,
+        focused: true,
+    }));
     let mut text_context = TextContext::new();
     let mut nodes = applier.build_frame(&mut text_context, width, height);
 
@@ -321,7 +367,7 @@ fn render(
         }
     }
 
-    if let Some(position) = click {
+    for position in clicks.chunks_exact(2) {
         let point = Point {
             x: position[0],
             y: position[1],
@@ -340,9 +386,12 @@ fn render(
             buttons: 0,
             modifiers: Modifiers::default(),
         }));
-        if let Some(text) = text {
-            applier.handle_event(UiEvent::TextInput(text.to_owned()));
+        for _ in 0..4 {
+            nodes = applier.build_frame(&mut text_context, width, height);
         }
+    }
+    if let Some(text) = text {
+        applier.handle_event(UiEvent::TextInput(text.to_owned()));
         for _ in 0..4 {
             nodes = applier.build_frame(&mut text_context, width, height);
         }
@@ -352,19 +401,26 @@ fn render(
         fs::create_dir_all(parent)?;
     }
     let mut scene = Scene::new();
-    scene_builder::build_scene(
+    scene_builder::build_scene_scaled(
         &mut scene,
         &nodes,
         &mut text_context,
         width,
         height,
         base_color,
+        scale_factor,
     );
     let out_text = out
         .to_str()
         .ok_or_else(|| format!("output path is not valid UTF-8: {}", out.display()))?;
-    render_to_png(&scene, width, height, base_color, out_text)
-        .map_err(|error| format!("failed to render {}: {error:?}", out.display()))?;
+    render_to_png(
+        &scene,
+        physical_width,
+        physical_height,
+        base_color,
+        out_text,
+    )
+    .map_err(|error| format!("failed to render {}: {error:?}", out.display()))?;
     println!("[wabou] rendered {}", out.display());
     Ok(())
 }
@@ -675,6 +731,57 @@ fn ensure(status: ExitStatus, label: &str) -> Result<()> {
 mod tests {
     use super::*;
     use wabou_devtools::{DebugNode, DebugPointInspection, DebugSnapshot};
+
+    #[test]
+    fn render_defaults_to_the_main_logical_window_and_accepts_an_override() {
+        let Cli {
+            command:
+                Commands::Render {
+                    window_id,
+                    scale_factor,
+                    click,
+                    ..
+                },
+        } = Cli::try_parse_from(["wabou", "render", "--out", "capture.png"]).unwrap()
+        else {
+            panic!("expected render command");
+        };
+        assert_eq!(window_id, 1);
+        assert_eq!(scale_factor, 1.0);
+        assert!(click.is_empty());
+
+        let Cli {
+            command:
+                Commands::Render {
+                    window_id,
+                    scale_factor,
+                    click,
+                    ..
+                },
+        } = Cli::try_parse_from([
+            "wabou",
+            "render",
+            "--out",
+            "capture.png",
+            "--window-id",
+            "7",
+            "--scale-factor",
+            "2",
+            "--click",
+            "10",
+            "20",
+            "--click",
+            "30",
+            "40",
+        ])
+        .unwrap()
+        else {
+            panic!("expected render command");
+        };
+        assert_eq!(window_id, 7);
+        assert_eq!(scale_factor, 2.0);
+        assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
+    }
 
     #[test]
     fn finds_an_app_manifest_above_its_ui_directory() {
