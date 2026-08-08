@@ -5,6 +5,8 @@ export interface CreateWindowOptions {
   minWidth?: number;
   minHeight?: number;
   resizable?: boolean;
+  /** Preserve rendered alpha when the platform compositor supports it. */
+  transparent?: boolean;
 }
 
 export interface WindowHandle {

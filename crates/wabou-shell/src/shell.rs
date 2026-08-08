@@ -44,6 +44,7 @@ impl Shell {
             .with_title(options.title.clone())
             .with_visible(false)
             .with_resizable(options.resizable)
+            .with_transparent(options.transparent)
             .with_surface_size(winit::dpi::LogicalSize::new(
                 options.initial_inner_size.0,
                 options.initial_inner_size.1,
@@ -64,8 +65,19 @@ impl Shell {
         let surface_height = physical_size.height.max(1);
 
         let mut context = WGPUContext::new();
-        let surface = pollster::block_on(context.create_surface_renderer(
-            window.clone(),
+        let (surface, device_handle) = pollster::block_on(async {
+            let surface = context.create_surface(window.clone())?;
+            let device_id = context.find_or_create_device(Some(&surface)).await?;
+            let device_handle = context.device_pool[device_id].clone();
+            Ok::<_, wgpu_context::WgpuContextError>((surface, device_handle))
+        })
+        .context(crate::error::CreateSurfaceRendererSnafu)?;
+        let alpha_mode = select_alpha_mode(
+            options.transparent,
+            &surface.get_capabilities(&device_handle.adapter).alpha_modes,
+        );
+        let surface = SurfaceRenderer::new(
+            surface,
             SurfaceRendererConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 formats: vec![
@@ -76,13 +88,14 @@ impl Shell {
                 height: surface_height,
                 present_mode: wgpu::PresentMode::AutoVsync,
                 desired_maximum_frame_latency: 2,
-                alpha_mode: wgpu::CompositeAlphaMode::Auto,
+                alpha_mode,
                 view_formats: vec![],
             },
             Some(TextureConfiguration {
                 usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
             }),
-        ))
+            device_handle,
+        )
         .context(crate::error::CreateSurfaceRendererSnafu)?;
 
         let renderer = VelloRenderer::new(
@@ -183,5 +196,63 @@ impl Shell {
     }
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
+    }
+}
+
+fn select_alpha_mode(
+    transparent: bool,
+    supported: &[wgpu::CompositeAlphaMode],
+) -> wgpu::CompositeAlphaMode {
+    if !transparent {
+        return wgpu::CompositeAlphaMode::Auto;
+    }
+
+    [
+        wgpu::CompositeAlphaMode::PreMultiplied,
+        wgpu::CompositeAlphaMode::PostMultiplied,
+        wgpu::CompositeAlphaMode::Inherit,
+    ]
+    .into_iter()
+    .find(|mode| supported.contains(mode))
+    .unwrap_or(wgpu::CompositeAlphaMode::Auto)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_alpha_mode;
+    use vello::wgpu::CompositeAlphaMode;
+
+    #[test]
+    fn opaque_windows_leave_alpha_selection_to_wgpu() {
+        assert_eq!(
+            select_alpha_mode(false, &[CompositeAlphaMode::PreMultiplied]),
+            CompositeAlphaMode::Auto
+        );
+    }
+
+    #[test]
+    fn transparent_windows_prefer_premultiplied_alpha() {
+        assert_eq!(
+            select_alpha_mode(
+                true,
+                &[
+                    CompositeAlphaMode::PostMultiplied,
+                    CompositeAlphaMode::PreMultiplied,
+                ]
+            ),
+            CompositeAlphaMode::PreMultiplied
+        );
+    }
+
+    #[test]
+    fn transparent_windows_fall_back_to_supported_compositing() {
+        assert_eq!(
+            select_alpha_mode(true, &[CompositeAlphaMode::Inherit]),
+            CompositeAlphaMode::Inherit
+        );
+        assert_eq!(
+            select_alpha_mode(true, &[CompositeAlphaMode::Opaque]),
+            CompositeAlphaMode::Auto
+        );
     }
 }

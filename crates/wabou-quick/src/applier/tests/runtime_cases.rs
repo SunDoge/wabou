@@ -147,7 +147,8 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
             ctx.eval::<(), _>(
                 r#"
             globalThis.created = __wabou_test_host_api.createWindow({
-              title: "Child", width: 640, height: 480, resizable: false
+              title: "Child", width: 640, height: 480,
+              resizable: false, transparent: true
             });
             created.setTitle("Renamed");
             created.setMaximized(true);
@@ -170,6 +171,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
             assert_eq!(options.title, "Child");
             assert_eq!(options.initial_inner_size, (640, 480));
             assert!(!options.resizable);
+            assert!(options.transparent);
             window_id
         }
         action => panic!("unexpected action: {action:?}"),

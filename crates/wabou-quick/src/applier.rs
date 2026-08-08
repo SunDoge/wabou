@@ -474,6 +474,11 @@ fn install_window_functions(
                 if let Some(resizable) = value.get("resizable").and_then(|value| value.as_bool()) {
                     options = options.resizable(resizable);
                 }
+                if let Some(transparent) =
+                    value.get("transparent").and_then(|value| value.as_bool())
+                {
+                    options = options.transparent(transparent);
+                }
                 if let (Some(width), Some(height)) = (
                     value.get("minWidth").and_then(|value| value.as_u64()),
                     value.get("minHeight").and_then(|value| value.as_u64()),

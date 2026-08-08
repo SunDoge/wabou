@@ -29,6 +29,7 @@ pub struct WindowOptions {
     pub initial_inner_size: (u32, u32),
     pub min_inner_size: Option<(u32, u32)>,
     pub resizable: bool,
+    pub transparent: bool,
 }
 
 impl Default for WindowOptions {
@@ -38,6 +39,7 @@ impl Default for WindowOptions {
             initial_inner_size: (800, 600),
             min_inner_size: None,
             resizable: true,
+            transparent: false,
         }
     }
 }
@@ -60,6 +62,14 @@ impl WindowOptions {
     }
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
+        self
+    }
+    /// Request a native window whose background preserves rendered alpha.
+    ///
+    /// The frame source must also use a transparent base color and avoid
+    /// painting an opaque root background for transparency to be visible.
+    pub fn transparent(mut self, transparent: bool) -> Self {
+        self.transparent = transparent;
         self
     }
 }
@@ -464,11 +474,13 @@ mod tests {
             .title("Inspector")
             .initial_inner_size(1440, 900)
             .min_inner_size(960, 600)
-            .resizable(false);
+            .resizable(false)
+            .transparent(true);
         assert_eq!(options.title, "Inspector");
         assert_eq!(options.initial_inner_size, (1440, 900));
         assert_eq!(options.min_inner_size, Some((960, 600)));
         assert!(!options.resizable);
+        assert!(options.transparent);
     }
 
     #[test]

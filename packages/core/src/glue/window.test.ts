@@ -16,7 +16,12 @@ test("createWindow returns a handle that targets the created window", () => {
       calls.push(["title", id, title]),
   });
 
-  const child = createWindow({ title: "Inspector", width: 640, height: 480 });
+  const child = createWindow({
+    title: "Inspector",
+    width: 640,
+    height: 480,
+    transparent: true,
+  });
   expect(child.id).toBe(42);
   child.setTitle("Details");
   child.setMaximized(true);
@@ -24,7 +29,10 @@ test("createWindow returns a handle that targets the created window", () => {
   currentWindow().close();
 
   expect(calls).toEqual([
-    ["create", { title: "Inspector", width: 640, height: 480 }],
+    [
+      "create",
+      { title: "Inspector", width: 640, height: 480, transparent: true },
+    ],
     ["title", 42, "Details"],
     ["maximize", 42, true],
     ["close", 42],
