@@ -1,0 +1,48 @@
+//! Bitwarden SDK Client
+
+mod builder;
+#[allow(clippy::module_inception)]
+mod client;
+#[allow(missing_docs)]
+pub mod client_settings;
+#[allow(missing_docs)]
+pub mod encryption_settings;
+mod from_client_part;
+mod gov_mode;
+#[allow(missing_docs)]
+pub mod internal;
+pub use from_client_part::{FromClient, FromClientPart};
+pub use internal::ApiConfigurations;
+#[allow(missing_docs)]
+pub mod login_method;
+#[cfg(any(feature = "internal", feature = "secrets"))]
+pub(crate) use login_method::LoginMethod;
+#[cfg(feature = "secrets")]
+pub(crate) use login_method::ServiceAccountLoginMethod;
+pub(crate) use login_method::UserLoginMethod;
+#[cfg(feature = "internal")]
+mod flags;
+#[cfg(feature = "internal")]
+mod flags_client;
+#[cfg(feature = "internal")]
+pub use flags_client::{FetchFlagsError, FlagsClient};
+#[cfg(feature = "internal")]
+pub mod persisted_state;
+#[cfg(feature = "internal")]
+mod rehydration;
+#[cfg(feature = "internal")]
+pub use rehydration::{RehydrationError, SaveStateData};
+
+pub mod tracing_middleware;
+
+pub use builder::ClientBuilder;
+pub(crate) use builder::build_default_headers;
+pub use client::Client;
+pub use client_settings::{
+    ClientName, ClientSettings, DeviceType, HostPlatformInfo, get_host_platform_info,
+    init_host_platform_info,
+};
+
+#[allow(missing_docs)]
+#[cfg(feature = "internal")]
+pub mod test_accounts;

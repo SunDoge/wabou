@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["apps/*", "crates/*"]
+exclude = ["vendor/bitwarden-sdk"]
 
 [workspace.package]
 license = "Apache-2.0"
@@ -23,3 +24,11 @@ opt-level = 2
 
 [profile.release]
 lto = "thin"
+
+# Vaultwarden may emit both PascalCase and camelCase identity fields. The
+# generated upstream aliases treat those as duplicate fields, so pin a minimal
+# generated-client patch while retaining the SDK's exact 3.0.0 API surface.
+[patch."https://github.com/bitwarden/sdk-internal.git"]
+bitwarden-api-base = { path = "vendor/bitwarden-sdk/bitwarden-api-base" }
+bitwarden-api-identity = { path = "vendor/bitwarden-sdk/bitwarden-api-identity" }
+bitwarden-core = { path = "vendor/bitwarden-sdk/bitwarden-core" }

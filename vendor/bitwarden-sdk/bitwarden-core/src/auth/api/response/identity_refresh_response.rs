@@ -1,0 +1,11 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[cfg_attr(test, derive(Default))]
+pub(crate) struct IdentityTokenRefreshResponse {
+    pub access_token: String,
+    pub expires_in: u64,
+    pub refresh_token: Option<String>,
+    token_type: String,
+    scope: String,
+}

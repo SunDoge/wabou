@@ -644,7 +644,6 @@ dependencies = [
 [[package]]
 name = "bitwarden-api-base"
 version = "3.0.0"
-source = "git+https://github.com/bitwarden/sdk-internal.git?rev=fbd21679c1c3690cba424ad3dbb0ba662eb9863e#fbd21679c1c3690cba424ad3dbb0ba662eb9863e"
 dependencies = [
  "http",
  "reqwest 0.13.4",
@@ -659,7 +658,6 @@ dependencies = [
 [[package]]
 name = "bitwarden-api-identity"
 version = "3.0.0"
-source = "git+https://github.com/bitwarden/sdk-internal.git?rev=fbd21679c1c3690cba424ad3dbb0ba662eb9863e#fbd21679c1c3690cba424ad3dbb0ba662eb9863e"
 dependencies = [
  "async-trait",
  "bitwarden-api-base",
@@ -735,7 +733,6 @@ dependencies = [
 [[package]]
 name = "bitwarden-core"
 version = "3.0.0"
-source = "git+https://github.com/bitwarden/sdk-internal.git?rev=fbd21679c1c3690cba424ad3dbb0ba662eb9863e#fbd21679c1c3690cba424ad3dbb0ba662eb9863e"
 dependencies = [
  "async-trait",
  "bitwarden-api-api",
@@ -763,7 +760,7 @@ dependencies = [
  "serde_json",
  "serde_qs",
  "serde_repr",
- "thiserror 2.0.19",
+ "thiserror 1.0.69",
  "tracing",
  "url",
  "uuid",

@@ -1,0 +1,15 @@
+#![allow(unused_imports, unused_variables, unused_mut, non_camel_case_types)]
+#![allow(
+    clippy::too_many_arguments,
+    clippy::empty_docs,
+    clippy::to_string_in_format_args,
+    clippy::needless_return,
+    clippy::uninlined_format_args,
+    clippy::new_without_default,
+    clippy::derivable_impls
+)]
+
+pub mod apis;
+pub mod models;
+
+pub use bitwarden_api_base::*;
