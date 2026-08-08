@@ -7882,6 +7882,7 @@ dependencies = [
  "bitwarden-api-api",
  "bitwarden-core",
  "bitwarden-crypto-sync-handler",
+ "bitwarden-generators",
  "bitwarden-pm",
  "bitwarden-sync",
  "bitwarden-vault",
