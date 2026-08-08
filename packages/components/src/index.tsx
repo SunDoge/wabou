@@ -368,6 +368,7 @@ export function Alert(props: {
 }
 
 export interface InputProps {
+  type?: "text" | "password";
   value?: string;
   placeholder?: string;
   disabled?: boolean;

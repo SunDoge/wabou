@@ -80,6 +80,7 @@ pub struct TextInput {
     scroll_y: f32,
     disabled: bool,
     read_only: bool,
+    password: bool,
 }
 
 impl Default for TextInput {
@@ -121,6 +122,7 @@ impl TextInput {
             scroll_y: 0.0,
             disabled: false,
             read_only: false,
+            password: false,
         }
     }
 
@@ -315,7 +317,7 @@ impl Widget for TextInput {
             }
 
             // Text glyph runs.
-            if !display_text.is_empty() {
+            if !display_text.is_empty() && !self.password {
                 for line in layout.lines() {
                     for item in line.items() {
                         if let PositionedLayoutItem::GlyphRun(gr) = item {
@@ -341,6 +343,27 @@ impl Widget for TextInput {
                         }
                     }
                 }
+            }
+
+            if !display_text.is_empty() && self.password {
+                let masked = "•".repeat(display_text.chars().count());
+                let masked_layout = layout_text_styled(
+                    tcx,
+                    Arc::from(masked),
+                    self.font_size,
+                    self.font_weight,
+                    self.line_height,
+                    TextAlign::Start,
+                    brush_for_color(text_color),
+                    Arc::from([]),
+                    None,
+                    None,
+                );
+                let glyph_scene = tcx.glyph_scene_scaled(&masked_layout, self.device_scale);
+                scene.append(
+                    &glyph_scene,
+                    Some(transform * Affine::scale(self.device_scale.recip())),
+                );
             }
 
             // Caret.
@@ -618,6 +641,7 @@ impl Widget for TextInput {
             }
             "disabled" => self.disabled = value != "false",
             "readonly" | "readOnly" | "read-only" => self.read_only = value != "false",
+            "type" => self.password = !self.multiline && value.eq_ignore_ascii_case("password"),
             _ => {}
         }
     }
@@ -627,6 +651,7 @@ impl Widget for TextInput {
             "disabled" => self.disabled = false,
             "readonly" | "readOnly" | "read-only" => self.read_only = false,
             "placeholder" => self.placeholder.clear(),
+            "type" => self.password = false,
             _ => {}
         }
     }
@@ -881,6 +906,21 @@ mod tests {
         area.attribute_changed("value", "controlled");
         area.paint(160.0, 64.0, &mut tcx);
         assert_eq!(area.editor.selected_text(), Some("controlled"));
+    }
+
+    #[test]
+    fn password_type_masks_painting_without_changing_the_value() {
+        let mut input = TextInput::new();
+        input.attribute_changed("value", "sëcret🔑");
+        input.attribute_changed("type", "password");
+        let mut tcx = TextContext::new();
+        input.paint(200.0, 32.0, &mut tcx);
+
+        assert!(input.password);
+        assert_eq!(input.current_value(), Some("sëcret🔑"));
+
+        input.attribute_removed("type");
+        assert!(!input.password);
     }
 
     #[test]
