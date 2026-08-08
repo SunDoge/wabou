@@ -146,6 +146,10 @@ If you are evaluating Wabou for an application, open an issue describing the
 use case and the missing capability; real constraints are more valuable than a
 generic feature wishlist.
 
+## Acknowledgments & Inspiration
+
+This project was deeply inspired by [PocketJS](https://github.com/pocket-stack/pocketjs). Their pioneering work in Rust-based minimalistic UI rendering and architectural design significantly influenced the direction of `wabou`.
+
 ## License
 
 Wabou is licensed under the [Apache License 2.0](LICENSE).
