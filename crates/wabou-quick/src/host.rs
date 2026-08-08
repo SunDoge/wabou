@@ -313,7 +313,10 @@ fn bundle_path() -> crate::Result<PathBuf> {
         kind: "current executable path",
         path: PathBuf::from("<current executable>"),
     })?;
-    Ok(resource_bundle_path(&executable))
+    Ok(resource_bundle_candidates(&executable)
+        .into_iter()
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| resource_bundle_path(&executable)))
 }
 
 fn resource_bundle_path(executable: &Path) -> PathBuf {
@@ -323,9 +326,39 @@ fn resource_bundle_path(executable: &Path) -> PathBuf {
         .join("resources/bundle.js")
 }
 
+fn resource_bundle_candidates(executable: &Path) -> Vec<PathBuf> {
+    let adjacent = resource_bundle_path(executable);
+    let Some(directory) = executable.parent() else {
+        return vec![adjacent];
+    };
+    let mut candidates = vec![adjacent];
+
+    // cargo-packager places Debian resources under
+    // /usr/lib/<binary>/resources rather than next to /usr/bin/<binary>.
+    if directory.file_name().and_then(|name| name.to_str()) == Some("bin")
+        && let (Some(prefix), Some(binary)) = (directory.parent(), executable.file_stem())
+    {
+        candidates.push(
+            prefix
+                .join("lib")
+                .join(binary)
+                .join("resources/bundle.js"),
+        );
+    }
+
+    // A macOS .app keeps executables and resources in sibling directories.
+    if directory.file_name().and_then(|name| name.to_str()) == Some("MacOS")
+        && let Some(contents) = directory.parent()
+    {
+        candidates.push(contents.join("Resources/resources/bundle.js"));
+        candidates.push(contents.join("Resources/bundle.js"));
+    }
+    candidates
+}
+
 #[cfg(test)]
 mod tests {
-    use super::resource_bundle_path;
+    use super::{resource_bundle_candidates, resource_bundle_path};
     use std::path::Path;
 
     #[test]
@@ -333,6 +366,29 @@ mod tests {
         assert_eq!(
             resource_bundle_path(Path::new("/opt/demo/demo")),
             Path::new("/opt/demo/resources/bundle.js")
+        );
+    }
+
+    #[test]
+    fn native_packages_expose_platform_resource_candidates() {
+        assert_eq!(
+            resource_bundle_candidates(Path::new("/usr/bin/warden-desktop")),
+            [
+                Path::new("/usr/bin/resources/bundle.js").to_path_buf(),
+                Path::new("/usr/lib/warden-desktop/resources/bundle.js").to_path_buf(),
+            ]
+        );
+        assert_eq!(
+            resource_bundle_candidates(Path::new(
+                "/Applications/Warden.app/Contents/MacOS/warden-desktop"
+            )),
+            [
+                Path::new("/Applications/Warden.app/Contents/MacOS/resources/bundle.js")
+                    .to_path_buf(),
+                Path::new("/Applications/Warden.app/Contents/Resources/resources/bundle.js")
+                    .to_path_buf(),
+                Path::new("/Applications/Warden.app/Contents/Resources/bundle.js").to_path_buf(),
+            ]
         );
     }
 }

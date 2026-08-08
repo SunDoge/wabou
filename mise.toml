@@ -2,4 +2,5 @@
 act = "latest"
 bun = "latest"
 cocogitto = "latest"
+"cargo:cargo-packager" = "0.11.8"
 just = "latest"

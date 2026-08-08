@@ -51,6 +51,7 @@ the host, and the optional inspector.
 ```bash
 bun run wabou run --app-dir apps/gallery
 bun run wabou build --app-dir apps/gallery --release
+bun run wabou package --app-dir apps/gallery
 bun run wabou devtools
 ```
 
@@ -70,6 +71,35 @@ dist/gallery/
 The packaged executable resolves `resources/bundle.js` relative to itself, so
 it runs without the source tree or CLI. On macOS the same resource contract can
 later map to `Gallery.app/Contents/Resources/wabou` before signing.
+
+`package` always performs a release build, copies the executable and resources
+into a deterministic `dist/<app>/stage/` directory, then delegates native
+installer generation to `cargo-packager`. The repository pins that tool through
+mise. Each application opts into native packaging with `wabou.toml`:
+
+```toml
+[package]
+product-name = "Example"
+identifier = "dev.example.desktop"
+description = "A native Wabou application."
+authors = ["Example Team"]
+license-file = "../../LICENSE"
+icons = ["icons/*.png"]
+resources = ["assets"]
+formats = ["appimage", "deb"]
+```
+
+Command-line formats override the file without changing it:
+
+```bash
+bun run wabou package --app-dir apps/gallery --format appimage
+```
+
+Supported adapters are `app`, `dmg`, `nsis`, `wix`, `deb`, `appimage`, and
+`pacman`. Final artifacts are written to `dist/<app>/bundles/`; the generated
+`packager.json` records the exact backend input for diagnostics and CI
+reproduction. Package on the target operating system so platform signing and
+native packaging tools are available.
 
 ## Rust-owned TypeScript bindings
 

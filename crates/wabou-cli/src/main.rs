@@ -9,7 +9,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+use serde::Deserialize;
 use serde_json::{Value, json};
 use vello::Scene;
 use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
@@ -49,6 +50,14 @@ enum Commands {
         app_dir: Option<PathBuf>,
         #[arg(long)]
         release: bool,
+    },
+    /// Build a release application and create native installers or bundles.
+    Package {
+        #[arg(long, value_name = "PATH")]
+        app_dir: Option<PathBuf>,
+        /// Override the formats declared in wabou.toml.
+        #[arg(long, value_enum, action = clap::ArgAction::Append)]
+        format: Vec<PackageFormat>,
     },
     /// Build the frontend bundle and run the Rust host.
     Run {
@@ -128,6 +137,59 @@ enum BindingsCommand {
     Check,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
+#[serde(rename_all = "lowercase")]
+enum PackageFormat {
+    App,
+    Dmg,
+    Nsis,
+    Wix,
+    Deb,
+    Appimage,
+    Pacman,
+}
+
+impl PackageFormat {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::App => "app",
+            Self::Dmg => "dmg",
+            Self::Nsis => "nsis",
+            Self::Wix => "wix",
+            Self::Deb => "deb",
+            Self::Appimage => "appimage",
+            Self::Pacman => "pacman",
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WabouPackageFile {
+    package: PackageConfig,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+struct PackageConfig {
+    product_name: String,
+    identifier: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    authors: Vec<String>,
+    #[serde(default)]
+    copyright: Option<String>,
+    #[serde(default)]
+    license_file: Option<PathBuf>,
+    #[serde(default)]
+    icons: Vec<String>,
+    #[serde(default)]
+    resources: Vec<PathBuf>,
+    #[serde(default)]
+    formats: Vec<PackageFormat>,
+}
+
 #[derive(Subcommand)]
 enum InspectCommand {
     Status,
@@ -190,6 +252,14 @@ fn main() -> Result<()> {
                 &workspace,
                 &load_app(&workspace, &cwd, app_dir.as_deref())?,
                 release,
+            )
+        }
+        Commands::Package { app_dir, format } => {
+            let workspace = find_workspace(&cwd)?;
+            package(
+                &workspace,
+                &load_app(&workspace, &cwd, app_dir.as_deref())?,
+                &format,
             )
         }
         Commands::Run { app_dir, release } => {
@@ -332,6 +402,166 @@ fn build(workspace: &Path, app: &App, release: bool) -> Result<()> {
     ensure(cargo.status()?, "Cargo build")?;
     ensure(frontend(app, "build", &[])?, "Vite build")?;
     package_executable(workspace, app, release)
+}
+
+fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Result<()> {
+    let config = load_package_config(app)?;
+    build(workspace, app, true)?;
+    let (stage, binary) = stage_application(workspace, app, &config)?;
+    let metadata = cargo_metadata(workspace, app)?;
+    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    let version = package_metadata(&metadata, &manifest_path)
+        .and_then(|package| package["version"].as_str())
+        .ok_or("Cargo metadata has no application version")?;
+    let formats = if format_override.is_empty() {
+        &config.formats
+    } else {
+        format_override
+    };
+    if formats.is_empty() {
+        return Err("wabou.toml must declare at least one package format".into());
+    }
+
+    let package_root = workspace.join("dist").join(&app.name);
+    let bundles = package_root.join("bundles");
+    fs::create_dir_all(&bundles)?;
+    let packager_config = package_root.join("packager.json");
+    let resources = stage.join("resources");
+    let icons = config
+        .icons
+        .iter()
+        .map(|path| app.root.join(path).to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    let license_file = config
+        .license_file
+        .as_ref()
+        .map(|path| app.root.join(path).to_string_lossy().into_owned());
+    let generated = json!({
+        "name": app.name,
+        "productName": config.product_name,
+        "version": version,
+        "identifier": config.identifier,
+        "description": config.description,
+        "authors": config.authors,
+        "copyright": config.copyright,
+        "licenseFile": license_file,
+        "icons": icons,
+        "binaries": [{ "path": binary, "main": true }],
+        "binariesDir": stage,
+        "resources": [{ "src": resources, "target": "resources" }],
+        "formats": formats.iter().map(|format| format.as_str()).collect::<Vec<_>>(),
+        "outDir": bundles,
+    });
+    fs::write(&packager_config, serde_json::to_vec_pretty(&generated)?)?;
+
+    let status = Command::new("cargo")
+        .current_dir(workspace)
+        .args([
+            "packager",
+            "--release",
+            "--config",
+            &packager_config.to_string_lossy(),
+        ])
+        .status()?;
+    if !status.success() {
+        return Err(format!(
+            "cargo-packager failed with {status}; install cargo-packager 0.11.8 (the repository pins it in mise.toml)"
+        )
+        .into());
+    }
+    println!("[wabou] native packages: {}", bundles.display());
+    Ok(())
+}
+
+fn load_package_config(app: &App) -> Result<PackageConfig> {
+    let path = app.root.join("wabou.toml");
+    let source = fs::read_to_string(&path).map_err(|error| {
+        format!(
+            "cannot read package configuration {}: {error}",
+            path.display()
+        )
+    })?;
+    let file: WabouPackageFile =
+        toml::from_str(&source).map_err(|error| format!("invalid {}: {error}", path.display()))?;
+    if file.package.product_name.trim().is_empty() {
+        return Err("package.product-name cannot be empty".into());
+    }
+    let identifier = file.package.identifier.as_str();
+    if !identifier.contains('.')
+        || !identifier
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+    {
+        return Err("package.identifier must be a reverse-domain identifier".into());
+    }
+    Ok(file.package)
+}
+
+fn stage_application(
+    workspace: &Path,
+    app: &App,
+    config: &PackageConfig,
+) -> Result<(PathBuf, String)> {
+    let package_root = workspace.join("dist").join(&app.name);
+    let stage = package_root.join("stage");
+    if stage.is_dir() {
+        fs::remove_dir_all(&stage)?;
+    }
+    let resources = stage.join("resources");
+    fs::create_dir_all(&resources)?;
+    let binary = app_binary(workspace, app)?;
+    fs::copy(package_root.join(&binary), stage.join(&binary))?;
+    fs::copy(
+        package_root.join("resources/bundle.js"),
+        resources.join("bundle.js"),
+    )?;
+
+    let app_root = app.root.canonicalize()?;
+    for relative in &config.resources {
+        let source = app.root.join(relative).canonicalize().map_err(|error| {
+            format!(
+                "cannot stage package resource {}: {error}",
+                relative.display()
+            )
+        })?;
+        if !source.starts_with(&app_root) {
+            return Err(format!(
+                "package resource {} escapes the application directory",
+                relative.display()
+            )
+            .into());
+        }
+        let name = source
+            .file_name()
+            .ok_or("package resource must have a file name")?;
+        copy_resource(&source, &resources.join(name))?;
+    }
+    Ok((stage, binary))
+}
+
+fn copy_resource(source: &Path, destination: &Path) -> Result<()> {
+    if fs::symlink_metadata(source)?.file_type().is_symlink() {
+        return Err(format!(
+            "package resources cannot contain symbolic links: {}",
+            source.display()
+        )
+        .into());
+    }
+    if source.is_dir() {
+        fs::create_dir_all(destination)?;
+        for entry in fs::read_dir(source)? {
+            let entry = entry?;
+            copy_resource(&entry.path(), &destination.join(entry.file_name()))?;
+        }
+    } else if source.is_file() {
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(source, destination)?;
+    } else {
+        return Err(format!("unsupported package resource {}", source.display()).into());
+    }
+    Ok(())
 }
 
 fn run(workspace: &Path, app: &App, release: bool) -> Result<()> {
@@ -762,11 +992,7 @@ fn cargo_metadata(workspace: &Path, app: &App) -> Result<Value> {
 }
 
 fn binary_target<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Value> {
-    let package = metadata["packages"].as_array()?.iter().find(|package| {
-        package["manifest_path"]
-            .as_str()
-            .is_some_and(|path| Path::new(path) == manifest_path)
-    })?;
+    let package = package_metadata(metadata, manifest_path)?;
     let binaries = package["targets"]
         .as_array()?
         .iter()
@@ -787,6 +1013,14 @@ fn binary_target<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Va
         } else {
             None
         }
+    })
+}
+
+fn package_metadata<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Value> {
+    metadata["packages"].as_array()?.iter().find(|package| {
+        package["manifest_path"]
+            .as_str()
+            .is_some_and(|path| Path::new(path) == manifest_path)
     })
 }
 
@@ -969,6 +1203,76 @@ mod tests {
             assert_eq!(app_dir.as_deref(), Some(Path::new("apps/gallery")));
             assert_eq!(command, expected);
         }
+    }
+
+    #[test]
+    fn parses_native_package_format_overrides() {
+        let Cli {
+            command: Commands::Package { app_dir, format },
+        } = Cli::try_parse_from([
+            "wabou",
+            "package",
+            "--app-dir",
+            "apps/warden-desktop",
+            "--format",
+            "appimage",
+            "--format",
+            "deb",
+        ])
+        .unwrap()
+        else {
+            panic!("expected package command");
+        };
+        assert_eq!(app_dir.as_deref(), Some(Path::new("apps/warden-desktop")));
+        assert_eq!(format, [PackageFormat::Appimage, PackageFormat::Deb]);
+    }
+
+    #[test]
+    fn package_configuration_is_strict_and_app_owned() {
+        let root = env::temp_dir().join(format!(
+            "wabou-cli-package-config-{}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("wabou.toml"),
+            r#"[package]
+product-name = "Example"
+identifier = "dev.wabou.example"
+resources = ["assets"]
+formats = ["deb"]
+"#,
+        )
+        .unwrap();
+        let app = App {
+            name: "example".into(),
+            root: root.clone(),
+            frontend: root.clone(),
+            entry: "ui/index.tsx".into(),
+        };
+        let config = load_package_config(&app).unwrap();
+        assert_eq!(config.product_name, "Example");
+        assert_eq!(config.formats, [PackageFormat::Deb]);
+        assert_eq!(config.resources, [PathBuf::from("assets")]);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn recursively_stages_application_resources() {
+        let root = env::temp_dir().join(format!(
+            "wabou-cli-package-resource-{}",
+            std::process::id()
+        ));
+        let source = root.join("assets/nested");
+        let destination = root.join("stage/assets");
+        fs::create_dir_all(&source).unwrap();
+        fs::write(source.join("fixture.txt"), "staged").unwrap();
+        copy_resource(&root.join("assets"), &destination).unwrap();
+        assert_eq!(
+            fs::read_to_string(destination.join("nested/fixture.txt")).unwrap(),
+            "staged"
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
