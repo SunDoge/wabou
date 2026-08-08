@@ -13,7 +13,12 @@
 // load and re-export its methods as named exports below.
 
 import { EVENT_CODE, type EventType, OP, Writer } from "@wabou/protocol";
-import { type Affine2D, isTypedStyleValue, type Shadow } from "@wabou/style";
+import {
+  type Affine2D,
+  assertInlineStyleValue,
+  isTypedStyleValue,
+  type Shadow,
+} from "@wabou/style";
 import { createMemo, splitProps, untrack } from "solid-js";
 export const isServer = false;
 export const getRequestEvent = () => undefined;
@@ -372,6 +377,7 @@ function applyProperty(
         writer.removeStyle(node.id, k);
         continue;
       }
+      assertInlineStyleValue(k, next);
       if (isTypedStyleValue(next)) {
         writer.setStyleValue(node.id, k, next.kind, next.value);
         continue;

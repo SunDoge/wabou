@@ -1,21 +1,54 @@
 import { describe, expect, test } from "bun:test";
 import {
+  assertInlineStyleValue,
   classes,
   isTypedStyleValue,
+  number,
   percent,
   px,
   rgba,
   shadow,
+  type WabouStyle,
   type WabouUtility,
 } from "./index.ts";
 
 describe("typed style", () => {
+  test("exposes a property-aware style type", () => {
+    const valid = {
+      width: px(10),
+      color: rgba(0xffffffff),
+    } satisfies WabouStyle;
+    expect(valid.width.value).toBe(10);
+    // @ts-expect-error colors cannot be used as dimensions.
+    const invalidKind = { width: rgba(0xffffffff) } satisfies WabouStyle;
+    // @ts-expect-error camelCase properties are not part of WabouStyle.
+    const invalidName = { alignItems: "center" } satisfies WabouStyle;
+    expect([invalidKind, invalidName]).toHaveLength(2);
+  });
+
   test("constructs allocation-light tagged values", () => {
     expect(px(12.5)).toMatchObject({ kind: 1, value: 12.5 });
     expect(percent(0.5)).toMatchObject({ kind: 2, value: 0.5 });
     expect(rgba(0x112233ff)).toMatchObject({ kind: 5, value: 0x112233ff });
     expect(isTypedStyleValue(px(1))).toBe(true);
     expect(isTypedStyleValue("1px")).toBe(false);
+    expect(() => px(Number.NaN)).toThrow("px must be finite");
+    expect(() => number(Number.POSITIVE_INFINITY)).toThrow(
+      "number must be finite",
+    );
+  });
+
+  test("rejects unsupported properties and mismatched typed values", () => {
+    expect(() => assertInlineStyleValue("alignItems", "center")).toThrow(
+      "use align-items",
+    );
+    expect(() => assertInlineStyleValue("width", rgba(0xff0000ff))).toThrow(
+      "invalid for width",
+    );
+    expect(() => assertInlineStyleValue("box-shadow", "none")).toThrow(
+      "unsupported inline style property",
+    );
+    expect(() => assertInlineStyleValue("width", px(10))).not.toThrow();
   });
 
   test("type-checks and joins generated utilities", () => {

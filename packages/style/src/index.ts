@@ -1,5 +1,10 @@
+export {
+  INLINE_STYLE_CONTRACT,
+  type WabouStyle,
+} from "../generated/style-properties.ts";
 export * from "../generated/utility-types.ts";
 
+import { INLINE_STYLE_CONTRACT } from "../generated/style-properties.ts";
 import type { WabouUtility } from "../generated/utility-types.ts";
 
 export const STYLE_VALUE = "__wabou_style_value__" as const;
@@ -16,34 +21,50 @@ export const StyleValueKind = {
 export type StyleValueKind =
   (typeof StyleValueKind)[keyof typeof StyleValueKind];
 
-export interface TypedStyleValue {
+export interface TypedStyleValue<K extends StyleValueKind = StyleValueKind> {
   readonly [STYLE_VALUE]: true;
-  readonly kind: StyleValueKind;
+  readonly kind: K;
   readonly value: number;
 }
 
-function typed(kind: StyleValueKind, value = 0): TypedStyleValue {
+function finite(value: number, name: string): number {
+  if (!Number.isFinite(value)) throw new TypeError(`${name} must be finite`);
+  return value;
+}
+
+function typed<K extends StyleValueKind>(
+  kind: K,
+  value = 0,
+): TypedStyleValue<K> {
   return { [STYLE_VALUE]: true, kind, value };
 }
 
 /** Device-independent logical pixels. */
-export const px = (value: number): TypedStyleValue =>
-  typed(StyleValueKind.Px, value);
+export const px = (value: number): TypedStyleValue<typeof StyleValueKind.Px> =>
+  typed(StyleValueKind.Px, finite(value, "px"));
 
 /** A ratio where `1` means 100%. */
-export const percent = (value: number): TypedStyleValue =>
-  typed(StyleValueKind.Percent, value);
+export const percent = (
+  value: number,
+): TypedStyleValue<typeof StyleValueKind.Percent> =>
+  typed(StyleValueKind.Percent, finite(value, "percent"));
 
 /** A unitless numeric style value such as opacity or flex-grow. */
-export const number = (value: number): TypedStyleValue =>
-  typed(StyleValueKind.Number, value);
+export const number = (
+  value: number,
+): TypedStyleValue<typeof StyleValueKind.Number> =>
+  typed(StyleValueKind.Number, finite(value, "number"));
 
-export const bool = (value: boolean): TypedStyleValue =>
+export const bool = (
+  value: boolean,
+): TypedStyleValue<typeof StyleValueKind.Boolean> =>
   typed(StyleValueKind.Boolean, value ? 1 : 0);
 
 /** Packed RGBA in `0xRRGGBBAA` order. */
-export const rgba = (value: number): TypedStyleValue =>
-  typed(StyleValueKind.Color, value >>> 0);
+export const rgba = (
+  value: number,
+): TypedStyleValue<typeof StyleValueKind.Color> =>
+  typed(StyleValueKind.Color, finite(value, "rgba") >>> 0);
 
 /** One Vello blurred-rounded-rectangle shadow layer. */
 export interface Shadow {
@@ -91,7 +112,8 @@ export function shadow(options: ShadowOptions): Shadow {
   return result;
 }
 
-export const auto = (): TypedStyleValue => typed(StyleValueKind.Auto);
+export const auto = (): TypedStyleValue<typeof StyleValueKind.Auto> =>
+  typed(StyleValueKind.Auto);
 
 export function isTypedStyleValue(value: unknown): value is TypedStyleValue {
   return (
@@ -101,10 +123,46 @@ export function isTypedStyleValue(value: unknown): value is TypedStyleValue {
   );
 }
 
-export type WabouStyle = Record<
-  string,
-  string | number | TypedStyleValue | null | undefined
->;
+export function assertInlineStyleValue(property: string, value: unknown): void {
+  const contract = (
+    INLINE_STYLE_CONTRACT as Record<
+      string,
+      { string: boolean; number: boolean; typed: readonly number[] }
+    >
+  )[property];
+  if (!contract) {
+    const kebab = property.replace(
+      /[A-Z]/g,
+      (letter) => `-${letter.toLowerCase()}`,
+    );
+    const suggestion =
+      kebab !== property && kebab in INLINE_STYLE_CONTRACT
+        ? `; use ${kebab}`
+        : "";
+    throw new TypeError(
+      `unsupported inline style property ${property}${suggestion}`,
+    );
+  }
+  if (isTypedStyleValue(value)) {
+    if (!Number.isFinite(value.value)) {
+      throw new TypeError(`inline style ${property} must be finite`);
+    }
+    if (!contract.typed.includes(value.kind)) {
+      throw new TypeError(
+        `typed style kind ${value.kind} is invalid for ${property}`,
+      );
+    }
+    return;
+  }
+  if (typeof value === "string" && contract.string) return;
+  if (typeof value === "number" && contract.number) {
+    if (!Number.isFinite(value)) {
+      throw new TypeError(`inline style ${property} must be finite`);
+    }
+    return;
+  }
+  throw new TypeError(`invalid inline style value for ${property}`);
+}
 
 /** A 2D affine matrix in CSS/Vello `[a, b, c, d, e, f]` order. */
 export type Affine2D = readonly [

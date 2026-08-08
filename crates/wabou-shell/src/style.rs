@@ -568,6 +568,13 @@ pub fn apply_ir(
                 if let Some(v) = fields.get("left").and_then(ir_lpa) {
                     style.margin.left = v;
                 }
+            } else if let Some(v) = ir_lpa(value) {
+                style.margin = taffy::Rect {
+                    top: v,
+                    right: v,
+                    bottom: v,
+                    left: v,
+                };
             }
         }
         "border-radius" => {
