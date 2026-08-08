@@ -21,6 +21,9 @@ use wabou_shell::{
     FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
     PointerPhase, TextContext, UiEvent, WheelEvent,
 };
+
+mod packaging;
+
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 #[derive(Parser)]
@@ -452,24 +455,10 @@ fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Re
         "formats": formats.iter().map(|format| format.as_str()).collect::<Vec<_>>(),
         "outDir": bundles,
     });
-    fs::write(&packager_config, serde_json::to_vec_pretty(&generated)?)?;
-
-    let status = Command::new("cargo")
-        .current_dir(workspace)
-        .args([
-            "packager",
-            "--release",
-            "--config",
-            &packager_config.to_string_lossy(),
-        ])
-        .status()?;
-    if !status.success() {
-        return Err(format!(
-            "cargo-packager failed with {status}; install cargo-packager 0.11.8 (the repository pins it in mise.toml)"
-        )
-        .into());
+    let outputs = packaging::package(&generated, &packager_config)?;
+    for output in outputs {
+        println!("[wabou] packaged {}", output.display());
     }
-    println!("[wabou] native packages: {}", bundles.display());
     Ok(())
 }
 

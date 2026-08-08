@@ -73,9 +73,10 @@ it runs without the source tree or CLI. On macOS the same resource contract can
 later map to `Gallery.app/Contents/Resources/wabou` before signing.
 
 `package` always performs a release build, copies the executable and resources
-into a deterministic `dist/<app>/stage/` directory, then delegates native
-installer generation to `cargo-packager`. The repository pins that tool through
-mise. Each application opts into native packaging with `wabou.toml`:
+into a deterministic `dist/<app>/stage/` directory, then invokes the typed
+`cargo-packager` library embedded in `wabou-cli`. Users do not install a
+separate packaging executable. Each application opts into native packaging
+with `wabou.toml`:
 
 ```toml
 [package]
