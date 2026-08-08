@@ -95,6 +95,8 @@ fn root_update(
                         SemanticRole::Image => Role::Image,
                         SemanticRole::Link => Role::Link,
                         SemanticRole::Dialog => Role::Dialog,
+                        SemanticRole::Alert => Role::Alert,
+                        SemanticRole::Status => Role::Status,
                     };
                     let mut node = Node::new(role);
                     if let Some(label) = &semantic.label {
@@ -313,6 +315,38 @@ mod tests {
             update.nodes[0].1.bounds(),
             Some(Rect::new(0.0, 0.0, 800.0, 600.0))
         );
+    }
+
+    #[test]
+    fn live_region_roles_reach_accesskit() {
+        let snapshot = SemanticSnapshot {
+            revision: 1,
+            nodes: vec![
+                crate::SemanticNode {
+                    id: 2,
+                    role: SemanticRole::Status,
+                    label: Some("Saved".into()),
+                    bounds: [0.0, 0.0, 100.0, 20.0],
+                    children: vec![],
+                    disabled: false,
+                },
+                crate::SemanticNode {
+                    id: 3,
+                    role: SemanticRole::Alert,
+                    label: Some("Connection lost".into()),
+                    bounds: [0.0, 20.0, 100.0, 40.0],
+                    children: vec![],
+                    disabled: false,
+                },
+            ],
+            root_children: vec![2, 3],
+            ..SemanticSnapshot::default()
+        };
+        let update = root_update("Gallery".into(), 200.0, 100.0, 1.0, true, Some(&snapshot));
+        assert_eq!(update.nodes[1].1.role(), Role::Status);
+        assert_eq!(update.nodes[1].1.label(), Some("Saved"));
+        assert_eq!(update.nodes[2].1.role(), Role::Alert);
+        assert_eq!(update.nodes[2].1.label(), Some("Connection lost"));
     }
 
     #[test]

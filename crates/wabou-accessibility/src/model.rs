@@ -9,6 +9,8 @@ pub enum SemanticRole {
     Image,
     Link,
     Dialog,
+    Alert,
+    Status,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -144,8 +144,8 @@ export function Modal(props: ModalProps): JSX.Element {
               width: "100%",
               height: "100%",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              "align-items": "center",
+              "justify-content": "center",
               ...props.backdropStyle,
             };
           },

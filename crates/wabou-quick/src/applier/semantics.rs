@@ -45,6 +45,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             "img" | "image" => SemanticRole::Image,
             "link" | "a" => SemanticRole::Link,
             "dialog" | "alertdialog" => SemanticRole::Dialog,
+            "alert" => SemanticRole::Alert,
+            "status" => SemanticRole::Status,
             "text" | "#text" | "label" => SemanticRole::Label,
             _ => SemanticRole::Generic,
         }

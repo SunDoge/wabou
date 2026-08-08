@@ -29,6 +29,19 @@ export {
   type ModalTriggerProps,
 } from "./modal";
 export {
+  createNotifications,
+  type NotificationControls,
+  type NotificationDismissReason,
+  type NotificationInput,
+  type NotificationItem,
+  type NotificationPlacement,
+  type NotificationPriority,
+  NotificationRegion,
+  type NotificationRegionProps,
+  type Notifications,
+  type NotificationsOptions,
+} from "./notification";
+export {
   Popover,
   type PopoverProps,
   type PopoverTriggerProps,
