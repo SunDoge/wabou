@@ -43,8 +43,15 @@ use wabou_shell::{
 
 mod graphics;
 mod kitty_keyboard;
+mod process;
 
 use graphics::{KittyLayer, TerminalGraphics};
+#[cfg(test)]
+use process::quote_windows_command_arg;
+use process::{
+    LaunchConfig, default_shell_command, pty_spawn_parts, spawn_child_reaper,
+    validate_launch_command,
+};
 
 const DEFAULT_COLUMNS: usize = 80;
 const DEFAULT_ROWS: usize = 24;
@@ -110,214 +117,6 @@ impl WheelLineAccumulator {
         let lines = (self.remainder / WHEEL_LINE_DELTA).trunc() as i32;
         self.remainder -= f64::from(lines) * WHEEL_LINE_DELTA;
         lines
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct LaunchConfig {
-    command: String,
-    args: Vec<String>,
-    cwd: Option<String>,
-    login_shell: bool,
-}
-
-impl LaunchConfig {
-    fn default_shell() -> Self {
-        Self {
-            command: default_shell_command(),
-            args: Vec::new(),
-            cwd: None,
-            login_shell: true,
-        }
-    }
-}
-
-fn pty_spawn_parts(launch: &LaunchConfig) -> (String, Vec<String>) {
-    #[cfg(windows)]
-    {
-        (
-            quote_windows_command_arg(&launch.command),
-            launch
-                .args
-                .iter()
-                .map(|arg| quote_windows_command_arg(arg))
-                .collect(),
-        )
-    }
-    #[cfg(not(windows))]
-    {
-        let mut args = vec![
-            "TERM=xterm-256color".into(),
-            "COLORTERM=truecolor".into(),
-            "TERM_PROGRAM=wabou".into(),
-            format!("TERM_PROGRAM_VERSION={}", env!("CARGO_PKG_VERSION")),
-            launch.command.clone(),
-        ];
-        #[cfg(target_os = "macos")]
-        if launch.login_shell {
-            args.push("-l".into());
-        }
-        args.extend(launch.args.iter().cloned());
-        ("/usr/bin/env".into(), args)
-    }
-}
-
-/// Quote one argv item for the Windows `CommandLineToArgvW` rules.
-///
-/// teletypewriter's ConPTY backend accepts a command-line string and joins its
-/// argument vector with spaces, so its inputs must already preserve argument
-/// boundaries. Backslashes are only special immediately before a quote or the
-/// closing quote.
-#[cfg(any(windows, test))]
-fn quote_windows_command_arg(value: &str) -> String {
-    if !value.is_empty()
-        && !value
-            .bytes()
-            .any(|byte| byte.is_ascii_whitespace() || byte == b'"')
-    {
-        return value.to_owned();
-    }
-
-    let mut quoted = String::with_capacity(value.len() + 2);
-    quoted.push('"');
-    let mut backslashes = 0;
-    for character in value.chars() {
-        if character == '\\' {
-            backslashes += 1;
-            continue;
-        }
-        if character == '"' {
-            quoted.extend(std::iter::repeat_n('\\', backslashes * 2 + 1));
-        } else {
-            quoted.extend(std::iter::repeat_n('\\', backslashes));
-        }
-        backslashes = 0;
-        quoted.push(character);
-    }
-    quoted.extend(std::iter::repeat_n('\\', backslashes * 2));
-    quoted.push('"');
-    quoted
-}
-
-#[cfg(unix)]
-fn validate_launch_command(command: &str) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let path = PathBuf::from(command);
-    let candidates: Vec<PathBuf> = if path.components().count() > 1 {
-        vec![path]
-    } else {
-        std::env::var_os("PATH")
-            .map(|path| {
-                std::env::split_paths(&path)
-                    .map(|directory| directory.join(command))
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    let mut found_non_executable = false;
-    for candidate in candidates {
-        let Ok(metadata) = candidate.metadata() else {
-            continue;
-        };
-        if metadata.is_file() && metadata.permissions().mode() & 0o111 != 0 {
-            return Ok(());
-        }
-        found_non_executable = true;
-    }
-    let kind = if found_non_executable {
-        std::io::ErrorKind::PermissionDenied
-    } else {
-        std::io::ErrorKind::NotFound
-    };
-    Err(std::io::Error::new(
-        kind,
-        format!("terminal command is not executable: {command}"),
-    ))
-}
-
-#[cfg(not(unix))]
-fn validate_launch_command(_command: &str) -> std::io::Result<()> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn spawn_child_reaper(
-    pid: libc::pid_t,
-) -> std::io::Result<std::thread::JoinHandle<std::io::Result<()>>> {
-    const SHUTDOWN_GRACE: Duration = Duration::from_millis(500);
-    std::thread::Builder::new()
-        .name("PTY child reaper".into())
-        .spawn(move || {
-            let deadline = Instant::now() + SHUTDOWN_GRACE;
-            let mut sent_hangup = false;
-            loop {
-                let mut status = 0;
-                let result = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
-                if result == pid {
-                    return Ok(());
-                }
-                if result == 0 {
-                    if !sent_hangup {
-                        // create_pty_with_spawn calls setsid in the child, so
-                        // its PID is also the process-group id. Signal the
-                        // whole terminal job, including descendants.
-                        unsafe { libc::kill(-pid, libc::SIGHUP) };
-                        sent_hangup = true;
-                    }
-                    if Instant::now() >= deadline {
-                        unsafe {
-                            libc::kill(-pid, libc::SIGKILL);
-                            // Fall back to the direct child for unusual PTY
-                            // implementations without a separate group.
-                            libc::kill(pid, libc::SIGKILL);
-                        }
-                        loop {
-                            let result = unsafe { libc::waitpid(pid, &mut status, 0) };
-                            if result == pid {
-                                return Ok(());
-                            }
-                            let error = std::io::Error::last_os_error();
-                            if error.kind() == std::io::ErrorKind::Interrupted {
-                                continue;
-                            }
-                            if error.raw_os_error() == Some(libc::ECHILD) {
-                                return Ok(());
-                            }
-                            return Err(error);
-                        }
-                    }
-                    std::thread::sleep(Duration::from_millis(10));
-                    continue;
-                }
-                let error = std::io::Error::last_os_error();
-                if error.kind() == std::io::ErrorKind::Interrupted {
-                    continue;
-                }
-                // Rio might have observed SIGCHLD and reaped a naturally
-                // exiting process before widget teardown reached this task.
-                if error.raw_os_error() == Some(libc::ECHILD) {
-                    return Ok(());
-                }
-                return Err(error);
-            }
-        })
-}
-
-fn default_shell_command() -> String {
-    #[cfg(windows)]
-    {
-        std::env::var("COMSPEC")
-            .ok()
-            .filter(|command| !command.is_empty())
-            .unwrap_or_else(|| "cmd.exe".into())
-    }
-    #[cfg(not(windows))]
-    {
-        std::env::var("SHELL")
-            .ok()
-            .filter(|command| !command.is_empty())
-            .unwrap_or_else(|| "/bin/sh".into())
     }
 }
 
@@ -1560,11 +1359,11 @@ impl Widget for TerminalWidget {
                 let x = column as f64 * self.cell_width as f64;
                 let text_y =
                     y as f64 + ((self.line_height - layout.height()) * 0.5).max(0.0) as f64;
-                let italic = style
-                    .flags
-                    .contains(StyleFlags::ITALIC)
-                    .then(|| Affine::skew(-0.18, 0.0))
-                    .unwrap_or(Affine::IDENTITY);
+                let italic = if style.flags.contains(StyleFlags::ITALIC) {
+                    Affine::skew(-0.18, 0.0)
+                } else {
+                    Affine::IDENTITY
+                };
                 scene.append(
                     &glyph_scene,
                     Some(
@@ -2459,6 +2258,7 @@ fn cell_fill_rect(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_cell_decorations(
     scene: &mut Scene,
     column: usize,
@@ -3907,9 +3707,11 @@ mod tests {
     #[test]
     fn host_theme_defaults_are_opt_in_and_osc_overrides_them() {
         let mut widget = TerminalWidget::headless(20, 4);
-        let mut paint = Paint::default();
-        paint.text_color = Color::from_rgb8(0x11, 0x22, 0x33);
-        paint.background = Some(Color::from_rgb8(0x44, 0x55, 0x66));
+        let paint = Paint {
+            text_color: Color::from_rgb8(0x11, 0x22, 0x33),
+            background: Some(Color::from_rgb8(0x44, 0x55, 0x66)),
+            ..Paint::default()
+        };
 
         widget.style_changed(&WidgetStyle::from(&paint));
         assert_eq!(
@@ -4812,7 +4614,7 @@ mod tests {
         let mut sgr = TerminalWidget::headless(20, 4);
         sgr.feed(b"\x1b[?1000h\x1b[?1006h");
         sgr.handle_event(&pointer(PointerPhase::Down, x, y, 1));
-        sgr.handle_event(&UiEvent::Pointer(cancelled.clone()));
+        sgr.handle_event(&UiEvent::Pointer(cancelled));
         assert_eq!(sgr.take_input(), b"\x1b[<0;3;2M\x1b[<0;3;2m");
 
         let mut legacy = TerminalWidget::headless(20, 4);

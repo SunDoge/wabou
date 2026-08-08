@@ -419,6 +419,8 @@ impl ApplicationHandler for App {
                 let Some(shell) = self.state.as_mut() else {
                     return;
                 };
+                let semantics_enabled = shell.accessibility.prepare_frame();
+                self.source.set_semantics_enabled(semantics_enabled);
                 for action in shell.accessibility.take_actions() {
                     self.source.handle_semantic_action(action);
                 }
@@ -798,6 +800,7 @@ impl ApplicationHandler for MultiWindowApp {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 mod tests {
     use super::*;
     use crate::layout::PlacedNode;
@@ -837,7 +840,7 @@ mod tests {
         let source = || {
             Box::new(EventRecordingSource(Arc::new(Mutex::new(Vec::new())))) as Box<dyn FrameSource>
         };
-        let mut windows = vec![App::new(source()), App::new(source())];
+        let mut windows = [App::new(source()), App::new(source())];
         windows[0].logical_window_id = 11;
         windows[1].logical_window_id = 22;
 

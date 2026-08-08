@@ -43,6 +43,8 @@ use wabou_shell::{
 };
 
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
+
+mod semantics;
 use crate::host_msg::{DEFAULT_HOST_MSG_CAPACITY, HostMsgHandle, HostMsgInbox, host_msg_channel};
 use crate::inline_context::{
     InlineFormattingContext, NodeFacts, rect_has_nonzero_lp, rect_has_nonzero_lpa, size_is_explicit,
@@ -102,7 +104,7 @@ struct ScrollbarHit {
 #[derive(Clone)]
 enum HitItem {
     Content(HitNode),
-    Scrollbar(ScrollbarHit),
+    Scrollbar(Box<ScrollbarHit>),
 }
 
 fn hit_contains(rect: [f32; 4], radius: f32, transform: Affine, point: Point) -> bool {
@@ -407,6 +409,7 @@ pub struct Applier {
     /// Logical child order per parent (Solid/DOM tree). Taffy children are a
     /// projection of this via [`InlineFormattingContext`].
     children: HashMap<NodeId, Vec<NodeId>>,
+    logical_parent: HashMap<NodeId, NodeId>,
     declared: HashMap<NodeId, Declared>,
     /// Latest IFC build: which parents are Parley leaves and their plain text.
     /// Layout boxes are applied to Taffy; styled runs are filled in inherit.
@@ -488,7 +491,9 @@ pub struct Applier {
     scrollbar_drag: Option<ScrollbarDrag>,
     hovered_scrollbar: Option<(NodeId, ScrollAxis)>,
     scrollbar_activity: HashMap<NodeId, Instant>,
-    semantic_snapshot: SemanticSnapshot,
+    semantics_enabled: bool,
+    semantics_dirty: bool,
+    semantic_snapshot: Arc<SemanticSnapshot>,
     /// Rust-side widgets (TextInput, Canvas, …) keyed by taffy NodeId.
     /// Painted every frame after layout; composited by `build_scene`.
     widgets: HashMap<NodeId, Box<dyn crate::widget::Widget>>,
@@ -706,6 +711,7 @@ impl Applier {
             solid_to_node,
             node_to_solid,
             children,
+            logical_parent: HashMap::new(),
             declared,
             collapsed_text: HashMap::new(),
             inline_roots: HashSet::new(),
@@ -756,7 +762,9 @@ impl Applier {
             scrollbar_drag: None,
             hovered_scrollbar: None,
             scrollbar_activity: HashMap::new(),
-            semantic_snapshot: SemanticSnapshot::default(),
+            semantics_enabled: false,
+            semantics_dirty: true,
+            semantic_snapshot: Arc::new(SemanticSnapshot::default()),
             widgets: HashMap::new(),
             widget_styles: HashMap::new(),
             pending_host_actions,
@@ -1001,7 +1009,9 @@ impl Applier {
         self.scrollbar_drag = None;
         self.hovered_scrollbar = None;
         self.scrollbar_activity.clear();
-        self.semantic_snapshot = SemanticSnapshot::default();
+        self.logical_parent.clear();
+        self.semantic_snapshot = Arc::new(SemanticSnapshot::default());
+        self.semantics_dirty = true;
         self.pending_value_sync.clear();
         self.dirty_styles.clear();
         self.pointer_down_target = None;
@@ -1070,6 +1080,7 @@ impl Applier {
     }
 
     fn apply_op(&mut self, op: &Op) {
+        self.semantics_dirty = true;
         match op {
             Op::CreateElement { id, tag, attrs } => {
                 let id = *id;
@@ -1077,8 +1088,10 @@ impl Applier {
                     .tree
                     .new_leaf(taffy::Style::default())
                     .expect("new_leaf");
-                let mut decl = Declared::default();
-                decl.tag = Some(*tag);
+                let mut decl = Declared {
+                    tag: Some(*tag),
+                    ..Declared::default()
+                };
                 let class_value = {
                     let atoms = self.atoms.borrow();
                     if atoms.resolve(*tag).is_none() {
@@ -1129,8 +1142,10 @@ impl Applier {
                     .tree
                     .new_leaf(taffy::Style::default())
                     .expect("new_leaf");
-                let mut decl = Declared::default();
-                decl.text = Some(Arc::from(*text));
+                let decl = Declared {
+                    text: Some(Arc::from(*text)),
+                    ..Declared::default()
+                };
                 self.solid_to_node.insert(id, node);
                 self.node_to_solid.insert(node, id);
                 self.declared.insert(node, decl);
@@ -1145,6 +1160,7 @@ impl Applier {
                     return;
                 };
                 self.children.entry(p).or_default().push(c);
+                self.logical_parent.insert(c, p);
                 let kids = self.children[&p].clone();
                 let _ = self.tree.set_children(p, &kids);
                 // Nodes are styled when created, before they have a parent.
@@ -1177,6 +1193,7 @@ impl Applier {
                 let kids = self.children.entry(p).or_default();
                 let idx = idx.min(kids.len());
                 kids.insert(idx, c);
+                self.logical_parent.insert(c, p);
                 let kids = kids.clone();
                 let _ = self.tree.set_children(p, &kids);
                 self.recompute_subtree(c);
@@ -1193,6 +1210,9 @@ impl Applier {
                     let k = kids.clone();
                     let _ = self.tree.set_children(p, &k);
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
+                }
+                if self.logical_parent.get(&c) == Some(&p) {
+                    self.logical_parent.remove(&c);
                 }
             }
             Op::ReplaceNode {
@@ -1214,6 +1234,8 @@ impl Applier {
                     let k = kids.clone();
                     let _ = self.tree.set_children(p, &k);
                 }
+                self.logical_parent.remove(&old);
+                self.logical_parent.insert(new, p);
                 self.recompute_subtree(new);
             }
             Op::SetText { id, text } => {
@@ -1476,10 +1498,10 @@ impl Applier {
                             d.classes.clear();
                         }
                     }
-                    if let Some(widget) = self.widgets.get_mut(&n) {
-                        if let Some(n_str) = self.atoms.borrow().resolve(*name) {
-                            widget.attribute_removed(n_str);
-                        }
+                    if let Some(widget) = self.widgets.get_mut(&n)
+                        && let Some(n_str) = self.atoms.borrow().resolve(*name)
+                    {
+                        widget.attribute_removed(n_str);
                     }
                     self.recompute_node(n);
                 }
@@ -1531,6 +1553,7 @@ impl Applier {
                     self.declared.remove(&n);
                     self.collapsed_text.remove(&n);
                     self.children.remove(&n);
+                    self.logical_parent.remove(&n);
                     self.svg_cache.remove(&n);
                     if let Some(widget) = self.widgets.get_mut(&n) {
                         widget.unmount();
@@ -1607,23 +1630,21 @@ impl Applier {
     /// Principal-box signals: background, border, padding, margin, explicit size.
     /// Inline margin/padding is not modeled — any non-zero box edge keeps the node.
     fn node_has_independent_box(&self, node: NodeId) -> bool {
-        if let Ok(style) = self.tree.style(node) {
-            if rect_has_nonzero_lp(&style.padding)
+        if let Ok(style) = self.tree.style(node)
+            && (rect_has_nonzero_lp(&style.padding)
                 || rect_has_nonzero_lpa(&style.margin)
                 || rect_has_nonzero_lp(&style.border)
-                || size_is_explicit(&style.size)
-            {
-                return true;
-            }
+                || size_is_explicit(&style.size))
+        {
+            return true;
         }
-        if let Some(paint) = self.tree.get_node_context(node) {
-            if paint.background.is_some()
+        if let Some(paint) = self.tree.get_node_context(node)
+            && (paint.background.is_some()
                 || paint.border.is_some()
                 || paint.border_radius > 0.0
-                || !paint.shadows.is_empty()
-            {
-                return true;
-            }
+                || !paint.shadows.is_empty())
+        {
+            return true;
         }
         false
     }
@@ -2179,10 +2200,7 @@ impl Applier {
             if node == ancestor {
                 return true;
             }
-            current = self
-                .children
-                .iter()
-                .find_map(|(parent, children)| children.contains(&node).then_some(*parent));
+            current = self.logical_parent.get(&node).copied();
         }
         false
     }
@@ -2272,7 +2290,7 @@ impl Applier {
                 }
                 SubtreeEvent::Exit(node) => {
                     if let Some(hit) = scrollbar_hits.remove(&node.node_id) {
-                        self.hit_items.push(HitItem::Scrollbar(hit));
+                        self.hit_items.push(HitItem::Scrollbar(Box::new(hit)));
                     }
                 }
             }
@@ -2319,155 +2337,7 @@ impl Applier {
     }
 
     fn rebuild_semantic_snapshot(&mut self, placed: &[PlacedNode]) {
-        let present: HashSet<_> = placed.iter().map(|node| node.node_id).collect();
-        let semantic_transforms: HashMap<_, _> = self
-            .hit_items
-            .iter()
-            .filter_map(|item| match item {
-                HitItem::Content(node) => Some((node.solid_id, node.transform)),
-                HitItem::Scrollbar(_) => None,
-            })
-            .collect();
-        let modal_node = placed
-            .iter()
-            .rev()
-            .find(|node| {
-                node.parent_node_id == Some(self.root)
-                    && node.paint.overlay_plane == OverlayPlane::Modal
-            })
-            .map(|node| node.node_id);
-        let modal_root = modal_node
-            .and_then(|node| self.solid_id_for_node(node))
-            .map(u64::from);
-        let atoms = self.atoms.borrow();
-        let attribute = |declared: &Declared, wanted: &str| {
-            declared.attrs.iter().find_map(|(name, value)| {
-                (atoms.resolve(*name) == Some(wanted)).then(|| value.clone())
-            })
-        };
-        let role_for = |tag: &str, declared: &Declared| {
-            let role = attribute(declared, "role");
-            match role.as_deref().unwrap_or(tag) {
-                "button" => SemanticRole::Button,
-                "textbox" | "input" | "textarea" => SemanticRole::TextInput,
-                "img" | "image" => SemanticRole::Image,
-                "link" | "a" => SemanticRole::Link,
-                "dialog" | "alertdialog" => SemanticRole::Dialog,
-                "text" | "#text" | "label" => SemanticRole::Label,
-                _ => SemanticRole::Generic,
-            }
-        };
-        let mut nodes = Vec::new();
-        for placed_node in placed {
-            if placed_node.node_id == self.root {
-                continue;
-            }
-            let Some(&solid_id) = self.node_to_solid.get(&placed_node.node_id) else {
-                continue;
-            };
-            let Some(declared) = self.declared.get(&placed_node.node_id) else {
-                continue;
-            };
-            let tag = declared
-                .tag
-                .and_then(|tag| atoms.resolve(tag))
-                .unwrap_or("view");
-            let label = attribute(declared, "aria-label")
-                .or_else(|| attribute(declared, "alt"))
-                .map(|value| value.to_string())
-                .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
-            let children = self
-                .children
-                .get(&placed_node.node_id)
-                .into_iter()
-                .flatten()
-                .filter(|child| present.contains(child))
-                .filter_map(|child| self.node_to_solid.get(child).copied())
-                .map(u64::from)
-                .collect();
-            let bounds = semantic_transforms
-                .get(&solid_id)
-                .map_or(placed_node.rect, |transform| {
-                    let [x0, y0, x1, y1] = placed_node.rect.map(f64::from);
-                    let points = [
-                        *transform * Point::new(x0, y0),
-                        *transform * Point::new(x1, y0),
-                        *transform * Point::new(x0, y1),
-                        *transform * Point::new(x1, y1),
-                    ];
-                    [
-                        points
-                            .iter()
-                            .map(|point| point.x)
-                            .fold(f64::INFINITY, f64::min) as f32,
-                        points
-                            .iter()
-                            .map(|point| point.y)
-                            .fold(f64::INFINITY, f64::min) as f32,
-                        points
-                            .iter()
-                            .map(|point| point.x)
-                            .fold(f64::NEG_INFINITY, f64::max) as f32,
-                        points
-                            .iter()
-                            .map(|point| point.y)
-                            .fold(f64::NEG_INFINITY, f64::max) as f32,
-                    ]
-                });
-            nodes.push(SemanticNode {
-                id: u64::from(solid_id),
-                role: role_for(tag, declared),
-                label,
-                bounds,
-                children,
-                disabled: attribute(declared, "disabled").is_some()
-                    || attribute(declared, "aria-disabled").as_deref() == Some("true"),
-            });
-        }
-        let root_children = self
-            .children
-            .get(&self.root)
-            .into_iter()
-            .flatten()
-            .filter(|child| present.contains(child))
-            .filter_map(|child| self.node_to_solid.get(child).copied())
-            .map(u64::from)
-            .collect();
-        let focused = self.focused_target.map(u64::from);
-        let focus = if let (Some(modal), Some(modal_node)) = (modal_root, modal_node) {
-            let inside_modal = |solid: u64| {
-                self.solid_to_node
-                    .get(&(solid as u32))
-                    .is_some_and(|node| self.is_logical_descendant(*node, modal_node))
-            };
-            let focused_inside = focused.is_some_and(inside_modal);
-            let fallback = nodes
-                .iter()
-                .find(|node| {
-                    inside_modal(node.id)
-                        && matches!(
-                            node.role,
-                            SemanticRole::Dialog
-                                | SemanticRole::Button
-                                | SemanticRole::TextInput
-                                | SemanticRole::Link
-                        )
-                })
-                .map(|node| node.id)
-                .unwrap_or(modal);
-            focused_inside
-                .then_some(focused)
-                .flatten()
-                .or(Some(fallback))
-        } else {
-            focused
-        };
-        self.semantic_snapshot = SemanticSnapshot {
-            nodes,
-            root_children,
-            focus,
-            modal_root,
-        };
+        semantics::rebuild(self, placed);
     }
 
     fn scrollbar_at(&self, x: f64, y: f64) -> Option<(NodeId, ScrollbarTarget)> {
@@ -2517,6 +2387,7 @@ impl Applier {
         let old = offset[index];
         offset[index] = (offset[index] + delta as f32).clamp(0.0, hit.placed.scroll.range[index]);
         let changed = offset[index] != old;
+        self.semantics_dirty |= changed;
         self.scrollbar_activity.insert(drag.node, Instant::now());
         changed
     }
@@ -2550,6 +2421,7 @@ impl Applier {
                     offset[1] = (offset[1] + delta_y).clamp(0.0, max_y);
                 }
                 if *offset != old {
+                    self.semantics_dirty = true;
                     self.scrollbar_activity.insert(node, Instant::now());
                     return true;
                 }
@@ -2594,6 +2466,7 @@ impl Applier {
         if changed {
             self.scrollbar_activity.insert(node, Instant::now());
         }
+        self.semantics_dirty |= changed;
         changed
     }
 
@@ -2638,12 +2511,16 @@ impl Applier {
                 let y0 = rect[1] + layout.border.top;
                 let x1 = rect[2] - layout.border.right;
                 let y1 = rect[3] - layout.border.bottom;
-                let dx = scroll_x
-                    .then(|| axis_delta(pointer[0], x0, x1))
-                    .unwrap_or(0.0);
-                let dy = scroll_y
-                    .then(|| axis_delta(pointer[1], y0, y1))
-                    .unwrap_or(0.0);
+                let dx = if scroll_x {
+                    axis_delta(pointer[0], x0, x1)
+                } else {
+                    0.0
+                };
+                let dy = if scroll_y {
+                    axis_delta(pointer[1], y0, y1)
+                } else {
+                    0.0
+                };
                 if dx != 0.0 || dy != 0.0 {
                     return Some((target, dx, dy));
                 }
@@ -2875,6 +2752,7 @@ impl Applier {
         if old == target {
             return false;
         }
+        self.semantics_dirty = true;
         self.focused_target = target;
         let mut changed = false;
         if let Some(old) = old {
@@ -2990,6 +2868,7 @@ impl Applier {
         {
             events.push(event);
         }
+        #[allow(clippy::unnecessary_fold)] // Every queued event must dispatch.
         events.into_iter().fold(false, |dispatched, event| {
             self.dispatch_json(target, event.event_code, &event.json) || dispatched
         })
@@ -3647,7 +3526,7 @@ impl Applier {
                     || css_transforms[&placed_node.node_id] == Affine::IDENTITY);
             let effective =
                 axis_aligned_clips
-                    .then(|| effective_rect)
+                    .then_some(effective_rect)
                     .flatten()
                     .map(|(rect, radius)| wabou_devtools::DebugClip {
                         node_id: id,
@@ -3756,7 +3635,7 @@ impl Applier {
         self.pointer_dragged = false;
         let target = old_active.or_else(|| self.hit_test(pointer.position.x, pointer.position.y));
         let mut changed = old_active.is_some_and(|captured| {
-            self.handle_widget_event(captured, &UiEvent::Pointer(pointer.clone()))
+            self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                 .is_some_and(|response| response.handled || response.request_redraw)
         });
         changed |= target.is_some_and(|target| {
@@ -3812,51 +3691,51 @@ impl FrameSource for Applier {
         // Drain a stylesheet pushed through the private host ABI (the UnoCSS Vite
         // plugin's virtual module): replace the Style IR + re-resolve every node.
         // Clone the Rc out so the mutable self borrows below don't alias it.
-        if let Some(p) = self.pending_css.clone() {
-            if let Some(update) = p.borrow_mut().take() {
-                match update {
-                    StylesheetUpdate::Ir(sheet) if sheet.validate().is_ok() => {
-                        for diagnostic in &sheet.diagnostics {
-                            tracing::warn!(target: "stylesheet", %diagnostic);
-                        }
-                        // Build the class→rules index (interning each rule's
-                        // class_name so node-side class atoms match by identity)
-                        // so recompute_node_now matches in O(C) not O(R).
-                        let (rule_index, universal_rules) = {
-                            let mut atoms = self.atoms.borrow_mut();
-                            let mut rule_index: HashMap<Atom, Vec<usize>> = HashMap::new();
-                            let mut universal_rules = Vec::new();
-                            for (idx, rule) in sheet.rules.iter().enumerate() {
-                                for declaration in &rule.declarations {
-                                    atoms.intern(&declaration.property);
-                                }
-                                if rule.class_name == "*" {
-                                    universal_rules.push(idx);
-                                } else {
-                                    rule_index
-                                        .entry(atoms.intern(&rule.class_name))
-                                        .or_default()
-                                        .push(idx);
-                                }
+        if let Some(p) = self.pending_css.clone()
+            && let Some(update) = p.borrow_mut().take()
+        {
+            match update {
+                StylesheetUpdate::Ir(sheet) if sheet.validate().is_ok() => {
+                    for diagnostic in &sheet.diagnostics {
+                        tracing::warn!(target: "stylesheet", %diagnostic);
+                    }
+                    // Build the class→rules index (interning each rule's
+                    // class_name so node-side class atoms match by identity)
+                    // so recompute_node_now matches in O(C) not O(R).
+                    let (rule_index, universal_rules) = {
+                        let mut atoms = self.atoms.borrow_mut();
+                        let mut rule_index: HashMap<Atom, Vec<usize>> = HashMap::new();
+                        let mut universal_rules = Vec::new();
+                        for (idx, rule) in sheet.rules.iter().enumerate() {
+                            for declaration in &rule.declarations {
+                                atoms.intern(&declaration.property);
                             }
-                            (rule_index, universal_rules)
-                        };
-                        self.style_ir = Some(sheet);
-                        self.rule_index = rule_index;
-                        self.universal_rules = universal_rules;
-                        self.warned_utility_classes.clear();
-                        self.warned_ir_properties.clear();
-                    }
-                    StylesheetUpdate::Ir(sheet) => {
-                        tracing::error!(
-                            version = sheet.version,
-                            supported = style_ir::VERSION,
-                            "invalid or unsupported Style IR"
-                        );
-                    }
+                            if rule.class_name == "*" {
+                                universal_rules.push(idx);
+                            } else {
+                                rule_index
+                                    .entry(atoms.intern(&rule.class_name))
+                                    .or_default()
+                                    .push(idx);
+                            }
+                        }
+                        (rule_index, universal_rules)
+                    };
+                    self.style_ir = Some(sheet);
+                    self.rule_index = rule_index;
+                    self.universal_rules = universal_rules;
+                    self.warned_utility_classes.clear();
+                    self.warned_ir_properties.clear();
                 }
-                self.recompute_all();
+                StylesheetUpdate::Ir(sheet) => {
+                    tracing::error!(
+                        version = sheet.version,
+                        supported = style_ir::VERSION,
+                        "invalid or unsupported Style IR"
+                    );
+                }
             }
+            self.recompute_all();
         }
 
         // Drain Vite HMR updates (from the background websocket client) before
@@ -3924,6 +3803,8 @@ impl FrameSource for Applier {
         self.measure_widgets(tcx);
         let viewport = (width, height);
         let viewport_changed = self.layout_viewport != Some(viewport);
+        let semantic_layout_dirty =
+            self.invalidation.contains(InvalidationFlags::LAYOUT) || viewport_changed;
         let mut placed =
             if self.invalidation.contains(InvalidationFlags::LAYOUT) || viewport_changed {
                 // A root percentage has no containing block in taffy and resolves
@@ -3971,7 +3852,10 @@ impl FrameSource for Applier {
         if self.pointer_buttons & 1 == 0 {
             self.sync_text_selection_change();
         }
-        self.rebuild_semantic_snapshot(&placed);
+        if self.semantics_enabled && (self.semantics_dirty || semantic_layout_dirty) {
+            self.rebuild_semantic_snapshot(&placed);
+            self.semantics_dirty = false;
+        }
         // After paint applied pending edits, sync widget values → JS.
         self.flush_value_sync();
         self.publish_debug_snapshot(&placed);
@@ -3982,8 +3866,19 @@ impl FrameSource for Applier {
         self.base_color
     }
 
-    fn semantic_snapshot(&self) -> Option<SemanticSnapshot> {
-        Some(self.semantic_snapshot.clone())
+    fn set_semantics_enabled(&mut self, enabled: bool) {
+        if enabled && !self.semantics_enabled {
+            self.semantics_dirty = true;
+        }
+        self.semantics_enabled = enabled;
+        if !enabled {
+            self.semantic_snapshot = Arc::new(SemanticSnapshot::default());
+        }
+    }
+
+    fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
+        self.semantics_enabled
+            .then(|| self.semantic_snapshot.clone())
     }
 
     fn handle_semantic_action(&mut self, action: SemanticAction) -> bool {
@@ -4403,7 +4298,7 @@ impl FrameSource for Applier {
                 let mut changed = scrollbar_hover_changed;
                 if let Some(captured) = self.pointer_down_target
                     && let Some(response) =
-                        self.handle_widget_event(captured, &UiEvent::Pointer(pointer.clone()))
+                        self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                 {
                     changed |= response.handled || response.request_redraw;
                 }
@@ -4464,6 +4359,7 @@ impl FrameSource for Applier {
                         let offset = self.scroll_offsets.entry(node).or_insert([0.0; 2]);
                         offset[index] = (offset[index] + direction * viewport)
                             .clamp(0.0, hit.placed.scroll.range[index]);
+                        self.semantics_dirty = true;
                         return Self::response(true);
                     }
                     let local = hit.transform.inverse() * Point::new(x, y);
@@ -4490,7 +4386,7 @@ impl FrameSource for Applier {
                 }
                 if let Some(target) = target
                     && let Some(mut response) =
-                        self.handle_widget_event(target, &UiEvent::Pointer(pointer.clone()))
+                        self.handle_widget_event(target, &UiEvent::Pointer(pointer))
                 {
                     response.text_input = Some(self.is_text_input_target(target));
                     return response;
@@ -4532,7 +4428,7 @@ impl FrameSource for Applier {
                 let target = self.hit_test(x, y);
                 let captured = self.pointer_down_target;
                 let mut changed = captured.is_some_and(|captured| {
-                    self.handle_widget_event(captured, &UiEvent::Pointer(pointer.clone()))
+                    self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                         .is_some_and(|response| response.handled || response.request_redraw)
                 });
                 if button == PointerButton::Primary {
@@ -4545,12 +4441,11 @@ impl FrameSource for Applier {
                 changed |= target.is_some_and(|target| {
                     self.dispatch_pointer(target, event::POINTERUP, Some(button), pointer.modifiers)
                 });
-                if button == PointerButton::Primary
+                if let Some(target) = target
+                    && button == PointerButton::Primary
                     && !self.pointer_dragged
-                    && target.is_some()
-                    && target == self.pointer_down_target
+                    && Some(target) == self.pointer_down_target
                 {
-                    let target = target.unwrap();
                     let mut data = [0.0; event_data::LEN];
                     data[event_data::CLIENT_X as usize] = self.pointer_position.0;
                     data[event_data::CLIENT_Y as usize] = self.pointer_position.1;
@@ -5865,11 +5760,10 @@ mod tests {
         assert_eq!(applier.declared[&node].attrs[&value].as_ref(), "");
         // A control char (backspace as text) is filtered out → IGNORED, no
         // value sync, handled stays false.
-        assert_eq!(
-            applier
+        assert!(
+            !applier
                 .handle_event(UiEvent::TextInput("\u{8}".into()))
-                .handled,
-            false
+                .handled
         );
         applier.build_frame(&mut tcx, 800, 600);
         assert_eq!(applier.widgets[&node].current_value(), Some(""));
@@ -7176,13 +7070,14 @@ mod tests {
         let js = JsRuntime::new().expect("runtime");
         install_host_frame_test_hook(&js);
         let mut applier = Applier::from_runtime(js, Color::BLACK);
-        let (button, view, role, aria_label) = {
+        let (button, view, role, aria_label, aria_modal) = {
             let mut atoms = applier.atoms.borrow_mut();
             (
                 atoms.intern("button"),
                 atoms.intern("view"),
                 atoms.intern("role"),
                 atoms.intern("aria-label"),
+                atoms.intern("aria-modal"),
             )
         };
         applier.apply_op(&Op::CreateElement {
@@ -7193,7 +7088,11 @@ mod tests {
         applier.apply_op(&Op::CreateElement {
             id: 3,
             tag: view,
-            attrs: vec![(role, "dialog"), (aria_label, "Settings")],
+            attrs: vec![
+                (role, "dialog"),
+                (aria_label, "Settings"),
+                (aria_modal, "true"),
+            ],
         });
         applier.apply_op(&Op::CreateElement {
             id: 4,
@@ -7220,10 +7119,9 @@ mod tests {
         let background = applier.solid_to_node[&2];
         let modal = applier.solid_to_node[&3];
         let save = applier.solid_to_node[&4];
-        let paint = |plane| {
-            let mut paint = Paint::default();
-            paint.overlay_plane = plane;
-            paint
+        let paint = |plane| Paint {
+            overlay_plane: plane,
+            ..Paint::default()
         };
         let node = |node_id, parent_node_id, depth, paint| PlacedNode {
             node_id,
@@ -7277,5 +7175,49 @@ mod tests {
         applier.focused_target = None;
         assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 4 }));
         assert_eq!(applier.focused_target, Some(4));
+
+        applier.apply_op(&Op::CreateElement {
+            id: 5,
+            tag: view,
+            attrs: vec![
+                (role, "dialog"),
+                (aria_label, "Confirm"),
+                (aria_modal, "true"),
+            ],
+        });
+        applier.apply_op(&Op::CreateElement {
+            id: 6,
+            tag: button,
+            attrs: vec![(aria_label, "Continue")],
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 5,
+            child: 6,
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 1,
+            child: 5,
+        });
+        applier.apply_op(&Op::SetOverlayPlane { id: 5, plane: 2 });
+        let confirm = applier.solid_to_node[&5];
+        let continue_button = applier.solid_to_node[&6];
+        let mut continue_paint = paint(OverlayPlane::Content);
+        continue_paint.runtime_transform = Some([1.0, 0.0, 0.0, 1.0, 20.0, 10.0]);
+        let placed = vec![
+            node(background, Some(root), 1, paint(OverlayPlane::Content)),
+            node(modal, Some(root), 1, paint(OverlayPlane::Modal)),
+            node(save, Some(modal), 2, Paint::default()),
+            node(confirm, Some(root), 1, paint(OverlayPlane::Modal)),
+            node(continue_button, Some(confirm), 2, continue_paint),
+        ];
+        applier.rebuild_hit_geometry(&placed);
+        applier.rebuild_semantic_snapshot(&placed);
+        assert_eq!(applier.semantic_snapshot.modal_root, Some(5));
+        assert_eq!(applier.semantic_snapshot.focus, Some(5));
+        assert!(
+            !applier.handle_semantic_action(SemanticAction::Focus { target: 4 }),
+            "an older modal must be inert while a newer modal is topmost"
+        );
+        assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 6 }));
     }
 }

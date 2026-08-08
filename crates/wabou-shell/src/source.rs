@@ -336,7 +336,12 @@ pub trait FrameSource {
     fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode>;
 
     /// Latest retained accessibility snapshot, in logical window coordinates.
-    fn semantic_snapshot(&self) -> Option<SemanticSnapshot> {
+    /// Enable semantic snapshot production while a platform accessibility
+    /// client is active. Sources should avoid accessibility tree work when
+    /// this is false.
+    fn set_semantics_enabled(&mut self, _enabled: bool) {}
+
+    fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
         None
     }
 

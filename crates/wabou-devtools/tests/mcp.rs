@@ -43,8 +43,7 @@ fn mcp_lists_tools_and_forwards_status_to_the_runtime_socket() {
     .unwrap();
     writeln!(
         stdin,
-        "{}",
-        r#"{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}"#
+        r#"{{"jsonrpc":"2.0","method":"notifications/initialized","params":{{}}}}"#
     )
     .unwrap();
     writeln!(

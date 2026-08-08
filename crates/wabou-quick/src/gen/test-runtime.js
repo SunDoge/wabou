@@ -27,13 +27,10 @@
       return Promise.resolve(JSON.parse(this._data.body));
     }
     clone() {
-      return new WabouResponse(
-        { ...this._data, headers: { ...this._data.headers } },
-        this.url,
-      );
+      return new WabouResponse({ ...this._data, headers: { ...this._data.headers } }, this.url);
     }
   }
-  globalThis.fetch = function (input, init) {
+  globalThis.fetch = function(input, init) {
     const url = typeof input === "string" ? input : input.url;
     const initJson = init ? JSON.stringify(init) : "{}";
     return globalThis.__wabou_fetch(url, initJson).then((json) => {
@@ -66,6 +63,9 @@
     ScrollTo: 20,
     ScrollBy: 21,
     SetStyleValue: 22,
+    SetShadows: 23,
+    SetOverlayPlane: 24,
+    SetScrollbarStyle: 25
   };
   var EVENT_CODE = {
     click: 1,
@@ -98,7 +98,7 @@
     terminalcwdchange: 28,
     terminalselectionchange: 29,
     textselectionchange: 30,
-    terminalbell: 31,
+    terminalbell: 31
   };
   var EVENT_DATA_SLOT = {
     clientX: 0,
@@ -107,27 +107,27 @@
     buttons: 3,
     mods: 4,
     deltaX: 5,
-    deltaY: 6,
+    deltaY: 6
   };
   var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
   var HOST_FRAME = {
     Magic: 826689623,
     Version: 1,
-    HeaderLen: 32,
+    HeaderLen: 32
   };
   var HOST_RECORD_KIND = {
     NodeEvent: 1,
     Resize: 2,
     ApplicationMessage: 3,
     Window: 4,
-    Widget: 5,
+    Widget: 5
   };
   var HOST_NODE_PAYLOAD = {
     None: 0,
     Numeric: 1,
-    Json: 2,
+    Json: 2
   };
-  var fallbackAtoms = new Map();
+  var fallbackAtoms = new Map;
   function fallbackIntern(value) {
     let id = fallbackAtoms.get(value);
     if (id === undefined) {
@@ -140,25 +140,23 @@
   var FLOAT_VIEW = new DataView(new ArrayBuffer(4));
   function utf8Encode(s) {
     if (encoder === undefined) {
-      encoder = typeof TextEncoder !== "undefined" ? new TextEncoder() : null;
+      encoder = typeof TextEncoder !== "undefined" ? new TextEncoder : null;
     }
-    if (encoder) return encoder.encode(s);
+    if (encoder)
+      return encoder.encode(s);
     const out = [];
-    for (let i = 0; i < s.length; i++) {
+    for (let i = 0;i < s.length; i++) {
       const c = s.charCodeAt(i);
-      if (c < 128) out.push(c);
-      else if (c < 2048) out.push(192 | (c >> 6), 128 | (c & 63));
+      if (c < 128)
+        out.push(c);
+      else if (c < 2048)
+        out.push(192 | c >> 6, 128 | c & 63);
       else if (c >= 55296 && c <= 56319) {
         const c2 = s.charCodeAt(++i);
         const cp = 65536 + ((c & 1023) << 10) + (c2 & 63);
-        out.push(
-          240 | (cp >> 18),
-          128 | ((cp >> 12) & 63),
-          128 | ((cp >> 6) & 63),
-          128 | (cp & 63),
-        );
+        out.push(240 | cp >> 18, 128 | cp >> 12 & 63, 128 | cp >> 6 & 63, 128 | cp & 63);
       } else {
-        out.push(224 | (c >> 12), 128 | ((c >> 6) & 63), 128 | (c & 63));
+        out.push(224 | c >> 12, 128 | c >> 6 & 63, 128 | c & 63);
       }
     }
     return new Uint8Array(out);
@@ -169,21 +167,21 @@
     cursor = 8;
     count = 0;
     seq = 0;
-    atoms = new Map();
-    frameStrings = new Map();
+    atoms = new Map;
+    frameStrings = new Map;
     internHost;
     constructor(internHost) {
-      this.internHost =
-        internHost ??
-        ((value) => {
-          const hostIntern = globalThis.__wabou_intern;
-          return hostIntern ? hostIntern(value) : fallbackIntern(value);
-        });
+      this.internHost = internHost ?? ((value) => {
+        const hostIntern = globalThis.__wabou_intern;
+        return hostIntern ? hostIntern(value) : fallbackIntern(value);
+      });
     }
     ensure(n) {
-      if (this.cursor + n <= this.buf.length) return;
+      if (this.cursor + n <= this.buf.length)
+        return;
       let cap = this.buf.length;
-      while (cap < this.cursor + n) cap *= 2;
+      while (cap < this.cursor + n)
+        cap *= 2;
       const next = new Uint8Array(cap);
       next.set(this.buf);
       this.buf = next;
@@ -196,16 +194,16 @@
       this.ensure(2);
       const c = this.cursor;
       this.buf[c] = v & 255;
-      this.buf[c + 1] = (v >> 8) & 255;
+      this.buf[c + 1] = v >> 8 & 255;
       this.cursor += 2;
     }
     u32(v) {
       this.ensure(4);
       const c = this.cursor;
       this.buf[c] = v & 255;
-      this.buf[c + 1] = (v >> 8) & 255;
-      this.buf[c + 2] = (v >> 16) & 255;
-      this.buf[c + 3] = (v >> 24) & 255;
+      this.buf[c + 1] = v >> 8 & 255;
+      this.buf[c + 2] = v >> 16 & 255;
+      this.buf[c + 3] = v >> 24 & 255;
       this.cursor += 4;
     }
     f32(v) {
@@ -221,9 +219,7 @@
       }
       const bytes = utf8Encode(s);
       if (bytes.length >= 65535) {
-        throw new RangeError(
-          `protocol string is ${bytes.length} bytes; maximum is 65534`,
-        );
+        throw new RangeError(`protocol string is ${bytes.length} bytes; maximum is 65534`);
       }
       this.u16(bytes.length);
       this.ensure(bytes.length);
@@ -246,18 +242,14 @@
     }
     emit(op) {
       if (this.count === 4294967295) {
-        throw new RangeError(
-          "protocol frame cannot contain more than 2^32-1 ops",
-        );
+        throw new RangeError("protocol frame cannot contain more than 2^32-1 ops");
       }
       this.u8(op);
       this.count++;
     }
     createElement(id, tag, attrs = null) {
       if (attrs && attrs.length > 65535) {
-        throw new RangeError(
-          "element cannot contain more than 65535 attributes",
-        );
+        throw new RangeError("element cannot contain more than 65535 attributes");
       }
       this.emit(OP.CreateElement);
       this.u32(id);
@@ -329,15 +321,53 @@
       this.atom(prop);
       this.u8(kind);
       if (kind !== 6) {
-        if (kind === 5) this.u32(value >>> 0);
-        else if (kind === 4) this.u8(value ? 1 : 0);
-        else this.f32(value);
+        if (kind === 5)
+          this.u32(value >>> 0);
+        else if (kind === 4)
+          this.u8(value ? 1 : 0);
+        else
+          this.f32(value);
+      }
+    }
+    setShadows(id, shadows) {
+      if (shadows.length > 65535) {
+        throw new RangeError("a node cannot have more than 65535 shadow layers");
+      }
+      this.emit(OP.SetShadows);
+      this.u32(id);
+      this.u16(shadows.length);
+      for (const shadow of shadows) {
+        this.f32(shadow.offsetX);
+        this.f32(shadow.offsetY);
+        this.f32(shadow.spread);
+        this.f32(shadow.stdDev);
+        this.u32(shadow.color >>> 0);
+        this.f32(shadow.radius ?? Number.NaN);
       }
     }
     setTransform2D(id, matrix) {
       this.emit(OP.SetTransform2D);
       this.u32(id);
-      for (const part of matrix) this.f32(part);
+      for (const part of matrix)
+        this.f32(part);
+    }
+    setOverlayPlane(id, plane) {
+      this.emit(OP.SetOverlayPlane);
+      this.u32(id);
+      this.u8(plane);
+    }
+    setScrollbarStyle(id, style) {
+      this.emit(OP.SetScrollbarStyle);
+      this.u32(id);
+      this.u8(style.visibility);
+      this.f32(style.thickness);
+      this.f32(style.margin);
+      this.f32(style.minThumbLength);
+      this.f32(style.radius);
+      this.u32(style.trackColor >>> 0);
+      this.u32(style.thumbColor >>> 0);
+      this.u32(style.hoverColor >>> 0);
+      this.u32(style.activeColor >>> 0);
     }
     removeStyle(id, prop) {
       this.emit(OP.RemoveStyle);
@@ -359,12 +389,11 @@
       this.u32(id);
       const classes = value.split(/\s+/).filter(Boolean);
       if (classes.length > 65535) {
-        throw new RangeError(
-          "class list cannot contain more than 65535 tokens",
-        );
+        throw new RangeError("class list cannot contain more than 65535 tokens");
       }
       this.u16(classes.length);
-      for (const className of classes) this.atom(className);
+      for (const className of classes)
+        this.atom(className);
     }
     frameEnd() {
       this.emit(OP.FrameEnd);
@@ -390,17 +419,18 @@
       this.f32(y);
     }
     flush() {
-      if (this.count === 0) return null;
+      if (this.count === 0)
+        return null;
       this.seq++;
       const s = this.seq;
       this.buf[0] = s & 255;
-      this.buf[1] = (s >> 8) & 255;
-      this.buf[2] = (s >> 16) & 255;
-      this.buf[3] = (s >> 24) & 255;
+      this.buf[1] = s >> 8 & 255;
+      this.buf[2] = s >> 16 & 255;
+      this.buf[3] = s >> 24 & 255;
       this.buf[4] = this.count & 255;
-      this.buf[5] = (this.count >> 8) & 255;
-      this.buf[6] = (this.count >> 16) & 255;
-      this.buf[7] = (this.count >> 24) & 255;
+      this.buf[5] = this.count >> 8 & 255;
+      this.buf[6] = this.count >> 16 & 255;
+      this.buf[7] = this.count >> 24 & 255;
       const out = this.buf.subarray(0, this.cursor);
       this.cursor = 8;
       this.count = 0;
@@ -412,9 +442,7 @@
   // packages/style/src/index.ts
   var STYLE_VALUE = "__wabou_style_value__";
   function isTypedStyleValue(value) {
-    return (
-      typeof value === "object" && value !== null && value[STYLE_VALUE] === true
-    );
+    return typeof value === "object" && value !== null && value[STYLE_VALUE] === true;
   }
 
   // node_modules/.bun/solid-js@1.9.14/node_modules/solid-js/dist/dev.js
@@ -428,14 +456,11 @@
     },
     getNextContextId() {
       return getContextId(this.context.count++);
-    },
+    }
   };
   function getContextId(count) {
-    const num = String(count),
-      len = num.length - 1;
-    return (
-      sharedConfig.context.id + (len ? String.fromCharCode(96 + len) : "") + num
-    );
+    const num = String(count), len = num.length - 1;
+    return sharedConfig.context.id + (len ? String.fromCharCode(96 + len) : "") + num;
   }
   function setHydrateContext(context) {
     sharedConfig.context = context;
@@ -444,7 +469,7 @@
     return {
       ...sharedConfig.context,
       id: sharedConfig.getNextContextId(),
-      count: 0,
+      count: 0
     };
   }
   var IS_DEV = true;
@@ -454,7 +479,7 @@
   var $TRACK = Symbol("solid-track");
   var $DEVCOMP = Symbol("solid-dev-component");
   var signalOptions = {
-    equals: equalFn,
+    equals: equalFn
   };
   var ERROR = null;
   var runEffects = runQueue;
@@ -473,34 +498,22 @@
     afterUpdate: null,
     afterCreateOwner: null,
     afterCreateSignal: null,
-    afterRegisterGraph: null,
+    afterRegisterGraph: null
   };
   function createRoot(fn, detachedOwner) {
-    const listener = Listener,
-      owner = Owner,
-      unowned = fn.length === 0,
-      current = detachedOwner === undefined ? owner : detachedOwner,
-      root = unowned
-        ? {
-            owned: null,
-            cleanups: null,
-            context: null,
-            owner: null,
-          }
-        : {
-            owned: null,
-            cleanups: null,
-            context: current ? current.context : null,
-            owner: current,
-          },
-      updateFn = unowned
-        ? () =>
-            fn(() => {
-              throw new Error(
-                "Dispose method must be an explicit argument to createRoot function",
-              );
-            })
-        : () => fn(() => untrack(() => cleanNode(root)));
+    const listener = Listener, owner = Owner, unowned = fn.length === 0, current = detachedOwner === undefined ? owner : detachedOwner, root = unowned ? {
+      owned: null,
+      cleanups: null,
+      context: null,
+      owner: null
+    } : {
+      owned: null,
+      cleanups: null,
+      context: current ? current.context : null,
+      owner: current
+    }, updateFn = unowned ? () => fn(() => {
+      throw new Error("Dispose method must be an explicit argument to createRoot function");
+    }) : () => fn(() => untrack(() => cleanNode(root)));
     DevHooks.afterCreateOwner && DevHooks.afterCreateOwner(root);
     Owner = root;
     Listener = null;
@@ -512,29 +525,30 @@
     }
   }
   function createSignal(value, options) {
-    options = options
-      ? Object.assign({}, signalOptions, options)
-      : signalOptions;
+    options = options ? Object.assign({}, signalOptions, options) : signalOptions;
     const s = {
       value,
       observers: null,
       observerSlots: null,
-      comparator: options.equals || undefined,
+      comparator: options.equals || undefined
     };
     {
-      if (options.name) s.name = options.name;
+      if (options.name)
+        s.name = options.name;
       if (options.internal) {
         s.internal = true;
       } else {
         registerGraph(s);
-        if (DevHooks.afterCreateSignal) DevHooks.afterCreateSignal(s);
+        if (DevHooks.afterCreateSignal)
+          DevHooks.afterCreateSignal(s);
       }
     }
     const setter = (value2) => {
       if (typeof value2 === "function") {
         if (Transition && Transition.running && Transition.sources.has(s))
           value2 = value2(s.tValue);
-        else value2 = value2(s.value);
+        else
+          value2 = value2(s.value);
       }
       return writeSignal(s, value2);
     };
@@ -542,13 +556,13 @@
   }
   function createRenderEffect(fn, value, options) {
     const c = createComputation(fn, value, false, STALE, options);
-    if (Scheduler && Transition && Transition.running) Updates.push(c);
-    else updateComputation(c);
+    if (Scheduler && Transition && Transition.running)
+      Updates.push(c);
+    else
+      updateComputation(c);
   }
   function createMemo(fn, value, options) {
-    options = options
-      ? Object.assign({}, signalOptions, options)
-      : signalOptions;
+    options = options ? Object.assign({}, signalOptions, options) : signalOptions;
     const c = createComputation(fn, value, true, 0, options);
     c.observers = null;
     c.observerSlots = null;
@@ -556,15 +570,18 @@
     if (Scheduler && Transition && Transition.running) {
       c.tState = STALE;
       Updates.push(c);
-    } else updateComputation(c);
+    } else
+      updateComputation(c);
     return readSignal.bind(c);
   }
   function untrack(fn) {
-    if (!ExternalSourceConfig && Listener === null) return fn();
+    if (!ExternalSourceConfig && Listener === null)
+      return fn();
     const listener = Listener;
     Listener = null;
     try {
-      if (ExternalSourceConfig) return ExternalSourceConfig.untrack(fn);
+      if (ExternalSourceConfig)
+        return ExternalSourceConfig.untrack(fn);
       return fn();
     } finally {
       Listener = listener;
@@ -572,11 +589,11 @@
   }
   function onCleanup(fn) {
     if (Owner === null)
-      console.warn(
-        "cleanups created outside a `createRoot` or `render` will never be run",
-      );
-    else if (Owner.cleanups === null) Owner.cleanups = [fn];
-    else Owner.cleanups.push(fn);
+      console.warn("cleanups created outside a `createRoot` or `render` will never be run");
+    else if (Owner.cleanups === null)
+      Owner.cleanups = [fn];
+    else
+      Owner.cleanups.push(fn);
     return fn;
   }
   function startTransition(fn) {
@@ -591,17 +608,15 @@
       Owner = o;
       let t;
       if (Scheduler || SuspenseContext) {
-        t =
-          Transition ||
-          (Transition = {
-            sources: new Set(),
-            effects: [],
-            promises: new Set(),
-            disposed: new Set(),
-            queue: new Set(),
-            running: true,
-          });
-        t.done || (t.done = new Promise((res) => (t.resolve = res)));
+        t = Transition || (Transition = {
+          sources: new Set,
+          effects: [],
+          promises: new Set,
+          disposed: new Set,
+          queue: new Set,
+          running: true
+        });
+        t.done || (t.done = new Promise((res) => t.resolve = res));
         t.running = true;
       }
       runUpdates(fn, false);
@@ -611,18 +626,12 @@
   }
   var [transPending, setTransPending] = /* @__PURE__ */ createSignal(false);
   function devComponent(Comp, props) {
-    const c = createComputation(
-      () =>
-        untrack(() => {
-          Object.assign(Comp, {
-            [$DEVCOMP]: true,
-          });
-          return Comp(props);
-        }),
-      undefined,
-      true,
-      0,
-    );
+    const c = createComputation(() => untrack(() => {
+      Object.assign(Comp, {
+        [$DEVCOMP]: true
+      });
+      return Comp(props);
+    }), undefined, true, 0);
     c.props = props;
     c.observers = null;
     c.observerSlots = null;
@@ -633,24 +642,27 @@
   }
   function registerGraph(value) {
     if (Owner) {
-      if (Owner.sourceMap) Owner.sourceMap.push(value);
-      else Owner.sourceMap = [value];
+      if (Owner.sourceMap)
+        Owner.sourceMap.push(value);
+      else
+        Owner.sourceMap = [value];
       value.graph = Owner;
     }
-    if (DevHooks.afterRegisterGraph) DevHooks.afterRegisterGraph(value);
+    if (DevHooks.afterRegisterGraph)
+      DevHooks.afterRegisterGraph(value);
   }
   function createContext(defaultValue, options) {
     const id = Symbol("context");
     return {
       id,
       Provider: createProvider(id, options),
-      defaultValue,
+      defaultValue
     };
   }
   function children(fn) {
     const children2 = createMemo(fn);
     const memo = createMemo(() => resolveChildren(children2()), undefined, {
-      name: "children",
+      name: "children"
     });
     memo.toArray = () => {
       const c = memo();
@@ -691,41 +703,48 @@
         }
       }
     }
-    if (runningTransition && Transition.sources.has(this)) return this.tValue;
+    if (runningTransition && Transition.sources.has(this))
+      return this.tValue;
     return this.value;
   }
   function writeSignal(node, value, isComp) {
-    let current =
-      Transition && Transition.running && Transition.sources.has(node)
-        ? node.tValue
-        : node.value;
+    let current = Transition && Transition.running && Transition.sources.has(node) ? node.tValue : node.value;
     if (!node.comparator || !node.comparator(current, value)) {
       if (Transition) {
         const TransitionRunning = Transition.running;
-        if (TransitionRunning || (!isComp && Transition.sources.has(node))) {
+        if (TransitionRunning || !isComp && Transition.sources.has(node)) {
           Transition.sources.add(node);
           node.tValue = value;
         }
-        if (!TransitionRunning) node.value = value;
-      } else node.value = value;
+        if (!TransitionRunning)
+          node.value = value;
+      } else
+        node.value = value;
       if (node.observers && node.observers.length) {
         runUpdates(() => {
-          for (let i = 0; i < node.observers.length; i += 1) {
+          for (let i = 0;i < node.observers.length; i += 1) {
             const o = node.observers[i];
             const TransitionRunning = Transition && Transition.running;
-            if (TransitionRunning && Transition.disposed.has(o)) continue;
+            if (TransitionRunning && Transition.disposed.has(o))
+              continue;
             if (TransitionRunning ? !o.tState : !o.state) {
-              if (o.pure) Updates.push(o);
-              else Effects.push(o);
-              if (o.observers) markDownstream(o);
+              if (o.pure)
+                Updates.push(o);
+              else
+                Effects.push(o);
+              if (o.observers)
+                markDownstream(o);
             }
-            if (!TransitionRunning) o.state = STALE;
-            else o.tState = STALE;
+            if (!TransitionRunning)
+              o.state = STALE;
+            else
+              o.tState = STALE;
           }
           if (Updates.length > 1e6) {
             Updates = [];
-            if (IS_DEV) throw new Error("Potential Infinite Loop Detected.");
-            throw new Error();
+            if (IS_DEV)
+              throw new Error("Potential Infinite Loop Detected.");
+            throw new Error;
           }
         }, false);
       }
@@ -733,16 +752,11 @@
     return value;
   }
   function updateComputation(node) {
-    if (!node.fn) return;
+    if (!node.fn)
+      return;
     cleanNode(node);
     const time = ExecCount;
-    runComputation(
-      node,
-      Transition && Transition.running && Transition.sources.has(node)
-        ? node.tValue
-        : node.value,
-      time,
-    );
+    runComputation(node, Transition && Transition.running && Transition.sources.has(node) ? node.tValue : node.value, time);
     if (Transition && !Transition.running && Transition.sources.has(node)) {
       queueMicrotask(() => {
         runUpdates(() => {
@@ -756,8 +770,7 @@
   }
   function runComputation(node, value, time) {
     let nextValue;
-    const owner = Owner,
-      listener = Listener;
+    const owner = Owner, listener = Listener;
     Listener = Owner = node;
     try {
       nextValue = node.fn(value);
@@ -783,10 +796,12 @@
       if (node.updatedAt != null && "observers" in node) {
         writeSignal(node, nextValue, true);
       } else if (Transition && Transition.running && node.pure) {
-        if (!Transition.sources.has(node)) node.value = nextValue;
+        if (!Transition.sources.has(node))
+          node.value = nextValue;
         Transition.sources.add(node);
         node.tValue = nextValue;
-      } else node.value = nextValue;
+      } else
+        node.value = nextValue;
       node.updatedAt = time;
     }
   }
@@ -802,49 +817,48 @@
       value: init,
       owner: Owner,
       context: Owner ? Owner.context : null,
-      pure,
+      pure
     };
     if (Transition && Transition.running) {
       c.state = 0;
       c.tState = state;
     }
     if (Owner === null)
-      console.warn(
-        "computations created outside a `createRoot` or `render` will never be disposed",
-      );
+      console.warn("computations created outside a `createRoot` or `render` will never be disposed");
     else if (Owner !== UNOWNED) {
       if (Transition && Transition.running && Owner.pure) {
-        if (!Owner.tOwned) Owner.tOwned = [c];
-        else Owner.tOwned.push(c);
+        if (!Owner.tOwned)
+          Owner.tOwned = [c];
+        else
+          Owner.tOwned.push(c);
       } else {
-        if (!Owner.owned) Owner.owned = [c];
-        else Owner.owned.push(c);
+        if (!Owner.owned)
+          Owner.owned = [c];
+        else
+          Owner.owned.push(c);
       }
     }
-    if (options && options.name) c.name = options.name;
+    if (options && options.name)
+      c.name = options.name;
     if (ExternalSourceConfig && c.fn) {
       const sourceFn = c.fn;
       const [track, trigger] = createSignal(undefined, {
-        equals: false,
+        equals: false
       });
       const ordinary = ExternalSourceConfig.factory(sourceFn, trigger);
       onCleanup(() => ordinary.dispose());
       let inTransition;
-      const triggerInTransition = () =>
-        startTransition(trigger).then(() => {
-          if (inTransition) {
-            inTransition.dispose();
-            inTransition = undefined;
-          }
-        });
+      const triggerInTransition = () => startTransition(trigger).then(() => {
+        if (inTransition) {
+          inTransition.dispose();
+          inTransition = undefined;
+        }
+      });
       c.fn = (x) => {
         track();
         if (Transition && Transition.running) {
           if (!inTransition)
-            inTransition = ExternalSourceConfig.factory(
-              sourceFn,
-              triggerInTransition,
-            );
+            inTransition = ExternalSourceConfig.factory(sourceFn, triggerInTransition);
           return inTransition.track(x);
         }
         return ordinary.track(x);
@@ -855,26 +869,26 @@
   }
   function runTop(node) {
     const runningTransition = Transition && Transition.running;
-    if ((runningTransition ? node.tState : node.state) === 0) return;
+    if ((runningTransition ? node.tState : node.state) === 0)
+      return;
     if ((runningTransition ? node.tState : node.state) === PENDING)
       return lookUpstream(node);
     if (node.suspense && untrack(node.suspense.inFallback))
       return node.suspense.effects.push(node);
     const ancestors = [node];
-    while (
-      (node = node.owner) &&
-      (!node.updatedAt || node.updatedAt < ExecCount)
-    ) {
-      if (runningTransition && Transition.disposed.has(node)) return;
-      if (runningTransition ? node.tState : node.state) ancestors.push(node);
+    while ((node = node.owner) && (!node.updatedAt || node.updatedAt < ExecCount)) {
+      if (runningTransition && Transition.disposed.has(node))
+        return;
+      if (runningTransition ? node.tState : node.state)
+        ancestors.push(node);
     }
-    for (let i = ancestors.length - 1; i >= 0; i--) {
+    for (let i = ancestors.length - 1;i >= 0; i--) {
       node = ancestors[i];
       if (runningTransition) {
-        let top = node,
-          prev = ancestors[i + 1];
+        let top = node, prev = ancestors[i + 1];
         while ((top = top.owner) && top !== prev) {
-          if (Transition.disposed.has(top)) return;
+          if (Transition.disposed.has(top))
+            return;
         }
       }
       if ((runningTransition ? node.tState : node.state) === STALE) {
@@ -888,29 +902,37 @@
     }
   }
   function runUpdates(fn, init) {
-    if (Updates) return fn();
+    if (Updates)
+      return fn();
     let wait = false;
-    if (!init) Updates = [];
-    if (Effects) wait = true;
-    else Effects = [];
+    if (!init)
+      Updates = [];
+    if (Effects)
+      wait = true;
+    else
+      Effects = [];
     ExecCount++;
     try {
       const res = fn();
       completeUpdates(wait);
       return res;
     } catch (err) {
-      if (!wait) Effects = null;
+      if (!wait)
+        Effects = null;
       Updates = null;
       handleError(err);
     }
   }
   function completeUpdates(wait) {
     if (Updates) {
-      if (Scheduler && Transition && Transition.running) scheduleQueue(Updates);
-      else runQueue(Updates);
+      if (Scheduler && Transition && Transition.running)
+        scheduleQueue(Updates);
+      else
+        runQueue(Updates);
       Updates = null;
     }
-    if (wait) return;
+    if (wait)
+      return;
     let res;
     if (Transition) {
       if (!Transition.promises.size && !Transition.queue.size) {
@@ -924,14 +946,16 @@
         }
         Transition = null;
         runUpdates(() => {
-          for (const d of disposed) cleanNode(d);
+          for (const d of disposed)
+            cleanNode(d);
           for (const v of sources) {
             v.value = v.tValue;
             if (v.owned) {
-              for (let i = 0, len = v.owned.length; i < len; i++)
+              for (let i = 0, len = v.owned.length;i < len; i++)
                 cleanNode(v.owned[i]);
             }
-            if (v.tOwned) v.owned = v.tOwned;
+            if (v.tOwned)
+              v.owned = v.tOwned;
             delete v.tValue;
             delete v.tOwned;
             v.tState = 0;
@@ -948,15 +972,19 @@
     }
     const e = Effects;
     Effects = null;
-    if (e.length) runUpdates(() => runEffects(e), false);
-    else DevHooks.afterUpdate && DevHooks.afterUpdate();
-    if (res) res();
+    if (e.length)
+      runUpdates(() => runEffects(e), false);
+    else
+      DevHooks.afterUpdate && DevHooks.afterUpdate();
+    if (res)
+      res();
   }
   function runQueue(queue) {
-    for (let i = 0; i < queue.length; i++) runTop(queue[i]);
+    for (let i = 0;i < queue.length; i++)
+      runTop(queue[i]);
   }
   function scheduleQueue(queue) {
-    for (let i = 0; i < queue.length; i++) {
+    for (let i = 0;i < queue.length; i++) {
       const item = queue[i];
       const tasks = Transition.queue;
       if (!tasks.has(item)) {
@@ -974,31 +1002,35 @@
   }
   function lookUpstream(node, ignore) {
     const runningTransition = Transition && Transition.running;
-    if (runningTransition) node.tState = 0;
-    else node.state = 0;
-    for (let i = 0; i < node.sources.length; i += 1) {
+    if (runningTransition)
+      node.tState = 0;
+    else
+      node.state = 0;
+    for (let i = 0;i < node.sources.length; i += 1) {
       const source = node.sources[i];
       if (source.sources) {
         const state = runningTransition ? source.tState : source.state;
         if (state === STALE) {
-          if (
-            source !== ignore &&
-            (!source.updatedAt || source.updatedAt < ExecCount)
-          )
+          if (source !== ignore && (!source.updatedAt || source.updatedAt < ExecCount))
             runTop(source);
-        } else if (state === PENDING) lookUpstream(source, ignore);
+        } else if (state === PENDING)
+          lookUpstream(source, ignore);
       }
     }
   }
   function markDownstream(node) {
     const runningTransition = Transition && Transition.running;
-    for (let i = 0; i < node.observers.length; i += 1) {
+    for (let i = 0;i < node.observers.length; i += 1) {
       const o = node.observers[i];
       if (runningTransition ? !o.tState : !o.state) {
-        if (runningTransition) o.tState = PENDING;
-        else o.state = PENDING;
-        if (o.pure) Updates.push(o);
-        else Effects.push(o);
+        if (runningTransition)
+          o.tState = PENDING;
+        else
+          o.state = PENDING;
+        if (o.pure)
+          Updates.push(o);
+        else
+          Effects.push(o);
         o.observers && markDownstream(o);
       }
     }
@@ -1007,12 +1039,9 @@
     let i;
     if (node.sources) {
       while (node.sources.length) {
-        const source = node.sources.pop(),
-          index = node.sourceSlots.pop(),
-          obs = source.observers;
+        const source = node.sources.pop(), index = node.sourceSlots.pop(), obs = source.observers;
         if (obs && obs.length) {
-          const n = obs.pop(),
-            s = source.observerSlots.pop();
+          const n = obs.pop(), s = source.observerSlots.pop();
           if (index < obs.length) {
             n.sourceSlots[s] = index;
             obs[index] = n;
@@ -1022,21 +1051,26 @@
       }
     }
     if (node.tOwned) {
-      for (i = node.tOwned.length - 1; i >= 0; i--) cleanNode(node.tOwned[i]);
+      for (i = node.tOwned.length - 1;i >= 0; i--)
+        cleanNode(node.tOwned[i]);
       delete node.tOwned;
     }
     if (Transition && Transition.running && node.pure) {
       reset(node, true);
     } else if (node.owned) {
-      for (i = node.owned.length - 1; i >= 0; i--) cleanNode(node.owned[i]);
+      for (i = node.owned.length - 1;i >= 0; i--)
+        cleanNode(node.owned[i]);
       node.owned = null;
     }
     if (node.cleanups) {
-      for (i = node.cleanups.length - 1; i >= 0; i--) node.cleanups[i]();
+      for (i = node.cleanups.length - 1;i >= 0; i--)
+        node.cleanups[i]();
       node.cleanups = null;
     }
-    if (Transition && Transition.running) node.tState = 0;
-    else node.state = 0;
+    if (Transition && Transition.running)
+      node.tState = 0;
+    else
+      node.state = 0;
     delete node.sourceMap;
   }
   function reset(node, top) {
@@ -1045,45 +1079,53 @@
       Transition.disposed.add(node);
     }
     if (node.owned) {
-      for (let i = 0; i < node.owned.length; i++) reset(node.owned[i]);
+      for (let i = 0;i < node.owned.length; i++)
+        reset(node.owned[i]);
     }
   }
   function castError(err) {
-    if (err instanceof Error) return err;
+    if (err instanceof Error)
+      return err;
     return new Error(typeof err === "string" ? err : "Unknown error", {
-      cause: err,
+      cause: err
     });
   }
   function runErrors(err, fns, owner) {
     try {
-      for (const f of fns) f(err);
+      for (const f of fns)
+        f(err);
     } catch (e) {
-      handleError(e, (owner && owner.owner) || null);
+      handleError(e, owner && owner.owner || null);
     }
   }
   function handleError(err, owner = Owner) {
     const fns = ERROR && owner && owner.context && owner.context[ERROR];
     const error = castError(err);
-    if (!fns) throw error;
+    if (!fns)
+      throw error;
     if (Effects)
       Effects.push({
         fn() {
           runErrors(error, fns, owner);
         },
-        state: STALE,
+        state: STALE
       });
-    else runErrors(error, fns, owner);
+    else
+      runErrors(error, fns, owner);
   }
   function resolveChildren(children2) {
     if (typeof children2 === "function" && !children2.length)
       return resolveChildren(children2());
     if (Array.isArray(children2)) {
       const results = [];
-      for (let i = 0; i < children2.length; i++) {
+      for (let i = 0;i < children2.length; i++) {
         const result = resolveChildren(children2[i]);
         if (Array.isArray(result)) {
-          if (result.length < 32768) results.push.apply(results, result);
-          else for (let j = 0; j < result.length; j++) results.push(result[j]);
+          if (result.length < 32768)
+            results.push.apply(results, result);
+          else
+            for (let j = 0;j < result.length; j++)
+              results.push(result[j]);
         } else {
           results.push(result);
         }
@@ -1095,18 +1137,13 @@
   function createProvider(id, options) {
     return function provider(props) {
       let res;
-      createRenderEffect(
-        () =>
-          (res = untrack(() => {
-            Owner.context = {
-              ...Owner.context,
-              [id]: props.value,
-            };
-            return children(() => props.children);
-          })),
-        undefined,
-        options,
-      );
+      createRenderEffect(() => res = untrack(() => {
+        Owner.context = {
+          ...Owner.context,
+          [id]: props.value
+        };
+        return children(() => props.children);
+      }), undefined, options);
       return res;
     };
   }
@@ -1129,11 +1166,13 @@
   }
   var propTraps = {
     get(_, property, receiver) {
-      if (property === $PROXY) return receiver;
+      if (property === $PROXY)
+        return receiver;
       return _.get(property);
     },
     has(_, property) {
-      if (property === $PROXY) return true;
+      if (property === $PROXY)
+        return true;
       return _.has(property);
     },
     set: trueFn,
@@ -1146,102 +1185,99 @@
           return _.get(property);
         },
         set: trueFn,
-        deleteProperty: trueFn,
+        deleteProperty: trueFn
       };
     },
     ownKeys(_) {
       return _.keys();
-    },
+    }
   };
   function resolveSource(s) {
     return !(s = typeof s === "function" ? s() : s) ? {} : s;
   }
   function resolveSources() {
-    for (let i = 0, length = this.length; i < length; ++i) {
+    for (let i = 0, length = this.length;i < length; ++i) {
       const v = this[i]();
-      if (v !== undefined) return v;
+      if (v !== undefined)
+        return v;
     }
   }
   function mergeProps(...sources) {
     let proxy = false;
-    for (let i = 0; i < sources.length; i++) {
+    for (let i = 0;i < sources.length; i++) {
       const s = sources[i];
-      proxy = proxy || (!!s && $PROXY in s);
-      sources[i] =
-        typeof s === "function" ? ((proxy = true), createMemo(s)) : s;
+      proxy = proxy || !!s && $PROXY in s;
+      sources[i] = typeof s === "function" ? (proxy = true, createMemo(s)) : s;
     }
     if (SUPPORTS_PROXY && proxy) {
-      return new Proxy(
-        {
-          get(property) {
-            for (let i = sources.length - 1; i >= 0; i--) {
-              const v = resolveSource(sources[i])[property];
-              if (v !== undefined) return v;
-            }
-          },
-          has(property) {
-            for (let i = sources.length - 1; i >= 0; i--) {
-              if (property in resolveSource(sources[i])) return true;
-            }
-            return false;
-          },
-          keys() {
-            const keys = [];
-            for (let i = 0; i < sources.length; i++)
-              keys.push(...Object.keys(resolveSource(sources[i])));
-            return [...new Set(keys)];
-          },
+      return new Proxy({
+        get(property) {
+          for (let i = sources.length - 1;i >= 0; i--) {
+            const v = resolveSource(sources[i])[property];
+            if (v !== undefined)
+              return v;
+          }
         },
-        propTraps,
-      );
+        has(property) {
+          for (let i = sources.length - 1;i >= 0; i--) {
+            if (property in resolveSource(sources[i]))
+              return true;
+          }
+          return false;
+        },
+        keys() {
+          const keys = [];
+          for (let i = 0;i < sources.length; i++)
+            keys.push(...Object.keys(resolveSource(sources[i])));
+          return [...new Set(keys)];
+        }
+      }, propTraps);
     }
     const sourcesMap = {};
     const defined = Object.create(null);
-    for (let i = sources.length - 1; i >= 0; i--) {
+    for (let i = sources.length - 1;i >= 0; i--) {
       const source = sources[i];
-      if (!source) continue;
+      if (!source)
+        continue;
       const sourceKeys = Object.getOwnPropertyNames(source);
-      for (let i2 = sourceKeys.length - 1; i2 >= 0; i2--) {
+      for (let i2 = sourceKeys.length - 1;i2 >= 0; i2--) {
         const key = sourceKeys[i2];
-        if (key === "__proto__" || key === "constructor") continue;
+        if (key === "__proto__" || key === "constructor")
+          continue;
         const desc = Object.getOwnPropertyDescriptor(source, key);
         if (!defined[key]) {
-          defined[key] = desc.get
-            ? {
-                enumerable: true,
-                configurable: true,
-                get: resolveSources.bind(
-                  (sourcesMap[key] = [desc.get.bind(source)]),
-                ),
-              }
-            : desc.value !== undefined
-              ? desc
-              : undefined;
+          defined[key] = desc.get ? {
+            enumerable: true,
+            configurable: true,
+            get: resolveSources.bind(sourcesMap[key] = [desc.get.bind(source)])
+          } : desc.value !== undefined ? desc : undefined;
         } else {
           const sources2 = sourcesMap[key];
           if (sources2) {
-            if (desc.get) sources2.push(desc.get.bind(source));
-            else if (desc.value !== undefined) sources2.push(() => desc.value);
+            if (desc.get)
+              sources2.push(desc.get.bind(source));
+            else if (desc.value !== undefined)
+              sources2.push(() => desc.value);
           }
         }
       }
     }
     const target = {};
     const definedKeys = Object.keys(defined);
-    for (let i = definedKeys.length - 1; i >= 0; i--) {
-      const key = definedKeys[i],
-        desc = defined[key];
-      if (desc && desc.get) Object.defineProperty(target, key, desc);
-      else target[key] = desc ? desc.value : undefined;
+    for (let i = definedKeys.length - 1;i >= 0; i--) {
+      const key = definedKeys[i], desc = defined[key];
+      if (desc && desc.get)
+        Object.defineProperty(target, key, desc);
+      else
+        target[key] = desc ? desc.value : undefined;
     }
     return target;
   }
   if (globalThis) {
-    if (!globalThis.Solid$$) globalThis.Solid$$ = true;
+    if (!globalThis.Solid$$)
+      globalThis.Solid$$ = true;
     else
-      console.warn(
-        "You appear to have multiple instances of Solid. This can lead to unexpected behavior.",
-      );
+      console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
 
   // node_modules/.bun/solid-js@1.9.14/node_modules/solid-js/universal/dist/dev.js
@@ -1256,33 +1292,34 @@
     setProperty,
     getParentNode,
     getFirstChild,
-    getNextSibling,
+    getNextSibling
   }) {
     function insert(parent, accessor, marker, initial) {
-      if (marker !== undefined && !initial) initial = [];
+      if (marker !== undefined && !initial)
+        initial = [];
       if (typeof accessor !== "function")
         return insertExpression(parent, accessor, initial, marker);
-      createRenderEffect(
-        (current) => insertExpression(parent, accessor(), current, marker),
-        initial,
-      );
+      createRenderEffect((current) => insertExpression(parent, accessor(), current, marker), initial);
     }
     function insertExpression(parent, value, current, marker, unwrapArray) {
-      while (typeof current === "function") current = current();
-      if (value === current) return current;
-      const t = typeof value,
-        multi = marker !== undefined;
+      while (typeof current === "function")
+        current = current();
+      if (value === current)
+        return current;
+      const t = typeof value, multi = marker !== undefined;
       if (t === "string" || t === "number") {
-        if (t === "number") value = value.toString();
+        if (t === "number")
+          value = value.toString();
         if (multi) {
           let node = current[0];
           if (node && isTextNode(node)) {
             replaceText(node, value);
-          } else node = createTextNode(value);
+          } else
+            node = createTextNode(value);
           current = cleanChildren(parent, current, marker, node);
         } else {
           if (current !== "" && typeof current === "string") {
-            replaceText(getFirstChild(parent), (current = value));
+            replaceText(getFirstChild(parent), current = value);
           } else {
             cleanChildren(parent, current, marker, createTextNode(value));
             current = value;
@@ -1293,94 +1330,73 @@
       } else if (t === "function") {
         createRenderEffect(() => {
           let v = value();
-          while (typeof v === "function") v = v();
+          while (typeof v === "function")
+            v = v();
           current = insertExpression(parent, v, current, marker);
         });
         return () => current;
       } else if (Array.isArray(value)) {
         const array = [];
         if (normalizeIncomingArray(array, value, unwrapArray)) {
-          createRenderEffect(
-            () =>
-              (current = insertExpression(
-                parent,
-                array,
-                current,
-                marker,
-                true,
-              )),
-          );
+          createRenderEffect(() => current = insertExpression(parent, array, current, marker, true));
           return () => current;
         }
         if (array.length === 0) {
           const replacement = cleanChildren(parent, current, marker);
-          if (multi) return (current = replacement);
+          if (multi)
+            return current = replacement;
         } else {
           if (Array.isArray(current)) {
             if (current.length === 0) {
               appendNodes(parent, array, marker);
-            } else reconcileArrays(parent, current, array);
+            } else
+              reconcileArrays(parent, current, array);
           } else if (current == null || current === "") {
             appendNodes(parent, array);
           } else {
-            reconcileArrays(
-              parent,
-              (multi && current) || [getFirstChild(parent)],
-              array,
-            );
+            reconcileArrays(parent, multi && current || [getFirstChild(parent)], array);
           }
         }
         current = array;
       } else {
         if (Array.isArray(current)) {
           if (multi)
-            return (current = cleanChildren(parent, current, marker, value));
+            return current = cleanChildren(parent, current, marker, value);
           cleanChildren(parent, current, null, value);
-        } else if (
-          current == null ||
-          current === "" ||
-          !getFirstChild(parent)
-        ) {
+        } else if (current == null || current === "" || !getFirstChild(parent)) {
           insertNode(parent, value);
-        } else replaceNode(parent, value, getFirstChild(parent));
+        } else
+          replaceNode(parent, value, getFirstChild(parent));
         current = value;
       }
       return current;
     }
     function normalizeIncomingArray(normalized, array, unwrap) {
       let dynamic = false;
-      for (let i = 0, len = array.length; i < len; i++) {
-        let item = array[i],
-          t;
-        if (item == null || item === true || item === false);
+      for (let i = 0, len = array.length;i < len; i++) {
+        let item = array[i], t;
+        if (item == null || item === true || item === false)
+          ;
         else if (Array.isArray(item)) {
           dynamic = normalizeIncomingArray(normalized, item) || dynamic;
         } else if ((t = typeof item) === "string" || t === "number") {
           normalized.push(createTextNode(item));
         } else if (t === "function") {
           if (unwrap) {
-            while (typeof item === "function") item = item();
-            dynamic =
-              normalizeIncomingArray(
-                normalized,
-                Array.isArray(item) ? item : [item],
-              ) || dynamic;
+            while (typeof item === "function")
+              item = item();
+            dynamic = normalizeIncomingArray(normalized, Array.isArray(item) ? item : [item]) || dynamic;
           } else {
             normalized.push(item);
             dynamic = true;
           }
-        } else normalized.push(item);
+        } else
+          normalized.push(item);
       }
       return dynamic;
     }
     function reconcileArrays(parentNode, a, b) {
-      let bLength = b.length,
-        aEnd = a.length,
-        bEnd = bLength,
-        aStart = 0,
-        bStart = 0,
-        after = getNextSibling(a[aEnd - 1]),
-        map = null;
+      let bLength = b.length, aEnd = a.length, bEnd = bLength, aStart = 0, bStart = 0, after = getNextSibling(a[aEnd - 1]), map = null;
       while (aStart < aEnd || bStart < bEnd) {
         if (a[aStart] === b[bStart]) {
           aStart++;
@@ -1392,16 +1408,13 @@
           bEnd--;
         }
         if (aEnd === aStart) {
-          const node =
-            bEnd < bLength
-              ? bStart
-                ? getNextSibling(b[bStart - 1])
-                : b[bEnd - bStart]
-              : after;
-          while (bStart < bEnd) insertNode(parentNode, b[bStart++], node);
+          const node = bEnd < bLength ? bStart ? getNextSibling(b[bStart - 1]) : b[bEnd - bStart] : after;
+          while (bStart < bEnd)
+            insertNode(parentNode, b[bStart++], node);
         } else if (bEnd === bStart) {
           while (aStart < aEnd) {
-            if (!map || !map.has(a[aStart])) removeNode(parentNode, a[aStart]);
+            if (!map || !map.has(a[aStart]))
+              removeNode(parentNode, a[aStart]);
             aStart++;
           }
         } else if (a[aStart] === b[bEnd - 1] && b[bStart] === a[aEnd - 1]) {
@@ -1411,16 +1424,15 @@
           a[aEnd] = b[bEnd];
         } else {
           if (!map) {
-            map = new Map();
+            map = new Map;
             let i = bStart;
-            while (i < bEnd) map.set(b[i], i++);
+            while (i < bEnd)
+              map.set(b[i], i++);
           }
           const index = map.get(a[aStart]);
           if (index != null) {
             if (bStart < index && index < bEnd) {
-              let i = aStart,
-                sequence = 1,
-                t;
+              let i = aStart, sequence = 1, t;
               while (++i < aEnd && i < bEnd) {
                 if ((t = map.get(a[i])) == null || t !== index + sequence)
                   break;
@@ -1430,38 +1442,43 @@
                 const node = a[aStart];
                 while (bStart < index)
                   insertNode(parentNode, b[bStart++], node);
-              } else replaceNode(parentNode, b[bStart++], a[aStart++]);
-            } else aStart++;
-          } else removeNode(parentNode, a[aStart++]);
+              } else
+                replaceNode(parentNode, b[bStart++], a[aStart++]);
+            } else
+              aStart++;
+          } else
+            removeNode(parentNode, a[aStart++]);
         }
       }
     }
     function cleanChildren(parent, current, marker, replacement) {
       if (marker === undefined) {
         let removed;
-        while ((removed = getFirstChild(parent))) removeNode(parent, removed);
+        while (removed = getFirstChild(parent))
+          removeNode(parent, removed);
         replacement && insertNode(parent, replacement);
         return "";
       }
       const node = replacement || createTextNode("");
       if (current.length) {
         let inserted = false;
-        for (let i = current.length - 1; i >= 0; i--) {
+        for (let i = current.length - 1;i >= 0; i--) {
           const el = current[i];
           if (node !== el) {
             const isParent = getParentNode(el) === parent;
             if (!inserted && !i)
-              isParent
-                ? replaceNode(parent, node, el)
-                : insertNode(parent, node, marker);
-            else isParent && removeNode(parent, el);
-          } else inserted = true;
+              isParent ? replaceNode(parent, node, el) : insertNode(parent, node, marker);
+            else
+              isParent && removeNode(parent, el);
+          } else
+            inserted = true;
         }
-      } else insertNode(parent, node, marker);
+      } else
+        insertNode(parent, node, marker);
       return [node];
     }
     function appendNodes(parent, array, marker) {
-      for (let i = 0, len = array.length; i < len; i++)
+      for (let i = 0, len = array.length;i < len; i++)
         insertNode(parent, array[i], marker);
     }
     function replaceNode(parent, newNode, oldNode) {
@@ -1471,21 +1488,16 @@
     function spreadExpression(node, props, prevProps = {}, skipChildren) {
       props || (props = {});
       if (!skipChildren) {
-        createRenderEffect(
-          () =>
-            (prevProps.children = insertExpression(
-              node,
-              props.children,
-              prevProps.children,
-            )),
-        );
+        createRenderEffect(() => prevProps.children = insertExpression(node, props.children, prevProps.children));
       }
       createRenderEffect(() => props.ref && props.ref(node));
       createRenderEffect(() => {
         for (const prop in props) {
-          if (prop === "children" || prop === "ref") continue;
+          if (prop === "children" || prop === "ref")
+            continue;
           const value = props[prop];
-          if (value === prevProps[prop]) continue;
+          if (value === prevProps[prop])
+            continue;
           setProperty(node, prop, value, prevProps[prop]);
           prevProps[prop] = value;
         }
@@ -1504,10 +1516,9 @@
       insert,
       spread(node, accessor, skipChildren) {
         if (typeof accessor === "function") {
-          createRenderEffect((current) =>
-            spreadExpression(node, accessor(), current, skipChildren),
-          );
-        } else spreadExpression(node, accessor, undefined, skipChildren);
+          createRenderEffect((current) => spreadExpression(node, accessor(), current, skipChildren));
+        } else
+          spreadExpression(node, accessor, undefined, skipChildren);
       },
       createElement,
       createTextNode,
@@ -1522,7 +1533,7 @@
       createComponent,
       use(fn, element, arg) {
         return untrack(() => fn(element, arg));
-      },
+      }
     };
   }
   function createRenderer(options) {
@@ -1534,22 +1545,20 @@
   // packages/solid-renderer/src/host.tsx
   var builtinHost = {
     system: {
-      openUrl: (url) => __wabou_open_url(url),
+      openUrl: (url) => __wabou_open_url(url)
     },
     fonts: {
-      load: (path) => __wabou_load_font(path),
+      load: (path) => __wabou_load_font(path)
     },
     diagnostics: {
       frameStats: () => {
         const value = JSON.parse(__wabou_frame_stats());
         return value;
-      },
+      }
     },
     layout: {
       snapshot: (targets) => {
-        const ids = Uint32Array.from(targets, (target) =>
-          typeof target === "number" ? target : target.id,
-        );
+        const ids = Uint32Array.from(targets, (target) => typeof target === "number" ? target : target.id);
         return JSON.parse(__wabou_layout_snapshot(ids));
       },
       measure: (target) => {
@@ -1560,13 +1569,10 @@
         const snapshot = builtinHost.layout.snapshot([target]);
         return snapshot.nodes[0]?.clip ?? null;
       },
-      viewport: () => builtinHost.layout.snapshot([]).viewport,
-    },
+      viewport: () => builtinHost.layout.snapshot([]).viewport
+    }
   };
-  var defaultHost = Object.assign(
-    builtinHost,
-    typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities,
-  );
+  var defaultHost = Object.assign(builtinHost, typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities);
   var HostContext = createContext(defaultHost);
   // packages/solid-renderer/src/index.ts
   var FREE_LIST = [];
@@ -1574,39 +1580,43 @@
   var nextSlot = 2;
   var listenersBySlot = [];
   var nodesBySlot = [];
-  var classesByNode = new WeakMap();
+  var classesByNode = new WeakMap;
   function emitClasses(writer, node) {
     const state = classesByNode.get(node);
-    if (!state) return;
+    if (!state)
+      return;
     const tokens = new Set(state.base.split(/\s+/).filter(Boolean));
     for (const [names, enabled] of Object.entries(state.toggles)) {
       for (const token of names.split(/\s+/).filter(Boolean)) {
-        if (enabled) tokens.add(token);
-        else tokens.delete(token);
+        if (enabled)
+          tokens.add(token);
+        else
+          tokens.delete(token);
       }
     }
     writer.setClassName(node.id, [...tokens].join(" "));
   }
-  var finalizationRegistry =
-    typeof FinalizationRegistry !== "undefined"
-      ? new FinalizationRegistry((id) => {
-          const slot = id & 1048575;
-          const expectedGen = id >>> 20;
-          if (GENERATIONS[slot] !== expectedGen) return;
-          nodesBySlot[slot] = undefined;
-          listenersBySlot[slot] = undefined;
-          writer.dropNode(id);
-          freeId(id);
-        })
-      : null;
-  var sweepSet = new Set();
+  var finalizationRegistry = typeof FinalizationRegistry !== "undefined" ? new FinalizationRegistry((id) => {
+    const slot = id & 1048575;
+    const expectedGen = id >>> 20;
+    if (GENERATIONS[slot] !== expectedGen)
+      return;
+    nodesBySlot[slot] = undefined;
+    listenersBySlot[slot] = undefined;
+    writer.dropNode(id);
+    freeId(id);
+  }) : null;
+  var sweepSet = new Set;
   function runSweep() {
-    if (sweepSet.size === 0) return;
+    if (sweepSet.size === 0)
+      return;
     for (const node of sweepSet) {
-      if (node.parent !== null) continue;
+      if (node.parent !== null)
+        continue;
       const destroy = (n) => {
         const slot = n.id & 1048575;
-        if (nodesBySlot[slot] === undefined) return;
+        if (nodesBySlot[slot] === undefined)
+          return;
         finalizationRegistry?.unregister(n);
         nodesBySlot[slot] = undefined;
         listenersBySlot[slot] = undefined;
@@ -1631,18 +1641,15 @@
       GENERATIONS[slot] = 0;
     }
     const gen = GENERATIONS[slot];
-    return ((gen << 20) | slot) >>> 0;
+    return (gen << 20 | slot) >>> 0;
   }
   function freeId(id) {
     const slot = id & 1048575;
-    GENERATIONS[slot] = (GENERATIONS[slot] + 1) & 4095;
+    GENERATIONS[slot] = GENERATIONS[slot] + 1 & 4095;
     FREE_LIST.push(slot);
   }
   function imperativeMethods(id) {
-    const coordinates = (first, second) =>
-      typeof first === "number"
-        ? [first, second ?? Number.NaN]
-        : [first.left ?? Number.NaN, first.top ?? Number.NaN];
+    const coordinates = (first, second) => typeof first === "number" ? [first, second ?? Number.NaN] : [first.left ?? Number.NaN, first.top ?? Number.NaN];
     const scrollTo = (first, second) => {
       const [x, y] = coordinates(first, second);
       writer.scrollTo(id, x, y);
@@ -1654,7 +1661,7 @@
     return {
       focus: () => writer.focusNode(id),
       scrollTo,
-      scrollBy,
+      scrollBy
     };
   }
   function makeHandle(tag) {
@@ -1667,7 +1674,7 @@
       lastChild: null,
       prev: null,
       next: null,
-      ...imperativeMethods(id),
+      ...imperativeMethods(id)
     };
     if (typeof WeakRef !== "undefined") {
       nodesBySlot[id & 1048575] = new WeakRef(h);
@@ -1682,36 +1689,58 @@
     if (ref == null) {
       child.prev = parent.lastChild;
       child.next = null;
-      if (parent.lastChild) parent.lastChild.next = child;
-      else parent.firstChild = child;
+      if (parent.lastChild)
+        parent.lastChild.next = child;
+      else
+        parent.firstChild = child;
       parent.lastChild = child;
     } else {
       child.prev = ref.prev;
       child.next = ref;
-      if (ref.prev) ref.prev.next = child;
-      else parent.firstChild = child;
+      if (ref.prev)
+        ref.prev.next = child;
+      else
+        parent.firstChild = child;
       ref.prev = child;
     }
   }
   function unlinkChild(parent, child) {
-    if (child.prev) child.prev.next = child.next;
-    else parent.firstChild = child.next;
-    if (child.next) child.next.prev = child.prev;
-    else parent.lastChild = child.prev;
+    if (child.prev)
+      child.prev.next = child.next;
+    else
+      parent.firstChild = child.next;
+    if (child.next)
+      child.next.prev = child.prev;
+    else
+      parent.lastChild = child.prev;
     child.parent = child.prev = child.next = null;
   }
   function applyProperty(writer, node, name, value, prev) {
-    if (value === prev) return;
+    if (value === prev)
+      return;
+    if (name === "overlayPlane") {
+      const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
+      writer.setOverlayPlane(node.id, plane);
+      return;
+    }
+    if (name === "scrollbar") {
+      const style = value && typeof value === "object" ? value : {};
+      writer.setScrollbarStyle(node.id, {
+        visibility: style.visibility === "always" ? 1 : style.visibility === "hidden" ? 2 : 0,
+        thickness: style.thickness ?? 10,
+        margin: style.margin ?? 2,
+        minThumbLength: style.minThumbLength ?? 32,
+        radius: style.radius ?? -1,
+        trackColor: style.trackColor ?? 0,
+        thumbColor: style.thumbColor ?? 1685360574,
+        hoverColor: style.hoverColor ?? 1685360609,
+        activeColor: style.activeColor ?? 1196780031
+      });
+      return;
+    }
     if (name === "transform") {
-      const matrix =
-        value == null || value === false ? [1, 0, 0, 1, 0, 0] : value;
-      if (
-        Array.isArray(matrix) &&
-        matrix.length === 6 &&
-        matrix.every(
-          (part) => typeof part === "number" && Number.isFinite(part),
-        )
-      ) {
+      const matrix = value == null || value === false ? [1, 0, 0, 1, 0, 0] : value;
+      if (Array.isArray(matrix) && matrix.length === 6 && matrix.every((part) => typeof part === "number" && Number.isFinite(part))) {
         writer.setTransform2D(node.id, matrix);
       }
       return;
@@ -1735,6 +1764,14 @@
       emitClasses(writer, node);
       return;
     }
+    if (name === "shadows") {
+      if (value == null || value === false) {
+        writer.removeStyle(node.id, "box-shadow");
+      } else if (Array.isArray(value)) {
+        writer.setShadows(node.id, value);
+      }
+      return;
+    }
     if (value == null || value === false) {
       if (name.startsWith("on") && name.length > 2) {
         const t = EVENT_CODE[name.slice(2).toLowerCase()] ?? null;
@@ -1745,7 +1782,8 @@
         }
         return;
       }
-      if (name === "href") node.href = undefined;
+      if (name === "href")
+        node.href = undefined;
       writer.removeAttribute(node.id, name);
       return;
     }
@@ -1754,7 +1792,8 @@
       const prec = prev && typeof prev === "object" ? prev : {};
       for (const k in rec) {
         const next = rec[k];
-        if (k in prec && next === prec[k]) continue;
+        if (k in prec && next === prec[k])
+          continue;
         if (next == null || next === false) {
           writer.removeStyle(node.id, k);
           continue;
@@ -1765,22 +1804,26 @@
         }
         writer.setStyle(node.id, k, String(next));
       }
-      for (const k in prec) if (!(k in rec)) writer.removeStyle(node.id, k);
+      for (const k in prec)
+        if (!(k in rec))
+          writer.removeStyle(node.id, k);
       return;
     }
     if (name === "textContent") {
       writer.setText(node.id, String(value));
       return;
     }
-    if (name === "href") node.href = String(value);
+    if (name === "href")
+      node.href = String(value);
     if (name.startsWith("on") && typeof value === "function") {
       const t = EVENT_CODE[name.slice(2).toLowerCase()];
-      if (t == null) return;
+      if (t == null)
+        return;
       writer.addEventListener(node.id, t);
       const slot = node.id & 1048575;
       let m = listenersBySlot[slot];
       if (!m) {
-        m = new Map();
+        m = new Map;
         listenersBySlot[slot] = m;
       }
       m.set(t, value);
@@ -1788,7 +1831,7 @@
     }
     writer.setAttribute(node.id, name, String(value));
   }
-  var writer = new Writer();
+  var writer = new Writer;
   var renderer = createRenderer({
     createElement(tag) {
       const h = makeHandle(tag);
@@ -1834,7 +1877,7 @@
     },
     getNextSibling(node) {
       return node.next ?? undefined;
-    },
+    }
   });
   var render = renderer.render;
   var createElement = renderer.createElement;
@@ -1855,6 +1898,7 @@
   }
   var activeMountDispose = null;
   var mountedRoot = null;
+  var overlayRoots = new Map;
   function mount(code) {
     if (activeMountDispose) {
       try {
@@ -1872,14 +1916,17 @@
       lastChild: null,
       prev: null,
       next: null,
-      ...imperativeMethods(1),
+      ...imperativeMethods(1)
     };
     mountedRoot = root;
+    overlayRoots.clear();
     registerRoot(root);
     const dispose = render(code, root);
     activeMountDispose = () => {
       dispose();
-      if (mountedRoot === root) mountedRoot = null;
+      overlayRoots.clear();
+      if (mountedRoot === root)
+        mountedRoot = null;
       runSweep();
       writer.flush();
     };
@@ -1899,12 +1946,7 @@
     } else {
       const ed = numericData;
       if (ed) {
-        if (
-          eventCode === EVENT_CODE.pointerup ||
-          eventCode === EVENT_CODE.pointerdown ||
-          eventCode === EVENT_CODE.pointermove ||
-          eventCode === EVENT_CODE.click
-        ) {
+        if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click) {
           data.clientX = ed[0];
           data.clientY = ed[1];
           data.button = ed[2];
@@ -1936,7 +1978,7 @@
       },
       get propagationStopped() {
         return stopped;
-      },
+      }
     };
     bubble(solidId, eventCode, ev);
     return defaultPrevented;
@@ -1959,19 +2001,21 @@
           __wabou_log("error", String(e));
         }
       }
-      if (ev.propagationStopped) return;
+      if (ev.propagationStopped)
+        return;
       cur = derefHandle(cur)?.parent?.id ?? null;
     }
   }
   function eventName(code) {
     for (const [name, c] of Object.entries(EVENT_CODE)) {
-      if (c === code) return name;
+      if (c === code)
+        return name;
     }
     return "unknown";
   }
 
   // packages/core/src/glue/animation-frame.ts
-  var rafQueue = new Map();
+  var rafQueue = new Map;
   var nextRafId = 1;
   function requestAnimationFrameImpl(cb) {
     const id = nextRafId++;
@@ -1993,7 +2037,8 @@
     }
     runSweep();
     const bytes = writer.flush();
-    if (bytes) __wabou_flush(bytes);
+    if (bytes)
+      __wabou_flush(bytes);
     return rafQueue.size > 0;
   }
   function __wabou_has_raf() {
@@ -2006,20 +2051,18 @@
 
   // packages/core/src/glue/timers.ts
   var nextTimerId = 1;
-  var active = new Set();
+  var active = new Set;
   function schedule(callback, delay, repeat, args) {
     const id = nextTimerId++;
     active.add(id);
     const run = async () => {
       await __wabou_sleep(delay);
-      if (!active.has(id)) return;
+      if (!active.has(id))
+        return;
       try {
         callback(...args);
       } catch (error) {
-        __wabou_log(
-          "error",
-          error?.stack ? String(error.stack) : String(error),
-        );
+        __wabou_log("error", error?.stack ? String(error.stack) : String(error));
       }
       if (repeat && active.has(id)) {
         run();
@@ -2030,10 +2073,8 @@
     run();
     return id;
   }
-  globalThis.setTimeout = (callback, delay = 0, ...args) =>
-    schedule(callback, Number(delay) || 0, false, args);
-  globalThis.setInterval = (callback, delay = 0, ...args) =>
-    schedule(callback, Number(delay) || 0, true, args);
+  globalThis.setTimeout = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, false, args);
+  globalThis.setInterval = (callback, delay = 0, ...args) => schedule(callback, Number(delay) || 0, true, args);
   function clearTimer(id) {
     active.delete(id);
   }
@@ -2041,21 +2082,22 @@
   globalThis.clearInterval = clearTimer;
 
   // packages/core/src/glue/resize-observer.ts
-  var observers = new Map();
+  var observers = new Map;
 
   class WabouResizeObserver {
     callback;
-    targets = new Set();
+    targets = new Set;
     constructor(callback) {
       this.callback = callback;
     }
     observe(target) {
       const id = target.id;
-      if (this.targets.has(id)) return;
+      if (this.targets.has(id))
+        return;
       this.targets.add(id);
       let observed = observers.get(id);
       if (!observed) {
-        observed = { target, callbacks: new Set() };
+        observed = { target, callbacks: new Set };
         observers.set(id, observed);
         __wabou_resize_observe(id);
       }
@@ -2065,10 +2107,12 @@
       this.remove(target.id);
     }
     disconnect() {
-      for (const id of this.targets) this.remove(id);
+      for (const id of this.targets)
+        this.remove(id);
     }
     remove(id) {
-      if (!this.targets.delete(id)) return;
+      if (!this.targets.delete(id))
+        return;
       const observed = observers.get(id);
       observed?.callbacks.delete(this.callback);
       if (observed?.callbacks.size === 0) {
@@ -2079,34 +2123,33 @@
   }
   function dispatchResizeObservation(solidId, width, height) {
     const observed = observers.get(solidId);
-    if (!observed) return;
+    if (!observed)
+      return;
     const entry = { target: observed.target, contentRect: { width, height } };
     for (const callback of observed.callbacks) {
       try {
         callback([entry]);
       } catch (error) {
-        __wabou_log(
-          "error",
-          error?.stack ? String(error.stack) : String(error),
-        );
+        __wabou_log("error", error?.stack ? String(error.stack) : String(error));
       }
     }
   }
   globalThis.ResizeObserver = WabouResizeObserver;
 
   // packages/core/src/glue/host-messages.ts
-  var listeners = new Map();
-  var allListeners = new Set();
+  var listeners = new Map;
+  var allListeners = new Set;
   function subscribe(topic, handler) {
     let set = listeners.get(topic);
     if (!set) {
-      set = new Set();
+      set = new Set;
       listeners.set(topic, set);
     }
     set.add(handler);
     return () => {
       set.delete(handler);
-      if (set.size === 0) listeners.delete(topic);
+      if (set.size === 0)
+        listeners.delete(topic);
     };
   }
   function dispatchHostMessage(topic, payload) {
@@ -2132,15 +2175,12 @@
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
   var FLAG_CANCELLABLE = 1;
-  var textDecoder = new TextDecoder();
+  var textDecoder = new TextDecoder;
   function viewOf(input) {
-    const bytes =
-      input instanceof ArrayBuffer
-        ? new Uint8Array(input)
-        : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+    const bytes = input instanceof ArrayBuffer ? new Uint8Array(input) : new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
     return {
       bytes,
-      view: new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength),
+      view: new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
     };
   }
   function decodeAndDispatchHostFrame(input) {
@@ -2166,7 +2206,7 @@
         throw new TypeError("truncated HostEventFrame record");
       }
     };
-    for (let index = 0; index < count; index++) {
+    for (let index = 0;index < count; index++) {
       if (offset + RECORD_HEADER_LEN > byteLen) {
         throw new TypeError("truncated HostEventFrame record header");
       }
@@ -2192,12 +2232,12 @@
             target,
             eventCode,
             eventId,
-            json: "",
+            json: ""
           });
         } else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
           requireBytes(8 * 7, end);
           const numeric = new Float64Array(7);
-          for (let slot = 0; slot < numeric.length; slot++) {
+          for (let slot = 0;slot < numeric.length; slot++) {
             numeric[slot] = view.getFloat64(offset + slot * 8, true);
           }
           offset += 8 * numeric.length;
@@ -2208,7 +2248,7 @@
             eventCode,
             eventId,
             json: "",
-            numeric,
+            numeric
           });
         } else if (payloadKind === HOST_NODE_PAYLOAD.Json) {
           requireBytes(4, end);
@@ -2223,7 +2263,7 @@
             target,
             eventCode,
             eventId,
-            json,
+            json
           });
         } else {
           throw new TypeError(`unknown node payload kind ${payloadKind}`);
@@ -2234,7 +2274,7 @@
           kind: "resize",
           target: view.getUint32(offset, true),
           width: view.getFloat32(offset + 4, true),
-          height: view.getFloat32(offset + 8, true),
+          height: view.getFloat32(offset + 8, true)
         });
         offset += 12;
       } else if (kind === HOST_RECORD_KIND.ApplicationMessage) {
@@ -2242,13 +2282,12 @@
         const topicLen = view.getUint16(offset, true);
         offset += 2;
         requireBytes(topicLen + 1, end);
-        const topic = textDecoder.decode(
-          bytes.subarray(offset, offset + topicLen),
-        );
+        const topic = textDecoder.decode(bytes.subarray(offset, offset + topicLen));
         offset += topicLen;
         const payloadKind = view.getUint8(offset++);
         let payload;
-        if (payloadKind === 0) payload = null;
+        if (payloadKind === 0)
+          payload = null;
         else if (payloadKind === 1) {
           requireBytes(1, end);
           payload = view.getUint8(offset++) !== 0;
@@ -2275,15 +2314,14 @@
           payload = bytes.subarray(offset, offset + len).slice();
           offset += len;
         } else {
-          throw new TypeError(
-            `unknown application payload kind ${payloadKind}`,
-          );
+          throw new TypeError(`unknown application payload kind ${payloadKind}`);
         }
         records.push({ kind: "message", topic, payload });
       } else {
         records.push({ kind: "unknown" });
       }
-      if (offset > end) throw new TypeError("HostEventFrame record overflow");
+      if (offset > end)
+        throw new TypeError("HostEventFrame record overflow");
       offset = end;
     }
     if (offset !== byteLen)
@@ -2292,17 +2330,8 @@
     let needsTick = false;
     for (const record of records) {
       if (record.kind === "node") {
-        const defaultPrevented = dispatchEvent(
-          record.target,
-          record.eventCode,
-          record.json,
-          record.numeric,
-        );
-        if (
-          defaultPrevented &&
-          (record.flags & FLAG_CANCELLABLE) !== 0 &&
-          record.eventId !== 0
-        ) {
+        const defaultPrevented = dispatchEvent(record.target, record.eventCode, record.json, record.numeric);
+        if (defaultPrevented && (record.flags & FLAG_CANCELLABLE) !== 0 && record.eventId !== 0) {
           prevented.push(record.eventId);
         }
         needsTick = true;
@@ -2315,9 +2344,8 @@
       }
     }
     return {
-      preventedEventIds:
-        prevented.length > 0 ? Uint32Array.from(prevented) : undefined,
-      needsTick,
+      preventedEventIds: prevented.length > 0 ? Uint32Array.from(prevented) : undefined,
+      needsTick
     };
   }
   function __wabou_dispatch_host_frame(frame) {
@@ -2334,11 +2362,12 @@
     physicalHeight: 0,
     scaleFactor: 1,
     maximized: false,
-    focused: false,
+    focused: false
   };
   var [metrics, setMetrics] = createSignal(initial, { equals: false });
   subscribe("wabou:window-metrics", (payload) => {
-    if (typeof payload !== "string") return;
+    if (typeof payload !== "string")
+      return;
     const next = JSON.parse(payload);
     setMetrics(next);
   });

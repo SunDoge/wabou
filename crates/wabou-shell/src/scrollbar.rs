@@ -23,61 +23,80 @@ pub struct ScrollbarTarget {
     pub part: ScrollbarPart,
 }
 
-pub fn track(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ResolvedScrollbarGeometry {
+    pub track: Rect,
+    pub thumb: Rect,
+}
+
+/// Resolve viewport-dependent scrollbar dimensions once so paint, hit testing
+/// and dragging cannot disagree for extreme custom values.
+pub fn resolve(node: &PlacedNode, axis: ScrollAxis) -> Option<ResolvedScrollbarGeometry> {
     let index = usize::from(axis == ScrollAxis::Vertical);
     if node.scroll.range[index] <= 0.5 || !node.scroll.scrollable[index] {
         return None;
     }
-    let [x0, y0, x1, y1] = node.scroll.port.map(f64::from);
-    let style = node.paint.scrollbar;
-    let thickness = f64::from(style.thickness);
-    let margin = f64::from(style.margin);
-    Some(match axis {
-        ScrollAxis::Horizontal => Rect::new(x0, y1 - margin - thickness, x1, y1 - margin),
-        ScrollAxis::Vertical => Rect::new(x1 - margin - thickness, y0, x1 - margin, y1),
-    })
-}
-
-pub fn thumb(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
-    let index = match axis {
-        ScrollAxis::Horizontal => 0,
-        ScrollAxis::Vertical => 1,
-    };
-    let range = f64::from(node.scroll.range[index]);
-    if range <= 0.5 || !node.scroll.scrollable[index] {
-        return None;
-    }
     let [x0, y0, x1, y1] = node.scroll.port;
     let port = Rect::new(x0.into(), y0.into(), x1.into(), y1.into());
-    let viewport = match axis {
+    let main = match axis {
         ScrollAxis::Horizontal => port.width(),
         ScrollAxis::Vertical => port.height(),
-    };
+    }
+    .max(0.0);
+    let cross = match axis {
+        ScrollAxis::Horizontal => port.height(),
+        ScrollAxis::Vertical => port.width(),
+    }
+    .max(0.0);
+    if main <= 0.0 || cross <= 0.0 {
+        return None;
+    }
     let style = node.paint.scrollbar;
-    let thickness = f64::from(style.thickness).min(viewport);
-    let margin = f64::from(style.margin).min((viewport - thickness).max(0.0));
-    let length = (viewport * viewport / (viewport + range))
-        .max(f64::from(style.min_thumb_length))
-        .min(viewport);
-    let progress = (f64::from(node.scroll.offset[index]) / range).clamp(0.0, 1.0);
-    let start = match progress * (viewport - length) {
-        value if value > 0.0 && value < 1.0 => 1.0,
-        value => value,
-    };
-    Some(match axis {
+    let thickness = f64::from(style.thickness).clamp(0.0, cross);
+    let margin = f64::from(style.margin).clamp(0.0, (cross - thickness).max(0.0));
+    let track = match axis {
         ScrollAxis::Horizontal => Rect::new(
-            port.x0 + start,
+            port.x0,
             port.y1 - margin - thickness,
-            port.x0 + start + length,
+            port.x1,
             port.y1 - margin,
         ),
         ScrollAxis::Vertical => Rect::new(
             port.x1 - margin - thickness,
-            port.y0 + start,
+            port.y0,
             port.x1 - margin,
+            port.y1,
+        ),
+    };
+    let range = f64::from(node.scroll.range[index]);
+    let length = (main * main / (main + range))
+        .max(f64::from(style.min_thumb_length))
+        .clamp(0.0, main);
+    let progress = (f64::from(node.scroll.offset[index]) / range).clamp(0.0, 1.0);
+    let start = progress * (main - length);
+    let thumb = match axis {
+        ScrollAxis::Horizontal => Rect::new(
+            port.x0 + start,
+            track.y0,
+            port.x0 + start + length,
+            track.y1,
+        ),
+        ScrollAxis::Vertical => Rect::new(
+            track.x0,
+            port.y0 + start,
+            track.x1,
             port.y0 + start + length,
         ),
-    })
+    };
+    Some(ResolvedScrollbarGeometry { track, thumb })
+}
+
+pub fn track(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
+    resolve(node, axis).map(|geometry| geometry.track)
+}
+
+pub fn thumb(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
+    resolve(node, axis).map(|geometry| geometry.thumb)
 }
 
 pub fn hit(node: &PlacedNode, point: Point) -> Option<ScrollbarTarget> {
@@ -123,9 +142,11 @@ pub fn drag_ratio(node: &PlacedNode, axis: ScrollAxis) -> f64 {
         ScrollAxis::Vertical => thumb.height(),
     };
     let play = viewport - length;
-    (play > 0.0)
-        .then(|| f64::from(node.scroll.range[index]) / play)
-        .unwrap_or(0.0)
+    if play > 0.0 {
+        f64::from(node.scroll.range[index]) / play
+    } else {
+        0.0
+    }
 }
 
 #[cfg(test)]
@@ -135,7 +156,7 @@ mod tests {
 
     fn node(offset: f32) -> PlacedNode {
         PlacedNode {
-            node_id: taffy::NodeId::from(taffy::tree::NodeId::from(0_u64)),
+            node_id: taffy::tree::NodeId::from(0_u64),
             parent_node_id: None,
             depth: 0,
             rect: [0.0, 0.0, 100.0, 100.0],
@@ -193,5 +214,17 @@ mod tests {
                 part: ScrollbarPart::TrackAfter,
             })
         );
+    }
+
+    #[test]
+    fn extreme_custom_dimensions_are_clamped_to_the_scroll_port() {
+        let mut node = node(450.0);
+        node.paint.scrollbar.thickness = 500.0;
+        node.paint.scrollbar.margin = 500.0;
+        node.paint.scrollbar.min_thumb_length = 500.0;
+        let geometry = resolve(&node, ScrollAxis::Vertical).unwrap();
+        assert_eq!(geometry.track, Rect::new(0.0, 0.0, 100.0, 100.0));
+        assert_eq!(geometry.thumb, Rect::new(0.0, 0.0, 100.0, 100.0));
+        assert_eq!(drag_ratio(&node, ScrollAxis::Vertical), 0.0);
     }
 }

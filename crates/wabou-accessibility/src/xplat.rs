@@ -19,7 +19,7 @@ fn root_update(
     height: f64,
     scale: f64,
     initialize: bool,
-    snapshot: Option<SemanticSnapshot>,
+    snapshot: Option<&SemanticSnapshot>,
 ) -> TreeUpdate {
     let mut root = Node::new(Role::Window);
     root.set_label(title);
@@ -58,7 +58,7 @@ fn root_update(
         nodes.extend(
             snapshot
                 .nodes
-                .into_iter()
+                .iter()
                 .filter(|semantic| {
                     allowed
                         .as_ref()
@@ -75,15 +75,16 @@ fn root_update(
                         SemanticRole::Dialog => Role::Dialog,
                     };
                     let mut node = Node::new(role);
-                    if let Some(label) = semantic.label {
-                        node.set_label(label);
+                    if let Some(label) = &semantic.label {
+                        node.set_label(label.clone());
                     }
                     let [x0, y0, x1, y1] = semantic.bounds.map(|value| f64::from(value) * scale);
                     node.set_bounds(Rect::new(x0, y0, x1, y1));
                     node.set_children(
                         semantic
                             .children
-                            .into_iter()
+                            .iter()
+                            .copied()
                             .map(NodeId)
                             .collect::<Vec<_>>(),
                     );
@@ -131,7 +132,9 @@ pub struct AccessibilityState {
     adapter: Adapter,
     events: Arc<Mutex<Vec<AccessKitEvent>>>,
     title: String,
-    snapshot: Option<SemanticSnapshot>,
+    snapshot: Option<Arc<SemanticSnapshot>>,
+    active: bool,
+    initialize_pending: bool,
 }
 
 impl AccessibilityState {
@@ -153,6 +156,8 @@ impl AccessibilityState {
             events,
             title,
             snapshot: None,
+            active: false,
+            initialize_pending: false,
         }
     }
 
@@ -166,8 +171,30 @@ impl AccessibilityState {
         }
     }
 
-    pub fn set_snapshot(&mut self, snapshot: Option<SemanticSnapshot>) {
+    pub fn set_snapshot(&mut self, snapshot: Option<Arc<SemanticSnapshot>>) {
         self.snapshot = snapshot;
+    }
+
+    /// Consume activation lifecycle events before a frame is built and report
+    /// whether the frame source should produce semantic data.
+    pub fn prepare_frame(&mut self) -> bool {
+        if let Ok(mut events) = self.events.lock() {
+            events.retain(|event| match event {
+                AccessKitEvent::InitialTreeRequested => {
+                    self.active = true;
+                    self.initialize_pending = true;
+                    false
+                }
+                AccessKitEvent::AccessibilityDeactivated => {
+                    self.active = false;
+                    self.initialize_pending = false;
+                    self.snapshot = None;
+                    false
+                }
+                AccessKitEvent::ActionRequested(_) => true,
+            });
+        }
+        self.active
     }
 
     pub fn take_actions(&mut self) -> Vec<SemanticAction> {
@@ -196,23 +223,23 @@ impl AccessibilityState {
 
     pub fn publish_root(&mut self, window: &dyn Window) {
         self.update_window_bounds(window);
-        let requested = self
-            .events
-            .lock()
-            .map(|mut events| {
-                let requested = events
-                    .iter()
-                    .any(|event| matches!(event, AccessKitEvent::InitialTreeRequested));
-                events.clear();
-                requested
-            })
-            .unwrap_or(false);
+        if !self.active {
+            return;
+        }
+        let requested = std::mem::take(&mut self.initialize_pending);
         let title = self.title.clone();
         let snapshot = self.snapshot.clone();
         let size = window.surface_size().cast::<f64>();
         let scale = window.scale_factor();
         self.adapter.update_if_active(move || {
-            root_update(title, size.width, size.height, scale, requested, snapshot)
+            root_update(
+                title,
+                size.width,
+                size.height,
+                scale,
+                requested,
+                snapshot.as_deref(),
+            )
         });
     }
 
@@ -286,7 +313,7 @@ mod tests {
             focus: Some(3),
             modal_root: Some(3),
         };
-        let update = root_update("Gallery".into(), 200.0, 200.0, 2.0, true, Some(snapshot));
+        let update = root_update("Gallery".into(), 200.0, 200.0, 2.0, true, Some(&snapshot));
         assert_eq!(update.focus, NodeId(3));
         assert_eq!(update.nodes[0].1.children(), &[NodeId(3)]);
         assert_eq!(update.nodes.len(), 3, "background subtree must be absent");

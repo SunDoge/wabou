@@ -43,7 +43,6 @@ const CHARS = [
 ];
 const SIZE = 28;
 const HEADER_H = 68;
-const TRANSFORM_STYLE = "trans" + "form";
 let _jsSink = 0;
 
 type Stats = {
@@ -256,15 +255,14 @@ function App() {
         <Index each={bodies()}>
           {(body, index) => (
             <div
+              class="text-[28px]"
               ref={(handle) => {
                 handles[index] = handle as unknown as Handle;
               }}
               style={{
                 position: "absolute",
-                top: "0",
-                left: "0",
-                [TRANSFORM_STYLE]: `translate(${body().x}px, ${body().y}px)`,
-                "font-size": `${SIZE}px`,
+                top: 0,
+                left: 0,
                 "line-height": "1",
               }}
             >

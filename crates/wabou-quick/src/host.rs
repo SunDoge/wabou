@@ -31,13 +31,21 @@ use crate::jsrt::JsRuntime;
 use crate::widget::{Widget, WidgetFactory, builtin_factories};
 use crate::{WindowOptions, run_windows_with_factory, style};
 
+type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
+
 pub struct HostBuilder {
     base_color: Color,
     window: WindowOptions,
     additional_windows: Vec<WindowOptions>,
     widget_factories: HashMap<String, WidgetFactory>,
-    capabilities: Vec<Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>>,
+    capabilities: Vec<CapabilityInstaller>,
     devtools: bool,
+}
+
+impl Default for HostBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HostBuilder {
@@ -224,6 +232,7 @@ impl HostBuilder {
         let child_hmr_clients = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         #[cfg(feature = "vite")]
         let child_hmr_store = child_hmr_clients.clone();
+        #[allow(clippy::arc_with_non_send_sync)] // winit invokes this only on its event thread.
         let factory: crate::FrameSourceFactory = Arc::new(move |window_id, _options| {
             #[cfg(feature = "vite")]
             let js = if let Some((url, _)) = child_vite.as_ref() {

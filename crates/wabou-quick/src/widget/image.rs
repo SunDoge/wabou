@@ -23,6 +23,12 @@ pub struct ImageWidget {
     cached_src: Option<String>,
 }
 
+impl Default for ImageWidget {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ImageWidget {
     pub fn new() -> Self {
         Self {
@@ -37,38 +43,39 @@ impl ImageWidget {
 
 impl Widget for ImageWidget {
     fn paint(&mut self, width: f32, height: f32, _tcx: &mut TextContext) -> Scene {
-        if let Some(src) = &self.src {
-            if self.cached_src.as_deref() != Some(src.as_str()) {
-                match image::open(src) {
-                    Ok(img) => {
-                        let rgba = img.into_rgba8();
-                        self.img_w = rgba.width();
-                        self.img_h = rgba.height();
-                        let data = ImageData {
-                            data: Blob::new(Arc::new(rgba.into_raw().into_boxed_slice())),
-                            format: ImageFormat::Rgba8,
-                            alpha_type: ImageAlphaType::Alpha,
-                            width: self.img_w,
-                            height: self.img_h,
-                        };
-                        self.image = Some(ImageBrush::new(data));
-                        self.cached_src = Some(src.clone());
-                    }
-                    Err(e) => {
-                        tracing::warn!(src = %src, error = %e, "image decode failed");
-                        self.image = None;
-                        self.cached_src = None;
-                    }
+        if let Some(src) = &self.src
+            && self.cached_src.as_deref() != Some(src.as_str())
+        {
+            match image::open(src) {
+                Ok(img) => {
+                    let rgba = img.into_rgba8();
+                    self.img_w = rgba.width();
+                    self.img_h = rgba.height();
+                    let data = ImageData {
+                        data: Blob::new(Arc::new(rgba.into_raw().into_boxed_slice())),
+                        format: ImageFormat::Rgba8,
+                        alpha_type: ImageAlphaType::Alpha,
+                        width: self.img_w,
+                        height: self.img_h,
+                    };
+                    self.image = Some(ImageBrush::new(data));
+                    self.cached_src = Some(src.clone());
+                }
+                Err(e) => {
+                    tracing::warn!(src = %src, error = %e, "image decode failed");
+                    self.image = None;
+                    self.cached_src = None;
                 }
             }
         }
         let mut scene = Scene::new();
-        if let Some(brush) = &self.image {
-            if self.img_w > 0 && self.img_h > 0 {
-                let sx = width as f64 / self.img_w as f64;
-                let sy = height as f64 / self.img_h as f64;
-                scene.draw_image(brush, Affine::scale_non_uniform(sx, sy));
-            }
+        if let Some(brush) = &self.image
+            && self.img_w > 0
+            && self.img_h > 0
+        {
+            let sx = width as f64 / self.img_w as f64;
+            let sy = height as f64 / self.img_h as f64;
+            scene.draw_image(brush, Affine::scale_non_uniform(sx, sy));
         }
         scene
     }

@@ -39,7 +39,7 @@ import {
   translate2d,
   View,
 } from "@wabou/primitives";
-import { type Handle, mount, Portal } from "@wabou/solid-renderer";
+import { type Handle, mount } from "@wabou/solid-renderer";
 import { px, rgba, shadow, number as styleNumber } from "@wabou/style";
 import wabouUtilityManifest from "@wabou/unocss-preset/manifest";
 import {
@@ -49,10 +49,12 @@ import {
   Match,
   onCleanup,
   onMount,
-  Show,
   Switch as ShowCase,
 } from "solid-js";
 import "virtual:wabou-stylesheet";
+
+import { OverlayPage } from "./pages/overlay";
+import { Preview } from "./preview";
 
 type ComponentId =
   | "button"
@@ -146,48 +148,6 @@ const descriptions: Record<ComponentId, string> = {
 };
 
 const history = createMemoryHistory();
-
-function Preview(props: { title?: string; children: JSX.Element }) {
-  const theme = useComponentsTheme();
-  return (
-    <View
-      class={
-        theme() === "dark"
-          ? "flex flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950"
-          : "flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white"
-      }
-    >
-      {props.title && (
-        <View
-          class={
-            theme() === "dark"
-              ? "h-10 px-4 flex items-center border-b border-slate-800 bg-slate-900"
-              : "h-10 px-4 flex items-center border-b border-slate-200 bg-slate-50"
-          }
-        >
-          <Text
-            class={
-              theme() === "dark"
-                ? "text-xs font-medium text-slate-400"
-                : "text-xs font-medium text-slate-500"
-            }
-          >
-            {props.title}
-          </Text>
-        </View>
-      )}
-      <View
-        class={
-          theme() === "dark"
-            ? "min-h-40 p-8 flex flex-wrap items-center justify-center gap-3 bg-slate-950"
-            : "min-h-40 p-8 flex flex-wrap items-center justify-center gap-3 bg-white"
-        }
-      >
-        {props.children}
-      </View>
-    </View>
-  );
-}
 
 function PropertyRow(props: { name: string; value: string }) {
   const theme = useComponentsTheme();
@@ -495,46 +455,6 @@ function ScrollAreaPage() {
         </View>
       </Preview>
     </View>
-  );
-}
-
-function OverlayPage() {
-  const [open, setOpen] = createSignal(false);
-  return (
-    <Preview title="Modal plane and semantic isolation">
-      <View class="p-4 flex items-start">
-        <Button onClick={() => setOpen(true)}>Open modal overlay</Button>
-      </View>
-      <Show when={open()}>
-        <Portal
-          plane="modal"
-          role="dialog"
-          aria-label="Overlay settings"
-          class="absolute left-0 top-0 w-full h-full flex items-center justify-center bg-slate-950"
-          onClick={() => setOpen(false)}
-          onKeyDown={(event: { key?: string }) => {
-            if (event.key === "Escape") setOpen(false);
-          }}
-        >
-          <View
-            class="w-96 p-6 flex flex-col gap-4 rounded-xl border border-slate-700 bg-slate-900"
-            onClick={(event: { stopPropagation(): void }) =>
-              event.stopPropagation()
-            }
-          >
-            <Text class="text-xl font-semibold text-white">Modal overlay</Text>
-            <Text class="text-sm text-slate-300">
-              {
-                "This subtree is painted and hit-tested above floating content. While open, AccessKit exposes only this modal plane beneath the window."
-              }
-            </Text>
-            <View class="flex justify-end">
-              <Button onClick={() => setOpen(false)}>Close</Button>
-            </View>
-          </View>
-        </Portal>
-      </Show>
-    </Preview>
   );
 }
 

@@ -63,6 +63,12 @@ pub struct TextInput {
     last_click: Option<(Instant, f32, f32, u8)>,
 }
 
+impl Default for TextInput {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TextInput {
     pub fn new() -> Self {
         Self {
@@ -205,16 +211,17 @@ impl Widget for TextInput {
             }
 
             // Caret.
-            if self.focused && self.blink_on {
-                if let Some(cursor) = self.editor.cursor_geometry(1.5) {
-                    scene.fill(
-                        Fill::NonZero,
-                        transform,
-                        CARET_COLOR,
-                        None,
-                        &Rect::new(cursor.x0, cursor.y0, cursor.x1, cursor.y1),
-                    );
-                }
+            if self.focused
+                && self.blink_on
+                && let Some(cursor) = self.editor.cursor_geometry(1.5)
+            {
+                scene.fill(
+                    Fill::NonZero,
+                    transform,
+                    CARET_COLOR,
+                    None,
+                    &Rect::new(cursor.x0, cursor.y0, cursor.x1, cursor.y1),
+                );
             }
         }
 

@@ -1226,7 +1226,7 @@ pub fn parse_color(value: &str) -> Option<Color> {
             .filter(|p| !p.trim().is_empty())
             .collect();
         let n: Vec<f32> = parts.iter().filter_map(|t| t.trim().parse().ok()).collect();
-        let (r, g, b) = (*n.get(0)?, *n.get(1)?, *n.get(2)?);
+        let (r, g, b) = (*n.first()?, *n.get(1)?, *n.get(2)?);
         if let Some(a) = alpha_part {
             alpha = a.parse().unwrap_or(1.0);
         } else if let Some(a4) = n.get(3) {

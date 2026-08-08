@@ -39,6 +39,8 @@ test("Portal instances share plane roots and modal remains a separate plane", ()
       children: createElement("view") as unknown as JSX.Element,
     });
     expect(root.firstChild).not.toBe(root.lastChild);
+    const modalContainer = root.lastChild?.firstChild;
+    expect(modalContainer?.tag).toBe("view");
 
     dispose();
     expect(root.firstChild).toBeNull();

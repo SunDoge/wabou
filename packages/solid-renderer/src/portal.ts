@@ -25,7 +25,13 @@ export function Portal(props: PortalProps): JSX.Element {
   const container = createElement("view") as Handle;
   spread(container, containerProps, false);
   if (plane === "modal") {
-    spread(container, { "aria-modal": "true" }, false);
+    // Mark each modal container, not only the shared plane root. The host can
+    // then expose only the last painted modal when several are mounted.
+    spread(
+      container,
+      { "aria-modal": "true", overlayPlane: "modal" },
+      false,
+    );
   }
   insertNode(root, container, undefined);
   insert(container, () => local.children);

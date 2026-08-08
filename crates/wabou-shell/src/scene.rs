@@ -223,11 +223,10 @@ pub fn build_scene_scaled(
         transforms.insert(n.node_id, css_transform);
         let node_transform = device * css_transform;
 
-        if css_transform == Affine::IDENTITY
-            && (x1 <= 0.0 || y1 <= 0.0 || x0 >= width as f32 || y0 >= height as f32)
-        {
-            continue;
-        }
+        // Do not cull an individual retained node here. Its opacity and clip
+        // layers apply to descendants, and a transformed descendant can still
+        // enter the viewport even when this node's own border box is outside.
+        // Subtree culling requires a conservative visual-subtree bound.
         if n.paint.opacity < 1.0 {
             scene.push_layer(
                 Fill::NonZero,
@@ -414,7 +413,7 @@ mod tests {
 
     fn placed_node(paint: Paint) -> PlacedNode {
         PlacedNode {
-            node_id: taffy::NodeId::from(taffy::tree::NodeId::from(0_u64)),
+            node_id: taffy::tree::NodeId::from(0_u64),
             parent_node_id: None,
             depth: 0,
             rect: [10.0, 20.0, 110.0, 120.0],
@@ -534,5 +533,69 @@ mod tests {
             assert_eq!(image.get_pixel(50 * scale, 50 * scale).0[..3], [0, 0, 0]);
             std::fs::remove_file(path).expect("remove owned test png");
         }
+    }
+
+    fn render_nodes(nodes: &[PlacedNode], name: &str) -> image::RgbaImage {
+        let mut scene = Scene::new();
+        build_scene_scaled(
+            &mut scene,
+            nodes,
+            &mut TextContext::new(),
+            100,
+            100,
+            Color::BLACK,
+            1.0,
+        );
+        let path =
+            std::env::temp_dir().join(format!("wabou-scene-{name}-{}.png", std::process::id()));
+        crate::renderer::render_to_png(&scene, 100, 100, Color::BLACK, &path.to_string_lossy())
+            .expect("offscreen scene render");
+        let image = image::open(&path).expect("rendered png").into_rgba8();
+        std::fs::remove_file(path).expect("remove owned test png");
+        image
+    }
+
+    fn transformed_child(parent: &PlacedNode) -> PlacedNode {
+        let mut child = placed_node(Paint {
+            background: Some(Color::from_rgba8(255, 0, 0, 255)),
+            runtime_transform: Some([1.0, 0.0, 0.0, 1.0, 120.0, 0.0]),
+            ..Paint::default()
+        });
+        child.node_id = taffy::tree::NodeId::from(1_u64);
+        child.parent_node_id = Some(parent.node_id);
+        child.depth = 1;
+        child.rect = [-100.0, 10.0, -50.0, 60.0];
+        child.content_origin = [-100.0, 10.0];
+        child
+    }
+
+    #[test]
+    fn offscreen_parent_clip_still_applies_to_transformed_descendant() {
+        let mut parent = placed_node(Paint::default());
+        parent.rect = [-100.0, 10.0, -50.0, 60.0];
+        parent.content_origin = [-100.0, 10.0];
+        parent.own_clip = Some(parent.rect);
+        let child = transformed_child(&parent);
+
+        let image = render_nodes(&[parent, child], "offscreen-parent-clip");
+        assert_eq!(image.get_pixel(30, 30).0[..3], [0, 0, 0]);
+    }
+
+    #[test]
+    fn offscreen_parent_opacity_still_applies_to_transformed_descendant() {
+        let mut parent = placed_node(Paint {
+            opacity: 0.5,
+            ..Paint::default()
+        });
+        parent.rect = [-100.0, 10.0, -50.0, 60.0];
+        parent.content_origin = [-100.0, 10.0];
+        let child = transformed_child(&parent);
+
+        let image = render_nodes(&[parent, child], "offscreen-parent-opacity");
+        let pixel = image.get_pixel(30, 30).0;
+        assert!(
+            (120..=136).contains(&pixel[0]) && pixel[1] == 0 && pixel[2] == 0,
+            "expected half-opacity red, got {pixel:?}"
+        );
     }
 }

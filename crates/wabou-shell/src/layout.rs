@@ -120,7 +120,7 @@ pub fn compute_and_walk_with_scroll(
                     let max_width = paint
                         .wrap_text
                         .then(|| {
-                            known.width.or_else(|| match avail.width {
+                            known.width.or(match avail.width {
                                 AvailableSpace::Definite(width) => Some(width),
                                 AvailableSpace::MinContent | AvailableSpace::MaxContent => None,
                             })
@@ -194,6 +194,7 @@ fn intersect(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
     ]
 }
 
+#[allow(clippy::too_many_arguments)]
 fn walk(
     tree: &TaffyTree<Paint>,
     node: NodeId,
@@ -211,10 +212,10 @@ fn walk(
         Ok(l) => l,
         Err(_) => return,
     };
-    if let Ok(style) = tree.style(node) {
-        if style.display == taffy::Display::None {
-            return;
-        }
+    if let Ok(style) = tree.style(node)
+        && style.display == taffy::Display::None
+    {
+        return;
     }
 
     let x0 = parent_x0 + layout.location.x;
@@ -244,42 +245,43 @@ fn walk(
         (layout.content_size.height - (h - layout.border.top - layout.border.bottom)).max(0.0),
     ];
 
-    if let Some(paint) = tree.get_node_context(node) {
-        if w > 0.0 && h > 0.0 {
-            out.push(PlacedNode {
-                node_id: node,
-                parent_node_id,
-                depth,
-                rect,
-                content_origin: [cx, cy],
-                content_size: [content_width, content_height],
-                clip: inherited_clip,
-                clip_radius: inherited_clip_radius,
-                clip_depth: inherited_clip_depth,
-                own_clip: None,
-                own_clip_radius: 0.0,
-                border_widths: [
-                    layout.border.top,
-                    layout.border.right,
-                    layout.border.bottom,
-                    layout.border.left,
+    if let Some(paint) = tree.get_node_context(node)
+        && w > 0.0
+        && h > 0.0
+    {
+        out.push(PlacedNode {
+            node_id: node,
+            parent_node_id,
+            depth,
+            rect,
+            content_origin: [cx, cy],
+            content_size: [content_width, content_height],
+            clip: inherited_clip,
+            clip_radius: inherited_clip_radius,
+            clip_depth: inherited_clip_depth,
+            own_clip: None,
+            own_clip_radius: 0.0,
+            border_widths: [
+                layout.border.top,
+                layout.border.right,
+                layout.border.bottom,
+                layout.border.left,
+            ],
+            scroll: ScrollMetrics {
+                port: [
+                    x0 + layout.border.left,
+                    y0 + layout.border.top,
+                    x0 + w - layout.border.right,
+                    y0 + h - layout.border.bottom,
                 ],
-                scroll: ScrollMetrics {
-                    port: [
-                        x0 + layout.border.left,
-                        y0 + layout.border.top,
-                        x0 + w - layout.border.right,
-                        y0 + h - layout.border.bottom,
-                    ],
-                    scrollable,
-                    range: scroll_range,
-                    offset: scroll,
-                    opacity: 0.0,
-                    interaction: 0,
-                },
-                paint: paint.clone(),
-            });
-        }
+                scrollable,
+                range: scroll_range,
+                offset: scroll,
+                opacity: 0.0,
+                interaction: 0,
+            },
+            paint: paint.clone(),
+        });
     }
 
     let mut child_clip = inherited_clip;

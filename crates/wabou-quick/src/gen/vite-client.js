@@ -2,7 +2,7 @@
 // packages/vite-runtime/src/client.ts
 var wabouGlobal = globalThis;
 var existingRecords = wabouGlobal.__wabou_hmr_records;
-var records = existingRecords ?? new Map();
+var records = existingRecords ?? new Map;
 if (!existingRecords) {
   wabouGlobal.__wabou_hmr_records = records;
 }
@@ -21,7 +21,8 @@ function createHotContext(ownerPath) {
     disposed: [],
     invalidated: false,
     accept(callback) {
-      if (typeof callback === "function") this.accepted.push(callback);
+      if (typeof callback === "function")
+        this.accepted.push(callback);
     },
     dispose(callback) {
       this.disposed.push(callback);
@@ -34,10 +35,12 @@ function createHotContext(ownerPath) {
     },
     on() {},
     send() {},
-    prune() {},
+    prune() {}
   };
-  if (record.loading) record.next = context;
-  else record.current = context;
+  if (record.loading)
+    record.next = context;
+  else
+    record.current = context;
   return context;
 }
 function updateStyle(id, css) {
@@ -49,9 +52,7 @@ function removeStyle(id) {
 wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
   const record = records.get(path);
   if (!record?.current) {
-    console.warn(
-      `[wabou-hmr] no hot context for ${path}; host will full-reload`,
-    );
+    console.warn(`[wabou-hmr] no hot context for ${path}; host will full-reload`);
     return false;
   }
   const previous = record.current;
@@ -69,9 +70,7 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
     const module = await import(`${acceptedPath}${separator}t=${timestamp}`);
     const next = nextContext(record);
     if (!next || next.invalidated) {
-      console.warn(
-        `[wabou-hmr] update for ${path} was invalidated/declined; host will full-reload`,
-      );
+      console.warn(`[wabou-hmr] update for ${path} was invalidated/declined; host will full-reload`);
       return false;
     }
     record.current = next;
@@ -84,9 +83,7 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
       }
     }
     if (previous.invalidated) {
-      console.warn(
-        `[wabou-hmr] ${path} invalidated during accept; host will full-reload`,
-      );
+      console.warn(`[wabou-hmr] ${path} invalidated during accept; host will full-reload`);
       return false;
     }
     return true;
@@ -101,4 +98,8 @@ wabouGlobal.__wabou_apply_hmr = async (path, acceptedPath, timestamp) => {
 wabouGlobal.__wabou_hmr_clear_records = () => {
   records.clear();
 };
-export { updateStyle, removeStyle, createHotContext };
+export {
+  updateStyle,
+  removeStyle,
+  createHotContext
+};

@@ -540,9 +540,7 @@ mod tests {
         children.insert(t, vec![]);
 
         let facts = |id: NodeId| {
-            if id == parent {
-                el("div", Display::Block)
-            } else if id == child {
+            if id == parent || id == child {
                 el("div", Display::Block)
             } else {
                 text_facts("x")

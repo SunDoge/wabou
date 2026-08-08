@@ -26,6 +26,12 @@ pub struct JuliaWidget {
     image: Option<ImageBrush>,
 }
 
+impl Default for JuliaWidget {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl JuliaWidget {
     pub fn new() -> Self {
         Self {

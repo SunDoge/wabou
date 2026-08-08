@@ -2539,27 +2539,41 @@
         },
         {
           "name": "px",
-          "properties": ["padding-left", "padding-right"]
+          "properties": [
+            "padding-left",
+            "padding-right"
+          ]
         },
         {
           "name": "py",
-          "properties": ["padding-top", "padding-bottom"]
+          "properties": [
+            "padding-top",
+            "padding-bottom"
+          ]
         },
         {
           "name": "pt",
-          "properties": ["padding-top"]
+          "properties": [
+            "padding-top"
+          ]
         },
         {
           "name": "pr",
-          "properties": ["padding-right"]
+          "properties": [
+            "padding-right"
+          ]
         },
         {
           "name": "pb",
-          "properties": ["padding-bottom"]
+          "properties": [
+            "padding-bottom"
+          ]
         },
         {
           "name": "pl",
-          "properties": ["padding-left"]
+          "properties": [
+            "padding-left"
+          ]
         },
         {
           "name": "m",
@@ -2572,47 +2586,72 @@
         },
         {
           "name": "mx",
-          "properties": ["margin-left", "margin-right"]
+          "properties": [
+            "margin-left",
+            "margin-right"
+          ]
         },
         {
           "name": "my",
-          "properties": ["margin-top", "margin-bottom"]
+          "properties": [
+            "margin-top",
+            "margin-bottom"
+          ]
         },
         {
           "name": "mt",
-          "properties": ["margin-top"]
+          "properties": [
+            "margin-top"
+          ]
         },
         {
           "name": "mr",
-          "properties": ["margin-right"]
+          "properties": [
+            "margin-right"
+          ]
         },
         {
           "name": "mb",
-          "properties": ["margin-bottom"]
+          "properties": [
+            "margin-bottom"
+          ]
         },
         {
           "name": "ml",
-          "properties": ["margin-left"]
+          "properties": [
+            "margin-left"
+          ]
         },
         {
           "name": "ms",
-          "properties": ["margin-inline-start"]
+          "properties": [
+            "margin-inline-start"
+          ]
         },
         {
           "name": "me",
-          "properties": ["margin-inline-end"]
+          "properties": [
+            "margin-inline-end"
+          ]
         },
         {
           "name": "gap",
-          "properties": ["row-gap", "column-gap"]
+          "properties": [
+            "row-gap",
+            "column-gap"
+          ]
         },
         {
           "name": "gap-x",
-          "properties": ["column-gap"]
+          "properties": [
+            "column-gap"
+          ]
         },
         {
           "name": "gap-y",
-          "properties": ["row-gap"]
+          "properties": [
+            "row-gap"
+          ]
         }
       ]
     },
@@ -2621,47 +2660,72 @@
       "prefixes": [
         {
           "name": "w",
-          "properties": ["width"]
+          "properties": [
+            "width"
+          ]
         },
         {
           "name": "h",
-          "properties": ["height"]
+          "properties": [
+            "height"
+          ]
         },
         {
           "name": "min-w",
-          "properties": ["min-width"]
+          "properties": [
+            "min-width"
+          ]
         },
         {
           "name": "min-h",
-          "properties": ["min-height"]
+          "properties": [
+            "min-height"
+          ]
         },
         {
           "name": "max-w",
-          "properties": ["max-width"]
+          "properties": [
+            "max-width"
+          ]
         },
         {
           "name": "max-h",
-          "properties": ["max-height"]
+          "properties": [
+            "max-height"
+          ]
         },
         {
           "name": "top",
-          "properties": ["top"]
+          "properties": [
+            "top"
+          ]
         },
         {
           "name": "right",
-          "properties": ["right"]
+          "properties": [
+            "right"
+          ]
         },
         {
           "name": "bottom",
-          "properties": ["bottom"]
+          "properties": [
+            "bottom"
+          ]
         },
         {
           "name": "left",
-          "properties": ["left"]
+          "properties": [
+            "left"
+          ]
         },
         {
           "name": "inset",
-          "properties": ["top", "right", "bottom", "left"]
+          "properties": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ]
         }
       ]
     },
@@ -2670,15 +2734,21 @@
       "prefixes": [
         {
           "name": "bg",
-          "properties": ["background-color"]
+          "properties": [
+            "background-color"
+          ]
         },
         {
           "name": "text",
-          "properties": ["color"]
+          "properties": [
+            "color"
+          ]
         },
         {
           "name": "border",
-          "properties": ["border-color"]
+          "properties": [
+            "border-color"
+          ]
         }
       ]
     },
@@ -2687,15 +2757,21 @@
       "prefixes": [
         {
           "name": "rounded",
-          "properties": ["border-radius"]
+          "properties": [
+            "border-radius"
+          ]
         },
         {
           "name": "text",
-          "properties": ["font-size"]
+          "properties": [
+            "font-size"
+          ]
         },
         {
           "name": "border",
-          "properties": ["border-width"]
+          "properties": [
+            "border-width"
+          ]
         }
       ]
     },
@@ -2704,7 +2780,9 @@
       "prefixes": [
         {
           "name": "opacity",
-          "properties": ["opacity"]
+          "properties": [
+            "opacity"
+          ]
         }
       ]
     },
@@ -2713,7 +2791,9 @@
       "prefixes": [
         {
           "name": "z",
-          "properties": ["z-index"]
+          "properties": [
+            "z-index"
+          ]
         }
       ]
     },
@@ -2722,7 +2802,9 @@
       "prefixes": [
         {
           "name": "aspect",
-          "properties": ["aspect-ratio"]
+          "properties": [
+            "aspect-ratio"
+          ]
         }
       ]
     },
@@ -2731,11 +2813,15 @@
       "prefixes": [
         {
           "name": "translate-x",
-          "properties": ["transform-translate-x"]
+          "properties": [
+            "transform-translate-x"
+          ]
         },
         {
           "name": "translate-y",
-          "properties": ["transform-translate-y"]
+          "properties": [
+            "transform-translate-y"
+          ]
         }
       ]
     },
@@ -2744,7 +2830,9 @@
       "prefixes": [
         {
           "name": "scale",
-          "properties": ["transform-scale"]
+          "properties": [
+            "transform-scale"
+          ]
         }
       ]
     },
@@ -2753,7 +2841,9 @@
       "prefixes": [
         {
           "name": "rotate",
-          "properties": ["transform-rotate"]
+          "properties": [
+            "transform-rotate"
+          ]
         }
       ]
     }

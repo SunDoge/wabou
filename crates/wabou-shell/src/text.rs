@@ -63,7 +63,15 @@ pub struct TextContext {
     pub font_cx: FontContext,
     pub layout_cx: LayoutContext,
     cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
-    glyph_cache: LruCache<(usize, u64), (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>)>,
+    glyph_cache: LruCache<(usize, u64), GlyphSceneEntry>,
+}
+
+type GlyphSceneEntry = (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>);
+
+impl Default for TextContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TextContext {
@@ -178,6 +186,7 @@ pub fn layout_text(tcx: &mut TextContext, text: &str, font_size: f32) -> Arc<Lay
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn layout_text_styled(
     tcx: &mut TextContext,
     text: Arc<str>,
