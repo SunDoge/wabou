@@ -692,6 +692,69 @@ struct MultiWindowApp {
     startup_errors: Vec<Arc<Mutex<Option<crate::Error>>>>,
     factory: Option<FrameSourceFactory>,
     wake: WakeCallback,
+    extensions: Vec<Box<dyn ShellExtension>>,
+    extensions_initialized: bool,
+    extension_error: Arc<Mutex<Option<crate::Error>>>,
+}
+
+/// Event-loop services exposed to optional shell extensions.
+///
+/// The API intentionally deals in logical Wabou window ids rather than winit
+/// window handles, keeping platform integration crates independent of Wabou's
+/// window backend.
+pub struct ExtensionContext<'a> {
+    windows: &'a mut HashMap<WindowId, App>,
+    event_loop: &'a dyn ActiveEventLoop,
+}
+
+impl ExtensionContext<'_> {
+    pub fn show_window(&mut self, logical_window_id: u64) -> bool {
+        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+        else {
+            return false;
+        };
+        let Some(shell) = app.state.as_ref() else {
+            return false;
+        };
+        shell.window().set_visible(true);
+        shell.window().focus_window();
+        true
+    }
+
+    pub fn hide_window(&mut self, logical_window_id: u64) -> bool {
+        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+        else {
+            return false;
+        };
+        let Some(shell) = app.state.as_ref() else {
+            return false;
+        };
+        shell.window().set_visible(false);
+        true
+    }
+
+    pub fn exit(&self) {
+        self.event_loop.exit();
+    }
+}
+
+/// Optional native integration hosted by Wabou's event loop.
+///
+/// Implementations create platform resources in `initialize`, enqueue events
+/// from native callbacks, and drain them in `poll` on the event-loop thread.
+pub trait ShellExtension {
+    fn initialize(&mut self, wake: WakeCallback) -> Result<(), String>;
+    fn poll(&mut self, context: &mut ExtensionContext<'_>);
+
+    /// Return true after handling a native close request (for example by
+    /// hiding the window while a tray icon keeps the process alive).
+    fn close_requested(
+        &mut self,
+        _logical_window_id: u64,
+        _context: &mut ExtensionContext<'_>,
+    ) -> bool {
+        false
+    }
 }
 
 pub type FrameSourceFactory =
@@ -723,7 +786,12 @@ fn apply_window_command(app: &mut App, command: WindowCommand) {
 }
 
 impl MultiWindowApp {
-    fn new(apps: Vec<App>, factory: Option<FrameSourceFactory>, wake: WakeCallback) -> Self {
+    fn new(
+        apps: Vec<App>,
+        factory: Option<FrameSourceFactory>,
+        wake: WakeCallback,
+        extensions: Vec<Box<dyn ShellExtension>>,
+    ) -> Self {
         let startup_errors = apps.iter().map(|app| app.startup_error.clone()).collect();
         Self {
             pending: apps,
@@ -731,6 +799,26 @@ impl MultiWindowApp {
             startup_errors,
             factory,
             wake,
+            extensions,
+            extensions_initialized: false,
+            extension_error: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn extension_context<'a>(
+        windows: &'a mut HashMap<WindowId, App>,
+        event_loop: &'a dyn ActiveEventLoop,
+    ) -> ExtensionContext<'a> {
+        ExtensionContext {
+            windows,
+            event_loop,
+        }
+    }
+
+    fn poll_extensions(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let mut context = Self::extension_context(&mut self.windows, event_loop);
+        for extension in &mut self.extensions {
+            extension.poll(&mut context);
         }
     }
 
@@ -794,6 +882,20 @@ impl ApplicationHandler for MultiWindowApp {
                 self.windows.insert(id, app);
             }
         }
+        if !self.extensions_initialized {
+            self.extensions_initialized = true;
+            for extension in &mut self.extensions {
+                if let Err(message) = extension.initialize(self.wake.clone()) {
+                    *self
+                        .extension_error
+                        .lock()
+                        .expect("extension error mutex poisoned") =
+                        Some(crate::Error::Extension { message });
+                    event_loop.exit();
+                    return;
+                }
+            }
+        }
         // Initial render may synchronously call createWindow()/close(). The
         // wake callback is not installed until the source enters this event
         // loop, so explicitly drain those boot-time requests here.
@@ -814,6 +916,7 @@ impl ApplicationHandler for MultiWindowApp {
         for app in self.windows.values_mut() {
             app.proxy_wake_up(event_loop);
         }
+        self.poll_extensions(event_loop);
         self.apply_window_requests(event_loop);
     }
 
@@ -824,6 +927,19 @@ impl ApplicationHandler for MultiWindowApp {
         event: WindowEvent,
     ) {
         if matches!(event, WindowEvent::CloseRequested) {
+            let logical_window_id = self
+                .windows
+                .get(&window_id)
+                .map(|app| app.logical_window_id)
+                .unwrap_or_default();
+            let mut context = Self::extension_context(&mut self.windows, event_loop);
+            if self
+                .extensions
+                .iter_mut()
+                .any(|extension| extension.close_requested(logical_window_id, &mut context))
+            {
+                return;
+            }
             self.windows.remove(&window_id);
             if self.windows.is_empty() {
                 event_loop.exit();
@@ -905,8 +1021,16 @@ pub fn run_windows(windows: Vec<(Box<dyn FrameSource>, WindowOptions)>) -> crate
 }
 
 pub fn run_windows_with_factory(
+    windows: Vec<(Box<dyn FrameSource>, WindowOptions)>,
+    factory: Option<FrameSourceFactory>,
+) -> crate::Result<()> {
+    run_windows_with_factory_and_extensions(windows, factory, Vec::new())
+}
+
+pub fn run_windows_with_factory_and_extensions(
     mut windows: Vec<(Box<dyn FrameSource>, WindowOptions)>,
     factory: Option<FrameSourceFactory>,
+    extensions: Vec<Box<dyn ShellExtension>>,
 ) -> crate::Result<()> {
     if windows.is_empty() {
         return Ok(());
@@ -922,8 +1046,9 @@ pub fn run_windows_with_factory(
             App::with_options(source, options)
         })
         .collect();
-    let app = MultiWindowApp::new(apps, factory, wake);
+    let app = MultiWindowApp::new(apps, factory, wake, extensions);
     let errors = app.startup_errors.clone();
+    let extension_error = app.extension_error.clone();
     event_loop
         .run_app(app)
         .context(crate::error::RunEventLoopSnafu)?;
@@ -931,6 +1056,13 @@ pub fn run_windows_with_factory(
         if let Some(error) = error.lock().expect("startup error mutex poisoned").take() {
             return Err(error);
         }
+    }
+    if let Some(error) = extension_error
+        .lock()
+        .expect("extension error mutex poisoned")
+        .take()
+    {
+        return Err(error);
     }
     Ok(())
 }

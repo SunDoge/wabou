@@ -14,6 +14,7 @@ wabou-quick = { path = "crates/wabou-quick" }
 wabou-shell = { path = "crates/wabou-shell" }
 wabou-style = { path = "crates/wabou-style" }
 wabou-terminal = { path = "crates/wabou-terminal" }
+wabou-tray = { path = "crates/wabou-tray" }
 
 bitflags = "2.10.0"
 bon = "3.9.3"

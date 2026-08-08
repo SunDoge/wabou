@@ -48,6 +48,9 @@ pub enum Error {
     RunEventLoop {
         source: winit::error::EventLoopError,
     },
+
+    #[snafu(display("shell extension failed to initialize: {message}"))]
+    Extension { message: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

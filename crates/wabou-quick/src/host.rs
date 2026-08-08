@@ -29,7 +29,7 @@ use vello::peniko::Color;
 use crate::applier::Applier;
 use crate::jsrt::JsRuntime;
 use crate::widget::{PasswordInput, SecretStore, Widget, WidgetFactory, builtin_factories};
-use crate::{WindowOptions, run_windows_with_factory, style};
+use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 
@@ -40,6 +40,7 @@ pub struct HostBuilder {
     widget_factories: HashMap<String, WidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     devtools: bool,
+    extensions: Vec<Box<dyn ShellExtension>>,
 }
 
 impl Default for HostBuilder {
@@ -61,6 +62,7 @@ impl HostBuilder {
             widget_factories: builtin_factories(),
             capabilities: Vec::new(),
             devtools: cfg!(debug_assertions),
+            extensions: Vec::new(),
         }
     }
 
@@ -126,6 +128,12 @@ impl HostBuilder {
     /// enabled in debug builds and is absent from release builds unless opted in.
     pub fn devtools(mut self, enabled: bool) -> Self {
         self.devtools = enabled;
+        self
+    }
+
+    /// Install a native integration that shares Wabou's platform event loop.
+    pub fn extension(mut self, extension: impl ShellExtension + 'static) -> Self {
+        self.extensions.push(Box::new(extension));
         self
     }
 
@@ -287,7 +295,8 @@ impl HostBuilder {
             Ok(Box::new(applier))
         });
 
-        run_windows_with_factory(sources, Some(factory)).context(crate::error::ShellSnafu)?;
+        run_windows_with_factory_and_extensions(sources, Some(factory), self.extensions)
+            .context(crate::error::ShellSnafu)?;
         #[cfg(feature = "vite")]
         drop(hmr_clients);
         #[cfg(feature = "vite")]

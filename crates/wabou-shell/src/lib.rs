@@ -20,8 +20,9 @@ pub mod svg;
 pub mod text;
 
 pub use app::{
-    FrameSourceFactory, run_window, run_window_with_options, run_window_with_size, run_windows,
-    run_windows_with_factory,
+    ExtensionContext, FrameSourceFactory, ShellExtension, run_window, run_window_with_options,
+    run_window_with_size, run_windows, run_windows_with_factory,
+    run_windows_with_factory_and_extensions,
 };
 pub use error::{Error, Result};
 pub use shell::Shell;
