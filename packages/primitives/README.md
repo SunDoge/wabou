@@ -33,6 +33,37 @@ disabled states, and internal vertical scrolling:
 />
 ```
 
+`PasswordInput` stores its value only in a Rust `SecretStore`. QuickJS receives
+the non-sensitive slot identifier but never a `value` attribute or input-event
+payload. Register the store on the host and atomically take the secret in the
+native capability:
+
+```rust
+let secrets = SecretStore::default();
+let login_secrets = secrets.clone();
+HostBuilder::new()
+    .password_inputs(secrets)
+    .capability("vault", move |ctx, capability| {
+        // Inside the native login function:
+        let password = login_secrets.take("master-password");
+        // Pass `password` directly to the Rust SDK.
+        Ok(())
+    });
+```
+
+```tsx
+<PasswordInput
+  secret="master-password"
+  aria-label="Master password"
+  placeholder="Master password"
+/>;
+```
+
+Taking, unmounting, or explicitly clearing a slot removes it from the store;
+the returned `Zeroizing<String>` clears its allocation when dropped. Do not use
+the ordinary controlled `Input type="password"` when the value must stay out of
+JavaScript.
+
 Use `Button` for clickable controls that need consistent native interaction
 feedback without depending on CSS pseudo-classes:
 

@@ -49,7 +49,9 @@ pub use wabou_shell::{
     run_window_with_options, run_window_with_size, run_windows, run_windows_with_factory, style,
 };
 pub use widget::WidgetFactory;
-pub use widget::{Canvas, TextInput, Widget, WidgetNodeEvent, WidgetStyle};
+pub use widget::{
+    Canvas, PasswordInput, SecretStore, TextInput, Widget, WidgetNodeEvent, WidgetStyle,
+};
 
 #[cfg(feature = "vite")]
 pub use vite::{ViteError, start_hmr_client, vite_url_from_env};

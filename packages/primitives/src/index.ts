@@ -76,6 +76,8 @@ export {
   type Affine2D,
   Image,
   type ImageProps,
+  PasswordInput,
+  type PasswordInputProps,
   Text,
   TextArea,
   type TextAreaProps,

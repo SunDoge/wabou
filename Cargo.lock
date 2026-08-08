@@ -7801,6 +7801,7 @@ dependencies = [
  "wabou-devtools",
  "wabou-shell",
  "wabou-style",
+ "zeroize",
 ]
 
 [[package]]

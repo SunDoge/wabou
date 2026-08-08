@@ -7,7 +7,8 @@
 pub use crate::HostBuilder;
 pub use crate::vello;
 pub use crate::widget::{
-    Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent, WidgetStyle,
+    PasswordInput, SecretStore, Widget, WidgetChanges, WidgetEventResult, WidgetFactory,
+    WidgetNodeEvent, WidgetStyle,
 };
 pub use wabou_shell::{
     ClipboardRequest, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase,

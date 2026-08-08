@@ -13,7 +13,7 @@ use clap::{Parser, Subcommand};
 use serde_json::{Value, json};
 use vello::Scene;
 use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
-use wabou_quick::{AppConfig, Applier, JsRuntime};
+use wabou_quick::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
 use wabou_shell::renderer::render_to_png;
 use wabou_shell::scene as scene_builder;
 use wabou_shell::{
@@ -401,12 +401,13 @@ fn render(
     // Install host globals before evaluating the bundle. Hooks such as
     // useWindow() read the logical id during module initialization, so booting
     // first would permanently expose the fallback window id 0 in screenshots.
-    let mut applier = Applier::from_runtime_with_factories_and_window(
-        js,
-        wabou_quick::widget::builtin_factories(),
-        base_color,
-        window_id,
+    let mut factories = wabou_quick::widget::builtin_factories();
+    factories.insert(
+        "password-input".into(),
+        Arc::new(|| Box::new(PasswordInput::new(SecretStore::default()))),
     );
+    let mut applier =
+        Applier::from_runtime_with_factories_and_window(js, factories, base_color, window_id);
     applier
         .boot(&source)
         .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;

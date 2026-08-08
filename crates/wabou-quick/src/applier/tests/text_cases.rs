@@ -1,6 +1,76 @@
 use super::*;
 
 #[test]
+fn password_input_keeps_secret_out_of_attrs_and_js_events() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
+    let secrets = crate::SecretStore::default();
+    let mut factories = builtin_factories();
+    let factory_secrets = secrets.clone();
+    factories.insert(
+        "password-input".into(),
+        Arc::new(move || Box::new(crate::PasswordInput::new(factory_secrets.clone()))),
+    );
+    let mut applier = Applier::from_runtime_with_factories(js, factories, Color::BLACK);
+    let (tag, secret, value) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("password-input"),
+            atoms.intern("secret"),
+            atoms.intern("value"),
+        )
+    };
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag,
+        attrs: vec![(secret, "master-password")],
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+    applier.apply_op(&Op::AddEventListener {
+        id: 2,
+        event_type: event::INPUT,
+    });
+    let mut tcx = TextContext::new();
+    applier.build_frame(&mut tcx, 800, 600);
+    applier.handle_event(pointer(PointerPhase::Down, 10.0, 10.0, 1));
+    assert!(
+        applier
+            .handle_event(UiEvent::TextInput("hunter2".into()))
+            .handled
+    );
+    applier.build_frame(&mut tcx, 800, 600);
+
+    let node = applier.node_store.solid_to_node[&2];
+    assert!(
+        applier.widget_manager.widgets[&node]
+            .current_value()
+            .is_none()
+    );
+    assert!(
+        !applier.node_store.declared[&node]
+            .attrs
+            .contains_key(&value)
+    );
+    assert_eq!(
+        applier
+            .js
+            .with(|ctx| ctx.eval::<usize, _>("globalThis.dispatched.length"))
+            .unwrap(),
+        0
+    );
+    assert_eq!(secrets.take("master-password").as_str(), "hunter2");
+}
+
+#[test]
 fn text_input_updates_value_paints_and_dispatches_input() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);

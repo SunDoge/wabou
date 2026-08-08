@@ -71,11 +71,13 @@ impl WidgetNodeEvent {
 pub mod canvas;
 pub mod fractal;
 pub mod image;
+pub mod password_input;
 pub mod text_input;
 
 pub use canvas::Canvas;
 pub use fractal::JuliaWidget;
 pub use image::ImageWidget;
+pub use password_input::{PasswordInput, SecretStore};
 pub use text_input::TextInput;
 
 pub type WidgetFactory = Arc<dyn Fn() -> Box<dyn Widget>>;

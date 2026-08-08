@@ -52,8 +52,16 @@ export interface TextAreaProps extends Omit<PrimitiveProps, "children"> {
   onInput?: (event: { currentTarget: { value: string } }) => void;
 }
 
+export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
+  /** Rust SecretStore slot. This is an identifier, never the secret value. */
+  secret: string;
+  placeholder?: string;
+  disabled?: boolean;
+  "aria-label"?: string;
+}
+
 function primitive(
-  tag: "view" | "text" | "img" | "textarea",
+  tag: "view" | "text" | "img" | "textarea" | "password-input",
   props: PrimitiveProps,
 ) {
   const node = createElement(tag);
@@ -84,4 +92,9 @@ export function Image(props: ImageProps): JSX.Element {
 /** A native multiline text editor with wrapping, selection, and scrolling. */
 export function TextArea(props: TextAreaProps): JSX.Element {
   return primitive("textarea", props);
+}
+
+/** Native password editor whose value remains in a Rust SecretStore. */
+export function PasswordInput(props: PasswordInputProps): JSX.Element {
+  return primitive("password-input", props);
 }

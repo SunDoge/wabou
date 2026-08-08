@@ -9,6 +9,7 @@ import {
   createShortcuts,
   createTabs,
   Image,
+  PasswordInput,
   Text,
   TextArea,
   View,
@@ -299,12 +300,18 @@ describe("host primitives", () => {
       const textarea = TextArea({ value: "two\nlines" }) as unknown as {
         tag: string;
       };
+      const password = PasswordInput({
+        secret: "master-password",
+      }) as unknown as {
+        tag: string;
+      };
 
       expect(view.tag).toBe("view");
       expect(text.tag).toBe("text");
       expect(text.firstChild?.tag).toBe("#text");
       expect(image.tag).toBe("img");
       expect(textarea.tag).toBe("textarea");
+      expect(password.tag).toBe("password-input");
       dispose();
     }));
 });

@@ -41,7 +41,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let role = attribute(declared, "role");
         match role.as_deref().unwrap_or(tag) {
             "button" => SemanticRole::Button,
-            "textbox" | "input" | "textarea" => SemanticRole::TextInput,
+            "textbox" | "input" | "textarea" | "password-input" => SemanticRole::TextInput,
             "img" | "image" => SemanticRole::Image,
             "link" | "a" => SemanticRole::Link,
             "dialog" | "alertdialog" => SemanticRole::Dialog,
