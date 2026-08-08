@@ -1,6 +1,109 @@
 use super::*;
 
 #[test]
+fn solid_resources_settle_native_promises_and_return_runtime_to_idle() {
+    const RESOURCE_FIXTURE: &str = include_str!("../../gen/resource-test-runtime.js");
+    let js = JsRuntime::new().expect("runtime");
+    js.mount_capability("promiseTest", |ctx, capability| {
+        capability.set(
+            "resolve",
+            rquickjs::Function::new(
+                ctx.clone(),
+                rquickjs::prelude::Async(|| async {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    Ok::<_, rquickjs::Error>("ready".to_owned())
+                }),
+            )?,
+        )?;
+        capability.set(
+            "reject",
+            rquickjs::Function::new(
+                ctx,
+                rquickjs::prelude::Async(|| async {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                    Err::<String, _>(rquickjs::Error::new_from_js_message(
+                        "native promise",
+                        "string",
+                        "native rejected",
+                    ))
+                }),
+            )?,
+        )
+    })
+    .unwrap();
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let wake_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let callback_count = wake_count.clone();
+    FrameSource::set_wake_callback(
+        &mut applier,
+        Arc::new(move || {
+            callback_count.fetch_add(1, Ordering::Release);
+        }),
+    );
+    applier
+        .boot(RESOURCE_FIXTURE)
+        .expect("boot resource fixture");
+
+    let mut text_context = TextContext::new();
+    applier.build_frame(&mut text_context, 400, 200);
+    let texts = |applier: &Applier| {
+        applier
+            .node_store
+            .declared
+            .values()
+            .filter_map(|declared| declared.text.as_deref().map(str::to_owned))
+            .collect::<Vec<_>>()
+    };
+    let initial = texts(&applier);
+    assert!(
+        initial.iter().any(|text| text == "success pending"),
+        "{initial:?}"
+    );
+    assert!(
+        initial.iter().any(|text| text == "failure pending"),
+        "{initial:?}"
+    );
+    // Solid schedules a renderer flush with requestAnimationFrame during the
+    // initial mount. Drain that bounded work before checking whether the
+    // unresolved native Promises themselves keep requesting frames.
+    for _ in 0..8 {
+        if !FrameSource::has_anim(&applier) {
+            break;
+        }
+        applier.build_frame(&mut text_context, 400, 200);
+    }
+    assert!(
+        !FrameSource::has_anim(&applier),
+        "pending Promises must sleep after the renderer flushes"
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if FrameSource::poll_async(&mut applier) {
+            applier.build_frame(&mut text_context, 400, 200);
+        }
+        let current = texts(&applier);
+        if current.iter().any(|text| text == "success ready")
+            && current.iter().any(|text| text.starts_with("caught "))
+        {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "resource settlement timed out: {current:?}"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+
+    assert!(wake_count.load(Ordering::Acquire) > 0);
+    while FrameSource::poll_async(&mut applier) {
+        applier.build_frame(&mut text_context, 400, 200);
+    }
+    assert!(!FrameSource::has_anim(&applier));
+    assert!(!FrameSource::poll_async(&mut applier));
+}
+
+#[test]
 fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
