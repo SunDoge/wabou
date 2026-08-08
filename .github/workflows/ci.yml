@@ -35,6 +35,9 @@ jobs:
       - name: Check workspace
         run: cargo check --workspace --all-targets
 
+      - name: Check TypeScript bindings
+        run: cargo run -p wabou-cli -- bindings --app-dir apps/gallery check
+
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
