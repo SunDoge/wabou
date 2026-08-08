@@ -26,6 +26,7 @@ mod css_support_matrix_test;
 #[cfg(feature = "vite")]
 pub mod vite;
 pub mod widget;
+pub mod widget_api;
 
 pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use atom::{Atom, AtomPool};
