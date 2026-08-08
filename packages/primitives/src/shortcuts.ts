@@ -9,7 +9,10 @@ const ALL_MODIFIERS = 1 | 2 | 4 | 8;
 
 export interface ShortcutEvent {
   key: string;
+  /** Physical Shift, Control, Alt, and Meta modifier bits. */
   mods: number;
+  /** Whether the physical modifiers form this platform's Primary chord. */
+  primary: boolean;
   repeat?: boolean;
   preventDefault(): void;
 }
@@ -37,14 +40,15 @@ interface CompiledShortcut extends ShortcutDefinition {
   chord: string;
   key: string;
   modifierMasks: readonly number[];
+  primary: boolean;
 }
 
 /**
  * Compile declarative application shortcuts into one keydown binding.
  *
  * Chords use names such as `Primary+T`, `Control+Tab`, and
- * `Control+Shift+Tab`. `Primary` accepts either Control or Meta while still
- * requiring an exact modifier match, which keeps app code platform-agnostic.
+ * `Control+Shift+Tab`. `Primary` resolves to Command on macOS and Control on
+ * other platforms while still requiring an exact modifier match.
  */
 export function createShortcuts(shortcuts: ShortcutMap): ShortcutsResult {
   const compiled = Object.entries(shortcuts).map(([chord, value]) =>
@@ -57,7 +61,13 @@ export function createShortcuts(shortcuts: ShortcutMap): ShortcutsResult {
     const modifiers = event.mods & ALL_MODIFIERS;
     const shortcut = compiled.find(
       (candidate) =>
-        candidate.key === key && candidate.modifierMasks.includes(modifiers),
+        candidate.key === key &&
+        (candidate.primary
+          ? event.primary &&
+            candidate.modifierMasks.includes(
+              modifiers & ~(MODIFIER_BITS.control | MODIFIER_BITS.meta),
+            )
+          : candidate.modifierMasks.includes(modifiers)),
     );
     if (shortcut === undefined || (event.repeat && !shortcut.allowRepeat)) {
       return false;
@@ -123,9 +133,8 @@ function compileShortcut(
     ...definition,
     chord,
     key,
-    modifierMasks: primary
-      ? [mask | MODIFIER_BITS.control, mask | MODIFIER_BITS.meta]
-      : [mask],
+    modifierMasks: [mask],
+    primary,
   };
 }
 
@@ -134,7 +143,13 @@ function assertNoAmbiguousShortcuts(
 ): void {
   const owners = new Map<string, string>();
   for (const shortcut of shortcuts) {
-    for (const mask of shortcut.modifierMasks) {
+    const masks = shortcut.primary
+      ? shortcut.modifierMasks.flatMap((mask) => [
+          mask | MODIFIER_BITS.control,
+          mask | MODIFIER_BITS.meta,
+        ])
+      : shortcut.modifierMasks;
+    for (const mask of masks) {
       const signature = `${mask}:${shortcut.key}`;
       const previous = owners.get(signature);
       if (previous !== undefined) {

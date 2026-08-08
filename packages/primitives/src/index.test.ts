@@ -86,14 +86,17 @@ describe("shortcuts primitive", () => {
       "Control+Shift+Tab": () => invoked.push("previous"),
     });
     let prevented = 0;
-    const event = (key: string, mods: number) => ({
+    const event = (key: string, mods: number, primary = false) => ({
       key,
       mods,
+      primary,
       preventDefault: () => prevented++,
     });
 
-    expect(shortcuts.handleKeyDown(event("T", 2))).toBe(true);
-    expect(shortcuts.handleKeyDown(event("t", 8))).toBe(true);
+    expect(shortcuts.handleKeyDown(event("T", 2, true))).toBe(true);
+    expect(shortcuts.handleKeyDown(event("t", 8, true))).toBe(true);
+    expect(shortcuts.handleKeyDown(event("t", 2))).toBe(false);
+    expect(shortcuts.handleKeyDown(event("t", 8))).toBe(false);
     expect(shortcuts.handleKeyDown(event("Tab", 3))).toBe(true);
     expect(shortcuts.handleKeyDown(event("t", 3))).toBe(false);
     expect(invoked).toEqual(["new", "new", "previous"]);
@@ -115,6 +118,7 @@ describe("shortcuts primitive", () => {
       shortcuts.handleKeyDown({
         key: "Tab",
         mods: 2,
+        primary: true,
         repeat: true,
         preventDefault,
       }),
@@ -123,6 +127,7 @@ describe("shortcuts primitive", () => {
       shortcuts.handleKeyDown({
         key: "w",
         mods: 8,
+        primary: true,
         repeat: true,
         preventDefault,
       }),
@@ -143,6 +148,7 @@ describe("shortcuts primitive", () => {
       shortcuts.handleKeyDown({
         key: "Escape",
         mods: 0,
+        primary: false,
         preventDefault: () => {
           prevented = true;
         },

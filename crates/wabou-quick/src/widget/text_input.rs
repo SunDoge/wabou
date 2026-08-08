@@ -288,12 +288,12 @@ impl Widget for TextInput {
                 WidgetEventResult::VALUE_CHANGED
             }
             UiEvent::Key(e) if e.phase == KeyPhase::Down => match e.key.as_str() {
-                key if key.eq_ignore_ascii_case("c") && e.modifiers.primary_shortcut() => self
+                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy) => self
                     .editor
                     .selected_text()
                     .map(str::to_owned)
                     .map_or(WidgetEventResult::IGNORED, WidgetEventResult::copy),
-                key if key.eq_ignore_ascii_case("x") && e.modifiers.primary_shortcut() => {
+                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Cut) => {
                     if let Some(text) = self.editor.selected_text().map(str::to_owned) {
                         self.queue(PendingEdit::Delete);
                         WidgetEventResult::copy_with_value_change(text)
@@ -301,7 +301,7 @@ impl Widget for TextInput {
                         WidgetEventResult::IGNORED
                     }
                 }
-                key if key.eq_ignore_ascii_case("v") && e.modifiers.primary_shortcut() => {
+                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Paste) => {
                     WidgetEventResult::paste()
                 }
                 "Backspace" => {
@@ -356,7 +356,7 @@ impl Widget for TextInput {
                     });
                     WidgetEventResult::HANDLED
                 }
-                key if key.eq_ignore_ascii_case("a") && e.modifiers.primary_shortcut() => {
+                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll) => {
                     self.queue(PendingEdit::SelectAll);
                     WidgetEventResult::HANDLED
                 }
@@ -491,7 +491,7 @@ mod tests {
     }
 
     #[test]
-    fn shifted_clipboard_shortcut_is_case_insensitive() {
+    fn clipboard_shortcut_key_is_case_insensitive() {
         let mut input = TextInput::new();
         let result = input.handle_event(&UiEvent::Key(KeyEvent {
             phase: KeyPhase::Down,
@@ -501,7 +501,11 @@ mod tests {
             text: None,
             text_with_all_modifiers: None,
             location: Default::default(),
-            modifiers: Modifiers::CONTROL | Modifiers::SHIFT,
+            modifiers: if cfg!(target_os = "macos") {
+                Modifiers::META
+            } else {
+                Modifiers::CONTROL
+            },
             repeat: false,
         }));
 
