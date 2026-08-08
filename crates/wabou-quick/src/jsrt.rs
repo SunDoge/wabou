@@ -59,7 +59,7 @@ struct LayoutSnapshotResponse {
 
 use crate::atom::AtomPool;
 use crate::host_frame::{HostEvent, encode_host_frame};
-use crate::style_ir::StylesheetUpdate;
+use crate::style_ir::{ColorThemes, StylesheetUpdate};
 use wabou_shell::FrameStats;
 
 const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
@@ -118,6 +118,12 @@ pub struct JsRuntime {
     pending_css: Rc<RefCell<Option<StylesheetUpdate>>>,
     /// Latest explicit window color-theme request from JavaScript.
     pending_color_theme: Rc<RefCell<Option<String>>>,
+    /// Compiled palettes used by the JS animation primitive as immutable
+    /// endpoints. Token order is derived deterministically by the host.
+    color_themes: Rc<RefCell<Option<ColorThemes>>>,
+    /// Latest JS-interpolated palette. One complete palette is committed per
+    /// frame so paint never observes a mixture of animation steps.
+    pending_color_palette: Rc<RefCell<Option<Vec<u32>>>>,
     /// Font bytes pushed through the typed Host API. Drained by the
     /// Applier in build_frame and registered into the text `FontContext`.
     pending_fonts: Rc<RefCell<Vec<Vec<u8>>>>,
@@ -198,6 +204,8 @@ impl JsRuntime {
             booted: false,
             pending_css: Rc::new(RefCell::new(None)),
             pending_color_theme: Rc::new(RefCell::new(None)),
+            color_themes: Rc::new(RefCell::new(None)),
+            pending_color_palette: Rc::new(RefCell::new(None)),
             pending_fonts: Rc::new(RefCell::new(Vec::new())),
             frame_stats: Rc::new(RefCell::new(None)),
             layout_metrics: Rc::new(RefCell::new(LayoutMetricsSnapshot::default())),
@@ -363,11 +371,14 @@ impl JsRuntime {
             // The host forwards it to the applier, which swaps the sheet +
             // re-resolves every node.
             let pc = self.pending_css.clone();
+            let available_themes = self.color_themes.clone();
             globals.set(
                 "__wabou_set_stylesheet",
                 rquickjs::Function::new(ctx.clone(), move |s: String| -> JsResult<()> {
                     match serde_json::from_str::<StylesheetUpdate>(&s) {
                         Ok(m) => {
+                            let StylesheetUpdate::Ir(sheet) = &m;
+                            *available_themes.borrow_mut() = sheet.color_themes.clone();
                             *pc.borrow_mut() = Some(m);
                             Ok(())
                         }
@@ -389,6 +400,49 @@ impl JsRuntime {
                     wake.notify();
                 })?
                 .with_name("__wabou_set_color_theme")?,
+            )?;
+
+            let available_themes = self.color_themes.clone();
+            globals.set(
+                "__wabou_get_color_theme_palette",
+                rquickjs::Function::new(ctx.clone(), move |name: String| -> JsResult<String> {
+                    let themes = available_themes.borrow();
+                    let themes = themes.as_ref().ok_or(rquickjs::Error::Unknown)?;
+                    let theme = themes
+                        .themes
+                        .get(&name)
+                        .ok_or(rquickjs::Error::Unknown)?;
+                    let mut tokens = theme.colors.keys().collect::<Vec<_>>();
+                    tokens.sort_unstable();
+                    serde_json::to_string(
+                        &tokens
+                            .into_iter()
+                            .map(|token| theme.colors[token])
+                            .collect::<Vec<_>>(),
+                    )
+                    .map_err(|_| rquickjs::Error::Unknown)
+                })?
+                .with_name("__wabou_get_color_theme_palette")?,
+            )?;
+
+            let pending_palette = self.pending_color_palette.clone();
+            let wake = self.runtime_wake.clone();
+            globals.set(
+                "__wabou_set_color_palette",
+                rquickjs::Function::new(
+                    ctx.clone(),
+                    move |colors: TypedArray<u32>| -> JsResult<()> {
+                        let bytes = colors.as_bytes().ok_or(rquickjs::Error::Unknown)?;
+                        let values = bytes
+                            .chunks_exact(std::mem::size_of::<u32>())
+                            .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()))
+                            .collect();
+                        *pending_palette.borrow_mut() = Some(values);
+                        wake.notify();
+                        Ok(())
+                    },
+                )?
+                .with_name("__wabou_set_color_palette")?,
             )?;
 
             let targets = self.resize_targets.clone();
@@ -509,6 +563,10 @@ impl JsRuntime {
 
     pub(crate) fn pending_color_theme_handle(&self) -> Rc<RefCell<Option<String>>> {
         self.pending_color_theme.clone()
+    }
+
+    pub(crate) fn pending_color_palette_handle(&self) -> Rc<RefCell<Option<Vec<u32>>>> {
+        self.pending_color_palette.clone()
     }
 
     /// A handle to the pending-fonts queue; the Applier drains it in

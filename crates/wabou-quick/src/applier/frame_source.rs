@@ -100,10 +100,38 @@ impl FrameSource for Applier {
                     self.active_theme_colors = Arc::new(theme.colors.clone());
                     self.active_color_theme = Some(name);
                     self.class_resolution_cache.clear();
-                    self.recompute_all();
+                    self.recompute_color_palette();
                 }
             } else {
                 tracing::warn!(theme = %name, "unknown Wabou color theme");
+            }
+        }
+
+        if let Some(pending) = self.pending_color_palette.clone()
+            && let Some(colors) = pending.borrow_mut().take()
+        {
+            let tokens = self
+                .style_ir
+                .as_ref()
+                .and_then(|sheet| sheet.color_themes.as_ref())
+                .and_then(|themes| themes.themes.get(&themes.default))
+                .map(|theme| {
+                    let mut tokens = theme.colors.keys().cloned().collect::<Vec<_>>();
+                    tokens.sort_unstable();
+                    tokens
+                });
+            if let Some(tokens) = tokens {
+                if tokens.len() == colors.len() {
+                    self.active_theme_colors = Arc::new(tokens.into_iter().zip(colors).collect());
+                    self.class_resolution_cache.clear();
+                    self.recompute_color_palette();
+                } else {
+                    tracing::warn!(
+                        expected = tokens.len(),
+                        actual = colors.len(),
+                        "ignored Wabou color palette with the wrong token count"
+                    );
+                }
             }
         }
 

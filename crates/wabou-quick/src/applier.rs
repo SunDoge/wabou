@@ -392,6 +392,7 @@ pub struct Applier {
     /// drained in build_frame → replaces `css` + re-resolves every node.
     pending_css: Option<Rc<RefCell<Option<StylesheetUpdate>>>>,
     pending_color_theme: Option<Rc<RefCell<Option<String>>>>,
+    pending_color_palette: Option<Rc<RefCell<Option<Vec<u32>>>>>,
     /// Font file bytes pushed by the typed Host API (via
     /// `JsRuntime::pending_fonts_handle`); drained in build_frame → registered
     /// into the shared text `FontContext` (cache cleared).
@@ -631,6 +632,7 @@ impl Applier {
     ) -> Self {
         let pending_css = js.pending_css_handle();
         let pending_color_theme = js.pending_color_theme_handle();
+        let pending_color_palette = js.pending_color_palette_handle();
         let pending_fonts = js.pending_fonts_handle();
         let frame_stats = js.frame_stats_handle();
         let layout_metrics = js.layout_metrics_handle();
@@ -683,6 +685,7 @@ impl Applier {
             has_hmr_pending: Arc::new(AtomicBool::new(false)),
             pending_css: Some(pending_css),
             pending_color_theme: Some(pending_color_theme),
+            pending_color_palette: Some(pending_color_palette),
             pending_fonts: Some(pending_fonts),
             frame_stats: Some(frame_stats),
             projections: FrameProjections::new(layout_metrics),

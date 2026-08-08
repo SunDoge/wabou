@@ -56,6 +56,26 @@ impl Applier {
         self.rebuild_layout_boxes();
     }
 
+    /// Re-resolve semantic colors without invalidating Taffy's retained
+    /// layout. Color tokens can only target paint properties, so a palette
+    /// animation must not turn every frame into a layout pass.
+    pub(super) fn recompute_color_palette(&mut self) {
+        let preserved = self.invalidation;
+        let nodes: Vec<NodeId> = self.node_store.solid_to_node.values().copied().collect();
+        for node in nodes {
+            self.recompute_node(node);
+        }
+        self.inherit();
+        self.invalidation.set(
+            InvalidationFlags::LAYOUT,
+            preserved.contains(InvalidationFlags::LAYOUT),
+        );
+        self.invalidation.set(
+            InvalidationFlags::INHERIT,
+            preserved.contains(InvalidationFlags::INHERIT),
+        );
+    }
+
     /// Facts for [`InlineFormattingContext::build`] from the retained tree.
     pub(super) fn node_facts(&self, node: NodeId) -> NodeFacts {
         let atoms = self.atoms.borrow();

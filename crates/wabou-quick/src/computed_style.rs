@@ -16,7 +16,7 @@
 use vello::peniko::Color;
 use wabou_shell::FrameSource;
 
-use super::Applier;
+use super::{Applier, InvalidationFlags};
 use crate::jsrt::JsRuntime;
 use crate::protocol::{Frame, Op};
 use crate::style_ir::StylesheetUpdate;
@@ -163,6 +163,21 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
     assert_eq!(
         applier.computed_node_snapshot(2).unwrap().background,
         Some(Color::WHITE)
+    );
+
+    *applier
+        .pending_color_palette
+        .as_ref()
+        .unwrap()
+        .borrow_mut() = Some(vec![0x808080ff]);
+    applier.build_frame(&mut text, 800, 600);
+    assert_eq!(
+        applier.computed_node_snapshot(2).unwrap().background,
+        Some(Color::from_rgb8(0x80, 0x80, 0x80))
+    );
+    assert!(
+        !applier.invalidation.contains(InvalidationFlags::LAYOUT),
+        "palette-only animation frames must retain the native layout cache"
     );
 }
 

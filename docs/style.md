@@ -104,6 +104,31 @@ colorTheme.set("light");
 Themes are window-scoped. Nested theme scopes are intentionally unsupported;
 components consume semantic tokens without knowing which palette is active.
 
+Palette transitions are scheduled in JavaScript and submitted to Rust as one
+atomic palette per animation frame. Rust remains unaware of duration, easing,
+or animation state and only repaints the resolved colors:
+
+```tsx
+<ColorThemeProvider
+  theme={settings.theme}
+  transition={{ duration: 0.28, easing: "ease-out", colorSpace: "oklab" }}
+>
+  <App />
+</ColorThemeProvider>;
+
+const animation = colorTheme.animateTo("light", {
+  duration: 0.4,
+  easing: (progress) => 1 - (1 - progress) ** 4,
+});
+animation.cancel();
+```
+
+`duration` is measured in seconds. OKLab interpolation is the default; `srgb`
+is available when direct channel interpolation is desired. Starting a new
+transition continues from the palette currently on screen. Low-level
+`getPalette()` and `setPalette()` APIs allow other JavaScript animation engines
+to drive the same paint-only bridge without adding a CSS state machine.
+
 The default theme can be extended at generation time with a JSON file:
 
 ```json

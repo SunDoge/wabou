@@ -10,6 +10,8 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_open_url` | host | runtime | always |
 | `__wabou_set_stylesheet` | host | runtime | always |
 | `__wabou_set_color_theme` | host | runtime | always |
+| `__wabou_get_color_theme_palette` | host | runtime | always |
+| `__wabou_set_color_palette` | host | runtime | always |
 | `__wabou_load_font` | host | runtime | always |
 | `__wabou_frame_stats` | host | runtime | always |
 | `__wabou_layout_snapshot` | host | runtime | always |

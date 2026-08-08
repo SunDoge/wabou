@@ -41,6 +41,22 @@
       "returns": "void"
     },
     {
+      "name": "__wabou_get_color_theme_palette",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["name", "string"]],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_set_color_palette",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["colors", "Uint32Array"]],
+      "returns": "void"
+    },
+    {
       "name": "__wabou_load_font",
       "direction": "host",
       "owner": "runtime",

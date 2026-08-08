@@ -28,7 +28,11 @@ import "./glue/clipboard";
 export {
   colorTheme,
   ColorThemeProvider,
+  type ColorPalette,
+  type ColorThemeAnimation,
+  type ColorThemeAnimationOptions,
   type ColorThemeController,
+  type ColorThemeEasing,
   useColorTheme,
 } from "./glue/color-theme";
 
