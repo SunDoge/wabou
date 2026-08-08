@@ -1,4 +1,8 @@
 export {
+  type AnimationFrameCallback,
+  createAnimationFrame,
+} from "./animation-frame";
+export {
   Button,
   type ButtonEvent,
   type ButtonKeyEvent,

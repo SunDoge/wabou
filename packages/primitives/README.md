@@ -63,6 +63,34 @@ Use `unstyled` when layout and all visual properties come from application
 classes or a design system. Hover, press, focus, and disabled state tracking
 remain active.
 
+Animations are explicit application state, not CSS state machines.
+`createAnimationFrame` schedules work on the native display clock and binds
+cleanup to its Solid owner. Update a signal, inline style, or paint-only
+`transform` from the callback; return `false` when a finite animation is done
+so the host can go back to sleep:
+
+```tsx
+const [progress, setProgress] = createSignal(0);
+let started: number | undefined;
+
+createAnimationFrame((timestamp) => {
+  started ??= timestamp;
+  const next = Math.min(1, (timestamp - started) / 180);
+  setProgress(next);
+  return next < 1;
+});
+
+<View
+  style={{ opacity: progress() }}
+  transform={[1, 0, 0, 1, 0, 8 * (1 - progress())]}
+/>;
+```
+
+Wabou does not implement CSS transitions, keyframes, or `animate-*`
+utilities. Timing, interpolation, interruption, and completion remain visible
+in component code instead of being duplicated in the style engine and Rust
+renderer.
+
 Native text selection is observable without polling or a browser `Selection`
 shim. `Text` and its ancestors can listen for a committed, bubbling event:
 
