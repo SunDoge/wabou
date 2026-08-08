@@ -70,3 +70,27 @@ dist/gallery/
 The packaged executable resolves `resources/bundle.js` relative to itself, so
 it runs without the source tree or CLI. On macOS the same resource contract can
 later map to `Gallery.app/Contents/Resources/wabou` before signing.
+
+## Rust-owned TypeScript bindings
+
+An application can expose a conventional Cargo example named
+`wabou-bindings`. The example builds a `wabou_bindings::Bindings` manifest and
+writes its generated module beneath `ui/`:
+
+```bash
+bun run wabou bindings --app-dir apps/gallery write
+bun run wabou bindings --app-dir apps/gallery check
+```
+
+`write` explicitly updates the committed declaration. `check` never rewrites
+files and fails when a Rust DTO, capability name, or method name has drifted;
+run it in CI.
+
+The generated module exposes a typed client while accurately retaining the
+native `string -> Promise<string>` QuickJS ABI underneath. Application code
+passes DTO objects to the client and does not manually call `JSON.stringify`
+or `JSON.parse`. See `apps/gallery/examples/wabou-bindings.rs` and
+`apps/gallery/ui/generated/host-bindings.ts` for the complete convention.
+
+Only explicit bridge DTOs should derive `TS`. Database entities, upstream SDK
+models, and renderer internals are not public JavaScript contracts.
