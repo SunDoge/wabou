@@ -41,4 +41,20 @@ describe("@wabou/vite", () => {
     expect(config.build?.lib).toMatchObject({ name: "Inspector" });
     expect(config.plugins).toContain(extra);
   });
+
+  test("selects an entry from the Vite mode", async () => {
+    const exported = defineWabouConfig(({ mode }) => ({
+      entry: mode === "ui-test" ? "ui/fixture.tsx" : undefined,
+      outDir: "dist",
+    }));
+    expect(typeof exported).toBe("function");
+    if (typeof exported !== "function") throw new Error("expected config factory");
+    const config = (await exported({
+      command: "build",
+      mode: "ui-test",
+      isSsrBuild: false,
+      isPreview: false,
+    })) as UserConfig;
+    expect(config.build?.lib).toMatchObject({ entry: "ui/fixture.tsx" });
+  });
 });

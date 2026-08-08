@@ -38,6 +38,9 @@ enum Commands {
         port: u16,
         #[arg(long)]
         devtools: bool,
+        /// Vite mode used to select an application-owned development entry.
+        #[arg(long)]
+        mode: Option<String>,
     },
     /// Build the frontend bundle and Rust host.
     Build {
@@ -76,6 +79,9 @@ enum Commands {
         /// Device scale used for widget encoding and physical PNG dimensions.
         #[arg(long, default_value_t = 1.0)]
         scale_factor: f64,
+        /// Vite mode used to select an application-owned render fixture.
+        #[arg(long)]
+        mode: Option<String>,
         /// Keep driving asynchronous JavaScript work before capture.
         #[arg(long, default_value_t = 0)]
         wait_ms: u64,
@@ -155,6 +161,7 @@ fn main() -> Result<()> {
             app_dir,
             port,
             devtools,
+            mode,
         } => {
             let workspace = find_workspace(&cwd)?;
             dev(
@@ -162,6 +169,7 @@ fn main() -> Result<()> {
                 load_app(&workspace, &cwd, app_dir.as_deref())?,
                 port,
                 devtools,
+                mode.as_deref(),
             )
         }
         Commands::Build { app_dir, release } => {
@@ -195,6 +203,7 @@ fn main() -> Result<()> {
             height,
             window_id,
             scale_factor,
+            mode,
             wait_ms,
             click,
             text,
@@ -208,6 +217,7 @@ fn main() -> Result<()> {
                 height,
                 window_id,
                 scale_factor,
+                mode.as_deref(),
                 wait_ms,
                 &click,
                 text.as_deref(),
@@ -351,6 +361,7 @@ fn render(
     height: u32,
     window_id: u64,
     scale_factor: f64,
+    mode: Option<&str>,
     wait_ms: u64,
     clicks: &[f64],
     text: Option<&str>,
@@ -358,7 +369,11 @@ fn render(
     if !scale_factor.is_finite() || scale_factor <= 0.0 {
         return Err("--scale-factor must be a finite number greater than zero".into());
     }
-    ensure(frontend(app, "build", &[])?, "Vite build")?;
+    let mode_args = mode.map(|mode| ["--mode", mode]);
+    ensure(
+        frontend(app, "build", mode_args.as_ref().map_or(&[], |args| args))?,
+        "Vite build",
+    )?;
     let path = bundle_path(workspace, app);
     let source = fs::read_to_string(&path).map_err(|error| {
         format!(
@@ -468,13 +483,23 @@ fn render(
     Ok(())
 }
 
-fn dev(workspace: &Path, app: App, port: u16, open_devtools: bool) -> Result<()> {
+fn dev(
+    workspace: &Path,
+    app: App,
+    port: u16,
+    open_devtools: bool,
+    mode: Option<&str>,
+) -> Result<()> {
     let port_text = port.to_string();
-    let mut vite = Command::new("bun")
+    let mut vite_command = Command::new("bun");
+    vite_command
         .current_dir(&app.frontend)
         .args(["run", "dev", "--", "--port", &port_text, "--strictPort"])
-        .stdin(Stdio::null())
-        .spawn()?;
+        .stdin(Stdio::null());
+    if let Some(mode) = mode {
+        vite_command.args(["--mode", mode]);
+    }
+    let mut vite = vite_command.spawn()?;
     let url = format!("http://127.0.0.1:{port}");
     wait_for_vite(&url, &mut vite)?;
 
@@ -782,6 +807,7 @@ mod tests {
                 Commands::Render {
                     window_id,
                     scale_factor,
+                    mode,
                     click,
                     ..
                 },
@@ -791,6 +817,7 @@ mod tests {
         };
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
+        assert_eq!(mode, None);
         assert!(click.is_empty());
 
         let Cli {
@@ -798,6 +825,7 @@ mod tests {
                 Commands::Render {
                     window_id,
                     scale_factor,
+                    mode,
                     click,
                     ..
                 },
@@ -810,6 +838,8 @@ mod tests {
             "7",
             "--scale-factor",
             "2",
+            "--mode",
+            "ui-test",
             "--click",
             "10",
             "20",
@@ -823,6 +853,7 @@ mod tests {
         };
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
+        assert_eq!(mode.as_deref(), Some("ui-test"));
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
     }
 

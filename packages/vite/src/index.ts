@@ -3,6 +3,7 @@ import { wabouStylePlugin } from "@wabou/style-compiler";
 import {
   defineConfig,
   mergeConfig,
+  type ConfigEnv,
   type Plugin,
   type UserConfig,
   type UserConfigExport,
@@ -21,6 +22,10 @@ export interface WabouViteOptions {
   /** Additional Vite configuration merged over Wabou defaults. */
   vite?: UserConfig;
 }
+
+export type WabouViteOptionsExport =
+  | WabouViteOptions
+  | ((environment: ConfigEnv) => WabouViteOptions);
 
 function disableSolidDependencyOptimizer(): Plugin {
   return {
@@ -47,7 +52,16 @@ export function wabouPlugins(root = process.cwd()): Plugin[] {
 }
 
 /** Define the complete conventional Vite configuration for a Wabou app. */
-export function defineWabouConfig(options: WabouViteOptions): UserConfigExport {
+export function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport {
+  if (typeof options === "function") {
+    return defineConfig((environment) =>
+      resolveWabouConfig(options(environment)),
+    );
+  }
+  return defineConfig(resolveWabouConfig(options));
+}
+
+function resolveWabouConfig(options: WabouViteOptions): UserConfig {
   const root = options.root ?? process.cwd();
   const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
   const defaults: UserConfig = {
@@ -79,5 +93,5 @@ export function defineWabouConfig(options: WabouViteOptions): UserConfigExport {
       minify: false,
     },
   };
-  return defineConfig(mergeConfig(defaults, options.vite ?? {}));
+  return mergeConfig(defaults, options.vite ?? {});
 }

@@ -19,6 +19,9 @@ args=(
   --window-id "${WABOU_CAPTURE_WINDOW_ID:-1}"
   --scale-factor "${WABOU_CAPTURE_SCALE_FACTOR:-1}"
 )
+if [[ -n "${WABOU_CAPTURE_MODE:-}" ]]; then
+  args+=(--mode "$WABOU_CAPTURE_MODE")
+fi
 if (( $# == 6 )); then
   args+=(--click "$5" "$6")
 fi
