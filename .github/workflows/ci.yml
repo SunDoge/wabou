@@ -63,7 +63,7 @@ jobs:
         run: bun run check
 
       - name: Test packages
-        run: bun test packages
+        run: bun --conditions=browser test packages
 
       - name: Test reactive router integration
         run: bun run test:router

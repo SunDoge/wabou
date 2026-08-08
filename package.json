@@ -5,6 +5,7 @@
     "wabou": "cargo run -p wabou-cli --",
     "format": "biome format --write .",
     "check": "bun x tsc --noEmit",
+    "test": "bun --conditions=browser test",
     "commit:check": "cog check",
     "commit:hook": "cog install-hook commit-msg",
     "test:solid-refresh": "bun --conditions=browser --conditions=development test packages/solid-renderer/src/hmr.test.ts",
