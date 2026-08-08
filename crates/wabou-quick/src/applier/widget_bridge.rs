@@ -185,6 +185,7 @@ impl Applier {
     /// resulting Scene fragment in the matching PlacedNode's `paint.widget`.
     /// `build_scene` composites it at the node's content-box origin.
     pub(super) fn paint_widgets(&mut self, placed: &mut [PlacedNode], tcx: &mut TextContext) {
+        self.ime_cursor_area = None;
         let mut transforms = HashMap::with_capacity(placed.len());
         for n in placed.iter_mut() {
             let parent_transform = n
@@ -204,6 +205,35 @@ impl Applier {
                 if width > 0.0 && height > 0.0 {
                     let scene = w.paint_scaled(width, height, self.device_scale, tcx);
                     n.paint.widget = Some(std::sync::Arc::new(scene));
+                }
+                if self.input.focused_target == self.node_store.solid_id_for_node(n.node_id)
+                    && let Some([x0, y0, x1, y1]) = w.ime_cursor_area()
+                {
+                    let local_to_window = window_to_local.inverse();
+                    let points = [
+                        local_to_window * Point::new(f64::from(x0), f64::from(y0)),
+                        local_to_window * Point::new(f64::from(x1), f64::from(y0)),
+                        local_to_window * Point::new(f64::from(x0), f64::from(y1)),
+                        local_to_window * Point::new(f64::from(x1), f64::from(y1)),
+                    ];
+                    self.ime_cursor_area = Some([
+                        points
+                            .iter()
+                            .map(|point| point.x)
+                            .fold(f64::INFINITY, f64::min),
+                        points
+                            .iter()
+                            .map(|point| point.y)
+                            .fold(f64::INFINITY, f64::min),
+                        points
+                            .iter()
+                            .map(|point| point.x)
+                            .fold(f64::NEG_INFINITY, f64::max),
+                        points
+                            .iter()
+                            .map(|point| point.y)
+                            .fold(f64::NEG_INFINITY, f64::max),
+                    ]);
                 }
             }
         }

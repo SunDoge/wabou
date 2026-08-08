@@ -179,6 +179,7 @@ impl FrameSource for Applier {
         self.placed_rects
             .extend(placed.iter().map(|placed| (placed.node_id, placed.rect)));
         self.rebuild_hit_geometry(&placed);
+        self.rebuild_focus_order(&placed);
         let projection_dirty =
             self.projections.semantics_dirty || semantic_layout_dirty || selection_scrolled;
         if projection_dirty {
@@ -268,6 +269,10 @@ impl FrameSource for Applier {
                 changed
             }
         }
+    }
+
+    fn ime_cursor_area(&self) -> Option<[f64; 4]> {
+        self.ime_cursor_area
     }
 
     fn paint_debug_overlay(
@@ -567,7 +572,7 @@ impl FrameSource for Applier {
             UiEvent::Key(key) if key.phase == KeyPhase::Down
         ) || matches!(
             &input,
-            UiEvent::TextInput(_) | UiEvent::Paste(_) | UiEvent::Wheel(_)
+            UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_) | UiEvent::Wheel(_)
         ) || matches!(
             &input,
             UiEvent::Pointer(pointer)
@@ -604,7 +609,7 @@ impl FrameSource for Applier {
         // focus is established in the pointer-down branch before delivery.
         let widget_response = if matches!(
             input,
-            UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Paste(_)
+            UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
         ) && let Some(target) = self.input.focused_target
         {
             self.handle_widget_event(target, &input)
@@ -635,6 +640,23 @@ impl FrameSource for Applier {
                 request_redraw: true,
                 consume_key_text: false,
                 text_input: None,
+                clipboard: None,
+            };
+        }
+        if widget_response.is_none()
+            && let UiEvent::Key(key) = &input
+            && key.phase == KeyPhase::Down
+            && key.key == "Tab"
+            && !key.modifiers.control()
+            && !key.modifiers.alt()
+            && !key.modifiers.meta()
+            && let Some(target) = self.advance_focus(key.modifiers.shift())
+        {
+            return EventResponse {
+                handled: true,
+                request_redraw: true,
+                consume_key_text: true,
+                text_input: Some(self.is_text_input_target(target)),
                 clipboard: None,
             };
         }
@@ -750,7 +772,7 @@ impl FrameSource for Applier {
                 self.input.pointer_down_target = target;
                 self.input.pointer_down_position = Some((x, y));
                 self.input.pointer_dragged = false;
-                let mut changed = self.set_focused_target(target);
+                let mut changed = self.set_focused_target(self.pointer_focus_target(target));
                 if button == PointerButton::Primary {
                     self.next_text_selection_scroll = None;
                     changed |= target.is_some_and(|target| {
@@ -898,6 +920,13 @@ impl FrameSource for Applier {
                 let payload = serde_json::json!({ "data": text }).to_string();
                 self.dispatch_json(target, event::IMECOMMIT, &payload)
             }),
+            UiEvent::Ime(wabou_shell::ImeEvent::Commit(text)) => {
+                self.input.focused_target.is_some_and(|target| {
+                    let payload = serde_json::json!({ "data": text }).to_string();
+                    self.dispatch_json(target, event::IMECOMMIT, &payload)
+                })
+            }
+            UiEvent::Ime(_) => widget_response.is_some(),
             UiEvent::Paste(text) => self.input.focused_target.is_some_and(|target| {
                 let payload = serde_json::json!({ "data": text }).to_string();
                 self.dispatch_json(target, event::IMECOMMIT, &payload)

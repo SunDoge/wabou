@@ -390,6 +390,9 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
         node(save, Some(modal), 2, save_paint),
     ];
     applier.rebuild_hit_geometry(&placed);
+    applier.rebuild_focus_order(&placed);
+    assert_eq!(applier.input.focus_order, [4]);
+    assert!(!applier.input.focusable_targets.contains(&2));
     applier.rebuild_semantic_snapshot(&placed);
     let snapshot = &applier.projections.semantic_snapshot;
     assert_eq!(snapshot.root_children, vec![2, 3]);

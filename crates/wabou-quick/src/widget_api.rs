@@ -10,7 +10,7 @@ pub use crate::widget::{
     Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent, WidgetStyle,
 };
 pub use wabou_shell::{
-    ClipboardRequest, HostAction, HostActionResult, KeyEvent, KeyLocation, KeyPhase, Modifiers,
-    Point, PointerButton, PointerEvent, PointerPhase, TextContext, UiEvent, WakeCallback,
-    WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
+    ClipboardRequest, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
+    Modifiers, Point, PointerButton, PointerEvent, PointerPhase, TextContext, UiEvent,
+    WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };

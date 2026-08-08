@@ -101,6 +101,8 @@ pub(super) struct InputRouter {
     pub(super) next_host_event_id: u32,
     pub(super) hovered_target: Option<u32>,
     pub(super) focused_target: Option<u32>,
+    pub(super) focusable_targets: HashSet<u32>,
+    pub(super) focus_order: Vec<u32>,
     pub(super) window_focused: bool,
     pub(super) hit_items: Vec<HitItem>,
 }

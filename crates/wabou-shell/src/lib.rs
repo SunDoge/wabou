@@ -28,8 +28,8 @@ pub use shell::Shell;
 pub use shortcut::StandardShortcut;
 pub use source::{
     ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
-    KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerPhase,
-    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, UiEvent, WHEEL_LINE_DELTA,
-    WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
+    ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
+    PointerPhase, SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, UiEvent,
+    WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;

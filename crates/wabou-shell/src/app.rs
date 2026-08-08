@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vello::peniko::Color;
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
+use winit::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use winit::event::{ButtonSource, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
@@ -19,8 +19,8 @@ use crate::scene as scene_builder;
 use crate::shell::Shell;
 use crate::source::{
     ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
-    KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerPhase,
-    UiEvent, WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
+    ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
+    PointerPhase, UiEvent, WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 
 fn ms(d: std::time::Duration) -> f64 {
@@ -57,6 +57,7 @@ pub struct App {
     pointer_buttons: u32,
     pointer_position: Point,
     ime_enabled: bool,
+    ime_cursor_area: Option<[f64; 4]>,
     startup_error: Arc<Mutex<Option<crate::Error>>>,
     /// EMA per-frame stage timings, reported to the source for a perf overlay.
     frame_stats: FrameStats,
@@ -117,6 +118,7 @@ impl App {
             pointer_buttons: 0,
             pointer_position: Point { x: 0.0, y: 0.0 },
             ime_enabled: false,
+            ime_cursor_area: None,
             startup_error: Arc::new(Mutex::new(None)),
             frame_stats: FrameStats::default(),
             present_retry_pending: false,
@@ -281,9 +283,13 @@ impl App {
             && let Some(shell) = self.state.as_ref()
         {
             let request = if allowed {
-                let capabilities = ImeCapabilities::new().with_hint_and_purpose();
+                let (position, size) = Self::ime_cursor_rect(self.ime_cursor_area);
+                let capabilities = ImeCapabilities::new()
+                    .with_hint_and_purpose()
+                    .with_cursor_area();
                 let data = ImeRequestData::default()
-                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal);
+                    .with_hint_and_purpose(ImeHint::NONE, ImePurpose::Normal)
+                    .with_cursor_area(position.into(), size.into());
                 ImeRequest::Enable(
                     ImeEnableRequest::new(capabilities, data)
                         .expect("IME capabilities and initial data must match"),
@@ -301,6 +307,30 @@ impl App {
             shell.window().request_redraw();
         }
         response
+    }
+
+    fn ime_cursor_rect(area: Option<[f64; 4]>) -> (LogicalPosition<f64>, LogicalSize<f64>) {
+        let [x0, y0, x1, y1] = area.unwrap_or([0.0, 0.0, 1.0, 1.0]);
+        (
+            LogicalPosition::new(x0, y0),
+            LogicalSize::new((x1 - x0).max(1.0), (y1 - y0).max(1.0)),
+        )
+    }
+
+    fn update_ime_cursor_area(&mut self) {
+        let area = self.source.ime_cursor_area();
+        if area == self.ime_cursor_area {
+            return;
+        }
+        self.ime_cursor_area = area;
+        if !self.ime_enabled {
+            return;
+        }
+        if let Some(shell) = self.state.as_ref() {
+            let (position, size) = Self::ime_cursor_rect(self.ime_cursor_area);
+            let data = ImeRequestData::default().with_cursor_area(position.into(), size.into());
+            let _ = shell.window().request_ime_update(ImeRequest::Update(data));
+        }
     }
 
     fn drain_host_actions(&mut self) -> bool {
@@ -441,6 +471,10 @@ impl ApplicationHandler for App {
                 let base_color = self.source.base_color();
                 let (node_count, build_frame_ms, scene_ms) =
                     Self::build(shell, self.source.as_mut(), base_color);
+                self.update_ime_cursor_area();
+                let Some(shell) = self.state.as_mut() else {
+                    return;
+                };
                 shell
                     .accessibility
                     .set_snapshot(self.source.semantic_snapshot());
@@ -602,8 +636,21 @@ impl ApplicationHandler for App {
             WindowEvent::ModifiersChanged(state) => {
                 self.modifiers = Self::modifiers(state.state());
             }
-            WindowEvent::Ime(winit::event::Ime::Commit(text)) => {
-                self.dispatch_event(UiEvent::TextInput(text));
+            WindowEvent::Ime(event) => {
+                let event = match event {
+                    winit::event::Ime::Enabled => ImeEvent::Enabled,
+                    winit::event::Ime::Preedit(text, cursor) => ImeEvent::Preedit { text, cursor },
+                    winit::event::Ime::Commit(text) => ImeEvent::Commit(text),
+                    winit::event::Ime::DeleteSurrounding {
+                        before_bytes,
+                        after_bytes,
+                    } => ImeEvent::DeleteSurrounding {
+                        before_bytes,
+                        after_bytes,
+                    },
+                    winit::event::Ime::Disabled => ImeEvent::Disabled,
+                };
+                self.dispatch_event(UiEvent::Ime(event));
             }
             WindowEvent::Focused(focused) => {
                 self.dispatch_focus_change(focused);

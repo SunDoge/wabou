@@ -45,6 +45,7 @@ use wabou_shell::{
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 
 mod debug_projection;
+mod focus;
 mod frame_source;
 mod input_router;
 mod interaction;
@@ -389,6 +390,7 @@ pub struct Applier {
     /// Host diagnostics so the app can self-size / bounce within bounds.
     last_viewport: (u32, u32),
     device_scale: f64,
+    ime_cursor_area: Option<[f64; 4]>,
     selectable_text: HashMap<u32, SelectableText>,
     selectable_text_order: Vec<u32>,
     active_text_selection: Option<ActiveTextSelection>,
@@ -654,6 +656,7 @@ impl Applier {
             js_tick_ema: 0.0,
             last_viewport: (0, 0),
             device_scale: 1.0,
+            ime_cursor_area: None,
             selectable_text: HashMap::new(),
             selectable_text_order: Vec::new(),
             active_text_selection: None,

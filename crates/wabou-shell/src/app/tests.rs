@@ -146,6 +146,17 @@ fn failed_present_gets_one_recovery_frame_without_a_busy_loop() {
 }
 
 #[test]
+fn ime_cursor_rect_is_logical_and_never_empty() {
+    let (position, size) = App::ime_cursor_rect(Some([12.5, 20.0, 12.5, 38.0]));
+    assert_eq!(position, winit::dpi::LogicalPosition::new(12.5, 20.0));
+    assert_eq!(size, winit::dpi::LogicalSize::new(1.0, 18.0));
+
+    let (position, size) = App::ime_cursor_rect(None);
+    assert_eq!(position, winit::dpi::LogicalPosition::new(0.0, 0.0));
+    assert_eq!(size, winit::dpi::LogicalSize::new(1.0, 1.0));
+}
+
+#[test]
 fn dispatch_event_drains_synchronous_host_actions() {
     let drained = Arc::new(AtomicUsize::new(0));
     let mut app = App::new(Box::new(EventActionSource {

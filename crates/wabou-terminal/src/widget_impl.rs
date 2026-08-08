@@ -449,7 +449,7 @@ impl Widget for TerminalWidget {
                 self.finish_selection_gesture();
                 WidgetEventResult::HANDLED
             }
-            UiEvent::TextInput(text) => {
+            UiEvent::TextInput(text) | UiEvent::Ime(ImeEvent::Commit(text)) => {
                 if self.exit_reported {
                     return WidgetEventResult::HANDLED;
                 }
@@ -649,6 +649,28 @@ impl Widget for TerminalWidget {
 
     fn accepts_focus(&self) -> bool {
         true
+    }
+
+    fn ime_cursor_area(&self) -> Option<[f32; 4]> {
+        if !self.focused {
+            return None;
+        }
+        let terminal = self.terminal.lock();
+        if terminal.display_offset() != 0 {
+            return None;
+        }
+        let cursor = terminal.cursor();
+        if cursor.pos.row < 0 {
+            return None;
+        }
+        let x = cursor.pos.col.0 as f32 * self.cell_width;
+        let y = cursor.pos.row.0 as f32 * self.line_height;
+        Some([
+            x,
+            y,
+            x + self.cell_width.max(1.0),
+            y + self.line_height.max(1.0),
+        ])
     }
 
     fn style_changed(&mut self, style: &WidgetStyle) {

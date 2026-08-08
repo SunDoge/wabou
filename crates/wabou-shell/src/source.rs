@@ -167,6 +167,23 @@ pub struct WheelEvent {
     pub modifiers: Modifiers,
 }
 
+/// Platform input-method lifecycle delivered to the focused native widget.
+/// Cursor offsets and delete ranges are UTF-8 byte offsets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ImeEvent {
+    Enabled,
+    Preedit {
+        text: String,
+        cursor: Option<(usize, usize)>,
+    },
+    Commit(String),
+    DeleteSurrounding {
+        before_bytes: usize,
+        after_bytes: usize,
+    },
+    Disabled,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyPhase {
     Down,
@@ -212,6 +229,7 @@ pub enum UiEvent {
     Wheel(WheelEvent),
     Key(KeyEvent),
     TextInput(String),
+    Ime(ImeEvent),
     Paste(String),
     Focus(bool),
     WindowMetrics(WindowMetrics),
@@ -355,6 +373,12 @@ pub trait FrameSource {
 
     fn handle_semantic_action(&mut self, _action: SemanticAction) -> bool {
         false
+    }
+
+    /// Focused editor exclusion area for the platform IME candidate window,
+    /// expressed in window-logical coordinates.
+    fn ime_cursor_area(&self) -> Option<[f64; 4]> {
+        None
     }
 
     /// Paint optional diagnostics after the application scene. Decorations are

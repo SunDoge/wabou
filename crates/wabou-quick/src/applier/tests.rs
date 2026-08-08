@@ -309,7 +309,6 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
 #[test]
 fn imperative_focus_uses_the_same_host_focus_state_as_pointer_input() {
     let js = JsRuntime::new().expect("runtime");
-    install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement {
@@ -332,6 +331,7 @@ fn imperative_focus_uses_the_same_host_focus_state_as_pointer_input() {
 #[test]
 fn widget_measurements_refresh_intrinsic_layout_before_paint() {
     let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement {
@@ -824,6 +824,116 @@ fn interactive_applier() -> Applier {
     applier.update_scrollbar_visuals(&mut placed);
     applier.rebuild_hit_geometry(&placed);
     applier
+}
+
+#[test]
+fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (button, tab_index, disabled, width, height) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("button"),
+            atoms.intern("tabIndex"),
+            atoms.intern("disabled"),
+            atoms.intern("width"),
+            atoms.intern("height"),
+        )
+    };
+    for id in 2..=6 {
+        applier.apply_op(&Op::CreateElement {
+            id,
+            tag: button,
+            attrs: Vec::new(),
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 1,
+            child: id,
+        });
+        applier.apply_op(&Op::SetStyle {
+            id,
+            prop: width,
+            value: "100px",
+        });
+        applier.apply_op(&Op::SetStyle {
+            id,
+            prop: height,
+            value: "20px",
+        });
+    }
+    applier.apply_op(&Op::SetAttribute {
+        id: 3,
+        name: tab_index,
+        value: "2",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 4,
+        name: tab_index,
+        value: "-1",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 5,
+        name: tab_index,
+        value: "1",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 6,
+        name: disabled,
+        value: "",
+    });
+    let mut tcx = TextContext::new();
+    let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
+    assert!(placed.len() >= 6, "placed node count: {}", placed.len());
+
+    assert_eq!(applier.input.focus_order, [5, 3, 2]);
+    assert!(applier.input.focusable_targets.contains(&4));
+    assert!(!applier.input.focusable_targets.contains(&6));
+    assert_eq!(applier.advance_focus(false), Some(5));
+    assert_eq!(applier.advance_focus(false), Some(3));
+    assert_eq!(applier.advance_focus(true), Some(5));
+}
+
+#[test]
+fn focused_widget_can_consume_tab_before_default_focus_traversal() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let div = applier.atoms.borrow_mut().intern("div");
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: div,
+        attrs: vec![],
+    });
+    let node = applier.node_store.solid_to_node[&2];
+    let received = Arc::new(std::sync::Mutex::new(0));
+    applier
+        .widget_manager
+        .widgets
+        .insert(node, Box::new(KeyCaptureWidget(received.clone())));
+    applier.input.focused_target = Some(2);
+    applier.input.focus_order = vec![2, 3];
+
+    let response = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
+        phase: KeyPhase::Down,
+        key: "Tab".into(),
+        key_without_modifiers: "Tab".into(),
+        code: "Tab".into(),
+        text: None,
+        text_with_all_modifiers: None,
+        location: Default::default(),
+        modifiers: Modifiers::default(),
+        repeat: false,
+    }));
+
+    assert!(response.handled);
+    assert_eq!(applier.input.focused_target, Some(2));
+    assert_eq!(*received.lock().unwrap(), 1);
 }
 
 mod overlay_cases;

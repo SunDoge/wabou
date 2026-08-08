@@ -6,6 +6,7 @@
 //! `paint` applies them via the driver, refreshes layout, then paints
 //! selection rects + caret + glyph runs.
 
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -15,7 +16,7 @@ use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
 use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
-use wabou_shell::{KeyPhase, PointerPhase, UiEvent};
+use wabou_shell::{ImeEvent, KeyPhase, PointerPhase, UiEvent};
 
 use super::{Widget, WidgetEventResult};
 
@@ -26,6 +27,10 @@ const PLACEHOLDER_COLOR: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
 /// A pending edit to apply on the next `paint` (when FontContext is available).
 enum PendingEdit {
     Insert(String),
+    SetCompose(String, Option<(usize, usize)>),
+    CommitCompose(String),
+    ClearCompose,
+    DeleteSurrounding(usize, usize),
     Delete,
     DeleteForward,
     MoveLeft,
@@ -186,6 +191,23 @@ impl Widget for TextInput {
                 for edit in self.pending.drain(..) {
                     match edit {
                         PendingEdit::Insert(s) => driver.insert_or_replace_selection(&s),
+                        PendingEdit::SetCompose(text, cursor) => {
+                            driver.set_compose(&text, cursor);
+                        }
+                        PendingEdit::CommitCompose(text) => {
+                            driver.clear_compose();
+                            driver.insert_or_replace_selection(&text);
+                        }
+                        PendingEdit::ClearCompose => driver.clear_compose(),
+                        PendingEdit::DeleteSurrounding(before, after) => {
+                            driver.clear_compose();
+                            if let Some(before) = NonZeroUsize::new(before) {
+                                driver.delete_bytes_before_selection(before);
+                            }
+                            if let Some(after) = NonZeroUsize::new(after) {
+                                driver.delete_bytes_after_selection(after);
+                            }
+                        }
                         PendingEdit::Delete => driver.backdelete(),
                         PendingEdit::DeleteForward => driver.delete(),
                         PendingEdit::MoveLeft => driver.move_left(),
@@ -431,6 +453,35 @@ impl Widget for TextInput {
                 self.queue(PendingEdit::Insert(filtered));
                 WidgetEventResult::VALUE_CHANGED
             }
+            UiEvent::Ime(ImeEvent::Preedit { text, cursor }) if self.editable() => {
+                if text.is_empty() {
+                    self.queue(PendingEdit::ClearCompose);
+                } else {
+                    self.queue(PendingEdit::SetCompose(text.clone(), *cursor));
+                }
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Ime(ImeEvent::Commit(text)) if self.editable() => {
+                if text.is_empty() {
+                    self.queue(PendingEdit::ClearCompose);
+                    WidgetEventResult::HANDLED
+                } else {
+                    self.queue(PendingEdit::CommitCompose(text.clone()));
+                    WidgetEventResult::VALUE_CHANGED
+                }
+            }
+            UiEvent::Ime(ImeEvent::DeleteSurrounding {
+                before_bytes,
+                after_bytes,
+            }) if self.editable() => {
+                self.queue(PendingEdit::DeleteSurrounding(*before_bytes, *after_bytes));
+                WidgetEventResult::VALUE_CHANGED
+            }
+            UiEvent::Ime(ImeEvent::Disabled) => {
+                self.queue(PendingEdit::ClearCompose);
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Ime(ImeEvent::Enabled) => WidgetEventResult::HANDLED,
             UiEvent::Key(e) if e.phase == KeyPhase::Down => match e.key.as_str() {
                 _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy) => self
                     .editor
@@ -638,6 +689,20 @@ impl Widget for TextInput {
         self.next_blink
     }
 
+    fn ime_cursor_area(&self) -> Option<[f32; 4]> {
+        if !self.focused || self.disabled {
+            return None;
+        }
+        let area = self.editor.ime_cursor_area();
+        let y_offset = if self.multiline { -self.scroll_y } else { 0.0 };
+        Some([
+            area.x0 as f32,
+            area.y0 as f32 + y_offset,
+            area.x1 as f32,
+            area.y1 as f32 + y_offset,
+        ])
+    }
+
     fn set_window_to_local(&mut self, transform: [f64; 6]) {
         self.window_to_local = transform;
     }
@@ -825,5 +890,46 @@ mod tests {
         let mut tcx = TextContext::new();
         area.paint(160.0, 64.0, &mut tcx);
         assert_eq!(area.current_value(), Some("one\ntwo\nthree"));
+    }
+
+    #[test]
+    fn ime_preedit_is_replaced_by_commit_and_reports_a_caret_area() {
+        let mut input = TextInput::new();
+        input.focus_changed(true);
+        let mut tcx = TextContext::new();
+        input.paint(200.0, 32.0, &mut tcx);
+
+        assert!(
+            input
+                .handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+                    text: "に".into(),
+                    cursor: Some((3, 3)),
+                }))
+                .is_handled()
+        );
+        input.paint(200.0, 32.0, &mut tcx);
+        assert!(input.ime_cursor_area().is_some());
+
+        assert!(
+            input
+                .handle_event(&UiEvent::Ime(ImeEvent::Commit("日本".into())))
+                .value_changed()
+        );
+        input.paint(200.0, 32.0, &mut tcx);
+        assert_eq!(input.current_value(), Some("日本"));
+    }
+
+    #[test]
+    fn disabling_ime_clears_uncommitted_preedit() {
+        let mut input = TextInput::new();
+        let mut tcx = TextContext::new();
+        input.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "draft".into(),
+            cursor: None,
+        }));
+        input.paint(200.0, 32.0, &mut tcx);
+        input.handle_event(&UiEvent::Ime(ImeEvent::Disabled));
+        input.paint(200.0, 32.0, &mut tcx);
+        assert_eq!(input.current_value(), Some(""));
     }
 }

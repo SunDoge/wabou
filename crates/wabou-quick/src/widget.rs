@@ -277,6 +277,12 @@ pub trait Widget {
         None
     }
 
+    /// Local content-box area which the platform IME candidate window should
+    /// avoid. Text editors should include the caret or active preedit run.
+    fn ime_cursor_area(&self) -> Option<[f32; 4]> {
+        None
+    }
+
     /// Absolute screen-space position of the widget's border-box origin.
     /// Called by the applier during `paint_widgets` (from the PlacedNode rect)
     /// so the widget can convert absolute pointer coordinates to local.

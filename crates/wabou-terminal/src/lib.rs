@@ -37,8 +37,8 @@ use wabou_quick::{Widget, WidgetNodeEvent, WidgetStyle};
 use wabou_shell::style::Paint;
 use wabou_shell::text::{TextContext, layout_text_styled};
 use wabou_shell::{
-    HostAction, HostActionResult, KeyPhase, Modifiers, PointerButton, PointerPhase, UiEvent,
-    WHEEL_LINE_DELTA, WakeCallback,
+    HostAction, HostActionResult, ImeEvent, KeyPhase, Modifiers, PointerButton, PointerPhase,
+    UiEvent, WHEEL_LINE_DELTA, WakeCallback,
 };
 
 mod graphics;
