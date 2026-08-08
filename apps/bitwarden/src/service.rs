@@ -3,7 +3,10 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use bitwarden_api_api::models::SyncResponseModel;
-use bitwarden_core::auth::login::{PasswordLoginRequest, TwoFactorRequest};
+use bitwarden_core::auth::login::{
+    PasswordLoginRequest, TwoFactorEmailRequest, TwoFactorProvider, TwoFactorRequest,
+    response::two_factor::TwoFactorProviders,
+};
 use bitwarden_core::{ClientSettings, DeviceType};
 use bitwarden_crypto_sync_handler::CryptoSyncHandler;
 use bitwarden_pm::PasswordManagerClient;
@@ -23,6 +26,29 @@ pub struct LoginRequest {
     pub region: String,
     pub server_url: Option<String>,
     pub email: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TwoFactorSubmitRequest {
+    pub provider: String,
+    pub token: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TwoFactorOption {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub hint: Option<String>,
+    pub supported: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+pub enum LoginOutcome {
+    Authenticated { snapshot: VaultSnapshot },
+    TwoFactorRequired { providers: Vec<TwoFactorOption> },
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -95,9 +121,17 @@ struct Session {
     last_activity: StdMutex<Instant>,
 }
 
+struct PendingLogin {
+    email: String,
+    client: PasswordManagerClient,
+    password: Zeroizing<String>,
+    created_at: Instant,
+}
+
 #[derive(Default)]
 pub struct VaultService {
     session: Option<Session>,
+    pending_login: Option<PendingLogin>,
 }
 
 pub type SharedVaultService = Arc<Mutex<VaultService>>;
@@ -106,30 +140,119 @@ impl VaultService {
     pub async fn login(
         &mut self,
         request: LoginRequest,
-        mut password: Zeroizing<String>,
-    ) -> Result<VaultSnapshot, String> {
-        self.session = None;
+        password: Zeroizing<String>,
+    ) -> Result<LoginOutcome, String> {
+        self.lock();
         let settings = settings_for(&request.region, request.server_url.as_deref())?;
         let client = PasswordManagerClient::new(Some(settings));
+        let email = request.email.trim().to_owned();
 
         let mut sdk_request = PasswordLoginRequest {
-            email: request.email.trim().to_owned(),
+            email: email.clone(),
             password: password.to_string(),
             two_factor: None::<TwoFactorRequest>,
         };
         let login = client.0.auth().login_password(&sdk_request).await;
-        password.zeroize();
         sdk_request.password.zeroize();
         let login =
             login.map_err(|_| "Login failed. Check the server and credentials.".to_string())?;
         if !login.authenticated {
-            return Err(if login.two_factor.is_some() {
-                "This demo account requires two-step login, which is not supported yet.".into()
-            } else {
-                "The server did not authenticate this account.".into()
+            let providers = login
+                .two_factor
+                .ok_or_else(|| "The server did not authenticate this account.".to_string())?;
+            let options = two_factor_options(&providers);
+            self.pending_login = Some(PendingLogin {
+                email,
+                client,
+                password,
+                created_at: Instant::now(),
             });
+            return Ok(LoginOutcome::TwoFactorRequired { providers: options });
         }
 
+        let snapshot = self.establish_session(email, client).await?;
+        Ok(LoginOutcome::Authenticated { snapshot })
+    }
+
+    pub async fn submit_two_factor(
+        &mut self,
+        request: TwoFactorSubmitRequest,
+    ) -> Result<LoginOutcome, String> {
+        let mut pending = self
+            .pending_login
+            .take()
+            .ok_or_else(|| "Two-step login has expired. Start again.".to_string())?;
+        let provider = match parse_two_factor_provider(&request.provider) {
+            Ok(provider) => provider,
+            Err(error) => {
+                self.pending_login = Some(pending);
+                return Err(error);
+            }
+        };
+        let token = request.token.trim();
+        if token.is_empty() {
+            self.pending_login = Some(pending);
+            return Err("Enter the verification code.".into());
+        }
+        let mut sdk_request = PasswordLoginRequest {
+            email: pending.email.clone(),
+            password: pending.password.to_string(),
+            two_factor: Some(TwoFactorRequest {
+                token: token.to_owned(),
+                provider,
+                // Remembered-device tokens need secure persistence that this
+                // prototype deliberately does not implement.
+                remember: false,
+            }),
+        };
+        let login = pending.client.0.auth().login_password(&sdk_request).await;
+        sdk_request.password.zeroize();
+        let login = match login {
+            Ok(login) => login,
+            Err(_) => {
+                self.pending_login = Some(pending);
+                return Err("Verification failed. Check the code and try again.".into());
+            }
+        };
+        if !login.authenticated {
+            self.pending_login = Some(pending);
+            return Err("Verification failed. Check the code and try again.".into());
+        }
+        let email = pending.email.clone();
+        let client = pending.client;
+        pending.password.zeroize();
+        let snapshot = self.establish_session(email, client).await?;
+        Ok(LoginOutcome::Authenticated { snapshot })
+    }
+
+    pub async fn send_two_factor_email(&self) -> Result<(), String> {
+        let pending = self
+            .pending_login
+            .as_ref()
+            .ok_or_else(|| "Two-step login has expired. Start again.".to_string())?;
+        let mut request = TwoFactorEmailRequest {
+            email: pending.email.clone(),
+            password: pending.password.to_string(),
+        };
+        let result = pending
+            .client
+            .0
+            .auth()
+            .send_two_factor_email(&request)
+            .await;
+        request.password.zeroize();
+        result.map_err(|_| "Could not send the email verification code.".to_string())
+    }
+
+    pub fn cancel_two_factor(&mut self) {
+        self.pending_login = None;
+    }
+
+    async fn establish_session(
+        &mut self,
+        email: String,
+        client: PasswordManagerClient,
+    ) -> Result<VaultSnapshot, String> {
         let sync = client.sync();
         let capture = Arc::new(CipherCapture::default());
         // Crypto must run before cipher capture is decrypted below: it installs
@@ -144,12 +267,13 @@ impl VaultService {
         .map_err(|_| "Login succeeded, but the first vault sync failed.".to_string())?;
 
         self.session = Some(Session {
-            email: request.email.trim().to_owned(),
+            email,
             client,
             sync,
             capture,
             last_activity: StdMutex::new(Instant::now()),
         });
+        self.pending_login = None;
         self.snapshot().await
     }
 
@@ -249,6 +373,7 @@ impl VaultService {
 
     pub fn lock(&mut self) {
         self.session = None;
+        self.pending_login = None;
     }
 
     pub fn lock_if_idle(&mut self) -> bool {
@@ -258,7 +383,10 @@ impl VaultService {
                 .lock()
                 .map(|activity| activity.elapsed() >= AUTO_LOCK_AFTER)
                 .unwrap_or(true)
-        });
+        }) || self
+            .pending_login
+            .as_ref()
+            .is_some_and(|pending| pending.created_at.elapsed() >= AUTO_LOCK_AFTER);
         if expired {
             self.lock();
         }
@@ -267,6 +395,60 @@ impl VaultService {
 
     pub fn is_locked(&self) -> bool {
         self.session.is_none()
+    }
+}
+
+fn two_factor_options(providers: &TwoFactorProviders) -> Vec<TwoFactorOption> {
+    let mut options = Vec::new();
+    if providers.authenticator.is_some() {
+        options.push(TwoFactorOption {
+            id: "authenticator",
+            label: "Authenticator app",
+            hint: None,
+            supported: true,
+        });
+    }
+    if let Some(email) = &providers.email {
+        options.push(TwoFactorOption {
+            id: "email",
+            label: "Email",
+            hint: Some(email.email.clone()),
+            supported: true,
+        });
+    }
+    if providers.yubi_key.is_some() {
+        options.push(TwoFactorOption {
+            id: "yubikey",
+            label: "YubiKey OTP",
+            hint: None,
+            supported: true,
+        });
+    }
+    if providers.duo.is_some() || providers.organization_duo.is_some() {
+        options.push(TwoFactorOption {
+            id: "duo",
+            label: "Duo",
+            hint: None,
+            supported: false,
+        });
+    }
+    if providers.web_authn.is_some() {
+        options.push(TwoFactorOption {
+            id: "webauthn",
+            label: "WebAuthn",
+            hint: None,
+            supported: false,
+        });
+    }
+    options
+}
+
+fn parse_two_factor_provider(provider: &str) -> Result<TwoFactorProvider, String> {
+    match provider {
+        "authenticator" => Ok(TwoFactorProvider::Authenticator),
+        "email" => Ok(TwoFactorProvider::Email),
+        "yubikey" => Ok(TwoFactorProvider::Yubikey),
+        _ => Err("This two-step login provider is not supported yet.".into()),
     }
 }
 
@@ -426,5 +608,23 @@ mod tests {
         let mut service = VaultService::default();
         service.lock();
         assert!(service.is_locked());
+    }
+
+    #[test]
+    fn two_factor_parser_accepts_only_supported_code_flows() {
+        assert!(matches!(
+            parse_two_factor_provider("authenticator"),
+            Ok(TwoFactorProvider::Authenticator)
+        ));
+        assert!(matches!(
+            parse_two_factor_provider("email"),
+            Ok(TwoFactorProvider::Email)
+        ));
+        assert!(matches!(
+            parse_two_factor_provider("yubikey"),
+            Ok(TwoFactorProvider::Yubikey)
+        ));
+        assert!(parse_two_factor_provider("duo").is_err());
+        assert!(parse_two_factor_provider("webauthn").is_err());
     }
 }

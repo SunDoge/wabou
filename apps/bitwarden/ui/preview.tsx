@@ -4,6 +4,7 @@ import "virtual:wabou-stylesheet";
 import { mount } from "@wabou/solid-renderer";
 import { createSignal } from "solid-js";
 import type { ItemDetails, VaultItem, VaultSnapshot } from "./model";
+import { TwoFactorScreen } from "./two-factor-screen";
 import { VaultScreen } from "./vault-screen";
 
 const items: VaultItem[] = [
@@ -91,4 +92,38 @@ function Preview() {
   );
 }
 
-mount(() => <Preview />);
+function TwoFactorPreview() {
+  const [provider, setProvider] = createSignal("authenticator");
+  const [code, setCode] = createSignal("");
+  const [notice, setNotice] = createSignal("");
+  return (
+    <TwoFactorScreen
+      providers={[
+        {
+          id: "authenticator",
+          label: "Authenticator app",
+          supported: true,
+        },
+        {
+          id: "email",
+          label: "Email",
+          hint: "f••••••@example.test",
+          supported: true,
+        },
+        { id: "duo", label: "Duo", supported: false },
+      ]}
+      provider={provider()}
+      code={code()}
+      busy={false}
+      error=""
+      notice={notice()}
+      setProvider={setProvider}
+      setCode={setCode}
+      verify={() => setNotice("Fixture verification requested.")}
+      sendEmail={() => setNotice("Fixture email code sent.")}
+      cancel={() => setNotice("Fixture cancellation requested.")}
+    />
+  );
+}
+
+mount(() => (__wabou_window_id === 2 ? <TwoFactorPreview /> : <Preview />));

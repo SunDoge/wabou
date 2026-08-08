@@ -9,9 +9,11 @@ import RefreshCw from "lucide-solid/icons/refresh-cw";
 import ShieldCheck from "lucide-solid/icons/shield-check";
 import Star from "lucide-solid/icons/star";
 import StickyNote from "lucide-solid/icons/sticky-note";
+import Settings from "lucide-solid/icons/settings";
 import { For, Show, createMemo, createSignal, type Accessor } from "solid-js";
 import type { ItemDetails, VaultSnapshot } from "./model";
 import { matches } from "./model";
+import { SettingsScreen } from "./settings-screen";
 
 export interface VaultScreenProps {
   snapshot: Accessor<VaultSnapshot>;
@@ -29,7 +31,9 @@ export interface VaultScreenProps {
 
 export function VaultScreen(props: VaultScreenProps) {
   type Filter = "all" | "login" | "note" | "favorite";
+  type Section = "vault" | "settings";
   const [filter, setFilter] = createSignal<Filter>("all");
+  const [section, setSection] = createSignal<Section>("vault");
   const visibleItems = createMemo(() =>
     props.snapshot().items.filter((item) => {
       const selected = filter();
@@ -76,7 +80,10 @@ export function VaultScreen(props: VaultScreenProps) {
                 class="w-full justify-start"
                 size="sm"
                 variant={filter() === item.id ? "secondary" : "ghost"}
-                onClick={() => setFilter(item.id)}
+                onClick={() => {
+                  setFilter(item.id);
+                  setSection("vault");
+                }}
               >
                 <View class="flex items-center gap-2">
                   {filterIcon(item.id)}
@@ -87,6 +94,17 @@ export function VaultScreen(props: VaultScreenProps) {
           </For>
         </View>
         <View class="flex-1" />
+        <Button
+          class="w-full justify-start"
+          size="sm"
+          variant={section() === "settings" ? "secondary" : "ghost"}
+          onClick={() => setSection("settings")}
+        >
+          <View class="flex items-center gap-2">
+            <Settings size={16} />
+            <Text>Settings</Text>
+          </View>
+        </Button>
         <View class="border-t border-slate-800 pt-3 flex flex-col gap-2">
           <Text class="px-2 text-xs text-slate-500">{props.snapshot().email}</Text>
           <Button class="w-full justify-start" size="sm" variant="ghost" onClick={props.lock}>
@@ -97,7 +115,11 @@ export function VaultScreen(props: VaultScreenProps) {
           </Button>
         </View>
       </View>
-      <View class="w-64 shrink-0 border-r border-slate-800 flex flex-col">
+      <Show
+        when={section() === "vault"}
+        fallback={<SettingsScreen email={props.snapshot().email} />}
+      >
+        <View class="w-64 shrink-0 border-r border-slate-800 flex flex-col">
         <View class="p-4 border-b border-slate-800 flex flex-col gap-3">
           <View class="flex items-center gap-2">
             <Text class="text-lg font-semibold text-slate-100">My vault</Text>
@@ -150,8 +172,8 @@ export function VaultScreen(props: VaultScreenProps) {
             </For>
           </View>
         </ScrollArea>
-      </View>
-      <View class="min-w-0 flex-1 flex flex-col">
+        </View>
+        <View class="min-w-0 flex-1 flex flex-col">
         <View class="h-16 shrink-0 border-b border-slate-800 px-6 flex items-center">
           <View class="flex items-center gap-2 text-slate-500">
             <Eye size={16} />
@@ -220,6 +242,7 @@ export function VaultScreen(props: VaultScreenProps) {
           </View>
         </ScrollArea>
         </View>
+      </Show>
     </View>
   );
 }

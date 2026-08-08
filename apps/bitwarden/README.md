@@ -7,11 +7,12 @@ client.
 ## Scope
 
 - Email and master-password login for US, EU, and self-hosted servers.
+- Two-step login with authenticator codes, email codes, and YubiKey OTP.
 - Read-only vault sync, search, item details, and username/password copy.
 - Explicit lock, five-minute native idle lock, and conditional clipboard clearing
   after 30 seconds.
-- No writes, tray, autofill, attachments, organizations UI, biometric unlock, or
-  two-step login yet.
+- No writes, tray, autofill, attachments, organizations UI, biometric unlock,
+  Duo, or WebAuthn yet.
 
 The SDK dependencies are pinned to commit
 `fbd21679c1c3690cba424ad3dbb0ba662eb9863e`; an upstream `main` update cannot

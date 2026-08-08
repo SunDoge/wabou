@@ -15,6 +15,17 @@ export interface VaultSnapshot {
   decryptFailures: number;
 }
 
+export interface TwoFactorOption {
+  id: "authenticator" | "email" | "yubikey" | "duo" | "webauthn";
+  label: string;
+  hint?: string;
+  supported: boolean;
+}
+
+export type LoginOutcome =
+  | { status: "authenticated"; snapshot: VaultSnapshot }
+  | { status: "twoFactorRequired"; providers: TwoFactorOption[] };
+
 export interface ItemDetails {
   id: string;
   name: string;

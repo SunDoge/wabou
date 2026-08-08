@@ -5,14 +5,18 @@ import { Button, Input } from "@wabou/components";
 import { Text, View } from "@wabou/primitives";
 import { mount, useHost } from "@wabou/solid-renderer";
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
-import type { ItemDetails, VaultSnapshot } from "./model";
+import type { ItemDetails, LoginOutcome, TwoFactorOption, VaultSnapshot } from "./model";
 import { unwrap } from "./model";
+import { TwoFactorScreen } from "./two-factor-screen";
 import { VaultScreen } from "./vault-screen";
 
 declare module "@wabou/solid-renderer" {
   interface HostCapabilities {
     readonly vault: {
       login(request: string): Promise<string>;
+      submitTwoFactor(request: string): Promise<string>;
+      sendTwoFactorEmail(): Promise<string>;
+      cancelTwoFactor(): Promise<string>;
       refresh(): Promise<string>;
       details(id: string): Promise<string>;
       copy(id: string, field: "username" | "password"): Promise<string>;
@@ -30,6 +34,9 @@ function App() {
   const [serverUrl, setServerUrl] = createSignal("");
   const [email, setEmail] = createSignal("");
   const [snapshot, setSnapshot] = createSignal<VaultSnapshot>();
+  const [twoFactor, setTwoFactor] = createSignal<TwoFactorOption[]>();
+  const [twoFactorProvider, setTwoFactorProvider] = createSignal("");
+  const [twoFactorCode, setTwoFactorCode] = createSignal("");
   const [selected, setSelected] = createSignal<ItemDetails>();
   const [query, setQuery] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -69,7 +76,7 @@ function App() {
 
   async function login() {
     const result = await run(async () =>
-      unwrap<VaultSnapshot>(
+      unwrap<LoginOutcome>(
         await host.vault.login(
           JSON.stringify({
             region: region(),
@@ -79,7 +86,51 @@ function App() {
         ),
       ),
     );
-    if (result) setSnapshot(result);
+    if (result) applyLoginOutcome(result);
+  }
+
+  function applyLoginOutcome(outcome: LoginOutcome) {
+    if (outcome.status === "authenticated") {
+      setSnapshot(outcome.snapshot);
+      setTwoFactor(undefined);
+      setTwoFactorCode("");
+      return;
+    }
+    setTwoFactor(outcome.providers);
+    setTwoFactorProvider(
+      outcome.providers.find((provider) => provider.supported)?.id ?? "",
+    );
+    setTwoFactorCode("");
+  }
+
+  async function verifyTwoFactor() {
+    const result = await run(async () =>
+      unwrap<LoginOutcome>(
+        await host.vault.submitTwoFactor(
+          JSON.stringify({
+            provider: twoFactorProvider(),
+            token: twoFactorCode(),
+          }),
+        ),
+      ),
+    );
+    if (result) applyLoginOutcome(result);
+  }
+
+  async function sendTwoFactorEmail() {
+    const sent = await run(async () =>
+      unwrap<boolean>(await host.vault.sendTwoFactorEmail()),
+    );
+    if (sent) setNotice("Verification code sent. Check your email.");
+  }
+
+  async function cancelTwoFactor() {
+    await host.vault.cancelTwoFactor();
+    setTwoFactor(undefined);
+    setTwoFactorProvider("");
+    setTwoFactorCode("");
+    setNotice("");
+    setError("");
   }
 
   async function refresh() {
@@ -121,7 +172,9 @@ function App() {
       <Show
         when={snapshot()}
         fallback={
-          <View class="h-full w-full flex items-center justify-center p-8">
+          <Show
+            when={twoFactor()}
+            fallback={<View class="h-full w-full flex items-center justify-center p-8">
             <View class="w-96 rounded-xl border border-slate-800 bg-slate-900 p-6 flex flex-col gap-4">
               <Text class="text-2xl font-semibold text-slate-100">Wabou Vault</Text>
               <Text class="text-sm text-slate-400">
@@ -168,10 +221,27 @@ function App() {
                 {busy() ? "Unlocking…" : "Unlock read-only vault"}
               </Button>
               <Text class="text-xs text-slate-500">
-                No 2FA, edits, autofill, or tray integration.
+                No edits, autofill, or tray integration.
               </Text>
             </View>
-          </View>
+          </View>}
+          >
+            {(providers) => (
+              <TwoFactorScreen
+                providers={providers()}
+                provider={twoFactorProvider()}
+                code={twoFactorCode()}
+                busy={busy()}
+                error={error()}
+                notice={notice()}
+                setProvider={setTwoFactorProvider}
+                setCode={setTwoFactorCode}
+                verify={verifyTwoFactor}
+                sendEmail={sendTwoFactorEmail}
+                cancel={cancelTwoFactor}
+              />
+            )}
+          </Show>
         }
       >
         <VaultScreen

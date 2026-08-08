@@ -13,7 +13,9 @@ use wabou_quick::rquickjs::{Function, prelude::Async};
 use wabou_quick::{HostBuilder, WindowOptions};
 
 use secure_input::{SharedSecret, take_secret};
-use service::{LoginRequest, SharedVaultService, VaultService};
+use service::{
+    LoginOutcome, LoginRequest, SharedVaultService, TwoFactorSubmitRequest, VaultService,
+};
 
 fn response<T: Serialize>(result: Result<T, String>) -> String {
     match result {
@@ -72,6 +74,77 @@ fn main() -> Result<(), Whatever> {
                                 });
                             }
                             response(result)
+                        }
+                    }),
+                )?,
+            )?;
+
+            let two_factor_service = service.clone();
+            let two_factor_auto_lock_started = auto_lock_started.clone();
+            capability.set(
+                "submitTwoFactor",
+                Function::new(
+                    ctx.clone(),
+                    Async(move |raw: String| {
+                        let service = two_factor_service.clone();
+                        let auto_lock_started = two_factor_auto_lock_started.clone();
+                        async move {
+                            let request = serde_json::from_str::<TwoFactorSubmitRequest>(&raw)
+                                .map_err(|_| "Invalid two-step login request.".to_string());
+                            let result = match request {
+                                Ok(request) => {
+                                    service.lock().await.submit_two_factor(request).await
+                                }
+                                Err(error) => Err(error),
+                            };
+                            if matches!(result, Ok(LoginOutcome::Authenticated { .. }))
+                                && !auto_lock_started.swap(true, Ordering::AcqRel)
+                            {
+                                let auto_lock_service = service.clone();
+                                tokio::spawn(async move {
+                                    loop {
+                                        tokio::time::sleep(Duration::from_secs(15)).await;
+                                        auto_lock_service.lock().await.lock_if_idle();
+                                    }
+                                });
+                            }
+                            response(result)
+                        }
+                    }),
+                )?,
+            )?;
+
+            let email_service = service.clone();
+            capability.set(
+                "sendTwoFactorEmail",
+                Function::new(
+                    ctx.clone(),
+                    Async(move || {
+                        let service = email_service.clone();
+                        async move {
+                            response(
+                                service
+                                    .lock()
+                                    .await
+                                    .send_two_factor_email()
+                                    .await
+                                    .map(|()| true),
+                            )
+                        }
+                    }),
+                )?,
+            )?;
+
+            let cancel_two_factor_service = service.clone();
+            capability.set(
+                "cancelTwoFactor",
+                Function::new(
+                    ctx.clone(),
+                    Async(move || {
+                        let service = cancel_two_factor_service.clone();
+                        async move {
+                            service.lock().await.cancel_two_factor();
+                            response(Ok(true))
                         }
                     }),
                 )?,
