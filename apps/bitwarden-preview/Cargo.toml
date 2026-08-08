@@ -1,0 +1,9 @@
+[package]
+name = "bitwarden-preview"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "bitwarden-preview"
+path = "src/main.rs"

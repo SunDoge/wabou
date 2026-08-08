@@ -12,6 +12,37 @@
         "unocss": "^66.7.5",
       },
     },
+    "apps/bitwarden": {
+      "name": "@wabou/bitwarden-demo",
+      "version": "0.1.0",
+      "dependencies": {
+        "@wabou/components": "workspace:*",
+        "@wabou/core": "workspace:*",
+        "@wabou/primitives": "workspace:*",
+        "@wabou/solid-renderer": "workspace:*",
+        "solid-js": "1.9.14",
+      },
+      "devDependencies": {
+        "@types/node": "^26.1.1",
+        "@wabou/vite": "workspace:*",
+        "vite": "^5.4.0",
+      },
+    },
+    "apps/bitwarden-preview": {
+      "name": "@wabou/bitwarden-preview",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/components": "workspace:*",
+        "@wabou/core": "workspace:*",
+        "@wabou/primitives": "workspace:*",
+        "@wabou/solid-renderer": "workspace:*",
+        "solid-js": "1.9.14",
+      },
+      "devDependencies": {
+        "@wabou/vite": "workspace:*",
+        "vite": "^5.4.0",
+      },
+    },
     "apps/devtools": {
       "name": "@wabou/devtools-app",
       "version": "0.0.0",
@@ -505,6 +536,10 @@
     "@unocss/vite": ["@unocss/vite@66.7.5", "", { "dependencies": { "@jridgewell/remapping": "^2.3.5", "@unocss/config": "66.7.5", "@unocss/core": "66.7.5", "@unocss/inspector": "66.7.5", "chokidar": "^5.0.0", "magic-string": "^0.30.21", "pathe": "^2.0.3", "tinyglobby": "^0.2.17", "unplugin-utils": "^0.3.1" }, "peerDependencies": { "vite": "^5.0.0-0 || ^6.0.0-0 || ^7.0.0-0 || ^8.0.0-0" } }, "sha512-1z1TBCNJCR2WzjPtjzmCHr8rtzXHosMjLdsCNe6Mzsfwiw044gzzLVuiEZO9vIjkI50lvQ+gIOxOiVQG0hGAeA=="],
 
     "@wabou/animation": ["@wabou/animation@workspace:packages/animation"],
+
+    "@wabou/bitwarden-demo": ["@wabou/bitwarden-demo@workspace:apps/bitwarden"],
+
+    "@wabou/bitwarden-preview": ["@wabou/bitwarden-preview@workspace:apps/bitwarden-preview"],
 
     "@wabou/components": ["@wabou/components@workspace:packages/components"],
 

@@ -1,0 +1,23 @@
+{
+  "name": "@wabou/bitwarden-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1 --port 5180 --strictPort",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@wabou/components": "workspace:*",
+    "@wabou/core": "workspace:*",
+    "@wabou/primitives": "workspace:*",
+    "@wabou/solid-renderer": "workspace:*",
+    "solid-js": "1.9.14"
+  },
+  "devDependencies": {
+    "@wabou/vite": "workspace:*",
+    "@types/node": "^26.1.1",
+    "vite": "^5.4.0"
+  }
+}
