@@ -2816,9 +2816,10 @@ impl Applier {
             transforms.insert(n.node_id, transform);
             if let Some(w) = self.widget_manager.widgets.get_mut(&n.node_id) {
                 w.set_position(n.rect[0], n.rect[1]);
-                let window_to_local =
-                    Affine::translate((-f64::from(n.rect[0]), -f64::from(n.rect[1])))
-                        * transform.inverse();
+                let window_to_local = Affine::translate((
+                    -f64::from(n.content_origin[0]),
+                    -f64::from(n.content_origin[1]),
+                )) * transform.inverse();
                 w.set_window_to_local(window_to_local.as_coeffs());
                 let [width, height] = n.content_size;
                 if width > 0.0 && height > 0.0 {

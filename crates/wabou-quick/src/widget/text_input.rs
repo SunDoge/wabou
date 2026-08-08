@@ -1,4 +1,4 @@
-//! TextInput widget — a single-line text input backed by `parley::PlainEditor`.
+//! TextInput and TextArea widgets backed by `parley::PlainEditor`.
 //!
 //! PlainEditor handles text editing, caret geometry, selection, and
 //! hit-testing. `handle_event` stores pending edits (the editor needs
@@ -6,13 +6,15 @@
 //! `paint` applies them via the driver, refreshes layout, then paints
 //! selection rects + caret + glyph runs.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use parley::{PlainEditor, PositionedLayoutItem};
 use vello::Scene;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
-use wabou_shell::text::TextContext;
+use wabou_shell::style::TextAlign;
+use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
 use wabou_shell::{KeyPhase, PointerPhase, UiEvent};
 
 use super::{Widget, WidgetEventResult};
@@ -34,6 +36,10 @@ enum PendingEdit {
     SelectRight,
     SelectWordLeft,
     SelectWordRight,
+    MoveUp,
+    MoveDown,
+    SelectUp,
+    SelectDown,
     MoveToStart,
     MoveToEnd,
     SelectToStart,
@@ -49,6 +55,8 @@ pub struct TextInput {
     editor: PlainEditor<[u8; 4]>,
     placeholder: String,
     font_size: f32,
+    font_weight: f32,
+    line_height: Option<(f32, bool)>,
     text_color: Color,
     focused: bool,
     blink_on: bool,
@@ -61,6 +69,12 @@ pub struct TextInput {
     selecting: bool,
     device_scale: f64,
     last_click: Option<(Instant, f32, f32, u8)>,
+    multiline: bool,
+    viewport_width: f32,
+    viewport_height: f32,
+    scroll_y: f32,
+    disabled: bool,
+    read_only: bool,
 }
 
 impl Default for TextInput {
@@ -71,10 +85,20 @@ impl Default for TextInput {
 
 impl TextInput {
     pub fn new() -> Self {
+        Self::with_multiline(false)
+    }
+
+    pub fn multiline() -> Self {
+        Self::with_multiline(true)
+    }
+
+    fn with_multiline(multiline: bool) -> Self {
         Self {
             editor: PlainEditor::new(16.0),
             placeholder: String::new(),
             font_size: 16.0,
+            font_weight: 400.0,
+            line_height: None,
             text_color: Color::from_rgb8(0xe2, 0xe8, 0xf0),
             focused: false,
             blink_on: true,
@@ -86,6 +110,12 @@ impl TextInput {
             selecting: false,
             device_scale: 1.0,
             last_click: None,
+            multiline,
+            viewport_width: 0.0,
+            viewport_height: 0.0,
+            scroll_y: 0.0,
+            disabled: false,
+            read_only: false,
         }
     }
 
@@ -95,14 +125,54 @@ impl TextInput {
         self.next_blink = Some(Instant::now() + Duration::from_millis(500));
     }
 
+    fn editable(&self) -> bool {
+        !self.disabled && !self.read_only
+    }
+
     fn local_point(&self, x: f64, y: f64) -> (f32, f32) {
         let [a, b, c, d, e, f] = self.window_to_local;
-        ((a * x + c * y + e) as f32, (b * x + d * y + f) as f32)
+        let local_x = (a * x + c * y + e) as f32;
+        let mut local_y = (b * x + d * y + f) as f32;
+        if self.multiline {
+            local_y += self.scroll_y;
+        }
+        (local_x, local_y)
+    }
+
+    fn clamp_scroll(&mut self) {
+        let content_height = self
+            .editor
+            .try_layout()
+            .map_or(0.0, |layout| layout.height());
+        self.scroll_y = self
+            .scroll_y
+            .clamp(0.0, (content_height - self.viewport_height).max(0.0));
+    }
+
+    fn reveal_caret(&mut self) {
+        if !self.multiline {
+            return;
+        }
+        if let Some(caret) = self.editor.cursor_geometry(1.5) {
+            if caret.y0 < f64::from(self.scroll_y) {
+                self.scroll_y = caret.y0 as f32;
+            } else if caret.y1 > f64::from(self.scroll_y + self.viewport_height) {
+                self.scroll_y = (caret.y1 as f32 - self.viewport_height).max(0.0);
+            }
+        }
+        self.clamp_scroll();
     }
 }
 
 impl Widget for TextInput {
-    fn paint(&mut self, _width: f32, height: f32, tcx: &mut TextContext) -> Scene {
+    fn paint(&mut self, width: f32, height: f32, tcx: &mut TextContext) -> Scene {
+        if self.multiline && self.viewport_width != width {
+            self.viewport_width = width;
+            self.editor.set_width(Some(width.max(0.0)));
+            self.needs_refresh = true;
+        }
+        self.viewport_height = height.max(0.0);
+
         // Blink.
         if self.focused && self.next_blink.is_some_and(|d| Instant::now() >= d) {
             self.blink_on = !self.blink_on;
@@ -126,9 +196,19 @@ impl Widget for TextInput {
                         PendingEdit::SelectRight => driver.select_right(),
                         PendingEdit::SelectWordLeft => driver.select_word_left(),
                         PendingEdit::SelectWordRight => driver.select_word_right(),
+                        PendingEdit::MoveUp => driver.move_up(),
+                        PendingEdit::MoveDown => driver.move_down(),
+                        PendingEdit::SelectUp => driver.select_up(),
+                        PendingEdit::SelectDown => driver.select_down(),
+                        PendingEdit::MoveToStart if self.multiline => driver.move_to_line_start(),
                         PendingEdit::MoveToStart => driver.move_to_text_start(),
+                        PendingEdit::MoveToEnd if self.multiline => driver.move_to_line_end(),
                         PendingEdit::MoveToEnd => driver.move_to_text_end(),
+                        PendingEdit::SelectToStart if self.multiline => {
+                            driver.select_to_line_start();
+                        }
                         PendingEdit::SelectToStart => driver.select_to_text_start(),
+                        PendingEdit::SelectToEnd if self.multiline => driver.select_to_line_end(),
                         PendingEdit::SelectToEnd => driver.select_to_text_end(),
                         PendingEdit::MoveToPoint(x, y) => driver.move_to_point(x, y),
                         PendingEdit::ExtendToPoint(x, y) => driver.extend_selection_to_point(x, y),
@@ -140,6 +220,9 @@ impl Widget for TextInput {
                 driver.refresh_layout();
             }
             self.needs_refresh = false;
+            self.reveal_caret();
+        } else {
+            self.clamp_scroll();
         }
 
         // Cache value for current_value().
@@ -147,25 +230,53 @@ impl Widget for TextInput {
 
         let mut scene = Scene::new();
         let h = height as f64;
+        if self.multiline {
+            scene.push_clip_layer(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                &Rect::new(0.0, 0.0, f64::from(width.max(0.0)), h.max(0.0)),
+            );
+        }
 
         // Determine display text + color.
         let value_str = self.editor.text().to_string();
         let is_empty = value_str.is_empty();
-        let display_text = if is_empty {
-            self.placeholder.as_str()
-        } else {
-            &value_str
-        };
-        let text_color = if is_empty {
-            PLACEHOLDER_COLOR
-        } else {
-            self.text_color
-        };
+        let display_text = value_str.as_str();
+        let text_color = self.text_color;
+
+        if is_empty && !self.placeholder.is_empty() {
+            let placeholder_layout = layout_text_styled(
+                tcx,
+                Arc::from(self.placeholder.as_str()),
+                self.font_size,
+                self.font_weight,
+                self.line_height,
+                TextAlign::Start,
+                brush_for_color(PLACEHOLDER_COLOR),
+                Arc::from([]),
+                None,
+                self.multiline.then_some(width.max(0.0)),
+            );
+            let y_offset = if self.multiline {
+                0.0
+            } else {
+                ((h - f64::from(placeholder_layout.height())) * 0.5).max(0.0)
+            };
+            let glyph_scene = tcx.glyph_scene_scaled(&placeholder_layout, self.device_scale);
+            scene.append(
+                &glyph_scene,
+                Some(Affine::translate((0.0, y_offset)) * Affine::scale(self.device_scale.recip())),
+            );
+        }
 
         // If editor layout is available, paint selection + caret + text from it.
         if let Some(layout) = self.editor.try_layout() {
             let text_height = layout.height() as f64;
-            let y_offset = ((h - text_height) * 0.5).max(0.0);
+            let y_offset = if self.multiline {
+                -f64::from(self.scroll_y)
+            } else {
+                ((h - text_height) * 0.5).max(0.0)
+            };
             let transform = Affine::translate((0.0, y_offset));
 
             // Selection rects.
@@ -225,6 +336,9 @@ impl Widget for TextInput {
             }
         }
 
+        if self.multiline {
+            scene.pop_layer();
+        }
         scene
     }
 
@@ -240,6 +354,9 @@ impl Widget for TextInput {
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {
+        if self.disabled {
+            return WidgetEventResult::IGNORED;
+        }
         match event {
             UiEvent::Pointer(e)
                 if e.phase == PointerPhase::Down
@@ -286,8 +403,28 @@ impl Widget for TextInput {
                 self.selecting = false;
                 WidgetEventResult::HANDLED
             }
-            UiEvent::TextInput(text) | UiEvent::Paste(text) => {
-                let filtered: String = text.chars().filter(|c| !c.is_control()).collect();
+            UiEvent::Wheel(event) if self.multiline => {
+                let previous = self.scroll_y;
+                self.scroll_y += event.delta_y as f32;
+                self.clamp_scroll();
+                if self.scroll_y != previous {
+                    WidgetEventResult::HANDLED
+                } else {
+                    WidgetEventResult::IGNORED
+                }
+            }
+            UiEvent::TextInput(text) | UiEvent::Paste(text) if self.editable() => {
+                let normalized;
+                let text = if self.multiline {
+                    normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+                    normalized.as_str()
+                } else {
+                    text.as_str()
+                };
+                let filtered: String = text
+                    .chars()
+                    .filter(|c| !c.is_control() || (self.multiline && matches!(c, '\n' | '\t')))
+                    .collect();
                 if filtered.is_empty() {
                     return WidgetEventResult::IGNORED;
                 }
@@ -301,7 +438,9 @@ impl Widget for TextInput {
                     .map(str::to_owned)
                     .map_or(WidgetEventResult::IGNORED, WidgetEventResult::copy),
                 _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Cut) => {
-                    if let Some(text) = self.editor.selected_text().map(str::to_owned) {
+                    if self.editable()
+                        && let Some(text) = self.editor.selected_text().map(str::to_owned)
+                    {
                         self.queue(PendingEdit::Delete);
                         WidgetEventResult::copy_with_value_change(text)
                     } else {
@@ -309,13 +448,17 @@ impl Widget for TextInput {
                     }
                 }
                 _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Paste) => {
-                    WidgetEventResult::paste()
+                    if self.editable() {
+                        WidgetEventResult::paste()
+                    } else {
+                        WidgetEventResult::IGNORED
+                    }
                 }
-                "Backspace" => {
+                "Backspace" if self.editable() => {
                     self.queue(PendingEdit::Delete);
                     WidgetEventResult::VALUE_CHANGED
                 }
-                "Delete" => {
+                "Delete" if self.editable() => {
                     self.queue(PendingEdit::DeleteForward);
                     WidgetEventResult::VALUE_CHANGED
                 }
@@ -347,6 +490,26 @@ impl Widget for TextInput {
                     );
                     WidgetEventResult::HANDLED
                 }
+                "ArrowUp" if self.multiline => {
+                    self.queue(if e.modifiers.shift() {
+                        PendingEdit::SelectUp
+                    } else {
+                        PendingEdit::MoveUp
+                    });
+                    WidgetEventResult::HANDLED
+                }
+                "ArrowDown" if self.multiline => {
+                    self.queue(if e.modifiers.shift() {
+                        PendingEdit::SelectDown
+                    } else {
+                        PendingEdit::MoveDown
+                    });
+                    WidgetEventResult::HANDLED
+                }
+                "Enter" if self.multiline && self.editable() => {
+                    self.queue(PendingEdit::Insert("\n".into()));
+                    WidgetEventResult::value_changed_consuming_key_text()
+                }
                 "Home" => {
                     self.queue(if e.modifiers.shift() {
                         PendingEdit::SelectToStart
@@ -376,8 +539,14 @@ impl Widget for TextInput {
     fn attribute_changed(&mut self, name: &str, value: &str) {
         match name {
             "value" => {
-                self.editor.set_text(value);
-                self.needs_refresh = true;
+                // Controlled Solid values commonly echo the widget's own
+                // input event. Preserve the live selection/caret for that
+                // no-op; only external value changes replace the buffer.
+                if self.editor.text() != value {
+                    self.editor.set_text(value);
+                    self.cached_value = value.to_owned();
+                    self.needs_refresh = true;
+                }
             }
             "placeholder" => {
                 self.placeholder = value.to_string();
@@ -396,6 +565,17 @@ impl Widget for TextInput {
                     self.text_color = c;
                 }
             }
+            "disabled" => self.disabled = value != "false",
+            "readonly" | "readOnly" | "read-only" => self.read_only = value != "false",
+            _ => {}
+        }
+    }
+
+    fn attribute_removed(&mut self, name: &str) {
+        match name {
+            "disabled" => self.disabled = false,
+            "readonly" | "readOnly" | "read-only" => self.read_only = false,
+            "placeholder" => self.placeholder.clear(),
             _ => {}
         }
     }
@@ -413,14 +593,39 @@ impl Widget for TextInput {
                 .insert(parley::StyleProperty::FontSize(style.font_size));
             self.needs_refresh = true;
         }
+        if self.font_weight != style.font_weight {
+            self.font_weight = style.font_weight;
+            self.editor
+                .edit_styles()
+                .insert(parley::StyleProperty::FontWeight(parley::FontWeight::new(
+                    style.font_weight,
+                )));
+            self.needs_refresh = true;
+        }
+        if self.line_height != style.line_height {
+            self.line_height = style.line_height;
+            let line_height = match style.line_height {
+                Some((value, true)) => parley::LineHeight::FontSizeRelative(value),
+                Some((value, false)) => parley::LineHeight::Absolute(value),
+                None => parley::LineHeight::default(),
+            };
+            self.editor
+                .edit_styles()
+                .insert(parley::StyleProperty::LineHeight(line_height));
+            self.needs_refresh = true;
+        }
     }
 
     fn accepts_focus(&self) -> bool {
-        true
+        !self.disabled
     }
 
     fn intrinsic_size(&self) -> Option<[f32; 2]> {
-        Some([120.0, 32.0])
+        if self.multiline {
+            Some([240.0, 96.0])
+        } else {
+            Some([120.0, 32.0])
+        }
     }
 
     fn focus_changed(&mut self, focused: bool) {
@@ -452,7 +657,9 @@ fn parse_px(value: &str) -> Option<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell::{ClipboardRequest, KeyEvent, Modifiers, Point, PointerButton, PointerEvent};
+    use wabou_shell::{
+        ClipboardRequest, KeyEvent, Modifiers, Point, PointerButton, PointerEvent, WheelEvent,
+    };
 
     fn pointer(phase: PointerPhase, x: f64, buttons: u32) -> UiEvent {
         UiEvent::Pointer(PointerEvent {
@@ -461,6 +668,20 @@ mod tests {
             button: Some(PointerButton::Primary),
             buttons,
             modifiers: Modifiers::default(),
+        })
+    }
+
+    fn key(key: &str) -> UiEvent {
+        UiEvent::Key(KeyEvent {
+            phase: KeyPhase::Down,
+            key: key.into(),
+            key_without_modifiers: key.into(),
+            code: key.into(),
+            text: None,
+            text_with_all_modifiers: None,
+            location: Default::default(),
+            modifiers: Modifiers::default(),
+            repeat: false,
         })
     }
 
@@ -517,5 +738,92 @@ mod tests {
         }));
 
         assert_eq!(result.clipboard_request(), Some(&ClipboardRequest::Read));
+    }
+
+    #[test]
+    fn textarea_inserts_newlines_and_wraps_to_its_width() {
+        let mut area = TextInput::multiline();
+        area.attribute_changed("value", "first line");
+        let mut tcx = TextContext::new();
+        area.paint(80.0, 48.0, &mut tcx);
+        area.handle_event(&key("End"));
+        area.paint(80.0, 48.0, &mut tcx);
+
+        let result = area.handle_event(&key("Enter"));
+        area.handle_event(&UiEvent::TextInput("second line that wraps".into()));
+        area.paint(80.0, 48.0, &mut tcx);
+
+        assert!(result.value_changed());
+        assert!(result.consumes_key_text());
+        assert_eq!(
+            area.current_value(),
+            Some("first line\nsecond line that wraps")
+        );
+        assert!(
+            area.editor
+                .try_layout()
+                .is_some_and(|layout| layout.height() > 48.0)
+        );
+    }
+
+    #[test]
+    fn textarea_wheel_scroll_is_clamped_to_multiline_content() {
+        let mut area = TextInput::multiline();
+        area.attribute_changed("value", "one\ntwo\nthree\nfour\nfive\nsix");
+        let mut tcx = TextContext::new();
+        area.paint(160.0, 32.0, &mut tcx);
+
+        let result = area.handle_event(&UiEvent::Wheel(WheelEvent {
+            position: Point { x: 10.0, y: 10.0 },
+            delta_x: 0.0,
+            delta_y: 10_000.0,
+            modifiers: Modifiers::default(),
+        }));
+
+        assert!(result.is_handled());
+        assert!(area.scroll_y > 0.0);
+        assert!(area.scroll_y <= area.editor.try_layout().unwrap().height() - 32.0);
+    }
+
+    #[test]
+    fn readonly_textarea_allows_navigation_but_rejects_edits() {
+        let mut area = TextInput::multiline();
+        area.attribute_changed("value", "locked");
+        area.attribute_changed("readOnly", "true");
+        let mut tcx = TextContext::new();
+        area.paint(160.0, 64.0, &mut tcx);
+
+        assert!(!area.handle_event(&key("Enter")).is_handled());
+        assert!(
+            !area
+                .handle_event(&UiEvent::TextInput("!".into()))
+                .is_handled()
+        );
+        area.paint(160.0, 64.0, &mut tcx);
+        assert_eq!(area.current_value(), Some("locked"));
+    }
+
+    #[test]
+    fn controlled_value_echo_preserves_the_live_selection() {
+        let mut area = TextInput::multiline();
+        area.attribute_changed("value", "controlled");
+        let mut tcx = TextContext::new();
+        area.paint(160.0, 64.0, &mut tcx);
+        area.queue(PendingEdit::SelectAll);
+        area.paint(160.0, 64.0, &mut tcx);
+        assert_eq!(area.editor.selected_text(), Some("controlled"));
+
+        area.attribute_changed("value", "controlled");
+        area.paint(160.0, 64.0, &mut tcx);
+        assert_eq!(area.editor.selected_text(), Some("controlled"));
+    }
+
+    #[test]
+    fn textarea_normalizes_windows_line_endings() {
+        let mut area = TextInput::multiline();
+        area.handle_event(&UiEvent::Paste("one\r\ntwo\rthree".into()));
+        let mut tcx = TextContext::new();
+        area.paint(160.0, 64.0, &mut tcx);
+        assert_eq!(area.current_value(), Some("one\ntwo\nthree"));
     }
 }

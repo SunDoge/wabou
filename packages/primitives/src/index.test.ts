@@ -10,6 +10,7 @@ import {
   createTabs,
   Image,
   Text,
+  TextArea,
   View,
 } from "./index";
 
@@ -283,7 +284,7 @@ describe("tabs primitive", () => {
 });
 
 describe("host primitives", () => {
-  test("create explicit view, text, and image host nodes", () =>
+  test("create explicit view, text, image, and textarea host nodes", () =>
     createRoot((dispose) => {
       const view = View({}) as unknown as {
         tag: string;
@@ -295,11 +296,15 @@ describe("host primitives", () => {
       const image = Image({ src: "avatar.png" }) as unknown as {
         tag: string;
       };
+      const textarea = TextArea({ value: "two\nlines" }) as unknown as {
+        tag: string;
+      };
 
       expect(view.tag).toBe("view");
       expect(text.tag).toBe("text");
       expect(text.firstChild?.tag).toBe("#text");
       expect(image.tag).toBe("img");
+      expect(textarea.tag).toBe("textarea");
       dispose();
     }));
 });

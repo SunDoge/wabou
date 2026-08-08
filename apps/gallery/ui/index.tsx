@@ -1,12 +1,4 @@
 import {
-  createMemoryHistory,
-  MemoryRouter,
-  Route,
-  useLocation,
-  useNavigate,
-  useParams,
-} from "@wabou/router";
-import {
   type AnimationControls,
   animate,
   animateKeyframes,
@@ -27,6 +19,7 @@ import {
   Progress,
   Separator,
   Switch,
+  TextArea,
   useComponentsTheme,
 } from "@wabou/components";
 import { createWindow, useWindow } from "@wabou/core";
@@ -39,6 +32,14 @@ import {
   translate2d,
   View,
 } from "@wabou/primitives";
+import {
+  createMemoryHistory,
+  MemoryRouter,
+  Route,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "@wabou/router";
 import { type Handle, mount } from "@wabou/solid-renderer";
 import { px, rgba, shadow, number as styleNumber } from "@wabou/style";
 import wabouUtilityManifest from "@wabou/unocss-preset/manifest";
@@ -298,6 +299,19 @@ function InputPage() {
         <View class="w-96 flex flex-col gap-3">
           <Input value="Editable value" />
           <Input disabled value="Disabled value" />
+        </View>
+      </Preview>
+      <Preview title="Multiline">
+        <View class="w-96 flex flex-col gap-2">
+          <TextArea
+            placeholder="Describe your project…"
+            value={value()}
+            onInput={(event) => setValue(event.currentTarget.value)}
+          />
+          <TextArea
+            readOnly
+            value="Read-only multiline\ncontent remains selectable."
+          />
         </View>
       </Preview>
     </View>

@@ -16,8 +16,22 @@ of its static and reactive text children form one measured run and one item in
 its parent's layout. Use `Text` rather than placing bare text directly in a
 flex or grid container.
 
-The capitalized APIs create internal `view`, `text`, and `img` host nodes. Those
-tags are implementation details and should not be written directly by apps.
+The capitalized APIs create internal `view`, `text`, `img`, and `textarea` host
+nodes. Those tags are implementation details and should not be written directly
+by apps.
+
+`TextArea` is the native multiline editor. It supports soft wrapping, keyboard
+and pointer selection, clipboard operations, controlled values, read-only and
+disabled states, and internal vertical scrolling:
+
+```tsx
+<TextArea
+  class="w-96 h-32"
+  value={notes()}
+  placeholder="Notes"
+  onInput={(event) => setNotes(event.currentTarget.value)}
+/>
+```
 
 Use `Button` for clickable controls that need consistent native interaction
 feedback without depending on CSS pseudo-classes:

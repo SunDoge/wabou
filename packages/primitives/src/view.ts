@@ -44,7 +44,18 @@ export interface ImageProps extends Omit<PrimitiveProps, "children"> {
   src?: string;
 }
 
-function primitive(tag: "view" | "text" | "img", props: PrimitiveProps) {
+export interface TextAreaProps extends Omit<PrimitiveProps, "children"> {
+  value?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  onInput?: (event: { currentTarget: { value: string } }) => void;
+}
+
+function primitive(
+  tag: "view" | "text" | "img" | "textarea",
+  props: PrimitiveProps,
+) {
   const node = createElement(tag);
   spread(node, props, false);
   return node as unknown as JSX.Element;
@@ -68,4 +79,9 @@ export function Text(props: TextProps): JSX.Element {
 /** A replaced image node rendered by the native host. */
 export function Image(props: ImageProps): JSX.Element {
   return primitive("img", props);
+}
+
+/** A native multiline text editor with wrapping, selection, and scrolling. */
+export function TextArea(props: TextAreaProps): JSX.Element {
+  return primitive("textarea", props);
 }

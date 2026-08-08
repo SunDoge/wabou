@@ -2,6 +2,8 @@ import { type AnimationControls, animate } from "@wabou/animation";
 import {
   Button as HeadlessButton,
   type ButtonProps as HeadlessButtonProps,
+  TextArea as PrimitiveTextArea,
+  type TextAreaProps as PrimitiveTextAreaProps,
   Text,
   translate2d,
   View,
@@ -379,6 +381,27 @@ export function Input(props: InputProps): JSX.Element {
       {...props}
       class={join(
         "h-9 w-full px-3 rounded-md border text-sm",
+        theme() === "dark"
+          ? "border-slate-600 bg-slate-950 text-slate-100"
+          : "border-slate-300 bg-white text-slate-900",
+        props.disabled && "opacity-50",
+        props.class,
+      )}
+    />
+  );
+}
+
+export interface TextAreaProps extends PrimitiveTextAreaProps {
+  class?: string;
+}
+
+export function TextArea(props: TextAreaProps): JSX.Element {
+  const theme = useComponentsTheme();
+  return (
+    <PrimitiveTextArea
+      {...props}
+      class={join(
+        "h-24 w-full px-3 py-2 rounded-md border text-sm",
         theme() === "dark"
           ? "border-slate-600 bg-slate-950 text-slate-100"
           : "border-slate-300 bg-white text-slate-900",

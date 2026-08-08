@@ -69,12 +69,14 @@ export {
   type TabsResult,
 } from "./tabs";
 export {
+  type Affine2D,
   Image,
   type ImageProps,
   Text,
-  translate2d,
+  TextArea,
+  type TextAreaProps,
   type TextProps,
-  type Affine2D,
+  translate2d,
   View,
   type ViewProps,
   type WabouClassList,

@@ -86,6 +86,10 @@ pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
     factories.insert("img".into(), Arc::new(|| Box::new(ImageWidget::new())));
     factories.insert("fractal".into(), Arc::new(|| Box::new(JuliaWidget::new())));
     factories.insert("input".into(), Arc::new(|| Box::new(TextInput::new())));
+    factories.insert(
+        "textarea".into(),
+        Arc::new(|| Box::new(TextInput::multiline())),
+    );
     factories
 }
 
@@ -142,6 +146,16 @@ impl WidgetEventResult {
     pub const fn handled_consuming_key_text() -> Self {
         Self {
             changes: WidgetChanges::HANDLED
+                .union(WidgetChanges::REDRAW)
+                .union(WidgetChanges::CONSUME_KEY_TEXT),
+            clipboard: None,
+        }
+    }
+
+    pub const fn value_changed_consuming_key_text() -> Self {
+        Self {
+            changes: WidgetChanges::HANDLED
+                .union(WidgetChanges::VALUE)
                 .union(WidgetChanges::REDRAW)
                 .union(WidgetChanges::CONSUME_KEY_TEXT),
             clipboard: None,
@@ -268,7 +282,7 @@ pub trait Widget {
     /// so the widget can convert absolute pointer coordinates to local.
     fn set_position(&mut self, _x: f32, _y: f32) {}
 
-    /// Window-logical coordinates to the widget border-box coordinate space.
+    /// Window-logical coordinates to the widget content-box coordinate space.
     fn set_window_to_local(&mut self, _transform: [f64; 6]) {}
 
     /// Install the event-loop wake callback for a background producer.
@@ -308,6 +322,16 @@ mod tests {
         assert!(WidgetEventResult::VALUE_CHANGED.value_changed());
         assert!(WidgetEventResult::VALUE_CHANGED.requests_redraw());
         assert!(WidgetEventResult::handled_consuming_key_text().consumes_key_text());
+        assert!(WidgetEventResult::value_changed_consuming_key_text().value_changed());
+        assert!(WidgetEventResult::value_changed_consuming_key_text().consumes_key_text());
         assert!(!WidgetEventResult::HANDLED.consumes_key_text());
+    }
+
+    #[test]
+    fn builtin_factories_include_multiline_textarea() {
+        let factories = builtin_factories();
+        let textarea = factories["textarea"]();
+        assert_eq!(textarea.intrinsic_size(), Some([240.0, 96.0]));
+        assert!(textarea.accepts_focus());
     }
 }
