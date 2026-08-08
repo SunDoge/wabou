@@ -1816,6 +1816,7 @@ impl Widget for TerminalWidget {
                     self.send_bytes(formatter(text.as_deref().unwrap_or("")).into_bytes());
                 }
             }
+            HostActionResult::ClipboardWrite { .. } => {}
         }
     }
 

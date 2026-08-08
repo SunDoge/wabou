@@ -243,6 +243,10 @@ pub enum HostAction {
     /// Open a URL with the platform's registered handler.
     OpenUrl(String),
     SetClipboard(String),
+    WriteClipboard {
+        request_id: u64,
+        text: String,
+    },
     ReadClipboard {
         request_id: u64,
     },
@@ -265,6 +269,10 @@ pub enum HostActionResult {
     Clipboard {
         request_id: u64,
         text: Option<String>,
+    },
+    ClipboardWrite {
+        request_id: u64,
+        success: bool,
     },
 }
 

@@ -10,7 +10,7 @@
 //! a redundant second generational layer. Reclamation is explicit on `DropNode`
 //! (deterministic, sweep-driven) to keep frames recordable/replayable.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -58,6 +58,10 @@ use crate::{Atom, AtomPool};
 
 const SCROLLBAR_FADE_DELAY: Duration = Duration::from_millis(500);
 const SCROLLBAR_FADE_DURATION: Duration = Duration::from_millis(200);
+// Keep JS request IDs exactly representable as JavaScript numbers while
+// separating them from widget-local host action IDs.
+const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
+const HOST_ACTION_SEQUENCE_MASK: u64 = JS_HOST_ACTION_NAMESPACE - 1;
 
 fn key_event_payload(key: &wabou_shell::KeyEvent) -> String {
     serde_json::json!({
@@ -500,6 +504,7 @@ pub struct Applier {
     /// Last resolved content style delivered to each native widget.
     widget_styles: HashMap<NodeId, crate::widget::WidgetStyle>,
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
+    pending_js_clipboard_requests: Rc<RefCell<HashSet<u64>>>,
     host_action_wake: Rc<RefCell<Option<WakeCallback>>>,
     next_host_action_id: u64,
     host_action_routes: HashMap<u64, (NodeId, u64)>,
@@ -537,6 +542,7 @@ fn install_window_functions(
     window_id: u64,
     actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
     action_wake: Rc<RefCell<Option<WakeCallback>>>,
+    clipboard_requests: Rc<RefCell<HashSet<u64>>>,
 ) {
     js.with(|ctx| -> rquickjs::Result<()> {
         let create_actions = actions.clone();
@@ -629,9 +635,61 @@ fn install_window_functions(
             })?,
         )?;
         ctx.globals().set("__wabou_window_id", window_id)?;
+
+        let next_clipboard_request = Rc::new(Cell::new(1_u64));
+        let write_actions = actions.clone();
+        let write_wake = action_wake.clone();
+        let write_requests = clipboard_requests.clone();
+        let write_sequence = next_clipboard_request.clone();
+        ctx.globals().set(
+            "__wabou_clipboard_write",
+            rquickjs::Function::new(ctx.clone(), move |text: String| -> u64 {
+                let sequence = write_sequence.get();
+                write_sequence.set((sequence.wrapping_add(1) & HOST_ACTION_SEQUENCE_MASK).max(1));
+                let request_id = JS_HOST_ACTION_NAMESPACE | sequence;
+                write_requests.borrow_mut().insert(request_id);
+                write_actions
+                    .borrow_mut()
+                    .push_back(wabou_shell::HostAction::WriteClipboard { request_id, text });
+                if let Some(wake) = write_wake.borrow().as_ref() {
+                    wake();
+                }
+                request_id
+            })?,
+        )?;
+        let read_actions = actions.clone();
+        let read_wake = action_wake.clone();
+        let read_requests = clipboard_requests.clone();
+        ctx.globals().set(
+            "__wabou_clipboard_read",
+            rquickjs::Function::new(ctx.clone(), move || -> u64 {
+                let sequence = next_clipboard_request.get();
+                next_clipboard_request
+                    .set((sequence.wrapping_add(1) & HOST_ACTION_SEQUENCE_MASK).max(1));
+                let request_id = JS_HOST_ACTION_NAMESPACE | sequence;
+                read_requests.borrow_mut().insert(request_id);
+                read_actions
+                    .borrow_mut()
+                    .push_back(wabou_shell::HostAction::ReadClipboard { request_id });
+                if let Some(wake) = read_wake.borrow().as_ref() {
+                    wake();
+                }
+                request_id
+            })?,
+        )?;
         Ok(())
     })
     .expect("install window host functions");
+}
+
+fn complete_js_clipboard(js: &JsRuntime, request_id: u64, text: Option<String>, success: bool) {
+    let result = js.with(|ctx| -> rquickjs::Result<()> {
+        let callback: rquickjs::Function = ctx.globals().get("__wabou_clipboard_complete")?;
+        callback.call::<_, ()>((request_id, text, success))
+    });
+    if let Err(error) = result {
+        tracing::warn!(?error, request_id, "clipboard completion callback failed");
+    }
 }
 
 impl Applier {
@@ -698,11 +756,13 @@ impl Applier {
 
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
         let host_action_wake = Rc::new(RefCell::new(None));
+        let pending_js_clipboard_requests = Rc::new(RefCell::new(HashSet::new()));
         install_window_functions(
             &js,
             window_id,
             pending_host_actions.clone(),
             host_action_wake.clone(),
+            pending_js_clipboard_requests.clone(),
         );
         Self {
             js,
@@ -768,6 +828,7 @@ impl Applier {
             widgets: HashMap::new(),
             widget_styles: HashMap::new(),
             pending_host_actions,
+            pending_js_clipboard_requests,
             host_action_wake,
             next_host_action_id: 1,
             host_action_routes: HashMap::new(),
@@ -2834,7 +2895,8 @@ impl Applier {
         let action = match action {
             wabou_shell::HostAction::ReadClipboard { request_id } => {
                 let host_request_id = self.next_host_action_id;
-                self.next_host_action_id = self.next_host_action_id.wrapping_add(1).max(1);
+                self.next_host_action_id =
+                    (self.next_host_action_id.wrapping_add(1) & HOST_ACTION_SEQUENCE_MASK).max(1);
                 self.host_action_routes
                     .insert(host_request_id, (node, request_id));
                 wabou_shell::HostAction::ReadClipboard {
@@ -4135,6 +4197,14 @@ impl FrameSource for Applier {
     fn complete_host_action(&mut self, result: wabou_shell::HostActionResult) {
         match result {
             wabou_shell::HostActionResult::Clipboard { request_id, text } => {
+                if self
+                    .pending_js_clipboard_requests
+                    .borrow_mut()
+                    .remove(&request_id)
+                {
+                    complete_js_clipboard(&self.js, request_id, text, true);
+                    return;
+                }
                 let Some((node, widget_request_id)) = self.host_action_routes.remove(&request_id)
                 else {
                     return;
@@ -4144,6 +4214,18 @@ impl FrameSource for Applier {
                         request_id: widget_request_id,
                         text,
                     });
+                }
+            }
+            wabou_shell::HostActionResult::ClipboardWrite {
+                request_id,
+                success,
+            } => {
+                if self
+                    .pending_js_clipboard_requests
+                    .borrow_mut()
+                    .remove(&request_id)
+                {
+                    complete_js_clipboard(&self.js, request_id, None, success);
                 }
             }
         }
@@ -5396,6 +5478,64 @@ mod tests {
                 })
             );
         }
+    }
+
+    #[test]
+    fn clipboard_bridge_routes_native_completions_back_to_javascript() {
+        let js = JsRuntime::new().expect("runtime");
+        let mut applier = Applier::from_runtime(js, Color::BLACK);
+        applier
+            .boot(
+                r#"
+                globalThis.clipboardCompletions = [];
+                globalThis.__wabou_clipboard_complete = (id, text, success) => {
+                  clipboardCompletions.push([id, text, success]);
+                };
+                globalThis.writeRequest = __wabou_clipboard_write("hello");
+                globalThis.readRequest = __wabou_clipboard_read();
+                "#,
+            )
+            .expect("boot with clipboard bridge");
+
+        let requests = applier
+            .js
+            .with(|ctx| ctx.eval::<Vec<u64>, _>("[writeRequest, readRequest]"))
+            .expect("clipboard request ids");
+        let [write_request, read_request] = requests.as_slice() else {
+            panic!("expected two clipboard request ids");
+        };
+        let (write_request, read_request) = (*write_request, *read_request);
+        assert!(write_request < (1_u64 << 32));
+        assert_eq!(
+            applier.take_host_action(),
+            Some(wabou_shell::HostAction::WriteClipboard {
+                request_id: write_request,
+                text: "hello".into(),
+            })
+        );
+        assert_eq!(
+            applier.take_host_action(),
+            Some(wabou_shell::HostAction::ReadClipboard {
+                request_id: read_request,
+            })
+        );
+
+        applier.complete_host_action(wabou_shell::HostActionResult::ClipboardWrite {
+            request_id: write_request,
+            success: true,
+        });
+        applier.complete_host_action(wabou_shell::HostActionResult::Clipboard {
+            request_id: read_request,
+            text: Some("world".into()),
+        });
+        let completions = applier
+            .js
+            .with(|ctx| ctx.eval::<String, _>("JSON.stringify(clipboardCompletions)"))
+            .expect("clipboard completions");
+        assert_eq!(
+            completions,
+            format!("[[{write_request},null,true],[{read_request},\"world\",true]]")
+        );
     }
 
     #[test]

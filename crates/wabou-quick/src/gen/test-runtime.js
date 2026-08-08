@@ -2371,6 +2371,37 @@
     const next = JSON.parse(payload);
     setMetrics(next);
   });
+
+  // packages/core/src/glue/clipboard.ts
+  var pending = new Map;
+  function complete(requestId, text, success) {
+    const request = pending.get(requestId);
+    if (!request)
+      return;
+    pending.delete(requestId);
+    if (!success) {
+      request.reject(new Error("Native clipboard operation failed"));
+    } else if (request.kind === "read") {
+      request.resolve(text);
+    } else {
+      request.resolve();
+    }
+  }
+  globalThis.__wabou_clipboard_complete = complete;
+  var clipboard = Object.freeze({
+    readText() {
+      return new Promise((resolve, reject) => {
+        const requestId = __wabou_clipboard_read();
+        pending.set(requestId, { kind: "read", resolve, reject });
+      });
+    },
+    writeText(text) {
+      return new Promise((resolve, reject) => {
+        const requestId = __wabou_clipboard_write(String(text));
+        pending.set(requestId, { kind: "write", resolve, reject });
+      });
+    }
+  });
   // packages/core/test/runtime-fixture.ts
   mount(() => createElement("main"));
 })();

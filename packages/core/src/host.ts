@@ -38,6 +38,8 @@ declare global {
    *  `{ status, statusText, headers, body }`. */
   function __wabou_fetch(url: string, initJson: string): Promise<string>;
   function __wabou_sleep(delayMs: number): Promise<void>;
+  function __wabou_clipboard_write(text: string): number;
+  function __wabou_clipboard_read(): number;
   function __wabou_resize_observe(solidId: number): void;
   function __wabou_resize_unobserve(solidId: number): void;
   const __wabou_window_id: number;
@@ -69,4 +71,9 @@ declare global {
   ): Promise<boolean>;
   /** Clear HMR hot records before an in-process full reload (vite only). */
   function __wabou_hmr_clear_records(): void;
+  function __wabou_clipboard_complete(
+    requestId: number,
+    text: string | null,
+    success: boolean,
+  ): void;
 }

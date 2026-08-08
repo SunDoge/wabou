@@ -23,6 +23,7 @@ import "./glue/resize-observer";
 import "./glue/host-messages";
 import "./glue/host-frame";
 import "./glue/window-metrics";
+import "./glue/clipboard";
 
 export {
   type WindowMetrics,
@@ -36,6 +37,8 @@ export {
   type CreateWindowOptions,
   type WindowHandle,
 } from "./glue/window";
+
+export { clipboard, type Clipboard, useClipboard } from "./glue/clipboard";
 
 export {
   hostMessages,

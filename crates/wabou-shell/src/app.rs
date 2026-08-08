@@ -323,6 +323,20 @@ impl App {
                         let _ = clipboard.set_text(text);
                     }
                 }
+                HostAction::WriteClipboard { request_id, text } => {
+                    if self.clipboard.is_none() {
+                        self.clipboard = arboard::Clipboard::new().ok();
+                    }
+                    let success = self
+                        .clipboard
+                        .as_mut()
+                        .is_some_and(|clipboard| clipboard.set_text(text).is_ok());
+                    self.source
+                        .complete_host_action(HostActionResult::ClipboardWrite {
+                            request_id,
+                            success,
+                        });
+                }
                 HostAction::ReadClipboard { request_id } => {
                     if self.clipboard.is_none() {
                         self.clipboard = arboard::Clipboard::new().ok();
