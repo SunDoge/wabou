@@ -34,3 +34,4 @@ pub use source::{
     WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;
+pub use winit::raw_window_handle;

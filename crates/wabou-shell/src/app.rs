@@ -10,6 +10,7 @@ use winit::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 use winit::event::{ButtonSource, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
+use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{
     ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequest, ImeRequestData,
     UserAttentionType, WindowId,
@@ -708,6 +709,27 @@ pub struct ExtensionContext<'a> {
 }
 
 impl ExtensionContext<'_> {
+    pub fn window_handle(&self, logical_window_id: u64) -> Option<RawWindowHandle> {
+        self.windows
+            .values()
+            .find(|app| app.logical_window_id == logical_window_id)?
+            .state
+            .as_ref()?
+            .window()
+            .window_handle()
+            .ok()
+            .map(|handle| handle.as_raw())
+    }
+
+    pub fn window_scale_factor(&self, logical_window_id: u64) -> Option<f64> {
+        self.windows
+            .values()
+            .find(|app| app.logical_window_id == logical_window_id)?
+            .state
+            .as_ref()
+            .map(|shell| shell.scale_factor())
+    }
+
     pub fn show_window(&mut self, logical_window_id: u64) -> bool {
         let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
         else {
@@ -751,6 +773,18 @@ pub trait ShellExtension {
     fn close_requested(
         &mut self,
         _logical_window_id: u64,
+        _context: &mut ExtensionContext<'_>,
+    ) -> bool {
+        false
+    }
+
+    /// Handle a pointer button before it is dispatched into the UI tree.
+    fn pointer_button(
+        &mut self,
+        _logical_window_id: u64,
+        _button: PointerButton,
+        _phase: PointerPhase,
+        _position: Point,
         _context: &mut ExtensionContext<'_>,
     ) -> bool {
         false
@@ -945,6 +979,29 @@ impl ApplicationHandler for MultiWindowApp {
                 event_loop.exit();
             }
             return;
+        }
+        if let WindowEvent::PointerButton { state, button, .. } = &event {
+            let logical_window_id = self
+                .windows
+                .get(&window_id)
+                .map(|app| app.logical_window_id)
+                .unwrap_or_default();
+            let position = self
+                .windows
+                .get(&window_id)
+                .map(|app| app.pointer_position)
+                .unwrap_or_default();
+            let button = App::pointer_button(button);
+            let phase = match state {
+                ElementState::Pressed => PointerPhase::Down,
+                ElementState::Released => PointerPhase::Up,
+            };
+            let mut context = Self::extension_context(&mut self.windows, event_loop);
+            if self.extensions.iter_mut().any(|extension| {
+                extension.pointer_button(logical_window_id, button, phase, position, &mut context)
+            }) {
+                return;
+            }
         }
         if let Some(app) = self.windows.get_mut(&window_id) {
             app.window_event(event_loop, window_id, event);
