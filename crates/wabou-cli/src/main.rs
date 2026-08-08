@@ -53,6 +53,13 @@ enum Commands {
         #[arg(long)]
         release: bool,
     },
+    /// Generate or verify Rust-owned TypeScript capability bindings.
+    Bindings {
+        #[arg(long, value_name = "PATH")]
+        app_dir: Option<PathBuf>,
+        #[command(subcommand)]
+        command: BindingsCommand,
+    },
     /// Render an application to a PNG without opening a native window.
     Render {
         #[arg(long, value_name = "PATH")]
@@ -93,6 +100,14 @@ enum Commands {
         #[command(subcommand)]
         command: InspectCommand,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Subcommand)]
+enum BindingsCommand {
+    /// Rewrite the committed TypeScript declarations.
+    Write,
+    /// Fail when the committed declarations differ from Rust types.
+    Check,
 }
 
 #[derive(Subcommand)]
@@ -163,6 +178,14 @@ fn main() -> Result<()> {
                 &workspace,
                 &load_app(&workspace, &cwd, app_dir.as_deref())?,
                 release,
+            )
+        }
+        Commands::Bindings { app_dir, command } => {
+            let workspace = find_workspace(&cwd)?;
+            bindings(
+                &workspace,
+                &load_app(&workspace, &cwd, app_dir.as_deref())?,
+                command,
             )
         }
         Commands::Render {
@@ -297,6 +320,26 @@ fn run(workspace: &Path, app: &App, release: bool) -> Result<()> {
     }
     cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app));
     ensure(cargo.status()?, "Rust host")
+}
+
+fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
+    let manifest = manifest(app);
+    let mode = match mode {
+        BindingsCommand::Write => "write",
+        BindingsCommand::Check => "check",
+    };
+    let mut cargo = Command::new("cargo");
+    cargo.current_dir(workspace).args([
+        "run",
+        "--quiet",
+        "--manifest-path",
+        &manifest,
+        "--example",
+        "wabou-bindings",
+        "--",
+        mode,
+    ]);
+    ensure(cargo.status()?, "Wabou bindings generator")
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -781,6 +824,24 @@ mod tests {
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
+    }
+
+    #[test]
+    fn parses_bindings_write_and_check_commands() {
+        for (name, expected) in [
+            ("write", BindingsCommand::Write),
+            ("check", BindingsCommand::Check),
+        ] {
+            let Cli {
+                command: Commands::Bindings { app_dir, command },
+            } = Cli::try_parse_from(["wabou", "bindings", "--app-dir", "apps/gallery", name])
+                .unwrap()
+            else {
+                panic!("expected bindings command");
+            };
+            assert_eq!(app_dir.as_deref(), Some(Path::new("apps/gallery")));
+            assert_eq!(command, expected);
+        }
     }
 
     #[test]

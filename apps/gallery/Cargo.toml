@@ -8,7 +8,10 @@ name = "gallery"
 path = "src/main.rs"
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 snafu = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wabou-bindings = { workspace = true }
 wabou-quick = { workspace = true }
