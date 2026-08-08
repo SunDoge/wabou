@@ -18,6 +18,7 @@ use wabou_shell::renderer::render_to_png;
 use wabou_shell::scene as scene_builder;
 use wabou_shell::{
     FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, TextContext, UiEvent,
+    WheelEvent,
 };
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -93,6 +94,14 @@ enum Commands {
             action = clap::ArgAction::Append
         )]
         click: Vec<f64>,
+        /// Dispatch a wheel gesture at X Y with horizontal and vertical deltas.
+        #[arg(
+            long,
+            num_args = 4,
+            value_names = ["X", "Y", "DX", "DY"],
+            action = clap::ArgAction::Append
+        )]
+        wheel: Vec<f64>,
         /// Commit text to the element focused by the final --click before capture.
         #[arg(long, requires = "click")]
         text: Option<String>,
@@ -206,6 +215,7 @@ fn main() -> Result<()> {
             mode,
             wait_ms,
             click,
+            wheel,
             text,
         } => {
             let workspace = find_workspace(&cwd)?;
@@ -220,6 +230,7 @@ fn main() -> Result<()> {
                 mode.as_deref(),
                 wait_ms,
                 &click,
+                &wheel,
                 text.as_deref(),
             )
         }
@@ -365,6 +376,7 @@ fn render(
     mode: Option<&str>,
     wait_ms: u64,
     clicks: &[f64],
+    wheels: &[f64],
     text: Option<&str>,
 ) -> Result<()> {
     if !scale_factor.is_finite() || scale_factor <= 0.0 {
@@ -443,6 +455,20 @@ fn render(
             position: point,
             button: Some(PointerButton::Primary),
             buttons: 0,
+            modifiers: Modifiers::default(),
+        }));
+        for _ in 0..4 {
+            nodes = applier.build_frame(&mut text_context, width, height);
+        }
+    }
+    for gesture in wheels.chunks_exact(4) {
+        applier.handle_event(UiEvent::Wheel(WheelEvent {
+            position: Point {
+                x: gesture[0],
+                y: gesture[1],
+            },
+            delta_x: gesture[2],
+            delta_y: gesture[3],
             modifiers: Modifiers::default(),
         }));
         for _ in 0..4 {
@@ -837,6 +863,7 @@ mod tests {
                     scale_factor,
                     mode,
                     click,
+                    wheel,
                     ..
                 },
         } = Cli::try_parse_from(["wabou", "render", "--out", "capture.png"]).unwrap()
@@ -847,6 +874,7 @@ mod tests {
         assert_eq!(scale_factor, 1.0);
         assert_eq!(mode, None);
         assert!(click.is_empty());
+        assert!(wheel.is_empty());
 
         let Cli {
             command:
@@ -855,6 +883,7 @@ mod tests {
                     scale_factor,
                     mode,
                     click,
+                    wheel,
                     ..
                 },
         } = Cli::try_parse_from([
@@ -874,6 +903,11 @@ mod tests {
             "--click",
             "30",
             "40",
+            "--wheel",
+            "100",
+            "200",
+            "0",
+            "360",
         ])
         .unwrap()
         else {
@@ -883,6 +917,7 @@ mod tests {
         assert_eq!(scale_factor, 2.0);
         assert_eq!(mode.as_deref(), Some("ui-test"));
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
+        assert_eq!(wheel, [100.0, 200.0, 0.0, 360.0]);
     }
 
     #[test]
