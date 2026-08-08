@@ -33,6 +33,14 @@
       "returns": "void"
     },
     {
+      "name": "__wabou_set_color_theme",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["name", "string"]],
+      "returns": "void"
+    },
+    {
       "name": "__wabou_load_font",
       "direction": "host",
       "owner": "runtime",

@@ -116,6 +116,8 @@ pub struct JsRuntime {
     /// Stylesheet pushed through `__wabou_set_stylesheet` (JSON parsed by host
     /// into the atomic-CSS dict). Drained by the Applier in build_frame.
     pending_css: Rc<RefCell<Option<StylesheetUpdate>>>,
+    /// Latest explicit window color-theme request from JavaScript.
+    pending_color_theme: Rc<RefCell<Option<String>>>,
     /// Font bytes pushed through the typed Host API. Drained by the
     /// Applier in build_frame and registered into the text `FontContext`.
     pending_fonts: Rc<RefCell<Vec<Vec<u8>>>>,
@@ -195,6 +197,7 @@ impl JsRuntime {
             out,
             booted: false,
             pending_css: Rc::new(RefCell::new(None)),
+            pending_color_theme: Rc::new(RefCell::new(None)),
             pending_fonts: Rc::new(RefCell::new(Vec::new())),
             frame_stats: Rc::new(RefCell::new(None)),
             layout_metrics: Rc::new(RefCell::new(LayoutMetricsSnapshot::default())),
@@ -377,6 +380,17 @@ impl JsRuntime {
                 .with_name("__wabou_set_stylesheet")?,
             )?;
 
+            let pending_theme = self.pending_color_theme.clone();
+            let wake = self.runtime_wake.clone();
+            globals.set(
+                "__wabou_set_color_theme",
+                rquickjs::Function::new(ctx.clone(), move |name: String| {
+                    *pending_theme.borrow_mut() = Some(name);
+                    wake.notify();
+                })?
+                .with_name("__wabou_set_color_theme")?,
+            )?;
+
             let targets = self.resize_targets.clone();
             globals.set(
                 "__wabou_resize_observe",
@@ -491,6 +505,10 @@ impl JsRuntime {
     /// `build_frame` and, on update, replaces its css dict + re-resolves.
     pub(crate) fn pending_css_handle(&self) -> Rc<RefCell<Option<StylesheetUpdate>>> {
         self.pending_css.clone()
+    }
+
+    pub(crate) fn pending_color_theme_handle(&self) -> Rc<RefCell<Option<String>>> {
+        self.pending_color_theme.clone()
     }
 
     /// A handle to the pending-fonts queue; the Applier drains it in

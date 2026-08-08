@@ -347,6 +347,8 @@ pub struct Applier {
     js: JsRuntime,
     node_store: NodeStore,
     style_ir: Option<StyleSheet>,
+    active_color_theme: Option<String>,
+    active_theme_colors: Arc<HashMap<String, u32>>,
     /// Theme embedded in Style IR, shared by build-time resolution and the
     /// runtime fallback for classes created after compilation.
     style_theme: wabou_style::Theme,
@@ -389,6 +391,7 @@ pub struct Applier {
     /// Stylesheet pushed through the private host ABI;
     /// drained in build_frame → replaces `css` + re-resolves every node.
     pending_css: Option<Rc<RefCell<Option<StylesheetUpdate>>>>,
+    pending_color_theme: Option<Rc<RefCell<Option<String>>>>,
     /// Font file bytes pushed by the typed Host API (via
     /// `JsRuntime::pending_fonts_handle`); drained in build_frame → registered
     /// into the shared text `FontContext` (cache cleared).
@@ -627,6 +630,7 @@ impl Applier {
         window_id: u64,
     ) -> Self {
         let pending_css = js.pending_css_handle();
+        let pending_color_theme = js.pending_color_theme_handle();
         let pending_fonts = js.pending_fonts_handle();
         let frame_stats = js.frame_stats_handle();
         let layout_metrics = js.layout_metrics_handle();
@@ -655,6 +659,8 @@ impl Applier {
             js,
             node_store: NodeStore::new(),
             style_ir: None,
+            active_color_theme: None,
+            active_theme_colors: Arc::new(HashMap::new()),
             style_theme: wabou_style::Theme::default(),
             rule_index: HashMap::new(),
             universal_rules: Vec::new(),
@@ -676,6 +682,7 @@ impl Applier {
             reload_rx: None,
             has_hmr_pending: Arc::new(AtomicBool::new(false)),
             pending_css: Some(pending_css),
+            pending_color_theme: Some(pending_color_theme),
             pending_fonts: Some(pending_fonts),
             frame_stats: Some(frame_stats),
             projections: FrameProjections::new(layout_metrics),

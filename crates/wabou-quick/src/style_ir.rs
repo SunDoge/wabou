@@ -2,7 +2,7 @@ use bon::Builder;
 use serde::Deserialize;
 use wabou_shell::style::IrValue;
 
-pub const VERSION: u16 = 4;
+pub const VERSION: u16 = 5;
 
 #[derive(Clone, Deserialize)]
 #[serde(untagged)]
@@ -18,12 +18,34 @@ pub(crate) struct StyleSheet {
     #[serde(default)]
     #[builder(default)]
     pub theme: wabou_style::Theme,
+    #[serde(default, rename = "colorThemes")]
+    pub color_themes: Option<ColorThemes>,
     #[serde(default)]
     #[builder(default)]
     pub diagnostics: Vec<String>,
     #[serde(default)]
     #[builder(default)]
     pub rules: Vec<StyleRule>,
+}
+
+#[derive(Clone, Deserialize)]
+pub(crate) struct ColorThemes {
+    pub default: String,
+    pub themes: std::collections::HashMap<String, ColorTheme>,
+}
+
+#[derive(Clone, Deserialize)]
+pub(crate) struct ColorTheme {
+    #[serde(rename = "appearance")]
+    pub _appearance: Appearance,
+    pub colors: std::collections::HashMap<String, u32>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum Appearance {
+    Light,
+    Dark,
 }
 
 #[derive(Builder, Clone, Deserialize)]
@@ -52,6 +74,20 @@ impl StyleSheet {
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.version != VERSION {
             return Err("unsupported version");
+        }
+        if let Some(themes) = &self.color_themes {
+            let Some(default) = themes.themes.get(&themes.default) else {
+                return Err("missing default color theme");
+            };
+            if themes.themes.values().any(|theme| {
+                theme.colors.len() != default.colors.len()
+                    || default
+                        .colors
+                        .keys()
+                        .any(|token| !theme.colors.contains_key(token))
+            }) {
+                return Err("inconsistent color theme tokens");
+            }
         }
         Ok(())
     }
@@ -151,6 +187,14 @@ pub(crate) mod fixture {
     pub fn color(rgba: u32) -> IrValue {
         IrValue::Color {
             value: IrColor::Literal { rgba },
+        }
+    }
+
+    pub fn color_token(name: &str) -> IrValue {
+        IrValue::Color {
+            value: IrColor::Token {
+                name: name.to_owned(),
+            },
         }
     }
 

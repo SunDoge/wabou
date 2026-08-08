@@ -54,6 +54,20 @@ impl FrameSource for Applier {
                         (rule_index, universal_rules)
                     };
                     self.style_theme = sheet.theme.clone();
+                    if let Some(themes) = &sheet.color_themes {
+                        let selected = self
+                            .active_color_theme
+                            .as_ref()
+                            .filter(|name| themes.themes.contains_key(*name))
+                            .cloned()
+                            .unwrap_or_else(|| themes.default.clone());
+                        self.active_theme_colors =
+                            Arc::new(themes.themes[&selected].colors.clone());
+                        self.active_color_theme = Some(selected);
+                    } else {
+                        self.active_color_theme = None;
+                        self.active_theme_colors = Arc::new(HashMap::new());
+                    }
                     self.style_ir = Some(sheet);
                     self.rule_index = rule_index;
                     self.universal_rules = universal_rules;
@@ -71,6 +85,26 @@ impl FrameSource for Applier {
                 }
             }
             self.recompute_all();
+        }
+
+        if let Some(pending) = self.pending_color_theme.clone()
+            && let Some(name) = pending.borrow_mut().take()
+        {
+            let selected = self
+                .style_ir
+                .as_ref()
+                .and_then(|sheet| sheet.color_themes.as_ref())
+                .and_then(|themes| themes.themes.get(&name));
+            if let Some(theme) = selected {
+                if self.active_color_theme.as_deref() != Some(name.as_str()) {
+                    self.active_theme_colors = Arc::new(theme.colors.clone());
+                    self.active_color_theme = Some(name);
+                    self.class_resolution_cache.clear();
+                    self.recompute_all();
+                }
+            } else {
+                tracing::warn!(theme = %name, "unknown Wabou color theme");
+            }
         }
 
         // Drain Vite HMR updates (from the background websocket client) before

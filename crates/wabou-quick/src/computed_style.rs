@@ -20,7 +20,8 @@ use super::Applier;
 use crate::jsrt::JsRuntime;
 use crate::protocol::{Frame, Op};
 use crate::style_ir::StylesheetUpdate;
-use crate::style_ir::fixture::{color, declaration, edges, keyword, px, rule, sheet};
+use crate::style_ir::fixture::{color, color_token, declaration, edges, keyword, px, rule, sheet};
+use crate::style_ir::{Appearance, ColorTheme, ColorThemes, StyleSheet};
 
 fn idle_runtime() -> JsRuntime {
     let js = JsRuntime::new().expect("runtime");
@@ -91,6 +92,78 @@ fn class_cascade_resolves_into_computed_snapshot() {
         Some(Color::from_rgb8(0xef, 0x44, 0x44))
     );
     assert_eq!(snapshot.font_size, 14.0);
+}
+
+#[test]
+fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
+    use std::collections::HashMap;
+
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, surface) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (atoms.intern("div"), atoms.intern("bg-surface"))
+    };
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement {
+                id: 2,
+                tag: div,
+                attrs: vec![],
+            },
+            Op::SetClassName {
+                id: 2,
+                classes: vec![surface],
+            },
+            Op::AppendChild {
+                parent: 1,
+                child: 2,
+            },
+            Op::FrameEnd,
+        ],
+    });
+    let themes = ColorThemes {
+        default: "dark".into(),
+        themes: HashMap::from([
+            (
+                "dark".into(),
+                ColorTheme {
+                    _appearance: Appearance::Dark,
+                    colors: HashMap::from([("surface".into(), 0x0f172aff)]),
+                },
+            ),
+            (
+                "light".into(),
+                ColorTheme {
+                    _appearance: Appearance::Light,
+                    colors: HashMap::from([("surface".into(), 0xffffffff)]),
+                },
+            ),
+        ]),
+    };
+    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+        StyleSheet::builder()
+            .color_themes(themes)
+            .rules(vec![rule(
+                "bg-surface",
+                vec![declaration("background-color", color_token("surface"))],
+            )])
+            .build(),
+    ));
+
+    let mut text = wabou_shell::TextContext::new();
+    applier.build_frame(&mut text, 800, 600);
+    assert_eq!(
+        applier.computed_node_snapshot(2).unwrap().background,
+        Some(Color::from_rgb8(0x0f, 0x17, 0x2a))
+    );
+
+    *applier.pending_color_theme.as_ref().unwrap().borrow_mut() = Some("light".into());
+    applier.build_frame(&mut text, 800, 600);
+    assert_eq!(
+        applier.computed_node_snapshot(2).unwrap().background,
+        Some(Color::WHITE)
+    );
 }
 
 #[test]

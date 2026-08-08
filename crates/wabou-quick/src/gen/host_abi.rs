@@ -15,6 +15,7 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
     HostAbiEntry { name: "__wabou_intern", direction: Direction::Host, owner: "runtime", feature: None },
     HostAbiEntry { name: "__wabou_open_url", direction: Direction::Host, owner: "runtime", feature: None },
     HostAbiEntry { name: "__wabou_set_stylesheet", direction: Direction::Host, owner: "runtime", feature: None },
+    HostAbiEntry { name: "__wabou_set_color_theme", direction: Direction::Host, owner: "runtime", feature: None },
     HostAbiEntry { name: "__wabou_load_font", direction: Direction::Host, owner: "runtime", feature: None },
     HostAbiEntry { name: "__wabou_frame_stats", direction: Direction::Host, owner: "runtime", feature: None },
     HostAbiEntry { name: "__wabou_layout_snapshot", direction: Direction::Host, owner: "runtime", feature: None },

@@ -1,5 +1,8 @@
 import { fileURLToPath } from "node:url";
-import { wabouStylePlugin } from "@wabou/style-compiler";
+import {
+  wabouStylePlugin,
+  type WabouColorThemeOptions,
+} from "@wabou/style-compiler";
 import {
   defineConfig,
   mergeConfig,
@@ -21,11 +24,12 @@ export interface WabouViteOptions {
   globalName?: string;
   /** Additional Vite configuration merged over Wabou defaults. */
   vite?: UserConfig;
+  /** Named semantic color palettes compiled into Wabou Style IR. */
+  theme?: WabouColorThemeOptions;
 }
 
 export type WabouViteOptionsExport =
-  | WabouViteOptions
-  | ((environment: ConfigEnv) => WabouViteOptions);
+  WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
 
 function disableSolidDependencyOptimizer(): Plugin {
   return {
@@ -41,9 +45,12 @@ function disableSolidDependencyOptimizer(): Plugin {
 }
 
 /** Plugins required for Solid to target Wabou instead of the browser DOM. */
-export function wabouPlugins(root = process.cwd()): Plugin[] {
+export function wabouPlugins(
+  root = process.cwd(),
+  theme?: WabouColorThemeOptions,
+): Plugin[] {
   return [
-    wabouStylePlugin({ root }),
+    wabouStylePlugin({ root, colorThemes: theme }),
     solid({
       solid: { generate: "universal", moduleName: "@wabou/solid-renderer" },
     }),
@@ -52,7 +59,9 @@ export function wabouPlugins(root = process.cwd()): Plugin[] {
 }
 
 /** Define the complete conventional Vite configuration for a Wabou app. */
-export function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport {
+export function defineWabouConfig(
+  options: WabouViteOptionsExport,
+): UserConfigExport {
   if (typeof options === "function") {
     return defineConfig((environment) =>
       resolveWabouConfig(options(environment)),
@@ -70,7 +79,7 @@ function resolveWabouConfig(options: WabouViteOptions): UserConfig {
         process.env.NODE_ENV ?? "production",
       ),
     },
-    plugins: wabouPlugins(root),
+    plugins: wabouPlugins(root, options.theme),
     resolve: {
       alias: {
         "@wabou/solid-renderer": renderer,

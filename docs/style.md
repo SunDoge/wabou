@@ -60,7 +60,49 @@ The default color palette includes the complete `50`, `100`, `200`, `300`,
 `border-`; literal `[#rrggbb]` and `[#rrggbbaa]` colors remain available.
 
 Projects should add stable brand or semantic colors to the theme instead of
-constructing utility names dynamically.
+constructing utility names dynamically. Applications that need multiple
+runtime palettes can declare semantic color tokens in their Vite config:
+
+```ts
+import { defineWabouConfig } from "@wabou/vite";
+
+export default defineWabouConfig({
+  theme: {
+    default: "dark",
+    themes: {
+      dark: {
+        appearance: "dark",
+        colors: { canvas: "#020617", primary: "#f1f5f9" },
+      },
+      light: {
+        appearance: "light",
+        colors: { canvas: "#f8fafc", primary: "#0f172a" },
+      },
+    },
+  },
+});
+```
+
+Every named palette must define the same tokens. Those tokens become ordinary
+static utilities such as `bg-canvas` and `text-primary`; missing tokens and
+unknown theme names fail explicitly instead of falling back to another color.
+The compiler stores token references in Style IR, and Rust resolves them using
+the palette selected for that native window.
+
+Theme selection is explicit Solid state rather than a CSS selector or variant:
+
+```tsx
+import { ColorThemeProvider, colorTheme } from "@wabou/core";
+
+<ColorThemeProvider theme={settings.theme}>
+  <App />
+</ColorThemeProvider>;
+
+colorTheme.set("light");
+```
+
+Themes are window-scoped. Nested theme scopes are intentionally unsupported;
+components consume semantic tokens without knowing which palette is active.
 
 The default theme can be extended at generation time with a JSON file:
 
@@ -75,10 +117,9 @@ The default theme can be extended at generation time with a JSON file:
 WABOU_THEME=./wabou-theme.json bun run gen
 ```
 
-Theme files extend the defaults. They are static build inputs: runtime theme
-switching belongs in explicit component state and `classList`, not in a CSS
-variant. Rust integrations can use `Theme`, `parse_utility_with_theme`, and
-`manifest_with_theme` directly.
+Theme files extend the default utility palette and remain static build inputs.
+They are separate from the named semantic palettes above. Rust integrations
+can use `Theme`, `parse_utility_with_theme`, and `manifest_with_theme` directly.
 
 ## Typed dynamic styles
 
@@ -87,7 +128,9 @@ Import value constructors from `@wabou/style` when a value changes at runtime:
 ```tsx
 import { number, percent, px } from "@wabou/style";
 
-<View style={{ width: px(width()), height: percent(0.5), opacity: number(0.8) }} />;
+<View
+  style={{ width: px(width()), height: percent(0.5), opacity: number(0.8) }}
+/>;
 ```
 
 These values cross the JS → Rust bridge as a compact tag and numeric payload.
@@ -108,7 +151,7 @@ import { shadow } from "@wabou/style";
     shadow({ offsetY: 8, spread: -2, stdDev: 6, color: 0x00000040 }),
     shadow({ offsetY: 1, stdDev: 1, color: 0x00000020 }),
   ]}
-/>
+/>;
 ```
 
 `offsetX`, `offsetY`, and signed `spread` use logical pixels. `stdDev` is the
@@ -151,7 +194,7 @@ const hover = createHover();
 `hover:`, `focus:`, `active:`, `disabled:` and authored CSS pseudo-classes are
 build errors rather than approximate browser behavior.
 
-The same rule applies to responsive/theme variants, transitions, animations,
-and dynamically assembled names such as `` `bg-${color()}` ``. Select between
-complete static utilities in `classList`; use typed style values for continuous
-runtime values.
+The same rule applies to responsive variants, transitions, animations, and
+dynamically assembled names such as `` `bg-${color()}` ``. Select between
+complete static utilities in `classList`; use named semantic palettes for
+window-level themes and typed style values for continuous runtime values.

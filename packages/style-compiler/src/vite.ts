@@ -17,12 +17,101 @@ import {
 
 export interface WabouStylePluginOptions {
   root: string;
+  colorThemes?: WabouColorThemeOptions;
+}
+
+export interface WabouColorThemeOptions {
+  default: string;
+  themes: Record<
+    string,
+    {
+      appearance: "light" | "dark";
+      colors: Record<string, string>;
+    }
+  >;
+}
+
+type CompiledColorThemes = NonNullable<WabouStyleSheet["colorThemes"]>;
+
+function parseThemeColor(value: string, theme: string, token: string): number {
+  const match = value.match(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/);
+  if (!match)
+    throw new Error(
+      `invalid color theme value for ${theme}.${token}; expected #RRGGBB or #RRGGBBAA`,
+    );
+  const hex = match[1];
+  const parsed = Number.parseInt(hex, 16);
+  return hex.length === 6 ? ((parsed << 8) | 0xff) >>> 0 : parsed >>> 0;
+}
+
+export function compileColorThemes(
+  options?: WabouColorThemeOptions,
+): CompiledColorThemes | undefined {
+  if (!options) return;
+  const base = options.themes[options.default];
+  if (!base)
+    throw new Error(
+      `default Wabou color theme \`${options.default}\` does not exist`,
+    );
+  const tokens = Object.keys(base.colors).sort();
+  if (!tokens.length)
+    throw new Error("Wabou color themes require at least one token");
+  for (const token of tokens) {
+    if (!/^[a-z][a-z0-9-]*$/.test(token))
+      throw new Error(`invalid Wabou color token \`${token}\``);
+    if (token in wabouUtilityManifest.colors)
+      throw new Error(
+        `Wabou color token \`${token}\` conflicts with a palette color`,
+      );
+  }
+  const themes: CompiledColorThemes["themes"] = {};
+  for (const [name, theme] of Object.entries(options.themes)) {
+    const actual = Object.keys(theme.colors).sort();
+    const missing = tokens.filter((token) => !(token in theme.colors));
+    const unknown = actual.filter((token) => !tokens.includes(token));
+    if (missing.length || unknown.length) {
+      throw new Error(
+        `Wabou color theme \`${name}\` does not match \`${options.default}\`` +
+          `${missing.length ? `; missing: ${missing.join(", ")}` : ""}` +
+          `${unknown.length ? `; unknown: ${unknown.join(", ")}` : ""}`,
+      );
+    }
+    themes[name] = {
+      appearance: theme.appearance,
+      colors: Object.fromEntries(
+        tokens.map((token) => [
+          token,
+          parseThemeColor(theme.colors[token], name, token),
+        ]),
+      ),
+    };
+  }
+  return { default: options.default, themes };
+}
+
+function semanticColorDeclaration(
+  candidate: string,
+  tokens: ReadonlySet<string>,
+): StyleRule["declarations"][number] | undefined {
+  const match = candidate.match(/^(bg|text|border)-(.+)$/);
+  if (!match || !tokens.has(match[2])) return;
+  return {
+    property:
+      match[1] === "bg"
+        ? "background-color"
+        : match[1] === "text"
+          ? "color"
+          : "border-color",
+    value: { type: "color", value: { kind: "token", name: match[2] } },
+  };
 }
 
 export function assertSupportedWabouCandidates(
   candidates: Iterable<string>,
+  semanticTokens: ReadonlySet<string> = new Set(),
 ): void {
   const unsupported = [...candidates]
+    .filter((candidate) => !semanticColorDeclaration(candidate, semanticTokens))
     .map((candidate) => validateWabouUtility(candidate))
     .filter((diagnostic) => diagnostic !== undefined);
   if (unsupported.length) {
@@ -37,8 +126,18 @@ export function assertSupportedWabouCandidates(
 export function compileWabouUtilities(
   candidates: Iterable<string>,
   sourceOrderStart = 0,
+  semanticTokens: ReadonlySet<string> = new Set(),
 ): StyleRule[] {
   return [...candidates].sort().map((candidate, index) => {
+    const semantic = semanticColorDeclaration(candidate, semanticTokens);
+    if (semantic) {
+      return {
+        className: candidate,
+        specificity: 10,
+        sourceOrder: sourceOrderStart + index,
+        declarations: [semantic],
+      };
+    }
     const utility = resolveWabouUtility(candidate);
     if (!utility) throw new Error(`unsupported Wabou utility \`${candidate}\``);
     return {
@@ -165,12 +264,17 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   let referenceGenerator: Awaited<ReturnType<typeof createGenerator>>;
   const sources = new Map<string, string>();
   const sourceRoots = new Set([options.root]);
+  const colorThemes = compileColorThemes(options.colorThemes);
+  const semanticTokens = new Set(
+    Object.keys(colorThemes?.themes[colorThemes.default]?.colors ?? {}),
+  );
   let stylesheet: WabouStyleSheet = {
     version: STYLE_IR_VERSION,
     theme: {
       spacing: wabouUtilityManifest.spacing,
       colors: wabouUtilityManifest.colors,
     },
+    colorThemes,
     diagnostics: [],
     rules: [],
   };
@@ -183,15 +287,16 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     const reference = await referenceGenerator.generate(utilitySource, {
       preflights: false,
     });
-    assertSupportedWabouCandidates(reference.matched);
+    assertSupportedWabouCandidates(reference.matched, semanticTokens);
     stylesheet = {
       version: STYLE_IR_VERSION,
       theme: {
         spacing: wabouUtilityManifest.spacing,
         colors: wabouUtilityManifest.colors,
       },
+      colorThemes,
       diagnostics: [],
-      rules: compileWabouUtilities(reference.matched),
+      rules: compileWabouUtilities(reference.matched, 0, semanticTokens),
     };
   }
 
@@ -241,7 +346,18 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     async configResolved() {
       // Candidate recognition uses the same generated theme manifest as
       // compilation and the native runtime fallback.
-      referenceGenerator = await createGenerator({ presets: [presetWabou()] });
+      referenceGenerator = await createGenerator({
+        presets: [presetWabou()],
+        rules: [
+          [
+            /^(?:bg|text|border)-(.+)$/,
+            ([, token]) =>
+              semanticTokens.has(token)
+                ? { "--wabou-semantic-color": token }
+                : undefined,
+          ],
+        ],
+      });
     },
     async buildStart() {
       const workspacePackages = await findWorkspacePackages(options.root);

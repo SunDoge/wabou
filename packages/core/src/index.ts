@@ -26,6 +26,13 @@ import "./glue/window-metrics";
 import "./glue/clipboard";
 
 export {
+  colorTheme,
+  ColorThemeProvider,
+  type ColorThemeController,
+  useColorTheme,
+} from "./glue/color-theme";
+
+export {
   type WindowMetrics,
   type WindowState,
   useWindow,

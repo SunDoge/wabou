@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import {
   assertSupportedWabouCandidates,
   compileWabouUtilities,
+  compileColorThemes,
   extractUtilitySource,
   findWorkspacePackages,
 } from "./vite";
@@ -49,6 +50,64 @@ describe("utility source extraction", () => {
         ],
       },
     ]);
+  });
+
+  test("compiles complete named palettes and semantic color utilities", () => {
+    const themes = compileColorThemes({
+      default: "dark",
+      themes: {
+        dark: {
+          appearance: "dark",
+          colors: { canvas: "#020617", primary: "#f1f5f9" },
+        },
+        light: {
+          appearance: "light",
+          colors: { canvas: "#f8fafc", primary: "#0f172a" },
+        },
+      },
+    });
+    const tokens = new Set(Object.keys(themes!.themes.dark.colors));
+    expect(
+      compileWabouUtilities(["bg-canvas", "text-primary"], 0, tokens),
+    ).toEqual([
+      {
+        className: "bg-canvas",
+        specificity: 10,
+        sourceOrder: 0,
+        declarations: [
+          {
+            property: "background-color",
+            value: { type: "color", value: { kind: "token", name: "canvas" } },
+          },
+        ],
+      },
+      {
+        className: "text-primary",
+        specificity: 10,
+        sourceOrder: 1,
+        declarations: [
+          {
+            property: "color",
+            value: { type: "color", value: { kind: "token", name: "primary" } },
+          },
+        ],
+      },
+    ]);
+  });
+
+  test("rejects incomplete color palettes", () => {
+    expect(() =>
+      compileColorThemes({
+        default: "dark",
+        themes: {
+          dark: {
+            appearance: "dark",
+            colors: { canvas: "#020617", primary: "#f1f5f9" },
+          },
+          light: { appearance: "light", colors: { canvas: "#f8fafc" } },
+        },
+      }),
+    ).toThrow("missing: primary");
   });
 
   test("only exposes explicit JSX class props to UnoCSS", () => {

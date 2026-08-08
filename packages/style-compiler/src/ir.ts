@@ -1,11 +1,12 @@
-export const STYLE_IR_VERSION = 4 as const;
+export const STYLE_IR_VERSION = 5 as const;
 
 export type Length =
   | { unit: "px"; value: number }
   | { unit: "percent"; value: number }
   | { unit: "auto" };
 
-export type ColorValue = { kind: "literal"; rgba: number };
+export type ColorValue =
+  { kind: "literal"; rgba: number } | { kind: "token"; name: string };
 
 export type StyleValue =
   | { type: "keyword"; value: string }
@@ -34,6 +35,16 @@ export interface WabouStyleSheet {
   theme: {
     spacing: Record<string, number>;
     colors: Record<string, number>;
+  };
+  colorThemes?: {
+    default: string;
+    themes: Record<
+      string,
+      {
+        appearance: "light" | "dark";
+        colors: Record<string, number>;
+      }
+    >;
   };
   diagnostics: string[];
   rules: StyleRule[];

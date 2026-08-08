@@ -30,6 +30,7 @@ pub enum IrLength {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum IrColor {
     Literal { rgba: u32 },
+    Token { name: String },
 }
 
 #[derive(Debug, Clone, serde::Deserialize, PartialEq)]
@@ -235,7 +236,9 @@ fn ir_color(value: &IrValue) -> Option<Color> {
     let IrValue::Color { value } = value else {
         return None;
     };
-    let IrColor::Literal { rgba } = value;
+    let IrColor::Literal { rgba } = value else {
+        return None;
+    };
     Some(Color::from_rgba8(
         (rgba >> 24) as u8,
         (rgba >> 16) as u8,

@@ -1,5 +1,31 @@
 use super::*;
 
+fn resolve_color_tokens(value: &IrValue, colors: &HashMap<String, u32>) -> IrValue {
+    match value {
+        IrValue::Color {
+            value: wabou_shell::style::IrColor::Token { name },
+        } => colors.get(name).map_or_else(
+            || value.clone(),
+            |rgba| IrValue::Color {
+                value: wabou_shell::style::IrColor::Literal { rgba: *rgba },
+            },
+        ),
+        IrValue::List { values } => IrValue::List {
+            values: values
+                .iter()
+                .map(|value| resolve_color_tokens(value, colors))
+                .collect(),
+        },
+        IrValue::Record { fields } => IrValue::Record {
+            fields: fields
+                .iter()
+                .map(|(name, value)| (name.clone(), resolve_color_tokens(value, colors)))
+                .collect(),
+        },
+        _ => value.clone(),
+    }
+}
+
 impl Applier {
     pub(super) fn recompute_solid(&mut self, solid_id: u32) {
         if let Some(&n) = self.node_store.solid_to_node.get(&solid_id) {
@@ -418,6 +444,7 @@ impl Applier {
             return;
         };
         let mut style_diagnostics = Vec::new();
+        let active_theme_colors = self.active_theme_colors.clone();
         let (layout, declared_paint, host_text, host_intrinsic, display_explicit) = {
             let atoms = self.atoms.borrow();
             let mut layout = taffy::Style::default();
@@ -550,7 +577,8 @@ impl Applier {
             style_diagnostics.extend(cached.diagnostics.iter().cloned());
             for (property, value) in &cached.declarations {
                 display_explicit |= property == "display";
-                if !style::apply_ir(&mut layout, &mut paint, property, value) {
+                let value = resolve_color_tokens(value, &active_theme_colors);
+                if !style::apply_ir(&mut layout, &mut paint, property, &value) {
                     style_diagnostics.push(format!(
                         "{property}: unsupported Style IR property or value"
                     ));

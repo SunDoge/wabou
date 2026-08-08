@@ -6,6 +6,7 @@ declare global {
   function __wabou_intern(value: string): number;
   function __wabou_open_url(url: string): boolean;
   function __wabou_set_stylesheet(json: string): void;
+  function __wabou_set_color_theme(name: string): void;
   function __wabou_load_font(path: string): boolean;
   function __wabou_frame_stats(): string;
   function __wabou_layout_snapshot(ids: Uint32Array): string;
