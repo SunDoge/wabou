@@ -12,38 +12,6 @@
         "unocss": "^66.7.5",
       },
     },
-    "apps/bitwarden": {
-      "name": "@wabou/bitwarden-demo",
-      "version": "0.1.0",
-      "dependencies": {
-        "@wabou/components": "workspace:*",
-        "@wabou/core": "workspace:*",
-        "@wabou/primitives": "workspace:*",
-        "@wabou/solid-renderer": "workspace:*",
-        "lucide-solid": "^1.24.0",
-        "solid-js": "1.9.14",
-      },
-      "devDependencies": {
-        "@types/node": "^26.1.1",
-        "@wabou/vite": "workspace:*",
-        "vite": "^5.4.0",
-      },
-    },
-    "apps/bitwarden-preview": {
-      "name": "@wabou/bitwarden-preview",
-      "version": "0.0.0",
-      "dependencies": {
-        "@wabou/components": "workspace:*",
-        "@wabou/core": "workspace:*",
-        "@wabou/primitives": "workspace:*",
-        "@wabou/solid-renderer": "workspace:*",
-        "solid-js": "1.9.14",
-      },
-      "devDependencies": {
-        "@wabou/vite": "workspace:*",
-        "vite": "^5.4.0",
-      },
-    },
     "apps/devtools": {
       "name": "@wabou/devtools-app",
       "version": "0.0.0",
@@ -140,6 +108,38 @@
       },
       "devDependencies": {
         "@types/node": "^26.1.1",
+        "@wabou/vite": "workspace:*",
+        "vite": "^5.4.0",
+      },
+    },
+    "apps/warden-desktop": {
+      "name": "@wabou/warden-desktop",
+      "version": "0.1.0",
+      "dependencies": {
+        "@wabou/components": "workspace:*",
+        "@wabou/core": "workspace:*",
+        "@wabou/primitives": "workspace:*",
+        "@wabou/solid-renderer": "workspace:*",
+        "lucide-solid": "^1.24.0",
+        "solid-js": "1.9.14",
+      },
+      "devDependencies": {
+        "@types/node": "^26.1.1",
+        "@wabou/vite": "workspace:*",
+        "vite": "^5.4.0",
+      },
+    },
+    "apps/warden-desktop-preview": {
+      "name": "@wabou/warden-desktop-preview",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/components": "workspace:*",
+        "@wabou/core": "workspace:*",
+        "@wabou/primitives": "workspace:*",
+        "@wabou/solid-renderer": "workspace:*",
+        "solid-js": "1.9.14",
+      },
+      "devDependencies": {
         "@wabou/vite": "workspace:*",
         "vite": "^5.4.0",
       },
@@ -538,10 +538,6 @@
 
     "@wabou/animation": ["@wabou/animation@workspace:packages/animation"],
 
-    "@wabou/bitwarden-demo": ["@wabou/bitwarden-demo@workspace:apps/bitwarden"],
-
-    "@wabou/bitwarden-preview": ["@wabou/bitwarden-preview@workspace:apps/bitwarden-preview"],
-
     "@wabou/components": ["@wabou/components@workspace:packages/components"],
 
     "@wabou/core": ["@wabou/core@workspace:packages/core"],
@@ -577,6 +573,10 @@
     "@wabou/vite-runtime": ["@wabou/vite-runtime@workspace:packages/vite-runtime"],
 
     "@wabou/vlist": ["@wabou/vlist@workspace:apps/vlist"],
+
+    "@wabou/warden-desktop": ["@wabou/warden-desktop@workspace:apps/warden-desktop"],
+
+    "@wabou/warden-desktop-preview": ["@wabou/warden-desktop-preview@workspace:apps/warden-desktop-preview"],
 
     "acorn": ["acorn@8.18.0", "", { "bin": { "acorn": "bin/acorn" } }, "sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ=="],
 

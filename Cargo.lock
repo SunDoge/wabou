@@ -852,31 +852,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bitwarden-demo"
-version = "0.1.0"
-dependencies = [
- "arboard",
- "async-trait",
- "bitwarden-api-api",
- "bitwarden-core",
- "bitwarden-crypto-sync-handler",
- "bitwarden-pm",
- "bitwarden-sync",
- "bitwarden-vault",
- "blake3",
- "chrono",
- "serde",
- "serde_json",
- "snafu",
- "tokio",
- "url",
- "uuid",
- "wabou-quick",
- "wabou-shell",
- "zeroize",
-]
-
-[[package]]
 name = "bitwarden-encoding"
 version = "3.0.0"
 source = "git+https://github.com/bitwarden/sdk-internal.git?rev=fbd21679c1c3690cba424ad3dbb0ba662eb9863e#fbd21679c1c3690cba424ad3dbb0ba662eb9863e"
@@ -1106,10 +1081,6 @@ dependencies = [
  "serde_repr",
  "uuid",
 ]
-
-[[package]]
-name = "bitwarden-preview"
-version = "0.0.0"
 
 [[package]]
 name = "bitwarden-random"
@@ -7853,6 +7824,35 @@ checksum = "bfa7760aed19e106de2c7c0b581b509f2f25d3dacaf737cb82ac61bc6d760b0e"
 dependencies = [
  "try-lock",
 ]
+
+[[package]]
+name = "warden-desktop"
+version = "0.1.0"
+dependencies = [
+ "arboard",
+ "async-trait",
+ "bitwarden-api-api",
+ "bitwarden-core",
+ "bitwarden-crypto-sync-handler",
+ "bitwarden-pm",
+ "bitwarden-sync",
+ "bitwarden-vault",
+ "blake3",
+ "chrono",
+ "serde",
+ "serde_json",
+ "snafu",
+ "tokio",
+ "url",
+ "uuid",
+ "wabou-quick",
+ "wabou-shell",
+ "zeroize",
+]
+
+[[package]]
+name = "warden-desktop-preview"
+version = "0.0.0"
 
 [[package]]
 name = "wasi"
