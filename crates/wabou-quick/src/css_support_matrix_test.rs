@@ -10,6 +10,8 @@ mod tests {
     use serde::Deserialize;
     use wabou_shell::style::{DeclaredPaint, IrValue, apply_ir};
 
+    use crate::style_ir::StyleSheet;
+
     #[derive(Debug, Deserialize)]
     struct Matrix {
         supported: HashMap<String, serde_json::Value>,
@@ -19,6 +21,7 @@ mod tests {
 
     const MATRIX_JSON: &str =
         include_str!("../../../packages/style-compiler/css-support-matrix.json");
+    const CONFORMANCE_JSON: &str = include_str!("gen/style-conformance.json");
 
     fn keyword(value: &str) -> IrValue {
         IrValue::Keyword {
@@ -52,6 +55,34 @@ mod tests {
              dead IR): {missing:?}\n\
              Update apply_ir or css-support-matrix.json so they match."
         );
+    }
+
+    #[test]
+    fn compiler_emitted_values_are_accepted_by_the_native_style_backend() {
+        let stylesheet: StyleSheet =
+            serde_json::from_str(CONFORMANCE_JSON).expect("generated compiler Style IR");
+        stylesheet.validate().expect("Style IR version");
+        assert!(
+            stylesheet.rules.len() > 100,
+            "fixture must exercise the complete generated utility surface"
+        );
+        for rule in stylesheet.rules {
+            for declaration in rule.declarations {
+                let mut layout = taffy::Style::default();
+                let mut paint = DeclaredPaint::default();
+                assert!(
+                    apply_ir(
+                        &mut layout,
+                        &mut paint,
+                        &declaration.property,
+                        &declaration.value,
+                    ),
+                    "compiler emitted a value the host rejected: class={} property={}",
+                    rule.class_name,
+                    declaration.property,
+                );
+            }
+        }
     }
 
     #[test]
