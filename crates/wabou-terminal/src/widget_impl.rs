@@ -1,0 +1,795 @@
+use super::*;
+
+/// Factory suitable for `HostBuilder::widget("terminal", terminal_widget)`.
+pub fn terminal_widget() -> Box<dyn Widget> {
+    Box::new(TerminalWidget::lazy_default_shell())
+}
+
+impl Widget for TerminalWidget {
+    fn measure(&mut self, tcx: &mut TextContext) -> Option<[f32; 2]> {
+        self.update_font_metrics(tcx);
+        self.intrinsic_size()
+    }
+
+    fn paint(&mut self, width: f32, height: f32, tcx: &mut TextContext) -> Scene {
+        self.update_font_metrics(tcx);
+        self.resize(width, height);
+        self.ensure_launched();
+        self.tick_selection_autoscroll();
+        if self.focused
+            && self
+                .next_cursor_blink
+                .is_some_and(|time| Instant::now() >= time)
+        {
+            self.cursor_on = !self.cursor_on;
+            self.next_cursor_blink = Some(Instant::now() + Duration::from_millis(500));
+        }
+
+        let (
+            cursor,
+            selection,
+            display_offset,
+            colors,
+            atlas_placements,
+            kitty_placements,
+            history_size,
+        ) = {
+            let mut terminal = self.terminal.lock();
+            let damage = terminal.peek_damage_event().unwrap_or(TerminalDamage::Noop);
+            terminal.snapshot_visible(
+                &damage,
+                self.size.columns,
+                &mut self.visible_rows,
+                &mut self.visible_styles,
+                &mut self.visible_extras,
+            );
+            // `damage()` advances Rio's remembered cursor position; resetting
+            // only the dirty lines would otherwise leave CursorOnly pending.
+            {
+                let _consumed = terminal.damage();
+            }
+            terminal.reset_damage();
+            (
+                terminal.cursor(),
+                terminal
+                    .selection
+                    .as_ref()
+                    .and_then(|selection| selection.to_range(&*terminal)),
+                terminal.display_offset(),
+                terminal.colors,
+                terminal.graphics.atlas_placements.clone(),
+                terminal
+                    .graphics
+                    .kitty_placements
+                    .values()
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                terminal.lines_evicted() as i64 + terminal.history_size() as i64,
+            )
+        };
+        let default_background = terminal_ansi_color(
+            AnsiColor::Named(NamedColor::Background),
+            false,
+            &colors,
+            self.theme_foreground,
+            self.theme_background,
+        );
+        let mut scene = Scene::new();
+        scene.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            default_background,
+            None,
+            &Rect::new(0.0, 0.0, width as f64, height as f64),
+        );
+
+        let scale = self.device_scale.max(f64::EPSILON);
+        let viewport = rio_vt::ansi::graphics::OverlayViewport {
+            cell_width: (f64::from(self.cell_width) * scale) as f32,
+            cell_height: (f64::from(self.line_height) * scale) as f32,
+            origin_x: 0.0,
+            origin_y: 0.0,
+            history_size,
+            display_offset: display_offset as i64,
+            screen_lines: self.size.rows as i64,
+        };
+        let clip = [
+            0.0,
+            0.0,
+            self.size.columns as f32 * viewport.cell_width,
+            self.size.rows as f32 * viewport.cell_height,
+        ];
+        self.graphics
+            .draw_atlas(&mut scene, &atlas_placements, &viewport, clip, scale);
+        self.graphics.draw_kitty(
+            &mut scene,
+            &kitty_placements,
+            KittyLayer::BehindText,
+            &viewport,
+            clip,
+            scale,
+        );
+
+        for (row_index, row) in self.visible_rows.iter().enumerate() {
+            let y = row_index as f32 * self.line_height;
+            for column in 0..self.size.columns.min(row.inner.len()) {
+                let square = row[Column(column)];
+                let point = Pos::new(
+                    Line(row_index as i32 - display_offset as i32),
+                    Column(column),
+                );
+                let selected = selection.is_some_and(|selection: SelectionRange| {
+                    selection_contains_square(selection, point, square)
+                });
+                let (character, style) = match square.content_tag() {
+                    ContentTag::Codepoint => (
+                        square.c(),
+                        self.visible_styles
+                            .get(square.style_id() as usize)
+                            .copied()
+                            .unwrap_or_default(),
+                    ),
+                    ContentTag::BgPalette => {
+                        let bg = terminal_indexed_color(square.bg_palette_index(), &colors);
+                        fill_cell(
+                            &mut scene,
+                            column,
+                            row_index,
+                            self.cell_width,
+                            self.line_height,
+                            scale,
+                            bg,
+                        );
+                        if selected {
+                            fill_cell(
+                                &mut scene,
+                                column,
+                                row_index,
+                                self.cell_width,
+                                self.line_height,
+                                scale,
+                                self.selection_background,
+                            );
+                        }
+                        continue;
+                    }
+                    ContentTag::BgRgb => {
+                        let (r, g, b) = square.bg_rgb();
+                        fill_cell(
+                            &mut scene,
+                            column,
+                            row_index,
+                            self.cell_width,
+                            self.line_height,
+                            scale,
+                            Color::from_rgb8(r, g, b),
+                        );
+                        if selected {
+                            fill_cell(
+                                &mut scene,
+                                column,
+                                row_index,
+                                self.cell_width,
+                                self.line_height,
+                                scale,
+                                self.selection_background,
+                            );
+                        }
+                        continue;
+                    }
+                };
+                let mut fg = terminal_ansi_color(
+                    style.fg,
+                    true,
+                    &colors,
+                    self.theme_foreground,
+                    self.theme_background,
+                );
+                let mut bg = terminal_ansi_color(
+                    style.bg,
+                    false,
+                    &colors,
+                    self.theme_foreground,
+                    self.theme_background,
+                );
+                if style.flags.contains(StyleFlags::INVERSE) {
+                    std::mem::swap(&mut fg, &mut bg);
+                }
+                if bg != default_background {
+                    fill_cell(
+                        &mut scene,
+                        column,
+                        row_index,
+                        self.cell_width,
+                        self.line_height,
+                        scale,
+                        bg,
+                    );
+                }
+                if selected {
+                    fill_cell(
+                        &mut scene,
+                        column,
+                        row_index,
+                        self.cell_width,
+                        self.line_height,
+                        scale,
+                        self.selection_background,
+                    );
+                }
+                if style.flags.contains(StyleFlags::HIDDEN) {
+                    continue;
+                }
+                if style.flags.contains(StyleFlags::DIM) {
+                    fg = dim(fg);
+                }
+                if selected && let Some(selection_foreground) = self.selection_foreground {
+                    fg = selection_foreground;
+                }
+                draw_cell_decorations(
+                    &mut scene,
+                    column,
+                    y,
+                    self.cell_width,
+                    self.line_height,
+                    style,
+                    fg,
+                    &colors,
+                    self.theme_foreground,
+                    self.theme_background,
+                    selected.then_some(self.selection_foreground).flatten(),
+                );
+                if matches!(square.wide(), Wide::Spacer | Wide::LeadingSpacer)
+                    || character == '\0'
+                    || (character == ' ' && !square.has_extras())
+                    || character.is_control()
+                {
+                    continue;
+                }
+                let cell_text = cell_text(
+                    square,
+                    square
+                        .extras_id()
+                        .and_then(|extras_id| self.visible_extras.get(&extras_id)),
+                );
+                let font_weight = if style.flags.contains(StyleFlags::BOLD) {
+                    700.0
+                } else {
+                    400.0
+                };
+                let layout = layout_text_styled(
+                    tcx,
+                    Arc::from(cell_text),
+                    self.font_size,
+                    font_weight,
+                    None,
+                    Default::default(),
+                    fg.to_rgba8().to_u8_array(),
+                    Arc::from([]),
+                    Some(&self.font_family),
+                    None,
+                );
+                let glyph_scene = tcx.glyph_scene_scaled(&layout, self.device_scale);
+                let x = column as f64 * self.cell_width as f64;
+                let text_y =
+                    y as f64 + ((self.line_height - layout.height()) * 0.5).max(0.0) as f64;
+                let italic = if style.flags.contains(StyleFlags::ITALIC) {
+                    Affine::skew(-0.18, 0.0)
+                } else {
+                    Affine::IDENTITY
+                };
+                scene.append(
+                    &glyph_scene,
+                    Some(
+                        Affine::translate((x, text_y))
+                            * italic
+                            * Affine::scale(self.device_scale.recip()),
+                    ),
+                );
+            }
+        }
+
+        if display_offset == 0 && cursor.is_visible() && cursor.pos.row >= 0 {
+            let x = cursor.pos.col.0 as f64 * self.cell_width as f64;
+            let y = cursor.pos.row.0 as f64 * self.line_height as f64;
+            if let Some(visual) = cursor_visual(
+                self.focused,
+                self.cursor_on,
+                cursor.content,
+                x,
+                y,
+                self.cell_width as f64,
+                self.line_height as f64,
+            ) {
+                let color = terminal_ansi_color(
+                    AnsiColor::Named(NamedColor::Cursor),
+                    true,
+                    &colors,
+                    self.theme_foreground,
+                    self.theme_background,
+                );
+                match visual {
+                    CursorVisual::Filled(rect) => scene.fill(
+                        Fill::NonZero,
+                        Affine::IDENTITY,
+                        color.with_alpha(0.43),
+                        None,
+                        &rect,
+                    ),
+                    CursorVisual::Hollow(rect) => {
+                        scene.stroke(&Stroke::new(1.0), Affine::IDENTITY, color, None, &rect)
+                    }
+                }
+            }
+        }
+
+        self.graphics.draw_kitty(
+            &mut scene,
+            &kitty_placements,
+            KittyLayer::AboveText,
+            &viewport,
+            clip,
+            scale,
+        );
+
+        if let Some(error) = &self.spawn_error {
+            let layout = layout_text_styled(
+                tcx,
+                Arc::from(format!("terminal: {error}")),
+                13.0,
+                400.0,
+                None,
+                Default::default(),
+                [248, 113, 113, 255],
+                Arc::from([]),
+                Some(&self.font_family),
+                Some(width),
+            );
+            scene.append(
+                &tcx.glyph_scene_scaled(&layout, self.device_scale),
+                Some(Affine::translate((4.0, 4.0)) * Affine::scale(self.device_scale.recip())),
+            );
+        }
+        scene
+    }
+
+    fn paint_scaled(
+        &mut self,
+        width: f32,
+        height: f32,
+        device_scale: f64,
+        tcx: &mut TextContext,
+    ) -> Scene {
+        self.device_scale = device_scale.max(f64::EPSILON);
+        self.paint(width, height, tcx)
+    }
+
+    fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {
+        if matches!(
+            event,
+            UiEvent::Pointer(pointer)
+                if pointer.phase == PointerPhase::Down
+                    && pointer.button != Some(PointerButton::Primary)
+        ) {
+            self.last_click = None;
+        }
+        match event {
+            UiEvent::Pointer(pointer)
+                if pointer.phase == PointerPhase::Down
+                    && pointer.button == Some(PointerButton::Primary)
+                    && terminal_primary_shortcut(pointer.modifiers)
+                    && let Some(url) =
+                        self.hyperlink_at(pointer.position.x, pointer.position.y) =>
+            {
+                self.last_click = None;
+                self.pending_hyperlink = Some(PendingHyperlink {
+                    url,
+                    origin: (pointer.position.x, pointer.position.y),
+                    cancelled: false,
+                });
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer)
+                if pointer.phase == PointerPhase::Move && self.pending_hyperlink.is_some() =>
+            {
+                let pending = self.pending_hyperlink.as_mut().unwrap();
+                let distance = (pointer.position.x - pending.origin.0)
+                    .hypot(pointer.position.y - pending.origin.1);
+                pending.cancelled |= distance > SELECTION_DRAG_THRESHOLD;
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer)
+                if pointer.phase == PointerPhase::Up && self.pending_hyperlink.is_some() =>
+            {
+                let pending = self.pending_hyperlink.take().unwrap();
+                if !pending.cancelled
+                    && self
+                        .hyperlink_at(pointer.position.x, pointer.position.y)
+                        .as_deref()
+                        == Some(pending.url.as_str())
+                {
+                    self.pending_host_actions
+                        .push_back(HostAction::OpenUrl(pending.url));
+                }
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer)
+                if pointer.phase == PointerPhase::Cancel && self.pending_hyperlink.is_some() =>
+            {
+                self.pending_hyperlink = None;
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer) if !self.selecting && self.report_pointer(pointer) => {
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer)
+                if pointer.phase == PointerPhase::Down
+                    && pointer.button == Some(PointerButton::Primary) =>
+            {
+                self.begin_or_extend_selection(
+                    pointer.position.x,
+                    pointer.position.y,
+                    pointer.modifiers,
+                );
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Move && self.selecting => {
+                self.update_selection(pointer.position.x, pointer.position.y);
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Up && self.selecting => {
+                self.update_selection(pointer.position.x, pointer.position.y);
+                self.finish_selection_gesture();
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Pointer(pointer)
+                if pointer.phase == PointerPhase::Cancel && self.selecting =>
+            {
+                self.last_click = None;
+                self.finish_selection_gesture();
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::TextInput(text) => {
+                if self.exit_reported {
+                    return WidgetEventResult::HANDLED;
+                }
+                self.begin_terminal_input();
+                self.send_bytes(text.as_bytes().to_vec());
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Paste(text) => {
+                if self.exit_reported {
+                    return WidgetEventResult::HANDLED;
+                }
+                let bracketed = self.terminal.lock().mode().contains(Mode::BRACKETED_PASTE);
+                self.begin_terminal_input();
+                self.send_bytes(encode_paste(text, bracketed));
+                WidgetEventResult::HANDLED
+            }
+            UiEvent::Key(key) => {
+                // Multi-click gestures must consist exclusively of pointer
+                // clicks. Local terminal shortcuts (copy, paste, scrollback)
+                // do not reach `begin_terminal_input`, but still separate two
+                // clicks just like input forwarded to the PTY does.
+                if key.phase == KeyPhase::Down {
+                    self.last_click = None;
+                }
+                if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("a") {
+                    if key.phase == KeyPhase::Down {
+                        self.select_all();
+                    }
+                    return WidgetEventResult::HANDLED;
+                }
+                if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("c") {
+                    return if key.phase == KeyPhase::Down {
+                        self.selected_text()
+                            .map_or(WidgetEventResult::HANDLED, WidgetEventResult::copy)
+                    } else {
+                        WidgetEventResult::HANDLED
+                    };
+                }
+                if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("v") {
+                    return if self.exit_reported {
+                        WidgetEventResult::HANDLED
+                    } else if key.phase == KeyPhase::Down {
+                        WidgetEventResult::paste()
+                    } else {
+                        WidgetEventResult::HANDLED
+                    };
+                }
+                let mode = self.terminal.lock().mode();
+                if key.phase == KeyPhase::Down
+                    && key.modifiers == Modifiers::SHIFT
+                    && !mode.contains(Mode::ALT_SCREEN)
+                {
+                    let scroll = match key.key.as_str() {
+                        "Home" => Some(Scroll::Top),
+                        "End" => Some(Scroll::Bottom),
+                        "PageUp" => Some(Scroll::PageUp),
+                        "PageDown" => Some(Scroll::PageDown),
+                        _ => None,
+                    };
+                    if let Some(scroll) = scroll {
+                        self.terminal.lock().scroll_display(scroll);
+                        return WidgetEventResult::HANDLED;
+                    }
+                }
+                if self.exit_reported {
+                    return WidgetEventResult::HANDLED;
+                }
+                let bytes = self.key_bytes(key);
+                if bytes.is_empty() {
+                    WidgetEventResult::IGNORED
+                } else {
+                    self.begin_terminal_input();
+                    self.send_bytes(bytes);
+                    if key.phase == KeyPhase::Down {
+                        WidgetEventResult::handled_consuming_key_text()
+                    } else {
+                        WidgetEventResult::HANDLED
+                    }
+                }
+            }
+            UiEvent::Wheel(wheel) => {
+                self.last_click = None;
+                let context = self.wheel_context(wheel);
+                let lines = self.wheel_lines.push(context, wheel.delta_y);
+                if self.selecting {
+                    self.scroll_active_selection(wheel, lines);
+                    return WidgetEventResult::HANDLED;
+                }
+                if self.report_wheel(wheel, lines) {
+                    return WidgetEventResult::HANDLED;
+                }
+                if self.report_alternate_scroll(lines) {
+                    return WidgetEventResult::HANDLED;
+                }
+                if lines == 0 {
+                    // Keep fractional trackpad input owned by the terminal
+                    // until it accumulates into a whole grid line.
+                    return WidgetEventResult::HANDLED;
+                }
+                self.terminal.lock().scroll_display(Scroll::Delta(lines));
+                WidgetEventResult::HANDLED
+            }
+            _ => WidgetEventResult::IGNORED,
+        }
+    }
+
+    fn attribute_changed(&mut self, name: &str, value: &str) {
+        match name {
+            "command" if !self.launch_started || self.spawn_error.is_some() => {
+                self.launch_started = false;
+                self.spawn_error = None;
+                let launch = self.launch.get_or_insert_with(LaunchConfig::default_shell);
+                launch.login_shell = value.is_empty();
+                launch.command = if value.is_empty() {
+                    default_shell_command()
+                } else {
+                    value.to_owned()
+                };
+            }
+            "args" if !self.launch_started || self.spawn_error.is_some() => {
+                match serde_json::from_str::<Vec<String>>(value) {
+                    Ok(args) => {
+                        self.launch_started = false;
+                        self.launch
+                            .get_or_insert_with(LaunchConfig::default_shell)
+                            .args = args;
+                        self.launch_error = None;
+                        self.spawn_error = None;
+                    }
+                    Err(error) => {
+                        let message = format!("invalid terminal args JSON: {error}");
+                        self.launch_error = Some(message.clone());
+                        self.spawn_error = Some(message);
+                    }
+                }
+            }
+            "cwd" if !self.launch_started || self.spawn_error.is_some() => {
+                self.launch_started = false;
+                self.spawn_error = None;
+                self.launch
+                    .get_or_insert_with(LaunchConfig::default_shell)
+                    .cwd = (!value.is_empty()).then(|| value.to_owned());
+            }
+            "command" | "args" | "cwd" => {
+                tracing::warn!(
+                    attribute = name,
+                    "ignored terminal launch option after PTY start"
+                );
+            }
+            "font-size" => {
+                if let Ok(size) = value.trim_end_matches("px").parse::<f32>() {
+                    self.font_size = size.max(6.0);
+                    self.metrics_dirty = true;
+                }
+            }
+            "line-height" => {
+                if let Ok(height) = value.trim_end_matches("px").parse::<f32>() {
+                    self.explicit_line_height = Some(height.max(0.0));
+                    self.metrics_dirty = true;
+                }
+            }
+            "font-family" => {
+                self.font_family = Arc::from(value);
+                self.metrics_dirty = true;
+            }
+            "allow-clipboard-read" => {
+                self.allow_clipboard_read = matches!(value, "" | "true" | "1");
+            }
+            "sync-window-title" => {
+                let enabled = matches!(value, "" | "true" | "1");
+                if self.sync_window_title && !enabled {
+                    self.pending_host_actions
+                        .push_back(HostAction::SetWindowTitle(None));
+                }
+                self.sync_window_title = enabled;
+            }
+            "selection-background" => {
+                if let Some(color) = wabou_shell::style::parse_color(value) {
+                    self.selection_background = color;
+                }
+            }
+            "selection-foreground" => {
+                if let Some(color) = wabou_shell::style::parse_color(value) {
+                    self.selection_foreground = Some(color);
+                }
+            }
+            "inherit-theme" => {
+                self.inherit_theme = matches!(value, "" | "true" | "1");
+                if !self.inherit_theme {
+                    self.theme_foreground = named_color(NamedColor::Foreground, true);
+                    self.theme_background = named_color(NamedColor::Background, false);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn accepts_focus(&self) -> bool {
+        true
+    }
+
+    fn style_changed(&mut self, style: &WidgetStyle) {
+        if !self.inherit_theme {
+            return;
+        }
+        self.theme_foreground = style.color;
+        self.theme_background = style
+            .background
+            .unwrap_or_else(|| named_color(NamedColor::Background, false));
+    }
+
+    fn intrinsic_size(&self) -> Option<[f32; 2]> {
+        Some([
+            DEFAULT_COLUMNS as f32 * self.cell_width,
+            DEFAULT_ROWS as f32 * self.line_height,
+        ])
+    }
+
+    fn focus_changed(&mut self, focused: bool) {
+        if !focused {
+            self.pending_hyperlink = None;
+            self.last_click = None;
+        }
+        if !focused && self.selecting {
+            self.finish_selection_gesture();
+        }
+        self.focused = focused;
+        self.cursor_on = true;
+        let terminal = self.terminal.lock();
+        self.next_cursor_blink = (focused && !self.exit_reported && terminal.blinking_cursor)
+            .then(|| Instant::now() + Duration::from_millis(500));
+        let report_focus = terminal.mode().contains(Mode::FOCUS_IN_OUT);
+        drop(terminal);
+        if report_focus && !self.exit_reported {
+            self.send_bytes(if focused {
+                b"\x1b[I".to_vec()
+            } else {
+                b"\x1b[O".to_vec()
+            });
+        }
+    }
+
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.window_to_local = [1.0, 0.0, 0.0, 1.0, -f64::from(x), -f64::from(y)];
+    }
+
+    fn set_window_to_local(&mut self, transform: [f64; 6]) {
+        self.window_to_local = transform;
+    }
+
+    fn animation_deadline(&self) -> Option<Instant> {
+        [self.next_cursor_blink, self.next_selection_scroll]
+            .into_iter()
+            .flatten()
+            .min()
+    }
+
+    fn set_wake_callback(&mut self, wake: WakeCallback) {
+        self.listener.set_wake(wake);
+    }
+
+    fn poll_async(&mut self) -> bool {
+        self.handle_rio_events()
+    }
+
+    fn take_host_action(&mut self) -> Option<HostAction> {
+        self.pending_host_actions.pop_front()
+    }
+
+    fn take_node_event(&mut self) -> Option<WidgetNodeEvent> {
+        self.pending_node_events.pop_front()
+    }
+
+    fn complete_host_action(&mut self, result: HostActionResult) {
+        match result {
+            HostActionResult::Clipboard { request_id, text } => {
+                if let Some(formatter) = self.pending_clipboard_loads.remove(&request_id) {
+                    self.send_bytes(formatter(text.as_deref().unwrap_or("")).into_bytes());
+                }
+            }
+            HostActionResult::ClipboardWrite { .. } => {}
+        }
+    }
+
+    fn attribute_removed(&mut self, name: &str) {
+        match name {
+            "command" if !self.launch_started || self.spawn_error.is_some() => {
+                self.attribute_changed("command", "");
+            }
+            "args" if !self.launch_started || self.spawn_error.is_some() => {
+                self.attribute_changed("args", "[]");
+            }
+            "cwd" if !self.launch_started || self.spawn_error.is_some() => {
+                self.attribute_changed("cwd", "");
+            }
+            "command" | "args" | "cwd" => {
+                tracing::warn!(
+                    attribute = name,
+                    "ignored terminal launch option removal after PTY start"
+                );
+            }
+            "allow-clipboard-read" => self.allow_clipboard_read = false,
+            "sync-window-title" => {
+                if self.sync_window_title {
+                    self.pending_host_actions
+                        .push_back(HostAction::SetWindowTitle(None));
+                }
+                self.sync_window_title = false;
+            }
+            "selection-background" => {
+                self.selection_background = DEFAULT_SELECTION_BACKGROUND;
+            }
+            "selection-foreground" => self.selection_foreground = None,
+            "inherit-theme" => {
+                self.inherit_theme = false;
+                self.theme_foreground = named_color(NamedColor::Foreground, true);
+                self.theme_background = named_color(NamedColor::Background, false);
+            }
+            "font-size" => {
+                self.font_size = DEFAULT_FONT_SIZE;
+                self.metrics_dirty = true;
+            }
+            "line-height" => {
+                self.explicit_line_height = None;
+                self.metrics_dirty = true;
+            }
+            "font-family" => {
+                self.font_family = Arc::from("monospace");
+                self.metrics_dirty = true;
+            }
+            _ => {}
+        }
+    }
+
+    fn unmount(&mut self) {
+        self.shutdown_pty();
+        if self.sync_window_title {
+            self.sync_window_title = false;
+            self.pending_host_actions
+                .push_back(HostAction::SetWindowTitle(None));
+        }
+    }
+}
