@@ -17,8 +17,8 @@ use wabou_quick::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
 use wabou_shell::renderer::render_to_png;
 use wabou_shell::scene as scene_builder;
 use wabou_shell::{
-    FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, TextContext, UiEvent,
-    WheelEvent,
+    FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
+    PointerPhase, TextContext, UiEvent, WheelEvent,
 };
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -102,6 +102,9 @@ enum Commands {
             action = clap::ArgAction::Append
         )]
         wheel: Vec<f64>,
+        /// Dispatch a named key press after clicks, wheels, and committed text.
+        #[arg(long, value_name = "KEY", action = clap::ArgAction::Append)]
+        key: Vec<String>,
         /// Commit text to the element focused by the final --click before capture.
         #[arg(long, requires = "click")]
         text: Option<String>,
@@ -216,6 +219,7 @@ fn main() -> Result<()> {
             wait_ms,
             click,
             wheel,
+            key,
             text,
         } => {
             let workspace = find_workspace(&cwd)?;
@@ -232,6 +236,7 @@ fn main() -> Result<()> {
                 &click,
                 &wheel,
                 text.as_deref(),
+                &key,
             )
         }
         Commands::Devtools => run_devtools(&find_workspace(&cwd).unwrap_or(cwd)),
@@ -378,6 +383,7 @@ fn render(
     clicks: &[f64],
     wheels: &[f64],
     text: Option<&str>,
+    keys: &[String],
 ) -> Result<()> {
     if !scale_factor.is_finite() || scale_factor <= 0.0 {
         return Err("--scale-factor must be a finite number greater than zero".into());
@@ -478,6 +484,24 @@ fn render(
     }
     if let Some(text) = text {
         applier.handle_event(UiEvent::TextInput(text.to_owned()));
+        for _ in 0..4 {
+            nodes = applier.build_frame(&mut text_context, width, height);
+        }
+    }
+    for key in keys {
+        for phase in [KeyPhase::Down, KeyPhase::Up] {
+            applier.handle_event(UiEvent::Key(KeyEvent {
+                phase,
+                key: key.clone(),
+                key_without_modifiers: key.clone(),
+                code: key.clone(),
+                text: None,
+                text_with_all_modifiers: None,
+                location: KeyLocation::Standard,
+                modifiers: Modifiers::default(),
+                repeat: false,
+            }));
+        }
         for _ in 0..4 {
             nodes = applier.build_frame(&mut text_context, width, height);
         }
@@ -865,6 +889,7 @@ mod tests {
                     mode,
                     click,
                     wheel,
+                    key,
                     ..
                 },
         } = Cli::try_parse_from(["wabou", "render", "--out", "capture.png"]).unwrap()
@@ -876,6 +901,7 @@ mod tests {
         assert_eq!(mode, None);
         assert!(click.is_empty());
         assert!(wheel.is_empty());
+        assert!(key.is_empty());
 
         let Cli {
             command:
@@ -885,6 +911,7 @@ mod tests {
                     mode,
                     click,
                     wheel,
+                    key,
                     ..
                 },
         } = Cli::try_parse_from([
@@ -909,6 +936,10 @@ mod tests {
             "200",
             "0",
             "360",
+            "--key",
+            "Enter",
+            "--key",
+            "Escape",
         ])
         .unwrap()
         else {
@@ -919,6 +950,7 @@ mod tests {
         assert_eq!(mode.as_deref(), Some("ui-test"));
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
         assert_eq!(wheel, [100.0, 200.0, 0.0, 360.0]);
+        assert_eq!(key, ["Enter", "Escape"]);
     }
 
     #[test]
