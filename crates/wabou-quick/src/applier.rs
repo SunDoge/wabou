@@ -57,6 +57,19 @@ use crate::{Atom, AtomPool};
 const SCROLLBAR_FADE_DELAY: Duration = Duration::from_millis(500);
 const SCROLLBAR_FADE_DURATION: Duration = Duration::from_millis(200);
 
+fn key_event_payload(key: &wabou_shell::KeyEvent) -> String {
+    serde_json::json!({
+        "key": key.key,
+        "keyWithoutModifiers": key.key_without_modifiers,
+        "code": key.code,
+        "location": key.location.dom_code(),
+        "mods": key.modifiers.bits(),
+        "primary": key.modifiers.primary_shortcut(),
+        "repeat": key.repeat,
+    })
+    .to_string()
+}
+
 #[derive(Clone)]
 enum InlineValue {
     Text(Arc<str>),
@@ -4303,15 +4316,7 @@ impl FrameSource for Applier {
             && key.phase == KeyPhase::Down
             && let Some(target) = self.focused_target
         {
-            let payload = serde_json::json!({
-                "key": key.key,
-                "keyWithoutModifiers": key.key_without_modifiers,
-                "code": key.code,
-                "location": key.location.dom_code(),
-                "mods": key.modifiers.bits(),
-                "repeat": key.repeat,
-            })
-            .to_string();
+            let payload = key_event_payload(key);
             let (dispatched, prevented) =
                 self.dispatch_cancellable_json(target, event::KEYDOWN, payload);
             if prevented {
@@ -4340,9 +4345,7 @@ impl FrameSource for Applier {
         };
         if widget_response.is_none()
             && let UiEvent::Key(key) = &input
-            && key.phase == KeyPhase::Down
-            && key.modifiers.primary_shortcut()
-            && key.key.eq_ignore_ascii_case("c")
+            && key.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy)
             && let Some(text) = self.selected_text()
         {
             return EventResponse {
@@ -4355,9 +4358,7 @@ impl FrameSource for Applier {
         }
         if widget_response.is_none()
             && let UiEvent::Key(key) = &input
-            && key.phase == KeyPhase::Down
-            && key.modifiers.primary_shortcut()
-            && key.key.eq_ignore_ascii_case("a")
+            && key.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll)
             && self.select_all_text()
         {
             self.sync_text_selection_change();
@@ -4619,15 +4620,7 @@ impl FrameSource for Applier {
             UiEvent::Key(key) if key.phase == KeyPhase::Down => keydown_dispatched,
             UiEvent::Key(key) if key.phase == KeyPhase::Up => {
                 self.focused_target.is_some_and(|target| {
-                    let payload = serde_json::json!({
-                        "key": key.key,
-                        "keyWithoutModifiers": key.key_without_modifiers,
-                        "code": key.code,
-                        "location": key.location.dom_code(),
-                        "mods": key.modifiers.bits(),
-                        "repeat": key.repeat,
-                    })
-                    .to_string();
+                    let payload = key_event_payload(&key);
                     self.dispatch_json(target, event::KEYUP, &payload)
                 })
             }
@@ -4689,6 +4682,41 @@ mod layout_fixtures;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn key_payload_keeps_physical_modifiers_separate_from_primary() {
+        let platform_primary = if cfg!(target_os = "macos") {
+            Modifiers::META
+        } else {
+            Modifiers::CONTROL
+        };
+        let event = wabou_shell::KeyEvent {
+            phase: KeyPhase::Down,
+            key: "t".into(),
+            key_without_modifiers: "t".into(),
+            code: "KeyT".into(),
+            text: None,
+            text_with_all_modifiers: None,
+            location: Default::default(),
+            modifiers: platform_primary,
+            repeat: false,
+        };
+        let payload: serde_json::Value = serde_json::from_str(&key_event_payload(&event)).unwrap();
+
+        assert_eq!(payload["mods"], platform_primary.bits());
+        assert_eq!(payload["primary"], true);
+
+        let mut physical_control = event;
+        physical_control.modifiers = if cfg!(target_os = "macos") {
+            Modifiers::CONTROL
+        } else {
+            Modifiers::META
+        };
+        let payload: serde_json::Value =
+            serde_json::from_str(&key_event_payload(&physical_control)).unwrap();
+        assert_eq!(payload["mods"], physical_control.modifiers.bits());
+        assert_eq!(payload["primary"], false);
+    }
 
     struct HostActionWidget(Option<wabou_shell::HostAction>);
 
@@ -4917,7 +4945,11 @@ mod tests {
             text: Some("t".into()),
             text_with_all_modifiers: None,
             location: Default::default(),
-            modifiers: Modifiers::CONTROL,
+            modifiers: if cfg!(target_os = "macos") {
+                Modifiers::META
+            } else {
+                Modifiers::CONTROL
+            },
             repeat: false,
         }));
 
@@ -6024,7 +6056,11 @@ mod tests {
             text: None,
             text_with_all_modifiers: None,
             location: Default::default(),
-            modifiers: Modifiers::CONTROL,
+            modifiers: if cfg!(target_os = "macos") {
+                Modifiers::META
+            } else {
+                Modifiers::CONTROL
+            },
             repeat: false,
         }));
         assert_eq!(
@@ -6225,7 +6261,11 @@ mod tests {
             text: None,
             text_with_all_modifiers: None,
             location: Default::default(),
-            modifiers: Modifiers::CONTROL,
+            modifiers: if cfg!(target_os = "macos") {
+                Modifiers::META
+            } else {
+                Modifiers::CONTROL
+            },
             repeat: false,
         }));
         assert!(select_all.handled);
@@ -6239,7 +6279,11 @@ mod tests {
             text: None,
             text_with_all_modifiers: None,
             location: Default::default(),
-            modifiers: Modifiers::CONTROL,
+            modifiers: if cfg!(target_os = "macos") {
+                Modifiers::META
+            } else {
+                Modifiers::CONTROL
+            },
             repeat: false,
         }));
         assert_eq!(
