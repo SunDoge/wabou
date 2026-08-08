@@ -20,6 +20,15 @@ export {
 } from "./focus";
 export { createHover, type HoverResult } from "./hover";
 export {
+  Modal,
+  type ModalControls,
+  type ModalEvent,
+  type ModalKeyEvent,
+  type ModalOpenChangeReason,
+  type ModalProps,
+  type ModalTriggerProps,
+} from "./modal";
+export {
   Popover,
   type PopoverProps,
   type PopoverTriggerProps,
