@@ -437,33 +437,24 @@ impl Applier {
             // Wabou has no CSS cascade: utility declarations are applied in
             // class-list order, with later classes overriding earlier ones.
             // Universal rules run first; inline style still runs last below.
-            let mut declarations = Vec::new();
-            if let Some(sheet) = &self.style_ir {
-                for &idx in &self.universal_rules {
-                    let rule = &sheet.rules[idx];
-                    for (index, declaration) in rule.declarations.iter().enumerate() {
-                        declarations.push((
-                            declaration.important,
-                            rule.specificity,
-                            0usize,
-                            rule.source_order,
-                            index,
-                            declaration.property.clone(),
-                            declaration.value.clone(),
-                        ));
-                    }
+            let class_key = decl.classes.clone();
+            let cached = if let Some(cached) = self.class_resolution_cache.get(&class_key) {
+                #[cfg(test)]
+                {
+                    self.class_resolution_cache_hits += 1;
                 }
-                for (class_position, class) in decl.classes.iter().enumerate() {
-                    let Some(indices) = self.rule_index.get(class) else {
-                        continue;
-                    };
-                    for &idx in indices {
+                cached.clone()
+            } else {
+                let mut declarations = Vec::new();
+                let mut diagnostics = Vec::new();
+                if let Some(sheet) = &self.style_ir {
+                    for &idx in &self.universal_rules {
                         let rule = &sheet.rules[idx];
                         for (index, declaration) in rule.declarations.iter().enumerate() {
                             declarations.push((
                                 declaration.important,
                                 rule.specificity,
-                                class_position + 1,
+                                0usize,
                                 rule.source_order,
                                 index,
                                 declaration.property.clone(),
@@ -471,61 +462,94 @@ impl Applier {
                             ));
                         }
                     }
-                }
-            }
-            // Runtime-created class names use the same ordering and IR as
-            // precompiled classes, rather than forming a higher-priority
-            // fallback layer.
-            for (class_position, class) in decl.classes.iter().enumerate() {
-                if self.rule_index.contains_key(class) {
-                    continue;
-                }
-                let utility = self.utility_cache.entry(*class).or_insert_with(|| {
-                    atoms
-                        .resolve(*class)
-                        .ok_or_else(|| "unknown class atom".to_string())
-                        .and_then(|name| {
-                            wabou_style::parse_utility_with_theme(name, &self.style_theme)
-                                .map_err(|error| error.to_string())
-                        })
-                });
-                let utility = match utility {
-                    Ok(utility) => utility,
-                    Err(diagnostic) => {
-                        style_diagnostics.push(format!(
-                            ".{}: {diagnostic}",
-                            atoms.resolve(*class).unwrap_or("<unknown>")
-                        ));
-                        if self.warned_utility_classes.insert(*class) {
-                            tracing::warn!(
-                                class = atoms.resolve(*class).unwrap_or("<unknown>"),
-                                    %diagnostic,
-                                    "rejected runtime utility class"
-                            );
+                    for (class_position, class) in decl.classes.iter().enumerate() {
+                        let Some(indices) = self.rule_index.get(class) else {
+                            continue;
+                        };
+                        for &idx in indices {
+                            let rule = &sheet.rules[idx];
+                            for (index, declaration) in rule.declarations.iter().enumerate() {
+                                declarations.push((
+                                    declaration.important,
+                                    rule.specificity,
+                                    class_position + 1,
+                                    rule.source_order,
+                                    index,
+                                    declaration.property.clone(),
+                                    declaration.value.clone(),
+                                ));
+                            }
                         }
+                    }
+                }
+                // Runtime-created class names use the same ordering and IR as
+                // precompiled classes, rather than forming a higher-priority
+                // fallback layer.
+                for (class_position, class) in decl.classes.iter().enumerate() {
+                    if self.rule_index.contains_key(class) {
                         continue;
                     }
-                };
-                for (index, declaration) in utility.declarations.iter().enumerate() {
-                    declarations.push((
-                        false,
-                        10,
-                        class_position + 1,
-                        0,
-                        index,
-                        declaration.property.clone(),
-                        style_ir::utility_value(&declaration.value),
-                    ));
+                    let utility = self.utility_cache.entry(*class).or_insert_with(|| {
+                        atoms
+                            .resolve(*class)
+                            .ok_or_else(|| "unknown class atom".to_string())
+                            .and_then(|name| {
+                                wabou_style::parse_utility_with_theme(name, &self.style_theme)
+                                    .map_err(|error| error.to_string())
+                            })
+                    });
+                    let utility = match utility {
+                        Ok(utility) => utility,
+                        Err(diagnostic) => {
+                            diagnostics.push(format!(
+                                ".{}: {diagnostic}",
+                                atoms.resolve(*class).unwrap_or("<unknown>")
+                            ));
+                            if self.warned_utility_classes.insert(*class) {
+                                tracing::warn!(
+                                    class = atoms.resolve(*class).unwrap_or("<unknown>"),
+                                        %diagnostic,
+                                        "rejected runtime utility class"
+                                );
+                            }
+                            continue;
+                        }
+                    };
+                    for (index, declaration) in utility.declarations.iter().enumerate() {
+                        declarations.push((
+                            false,
+                            10,
+                            class_position + 1,
+                            0,
+                            index,
+                            declaration.property.clone(),
+                            style_ir::utility_value(&declaration.value),
+                        ));
+                    }
                 }
-            }
-            declarations.sort_by_key(
-                |(important, specificity, class_position, order, index, _, _)| {
-                    (*important, *specificity, *class_position, *order, *index)
-                },
-            );
-            for (_, _, _, _, _, property, value) in declarations {
+                declarations.sort_by_key(
+                    |(important, specificity, class_position, order, index, _, _)| {
+                        (*important, *specificity, *class_position, *order, *index)
+                    },
+                );
+                let cached = Arc::new(CachedClassResolution {
+                    declarations: declarations
+                        .into_iter()
+                        .map(|(_, _, _, _, _, property, value)| (property, value))
+                        .collect(),
+                    diagnostics,
+                });
+                if self.class_resolution_cache.len() >= CLASS_RESOLUTION_CACHE_CAPACITY {
+                    self.class_resolution_cache.clear();
+                }
+                self.class_resolution_cache
+                    .insert(class_key, cached.clone());
+                cached
+            };
+            style_diagnostics.extend(cached.diagnostics.iter().cloned());
+            for (property, value) in &cached.declarations {
                 display_explicit |= property == "display";
-                if !style::apply_ir(&mut layout, &mut paint, &property, &value) {
+                if !style::apply_ir(&mut layout, &mut paint, property, value) {
                     style_diagnostics.push(format!(
                         "{property}: unsupported Style IR property or value"
                     ));

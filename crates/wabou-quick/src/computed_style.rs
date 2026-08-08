@@ -150,6 +150,54 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
 }
 
 #[test]
+fn identical_ordered_class_lists_reuse_resolved_declarations() {
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, classes) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("div"),
+            vec![atoms.intern("flex"), atoms.intern("p-4")],
+        )
+    };
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement {
+                id: 2,
+                tag: div,
+                attrs: vec![],
+            },
+            Op::SetClassName {
+                id: 2,
+                classes: classes.clone(),
+            },
+            Op::AppendChild {
+                parent: 1,
+                child: 2,
+            },
+            Op::CreateElement {
+                id: 3,
+                tag: div,
+                attrs: vec![],
+            },
+            Op::SetClassName { id: 3, classes },
+            Op::AppendChild {
+                parent: 1,
+                child: 3,
+            },
+            Op::FrameEnd,
+        ],
+    });
+
+    assert_eq!(applier.class_resolution_cache.len(), 1);
+    assert!(applier.class_resolution_cache_hits >= 1);
+    let left = applier.computed_node_snapshot(2).unwrap();
+    let right = applier.computed_node_snapshot(3).unwrap();
+    assert_eq!(left.layout.display, right.layout.display);
+    assert_eq!(left.layout.padding, right.layout.padding);
+}
+
+#[test]
 fn runtime_utility_fallback_uses_the_stylesheet_theme() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, brand) = {

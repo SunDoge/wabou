@@ -81,6 +81,13 @@ const SCROLLBAR_FADE_DURATION: Duration = Duration::from_millis(200);
 // separating them from widget-local host action IDs.
 const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
 const HOST_ACTION_SEQUENCE_MASK: u64 = JS_HOST_ACTION_NAMESPACE - 1;
+const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
+
+#[derive(Clone)]
+struct CachedClassResolution {
+    declarations: Vec<(String, wabou_shell::style::IrValue)>,
+    diagnostics: Vec<String>,
+}
 
 fn key_event_payload(key: &wabou_shell::KeyEvent) -> String {
     serde_json::json!({
@@ -351,6 +358,10 @@ pub struct Applier {
     /// Runtime utility fallback cache. Each interned class is parsed at most
     /// once; build-time stylesheet rules bypass this map entirely.
     utility_cache: HashMap<Atom, Result<wabou_style::ParsedUtility, String>>,
+    /// Ordered class atoms → flattened, priority-sorted declarations.
+    class_resolution_cache: HashMap<Vec<Atom>, Arc<CachedClassResolution>>,
+    #[cfg(test)]
+    class_resolution_cache_hits: usize,
     warned_utility_classes: HashSet<Atom>,
     warned_ir_properties: HashSet<Atom>,
     /// Rejections from the latest cascade pass, keyed by native node for
@@ -642,6 +653,9 @@ impl Applier {
             rule_index: HashMap::new(),
             universal_rules: Vec::new(),
             utility_cache: HashMap::new(),
+            class_resolution_cache: HashMap::new(),
+            #[cfg(test)]
+            class_resolution_cache_hits: 0,
             warned_utility_classes: HashSet::new(),
             warned_ir_properties: HashSet::new(),
             style_diagnostics: HashMap::new(),

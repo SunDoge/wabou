@@ -58,6 +58,7 @@ impl FrameSource for Applier {
                     self.rule_index = rule_index;
                     self.universal_rules = universal_rules;
                     self.utility_cache.clear();
+                    self.class_resolution_cache.clear();
                     self.warned_utility_classes.clear();
                     self.warned_ir_properties.clear();
                 }
