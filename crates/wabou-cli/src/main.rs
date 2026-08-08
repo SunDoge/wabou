@@ -321,10 +321,11 @@ fn build(workspace: &Path, app: &App, release: bool) -> Result<()> {
 fn run(workspace: &Path, app: &App, release: bool) -> Result<()> {
     ensure(frontend(app, "build", &[])?, "Vite build")?;
     let manifest = manifest(app);
+    let binary = app_binary(workspace, app)?;
     let mut cargo = Command::new("cargo");
     cargo
         .current_dir(workspace)
-        .args(["run", "--manifest-path", &manifest]);
+        .args(["run", "--manifest-path", &manifest, "--bin", &binary]);
     if release {
         cargo.arg("--release");
     }
@@ -504,12 +505,15 @@ fn dev(
     wait_for_vite(&url, &mut vite)?;
 
     let app_manifest = manifest(&app);
+    let binary = app_binary(workspace, &app)?;
     let mut host = Command::new("cargo")
         .current_dir(workspace)
         .args([
             "run",
             "--manifest-path",
             &app_manifest,
+            "--bin",
+            &binary,
             "--features",
             "wabou-quick/vite",
         ])
@@ -663,20 +667,7 @@ fn write_capture_case(output: &Path, mut capture: DebugCaptureCase) -> Result<()
 }
 
 fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> {
-    let manifest = manifest(app);
-    let output = Command::new("cargo")
-        .current_dir(workspace)
-        .args([
-            "metadata",
-            "--format-version",
-            "1",
-            "--no-deps",
-            "--manifest-path",
-            &manifest,
-        ])
-        .output()?;
-    ensure(output.status, "Cargo metadata")?;
-    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
     let (source, binary) = artifact_from_metadata(&metadata, &manifest_path, release)?;
     let destination_dir = workspace.join("dist").join(&app.name);
@@ -693,32 +684,69 @@ fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> 
     Ok(())
 }
 
+fn app_binary(workspace: &Path, app: &App) -> Result<String> {
+    let metadata = cargo_metadata(workspace, app)?;
+    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    binary_target(&metadata, &manifest_path)
+        .and_then(|target| target["name"].as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| "application binary target has no name".into())
+}
+
+fn cargo_metadata(workspace: &Path, app: &App) -> Result<Value> {
+    let manifest = manifest(app);
+    let output = Command::new("cargo")
+        .current_dir(workspace)
+        .args([
+            "metadata",
+            "--format-version",
+            "1",
+            "--no-deps",
+            "--manifest-path",
+            &manifest,
+        ])
+        .output()?;
+    ensure(output.status, "Cargo metadata")?;
+    Ok(serde_json::from_slice(&output.stdout)?)
+}
+
+fn binary_target<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Value> {
+    let package = metadata["packages"].as_array()?.iter().find(|package| {
+        package["manifest_path"]
+            .as_str()
+            .is_some_and(|path| Path::new(path) == manifest_path)
+    })?;
+    let binaries = package["targets"]
+        .as_array()?
+        .iter()
+        .filter(|target| {
+            target["kind"]
+                .as_array()
+                .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"))
+        })
+        .collect::<Vec<_>>();
+    let package_name = package["name"].as_str();
+    let named = binaries
+        .iter()
+        .copied()
+        .find(|target| target["name"].as_str() == package_name);
+    named.or_else(|| {
+        if binaries.len() == 1 {
+            Some(binaries[0])
+        } else {
+            None
+        }
+    })
+}
+
 fn artifact_from_metadata(
     metadata: &serde_json::Value,
     manifest_path: &Path,
     release: bool,
 ) -> Result<(PathBuf, String)> {
-    let package = metadata["packages"]
-        .as_array()
-        .and_then(|packages| {
-            packages.iter().find(|package| {
-                package["manifest_path"]
-                    .as_str()
-                    .is_some_and(|path| Path::new(path) == manifest_path)
-            })
-        })
-        .ok_or("Cargo metadata did not contain the app package")?;
-    let binary = package["targets"]
-        .as_array()
-        .and_then(|targets| {
-            targets.iter().find(|target| {
-                target["kind"]
-                    .as_array()
-                    .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"))
-            })
-        })
+    let binary = binary_target(metadata, manifest_path)
         .and_then(|target| target["name"].as_str())
-        .ok_or("app package has no binary target")?;
+        .ok_or("app package has no unambiguous primary binary target")?;
     let target_dir = metadata["target_directory"]
         .as_str()
         .ok_or("Cargo metadata has no target directory")?;
@@ -932,6 +960,38 @@ mod tests {
         )
         .unwrap();
         assert!(release.starts_with("/workspace/target/release"));
+    }
+
+    #[test]
+    fn selects_the_package_named_binary_when_helpers_exist() {
+        let metadata = serde_json::json!({
+            "packages": [{
+                "name": "warden-desktop",
+                "manifest_path": "/workspace/apps/warden-desktop/Cargo.toml",
+                "targets": [
+                    {"name": "warden-live-crud", "kind": ["bin"]},
+                    {"name": "warden-desktop", "kind": ["bin"]}
+                ]
+            }]
+        });
+        let target = binary_target(
+            &metadata,
+            Path::new("/workspace/apps/warden-desktop/Cargo.toml"),
+        )
+        .unwrap();
+        assert_eq!(target["name"], "warden-desktop");
+    }
+
+    #[test]
+    fn resolves_the_real_multi_binary_application() {
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let app = load_app(
+            &workspace,
+            &workspace,
+            Some(Path::new("apps/warden-desktop")),
+        )
+        .unwrap();
+        assert_eq!(app_binary(&workspace, &app).unwrap(), "warden-desktop");
     }
 
     #[test]
