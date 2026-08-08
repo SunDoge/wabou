@@ -7,7 +7,7 @@ import {
   translate2d,
   type WabouStyle,
 } from "@wabou/primitives";
-import { useFps } from "@wabou/solid-renderer";
+import { createFps } from "@wabou/solid-renderer";
 import {
   createContext,
   createEffect,
@@ -208,7 +208,7 @@ export interface FpsProps {
 /** Live host frame-rate indicator with sensible performance thresholds. */
 export function Fps(props: FpsProps): JSX.Element {
   const measured =
-    props.value === undefined ? useFps() : () => props.value ?? 0;
+    props.value === undefined ? createFps() : () => props.value ?? 0;
   const value = () => Math.max(0, Math.round(measured()));
   const variant = (): BadgeProps["variant"] => {
     if (value() === 0) return "outline";

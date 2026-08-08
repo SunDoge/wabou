@@ -58,5 +58,6 @@ export const clipboard: Clipboard = Object.freeze({
 
 /** Stable clipboard capability for use inside Solid components. */
 export function useClipboard(): Clipboard {
-  return clipboard;
+  return usePlatformServices().clipboard ?? clipboard;
 }
+import { usePlatformServices } from "./platform-context";

@@ -1,6 +1,7 @@
 import { createSignal, type Accessor } from "solid-js";
 import { subscribe } from "./host-messages";
 import { currentWindow, type WindowHandle } from "./window";
+import { usePlatformServices } from "./platform-context";
 
 export interface WindowMetrics {
   windowId: number;
@@ -60,5 +61,5 @@ const state: WindowState = {
 
 /** Reactive state and controls for the native window owning this JS runtime. */
 export function useWindow(): WindowState {
-  return state;
+  return usePlatformServices().window ?? state;
 }

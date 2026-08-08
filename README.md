@@ -131,7 +131,8 @@ packaging commands.
 Read more about [styling](docs/style.md), [windows](docs/windows.md),
 [accessibility](docs/accessibility.md),
 [host-to-JavaScript communication](docs/host-to-js.md), and
-[composable events](docs/composable-events.md).
+[composable events](docs/composable-events.md). Public API naming and embedded
+host testing are documented in the [JavaScript API design guide](docs/api-design.md).
 
 ## Contributing
 

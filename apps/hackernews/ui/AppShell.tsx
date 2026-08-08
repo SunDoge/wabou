@@ -1,13 +1,13 @@
 // Hacker News application shell.
 import { Text } from "@wabou/primitives";
-import { useFps } from "@wabou/solid-renderer";
+import { createFps } from "@wabou/solid-renderer";
 import type { JSX } from "solid-js";
 import { Sidebar } from "./components/Sidebar";
 import { useTheme } from "./contexts/ThemeContext";
 
 export function AppShell(props: { children?: JSX.Element }): JSX.Element {
   const { palette } = useTheme();
-  const fps = useFps();
+  const fps = createFps();
   return (
     <div
       class="w-full h-full overflow-hidden flex font-sans select-none"

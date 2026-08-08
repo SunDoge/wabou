@@ -5,7 +5,7 @@
 
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
-import { mount, useFps, VirtualList } from "@wabou/solid-renderer";
+import { createFps, mount, VirtualList } from "@wabou/solid-renderer";
 
 const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
   const tag = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta"][
@@ -15,7 +15,7 @@ const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
 });
 
 function App() {
-  const fps = useFps();
+  const fps = createFps();
   return (
     <div class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
       <div class="flex-none px-4 py-2 flex items-center justify-between border-b border-slate-700">

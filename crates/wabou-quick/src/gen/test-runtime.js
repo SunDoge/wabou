@@ -659,6 +659,10 @@
       defaultValue
     };
   }
+  function useContext(context) {
+    let value;
+    return Owner && Owner.context && (value = Owner.context[context.id]) !== undefined ? value : context.defaultValue;
+  }
   function children(fn) {
     const children2 = createMemo(fn);
     const memo = createMemo(() => resolveChildren(children2()), undefined, {
@@ -2353,6 +2357,30 @@
   }
   globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 
+  // packages/core/src/glue/window.ts
+  function handle(id) {
+    const host = globalThis;
+    return Object.freeze({
+      id,
+      close: () => host.__wabou_window_close(id),
+      setMaximized: (value) => host.__wabou_window_set_maximized(id, value),
+      setTitle: (title) => host.__wabou_window_set_title(id, title)
+    });
+  }
+  function createWindow(options = {}) {
+    const host = globalThis;
+    return handle(host.__wabou_window_create(JSON.stringify(options)));
+  }
+  function currentWindow() {
+    return handle(globalThis.__wabou_window_id);
+  }
+
+  // packages/core/src/glue/platform-context.ts
+  var PlatformContext = createContext();
+  function usePlatformServices() {
+    return useContext(PlatformContext) ?? {};
+  }
+
   // packages/core/src/glue/window-metrics.ts
   var initial = {
     windowId: globalThis.__wabou_window_id ?? 0,
@@ -2371,6 +2399,23 @@
     const next = JSON.parse(payload);
     setMetrics(next);
   });
+  var state = {
+    get id() {
+      return metrics().windowId;
+    },
+    close: () => currentWindow().close(),
+    setMaximized: (value) => currentWindow().setMaximized(value),
+    setTitle: (title) => currentWindow().setTitle(title),
+    metrics,
+    width: () => metrics().logicalWidth,
+    height: () => metrics().logicalHeight,
+    scaleFactor: () => metrics().scaleFactor,
+    maximized: () => metrics().maximized,
+    focused: () => metrics().focused
+  };
+  function useWindow() {
+    return usePlatformServices().window ?? state;
+  }
 
   // packages/core/src/glue/clipboard.ts
   var pending = new Map;
@@ -2403,5 +2448,14 @@
     }
   });
   // packages/core/test/runtime-fixture.ts
+  Object.assign(globalThis, {
+    __wabou_test_host_api: {
+      clipboard,
+      createWindow,
+      currentWindow,
+      host: defaultHost,
+      windowState: useWindow
+    }
+  });
   mount(() => createElement("main"));
 })();

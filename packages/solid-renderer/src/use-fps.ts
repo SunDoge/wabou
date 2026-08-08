@@ -8,11 +8,11 @@ import { createSignal, onCleanup } from "solid-js";
  * the host stops redrawing and the count drops.
  *
  * ```tsx
- * const fps = useFps();
+ * const fps = createFps();
  * <div>{fps()} fps</div>
  * ```
  */
-export function useFps(): () => number {
+export function createFps(): () => number {
   const [fps, setFps] = createSignal(0);
   let frames = 0;
   let last = performance.now();
@@ -35,3 +35,6 @@ export function useFps(): () => number {
   });
   return fps;
 }
+
+/** @deprecated Use createFps; this primitive creates owned timers rather than consuming context. */
+export const useFps = createFps;

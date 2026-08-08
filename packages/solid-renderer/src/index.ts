@@ -670,7 +670,7 @@ export {
   useHost,
 } from "./host";
 export { Portal, type PortalProps } from "./portal";
-export { useFps } from "./use-fps";
+export { createFps, useFps } from "./use-fps";
 export { VirtualList, type VirtualListProps } from "./virtual-list";
 export type { JSX, Writer };
 export { EVENT_CODE, OP };

@@ -39,6 +39,11 @@ export {
 } from "./glue/window";
 
 export { clipboard, type Clipboard, useClipboard } from "./glue/clipboard";
+export {
+  type PlatformProviderProps,
+  PlatformProvider,
+  type PlatformServices,
+} from "./glue/platform-context";
 
 export {
   hostMessages,

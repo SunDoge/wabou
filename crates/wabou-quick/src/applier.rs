@@ -5428,6 +5428,7 @@ mod tests {
 
     #[test]
     fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
+        const CORE_FIXTURE: &str = include_str!("gen/test-runtime.js");
         let js = JsRuntime::new().expect("runtime");
         let mut applier = Applier::from_runtime_with_factories_and_window(
             js,
@@ -5436,18 +5437,24 @@ mod tests {
             17,
         );
         applier
-            .boot(
-                r#"
-                globalThis.created = __wabou_window_create(JSON.stringify({
+            .boot(CORE_FIXTURE)
+            .expect("boot public core fixture");
+        applier
+            .js
+            .with(|ctx| {
+                ctx.eval::<(), _>(
+                    r#"
+                globalThis.created = __wabou_test_host_api.createWindow({
                   title: "Child", width: 640, height: 480, resizable: false
-                }));
-                __wabou_window_set_title(globalThis.created, "Renamed");
-                __wabou_window_set_maximized(globalThis.created, true);
-                __wabou_window_close(globalThis.created);
-                globalThis.currentWindowId = __wabou_window_id;
+                });
+                created.setTitle("Renamed");
+                created.setMaximized(true);
+                created.close();
+                globalThis.currentWindowId = __wabou_test_host_api.currentWindow().id;
                 "#,
-            )
-            .expect("boot with window bridge");
+                )
+            })
+            .expect("call public window bridge");
 
         assert_eq!(
             applier
@@ -5482,43 +5489,42 @@ mod tests {
 
     #[test]
     fn clipboard_bridge_routes_native_completions_back_to_javascript() {
+        const CORE_FIXTURE: &str = include_str!("gen/test-runtime.js");
         let js = JsRuntime::new().expect("runtime");
         let mut applier = Applier::from_runtime(js, Color::BLACK);
         applier
-            .boot(
-                r#"
-                globalThis.clipboardCompletions = [];
-                globalThis.__wabou_clipboard_complete = (id, text, success) => {
-                  clipboardCompletions.push([id, text, success]);
-                };
-                globalThis.writeRequest = __wabou_clipboard_write("hello");
-                globalThis.readRequest = __wabou_clipboard_read();
-                "#,
-            )
-            .expect("boot with clipboard bridge");
-
-        let requests = applier
+            .boot(CORE_FIXTURE)
+            .expect("boot public core fixture");
+        applier
             .js
-            .with(|ctx| ctx.eval::<Vec<u64>, _>("[writeRequest, readRequest]"))
-            .expect("clipboard request ids");
-        let [write_request, read_request] = requests.as_slice() else {
-            panic!("expected two clipboard request ids");
+            .with(|ctx| {
+                ctx.eval::<(), _>(
+                    r#"
+                globalThis.clipboardResults = [];
+                __wabou_test_host_api.clipboard.writeText("hello").then(
+                  () => clipboardResults.push(["write", true]),
+                  () => clipboardResults.push(["write", false]),
+                );
+                __wabou_test_host_api.clipboard.readText().then(
+                  text => clipboardResults.push(["read", text]),
+                );
+                "#,
+                )
+            })
+            .expect("call public clipboard bridge");
+
+        let write_request = match applier.take_host_action() {
+            Some(wabou_shell::HostAction::WriteClipboard { request_id, text }) => {
+                assert_eq!(text, "hello");
+                request_id
+            }
+            action => panic!("unexpected write action: {action:?}"),
         };
-        let (write_request, read_request) = (*write_request, *read_request);
         assert!(write_request < (1_u64 << 32));
-        assert_eq!(
-            applier.take_host_action(),
-            Some(wabou_shell::HostAction::WriteClipboard {
-                request_id: write_request,
-                text: "hello".into(),
-            })
-        );
-        assert_eq!(
-            applier.take_host_action(),
-            Some(wabou_shell::HostAction::ReadClipboard {
-                request_id: read_request,
-            })
-        );
+        let read_request = match applier.take_host_action() {
+            Some(wabou_shell::HostAction::ReadClipboard { request_id }) => request_id,
+            action => panic!("unexpected read action: {action:?}"),
+        };
 
         applier.complete_host_action(wabou_shell::HostActionResult::ClipboardWrite {
             request_id: write_request,
@@ -5528,14 +5534,53 @@ mod tests {
             request_id: read_request,
             text: Some("world".into()),
         });
+        for _ in 0..4 {
+            applier.js.poll_async_runtime();
+        }
         let completions = applier
             .js
-            .with(|ctx| ctx.eval::<String, _>("JSON.stringify(clipboardCompletions)"))
+            .with(|ctx| ctx.eval::<String, _>("JSON.stringify(clipboardResults)"))
             .expect("clipboard completions");
-        assert_eq!(
-            completions,
-            format!("[[{write_request},null,true],[{read_request},\"world\",true]]")
-        );
+        assert_eq!(completions, r#"[["write",true],["read","world"]]"#);
+    }
+
+    #[test]
+    fn applier_host_ffi_surface_matches_the_typescript_contract() {
+        const CONTRACT: &str = include_str!("../../../packages/core/src/host.ts");
+        let host_section = CONTRACT
+            .split("Internal bridge: host-provided")
+            .nth(1)
+            .and_then(|section| section.split("Internal bridge: guest-provided").next())
+            .expect("host-provided contract section");
+        let mut expected = host_section
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                line.strip_prefix("function __wabou_")
+                    .and_then(|rest| rest.split('(').next())
+                    .map(|name| format!("__wabou_{name}"))
+                    .or_else(|| {
+                        line.strip_prefix("const __wabou_")
+                            .and_then(|rest| rest.split(':').next())
+                            .map(|name| format!("__wabou_{name}"))
+                    })
+            })
+            .filter(|name| !name.starts_with("__wabou_vite_"))
+            .collect::<Vec<_>>();
+        expected.push("__wabou_capabilities".into());
+        expected.sort();
+
+        let applier = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
+        let mut actual = applier
+            .js
+            .with(|ctx| {
+                ctx.eval::<Vec<String>, _>(
+                    r#"Object.keys(globalThis).filter(key => key.startsWith("__wabou"))"#,
+                )
+            })
+            .expect("enumerate installed host ABI");
+        actual.sort();
+        assert_eq!(actual, expected, "TypeScript and embedded host ABI drifted");
     }
 
     #[test]
@@ -6616,15 +6661,21 @@ mod tests {
 
     #[test]
     fn host_layout_snapshot_reports_completed_rects_and_viewport() {
-        let applier = interactive_applier();
+        const CORE_FIXTURE: &str = include_str!("gen/test-runtime.js");
+        let mut applier = interactive_applier();
         let placed =
             layout::flatten_with_scroll(&applier.tree, applier.root, &applier.scroll_offsets);
         applier.publish_layout_metrics(&placed, 800, 600);
+        applier
+            .boot(CORE_FIXTURE)
+            .expect("boot public core fixture");
 
         let json = applier
             .js
             .with(|ctx| {
-                ctx.eval::<String, _>("__wabou_layout_snapshot(new Uint32Array([2, 999999]))")
+                ctx.eval::<String, _>(
+                    "JSON.stringify(__wabou_test_host_api.host.layout.snapshot([2, 999999]))",
+                )
             })
             .expect("layout snapshot");
         let snapshot: serde_json::Value = serde_json::from_str(&json).expect("snapshot JSON");

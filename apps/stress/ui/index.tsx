@@ -13,7 +13,7 @@ import {
   type Handle,
   mount,
   setTransform2D,
-  useFps,
+  createFps,
   useHost,
 } from "@wabou/solid-renderer";
 import {
@@ -115,7 +115,7 @@ function App() {
   const [bodies, setBodies] = createSignal<Body[]>(makeBodies(1_000));
   let movingBodies = bodies();
   const handles: Array<Handle | undefined> = [];
-  const fps = useFps();
+  const fps = createFps();
 
   // Re-seed only when N changes (not every frame).
   createEffect(() => {
