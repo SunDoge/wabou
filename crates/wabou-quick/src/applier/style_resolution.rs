@@ -484,7 +484,8 @@ impl Applier {
                         .resolve(*class)
                         .ok_or_else(|| "unknown class atom".to_string())
                         .and_then(|name| {
-                            wabou_style::parse_utility(name).map_err(|error| error.to_string())
+                            wabou_style::parse_utility_with_theme(name, &self.style_theme)
+                                .map_err(|error| error.to_string())
                         })
                 });
                 let utility = match utility {

@@ -3,10 +3,11 @@ import { readdir, readFile } from "node:fs/promises";
 import { dirname, join, parse, sep } from "node:path";
 import { createGenerator } from "@unocss/core";
 import {
+  presetWabou,
   resolveWabouUtility,
   validateWabouUtility,
+  wabouUtilityManifest,
 } from "@wabou/unocss-preset";
-import { presetUno } from "unocss";
 import type { ModuleNode, Plugin } from "vite";
 import {
   STYLE_IR_VERSION,
@@ -166,6 +167,10 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   const sourceRoots = new Set([options.root]);
   let stylesheet: WabouStyleSheet = {
     version: STYLE_IR_VERSION,
+    theme: {
+      spacing: wabouUtilityManifest.spacing,
+      colors: wabouUtilityManifest.colors,
+    },
     diagnostics: [],
     rules: [],
   };
@@ -181,6 +186,10 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     assertSupportedWabouCandidates(reference.matched);
     stylesheet = {
       version: STYLE_IR_VERSION,
+      theme: {
+        spacing: wabouUtilityManifest.spacing,
+        colors: wabouUtilityManifest.colors,
+      },
       diagnostics: [],
       rules: compileWabouUtilities(reference.matched),
     };
@@ -230,10 +239,9 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     name: "wabou-style-compiler",
     enforce: "pre",
     async configResolved() {
-      // Reference recognition only: this finds utility-looking candidates so
-      // unsupported preset-mini syntax becomes a build error instead of being
-      // silently omitted. It does not generate production styles.
-      referenceGenerator = await createGenerator({ presets: [presetUno()] });
+      // Candidate recognition uses the same generated theme manifest as
+      // compilation and the native runtime fallback.
+      referenceGenerator = await createGenerator({ presets: [presetWabou()] });
     },
     async buildStart() {
       const workspacePackages = await findWorkspacePackages(options.root);

@@ -339,6 +339,9 @@ pub struct Applier {
     js: JsRuntime,
     node_store: NodeStore,
     style_ir: Option<StyleSheet>,
+    /// Theme embedded in Style IR, shared by build-time resolution and the
+    /// runtime fallback for classes created after compilation.
+    style_theme: wabou_style::Theme,
     /// `class atom → indices` into `style_ir.rules`, built when the sheet
     /// arrives so per-node matching is O(C) (the node's classes) instead of
     /// O(R) (all rules). Universal (`*`) rules live in [`universal_rules`]
@@ -632,6 +635,7 @@ impl Applier {
             js,
             node_store: NodeStore::new(),
             style_ir: None,
+            style_theme: wabou_style::Theme::default(),
             rule_index: HashMap::new(),
             universal_rules: Vec::new(),
             utility_cache: HashMap::new(),

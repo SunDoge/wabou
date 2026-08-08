@@ -439,10 +439,344 @@
     }
   }
 
+  // packages/style/generated/style-properties.ts
+  var INLINE_STYLE_CONTRACT = {
+    "align-content": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "align-items": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "align-self": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "aspect-ratio": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    background: {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "background-color": {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "border-bottom-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-color": {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "border-left-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-radius": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-right-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-top-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    bottom: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "box-sizing": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    color: {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "column-gap": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    display: {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "flex-basis": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "flex-direction": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "flex-grow": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    "flex-shrink": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    "flex-wrap": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "font-family": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "font-size": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "font-weight": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    gap: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    height: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "justify-content": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    left: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "line-height": {
+      string: true,
+      number: true,
+      typed: [1, 3]
+    },
+    margin: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-bottom": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-inline-end": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-inline-start": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-left": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-right": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-top": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "max-height": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "max-width": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "min-height": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "min-width": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    opacity: {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    overflow: {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "overflow-x": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "overflow-y": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    padding: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-bottom": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-left": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-right": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-top": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "pointer-events": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    position: {
+      string: true,
+      number: false,
+      typed: []
+    },
+    right: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "row-gap": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "text-align": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    top: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "user-select": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "white-space": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    width: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "z-index": {
+      string: true,
+      number: true,
+      typed: [3]
+    }
+  };
   // packages/style/src/index.ts
   var STYLE_VALUE = "__wabou_style_value__";
   function isTypedStyleValue(value) {
     return typeof value === "object" && value !== null && value[STYLE_VALUE] === true;
+  }
+  function assertInlineStyleValue(property, value) {
+    const contract = INLINE_STYLE_CONTRACT[property];
+    if (!contract) {
+      const kebab = property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      const suggestion = kebab !== property && kebab in INLINE_STYLE_CONTRACT ? `; use ${kebab}` : "";
+      throw new TypeError(`unsupported inline style property ${property}${suggestion}`);
+    }
+    if (isTypedStyleValue(value)) {
+      if (!Number.isFinite(value.value)) {
+        throw new TypeError(`inline style ${property} must be finite`);
+      }
+      if (!contract.typed.includes(value.kind)) {
+        throw new TypeError(`typed style kind ${value.kind} is invalid for ${property}`);
+      }
+      return;
+    }
+    if (typeof value === "string" && contract.string)
+      return;
+    if (typeof value === "number" && contract.number) {
+      if (!Number.isFinite(value)) {
+        throw new TypeError(`inline style ${property} must be finite`);
+      }
+      return;
+    }
+    throw new TypeError(`invalid inline style value for ${property}`);
   }
 
   // node_modules/.bun/solid-js@1.9.14/node_modules/solid-js/dist/dev.js
@@ -1802,6 +2136,7 @@
           writer.removeStyle(node.id, k);
           continue;
         }
+        assertInlineStyleValue(k, next);
         if (isTypedStyleValue(next)) {
           writer.setStyleValue(node.id, k, next.kind, next.value);
           continue;

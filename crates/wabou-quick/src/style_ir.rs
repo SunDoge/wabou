@@ -2,7 +2,7 @@ use bon::Builder;
 use serde::Deserialize;
 use wabou_shell::style::IrValue;
 
-pub const VERSION: u16 = 3;
+pub const VERSION: u16 = 4;
 
 #[derive(Clone, Deserialize)]
 #[serde(untagged)]
@@ -15,6 +15,9 @@ pub(crate) enum StylesheetUpdate {
 pub(crate) struct StyleSheet {
     #[builder(default = VERSION)]
     pub version: u16,
+    #[serde(default)]
+    #[builder(default)]
+    pub theme: wabou_style::Theme,
     #[serde(default)]
     #[builder(default)]
     pub diagnostics: Vec<String>,
@@ -177,7 +180,7 @@ mod tests {
 
     #[test]
     fn deserializes_versioned_style_ir() {
-        let json = r#"{"version":3,"rules":[]}"#;
+        let json = r#"{"version":4,"rules":[]}"#;
         assert!(matches!(
             serde_json::from_str::<StylesheetUpdate>(json).unwrap(),
             StylesheetUpdate::Ir(_)

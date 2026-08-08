@@ -150,6 +150,47 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
 }
 
 #[test]
+fn runtime_utility_fallback_uses_the_stylesheet_theme() {
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, brand) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (atoms.intern("div"), atoms.intern("bg-brand"))
+    };
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement {
+                id: 2,
+                tag: div,
+                attrs: vec![],
+            },
+            Op::SetClassName {
+                id: 2,
+                classes: vec![brand],
+            },
+            Op::AppendChild {
+                parent: 1,
+                child: 2,
+            },
+            Op::FrameEnd,
+        ],
+    });
+    let mut theme = wabou_style::Theme::default();
+    theme.colors.insert("brand".to_string(), 0x336699ff);
+    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+        crate::style_ir::StyleSheet::builder().theme(theme).build(),
+    ));
+
+    let mut text = wabou_shell::TextContext::new();
+    applier.build_frame(&mut text, 800, 600);
+
+    assert_eq!(
+        applier.computed_node_snapshot(2).unwrap().background,
+        Some(Color::from_rgb8(0x33, 0x66, 0x99))
+    );
+}
+
+#[test]
 fn utility_order_is_last_wins_and_transform_components_compose() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, width_4, width_8, translate_x_4, translate_y_6, translate_x_2, scale, rotate) = {

@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { compileWabouUtilities } from "../packages/style-compiler/src/vite.ts";
+import { STYLE_IR_VERSION } from "../packages/style-compiler/src/ir.ts";
 import manifest from "../packages/unocss-preset/generated/manifest.json";
 
 const token: Record<string, string> = {
@@ -24,7 +25,11 @@ for (const rule of manifest.dynamicRules) {
 for (const fixture of manifest.conformance) candidates.add(fixture.className);
 
 const stylesheet = {
-  version: 3,
+  version: STYLE_IR_VERSION,
+  theme: {
+    spacing: manifest.spacing,
+    colors: manifest.colors,
+  },
   diagnostics: [],
   rules: compileWabouUtilities(candidates),
 };
