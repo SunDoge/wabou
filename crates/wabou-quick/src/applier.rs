@@ -6690,6 +6690,30 @@ mod tests {
     }
 
     #[test]
+    fn public_host_adapter_runs_in_embedded_quickjs() {
+        const CORE_FIXTURE: &str = include_str!("gen/test-runtime.js");
+        let mut applier = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
+        applier
+            .boot(CORE_FIXTURE)
+            .expect("boot public core fixture");
+
+        let result = applier
+            .js
+            .with(|ctx| {
+                ctx.eval::<String, _>(
+                    r#"JSON.stringify({
+                      open: __wabou_test_host_api.host.system.openUrl("not a URL"),
+                      font: __wabou_test_host_api.host.fonts.load("/wabou/does/not/exist.ttf"),
+                      stats: __wabou_test_host_api.host.diagnostics.frameStats(),
+                    })"#,
+                )
+            })
+            .expect("call public host adapter");
+
+        assert_eq!(result, r#"{"open":false,"font":false,"stats":null}"#);
+    }
+
+    #[test]
     fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
         let mut applier = interactive_applier();
         assert_eq!(applier.hit_test(20.0, 20.0), Some(2));

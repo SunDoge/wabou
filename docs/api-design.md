@@ -6,15 +6,36 @@ called from a component.
 
 ## Naming rules
 
-- `createXxx` creates reactive state, an effect, a timer, a history, or another
-  resource owned by the current Solid root. Examples: `createHover`,
-  `createPress`, `createTabs`, `createScrollReset`, and `createFps`.
+- `createXxx` constructs state, a controller, or a resource. Pure factories
+  such as `createMemoryHistory` can be owner-independent; factories with
+  effects, animation frames, timers, or subscriptions must bind cleanup to the
+  current Solid owner. Examples: `createHover`, `createPress`, `createTabs`,
+  `createScrollReset`, and `createFps`.
 - `useXxx` reads a service or value from context. It must have a Provider seam
   so a test or subtree can replace the service. Examples: `useHost`,
   `useWindow`, `useClipboard`, router hooks, and `useComponentsTheme`.
 - Imperative process-wide or runtime-wide operations use nouns or explicit
   verbs. Examples: `clipboard`, `currentWindow`, and `createWindow`.
 - A function does not gain a `use` prefix merely because components call it.
+- Ecosystem protocol names remain intact when compatibility is the API:
+  `createHotContext` follows Vite, while renderer-level `createElement`,
+  `createTextNode`, and `createComponent` follow Solid's renderer contract.
+
+## Current API review
+
+| Family | APIs | Decision |
+| --- | --- | --- |
+| Owned interaction primitives | `createHover`, `createFocus`, `createFocusWithin`, `createPress`, `createActive`, `createButton` | Correct: each constructs local reactive state and bindings. |
+| Stateful controllers | `createTabs`, `createShortcuts`, `createMemoryHistory` | Correct: each returns a new independently testable controller; no ambient host is required. |
+| Owned effects | `createScrollReset`, `createFps` | Correct: both create effects or scheduled work and rely on Solid-owner cleanup. |
+| Context consumers | `useHost`, `usePlatformServices`, `useWindow`, `useClipboard`, router hooks, `useComponentsTheme` | Correct: each reads a Provider-backed value; required contexts fail clearly while services with a real runtime default use that default. |
+| Imperative native resources | `createWindow`, `currentWindow`, `clipboard` | Correct: these are callable outside a component and do not pretend to be context hooks. |
+
+`HostProvider` and `PlatformProvider` deliberately replace different layers.
+`HostProvider` replaces renderer-facing layout, diagnostics, font, and system
+capabilities. `PlatformProvider` replaces application-facing, window-scoped
+services such as clipboard and window state. A partial nested
+`PlatformProvider` inherits services it does not override.
 
 `useFps` previously created a requestAnimationFrame loop and interval, so it
 violated this rule. The canonical name is `createFps`; `useFps` remains only as

@@ -1046,12 +1046,9 @@ mod tests {
 
     #[test]
     fn host_ffi_surface_matches_contract() {
-        // Lock the Rust-registered half of the FFI bridge so a rename or a new
-        // addition can't silently diverge from packages/core/src/host.ts. The
-        // JS-provided callbacks (__wabou_tick / __wabou_has_raf /
-        // __wabou_dispatch_host_frame / __wabou_apply_hmr)
-        // are installed by the app bundle, not present on a bare runtime, so
-        // they're covered by the applier tests instead.
+        // Lock the globals installed by a bare JsRuntime. Applier adds the
+        // window, clipboard, and renderer-specific half of the host bridge;
+        // its contract test compares that complete surface with host.ts.
         let runtime = JsRuntime::new().expect("runtime");
         let mut bridge: Vec<String> = runtime
             .with(|ctx| {

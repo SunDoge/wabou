@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { createComponent, createRoot } from "solid-js";
 import { type Clipboard, useClipboard } from "./clipboard";
 import { PlatformProvider } from "./platform-context";
-import { type WindowState, useWindow } from "./window-metrics";
+import { useWindow, type WindowState } from "./window-metrics";
 
 test("PlatformProvider injects window-scoped services into useXxx hooks", () => {
   const fakeClipboard = {
@@ -48,4 +48,59 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
 
   expect(receivedClipboard).toBe(fakeClipboard);
   expect(receivedWindow).toBe(fakeWindow);
+});
+
+test("nested partial providers inherit services they do not override", () => {
+  const parentClipboard: Clipboard = {
+    readText: async () => "parent",
+    writeText: async () => {},
+  };
+  const childClipboard: Clipboard = {
+    readText: async () => "child",
+    writeText: async () => {},
+  };
+  const metrics = () => ({
+    windowId: 42,
+    logicalWidth: 1,
+    logicalHeight: 1,
+    physicalWidth: 1,
+    physicalHeight: 1,
+    scaleFactor: 1,
+    maximized: false,
+    focused: false,
+  });
+  const parentWindow: WindowState = {
+    id: 42,
+    close: () => {},
+    setMaximized: () => {},
+    setTitle: () => {},
+    metrics,
+    width: () => 1,
+    height: () => 1,
+    scaleFactor: () => 1,
+    maximized: () => false,
+    focused: () => false,
+  };
+  let receivedClipboard: Clipboard | undefined;
+  let receivedWindow: WindowState | undefined;
+
+  createRoot((dispose) => {
+    createComponent(PlatformProvider, {
+      value: { clipboard: parentClipboard, window: parentWindow },
+      get children() {
+        return createComponent(PlatformProvider, {
+          value: { clipboard: childClipboard },
+          get children() {
+            receivedClipboard = useClipboard();
+            receivedWindow = useWindow();
+            return null;
+          },
+        });
+      },
+    });
+    dispose();
+  });
+
+  expect(receivedClipboard).toBe(childClipboard);
+  expect(receivedWindow).toBe(parentWindow);
 });

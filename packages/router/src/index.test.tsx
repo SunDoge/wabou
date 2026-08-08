@@ -6,6 +6,7 @@ import {
   createMemoryHistory,
   MemoryRouter,
   Route,
+  useHistory,
   useLocation,
   useNavigate,
   useParams,
@@ -24,6 +25,7 @@ test.skipIf(isServer)(
       const location = useLocation();
       const params = useParams<{ id: string }>();
       navigate = useNavigate();
+      expect(useHistory()).toBe(history);
       createEffect(() => seen.push(`${location.pathname}:${params.id}`));
       return null;
     }
@@ -48,6 +50,12 @@ test.skipIf(isServer)(
     expect(history.get().value).toBe("/story/1");
   },
 );
+
+test("router hooks reject calls outside MemoryRouter", () => {
+  expect(() => useNavigate()).toThrow(
+    "Wabou router hooks must be used inside <MemoryRouter>",
+  );
+});
 
 test.skipIf(isServer)(
   "switches leaf routes without remounting the root layout",

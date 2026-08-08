@@ -16,10 +16,17 @@ export interface PlatformProviderProps {
 
 /** Override native services for one Solid subtree, primarily for tests and previews. */
 export function PlatformProvider(props: PlatformProviderProps): JSX.Element {
-  return createComponent(PlatformContext.Provider, {
-    get value() {
-      return props.value;
+  const parent = useContext(PlatformContext) ?? {};
+  const value: Partial<PlatformServices> = {
+    get clipboard() {
+      return props.value.clipboard ?? parent.clipboard;
     },
+    get window() {
+      return props.value.window ?? parent.window;
+    },
+  };
+  return createComponent(PlatformContext.Provider, {
+    value,
     get children() {
       return props.children;
     },

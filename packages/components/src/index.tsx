@@ -3,44 +3,30 @@ import {
   Button as HeadlessButton,
   type ButtonProps as HeadlessButtonProps,
   Text,
-  View,
   translate2d,
+  View,
   type WabouStyle,
 } from "@wabou/primitives";
 import { createFps } from "@wabou/solid-renderer";
 import {
-  createContext,
   createEffect,
   createSignal,
   type JSX,
   onCleanup,
-  type ParentProps,
   splitProps,
   untrack,
-  useContext,
 } from "solid-js";
+import { type ComponentsTheme, useComponentsTheme } from "./theme";
+
+export {
+  ComponentsProvider,
+  type ComponentsProviderProps,
+  type ComponentsTheme,
+  useComponentsTheme,
+} from "./theme";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
-
-export type ComponentsTheme = "light" | "dark";
-const ThemeContext = createContext<{ theme: () => ComponentsTheme }>({
-  theme: (): ComponentsTheme => "dark",
-});
-
-export function ComponentsProvider(
-  props: ParentProps<{ theme?: ComponentsTheme }>,
-): JSX.Element {
-  return (
-    <ThemeContext.Provider value={{ theme: () => props.theme ?? "dark" }}>
-      {props.children}
-    </ThemeContext.Provider>
-  );
-}
-
-export function useComponentsTheme(): () => ComponentsTheme {
-  return useContext(ThemeContext)?.theme ?? (() => "dark");
-}
 
 export type ButtonVariant =
   | "default"
