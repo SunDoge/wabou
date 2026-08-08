@@ -13,6 +13,7 @@ pub mod renderer;
 pub mod scene;
 pub mod scrollbar;
 pub mod shell;
+pub mod shortcut;
 pub mod source;
 pub mod style;
 pub mod svg;
@@ -24,6 +25,7 @@ pub use app::{
 };
 pub use error::{Error, Result};
 pub use shell::Shell;
+pub use shortcut::StandardShortcut;
 pub use source::{
     ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
     KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent, PointerPhase,
