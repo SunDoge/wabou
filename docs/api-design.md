@@ -81,4 +81,51 @@ For a new host API:
 5. Test public behavior in TypeScript, ABI presence in QuickJS, and one full
    public-API-to-`HostAction` round trip.
 6. Test the native platform layer separately when correctness depends on the
-   OS rather than only on routing and serialization.
+OS rather than only on routing and serialization.
+
+## TypeScript declarations for application capabilities
+
+`HostCapabilities` and `WabouIntrinsicElements` are package-root extension
+registries. Applications and widget packages augment
+`@wabou/solid-renderer`, rather than the internal module that happens to
+implement `useHost` or Solid's global JSX namespace:
+
+```ts
+declare module "@wabou/solid-renderer" {
+  interface HostCapabilities {
+    readonly workspace: {
+      readFile(request: ReadFileRequest): Promise<ReadFileResult>;
+    };
+  }
+
+  interface WabouIntrinsicElements {
+    chart: WabouElementProps & { series: string };
+  }
+}
+```
+
+Rust remains the source of truth for serialized request, response, and event
+DTOs. The preferred first generator is `ts-rs`: it is small, understands the
+Serde representation used on the wire, and can emit deterministic declarations
+from a test or explicit generator command. It should generate DTO declarations
+only. A thin Wabou-owned manifest should describe capability namespaces,
+method names, sync/async behavior, and the DTO used by each argument and return
+value; Wabou can then generate the `HostCapabilities` augmentation and typed
+wrappers around those DTOs.
+
+Do not infer the public API by parsing arbitrary `rquickjs::Function` closures.
+Their captured state, argument conversion, error policy, and Promise behavior
+are not a stable schema. Do not generate declarations from persistence or SDK
+models either: define explicit bridge DTOs so a database or upstream SDK change
+cannot silently become a JavaScript API change.
+
+Specta is the next candidate if Wabou later needs richer type reflection,
+runtime schemas, or multiple output languages. Typeshare is appropriate when
+several foreign languages are a primary requirement. A full RPC framework is
+not required for the in-process QuickJS capability boundary, and would couple
+the renderer to routing and transport concerns it does not have.
+
+Generated files must be committed and checked for drift in CI. Generation is
+an explicit `write` operation; the corresponding `check` operation generates
+in memory and fails when the committed output differs. Ordinary compilation
+and build scripts must not rewrite the source tree.
