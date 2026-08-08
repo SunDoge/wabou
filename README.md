@@ -135,7 +135,9 @@ Read more about [styling](docs/style.md), [windows](docs/windows.md),
 host testing are documented in the [JavaScript API design guide](docs/api-design.md).
 The supported browser-like surface is defined by the
 [Web compatibility contract](docs/web-compatibility.md); the private bridge is
-listed in the generated [Host ABI inventory](docs/host-abi.md).
+listed in the generated [Host ABI inventory](docs/host-abi.md). Tested runtime
+packages are tracked in the
+[JavaScript library compatibility list](docs/javascript-libraries.md).
 
 ## Contributing
 

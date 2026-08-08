@@ -46,3 +46,6 @@ New compatibility claims require a public API test in TypeScript and, for Host
 behavior, execution through the generated embedded QuickJS fixture. Platform
 behavior such as clipboard, windows, IME, fonts, accessibility and HiDPI also
 requires native platform evidence.
+
+See the [tested JavaScript library list](javascript-libraries.md) for specific
+packages, versions, adapters and known incompatibilities.
