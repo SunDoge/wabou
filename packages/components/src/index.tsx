@@ -373,7 +373,9 @@ export interface InputProps {
   placeholder?: string;
   disabled?: boolean;
   class?: string;
+  ref?: JSX.InputHTMLAttributes<HTMLInputElement>["ref"];
   onInput?: (event: { currentTarget: { value: string } }) => void;
+  onKeyDown?: JSX.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
 }
 export function Input(props: InputProps): JSX.Element {
   const theme = useComponentsTheme();
