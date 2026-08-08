@@ -13,6 +13,7 @@
     "@wabou/core": "workspace:*",
     "@wabou/primitives": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
+    "lucide-solid": "^1.24.0",
     "solid-js": "1.9.14"
   },
   "devDependencies": {

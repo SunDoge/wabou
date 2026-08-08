@@ -1,5 +1,14 @@
 import { Button, Input } from "@wabou/components";
 import { ScrollArea, Text, View } from "@wabou/primitives";
+import Copy from "lucide-solid/icons/copy";
+import Eye from "lucide-solid/icons/eye";
+import KeyRound from "lucide-solid/icons/key-round";
+import LayoutGrid from "lucide-solid/icons/layout-grid";
+import LockKeyhole from "lucide-solid/icons/lock-keyhole";
+import RefreshCw from "lucide-solid/icons/refresh-cw";
+import ShieldCheck from "lucide-solid/icons/shield-check";
+import Star from "lucide-solid/icons/star";
+import StickyNote from "lucide-solid/icons/sticky-note";
 import { For, Show, createMemo, createSignal, type Accessor } from "solid-js";
 import type { ItemDetails, VaultSnapshot } from "./model";
 import { matches } from "./model";
@@ -38,11 +47,25 @@ export function VaultScreen(props: VaultScreenProps) {
     { id: "note", label: "Secure notes" },
   ];
 
+  function filterIcon(id: Filter) {
+    if (id === "favorite") return <Star size={16} />;
+    if (id === "login") return <KeyRound size={16} />;
+    if (id === "note") return <StickyNote size={16} />;
+    return <LayoutGrid size={16} />;
+  }
+
+  function itemIcon(kind: string) {
+    return kind === "note" ? <StickyNote size={16} /> : <KeyRound size={16} />;
+  }
+
   return (
     <View class="h-full w-full flex bg-slate-950 text-slate-100">
       <View class="w-48 shrink-0 border-r border-slate-800 bg-slate-900 p-3 flex flex-col gap-5">
-        <View class="px-2 py-2 flex flex-col gap-1">
-          <Text class="text-lg font-semibold text-slate-100">Wabou Vault</Text>
+        <View class="px-2 py-2 flex flex-col gap-2">
+          <View class="flex items-center gap-2 text-sky-400">
+            <ShieldCheck size={20} />
+            <Text class="text-lg font-semibold text-slate-100">Wabou Vault</Text>
+          </View>
           <Text class="text-xs text-slate-500">Read-only desktop</Text>
         </View>
         <View class="flex flex-col gap-1">
@@ -55,7 +78,10 @@ export function VaultScreen(props: VaultScreenProps) {
                 variant={filter() === item.id ? "secondary" : "ghost"}
                 onClick={() => setFilter(item.id)}
               >
-                {item.label}
+                <View class="flex items-center gap-2">
+                  {filterIcon(item.id)}
+                  <Text>{item.label}</Text>
+                </View>
               </Button>
             )}
           </For>
@@ -64,7 +90,10 @@ export function VaultScreen(props: VaultScreenProps) {
         <View class="border-t border-slate-800 pt-3 flex flex-col gap-2">
           <Text class="px-2 text-xs text-slate-500">{props.snapshot().email}</Text>
           <Button class="w-full justify-start" size="sm" variant="ghost" onClick={props.lock}>
-            Lock vault
+            <View class="flex items-center gap-2">
+              <LockKeyhole size={16} />
+              <Text>Lock vault</Text>
+            </View>
           </Button>
         </View>
       </View>
@@ -74,7 +103,10 @@ export function VaultScreen(props: VaultScreenProps) {
             <Text class="text-lg font-semibold text-slate-100">My vault</Text>
             <View class="flex-1" />
             <Button size="sm" variant="ghost" disabled={props.busy()} onClick={props.refresh}>
-              Sync
+              <View class="flex items-center gap-2">
+                <RefreshCw size={15} />
+                <Text>Sync</Text>
+              </View>
             </Button>
           </View>
           <Input
@@ -102,6 +134,9 @@ export function VaultScreen(props: VaultScreenProps) {
                   variant="ghost"
                   onClick={() => props.selectItem(item.id)}
                 >
+                  <View class="w-8 h-8 shrink-0 rounded-md bg-slate-900 text-slate-400 flex items-center justify-center">
+                    {itemIcon(item.kind)}
+                  </View>
                   <View class="min-w-0 flex-1 flex flex-col items-start gap-1">
                     <Text class="text-sm font-medium text-slate-100">{item.name}</Text>
                     <Text class={item.favorite ? "text-xs text-sky-400" : "text-xs text-slate-500"}>
@@ -118,7 +153,10 @@ export function VaultScreen(props: VaultScreenProps) {
       </View>
       <View class="min-w-0 flex-1 flex flex-col">
         <View class="h-16 shrink-0 border-b border-slate-800 px-6 flex items-center">
-          <Text class="text-sm text-slate-500">Item details</Text>
+          <View class="flex items-center gap-2 text-slate-500">
+            <Eye size={16} />
+            <Text class="text-sm">Item details</Text>
+          </View>
           <View class="flex-1" />
           <Text class="text-xs text-slate-600">Read only</Text>
         </View>
@@ -142,8 +180,13 @@ export function VaultScreen(props: VaultScreenProps) {
                       <Text class="text-xs text-slate-500">Username</Text>
                       <Text class="text-sm text-slate-100">{details().username}</Text>
                     </View>
-                    <Button size="sm" variant="outline" onClick={() => props.copy("username")}>
-                      Copy
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      aria-label="Copy username"
+                      onClick={() => props.copy("username")}
+                    >
+                      <Copy size={16} />
                     </Button>
                   </View>
                 </Show>
@@ -153,8 +196,13 @@ export function VaultScreen(props: VaultScreenProps) {
                       <Text class="text-xs text-slate-500">Password</Text>
                       <Text class="text-sm text-slate-300">••••••••••••</Text>
                     </View>
-                    <Button size="sm" variant="outline" onClick={() => props.copy("password")}>
-                      Copy
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      aria-label="Copy password"
+                      onClick={() => props.copy("password")}
+                    >
+                      <Copy size={16} />
                     </Button>
                   </View>
                 </Show>
