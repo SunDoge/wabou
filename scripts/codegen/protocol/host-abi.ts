@@ -13,7 +13,7 @@ type Entry = {
   returns?: string;
 };
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const sourcePath = resolve(root, "packages/core/host-abi.json");
 const schema = JSON.parse(await readFile(sourcePath, "utf8")) as {
   version: number;

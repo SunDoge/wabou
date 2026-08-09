@@ -1,8 +1,10 @@
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { compileWabouUtilities } from "../packages/style-compiler/src/vite.ts";
-import { STYLE_IR_VERSION } from "../packages/style-compiler/src/ir.ts";
-import manifest from "../packages/unocss-preset/generated/manifest.json";
+import { STYLE_IR_VERSION } from "../../../packages/style-compiler/src/ir.ts";
+import { compileWabouUtilities } from "../../../packages/style-compiler/src/vite.ts";
+import manifest from "../../../packages/unocss-preset/generated/manifest.json";
+
+const root = resolve(import.meta.dir, "../../..");
 
 const token: Record<string, string> = {
   spacing: "4",
@@ -34,10 +36,7 @@ const stylesheet = {
   rules: compileWabouUtilities(candidates),
 };
 await writeFile(
-  resolve(
-    import.meta.dir,
-    "../crates/wabou-quick/src/gen/style-conformance.json",
-  ),
+  resolve(root, "crates/wabou-quick/src/gen/style-conformance.json"),
   `${JSON.stringify(stylesheet, null, 2)}\n`,
 );
 console.log(`generated ${stylesheet.rules.length} style conformance rules`);

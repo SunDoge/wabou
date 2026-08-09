@@ -1,6 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+const root = resolve(import.meta.dir, "../../..");
+
 const manifestCommand = [
   "cargo",
   "run",
@@ -13,7 +15,7 @@ const manifestCommand = [
 if (Bun.env.WABOU_THEME)
   manifestCommand.push("--", "--theme", Bun.env.WABOU_THEME);
 const manifestProcess = Bun.spawn(manifestCommand, {
-  cwd: resolve(import.meta.dir, ".."),
+  cwd: root,
   stdout: "pipe",
   stderr: "inherit",
 });
@@ -30,7 +32,7 @@ const manifest = JSON.parse(json) as {
   }[];
 };
 await writeFile(
-  resolve(import.meta.dir, "../packages/unocss-preset/generated/manifest.json"),
+  resolve(root, "packages/unocss-preset/generated/manifest.json"),
   json,
 );
 
@@ -95,11 +97,11 @@ export type WabouDynamicUtility =
 export type WabouBaseUtility = WabouStaticUtility | WabouDynamicUtility;
 export type WabouUtility = WabouBaseUtility;
 `;
-await mkdir(resolve(import.meta.dir, "../packages/style/generated"), {
+await mkdir(resolve(root, "packages/style/generated"), {
   recursive: true,
 });
 await writeFile(
-  resolve(import.meta.dir, "../packages/style/generated/utility-types.ts"),
+  resolve(root, "packages/style/generated/utility-types.ts"),
   types,
 );
 const formatProcess = Bun.spawn(
@@ -109,9 +111,9 @@ const formatProcess = Bun.spawn(
     "biome",
     "format",
     "--write",
-    resolve(import.meta.dir, "../packages/style/generated/utility-types.ts"),
+    resolve(root, "packages/style/generated/utility-types.ts"),
   ],
-  { cwd: resolve(import.meta.dir, ".."), stdout: "inherit", stderr: "inherit" },
+  { cwd: root, stdout: "inherit", stderr: "inherit" },
 );
 if ((await formatProcess.exited) !== 0)
   throw new Error("failed to format generated utility types");

@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const root = resolve(import.meta.dir, "..");
+const root = resolve(import.meta.dir, "../../..");
 const matrix = JSON.parse(
   await readFile(
     resolve(root, "packages/style-compiler/css-support-matrix.json"),
