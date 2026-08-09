@@ -117,11 +117,33 @@ bun run wabou bindings --app-dir apps/gallery check
 files and fails when a Rust DTO, capability name, or method name has drifted;
 run it in CI.
 
-The generated module exposes a typed client while accurately retaining the
-native `string -> Promise<string>` QuickJS ABI underneath. Application code
-passes DTO objects to the client and does not manually call `JSON.stringify`
-or `JSON.parse`. See `apps/gallery/examples/wabou-bindings.rs` and
-`apps/gallery/ui/generated/host-bindings.ts` for the complete convention.
+The generated module exposes a typed client while retaining the native
+QuickJS ABI underneath. Primitive function arguments cross directly;
+structured arguments are JSON encoded. Application code does not manually
+call `JSON.stringify` or decode the native result envelope.
 
-Only explicit bridge DTOs should derive `TS`. Database entities, upstream SDK
-models, and renderer internals are not public JavaScript contracts.
+For a Rust-owned function contract, derive `specta::Type` on its DTOs, mark
+the function with `#[specta::specta]`, collect it, and pass the result directly
+to `Capability::from_specta`:
+
+```rust
+#[derive(serde::Deserialize, specta::Type)]
+struct RenameRequest {
+    name: String,
+}
+
+#[specta::specta]
+async fn rename(id: String, request: RenameRequest) -> Result<bool, String> {
+    // endpoint implementation
+}
+
+let capability = Capability::from_specta(
+    "workspace",
+    specta::functions::collect_types![rename],
+);
+```
+
+This generates the DTO declarations, raw `HostCapabilities` augmentation and
+typed client method from the Rust function signature. Only explicit bridge
+DTOs should derive `Type`; persistence entities, upstream SDK models and
+renderer internals are not automatically public JavaScript contracts.

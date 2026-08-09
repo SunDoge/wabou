@@ -10,6 +10,10 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use specta::functions::FunctionDataType;
+use specta::ts::{self, BigIntExportBehavior, ExportConfiguration};
+pub use specta::{self, Type};
+use specta::{DataType, PrimitiveType, TypeDefs};
 pub use ts_rs::{self, TS};
 use ts_rs::{Config, TypeVisitor};
 
@@ -22,9 +26,16 @@ struct TypeDeclaration {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+struct Argument {
+    name: String,
+    ty: TypeDeclaration,
+    json: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Method {
     name: String,
-    request: Option<TypeDeclaration>,
+    arguments: Vec<Argument>,
     response: TypeDeclaration,
     result_envelope: bool,
     declarations: BTreeMap<String, String>,
@@ -44,7 +55,11 @@ impl Method {
         let response = collector.register::<Response>();
         Self {
             name,
-            request: Some(request),
+            arguments: vec![Argument {
+                name: "request".into(),
+                ty: request,
+                json: true,
+            }],
             response,
             result_envelope: false,
             declarations: collector.declarations,
@@ -74,7 +89,11 @@ impl Method {
         let request = collector.register::<Request>();
         Self {
             name,
-            request: Some(request),
+            arguments: vec![Argument {
+                name: "request".into(),
+                ty: request,
+                json: true,
+            }],
             response: TypeDeclaration {
                 name: "boolean".into(),
                 declaration: String::new(),
@@ -95,7 +114,7 @@ impl Method {
         let response = collector.register::<Response>();
         Self {
             name,
-            request: None,
+            arguments: Vec::new(),
             response,
             result_envelope: false,
             declarations: collector.declarations,
@@ -123,7 +142,7 @@ impl Method {
         let inner = collector.register::<Response>();
         Self {
             name,
-            request: None,
+            arguments: Vec::new(),
             response: TypeDeclaration {
                 name: format!("{} | null", inner.name),
                 declaration: String::new(),
@@ -160,6 +179,87 @@ impl Capability {
             self.name
         );
         self.methods.push(method);
+        self
+    }
+
+    /// Build a capability directly from Rust functions annotated with
+    /// `#[specta::specta]`. Function arguments and return DTOs become the
+    /// typed client API; primitive arguments cross the native ABI directly
+    /// while structured arguments are JSON encoded.
+    pub fn from_specta(name: impl Into<String>, contract: impl IntoSpectaFunctions) -> Self {
+        let (functions, type_defs) = contract
+            .into_specta_functions()
+            .unwrap_or_else(|error| panic!("invalid Specta function contract: {error}"));
+        let mut capability = Self::new(name);
+        let config = specta_config();
+        let declarations = type_defs
+            .values()
+            .filter_map(Option::as_ref)
+            .map(|datatype| {
+                let declaration = ts::export_datatype(&config, datatype)
+                    .unwrap_or_else(|error| panic!("cannot export `{}`: {error}", datatype.name));
+                (
+                    datatype.name.to_string(),
+                    declaration
+                        .strip_prefix("export ")
+                        .unwrap_or(&declaration)
+                        .to_string(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        for function in functions {
+            let method_name = lower_camel_case(function.name);
+            let arguments = function
+                .args
+                .into_iter()
+                .map(|(name, datatype)| Argument {
+                    name: lower_camel_case(name),
+                    ty: TypeDeclaration {
+                        name: ts::datatype(&config, &datatype).unwrap_or_else(|error| {
+                            panic!("cannot export argument `{name}`: {error}")
+                        }),
+                        declaration: String::new(),
+                    },
+                    json: !is_native_primitive(&datatype),
+                })
+                .collect();
+            let response = TypeDeclaration {
+                name: ts::datatype(&config, &function.result).unwrap_or_else(|error| {
+                    panic!("cannot export result of `{}`: {error}", function.name)
+                }),
+                declaration: String::new(),
+            };
+            capability = capability.method(Method {
+                name: method_name,
+                arguments,
+                response,
+                result_envelope: true,
+                declarations: declarations.clone(),
+            });
+        }
+        capability
+    }
+}
+
+pub trait IntoSpectaFunctions {
+    fn into_specta_functions(
+        self,
+    ) -> Result<(Vec<FunctionDataType>, TypeDefs), specta::ExportError>;
+}
+
+impl IntoSpectaFunctions for (Vec<FunctionDataType>, TypeDefs) {
+    fn into_specta_functions(
+        self,
+    ) -> Result<(Vec<FunctionDataType>, TypeDefs), specta::ExportError> {
+        Ok(self)
+    }
+}
+
+impl IntoSpectaFunctions for Result<(Vec<FunctionDataType>, TypeDefs), specta::ExportError> {
+    fn into_specta_functions(
+        self,
+    ) -> Result<(Vec<FunctionDataType>, TypeDefs), specta::ExportError> {
         self
     }
 }
@@ -212,7 +312,22 @@ impl Bindings {
         for capability in sorted_capabilities(&self.capabilities) {
             output.push_str(&format!("    readonly {}: {{\n", capability.name));
             for method in sorted_methods(&capability.methods) {
-                let parameter = method.request.as_ref().map_or("", |_| "request: string");
+                let parameter = method
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        format!(
+                            "{}: {}",
+                            argument.name,
+                            if argument.json {
+                                "string"
+                            } else {
+                                &argument.ty.name
+                            }
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 output.push_str(&format!(
                     "      {}({parameter}): NativeResult<string>;\n",
                     method.name,
@@ -237,9 +352,12 @@ impl Bindings {
             let interface = format!("{}Client", upper_camel_case(&capability.name));
             output.push_str(&format!("export interface {interface} {{\n"));
             for method in sorted_methods(&capability.methods) {
-                let parameter = method.request.as_ref().map_or(String::new(), |request| {
-                    format!("request: {}", request.name)
-                });
+                let parameter = method
+                    .arguments
+                    .iter()
+                    .map(|argument| format!("{}: {}", argument.name, argument.ty.name))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 output.push_str(&format!(
                     "  {}({parameter}): Promise<{}>;\n",
                     method.name, method.response.name
@@ -251,11 +369,24 @@ impl Bindings {
             ));
             output.push_str("  return {\n");
             for method in sorted_methods(&capability.methods) {
-                let parameter = method.request.as_ref().map_or("", |_| "request");
+                let parameter = method
+                    .arguments
+                    .iter()
+                    .map(|argument| argument.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 let argument = method
-                    .request
-                    .as_ref()
-                    .map_or(String::new(), |_| "JSON.stringify(request)".into());
+                    .arguments
+                    .iter()
+                    .map(|argument| {
+                        if argument.json {
+                            format!("JSON.stringify({})", argument.name)
+                        } else {
+                            argument.name.clone()
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 let decode = if method.result_envelope {
                     format!(
                         "decodeNativeResult<{}>(await host.{}.{}({argument}))",
@@ -406,6 +537,51 @@ fn assert_identifier(value: &str, kind: &str) {
     );
 }
 
+fn specta_config() -> ExportConfiguration {
+    ExportConfiguration::new().bigint(BigIntExportBehavior::Number)
+}
+
+fn is_native_primitive(datatype: &DataType) -> bool {
+    matches!(
+        datatype,
+        DataType::Primitive(
+            PrimitiveType::String
+                | PrimitiveType::char
+                | PrimitiveType::bool
+                | PrimitiveType::i8
+                | PrimitiveType::i16
+                | PrimitiveType::i32
+                | PrimitiveType::i64
+                | PrimitiveType::i128
+                | PrimitiveType::isize
+                | PrimitiveType::u8
+                | PrimitiveType::u16
+                | PrimitiveType::u32
+                | PrimitiveType::u64
+                | PrimitiveType::u128
+                | PrimitiveType::usize
+                | PrimitiveType::f32
+                | PrimitiveType::f64
+        )
+    )
+}
+
+fn lower_camel_case(value: &str) -> String {
+    let mut result = String::new();
+    let mut uppercase = false;
+    for character in value.chars() {
+        if character == '_' || character == '-' {
+            uppercase = true;
+        } else if uppercase {
+            result.extend(character.to_uppercase());
+            uppercase = false;
+        } else {
+            result.push(character);
+        }
+    }
+    result
+}
+
 fn upper_camel_case(value: &str) -> String {
     let mut result = String::new();
     let mut uppercase = true;
@@ -426,6 +602,7 @@ fn upper_camel_case(value: &str) -> String {
 #[allow(dead_code)]
 mod tests {
     use super::*;
+    use serde::{Deserialize, Serialize};
 
     #[derive(TS)]
     struct Nested {
@@ -443,6 +620,23 @@ mod tests {
     enum Response {
         Accepted { display_name: String },
         Rejected,
+    }
+
+    #[derive(Deserialize, Type)]
+    #[serde(rename_all = "camelCase")]
+    struct FunctionRequest {
+        display_name: String,
+    }
+
+    #[derive(Serialize, Type)]
+    struct FunctionResponse {
+        accepted: bool,
+    }
+
+    #[specta::specta]
+    async fn update_file(id: String, request: FunctionRequest) -> Result<FunctionResponse, String> {
+        let _ = (id, request);
+        unreachable!()
     }
 
     fn fixture() -> Bindings {
@@ -466,6 +660,21 @@ mod tests {
         assert!(output.contains("status(): NativeResult<string>"));
         assert!(output.contains("status(): Promise<Response>"));
         assert!(output.contains("decodeNativeResult<Response>(await host.workspace.status())"));
+    }
+
+    #[test]
+    fn derives_methods_and_wire_encoding_from_rust_functions() {
+        let output = Bindings::new()
+            .capability(Capability::from_specta(
+                "workspace",
+                specta::functions::collect_types![update_file],
+            ))
+            .render();
+        assert!(output.contains("export type FunctionRequest"));
+        assert!(output.contains(
+            "updateFile(id: string, request: FunctionRequest): Promise<FunctionResponse>"
+        ));
+        assert!(output.contains("host.workspace.updateFile(id, JSON.stringify(request))"));
     }
 
     #[test]
