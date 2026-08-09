@@ -429,6 +429,8 @@ pub struct Applier {
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
     pending_effects: Rc<RefCell<VecDeque<wabou_shell::EffectRequest>>>,
     pending_js_effects: Rc<RefCell<HashSet<u64>>>,
+    effect_trace: Rc<RefCell<Option<crate::effect_trace::EffectTrace>>>,
+    replay_completions: Rc<RefCell<VecDeque<wabou_shell::EffectCompletion>>>,
     host_action_wake: Rc<RefCell<Option<WakeCallback>>>,
     wake_callback: Option<WakeCallback>,
     scroll_offsets: HashMap<NodeId, [f32; 2]>,
@@ -454,6 +456,8 @@ fn install_effect_functions(
     effects: Rc<RefCell<VecDeque<wabou_shell::EffectRequest>>>,
     action_wake: Rc<RefCell<Option<WakeCallback>>>,
     pending: Rc<RefCell<HashSet<u64>>>,
+    trace: Rc<RefCell<Option<crate::effect_trace::EffectTrace>>>,
+    replay_completions: Rc<RefCell<VecDeque<wabou_shell::EffectCompletion>>>,
 ) {
     js.with(|ctx| -> rquickjs::Result<()> {
         let submit_effects = effects.clone();
@@ -567,13 +571,20 @@ fn install_effect_functions(
                         },
                     };
                     submit_pending.borrow_mut().insert(id);
-                    submit_effects
-                        .borrow_mut()
-                        .push_back(wabou_shell::EffectRequest {
-                            id: wabou_shell::EffectId(id),
-                            scope: wabou_shell::EffectScope::Window(window_id),
-                            payload,
-                        });
+                    let request = wabou_shell::EffectRequest {
+                        id: wabou_shell::EffectId(id),
+                        scope: wabou_shell::EffectScope::Window(window_id),
+                        payload,
+                    };
+                    let submission = trace.borrow().as_ref().map(|trace| trace.submit(&request));
+                    match submission {
+                        Some(crate::effect_trace::TraceSubmission::Replay(completions)) => {
+                            replay_completions.borrow_mut().extend(completions);
+                        }
+                        Some(crate::effect_trace::TraceSubmission::Live) | None => {
+                            submit_effects.borrow_mut().push_back(request);
+                        }
+                    }
                     if let Some(wake) = submit_wake.borrow().as_ref() {
                         wake();
                     }
@@ -669,12 +680,16 @@ impl Applier {
         let host_action_wake = Rc::new(RefCell::new(None));
         let pending_js_effects = Rc::new(RefCell::new(HashSet::new()));
         let pending_effects = Rc::new(RefCell::new(VecDeque::new()));
+        let effect_trace = Rc::new(RefCell::new(None));
+        let replay_completions = Rc::new(RefCell::new(VecDeque::new()));
         install_effect_functions(
             &js,
             window_id,
             pending_effects.clone(),
             host_action_wake.clone(),
             pending_js_effects.clone(),
+            effect_trace.clone(),
+            replay_completions.clone(),
         );
         Self {
             js,
@@ -730,6 +745,8 @@ impl Applier {
             pending_host_actions,
             pending_effects,
             pending_js_effects,
+            effect_trace,
+            replay_completions,
             host_action_wake,
             wake_callback: None,
             scroll_offsets: HashMap::new(),
@@ -752,6 +769,10 @@ impl Applier {
     #[cfg(feature = "vite")]
     pub fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
         self.js.boot_vite(entry)
+    }
+
+    pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
+        *self.effect_trace.borrow_mut() = Some(trace);
     }
 
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {

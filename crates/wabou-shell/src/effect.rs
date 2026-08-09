@@ -180,7 +180,8 @@ pub struct WindowCreateRequest {
     pub options: WindowOptions,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EffectPayload {
     ClipboardRead,
     ClipboardWrite {
@@ -227,7 +228,8 @@ impl EffectPayload {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EffectRequest {
     pub id: EffectId,
     pub scope: EffectScope,
@@ -243,7 +245,8 @@ pub enum EffectErrorCode {
     ReplayDiverged,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum EffectResult {
     Unit,
     ClipboardText(Option<String>),
@@ -255,7 +258,8 @@ pub enum EffectResult {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EffectCompletion {
     pub id: EffectId,
     pub op: EffectOp,
@@ -272,7 +276,8 @@ pub trait EffectExecutor {
     fn submit(&mut self, request: EffectRequest) -> EffectDispatch;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "camelCase")]
 pub enum EffectTapeEntry {
     Request(EffectRequest),
     Completion(EffectCompletion),

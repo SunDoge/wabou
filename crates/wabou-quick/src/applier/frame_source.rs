@@ -577,10 +577,22 @@ impl FrameSource for Applier {
     }
 
     fn take_effect(&mut self) -> Option<wabou_shell::EffectRequest> {
+        while let Some(completion) = self.replay_completions.borrow_mut().pop_front() {
+            if self
+                .pending_js_effects
+                .borrow_mut()
+                .remove(&completion.id.0)
+            {
+                complete_js_effect(&self.js, &completion);
+            }
+        }
         self.pending_effects.borrow_mut().pop_front()
     }
 
     fn complete_effect(&mut self, completion: wabou_shell::EffectCompletion) {
+        if let Some(trace) = self.effect_trace.borrow().as_ref() {
+            trace.complete(&completion);
+        }
         if self
             .pending_js_effects
             .borrow_mut()

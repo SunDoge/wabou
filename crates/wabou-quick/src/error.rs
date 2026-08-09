@@ -27,6 +27,9 @@ pub enum Error {
     #[snafu(display("window host failed: {source}"))]
     Shell { source: wabou_shell::Error },
 
+    #[snafu(display("effect trace failed: {message}"))]
+    EffectTrace { message: String },
+
     #[cfg(feature = "vite")]
     #[snafu(display("Vite integration failed: {source}"))]
     Vite { source: crate::vite::ViteError },

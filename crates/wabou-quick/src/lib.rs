@@ -9,6 +9,7 @@ pub mod applier;
 pub mod atom;
 pub mod clock;
 pub mod config;
+mod effect_trace;
 pub mod error;
 pub mod host;
 #[cfg(test)]

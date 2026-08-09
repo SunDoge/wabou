@@ -57,13 +57,18 @@ Secrets require an explicit recording policy. A password manager should mark
 credential and clipboard payloads as redacted or non-recordable rather than
 silently writing them into a trace.
 
+`HostBuilder::record_effects(path)` records only payload-safe window state
+commands. `record_all_effects(path)` is an explicit opt-in that may persist
+clipboard text, menu labels, window titles, or third-party payloads.
+`replay_effects(path)` intercepts operations present in the tape and lets
+unrecorded operations execute live. The tape is ABI-versioned, shared across
+all windows, preserves asynchronous completion order, and remaps recorded
+request IDs to the current run.
+
 ## Current limitations
 
 - Context-menu selection is implemented by `wabou-tray`; dismissal detection
   is not portable through `muda` yet, so `showNativeMenu()` currently resolves
   only after an item is selected.
-- Recording/replay executors exist at the Rust contract layer but are not yet
-  selectable from `HostBuilder`.
 - Extension payloads currently cross QuickJS as JSON bytes. Large-buffer and
   stream transports remain follow-up work.
-

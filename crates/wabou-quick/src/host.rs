@@ -33,6 +33,11 @@ use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensio
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 
+enum EffectTraceConfig {
+    Record { path: PathBuf, record_all: bool },
+    Replay { path: PathBuf },
+}
+
 pub struct HostBuilder {
     base_color: Color,
     window: WindowOptions,
@@ -41,6 +46,7 @@ pub struct HostBuilder {
     capabilities: Vec<CapabilityInstaller>,
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
+    effect_trace: Option<EffectTraceConfig>,
 }
 
 impl Default for HostBuilder {
@@ -63,6 +69,7 @@ impl HostBuilder {
             capabilities: Vec::new(),
             devtools: cfg!(debug_assertions),
             extensions: Vec::new(),
+            effect_trace: None,
         }
     }
 
@@ -137,8 +144,50 @@ impl HostBuilder {
         self
     }
 
+    /// Record replay-safe native effects to `path` when the application exits.
+    /// Clipboard and third-party payloads are excluded because they may contain secrets.
+    pub fn record_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Record {
+            path: path.into(),
+            record_all: false,
+        });
+        self
+    }
+
+    /// Record every native effect. This can persist clipboard or extension secrets.
+    pub fn record_all_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Record {
+            path: path.into(),
+            record_all: true,
+        });
+        self
+    }
+
+    /// Replay recorded effects without invoking their native implementations.
+    /// Operations absent from the tape continue to execute live.
+    pub fn replay_effects(mut self, path: impl Into<PathBuf>) -> Self {
+        self.effect_trace = Some(EffectTraceConfig::Replay { path: path.into() });
+        self
+    }
+
     /// Build the JsRuntime + Applier + run the winit event loop.
     pub fn run(self) -> crate::Result<()> {
+        let trace_path = self.effect_trace.as_ref().map(|config| match config {
+            EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
+                path.clone()
+            }
+        });
+        let effect_trace = match &self.effect_trace {
+            Some(EffectTraceConfig::Record { record_all, .. }) => {
+                Some(crate::effect_trace::EffectTrace::record(*record_all))
+            }
+            Some(EffectTraceConfig::Replay { path }) => Some(
+                crate::effect_trace::EffectTrace::replay(path)
+                    .map_err(|message| crate::Error::EffectTrace { message })?,
+            ),
+            None => None,
+        };
+        let recording_effects = matches!(self.effect_trace, Some(EffectTraceConfig::Record { .. }));
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();
@@ -201,6 +250,9 @@ impl HostBuilder {
                 self.base_color,
                 index as u64 + 1,
             );
+            if let Some(trace) = &effect_trace {
+                applier.set_effect_trace(trace.clone());
+            }
             #[cfg(feature = "vite")]
             if let Some((_, entry)) = vite.as_ref() {
                 applier
@@ -239,6 +291,7 @@ impl HostBuilder {
         let widget_factories = self.widget_factories.clone();
         let base_color = self.base_color;
         let child_debug_state = debug_state.clone();
+        let child_effect_trace = effect_trace.clone();
         #[cfg(feature = "vite")]
         let child_vite = vite.clone();
         #[cfg(feature = "vite")]
@@ -268,6 +321,9 @@ impl HostBuilder {
                 base_color,
                 window_id,
             );
+            if let Some(trace) = &child_effect_trace {
+                applier.set_effect_trace(trace.clone());
+            }
             #[cfg(feature = "vite")]
             if let Some((_, entry)) = child_vite.as_ref() {
                 applier
@@ -295,8 +351,19 @@ impl HostBuilder {
             Ok(Box::new(applier))
         });
 
-        run_windows_with_factory_and_extensions(sources, Some(factory), self.extensions)
-            .context(crate::error::ShellSnafu)?;
+        let run_result =
+            run_windows_with_factory_and_extensions(sources, Some(factory), self.extensions)
+                .context(crate::error::ShellSnafu);
+        let trace_result =
+            if recording_effects && let (Some(trace), Some(path)) = (&effect_trace, trace_path) {
+                trace
+                    .write(&path)
+                    .map_err(|message| crate::Error::EffectTrace { message })
+            } else {
+                Ok(())
+            };
+        run_result?;
+        trace_result?;
         #[cfg(feature = "vite")]
         drop(hmr_clients);
         #[cfg(feature = "vite")]
