@@ -82,8 +82,11 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
 
   return (
     <div
-      ref={(node: Handle) => {
-        scrollHandle = node;
+      ref={(node) => {
+        // Solid's published JSX types describe DOM nodes, while the universal
+        // renderer supplies Wabou handles at runtime. Keep that conversion at
+        // this renderer boundary instead of leaking DOM types into the core.
+        scrollHandle = node as unknown as Handle;
         virtualizer._willUpdate();
       }}
       style={{
@@ -92,8 +95,11 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
         height: `${props.viewportHeight}px`,
         width: "100%",
       }}
-      onScroll={(event: ScrollEvent) => {
-        lastOffset = event.scrollY ?? 0;
+      onScroll={(event) => {
+        // Native scroll payloads expose logical offsets directly rather than
+        // through HTMLElement.scrollTop/scrollLeft.
+        const nativeEvent = event as unknown as ScrollEvent;
+        lastOffset = nativeEvent.scrollY ?? 0;
         publishOffset?.(lastOffset, true);
         if (scrollEndTimer !== undefined) clearTimeout(scrollEndTimer);
         scrollEndTimer = setTimeout(() => {
