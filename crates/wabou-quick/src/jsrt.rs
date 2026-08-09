@@ -19,16 +19,10 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, Wake, Waker};
 
 use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Ctx, Function, Object, TypedArray};
+pub(crate) use wabou_host_api::LayoutRect;
+use wabou_host_api::{FrameStats as HostFrameStats, LayoutNodeMetrics, LayoutSnapshot};
 type JsResult<T> = rquickjs::Result<T>;
 pub(crate) type ResizeTargets = Rc<RefCell<HashMap<u32, Option<(f32, f32)>>>>;
-
-#[derive(Clone, Copy, Debug, Default, serde::Serialize)]
-pub(crate) struct LayoutRect {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct LayoutMetric {
@@ -41,20 +35,6 @@ pub(crate) struct LayoutMetricsSnapshot {
     pub revision: u64,
     pub viewport: LayoutRect,
     pub nodes: HashMap<u32, LayoutMetric>,
-}
-
-#[derive(serde::Serialize)]
-struct LayoutMetricResponse {
-    id: u32,
-    rect: LayoutRect,
-    clip: LayoutRect,
-}
-
-#[derive(serde::Serialize)]
-struct LayoutSnapshotResponse {
-    revision: u64,
-    viewport: LayoutRect,
-    nodes: Vec<LayoutMetricResponse>,
 }
 
 use crate::atom::AtomPool;
@@ -311,20 +291,21 @@ impl JsRuntime {
 
             // Latest per-frame render-stage timings (EMA)
             // as JSON, or null until the first frame. For a live perf overlay.
-            // Built by hand (no serde on FrameStats) to avoid a wabou-shell
-            // serde dependency just for diagnostics.
             let stats = self.frame_stats.clone();
             globals.set(
                 "__wabou_frame_stats",
                 rquickjs::Function::new(ctx.clone(), move || -> String {
                     let cell = stats.borrow();
-                    match cell.as_ref() {
-                        Some(f) => format!(
-                            "{{\"build_frame_ms\":{:.3},\"js_tick_ms\":{:.3},\"scene_ms\":{:.3},\"present_ms\":{:.3},\"node_count\":{},\"viewport_w\":{},\"viewport_h\":{}}}",
-                            f.build_frame_ms, f.js_tick_ms, f.scene_ms, f.present_ms, f.node_count, f.viewport_w, f.viewport_h
-                        ),
-                        None => "null".to_string(),
-                    }
+                    serde_json::to_string(&cell.as_ref().map(|f| HostFrameStats {
+                        build_frame_ms: f.build_frame_ms,
+                        js_tick_ms: f.js_tick_ms,
+                        scene_ms: f.scene_ms,
+                        present_ms: f.present_ms,
+                        node_count: f.node_count,
+                        viewport_w: f.viewport_w,
+                        viewport_h: f.viewport_h,
+                    }))
+                    .expect("frame stats are serializable")
                 })?
                 .with_name("__wabou_frame_stats")?,
             )?;
@@ -345,13 +326,13 @@ impl JsRuntime {
                             .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()));
                         let nodes = ids
                             .filter_map(|id| snapshot.nodes.get(&id).map(|node| (id, node)))
-                            .map(|(id, node)| LayoutMetricResponse {
+                            .map(|(id, node)| LayoutNodeMetrics {
                                 id,
                                 rect: node.rect,
                                 clip: node.clip,
                             })
                             .collect::<Vec<_>>();
-                        serde_json::to_string(&LayoutSnapshotResponse {
+                        serde_json::to_string(&LayoutSnapshot {
                             revision: snapshot.revision,
                             viewport: snapshot.viewport,
                             nodes,

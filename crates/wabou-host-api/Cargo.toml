@@ -1,0 +1,17 @@
+[package]
+name = "wabou-host-api"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+bindings = ["dep:specta", "dep:wabou-bindings"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+specta = { workspace = true, optional = true }
+wabou-bindings = { workspace = true, optional = true }
+
+[[example]]
+name = "native-host-bindings"
+path = "examples/native-host-bindings.rs"
+required-features = ["bindings"]

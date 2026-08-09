@@ -1,41 +1,20 @@
 import { createComponent, createContext, type JSX, useContext } from "solid-js";
+import type {
+  FrameStats,
+  LayoutNodeMetrics,
+  LayoutRect,
+  LayoutSnapshot,
+  NativeHostApi,
+} from "./generated/native-host";
 import type { HostCapabilities } from "./index";
+
+export type { FrameStats, LayoutNodeMetrics, LayoutRect, LayoutSnapshot } from "./generated/native-host";
 
 declare function __wabou_open_url(url: string): boolean;
 declare function __wabou_load_font(path: string): boolean;
 declare function __wabou_frame_stats(): string;
 declare function __wabou_layout_snapshot(ids: Uint32Array): string;
 declare const __wabou_capabilities: Record<string, object>;
-
-/** Per-frame timings reported by the native Wabou host. */
-export interface FrameStats {
-  build_frame_ms: number;
-  js_tick_ms: number;
-  scene_ms: number;
-  present_ms: number;
-  node_count: number;
-  viewport_w: number;
-  viewport_h: number;
-}
-
-export interface LayoutRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface LayoutNodeMetrics {
-  id: number;
-  rect: LayoutRect;
-  clip: LayoutRect;
-}
-
-export interface LayoutSnapshot {
-  revision: number;
-  viewport: LayoutRect;
-  nodes: LayoutNodeMetrics[];
-}
 
 export type LayoutTarget = number | { readonly id: number };
 
@@ -67,27 +46,26 @@ export interface BuiltinHost {
 /** Augment `HostCapabilities` in generated/user declarations. */
 export type Host = BuiltinHost & HostCapabilities;
 
-/** Default adapter around the private Rust/QuickJS ABI. */
+/** Checked adapter around the private Rust/QuickJS ABI. */
+const nativeHost: NativeHostApi = {
+  openUrl: (url) => __wabou_open_url(url),
+  loadFont: (path) => __wabou_load_font(path),
+  frameStats: () => JSON.parse(__wabou_frame_stats()) as FrameStats | null,
+  layoutSnapshot: (ids) =>
+    JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids))) as LayoutSnapshot,
+};
+
 const builtinHost: BuiltinHost = {
-  system: {
-    openUrl: (url) => __wabou_open_url(url),
-  },
-  fonts: {
-    load: (path) => __wabou_load_font(path),
-  },
-  diagnostics: {
-    frameStats: () => {
-      const value = JSON.parse(__wabou_frame_stats()) as FrameStats | null;
-      return value;
-    },
-  },
+  system: { openUrl: nativeHost.openUrl },
+  fonts: { load: nativeHost.loadFont },
+  diagnostics: { frameStats: nativeHost.frameStats },
   layout: {
-    snapshot: (targets) => {
-      const ids = Uint32Array.from(targets, (target) =>
-        typeof target === "number" ? target : target.id,
-      );
-      return JSON.parse(__wabou_layout_snapshot(ids)) as LayoutSnapshot;
-    },
+    snapshot: (targets) =>
+      nativeHost.layoutSnapshot(
+        targets.map((target) =>
+          typeof target === "number" ? target : target.id,
+        ),
+      ),
     measure: (target) => {
       const snapshot = builtinHost.layout.snapshot([target]);
       return snapshot.nodes[0]?.rect ?? null;

@@ -118,9 +118,8 @@ are not a stable schema. Do not generate declarations from persistence or SDK
 models either: define explicit bridge DTOs so a database or upstream SDK change
 cannot silently become a JavaScript API change.
 
-`ts-rs` remains supported by the legacy DTO manifest while applications move
-to Specta function contracts. Typeshare is appropriate when several foreign
-languages are a primary requirement. A full RPC framework is not required for
+Typeshare is appropriate when several foreign languages are a primary
+requirement. A full RPC framework is not required for
 the in-process QuickJS capability boundary, and would couple the renderer to
 routing and transport concerns it does not have.
 
@@ -128,3 +127,11 @@ Generated files must be committed and checked for drift in CI. Generation is
 an explicit `write` operation; the corresponding `check` operation generates
 in memory and fails when the committed output differs. Ordinary compilation
 and build scripts must not rewrite the source tree.
+
+Framework-owned synchronous host calls use the same Rust/Specta source but a
+flat `FunctionModule` rather than an async capability client. The generated
+`NativeHostApi` checks the TypeScript adapter for URL opening, font loading,
+frame diagnostics and layout snapshots while preserving their synchronous
+semantics. Per-frame binary rendering operations and guest callbacks remain a
+separate, versioned ABI because routing those through JSON RPC would add cost
+and erase useful protocol constraints.
