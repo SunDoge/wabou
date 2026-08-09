@@ -150,6 +150,7 @@ impl FrameSource for Applier {
         // Host application messages before tick so subscribe
         // handlers can update signals before this frame's rAF flush.
         self.drain_host_messages();
+        self.dispatch_scroll_changes();
 
         // One rAF round-trip: runs queued rAF callbacks (Solid effects re-emit
         // ops), flushes the writer → __wabou_flush lands bytes here. Timed so
@@ -229,6 +230,13 @@ impl FrameSource for Applier {
                 tcx,
                 &self.scroll_offsets,
             );
+            if self.clamp_scroll_offsets(&placed) {
+                placed = layout::flatten_with_scroll(
+                    &self.node_store.tree,
+                    self.node_store.root,
+                    &self.scroll_offsets,
+                );
+            }
             self.invalidation.remove(InvalidationFlags::LAYOUT);
             self.layout_viewport = Some(viewport);
             let resize_changed = self.dispatch_resize_changes();
@@ -837,6 +845,7 @@ impl FrameSource for Applier {
                         let offset = self.scroll_offsets.entry(node).or_insert([0.0; 2]);
                         offset[index] = (offset[index] + direction * viewport)
                             .clamp(0.0, hit.placed.scroll.range[index]);
+                        self.queue_scroll_event(node);
                         self.projections.semantics_dirty = true;
                         return Self::response(true);
                     }

@@ -80,6 +80,8 @@ export const EVENT_DATA_SLOT = {
   mods: 4,
   deltaX: 5,
   deltaY: 6,
+  scrollX: 7,
+  scrollY: 8,
 } as const;
 
 export const EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;

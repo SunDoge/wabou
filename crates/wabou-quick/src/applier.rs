@@ -442,6 +442,8 @@ pub struct Applier {
     host_action_wake: Rc<RefCell<Option<WakeCallback>>>,
     wake_callback: Option<WakeCallback>,
     scroll_offsets: HashMap<NodeId, [f32; 2]>,
+    /// Native scroll changes coalesced by Solid target until the next JS tick.
+    pending_scroll_events: HashMap<u32, [f32; 2]>,
     /// Protocol frames commonly create a node and then set several properties
     /// on it. Resolve style once at FrameEnd instead of after every operation.
     batching_styles: bool,
@@ -773,6 +775,7 @@ impl Applier {
             host_action_wake,
             wake_callback: None,
             scroll_offsets: HashMap::new(),
+            pending_scroll_events: HashMap::new(),
             batching_styles: false,
             dirty_styles: HashSet::new(),
             layout_viewport: None,

@@ -161,6 +161,9 @@ impl Applier {
         let changed = offset[index] != old;
         self.projections.semantics_dirty |= changed;
         self.scrollbar_activity.insert(drag.node, Instant::now());
+        if changed {
+            self.queue_scroll_event(drag.node);
+        }
         changed
     }
 
@@ -199,6 +202,7 @@ impl Applier {
                 if *offset != old {
                     self.projections.semantics_dirty = true;
                     self.scrollbar_activity.insert(node, Instant::now());
+                    self.queue_scroll_event(node);
                     return true;
                 }
             }
@@ -241,9 +245,68 @@ impl Applier {
         let changed = *offset != old;
         if changed {
             self.scrollbar_activity.insert(node, Instant::now());
+            self.queue_scroll_event(node);
         }
         self.projections.semantics_dirty |= changed;
         changed
+    }
+
+    pub(super) fn queue_scroll_event(&mut self, node: NodeId) {
+        let Some(target) = self.node_store.solid_id_for_node(node) else {
+            return;
+        };
+        if !self.has_listener_in_chain(target, event::SCROLL) {
+            return;
+        }
+        let offset = self.scroll_offsets.get(&node).copied().unwrap_or([0.0; 2]);
+        self.pending_scroll_events.insert(target, offset);
+    }
+
+    pub(super) fn dispatch_scroll_changes(&mut self) -> bool {
+        if self.pending_scroll_events.is_empty() {
+            return false;
+        }
+        let events = std::mem::take(&mut self.pending_scroll_events)
+            .into_iter()
+            .map(|(target, offset)| {
+                let mut data = [0.0; event_data::LEN];
+                data[event_data::SCROLL_X as usize] = f64::from(offset[0]);
+                data[event_data::SCROLL_Y as usize] = f64::from(offset[1]);
+                HostEvent::Node(HostNodeEvent {
+                    target,
+                    event_code: event::SCROLL,
+                    event_id: 0,
+                    cancellable: false,
+                    payload: NodeEventPayload::Numeric(data),
+                })
+            })
+            .collect::<Vec<_>>();
+        match self.js.dispatch_host_frame(&events) {
+            Ok(_) => true,
+            Err(error) => {
+                tracing::warn!(?error, "scroll observation dispatch failed");
+                false
+            }
+        }
+    }
+
+    pub(super) fn clamp_scroll_offsets(&mut self, placed: &[PlacedNode]) -> bool {
+        let mut changed = Vec::new();
+        for item in placed {
+            let Some(offset) = self.scroll_offsets.get_mut(&item.node_id) else {
+                continue;
+            };
+            let old = *offset;
+            offset[0] = offset[0].clamp(0.0, item.scroll.range[0]);
+            offset[1] = offset[1].clamp(0.0, item.scroll.range[1]);
+            if *offset != old {
+                changed.push(item.node_id);
+            }
+        }
+        for node in &changed {
+            self.queue_scroll_event(*node);
+        }
+        !changed.is_empty()
     }
 
     pub(super) fn text_selection_scroll_delta(&self) -> Option<(u32, f32, f32)> {

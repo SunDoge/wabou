@@ -69,6 +69,28 @@ test("dispatch reports preventDefault to the Host", () => {
   expect(dispatchEvent(anchor.id, EVENT_CODE.click, "")).toBe(true);
 });
 
+test("native scroll observations expose authoritative offsets", () => {
+  const view = createElement("div");
+  let observed: { scrollX: number; scrollY: number } | undefined;
+  setProp(
+    view,
+    "onScroll",
+    (event: { scrollX: number; scrollY: number }) => {
+      observed = { scrollX: event.scrollX, scrollY: event.scrollY };
+    },
+    undefined,
+  );
+
+  dispatchEvent(
+    view.id,
+    EVENT_CODE.scroll,
+    "",
+    [0, 0, 0, 0, 0, 0, 0, 12.5, 320],
+  );
+
+  expect(observed).toEqual({ scrollX: 12.5, scrollY: 320 });
+});
+
 test("handles expose imperative native focus through the bridge", () => {
   writer.flush();
   const button = createElement("button");

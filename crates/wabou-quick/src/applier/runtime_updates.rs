@@ -203,6 +203,7 @@ impl Applier {
         self.widget_manager.styles.clear();
         self.input.listeners.clear();
         self.scroll_offsets.clear();
+        self.pending_scroll_events.clear();
         self.scrollbar_hits.clear();
         self.scrollbar_drag = None;
         self.hovered_scrollbar = None;

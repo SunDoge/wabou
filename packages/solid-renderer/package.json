@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@tanstack/virtual-core": "3.17.7",
     "@wabou/style": "workspace:*",
     "@wabou/protocol": "workspace:*",
     "solid-refresh": "0.6.3",

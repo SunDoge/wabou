@@ -441,6 +441,29 @@ fn event_mask_is_compact_and_preserves_protocol_codes() {
 }
 
 #[test]
+fn native_scroll_observations_coalesce_by_target() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    applier
+        .input
+        .listeners
+        .entry(1)
+        .or_default()
+        .insert(event::SCROLL);
+    applier
+        .scroll_offsets
+        .insert(applier.node_store.root, [0.0, 12.0]);
+    applier.queue_scroll_event(applier.node_store.root);
+    applier
+        .scroll_offsets
+        .insert(applier.node_store.root, [0.0, 48.0]);
+    applier.queue_scroll_event(applier.node_store.root);
+
+    assert_eq!(applier.pending_scroll_events.len(), 1);
+    assert_eq!(applier.pending_scroll_events[&1], [0.0, 48.0]);
+}
+
+#[test]
 fn widget_host_actions_reach_the_frame_source() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);

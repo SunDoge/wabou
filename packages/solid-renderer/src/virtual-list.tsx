@@ -1,19 +1,20 @@
-// Windowed list — the SolidJS-as-DSL take on virtualization. Only the rows
-// in (or near) the viewport are materialised as nodes; the reconciler
-// (`<Index>`, keyed by slot) recycles slots as the visible range shifts, so
-// off-screen rows are dropped and new ones created. Scroll position is driven
-// by `wheel` events accumulated in a signal — no native scroll container, no
-// DOM. The host's `overflow: hidden` clips; absolute `top` per slot places rows.
-
-import { Index, type JSX } from "solid-js";
-import { createMemo, createSignal } from "solid-js";
+import { Virtualizer, type VirtualizerOptions } from "@tanstack/virtual-core";
+import {
+  Index,
+  Show,
+  createMemo,
+  createSignal,
+  onCleanup,
+  type JSX,
+} from "solid-js";
+import type { Handle } from "./index";
 
 export interface VirtualListProps<T> {
   /** Accessor for the full backing array. Only the visible slice renders. */
   items: () => readonly T[];
-  /** Fixed height of every row, in px. */
+  /** Fixed height of every row, in logical pixels. */
   itemHeight: number;
-  /** Visible viewport height in px (the scrollable region's height). */
+  /** Visible viewport height in logical pixels. */
   viewportHeight: number;
   /** Extra rows rendered above/below the viewport. Defaults to 4. */
   overscan?: number;
@@ -21,60 +22,113 @@ export interface VirtualListProps<T> {
   children: (item: T, index: number) => JSX.Element;
 }
 
+interface ScrollEvent {
+  scrollX?: number;
+  scrollY?: number;
+}
+
+/**
+ * Windowed Solid list backed by TanStack Virtual's framework-neutral core.
+ * Rust remains authoritative for scrolling, clipping, hit testing and the
+ * native scrollbar; this adapter supplies viewport/offset observations instead
+ * of relying on HTMLElement, ResizeObserver or getBoundingClientRect().
+ */
 export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
-  const [scrollTop, setScrollTop] = createSignal(0);
-  const maxScroll = createMemo(() =>
-    Math.max(0, props.items().length * props.itemHeight - props.viewportHeight),
-  );
-  const view = createMemo(() => {
-    const st = scrollTop();
-    const ih = props.itemHeight;
-    const overscan = props.overscan ?? 4;
-    const count = props.items().length;
-    const start = Math.max(0, Math.floor(st / ih) - overscan);
-    const end = Math.min(
-      count,
-      Math.ceil((st + props.viewportHeight) / ih) + overscan,
-    );
-    // Sub-row offset: how far the slot grid is translated up for partial rows.
-    const partial = st - Math.floor(st / ih) * ih;
-    return { start, end, partial };
+  const surface = {} as Element;
+  let scrollHandle: Handle | undefined;
+  let publishOffset: ((offset: number, scrolling: boolean) => void) | undefined;
+  let scrollEndTimer: ReturnType<typeof setTimeout> | undefined;
+  let lastOffset = 0;
+  const [version, invalidate] = createSignal(0, { equals: false });
+
+  const options = (): VirtualizerOptions<Element, Element> => ({
+    count: props.items().length,
+    getScrollElement: () => (scrollHandle ? surface : null),
+    estimateSize: () => props.itemHeight,
+    overscan: props.overscan ?? 4,
+    initialRect: { width: 0, height: props.viewportHeight },
+    observeElementRect: (_instance, notify) => {
+      notify({ width: 0, height: props.viewportHeight });
+    },
+    observeElementOffset: (_instance, notify) => {
+      publishOffset = notify;
+      notify(0, false);
+      return () => {
+        publishOffset = undefined;
+      };
+    },
+    scrollToFn: (offset) => scrollHandle?.scrollTo({ top: offset }),
+    onChange: () => invalidate((value) => value + 1),
   });
-  const slice = createMemo(() => {
-    const { start, end } = view();
-    return props.items().slice(start, end);
+
+  const virtualizer = new Virtualizer(options());
+  const dispose = virtualizer._didMount();
+  onCleanup(() => {
+    if (scrollEndTimer !== undefined) clearTimeout(scrollEndTimer);
+    dispose();
   });
-  const onWheel = (e: { deltaY?: number; preventDefault?: () => void }) => {
-    // The host skips native scroll when a wheel listener is in the chain, so
-    // this handler is the sole source of scroll position.
-    e.preventDefault?.();
-    const next = scrollTop() + (e.deltaY ?? 0);
-    setScrollTop(Math.max(0, Math.min(next, maxScroll())));
-  };
+
+  const virtualItems = createMemo(() => {
+    version();
+    props.items();
+    virtualizer.setOptions(options());
+    virtualizer._willUpdate();
+    return virtualizer.getVirtualItems();
+  });
+  const totalSize = createMemo(() => {
+    virtualItems();
+    return virtualizer.getTotalSize();
+  });
 
   return (
     <div
+      ref={(node: Handle) => {
+        scrollHandle = node;
+        virtualizer._willUpdate();
+      }}
       style={{
-        overflow: "hidden",
+        overflow: "scroll",
         position: "relative",
         height: `${props.viewportHeight}px`,
+        width: "100%",
       }}
-      onWheel={onWheel}
+      onScroll={(event: ScrollEvent) => {
+        lastOffset = event.scrollY ?? 0;
+        publishOffset?.(lastOffset, true);
+        if (scrollEndTimer !== undefined) clearTimeout(scrollEndTimer);
+        scrollEndTimer = setTimeout(() => {
+          scrollEndTimer = undefined;
+          publishOffset?.(lastOffset, false);
+        }, 150);
+      }}
     >
-      <Index each={slice()}>
-        {(item, slot) => (
-          <div
-            style={{
-              position: "absolute",
-              top: `${slot * props.itemHeight - view().partial}px`,
-              height: `${props.itemHeight}px`,
-              width: "100%",
-            }}
-          >
-            {props.children(item(), view().start + slot)}
-          </div>
-        )}
-      </Index>
+      <div
+        style={{
+          position: "relative",
+          height: `${totalSize()}px`,
+          width: "100%",
+        }}
+      >
+        <Index each={virtualItems()}>
+          {(virtualItem) => (
+            <div
+              style={{
+                position: "absolute",
+                top: `${virtualItem().start}px`,
+                height: `${virtualItem().size}px`,
+                width: "100%",
+              }}
+            >
+              <Show when={virtualItem().index + 1} keyed>
+                {(key) => {
+                  const index = key - 1;
+                  return props.children(props.items()[index]!, index);
+                }}
+              </Show>
+            </div>
+          )}
+        </Index>
+      </div>
     </div>
   );
 }

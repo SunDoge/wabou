@@ -647,6 +647,9 @@ export function dispatchEvent(
         data.clientY = ed[1];
         data.deltaX = ed[5];
         data.deltaY = ed[6];
+      } else if (eventCode === EVENT_CODE.scroll) {
+        data.scrollX = ed[7];
+        data.scrollY = ed[8];
       }
     }
   }

@@ -427,6 +427,7 @@ impl Applier {
                     self.input.focused_target = None;
                 }
                 self.input.listeners.remove(id);
+                self.pending_scroll_events.remove(id);
                 self.resize_targets.borrow_mut().remove(id);
                 // Keep the cached hover/focus targets from dangling at a solid
                 // id whose node was just torn down — a stale hit would make
