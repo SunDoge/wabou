@@ -103,6 +103,15 @@ writeFileSync(
   ]),
 );
 
+const formatProcess = Bun.spawn(["rustfmt", "--edition", "2024", OUT], {
+  cwd: ROOT,
+  stdout: "inherit",
+  stderr: "inherit",
+});
+if ((await formatProcess.exited) !== 0) {
+  throw new Error("failed to format generated Rust protocol constants");
+}
+
 console.log(`wrote ${OUT}`);
 console.log(
   `  ${op.length} opcodes, ${event.length} event codes, ${eventData.length} event-data slots, ${hostRecord.length} host records`,

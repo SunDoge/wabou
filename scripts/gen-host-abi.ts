@@ -99,10 +99,19 @@ for (const [path, contents] of outputs) {
   console.log(`wrote ${path}`);
 }
 
-const format = Bun.spawn(
+const formatTypescript = Bun.spawn(
   [Bun.which("bun") ?? "bun", "x", "biome", "format", "--write", outputs[0][0]],
   { cwd: root, stdout: "inherit", stderr: "inherit" },
 );
-if ((await format.exited) !== 0) {
+if ((await formatTypescript.exited) !== 0) {
   throw new Error("failed to format generated Host ABI declarations");
+}
+
+const formatRust = Bun.spawn(["rustfmt", "--edition", "2024", outputs[1][0]], {
+  cwd: root,
+  stdout: "inherit",
+  stderr: "inherit",
+});
+if ((await formatRust.exited) !== 0) {
+  throw new Error("failed to format generated Host ABI inventory");
 }
