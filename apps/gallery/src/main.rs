@@ -5,6 +5,7 @@ use wabou_quick::{HostBuilder, WindowOptions};
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
+        .widget("fractal", || Box::new(gallery::fractal::JuliaWidget::new()))
         .window(
             WindowOptions::new()
                 .title("Wabou Components")

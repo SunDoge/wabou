@@ -69,13 +69,11 @@ impl WidgetNodeEvent {
 }
 
 pub mod canvas;
-pub mod fractal;
 pub mod image;
 pub mod password_input;
 pub mod text_input;
 
 pub use canvas::Canvas;
-pub use fractal::JuliaWidget;
 pub use image::ImageWidget;
 pub use password_input::{PasswordInput, SecretStore};
 pub use text_input::TextInput;
@@ -86,7 +84,6 @@ pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
     let mut factories: HashMap<String, WidgetFactory> = HashMap::new();
     factories.insert("canvas".into(), Arc::new(|| Box::new(Canvas)));
     factories.insert("img".into(), Arc::new(|| Box::new(ImageWidget::new())));
-    factories.insert("fractal".into(), Arc::new(|| Box::new(JuliaWidget::new())));
     factories.insert("input".into(), Arc::new(|| Box::new(TextInput::new())));
     factories.insert(
         "textarea".into(),
