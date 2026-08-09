@@ -166,18 +166,26 @@ impl App {
         let scale = shell.scale_factor();
         source.set_device_scale(scale);
         let t0 = Instant::now();
-        let nodes = source.build_frame(&mut shell.tcx, w, h);
+        let nodes = {
+            let span = tracing::trace_span!(target: "wabou::perf", "frame.build");
+            let _guard = span.enter();
+            source.build_frame(&mut shell.tcx, w, h)
+        };
         let t1 = Instant::now();
-        scene_builder::build_scene_scaled(
-            &mut shell.scene,
-            &nodes,
-            &mut shell.tcx,
-            w,
-            h,
-            base_color,
-            scale,
-        );
-        source.paint_debug_overlay(&mut shell.scene, &nodes, &mut shell.tcx, scale);
+        {
+            let span = tracing::trace_span!(target: "wabou::perf", "frame.scene");
+            let _guard = span.enter();
+            scene_builder::build_scene_scaled(
+                &mut shell.scene,
+                &nodes,
+                &mut shell.tcx,
+                w,
+                h,
+                base_color,
+                scale,
+            );
+            source.paint_debug_overlay(&mut shell.scene, &nodes, &mut shell.tcx, scale);
+        }
         let t2 = Instant::now();
         (nodes.len(), ms(t1 - t0), ms(t2 - t1))
     }
@@ -544,6 +552,16 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
+                let frame_span = tracing::trace_span!(
+                    target: "wabou::perf",
+                    "frame",
+                    window_id = self.logical_window_id,
+                    node_count = tracing::field::Empty,
+                    build_ms = tracing::field::Empty,
+                    scene_ms = tracing::field::Empty,
+                    present_ms = tracing::field::Empty,
+                );
+                let _frame_guard = frame_span.enter();
                 let Some(shell) = self.state.as_mut() else {
                     return;
                 };
@@ -576,8 +594,26 @@ impl ApplicationHandler for App {
                     self.source.complete_screenshot(result);
                 }
                 let t2 = Instant::now();
-                let presented = shell.present(base_color);
+                let presented = {
+                    let span = tracing::trace_span!(target: "wabou::perf", "frame.present");
+                    let _guard = span.enter();
+                    shell.present(base_color)
+                };
                 let present_ms = ms(Instant::now() - t2);
+                frame_span.record("node_count", node_count as u64);
+                frame_span.record("build_ms", build_frame_ms);
+                frame_span.record("scene_ms", scene_ms);
+                frame_span.record("present_ms", present_ms);
+                tracing::trace!(
+                    target: "wabou::perf",
+                    window_id = self.logical_window_id,
+                    node_count,
+                    build_ms = build_frame_ms,
+                    scene_ms,
+                    present_ms,
+                    presented,
+                    "frame.complete"
+                );
                 self.frame_stats
                     .update(build_frame_ms, scene_ms, present_ms, node_count);
                 self.source.push_frame_stats(&self.frame_stats);

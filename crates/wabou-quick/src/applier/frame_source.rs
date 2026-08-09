@@ -6,6 +6,8 @@ impl FrameSource for Applier {
     }
 
     fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode> {
+        let build_span = tracing::trace_span!(target: "wabou::perf", "quick.build_frame");
+        let _build_guard = build_span.enter();
         self.invalidation.remove(InvalidationFlags::TICK);
         self.js.take_async_wake();
         self.js.poll_async_runtime();
@@ -153,12 +155,16 @@ impl FrameSource for Applier {
         // ops), flushes the writer → __wabou_flush lands bytes here. Timed so
         // the host overlay can show the QuickJS portion of build_frame.
         let js_t0 = std::time::Instant::now();
-        let (bytes, has_raf) = match self.js.tick() {
-            Ok(v) => v,
-            Err(e) => {
-                tracing::error!(target: "bridge", "JS tick failed: {e:?}");
-                self.has_raf = false;
-                return Vec::new();
+        let (bytes, has_raf) = {
+            let span = tracing::trace_span!(target: "wabou::perf", "quick.js_tick");
+            let _guard = span.enter();
+            match self.js.tick() {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::error!(target: "bridge", "JS tick failed: {e:?}");
+                    self.has_raf = false;
+                    return Vec::new();
+                }
             }
         };
         let js_tick_ms = js_t0.elapsed().as_secs_f64() * 1000.0;

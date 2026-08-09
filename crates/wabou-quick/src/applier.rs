@@ -576,6 +576,13 @@ fn install_effect_functions(
                         scope: wabou_shell::EffectScope::Window(window_id),
                         payload,
                     };
+                    tracing::trace!(
+                        target: "wabou::perf",
+                        effect_id = id,
+                        capability,
+                        method,
+                        "native_effect.submit"
+                    );
                     let submission = trace.borrow().as_ref().map(|trace| trace.submit(&request));
                     match submission {
                         Some(crate::effect_trace::TraceSubmission::Replay(completions)) => {
@@ -601,6 +608,13 @@ fn install_effect_functions(
 }
 
 fn complete_js_effect(js: &JsRuntime, completion: &wabou_shell::EffectCompletion) {
+    tracing::trace!(
+        target: "wabou::perf",
+        effect_id = completion.id.0,
+        capability = completion.op.capability.0,
+        method = completion.op.method.0,
+        "native_effect.complete"
+    );
     let (status, payload) = match &completion.result {
         wabou_shell::EffectResult::Unit => (0_u8, "null".to_owned()),
         wabou_shell::EffectResult::ClipboardText(text) => (
