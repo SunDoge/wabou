@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 use serde_json::{Value, json};
 use snafu::{ResultExt, Whatever};
 use wabou_devtools::{call, discover_socket, empty_params, request};
+use wabou_devtools_app::bindings::CAPABILITY;
 use wabou_quick::rquickjs::{Function, prelude::Async};
 use wabou_quick::{HostBuilder, WindowOptions};
 
@@ -51,7 +52,7 @@ fn main() -> Result<(), Whatever> {
                 .min_inner_size(960, 600),
         )
         .devtools(false)
-        .capability("devtools", move |ctx, capability| {
+        .capability(CAPABILITY, move |ctx, capability| {
             let connect_target = target.clone();
             capability.set(
                 "connect",

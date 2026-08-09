@@ -2,7 +2,7 @@
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
 import { Button, Popover, Text } from "@wabou/primitives";
-import { type Host, mount, useHost } from "@wabou/solid-renderer";
+import { mount, useHost } from "@wabou/solid-renderer";
 import {
   createEffect,
   createMemo,
@@ -14,79 +14,14 @@ import {
   onMount,
   Show,
 } from "solid-js";
-import { decode, overlayStyle, type Rect } from "./model";
-
-interface DebugStatus {
-  protocolVersion: number;
-  pid: number;
-  revision: number;
-  viewportWidth: number;
-  viewportHeight: number;
-  nodeCount: number;
-  focusedNode?: number;
-  hoveredNode?: number;
-}
-
-interface DebugNode {
-  id: number;
-  parentId?: number;
-  tag: string;
-  text?: string;
-  classes: string[];
-  styleDiagnostics: string[];
-  attrs: Array<[string, string]>;
-  rect: Rect;
-  contentRect: Rect;
-  listeners: number[];
-  widget?: string;
-  clip: DebugClipInfo;
-  computed: Record<string, unknown>;
-}
-
-interface DebugClip {
-  nodeId: number;
-  kind: string;
-  coordinateSpace: string;
-  rect: Rect;
-  radius: number;
-  transform: [number, number, number, number, number, number];
-}
-
-interface DebugClipInfo {
-  widgetLocal?: DebugClip;
-  chain: DebugClip[];
-  effective?: DebugClip;
-  staticTransform: [number, number, number, number, number, number];
-  runtimeTransform?: [number, number, number, number, number, number];
-  borderTransform: [number, number, number, number, number, number];
-  sceneTransform: [number, number, number, number, number, number];
-  deviceScale: number;
-}
-
-interface DebugFrame {
-  direction: "hostToJs" | "jsToHost";
-  sequence: number;
-  byteLen: number;
-  recordCount: number;
-  bytesHex?: string;
-}
-
-interface DevtoolsCapability {
-  connect(path: string): Promise<string>;
-  status(): Promise<string>;
-  queryNodes(query: string, limit: number): Promise<string>;
-  inspectNode(id: number): Promise<string>;
-  recentFrames(limit: number): Promise<string>;
-  captureScreenshot(): Promise<string>;
-  setOverlay(
-    layout: boolean,
-    clips: boolean,
-    hitTarget: boolean,
-    selectedNode?: number,
-  ): Promise<string>;
-}
-
-type DevtoolsHost = Host & { readonly devtools: DevtoolsCapability };
+import {
+  createDevtoolsClient,
+  type DebugClip,
+  type DebugFrame,
+  type DebugNode,
+  type DebugStatus,
+} from "./generated/host-bindings";
+import { overlayStyle } from "./model";
 
 function shortText(node: DebugNode): string {
   const text = node.text?.replaceAll("\n", " ").trim();
@@ -100,11 +35,11 @@ function shortText(node: DebugNode): string {
 
 function clipLabel(clip: DebugClip): string {
   const rect = clip.rect;
-  return `${clip.coordinateSpace} · ${rect.x}, ${rect.y} · ${rect.width}×${rect.height} · r${clip.radius} · [${clip.transform.join(", ")}]`;
+  return `${clip.coordinateSpace} · ${rect.x}, ${rect.y} · ${rect.width}×${rect.height} · r${clip.radius} · [${clip.transform?.join(", ") ?? "1, 0, 0, 1, 0, 0"}]`;
 }
 
 function App() {
-  const host = useHost<DevtoolsHost>();
+  const devtools = createDevtoolsClient(useHost());
   const [status, setStatus] = createSignal<DebugStatus>();
   const [nodes, setNodes] = createSignal<DebugNode[]>([]);
   const [selected, setSelected] = createSignal<DebugNode>();
@@ -131,7 +66,7 @@ function App() {
 
   async function refreshStatus(): Promise<void> {
     try {
-      const value = decode<DebugStatus>(await host.devtools.status());
+      const value = await devtools.status();
       setStatus(value);
       setError(undefined);
     } catch (cause) {
@@ -141,9 +76,7 @@ function App() {
 
   async function refreshNodes(): Promise<void> {
     try {
-      const value = decode<DebugNode[]>(
-        await host.devtools.queryNodes(query(), 150),
-      );
+      const value = await devtools.queryNodes(query(), 150);
       setNodes(value);
       const id = selected()?.id;
       if (id) {
@@ -158,7 +91,7 @@ function App() {
 
   async function refreshFrames(): Promise<void> {
     try {
-      const next = decode<DebugFrame[]>(await host.devtools.recentFrames(20));
+      const next = await devtools.recentFrames(20);
       const current = frames();
       if (
         current.length === next.length &&
@@ -185,10 +118,10 @@ function App() {
 
   async function inspect(id: number): Promise<void> {
     try {
-      const node = decode<DebugNode>(await host.devtools.inspectNode(id));
+      const node = await devtools.inspectNode(id);
       setSelected(node);
       if (layoutOverlay()) {
-        await host.devtools.setOverlay(true, true, true, node.id);
+        await devtools.setOverlay(true, true, true, node.id);
       }
       setError(undefined);
     } catch (cause) {
@@ -202,9 +135,7 @@ function App() {
       return;
     }
     try {
-      const result = decode<{ path: string }>(
-        await host.devtools.connect(socket().trim()),
-      );
+      const result = await devtools.connect(socket().trim());
       setSocket(result.path);
       setConnectedSocket(result.path);
       setSelected(undefined);
@@ -220,9 +151,7 @@ function App() {
   async function capture(): Promise<void> {
     try {
       setBusy(true);
-      const value = decode<{ path: string }>(
-        await host.devtools.captureScreenshot(),
-      );
+      const value = await devtools.captureScreenshot();
       setScreenshot(value.path);
       setError(undefined);
     } catch (cause) {
@@ -235,7 +164,7 @@ function App() {
   async function toggleLayoutOverlay(): Promise<void> {
     const enabled = !layoutOverlay();
     try {
-      await host.devtools.setOverlay(enabled, enabled, enabled, selected()?.id);
+      await devtools.setOverlay(enabled, enabled, enabled, selected()?.id);
       setLayoutOverlay(enabled);
       setError(undefined);
     } catch (cause) {
@@ -524,12 +453,12 @@ function App() {
                   <Row
                     label="widget local"
                     value={
-                      node().clip.widgetLocal
-                        ? clipLabel(node().clip.widgetLocal!)
+                      node().clip?.widgetLocal
+                        ? clipLabel(node().clip!.widgetLocal!)
                         : "—"
                     }
                   />
-                  <For each={node().clip.chain}>
+                  <For each={node().clip?.chain ?? []}>
                     {(clip) => (
                       <Row
                         label={`${clip.kind} #${clip.nodeId}`}
@@ -540,30 +469,30 @@ function App() {
                   <Row
                     label="effective"
                     value={
-                      node().clip.effective
-                        ? clipLabel(node().clip.effective!)
+                      node().clip?.effective
+                        ? clipLabel(node().clip!.effective!)
                         : "none"
                     }
                   />
                   <Row
                     label="static transform"
-                    value={node().clip.staticTransform.join(", ")}
+                    value={node().clip?.staticTransform.join(", ") ?? "—"}
                   />
                   <Row
                     label="runtime transform"
-                    value={node().clip.runtimeTransform?.join(", ") ?? "none"}
+                    value={node().clip?.runtimeTransform?.join(", ") ?? "none"}
                   />
                   <Row
                     label="border → window"
-                    value={node().clip.borderTransform.join(", ")}
+                    value={node().clip?.borderTransform.join(", ") ?? "—"}
                   />
                   <Row
                     label="content → window"
-                    value={node().clip.sceneTransform.join(", ")}
+                    value={node().clip?.sceneTransform.join(", ") ?? "—"}
                   />
                   <Row
                     label="device scale"
-                    value={String(node().clip.deviceScale)}
+                    value={String(node().clip?.deviceScale ?? 1)}
                   />
                 </Panel>
                 <Panel title="Attributes">
@@ -571,9 +500,9 @@ function App() {
                     {([name, value]) => <Row label={name} value={value} />}
                   </For>
                 </Panel>
-                <Show when={node().styleDiagnostics.length > 0}>
+                <Show when={(node().styleDiagnostics?.length ?? 0) > 0}>
                   <Panel title="Style diagnostics">
-                    <For each={node().styleDiagnostics}>
+                    <For each={node().styleDiagnostics ?? []}>
                       {(diagnostic) => (
                         <Row label="rejected" value={diagnostic} />
                       )}

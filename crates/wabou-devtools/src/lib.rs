@@ -24,6 +24,7 @@ fn identity_transform() -> [f64; 6] {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct Rect {
     pub x: f32,
@@ -69,6 +70,7 @@ impl DebugClip {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugClip {
     pub node_id: u32,
@@ -81,6 +83,7 @@ pub struct DebugClip {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
 pub struct DebugClipInfo {
@@ -95,6 +98,7 @@ pub struct DebugClipInfo {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugComputedStyle {
     pub display: Option<String>,
@@ -135,6 +139,7 @@ impl Default for DebugComputedStyle {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugNode {
     pub id: u32,
@@ -156,6 +161,7 @@ pub struct DebugNode {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugStatus {
     pub protocol_version: u16,
@@ -175,6 +181,7 @@ fn default_device_scale() -> f64 {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugFrame {
     pub direction: String,
@@ -285,6 +292,7 @@ pub enum DebugCommand {
 
 /// Runtime-controlled overlay painted by the inspected application.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugOverlay {
     pub layout: bool,

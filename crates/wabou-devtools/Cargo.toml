@@ -3,10 +3,14 @@ name = "wabou-devtools"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+bindings = ["dep:specta"]
+
 [dependencies]
 clap = { version = "4.6.4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+specta = { workspace = true, optional = true }
 base64 = "0.22"
 rmcp = { version = "2.2", features = ["server", "macros", "schemars", "transport-io"] }
 schemars = "1"
