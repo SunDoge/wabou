@@ -6,7 +6,7 @@
 
 use std::error::Error as StdError;
 use std::fmt;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
 use tokio::sync::{Mutex, MutexGuard};
@@ -88,6 +88,12 @@ impl Deref for WriteConnection<'_> {
     }
 }
 
+impl DerefMut for WriteConnection<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.connection
+    }
+}
+
 impl Database {
     /// Opens a local database and atomically applies every missing migration.
     pub async fn open(path: impl AsRef<Path>, migrations: &[Migration]) -> Result<Self> {
@@ -104,14 +110,22 @@ impl Database {
 
         if found < supported {
             let transaction = connection.transaction().await?;
-            for migration in migrations
-                .iter()
-                .filter(|migration| migration.version > found)
-            {
-                transaction.execute_batch(migration.sql).await?;
-                transaction
-                    .execute(format!("PRAGMA user_version = {}", migration.version), ())
-                    .await?;
+            let result = async {
+                for migration in migrations
+                    .iter()
+                    .filter(|migration| migration.version > found)
+                {
+                    transaction.execute_batch(migration.sql).await?;
+                    transaction
+                        .execute(format!("PRAGMA user_version = {}", migration.version), ())
+                        .await?;
+                }
+                turso::Result::Ok(())
+            }
+            .await;
+            if let Err(error) = result {
+                transaction.rollback().await?;
+                return Err(error.into());
             }
             transaction.commit().await?;
         }
