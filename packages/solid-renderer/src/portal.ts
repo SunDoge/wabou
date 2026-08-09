@@ -27,11 +27,7 @@ export function Portal(props: PortalProps): JSX.Element {
   if (plane === "modal") {
     // Mark each modal container, not only the shared plane root. The host can
     // then expose only the last painted modal when several are mounted.
-    spread(
-      container,
-      { "aria-modal": "true", overlayPlane: "modal" },
-      false,
-    );
+    spread(container, { "aria-modal": "true", overlayPlane: "modal" }, false);
   }
   insertNode(root, container, undefined);
   insert(container, () => local.children);

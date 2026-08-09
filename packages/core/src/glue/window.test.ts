@@ -6,7 +6,11 @@ test("createWindow returns a handle that targets the created window", async () =
   Object.assign(globalThis, {
     __wabou_effect_abi: 1,
     __wabou_window_id: 3,
-    __wabou_effect_submit: (capability: number, method: number, json: string) => {
+    __wabou_effect_submit: (
+      capability: number,
+      method: number,
+      json: string,
+    ) => {
       calls.push([capability, method, JSON.parse(json)]);
       return nextRequest++;
     },

@@ -159,7 +159,11 @@
       "direction": "host",
       "owner": "applier",
       "kind": "function",
-      "params": [["capability", "number"], ["method", "number"], ["payloadJson", "string"]],
+      "params": [
+        ["capability", "number"],
+        ["method", "number"],
+        ["payloadJson", "string"]
+      ],
       "returns": "number"
     },
     {
@@ -239,7 +243,13 @@
       "direction": "guest",
       "owner": "core",
       "kind": "function",
-      "params": [["requestId", "number"], ["capability", "number"], ["method", "number"], ["status", "number"], ["payloadJson", "string"]],
+      "params": [
+        ["requestId", "number"],
+        ["capability", "number"],
+        ["method", "number"],
+        ["status", "number"],
+        ["payloadJson", "string"]
+      ],
       "returns": "void"
     }
   ]

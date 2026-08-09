@@ -2721,7 +2721,11 @@
   function dispatchEffect(op, payload) {
     return new Promise((resolve, reject) => {
       const id = submit(op, payload);
-      pending.set(id, { op, resolve, reject });
+      pending.set(id, {
+        op,
+        resolve,
+        reject
+      });
     });
   }
   function dispatchResourceEffect(op, payload) {

@@ -48,7 +48,8 @@ describe("@wabou/vite", () => {
       outDir: "dist",
     }));
     expect(typeof exported).toBe("function");
-    if (typeof exported !== "function") throw new Error("expected config factory");
+    if (typeof exported !== "function")
+      throw new Error("expected config factory");
     const config = (await exported({
       command: "build",
       mode: "ui-test",

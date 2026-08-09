@@ -165,11 +165,7 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
         Some(Color::WHITE)
     );
 
-    *applier
-        .pending_color_palette
-        .as_ref()
-        .unwrap()
-        .borrow_mut() = Some(vec![0x808080ff]);
+    *applier.pending_color_palette.as_ref().unwrap().borrow_mut() = Some(vec![0x808080ff]);
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
         applier.computed_node_snapshot(2).unwrap().background,

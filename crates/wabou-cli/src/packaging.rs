@@ -23,8 +23,9 @@ pub(crate) fn package(value: &Value, diagnostic_path: &Path) -> Result<Vec<PathB
 }
 
 fn decode_config(bytes: &[u8]) -> Result<Config> {
-    serde_json::from_slice(bytes)
-        .map_err(|error| format!("generated cargo-packager configuration is invalid: {error}").into())
+    serde_json::from_slice(bytes).map_err(|error| {
+        format!("generated cargo-packager configuration is invalid: {error}").into()
+    })
 }
 
 #[cfg(test)]

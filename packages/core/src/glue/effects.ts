@@ -43,12 +43,19 @@ function submit(op: EffectOp, payload: unknown): number {
 export function dispatchEffect<T>(op: EffectOp, payload?: unknown): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const id = submit(op, payload);
-    pending.set(id, { op, resolve: resolve as (value: unknown) => void, reject });
+    pending.set(id, {
+      op,
+      resolve: resolve as (value: unknown) => void,
+      reject,
+    });
   });
 }
 
 /** Submit a command whose resource handle is its effect id. */
-export function dispatchResourceEffect(op: EffectOp, payload?: unknown): number {
+export function dispatchResourceEffect(
+  op: EffectOp,
+  payload?: unknown,
+): number {
   return submit(op, payload);
 }
 
@@ -67,11 +74,10 @@ function complete(
   const request = pending.get(id);
   if (!request) return;
   pending.delete(id);
-  if (
-    request.op.capability !== capability ||
-    request.op.method !== method
-  ) {
-    request.reject(new Error(`Native effect ${id} completed with the wrong operation`));
+  if (request.op.capability !== capability || request.op.method !== method) {
+    request.reject(
+      new Error(`Native effect ${id} completed with the wrong operation`),
+    );
     return;
   }
   if (status === 1) {

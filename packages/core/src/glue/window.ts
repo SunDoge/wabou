@@ -25,8 +25,7 @@ export interface WindowHandle {
 function handle(id: number): WindowHandle {
   return Object.freeze({
     id,
-    close: () =>
-      dispatchFireAndForget(effectOps.windowClose, { windowId: id }),
+    close: () => dispatchFireAndForget(effectOps.windowClose, { windowId: id }),
     setMaximized: (value: boolean) =>
       dispatchFireAndForget(effectOps.windowSetMaximized, {
         windowId: id,

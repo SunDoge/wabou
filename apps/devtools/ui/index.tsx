@@ -574,7 +574,9 @@ function App() {
                 <Show when={node().styleDiagnostics.length > 0}>
                   <Panel title="Style diagnostics">
                     <For each={node().styleDiagnostics}>
-                      {(diagnostic) => <Row label="rejected" value={diagnostic} />}
+                      {(diagnostic) => (
+                        <Row label="rejected" value={diagnostic} />
+                      )}
                     </For>
                   </Panel>
                 </Show>

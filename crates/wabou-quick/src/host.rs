@@ -414,12 +414,7 @@ fn resource_bundle_candidates(executable: &Path) -> Vec<PathBuf> {
     if directory.file_name().and_then(|name| name.to_str()) == Some("bin")
         && let (Some(prefix), Some(binary)) = (directory.parent(), executable.file_stem())
     {
-        candidates.push(
-            prefix
-                .join("lib")
-                .join(binary)
-                .join("resources/bundle.js"),
-        );
+        candidates.push(prefix.join("lib").join(binary).join("resources/bundle.js"));
     }
 
     // A macOS .app keeps executables and resources in sibling directories.

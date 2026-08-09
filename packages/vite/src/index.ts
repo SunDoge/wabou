@@ -29,7 +29,8 @@ export interface WabouViteOptions {
 }
 
 export type WabouViteOptionsExport =
-  WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
+  | WabouViteOptions
+  | ((environment: ConfigEnv) => WabouViteOptions);
 
 function disableSolidDependencyOptimizer(): Plugin {
   return {

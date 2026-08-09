@@ -6,7 +6,8 @@ export type Length =
   | { unit: "auto" };
 
 export type ColorValue =
-  { kind: "literal"; rgba: number } | { kind: "token"; name: string };
+  | { kind: "literal"; rgba: number }
+  | { kind: "token"; name: string };
 
 export type StyleValue =
   | { type: "keyword"; value: string }

@@ -1218,10 +1218,7 @@ mod tests {
 
     #[test]
     fn package_configuration_is_strict_and_app_owned() {
-        let root = env::temp_dir().join(format!(
-            "wabou-cli-package-config-{}",
-            std::process::id()
-        ));
+        let root = env::temp_dir().join(format!("wabou-cli-package-config-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         fs::write(
             root.join("wabou.toml"),
@@ -1248,10 +1245,8 @@ formats = ["deb"]
 
     #[test]
     fn recursively_stages_application_resources() {
-        let root = env::temp_dir().join(format!(
-            "wabou-cli-package-resource-{}",
-            std::process::id()
-        ));
+        let root =
+            env::temp_dir().join(format!("wabou-cli-package-resource-{}", std::process::id()));
         let source = root.join("assets/nested");
         let destination = root.join("stage/assets");
         fs::create_dir_all(&source).unwrap();
