@@ -17,7 +17,9 @@ fn main() -> Result<(), Whatever> {
                 gallery::bindings::DESCRIBE_PALETTE,
                 Function::new(
                     ctx,
-                    Async(|raw: String| async move { gallery::bindings::describe_palette(&raw) }),
+                    Async(|raw: String| async move {
+                        gallery::bindings::invoke_describe_palette(&raw).await
+                    }),
                 )?,
             )
         })

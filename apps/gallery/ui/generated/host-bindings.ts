@@ -4,9 +4,9 @@ import "@wabou/solid-renderer";
 
 export type NativeResult<T> = T | PromiseLike<T>;
 
-export type DescribePaletteRequest = { name: string, swatchCount: number, };
+export type DescribePaletteRequest = { name: string; swatchCount: number }
 
-export type DescribePaletteResponse = { "status": "palette", title: string, swatches: Array<string>, } | { "status": "error", message: string, };
+export type DescribePaletteResponse = { status: "palette"; title: string; swatches: string[] } | { status: "error"; message: string }
 
 declare module "@wabou/solid-renderer" {
   interface HostCapabilities {
@@ -16,12 +16,18 @@ declare module "@wabou/solid-renderer" {
   }
 }
 
+function decodeNativeResult<T>(raw: string): T {
+  const result = JSON.parse(raw) as { ok: true; value: T } | { ok: false; error?: string };
+  if (!result.ok) throw new Error(result.error ?? "Native capability failed");
+  return result.value;
+}
+
 export interface BindingsDemoClient {
   describePalette(request: DescribePaletteRequest): Promise<DescribePaletteResponse>;
 }
 
 export function createBindingsDemoClient(host: Host): BindingsDemoClient {
   return {
-    describePalette: async (request) => JSON.parse(await host.bindingsDemo.describePalette(JSON.stringify(request))) as DescribePaletteResponse,
+    describePalette: async (request) => decodeNativeResult<DescribePaletteResponse>(await host.bindingsDemo.describePalette(JSON.stringify(request))),
   };
 }

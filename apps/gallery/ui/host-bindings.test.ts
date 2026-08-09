@@ -9,9 +9,12 @@ test("generated client owns the JSON capability boundary", async () => {
       describePalette: async (request: string) => {
         encoded = request;
         return JSON.stringify({
-          status: "palette",
-          title: "Ocean palette",
-          swatches: ["Ocean-1", "Ocean-2"],
+          ok: true,
+          value: {
+            status: "palette",
+            title: "Ocean palette",
+            swatches: ["Ocean-1", "Ocean-2"],
+          },
         });
       },
     },
