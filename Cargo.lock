@@ -9261,6 +9261,7 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+ "wabou-bindings",
  "wabou-quick",
  "wabou-shell",
  "wabou-tray",

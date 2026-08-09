@@ -24,8 +24,9 @@ struct TypeDeclaration {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Method {
     name: String,
-    request: TypeDeclaration,
+    request: Option<TypeDeclaration>,
     response: TypeDeclaration,
+    result_envelope: bool,
     declarations: BTreeMap<String, String>,
 }
 
@@ -43,8 +44,91 @@ impl Method {
         let response = collector.register::<Response>();
         Self {
             name,
-            request,
+            request: Some(request),
             response,
+            result_envelope: false,
+            declarations: collector.declarations,
+        }
+    }
+
+    /// Describe an asynchronous JSON method whose response uses Wabou's
+    /// `{ ok, value } | { ok, error }` native result envelope.
+    pub fn json_result<Request, Response>(name: impl Into<String>) -> Self
+    where
+        Request: TS + 'static,
+        Response: TS + 'static,
+    {
+        let mut method = Self::json::<Request, Response>(name);
+        method.result_envelope = true;
+        method
+    }
+
+    /// Describe a result method that acknowledges success with a boolean.
+    pub fn json_result_ack<Request>(name: impl Into<String>) -> Self
+    where
+        Request: TS + 'static,
+    {
+        let name = name.into();
+        assert_identifier(&name, "method");
+        let mut collector = DeclarationCollector::default();
+        let request = collector.register::<Request>();
+        Self {
+            name,
+            request: Some(request),
+            response: TypeDeclaration {
+                name: "boolean".into(),
+                declaration: String::new(),
+            },
+            result_envelope: true,
+            declarations: collector.declarations,
+        }
+    }
+
+    /// Describe a no-argument JSON method.
+    pub fn json_no_args<Response>(name: impl Into<String>) -> Self
+    where
+        Response: TS + 'static,
+    {
+        let name = name.into();
+        assert_identifier(&name, "method");
+        let mut collector = DeclarationCollector::default();
+        let response = collector.register::<Response>();
+        Self {
+            name,
+            request: None,
+            response,
+            result_envelope: false,
+            declarations: collector.declarations,
+        }
+    }
+
+    /// Describe a no-argument method using Wabou's native result envelope.
+    pub fn json_result_no_args<Response>(name: impl Into<String>) -> Self
+    where
+        Response: TS + 'static,
+    {
+        let mut method = Self::json_no_args::<Response>(name);
+        method.result_envelope = true;
+        method
+    }
+
+    /// Describe a no-argument result method whose successful value is nullable.
+    pub fn json_result_no_args_nullable<Response>(name: impl Into<String>) -> Self
+    where
+        Response: TS + 'static,
+    {
+        let name = name.into();
+        assert_identifier(&name, "method");
+        let mut collector = DeclarationCollector::default();
+        let inner = collector.register::<Response>();
+        Self {
+            name,
+            request: None,
+            response: TypeDeclaration {
+                name: format!("{} | null", inner.name),
+                declaration: String::new(),
+            },
+            result_envelope: true,
             declarations: collector.declarations,
         }
     }
@@ -108,9 +192,7 @@ impl Bindings {
         let mut output = String::from(HEADER);
         output.push_str("import type { Host } from \"@wabou/solid-renderer\";\n");
         output.push_str("import \"@wabou/solid-renderer\";\n\n");
-        output.push_str(
-            "export type NativeResult<T> = T | PromiseLike<T>;\n\n",
-        );
+        output.push_str("export type NativeResult<T> = T | PromiseLike<T>;\n\n");
 
         let declarations = self
             .capabilities
@@ -130,22 +212,37 @@ impl Bindings {
         for capability in sorted_capabilities(&self.capabilities) {
             output.push_str(&format!("    readonly {}: {{\n", capability.name));
             for method in sorted_methods(&capability.methods) {
+                let parameter = method.request.as_ref().map_or("", |_| "request: string");
                 output.push_str(&format!(
-                    "      {}(request: string): NativeResult<string>;\n",
-                    method.name
+                    "      {}({parameter}): NativeResult<string>;\n",
+                    method.name,
                 ));
             }
             output.push_str("    };\n");
         }
         output.push_str("  }\n}\n\n");
 
+        if self
+            .capabilities
+            .iter()
+            .flat_map(|capability| &capability.methods)
+            .any(|method| method.result_envelope)
+        {
+            output.push_str(
+                "function decodeNativeResult<T>(raw: string): T {\n  const result = JSON.parse(raw) as { ok: true; value: T } | { ok: false; error?: string };\n  if (!result.ok) throw new Error(result.error ?? \"Native capability failed\");\n  return result.value;\n}\n\n",
+            );
+        }
+
         for capability in sorted_capabilities(&self.capabilities) {
             let interface = format!("{}Client", upper_camel_case(&capability.name));
             output.push_str(&format!("export interface {interface} {{\n"));
             for method in sorted_methods(&capability.methods) {
+                let parameter = method.request.as_ref().map_or(String::new(), |request| {
+                    format!("request: {}", request.name)
+                });
                 output.push_str(&format!(
-                    "  {}(request: {}): Promise<{}>;\n",
-                    method.name, method.request.name, method.response.name
+                    "  {}({parameter}): Promise<{}>;\n",
+                    method.name, method.response.name
                 ));
             }
             output.push_str("}\n\n");
@@ -154,9 +251,25 @@ impl Bindings {
             ));
             output.push_str("  return {\n");
             for method in sorted_methods(&capability.methods) {
+                let parameter = method.request.as_ref().map_or("", |_| "request");
+                let argument = method
+                    .request
+                    .as_ref()
+                    .map_or(String::new(), |_| "JSON.stringify(request)".into());
+                let decode = if method.result_envelope {
+                    format!(
+                        "decodeNativeResult<{}>(await host.{}.{}({argument}))",
+                        method.response.name, capability.name, method.name
+                    )
+                } else {
+                    format!(
+                        "JSON.parse(await host.{}.{}({argument})) as {}",
+                        capability.name, method.name, method.response.name
+                    )
+                };
                 output.push_str(&format!(
-                    "    {}: async (request) => JSON.parse(await host.{}.{}(JSON.stringify(request))) as {},\n",
-                    method.name, capability.name, method.name, method.response.name
+                    "    {}: async ({parameter}) => {decode},\n",
+                    method.name,
                 ));
             }
             output.push_str("  };\n}\n\n");
@@ -334,7 +447,9 @@ mod tests {
 
     fn fixture() -> Bindings {
         Bindings::new().capability(
-            Capability::new("workspace").method(Method::json::<Request, Response>("readFile")),
+            Capability::new("workspace")
+                .method(Method::json::<Request, Response>("readFile"))
+                .method(Method::json_result_no_args::<Response>("status")),
         )
     }
 
@@ -348,6 +463,9 @@ mod tests {
         assert!(output.contains("readFile(request: Request): Promise<Response>"));
         assert!(output.contains("JSON.stringify(request)"));
         assert!(output.contains("JSON.parse(await host.workspace.readFile"));
+        assert!(output.contains("status(): NativeResult<string>"));
+        assert!(output.contains("status(): Promise<Response>"));
+        assert!(output.contains("decodeNativeResult<Response>(await host.workspace.status())"));
     }
 
     #[test]
