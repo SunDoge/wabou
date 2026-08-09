@@ -1,7 +1,8 @@
 //! Deterministic TypeScript clients and declarations for Wabou capabilities.
 //!
-//! The native QuickJS ABI remains `string -> Promise<string>`. Generated
-//! clients own JSON serialization so application code only sees typed DTOs.
+//! A native QuickJS method may return immediately or through a Promise.
+//! Generated clients normalize both forms to an asynchronous typed API and
+//! own JSON serialization so application code only sees typed DTOs.
 
 use std::any::TypeId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -107,6 +108,9 @@ impl Bindings {
         let mut output = String::from(HEADER);
         output.push_str("import type { Host } from \"@wabou/solid-renderer\";\n");
         output.push_str("import \"@wabou/solid-renderer\";\n\n");
+        output.push_str(
+            "export type NativeResult<T> = T | PromiseLike<T>;\n\n",
+        );
 
         let declarations = self
             .capabilities
@@ -127,7 +131,7 @@ impl Bindings {
             output.push_str(&format!("    readonly {}: {{\n", capability.name));
             for method in sorted_methods(&capability.methods) {
                 output.push_str(&format!(
-                    "      {}(request: string): Promise<string>;\n",
+                    "      {}(request: string): NativeResult<string>;\n",
                     method.name
                 ));
             }
@@ -339,7 +343,8 @@ mod tests {
         let output = fixture().render();
         assert!(output.contains("export type Nested ="));
         assert!(output.contains("count: number"));
-        assert!(output.contains("readFile(request: string): Promise<string>"));
+        assert!(output.contains("export type NativeResult<T> = T | PromiseLike<T>"));
+        assert!(output.contains("readFile(request: string): NativeResult<string>"));
         assert!(output.contains("readFile(request: Request): Promise<Response>"));
         assert!(output.contains("JSON.stringify(request)"));
         assert!(output.contains("JSON.parse(await host.workspace.readFile"));

@@ -2,6 +2,8 @@
 import type { Host } from "@wabou/solid-renderer";
 import "@wabou/solid-renderer";
 
+export type NativeResult<T> = T | PromiseLike<T>;
+
 export type DescribePaletteRequest = { name: string, swatchCount: number, };
 
 export type DescribePaletteResponse = { "status": "palette", title: string, swatches: Array<string>, } | { "status": "error", message: string, };
@@ -9,7 +11,7 @@ export type DescribePaletteResponse = { "status": "palette", title: string, swat
 declare module "@wabou/solid-renderer" {
   interface HostCapabilities {
     readonly bindingsDemo: {
-      describePalette(request: string): Promise<string>;
+      describePalette(request: string): NativeResult<string>;
     };
   }
 }
