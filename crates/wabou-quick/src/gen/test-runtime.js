@@ -107,7 +107,9 @@
     buttons: 3,
     mods: 4,
     deltaX: 5,
-    deltaY: 6
+    deltaY: 6,
+    scrollX: 7,
+    scrollY: 8
   };
   var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
   var HOST_FRAME = {
@@ -1886,24 +1888,18 @@
   }
 
   // packages/solid-renderer/src/host.tsx
+  var nativeHost = {
+    openUrl: (url) => __wabou_open_url(url),
+    loadFont: (path) => __wabou_load_font(path),
+    frameStats: () => JSON.parse(__wabou_frame_stats()),
+    layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids)))
+  };
   var builtinHost = {
-    system: {
-      openUrl: (url) => __wabou_open_url(url)
-    },
-    fonts: {
-      load: (path) => __wabou_load_font(path)
-    },
-    diagnostics: {
-      frameStats: () => {
-        const value = JSON.parse(__wabou_frame_stats());
-        return value;
-      }
-    },
+    system: { openUrl: nativeHost.openUrl },
+    fonts: { load: nativeHost.loadFont },
+    diagnostics: { frameStats: nativeHost.frameStats },
     layout: {
-      snapshot: (targets) => {
-        const ids = Uint32Array.from(targets, (target) => typeof target === "number" ? target : target.id);
-        return JSON.parse(__wabou_layout_snapshot(ids));
-      },
+      snapshot: (targets) => nativeHost.layoutSnapshot(targets.map((target) => typeof target === "number" ? target : target.id)),
       measure: (target) => {
         const snapshot = builtinHost.layout.snapshot([target]);
         return snapshot.nodes[0]?.rect ?? null;
@@ -2301,6 +2297,9 @@
           data.clientY = ed[1];
           data.deltaX = ed[5];
           data.deltaY = ed[6];
+        } else if (eventCode === EVENT_CODE.scroll) {
+          data.scrollX = ed[7];
+          data.scrollY = ed[8];
         }
       }
     }
