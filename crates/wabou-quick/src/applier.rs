@@ -105,7 +105,6 @@ fn key_event_payload(key: &wabou_shell::KeyEvent) -> String {
 
 #[derive(Clone)]
 enum InlineValue {
-    Text(Arc<str>),
     Typed(IrValue),
 }
 
@@ -126,10 +125,15 @@ struct ScrollbarDrag {
 impl InlineValue {
     fn ir(&self) -> IrValue {
         match self {
-            Self::Text(value) => style::parse_ir_value(value),
             Self::Typed(value) => value.clone(),
         }
     }
+}
+
+#[derive(Clone)]
+struct InlineProperty {
+    name: Arc<str>,
+    inherited: bool,
 }
 
 const CLICK_DRAG_THRESHOLD_SQUARED: f64 = 16.0;
@@ -331,7 +335,7 @@ impl ReloadHandle {
 /// CSS properties that inherit to descendants. A SetStyle touching one of
 /// these (or the `font` shorthand) must take the slow path — re-derive + run
 /// the inherit pass — so children see the new value. Other inline properties
-/// take [`Applier::apply_inline_fast`].
+/// take [`Applier::apply_inline_ir_fast`].
 const INHERITED_PROPERTIES: &[&str] = &[
     "color",
     "font-size",
@@ -367,6 +371,10 @@ pub struct Applier {
     class_resolution_cache_hits: usize,
     warned_utility_classes: HashSet<Atom>,
     warned_ir_properties: HashSet<Atom>,
+    /// Property atoms are stable for the runtime lifetime. Resolve and classify
+    /// each one once so dynamic inline updates do not allocate a property name
+    /// or repeatedly scan the inherited-property table.
+    inline_properties: HashMap<Atom, InlineProperty>,
     /// Rejections from the latest cascade pass, keyed by native node for
     /// DevTools inspection.
     style_diagnostics: HashMap<NodeId, Vec<String>>,
@@ -720,6 +728,7 @@ impl Applier {
             class_resolution_cache_hits: 0,
             warned_utility_classes: HashSet::new(),
             warned_ir_properties: HashSet::new(),
+            inline_properties: HashMap::new(),
             style_diagnostics: HashMap::new(),
             svg_cache: HashMap::new(),
             runtime_transforms: HashMap::new(),

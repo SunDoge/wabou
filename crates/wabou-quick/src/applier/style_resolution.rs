@@ -414,11 +414,6 @@ impl Applier {
     /// O(N) inherit pass. Correct because a non-inherited inline property
     /// doesn't propagate to descendants. Hot path for animation (moving N
     /// nodes via top/left = 2N SetStyles/frame).
-    pub(super) fn apply_inline_fast(&mut self, node: NodeId, prop: &str, value: &str) -> bool {
-        let ir = style::parse_ir_value(value);
-        self.apply_inline_ir_fast(node, prop, &ir)
-    }
-
     pub(super) fn apply_inline_ir_fast(&mut self, node: NodeId, prop: &str, ir: &IrValue) -> bool {
         let Ok(existing) = self.node_store.tree.style(node) else {
             return false;

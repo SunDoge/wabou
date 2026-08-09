@@ -1,6 +1,20 @@
 use super::*;
 
 impl Applier {
+    fn inline_property(&mut self, atom: Atom) -> Option<InlineProperty> {
+        if let Some(property) = self.inline_properties.get(&atom) {
+            return Some(property.clone());
+        }
+        let name: Arc<str> = {
+            let atoms = self.atoms.borrow();
+            Arc::from(atoms.resolve(atom)?)
+        };
+        let inherited = INHERITED_PROPERTIES.contains(&name.as_ref()) || name.as_ref() == "font";
+        let property = InlineProperty { name, inherited };
+        self.inline_properties.insert(atom, property.clone());
+        Some(property)
+    }
+
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
         self.batching_styles = true;
@@ -127,12 +141,13 @@ impl Applier {
             }
             Op::SetStyle { id, prop, value } => {
                 if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    let Some(name) = self.atoms.borrow().resolve(*prop).map(str::to_owned) else {
+                    let Some(property) = self.inline_property(*prop) else {
                         tracing::warn!(atom = prop.get(), "unknown style-property atom");
                         return;
                     };
+                    let ir = style::parse_ir_value(value);
                     if let Some(d) = self.node_store.declared.get_mut(&n) {
-                        d.inline.insert(*prop, InlineValue::Text(Arc::from(*value)));
+                        d.inline.insert(*prop, InlineValue::Typed(ir.clone()));
                     }
                     // Fast path: a non-inherited inline property can be applied
                     // directly to the existing (post-inherit) ComputedStyle —
@@ -142,21 +157,21 @@ impl Applier {
                     // font-*) still need the slow path to propagate to
                     // descendants. This is the hot path for per-frame animation
                     // (e.g. moving N nodes via top/left = 2N SetStyles/frame).
-                    if INHERITED_PROPERTIES.contains(&name.as_str()) || name == "font" {
+                    if property.inherited {
                         self.recompute_node(n);
-                    } else if !self.apply_inline_fast(n, &name, value) {
+                    } else if !self.apply_inline_ir_fast(n, &property.name, &ir) {
                         if let Some(d) = self.node_store.declared.get_mut(&n) {
                             d.inline.remove(prop);
                         }
                         if self.warned_ir_properties.insert(*prop) {
-                            tracing::warn!(property = %name, "unsupported inline style property or value");
+                            tracing::warn!(property = %property.name, "unsupported inline style property or value");
                         }
                     }
                 }
             }
             Op::SetStyleValue { id, prop, value } => {
                 if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    let Some(name) = self.atoms.borrow().resolve(*prop).map(str::to_owned) else {
+                    let Some(property) = self.inline_property(*prop) else {
                         tracing::warn!(atom = prop.get(), "unknown style-property atom");
                         return;
                     };
@@ -183,14 +198,14 @@ impl Applier {
                     if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.inline.insert(*prop, InlineValue::Typed(ir.clone()));
                     }
-                    if INHERITED_PROPERTIES.contains(&name.as_str()) || name == "font" {
+                    if property.inherited {
                         self.recompute_node(n);
-                    } else if !self.apply_inline_ir_fast(n, &name, &ir) {
+                    } else if !self.apply_inline_ir_fast(n, &property.name, &ir) {
                         if let Some(d) = self.node_store.declared.get_mut(&n) {
                             d.inline.remove(prop);
                         }
                         if self.warned_ir_properties.insert(*prop) {
-                            tracing::warn!(property = %name, "unsupported typed inline style property or value");
+                            tracing::warn!(property = %property.name, "unsupported typed inline style property or value");
                         }
                     }
                 }

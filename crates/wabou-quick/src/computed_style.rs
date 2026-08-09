@@ -39,6 +39,32 @@ fn queue_stylesheet(applier: &Applier, rules: Vec<crate::style_ir::StyleRule>) {
 }
 
 #[test]
+fn repeated_inline_updates_reuse_property_metadata() {
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, width) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (atoms.intern("div"), atoms.intern("width"))
+    };
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: div,
+        attrs: vec![],
+    });
+    for value in ["10px", "20px"] {
+        applier.apply_op(&Op::SetStyle {
+            id: 2,
+            prop: width,
+            value,
+        });
+    }
+
+    assert_eq!(applier.inline_properties.len(), 1);
+    let property = &applier.inline_properties[&width];
+    assert_eq!(&*property.name, "width");
+    assert!(!property.inherited);
+}
+
+#[test]
 fn class_cascade_resolves_into_computed_snapshot() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, card) = {
