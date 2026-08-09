@@ -9,8 +9,9 @@ license = "Apache-2.0"
 [workspace.dependencies]
 wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-bindings = { path = "crates/wabou-bindings" }
-wabou-host-api = { path = "crates/wabou-host-api" }
+wabou-database = { path = "crates/wabou-database" }
 wabou-devtools = { path = "crates/wabou-devtools" }
+wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-quick = { path = "crates/wabou-quick" }
 wabou-shell = { path = "crates/wabou-shell" }
 wabou-style = { path = "crates/wabou-style" }

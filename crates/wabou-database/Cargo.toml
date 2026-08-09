@@ -1,0 +1,13 @@
+[package]
+name = "wabou-database"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+tokio = { version = "1", features = ["sync"] }
+turso = { version = "0.8.0-pre.3", default-features = false }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+uuid = "1"
