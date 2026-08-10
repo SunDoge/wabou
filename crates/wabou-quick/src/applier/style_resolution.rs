@@ -539,6 +539,15 @@ impl Applier {
                     }) {
                         continue;
                     }
+                    let semantic_color = atoms
+                        .resolve(*class)
+                        .and_then(|name| {
+                            ["bg-", "border-", "text-"]
+                                .iter()
+                                .find_map(|prefix| name.strip_prefix(prefix))
+                        })
+                        .filter(|token| active_theme_colors.contains_key(*token))
+                        .map(str::to_owned);
                     let utility = self.utility_cache.entry(*class).or_insert_with(|| {
                         atoms
                             .resolve(*class)
@@ -566,6 +575,17 @@ impl Applier {
                         }
                     };
                     for (index, declaration) in utility.declarations.iter().enumerate() {
+                        let value = if let (Some(token), wabou_style::Value::Color { .. }) =
+                            (semantic_color.as_ref(), &declaration.value)
+                        {
+                            IrValue::Color {
+                                value: wabou_shell::style::IrColor::Token {
+                                    name: token.clone(),
+                                },
+                            }
+                        } else {
+                            style_ir::utility_value(&declaration.value)
+                        };
                         declarations.push((
                             false,
                             10,
@@ -573,7 +593,7 @@ impl Applier {
                             0,
                             index,
                             declaration.property.clone(),
-                            style_ir::utility_value(&declaration.value),
+                            value,
                         ));
                     }
                 }

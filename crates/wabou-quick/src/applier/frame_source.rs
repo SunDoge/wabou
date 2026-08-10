@@ -65,6 +65,14 @@ impl FrameSource for Applier {
                             .unwrap_or_else(|| themes.default.clone());
                         self.active_theme_colors =
                             Arc::new(themes.themes[&selected].colors.clone());
+                        // Runtime-created utilities must accept the same
+                        // semantic color names as the compiler. These values
+                        // validate parsing; declarations remain theme tokens.
+                        self.style_theme.colors.extend(
+                            self.active_theme_colors
+                                .iter()
+                                .map(|(name, color)| (name.clone(), *color)),
+                        );
                         self.active_color_theme = Some(selected);
                     } else {
                         self.active_color_theme = None;

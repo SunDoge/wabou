@@ -106,6 +106,7 @@ export {
   type TextAreaProps,
   type TextProps,
   translate2d,
+  rotate2d,
   View,
   type ViewProps,
   type WabouClassList,

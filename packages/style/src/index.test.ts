@@ -7,6 +7,7 @@ import {
   percent,
   px,
   rgba,
+  rotate2d,
   shadow,
   type WabouStyle,
   type WabouUtility,
@@ -74,5 +75,14 @@ describe("typed style", () => {
     expect(() => shadow({ stdDev: 1, radius: -1, color: 0 })).toThrow(
       "radius cannot be negative",
     );
+  });
+
+  test("constructs center-pivoted runtime rotation without a duplicate offset", () => {
+    const quarterTurn = rotate2d(Math.PI / 2);
+    expect(quarterTurn[0]).toBeCloseTo(0);
+    expect(quarterTurn[1]).toBeCloseTo(1);
+    expect(quarterTurn[2]).toBeCloseTo(-1);
+    expect(quarterTurn[3]).toBeCloseTo(0);
+    expect(quarterTurn.slice(4)).toEqual([0, 0]);
   });
 });

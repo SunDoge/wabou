@@ -13,6 +13,8 @@
 
 #![cfg(test)]
 
+use std::collections::HashMap;
+
 use vello::peniko::Color;
 use wabou_shell::FrameSource;
 
@@ -529,6 +531,71 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
     assert!(!applier.warned_utility_classes.contains(&lucide));
     let node = applier.node_store.solid_to_node[&2];
     assert!(applier.style_diagnostics[&node].is_empty());
+}
+
+#[test]
+fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, success) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (atoms.intern("div"), atoms.intern("bg-success-surface"))
+    };
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement {
+                id: 2,
+                tag: div,
+                attrs: vec![],
+            },
+            Op::SetClassName {
+                id: 2,
+                classes: vec![success],
+            },
+            Op::AppendChild {
+                parent: 1,
+                child: 2,
+            },
+            Op::FrameEnd,
+        ],
+    });
+    let themes = ColorThemes {
+        default: "dark".into(),
+        themes: HashMap::from([
+            (
+                "dark".into(),
+                ColorTheme {
+                    _appearance: Appearance::Dark,
+                    colors: HashMap::from([("success-surface".into(), 0x064e3bff)]),
+                },
+            ),
+            (
+                "light".into(),
+                ColorTheme {
+                    _appearance: Appearance::Light,
+                    colors: HashMap::from([("success-surface".into(), 0xecfdf5ff)]),
+                },
+            ),
+        ]),
+    };
+    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+        StyleSheet::builder().color_themes(themes).build(),
+    ));
+
+    let mut text = wabou_shell::TextContext::new();
+    applier.build_frame(&mut text, 800, 600);
+    assert!(!applier.warned_utility_classes.contains(&success));
+    assert_eq!(
+        applier.computed_node_snapshot(2).unwrap().background,
+        Some(Color::from_rgb8(0x06, 0x4e, 0x3b))
+    );
+
+    *applier.pending_color_theme.as_ref().unwrap().borrow_mut() = Some("light".into());
+    applier.build_frame(&mut text, 800, 600);
+    assert_eq!(
+        applier.computed_node_snapshot(2).unwrap().background,
+        Some(Color::from_rgb8(0xec, 0xfd, 0xf5))
+    );
 }
 
 #[test]

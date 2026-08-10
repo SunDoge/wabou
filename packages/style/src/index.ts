@@ -184,6 +184,13 @@ export const translate2d = (x: number, y: number): Affine2D => [
   y,
 ];
 
+/** Rotation in radians; the native host pivots it around the border-box center. */
+export const rotate2d = (angle: number): Affine2D => {
+  const cosine = Math.cos(angle);
+  const sine = Math.sin(angle);
+  return [cosine, sine, -sine, cosine, 0, 0];
+};
+
 /** Type-check a list of utilities while producing Solid's class string. */
 export const classes = (...values: readonly WabouUtility[]): string =>
   values.join(" ");

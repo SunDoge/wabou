@@ -1,5 +1,5 @@
 import { animate, animateKeyframes } from "@wabou/animation";
-import { Text, View } from "@wabou/primitives";
+import { rotate2d, Text, View } from "@wabou/primitives";
 import { createSignal, type JSX, onCleanup } from "solid-js";
 
 const join = (...values: Array<string | undefined | false>) =>
@@ -35,25 +35,12 @@ export function Spinner(props: {
     onUpdate: setAngle,
   });
   onCleanup(() => animation.stop());
-  const transform = () => {
-    const cosine = Math.cos(angle());
-    const sine = Math.sin(angle());
-    const center = 8;
-    return [
-      cosine,
-      sine,
-      -sine,
-      cosine,
-      center - cosine * center + sine * center,
-      center - sine * center - cosine * center,
-    ] as const;
-  };
   return (
     <View
       role="status"
       aria-label={props.label ?? "Loading"}
       class={join("w-4 h-4 flex-none text-accent", props.class)}
-      transform={transform()}
+      transform={rotate2d(angle())}
     >
       <svg class="w-full h-full" viewBox="0 0 24 24" fill="none">
         <circle

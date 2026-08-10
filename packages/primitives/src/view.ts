@@ -8,7 +8,7 @@ import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
 import type { JSX } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/style";
-export { translate2d } from "@wabou/style";
+export { rotate2d, translate2d } from "@wabou/style";
 export type WabouClassList = Record<string, boolean | undefined>;
 
 export interface TextSelectionChangeEvent {
