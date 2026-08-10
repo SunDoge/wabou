@@ -97,6 +97,12 @@ fn root_update(
                         SemanticRole::Dialog => Role::Dialog,
                         SemanticRole::Alert => Role::Alert,
                         SemanticRole::Status => Role::Status,
+                        SemanticRole::CheckBox => Role::CheckBox,
+                        SemanticRole::RadioButton => Role::RadioButton,
+                        SemanticRole::Switch => Role::Switch,
+                        SemanticRole::ComboBox => Role::ComboBox,
+                        SemanticRole::ListBox => Role::ListBox,
+                        SemanticRole::Option => Role::ListBoxOption,
                     };
                     let mut node = Node::new(role);
                     if let Some(label) = &semantic.label {
@@ -116,11 +122,19 @@ fn root_update(
                         node.set_disabled();
                     }
                     match semantic.role {
-                        SemanticRole::Button | SemanticRole::Link if !semantic.disabled => {
+                        SemanticRole::Button
+                        | SemanticRole::Link
+                        | SemanticRole::CheckBox
+                        | SemanticRole::RadioButton
+                        | SemanticRole::Switch
+                        | SemanticRole::ComboBox
+                        | SemanticRole::Option
+                            if !semantic.disabled =>
+                        {
                             node.add_action(Action::Click);
                             node.add_action(Action::Focus);
                         }
-                        SemanticRole::TextInput if !semantic.disabled => {
+                        SemanticRole::TextInput | SemanticRole::ListBox if !semantic.disabled => {
                             node.add_action(Action::Focus);
                         }
                         _ => {}

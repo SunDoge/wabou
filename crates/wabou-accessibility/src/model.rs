@@ -11,6 +11,12 @@ pub enum SemanticRole {
     Dialog,
     Alert,
     Status,
+    CheckBox,
+    RadioButton,
+    Switch,
+    ComboBox,
+    ListBox,
+    Option,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -47,6 +47,12 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             "dialog" | "alertdialog" => SemanticRole::Dialog,
             "alert" => SemanticRole::Alert,
             "status" => SemanticRole::Status,
+            "checkbox" => SemanticRole::CheckBox,
+            "radio" => SemanticRole::RadioButton,
+            "switch" => SemanticRole::Switch,
+            "combobox" => SemanticRole::ComboBox,
+            "listbox" => SemanticRole::ListBox,
+            "option" => SemanticRole::Option,
             "text" | "#text" | "label" => SemanticRole::Label,
             _ => SemanticRole::Generic,
         }
@@ -153,6 +159,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                     SemanticRole::Button
                         | SemanticRole::Link
                         | SemanticRole::Dialog
+                        | SemanticRole::ComboBox
                         | SemanticRole::Generic
                 )
             {
@@ -199,6 +206,12 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                             | SemanticRole::Button
                             | SemanticRole::TextInput
                             | SemanticRole::Link
+                            | SemanticRole::CheckBox
+                            | SemanticRole::RadioButton
+                            | SemanticRole::Switch
+                            | SemanticRole::ComboBox
+                            | SemanticRole::ListBox
+                            | SemanticRole::Option
                     )
             })
             .map(|node| node.id)

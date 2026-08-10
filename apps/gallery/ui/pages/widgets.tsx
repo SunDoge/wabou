@@ -34,6 +34,7 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
+  Select,
 } from "@wabou/components";
 import { Text, View } from "@wabou/primitives";
 import { createSignal } from "solid-js";
@@ -241,6 +242,43 @@ export function ButtonGroupPage() {
           <Button variant="outline">Settings</Button>
           <Button variant="outline">Sign out</Button>
         </ButtonGroup>
+      </Preview>
+    </View>
+  );
+}
+
+export function SelectPage() {
+  const [framework, setFramework] = createSignal<string>();
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Framework">
+        <View class="w-[440px] flex flex-col gap-2">
+          <Text class="text-sm font-medium text-primary">UI framework</Text>
+          <Select
+            aria-label="UI framework"
+            value={framework()}
+            onValueChange={setFramework}
+            placeholder="Select a framework"
+            options={[
+              { value: "solid", label: "SolidJS" },
+              { value: "react", label: "React" },
+              { value: "vue", label: "Vue" },
+              { value: "svelte", label: "Svelte", disabled: true },
+            ]}
+          />
+          <Text class="text-xs text-muted">Selected: {framework() ?? "—"}</Text>
+        </View>
+      </Preview>
+      <Preview title="Default value">
+        <Select
+          aria-label="Deployment region"
+          defaultValue="hkg"
+          options={[
+            { value: "hkg", label: "Hong Kong" },
+            { value: "nrt", label: "Tokyo" },
+            { value: "fra", label: "Frankfurt" },
+          ]}
+        />
       </Preview>
     </View>
   );

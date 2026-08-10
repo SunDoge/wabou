@@ -27,6 +27,7 @@ export * from "./dialog";
 export * from "./disclosure";
 export * from "./forms";
 export * from "./layout";
+export * from "./select";
 export {
   Checkbox,
   type CheckboxProps,

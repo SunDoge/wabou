@@ -55,7 +55,8 @@ type ComponentId =
   | "avatar"
   | "field"
   | "empty"
-  | "button-group";
+  | "button-group"
+  | "select";
 
 const groups: Array<{
   label: string;
@@ -74,6 +75,7 @@ const groups: Array<{
     label: "Forms",
     items: [
       { id: "input", name: "Input" },
+      { id: "select", name: "Select" },
       { id: "checkbox", name: "Checkbox" },
       { id: "radio-group", name: "Radio group" },
       { id: "field", name: "Field & input group" },
@@ -156,6 +158,7 @@ const descriptions: Record<ComponentId, string> = {
     "Vertically stacked disclosure sections with controlled or uncontrolled state.",
   avatar: "A compact visual identity with initials, images and grouped counts.",
   field: "Composable labels, descriptions, errors and input adornments.",
+  select: "A keyboard-operable native listbox for choosing one option.",
   empty: "A centered placeholder for collections that do not contain data yet.",
   "button-group":
     "Groups related actions into horizontal or vertical toolbars.",
@@ -196,6 +199,7 @@ import {
   DialogPage,
   EmptyPage,
   FieldPage,
+  SelectPage,
 } from "./pages/widgets";
 
 function App() {
@@ -515,6 +519,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "button-group"}>
                     <ButtonGroupPage />
+                  </Match>
+                  <Match when={selected() === "select"}>
+                    <SelectPage />
                   </Match>
                 </ShowCase>
               </View>

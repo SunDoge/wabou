@@ -264,6 +264,12 @@ fn click_semantic_target(
                 | ("textbox", SemanticRole::TextInput)
                 | ("link", SemanticRole::Link)
                 | ("dialog", SemanticRole::Dialog)
+                | ("checkbox", SemanticRole::CheckBox)
+                | ("radio", SemanticRole::RadioButton)
+                | ("switch", SemanticRole::Switch)
+                | ("combobox", SemanticRole::ComboBox)
+                | ("listbox", SemanticRole::ListBox)
+                | ("option", SemanticRole::Option)
                 | ("label", SemanticRole::Label)
         )
     };

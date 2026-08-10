@@ -15,10 +15,13 @@ export function createTypeahead<T extends CollectionItem>(
 ): Typeahead<T> {
   let keys = "";
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const collator = new Intl.Collator(options.locale, {
-    usage: "search",
-    sensitivity: "base",
-  });
+  const collator =
+    typeof Intl === "undefined"
+      ? undefined
+      : new Intl.Collator(options.locale, {
+          usage: "search",
+          sensitivity: "base",
+        });
   const reset = () => {
     keys = "";
     if (timer !== undefined) clearTimeout(timer);
@@ -41,7 +44,9 @@ export function createTypeahead<T extends CollectionItem>(
       ];
       return ordered.find((item) => {
         const prefix = item.textValue?.slice(0, query.length) ?? "";
-        return collator.compare(prefix, query) === 0;
+        return collator
+          ? collator.compare(prefix, query) === 0
+          : prefix.toLowerCase() === query.toLowerCase();
       });
     },
     reset,

@@ -60,7 +60,14 @@ impl Applier {
                 || (tag == "a" && attribute(declared, "href").is_some())
                 || matches!(
                     role.as_str(),
-                    "button" | "checkbox" | "link" | "radio" | "switch" | "textbox"
+                    "button"
+                        | "checkbox"
+                        | "combobox"
+                        | "link"
+                        | "listbox"
+                        | "radio"
+                        | "switch"
+                        | "textbox"
                 );
             if explicit_tab_index.is_none() && !intrinsic_focusable {
                 continue;

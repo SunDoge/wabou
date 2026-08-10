@@ -8,6 +8,7 @@ import {
   createTypeahead,
   toggleSelection,
   unchanged,
+  updateSelect,
   updateDisclosure,
   type UpdateResult,
 } from ".";
@@ -102,4 +103,41 @@ test("roving focus follows orientation and skips disabled targets", () => {
   expect(roving.move("one", "ArrowDown")).toBe(true);
   expect(selected).toEqual(["three"]);
   expect(focused).toEqual(["three"]);
+});
+
+describe("select behavior", () => {
+  const items = [
+    { id: "apple", textValue: "Apple" },
+    { id: "banana", textValue: "Banana", disabled: true },
+    { id: "cherry", textValue: "Cherry" },
+  ];
+
+  test("opens at the selected item and skips disabled options", () => {
+    const opened = updateSelect(
+      { open: false, value: "apple", highlighted: undefined },
+      { type: "OPEN" },
+      { items },
+    );
+    expect(opened.state).toEqual({
+      open: true,
+      value: "apple",
+      highlighted: "apple",
+    });
+    const moved = updateSelect(opened.state, { type: "ARROW_DOWN" }, { items });
+    expect(moved.state.highlighted).toBe("cherry");
+  });
+
+  test("selects the highlighted option and returns focus", () => {
+    const selected = updateSelect(
+      { open: true, value: undefined, highlighted: "cherry" },
+      { type: "SELECT" },
+      { items },
+    );
+    expect(selected.state).toEqual({
+      open: false,
+      value: "cherry",
+      highlighted: undefined,
+    });
+    expect(selected.commands).toEqual([{ type: "FOCUS_TRIGGER" }]);
+  });
 });
