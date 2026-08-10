@@ -1,6 +1,13 @@
 {
   "name": "@wabou/router",
   "version": "0.1.0",
+  "description": "A small SolidJS router for Wabou applications.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunDoge/wabou.git",
+    "directory": "packages/router"
+  },
   "publishConfig": {
     "access": "public"
   },

@@ -1,6 +1,13 @@
 {
   "name": "@wabou/interactions",
   "version": "0.1.0",
+  "description": "Headless interaction state and behavior primitives for Wabou.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunDoge/wabou.git",
+    "directory": "packages/interactions"
+  },
   "publishConfig": {
     "access": "public"
   },

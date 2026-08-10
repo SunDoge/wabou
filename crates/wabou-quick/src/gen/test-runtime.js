@@ -2399,17 +2399,35 @@
   // packages/core/src/glue/timers.ts
   var nextTimerId = 1;
   var active = new Set;
+  var nativeSetTimeout = globalThis.setTimeout?.bind(globalThis);
+  function sleep(delay) {
+    if (typeof __wabou_sleep === "function") {
+      return __wabou_sleep(delay);
+    }
+    if (nativeSetTimeout) {
+      return new Promise((resolve) => nativeSetTimeout(resolve, delay));
+    }
+    return Promise.reject(new Error("Wabou timer host is unavailable"));
+  }
+  function reportTimerError(error) {
+    const message = error instanceof Error && error.stack ? error.stack : String(error);
+    if (typeof __wabou_log === "function") {
+      __wabou_log("error", message);
+    } else {
+      console.error(message);
+    }
+  }
   function schedule(callback, delay, repeat, args) {
     const id = nextTimerId++;
     active.add(id);
     const run = async () => {
-      await __wabou_sleep(delay);
+      await sleep(delay);
       if (!active.has(id))
         return;
       try {
         callback(...args);
       } catch (error) {
-        __wabou_log("error", error?.stack ? String(error.stack) : String(error));
+        reportTimerError(error);
       }
       if (repeat && active.has(id)) {
         run();

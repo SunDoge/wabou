@@ -112,6 +112,14 @@ mise exec -- bun install
 mise exec -- bun run wabou run --app-dir apps/gallery
 ```
 
+Until binary releases are available, the CLI can also be installed directly
+from the repository (the checkout workflow above is still recommended for
+contributing):
+
+```bash
+cargo install --git https://github.com/SunDoge/wabou.git wabou-cli
+```
+
 Other examples include a [Hacker News client](apps/hackernews) and a
 [terminal](apps/terminal). See the [CLI guide](docs/cli.md) for development and
 packaging commands.

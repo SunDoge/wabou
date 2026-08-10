@@ -1,6 +1,13 @@
 {
   "name": "@wabou/animation",
   "version": "0.1.0",
+  "description": "SolidJS animation primitives for Wabou applications.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunDoge/wabou.git",
+    "directory": "packages/animation"
+  },
   "publishConfig": {
     "access": "public"
   },

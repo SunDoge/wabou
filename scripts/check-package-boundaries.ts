@@ -13,6 +13,9 @@ const internalPackages = new Set([
 interface Manifest {
   name: string;
   version: string;
+  description?: string;
+  license?: string;
+  repository?: { type?: string; url?: string; directory?: string };
   private?: boolean;
   publishConfig?: { access?: string };
   wabou?: { stability?: string };
@@ -46,6 +49,19 @@ for (const entry of packages) {
     throw new Error(`${entry.name} cannot be published while private`);
   if (entry.publishConfig?.access !== "public") {
     throw new Error(`${entry.name} must publish with public npm access`);
+  }
+  if (!entry.description) {
+    throw new Error(`${entry.name} must have a package description`);
+  }
+  if (entry.license !== "Apache-2.0") {
+    throw new Error(`${entry.name} must declare the Apache-2.0 license`);
+  }
+  if (
+    entry.repository?.type !== "git" ||
+    entry.repository.url !== "git+https://github.com/SunDoge/wabou.git" ||
+    !entry.repository.directory
+  ) {
+    throw new Error(`${entry.name} must link to its repository directory`);
   }
   const internal = internalPackages.has(entry.name);
   if ((entry.wabou?.stability === "internal") !== internal) {

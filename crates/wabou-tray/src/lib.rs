@@ -586,7 +586,7 @@ impl ShellExtension for SystemTray {
                 self.active_effects.remove(&request.id);
                 self.effect_routes.retain(|_, route| route.0 != request.id);
             }
-            return sent;
+            sent
         }
 
         #[cfg(not(target_os = "linux"))]

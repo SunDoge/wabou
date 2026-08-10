@@ -1,6 +1,13 @@
 {
   "name": "@wabou/style",
   "version": "0.1.0",
+  "description": "Typed runtime style values for Wabou.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunDoge/wabou.git",
+    "directory": "packages/style"
+  },
   "publishConfig": {
     "access": "public"
   },

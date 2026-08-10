@@ -1,6 +1,13 @@
 {
   "name": "@wabou/solid-renderer",
   "version": "0.1.0",
+  "description": "SolidJS universal renderer for the Wabou native host.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunDoge/wabou.git",
+    "directory": "packages/solid-renderer"
+  },
   "publishConfig": {
     "access": "public"
   },

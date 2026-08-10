@@ -2,6 +2,9 @@
 name = "wabou-cli"
 version = "0.1.0"
 edition = "2024"
+description = "Command-line development and packaging tools for Wabou applications"
+license.workspace = true
+repository = "https://github.com/SunDoge/wabou"
 
 [[bin]]
 name = "wabou"

@@ -82,6 +82,9 @@ jobs:
       - name: Check package boundaries
         run: bun run packages:check
 
+      - name: Check publish tarballs
+        run: bun run scripts/publish-packages.ts --dry-run
+
       - name: Test packages
         run: bun --conditions=browser test packages
 

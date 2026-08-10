@@ -1,6 +1,13 @@
 {
   "name": "@wabou/unocss-preset",
   "version": "0.1.0",
+  "description": "UnoCSS preset matching Wabou's native style vocabulary.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SunDoge/wabou.git",
+    "directory": "packages/unocss-preset"
+  },
   "publishConfig": {
     "access": "public"
   },
