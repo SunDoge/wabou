@@ -136,6 +136,7 @@
         "@wabou/primitives": "workspace:*",
         "@wabou/solid-renderer": "workspace:*",
         "solid-js": "1.9.14",
+        "ts-pattern": "^5.9.0",
       },
     },
     "packages/core": {

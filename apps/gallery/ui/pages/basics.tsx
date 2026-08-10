@@ -1,8 +1,4 @@
-import {
-  type AnimationControls,
-  animate,
-  animateKeyframes,
-} from "@wabou/animation";
+import { type AnimationControls, animate } from "@wabou/animation";
 import {
   Alert,
   Badge,
@@ -13,51 +9,34 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-  ComponentsProvider,
+  Checkbox,
   Fps,
   Input,
+  Kbd,
+  KbdGroup,
   Progress,
+  RadioGroup,
+  RadioGroupItem,
   Separator,
+  Skeleton,
+  Spinner,
   Switch,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   TextArea,
+  Toggle,
   useComponentsTheme,
 } from "@wabou/components";
-import { createWindow, useWindow } from "@wabou/core";
 import {
-  createHover,
-  createScrollReset,
-  Button as PrimitiveButton,
-  ScrollArea,
-  Text,
-  translate2d,
-  View,
-} from "@wabou/primitives";
-import {
-  createMemoryHistory,
-  MemoryRouter,
-  Route,
-  useLocation,
-  useNavigate,
-  useParams,
-} from "@wabou/router";
-import {
-  type Handle,
-  mount,
+  createWindow,
   px,
-  rgba,
-  shadow,
   number as styleNumber,
+  useWindow,
 } from "@wabou/core";
-import wabouUtilityManifest from "@wabou/vite/utility-manifest";
-import {
-  createSignal,
-  For,
-  type JSX,
-  Match,
-  onCleanup,
-  onMount,
-  Switch as ShowCase,
-} from "solid-js";
+import { createHover, ScrollArea, Text, View } from "@wabou/primitives";
+import { createSignal, For, onCleanup } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { Preview } from "../preview";
@@ -219,6 +198,175 @@ function SwitchPage() {
           <Switch disabled label="Experimental renderer" />
         </CardContent>
       </Card>
+    </Preview>
+  );
+}
+
+function CheckboxPage() {
+  const [accepted, setAccepted] = createSignal(false);
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Selection states">
+        <View class="w-96 flex flex-col gap-4">
+          <Checkbox
+            checked={accepted()}
+            onCheckedChange={setAccepted}
+            label="Accept the terms and conditions"
+          />
+          <Checkbox defaultChecked label="Selected by default" />
+          <Checkbox indeterminate label="Some child items selected" />
+          <Checkbox disabled label="Unavailable option" />
+        </View>
+      </Preview>
+      <PropertyRow
+        name="state"
+        value="controlled | uncontrolled | indeterminate | disabled"
+      />
+    </View>
+  );
+}
+
+function RadioGroupPage() {
+  const [plan, setPlan] = createSignal("pro");
+  return (
+    <Preview title="Plan selection">
+      <Card class="w-96">
+        <CardHeader>
+          <CardTitle>Choose a plan</CardTitle>
+          <CardDescription>Only one option can be selected.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup
+            value={plan()}
+            onValueChange={setPlan}
+            aria-label="Subscription plan"
+          >
+            <RadioGroupItem value="free" label="Free — local projects" />
+            <RadioGroupItem value="pro" label="Pro — team collaboration" />
+            <RadioGroupItem value="enterprise" label="Enterprise — managed" />
+          </RadioGroup>
+          <Text class="text-xs text-muted">{`Selected: ${plan()}`}</Text>
+        </CardContent>
+      </Card>
+    </Preview>
+  );
+}
+
+function TogglePage() {
+  const [bold, setBold] = createSignal(true);
+  const [italic, setItalic] = createSignal(false);
+  return (
+    <Preview title="Formatting toolbar">
+      <View class="flex items-center gap-1 p-1 rounded-lg bg-control">
+        <Toggle
+          pressed={bold()}
+          onPressedChange={setBold}
+          aria-label="Toggle bold"
+        >
+          B
+        </Toggle>
+        <Toggle
+          pressed={italic()}
+          onPressedChange={setItalic}
+          aria-label="Toggle italic"
+        >
+          I
+        </Toggle>
+        <Toggle variant="outline" aria-label="Pin item">
+          Pin
+        </Toggle>
+      </View>
+    </Preview>
+  );
+}
+
+function TabsPage() {
+  return (
+    <Preview title="Account settings">
+      <Tabs defaultValue="account" class="w-[460px]">
+        <TabsList aria-label="Settings sections">
+          <TabsTrigger value="account">Account</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
+        </TabsList>
+        <TabsContent value="account">
+          <Card>
+            <CardContent>
+              <Text class="text-sm font-medium text-primary">Account</Text>
+              <Text class="text-sm text-muted">
+                Update your public profile and contact details.
+              </Text>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="security">
+          <Alert title="Two-factor authentication">
+            Add another factor to protect this account.
+          </Alert>
+        </TabsContent>
+        <TabsContent value="billing">
+          <Card>
+            <CardContent>
+              <Text class="text-sm text-secondary">
+                Your next invoice is due on September 1.
+              </Text>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </Preview>
+  );
+}
+
+function SkeletonPage() {
+  return (
+    <Preview title="Loading card">
+      <View class="w-96 flex items-center gap-4">
+        <Skeleton class="w-12 h-12 rounded-full" />
+        <View class="flex-1 flex flex-col gap-2">
+          <Skeleton class="w-2/3 h-4" />
+          <Skeleton class="w-full h-3" />
+          <Skeleton class="w-4/5 h-3" />
+        </View>
+      </View>
+    </Preview>
+  );
+}
+
+function SpinnerPage() {
+  return (
+    <Preview title="Indeterminate progress">
+      <View class="flex items-center gap-3">
+        <Spinner />
+        <Text class="text-sm text-secondary">Syncing workspace…</Text>
+      </View>
+      <Button disabled>
+        <View class="flex items-center gap-2">
+          <Spinner class="text-on-accent" />
+          <Text class="text-sm text-on-accent">Saving</Text>
+        </View>
+      </Button>
+    </Preview>
+  );
+}
+
+function KbdPage() {
+  return (
+    <Preview title="Keyboard shortcuts">
+      <View class="w-96 flex flex-col gap-3">
+        <View class="flex items-center justify-between">
+          <Text class="text-sm text-secondary">Open command palette</Text>
+          <KbdGroup>
+            <Kbd>Ctrl</Kbd>
+            <Text class="text-xs text-muted">+</Text>
+            <Kbd>K</Kbd>
+          </KbdGroup>
+        </View>
+        <View class="flex items-center justify-between">
+          <Text class="text-sm text-secondary">Close overlay</Text>
+          <Kbd>Esc</Kbd>
+        </View>
+      </View>
     </Preview>
   );
 }
@@ -564,13 +712,20 @@ export {
   BadgePage,
   ButtonPage,
   CardPage,
+  CheckboxPage,
   ChildWindowPage,
   FpsPage,
   InputPage,
+  KbdPage,
   PlatformPage,
   ProgressPage,
+  RadioGroupPage,
   ScrollAreaPage,
   SeparatorPage,
+  SkeletonPage,
+  SpinnerPage,
   SwitchPage,
+  TabsPage,
+  TogglePage,
   UtilitiesPage,
 };

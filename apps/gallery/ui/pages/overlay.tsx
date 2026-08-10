@@ -1,4 +1,5 @@
 import { Button } from "@wabou/components";
+import { rgba } from "@wabou/core";
 import {
   createNotifications,
   Modal,
@@ -47,13 +48,16 @@ export function OverlayPage() {
         aria-label="Overlay settings"
         open={open()}
         onOpenChange={setOpen}
-        backdropClass="bg-slate-950"
-        contentClass="w-96 p-6 flex flex-col gap-4 rounded-xl border border-slate-700 bg-slate-900"
+        backdropClass="p-4"
+        backdropStyle={{ "background-color": rgba(0x000000a6) }}
+        contentClass="w-96 max-w-full min-w-0 p-6 flex flex-col gap-4 rounded-xl border border-subtle bg-surface"
       >
         {({ close }) => (
           <>
-            <Text class="text-xl font-semibold text-white">Modal overlay</Text>
-            <Text class="text-sm text-slate-300">
+            <Text class="text-xl font-semibold text-primary">
+              Modal overlay
+            </Text>
+            <Text class="w-full min-w-0 whitespace-normal text-sm text-secondary">
               {
                 "This subtree is painted and hit-tested above floating content. While open, AccessKit exposes only the topmost modal beneath the window."
               }

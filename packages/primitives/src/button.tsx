@@ -12,8 +12,8 @@ const ACCENTS = {
 } as const;
 
 export interface ButtonProps {
-  class?: string;
-  classList?: WabouClassList;
+  class?: string | ((state: ButtonState) => string);
+  classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle | ((state: ButtonState) => WabouStyle);
   children?: JSX.Element;
   tone?: keyof typeof ACCENTS;
@@ -23,6 +23,7 @@ export interface ButtonProps {
   selected?: boolean;
   disabled?: boolean;
   title?: string;
+  role?: JSX.ButtonHTMLAttributes<HTMLButtonElement>["role"];
   ref?: (node: Handle) => void;
   "aria-haspopup"?:
     | boolean
@@ -35,6 +36,10 @@ export interface ButtonProps {
     | "dialog";
   "aria-expanded"?: boolean;
   "aria-controls"?: string;
+  "aria-label"?: string;
+  "aria-checked"?: boolean | "mixed";
+  "aria-selected"?: boolean;
+  "aria-pressed"?: boolean;
   onKeyDown?: (event: ButtonKeyEvent) => void;
   onClick?: (event: ButtonEvent) => void;
   [name: string]: unknown;
@@ -188,16 +193,28 @@ export function Button(props: ButtonProps): JSX.Element {
   };
 
   return (
+    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: headless controls replace the default button role at runtime.
     <button
       type="button"
       disabled={disabled()}
       title={props.title}
+      role={props.role}
       ref={props.ref as never}
       aria-haspopup={props["aria-haspopup"]}
       aria-expanded={props["aria-expanded"]}
       aria-controls={props["aria-controls"]}
-      class={props.class}
-      classList={props.classList}
+      aria-label={props["aria-label"]}
+      aria-checked={props["aria-checked"]}
+      aria-selected={props["aria-selected"]}
+      aria-pressed={props["aria-pressed"]}
+      class={
+        typeof props.class === "function" ? props.class(state()) : props.class
+      }
+      classList={
+        typeof props.classList === "function"
+          ? props.classList(state())
+          : props.classList
+      }
       style={
         {
           ...defaultStyle(),

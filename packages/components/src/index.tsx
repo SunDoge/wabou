@@ -1,5 +1,6 @@
 import { type AnimationControls, animate } from "@wabou/animation";
 import {
+  type ButtonState,
   Button as HeadlessButton,
   type ButtonProps as HeadlessButtonProps,
   TextArea as PrimitiveTextArea,
@@ -18,8 +19,27 @@ import {
   splitProps,
   untrack,
 } from "solid-js";
-import { type ComponentsTheme, useComponentsTheme } from "./theme";
+import { match, P } from "ts-pattern";
 
+export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
+export {
+  Checkbox,
+  type CheckboxProps,
+  RadioGroup,
+  RadioGroupItem,
+  type RadioGroupItemProps,
+  type RadioGroupProps,
+  Toggle,
+  type ToggleProps,
+} from "./selection";
+export {
+  Tabs,
+  TabsContent,
+  TabsList,
+  type TabsProps,
+  TabsTrigger,
+  type TabsTriggerProps,
+} from "./tabs";
 export {
   ComponentsProvider,
   type ComponentsProviderProps,
@@ -46,48 +66,67 @@ export interface ButtonProps
   style?: HeadlessButtonProps["style"];
 }
 
-function buttonBackground(
-  variant: ButtonVariant,
-  hovered: boolean,
-  pressed: boolean,
-  theme: ComponentsTheme,
-) {
-  if (variant === "default")
-    return pressed ? "#0369a1" : hovered ? "#0284c7" : "#0ea5e9";
-  if (variant === "secondary") {
-    if (theme === "light")
-      return pressed ? "#cbd5e1" : hovered ? "#e2e8f0" : "#f1f5f9";
-    return pressed ? "#334155" : hovered ? "#475569" : "#334155";
-  }
-  if (variant === "destructive")
-    return pressed ? "#b91c1c" : hovered ? "#dc2626" : "#ef4444";
-  if (variant === "outline") {
-    if (theme === "light")
-      return pressed ? "#e2e8f0" : hovered ? "#f1f5f9" : "transparent";
-    return pressed ? "#1e293b" : hovered ? "#334155" : "transparent";
-  }
-  return hovered || pressed
-    ? theme === "light"
-      ? "#f1f5f9"
-      : "#1e293b"
-    : "transparent";
+function buttonColors(variant: ButtonVariant, state: ButtonState): string {
+  const focus = state.focused ? "border-focus" : "";
+  const passiveBorder = (variant: ButtonVariant) =>
+    match(variant)
+      .with("outline", () => "border-strong")
+      .with(
+        P.union("default", "secondary", "ghost", "destructive"),
+        () => "border-transparent",
+      )
+      .exhaustive();
+
+  return match({ variant, pressed: state.pressed, hovered: state.hovered })
+    .with({ variant: "default", pressed: true }, () =>
+      join("bg-accent-pressed border-transparent text-on-accent", focus),
+    )
+    .with({ variant: "default", hovered: true }, () =>
+      join("bg-accent-hover border-transparent text-on-accent", focus),
+    )
+    .with({ variant: "default" }, () =>
+      join("bg-accent border-transparent text-on-accent", focus),
+    )
+    .with({ variant: "destructive", pressed: true }, () =>
+      join("bg-danger-pressed border-transparent text-on-accent", focus),
+    )
+    .with({ variant: "destructive", hovered: true }, () =>
+      join("bg-danger-hover border-transparent text-on-accent", focus),
+    )
+    .with({ variant: "destructive" }, () =>
+      join("bg-danger border-transparent text-on-accent", focus),
+    )
+    .with({ variant: "secondary", pressed: true }, () =>
+      join("bg-control-pressed border-transparent text-primary", focus),
+    )
+    .with({ variant: "secondary", hovered: true }, () =>
+      join("bg-control-hover border-transparent text-primary", focus),
+    )
+    .with({ variant: "secondary" }, () =>
+      join("bg-control border-transparent text-primary", focus),
+    )
+    .with({ pressed: true }, ({ variant }) =>
+      join("bg-control-pressed text-secondary", passiveBorder(variant), focus),
+    )
+    .with({ hovered: true }, ({ variant }) =>
+      join("bg-control-hover text-secondary", passiveBorder(variant), focus),
+    )
+    .with({ variant: P.union("outline", "ghost") }, ({ variant }) =>
+      join("bg-transparent text-secondary", passiveBorder(variant), focus),
+    )
+    .exhaustive();
 }
 
-function buttonBorder(
-  variant: ButtonVariant,
-  focused: boolean,
-  theme: ComponentsTheme,
-) {
-  if (focused) return "#7dd3fc";
-  return variant === "outline"
-    ? theme === "light"
-      ? "#cbd5e1"
-      : "#475569"
-    : "transparent";
+function buttonSize(size: ButtonSize): string {
+  return match(size)
+    .with("sm", () => "h-8 px-3 text-xs")
+    .with("default", () => "h-9 px-4 text-sm")
+    .with("lg", () => "h-10 px-6 text-sm")
+    .with("icon", () => "w-9 h-9 p-0 text-sm")
+    .exhaustive();
 }
 
 export function Button(props: ButtonProps): JSX.Element {
-  const theme = useComponentsTheme();
   const [local, forwarded] = splitProps(props, [
     "variant",
     "size",
@@ -100,39 +139,16 @@ export function Button(props: ButtonProps): JSX.Element {
     <HeadlessButton
       {...forwarded}
       unstyled
-      class={join(
-        "inline-flex flex-none whitespace-nowrap items-center justify-center rounded-md border font-medium",
-        variant() === "secondary"
-          ? theme() === "dark"
-            ? "border-transparent text-slate-100"
-            : "border-transparent text-slate-900"
-          : variant() === "outline"
-            ? theme() === "dark"
-              ? "border-slate-600 text-slate-100"
-              : "border-slate-300 text-slate-900"
-            : variant() === "ghost"
-              ? theme() === "dark"
-                ? "border-transparent text-slate-200"
-                : "border-transparent text-slate-700"
-              : "border-transparent text-white",
-        size() === "sm"
-          ? "h-8 px-3 text-xs"
-          : size() === "lg"
-            ? "h-10 px-6 text-sm"
-            : size() === "icon"
-              ? "w-9 h-9 p-0 text-sm"
-              : "h-9 px-4 text-sm",
-        local.class,
-      )}
+      class={(state) =>
+        join(
+          "inline-flex flex-none whitespace-nowrap items-center justify-center rounded-md border font-medium",
+          buttonColors(variant(), state),
+          buttonSize(size()),
+          local.class,
+        )
+      }
       style={(state) =>
         ({
-          "background-color": buttonBackground(
-            variant(),
-            state.hovered,
-            state.pressed,
-            theme(),
-          ),
-          "border-color": buttonBorder(variant(), state.focused, theme()),
           "border-width": state.focused ? 2 : 1,
           opacity: state.disabled ? 0.45 : 1,
           ...(typeof local.style === "function"
@@ -150,29 +166,28 @@ export interface BadgeProps {
   class?: string;
 }
 
+function badgeColors(variant: NonNullable<BadgeProps["variant"]>): string {
+  return match(variant)
+    .with("default", () => "bg-accent border-accent text-on-accent")
+    .with("secondary", () => "bg-control border-subtle text-primary")
+    .with("outline", () => "bg-transparent border-strong text-secondary")
+    .with(
+      "success",
+      () => "bg-success-surface border-success-primary text-success-primary",
+    )
+    .with(
+      "destructive",
+      () => "bg-danger-surface border-danger text-danger-primary",
+    )
+    .exhaustive();
+}
+
 export function Badge(props: BadgeProps): JSX.Element {
-  const theme = useComponentsTheme();
   return (
     <Text
       class={join(
         "flex-none whitespace-nowrap px-2 py-1 rounded-full border text-xs font-medium",
-        props.variant === "secondary"
-          ? theme() === "dark"
-            ? "bg-slate-700 border-slate-600 text-slate-100"
-            : "bg-slate-100 border-slate-200 text-slate-700"
-          : props.variant === "outline"
-            ? theme() === "dark"
-              ? "bg-transparent border-slate-600 text-slate-300"
-              : "bg-transparent border-slate-300 text-slate-600"
-            : props.variant === "success"
-              ? theme() === "dark"
-                ? "bg-emerald-700 border-emerald-600 text-emerald-50"
-                : "bg-emerald-100 border-emerald-200 text-emerald-800"
-              : props.variant === "destructive"
-                ? theme() === "dark"
-                  ? "bg-red-700 border-red-600 text-red-50"
-                  : "bg-red-100 border-red-200 text-red-800"
-                : "bg-sky-600 border-sky-500 text-white",
+        badgeColors(props.variant ?? "default"),
         props.class,
       )}
     >
@@ -198,12 +213,18 @@ export function Fps(props: FpsProps): JSX.Element {
   const measured =
     props.value === undefined ? createFps() : () => props.value ?? 0;
   const value = () => Math.max(0, Math.round(measured()));
-  const variant = (): BadgeProps["variant"] => {
-    if (value() === 0) return "outline";
-    if (value() >= (props.goodAt ?? 55)) return "success";
-    if (value() < (props.warningBelow ?? 30)) return "destructive";
-    return "secondary";
-  };
+  const variant = (): BadgeProps["variant"] =>
+    match(value())
+      .with(0, () => "outline" as const)
+      .with(
+        P.when((fps) => fps >= (props.goodAt ?? 55)),
+        () => "success" as const,
+      )
+      .with(
+        P.when((fps) => fps < (props.warningBelow ?? 30)),
+        () => "destructive" as const,
+      )
+      .otherwise(() => "secondary");
   return (
     <Badge variant={variant()} class={join("font-mono", props.class)}>
       {value()}
@@ -216,14 +237,11 @@ export function Card(props: {
   children?: JSX.Element;
   class?: string;
 }): JSX.Element {
-  const theme = useComponentsTheme();
   return (
     <View
       class={join(
         "flex flex-col rounded-xl border",
-        theme() === "dark"
-          ? "border-slate-700 bg-slate-900"
-          : "border-slate-200 bg-white",
+        "border-subtle bg-surface",
         props.class,
       )}
     >
@@ -245,15 +263,8 @@ export function CardTitle(props: {
   children?: JSX.Element;
   class?: string;
 }): JSX.Element {
-  const theme = useComponentsTheme();
   return (
-    <Text
-      class={join(
-        "text-base font-semibold",
-        theme() === "dark" ? "text-slate-50" : "text-slate-950",
-        props.class,
-      )}
-    >
+    <Text class={join("text-base font-semibold", "text-primary", props.class)}>
       {props.children}
     </Text>
   );
@@ -262,12 +273,11 @@ export function CardDescription(props: {
   children?: JSX.Element;
   class?: string;
 }): JSX.Element {
-  const theme = useComponentsTheme();
   return (
     <Text
       class={join(
-        "text-sm",
-        theme() === "dark" ? "text-slate-400" : "text-slate-500",
+        "w-full min-w-0 whitespace-normal text-sm",
+        "text-muted",
         props.class,
       )}
     >
@@ -300,16 +310,13 @@ export function Separator(props: {
   orientation?: "horizontal" | "vertical";
   class?: string;
 }): JSX.Element {
-  const theme = useComponentsTheme();
+  const dimensions = () =>
+    match(props.orientation ?? "horizontal")
+      .with("horizontal", () => "h-px w-full")
+      .with("vertical", () => "w-px h-full")
+      .exhaustive();
   return (
-    <View
-      class={join(
-        "flex-none",
-        theme() === "dark" ? "bg-slate-700" : "bg-slate-200",
-        props.orientation === "vertical" ? "w-px h-full" : "h-px w-full",
-        props.class,
-      )}
-    />
+    <View class={join("flex-none", "bg-subtle", dimensions(), props.class)} />
   );
 }
 
@@ -319,47 +326,32 @@ export function Alert(props: {
   variant?: "default" | "destructive";
   class?: string;
 }): JSX.Element {
-  const destructive = props.variant === "destructive";
-  const theme = useComponentsTheme();
+  const colors = () =>
+    match(props.variant ?? "default")
+      .with("default", () => ({
+        container: "border-subtle bg-surface",
+        title: "text-primary",
+        body: "text-secondary",
+      }))
+      .with("destructive", () => ({
+        container: "border-danger bg-danger-surface",
+        title: "text-danger-primary",
+        body: "text-danger-primary",
+      }))
+      .exhaustive();
   return (
     <View
       class={join(
         "flex flex-col gap-1 rounded-lg border p-4",
-        destructive
-          ? theme() === "dark"
-            ? "border-red-800 bg-red-950"
-            : "border-red-200 bg-red-50"
-          : theme() === "dark"
-            ? "border-slate-700 bg-slate-900"
-            : "border-slate-200 bg-white",
+        colors().container,
         props.class,
       )}
     >
-      <Text
-        class={join(
-          "text-sm font-semibold",
-          destructive
-            ? theme() === "dark"
-              ? "text-red-200"
-              : "text-red-900"
-            : theme() === "dark"
-              ? "text-slate-100"
-              : "text-slate-950",
-        )}
-      >
+      <Text class={join("text-sm font-semibold", colors().title)}>
         {props.title}
       </Text>
       <Text
-        class={join(
-          "text-sm",
-          destructive
-            ? theme() === "dark"
-              ? "text-red-300"
-              : "text-red-700"
-            : theme() === "dark"
-              ? "text-slate-400"
-              : "text-slate-600",
-        )}
+        class={join("w-full min-w-0 whitespace-normal text-sm", colors().body)}
       >
         {props.children}
       </Text>
@@ -378,15 +370,12 @@ export interface InputProps {
   onKeyDown?: JSX.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
 }
 export function Input(props: InputProps): JSX.Element {
-  const theme = useComponentsTheme();
   return (
     <input
       {...props}
       class={join(
         "h-9 w-full px-3 rounded-md border text-sm",
-        theme() === "dark"
-          ? "border-slate-600 bg-slate-950 text-slate-100"
-          : "border-slate-300 bg-white text-slate-900",
+        "border-strong bg-input text-primary",
         props.disabled && "opacity-50",
         props.class,
       )}
@@ -399,15 +388,12 @@ export interface TextAreaProps extends PrimitiveTextAreaProps {
 }
 
 export function TextArea(props: TextAreaProps): JSX.Element {
-  const theme = useComponentsTheme();
   return (
     <PrimitiveTextArea
       {...props}
       class={join(
         "h-24 w-full px-3 py-2 rounded-md border text-sm",
-        theme() === "dark"
-          ? "border-slate-600 bg-slate-950 text-slate-100"
-          : "border-slate-300 bg-white text-slate-900",
+        "border-strong bg-input text-primary",
         props.disabled && "opacity-50",
         props.class,
       )}
@@ -422,8 +408,19 @@ export interface SwitchProps {
   onCheckedChange?: (checked: boolean) => void;
   label?: string;
 }
+
+function switchColors(checked: boolean, state: ButtonState): string {
+  return match({ checked, pressed: state.pressed, hovered: state.hovered })
+    .with({ checked: true, pressed: true }, () => "bg-accent-pressed")
+    .with({ checked: true, hovered: true }, () => "bg-accent-hover")
+    .with({ checked: true }, () => "bg-accent")
+    .with({ checked: false, pressed: true }, () => "bg-control-pressed")
+    .with({ checked: false, hovered: true }, () => "bg-control-hover")
+    .with({ checked: false }, () => "bg-control")
+    .exhaustive();
+}
+
 export function Switch(props: SwitchProps): JSX.Element {
-  const theme = useComponentsTheme();
   const [local, setLocal] = createSignal(props.defaultChecked ?? false);
   const checked = () => props.checked ?? local();
   const [thumbX, setThumbX] = createSignal(checked() ? 20 : 0);
@@ -453,48 +450,24 @@ export function Switch(props: SwitchProps): JSX.Element {
         role="switch"
         disabled={props.disabled}
         aria-checked={checked()}
-        class="w-11 h-6 flex-none rounded-full p-0.5"
+        class={(state) =>
+          join(
+            "w-11 h-6 flex-none rounded-full p-0.5",
+            switchColors(checked(), state),
+            state.focused && "border border-focus",
+          )
+        }
         style={(state) => ({
-          "background-color": checked()
-            ? state.pressed
-              ? "#0369a1"
-              : state.hovered
-                ? "#0284c7"
-                : "#0ea5e9"
-            : state.hovered
-              ? theme() === "dark"
-                ? "#475569"
-                : "#cbd5e1"
-              : theme() === "dark"
-                ? "#334155"
-                : "#e2e8f0",
           opacity: state.disabled ? 0.45 : 1,
         })}
         onClick={toggle}
       >
         <View
-          class="w-5 h-5 rounded-full"
+          class="w-5 h-5 rounded-full bg-on-accent"
           transform={translate2d(thumbX(), 0)}
-          style={{
-            "background-color": checked()
-              ? "#ffffff"
-              : theme() === "dark"
-                ? "#e2e8f0"
-                : "#ffffff",
-          }}
         />
       </HeadlessButton>
-      {props.label && (
-        <Text
-          class={
-            theme() === "dark"
-              ? "text-sm text-slate-200"
-              : "text-sm text-slate-700"
-          }
-        >
-          {props.label}
-        </Text>
-      )}
+      {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
     </View>
   );
 }
@@ -503,18 +476,17 @@ export function Progress(props: {
   value?: number;
   class?: string;
 }): JSX.Element {
-  const theme = useComponentsTheme();
   const value = () => Math.max(0, Math.min(100, props.value ?? 0));
   return (
     <View
       class={join(
         "w-full h-2 overflow-hidden rounded-full",
-        theme() === "dark" ? "bg-slate-700" : "bg-slate-200",
+        "bg-control",
         props.class,
       )}
     >
       <View
-        class="h-full bg-sky-500 rounded-full"
+        class="h-full bg-accent rounded-full"
         style={{ width: `${value()}%` }}
       />
     </View>
