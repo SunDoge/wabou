@@ -389,6 +389,8 @@ export class Writer {
     id: number,
     style: {
       visibility: number;
+      hideDelay: number;
+      fadeDuration: number;
       thickness: number;
       margin: number;
       minThumbLength: number;
@@ -402,6 +404,8 @@ export class Writer {
     this.emit(OP.SetScrollbarStyle);
     this.u32(id);
     this.u8(style.visibility);
+    this.f32(style.hideDelay);
+    this.f32(style.fadeDuration);
     this.f32(style.thickness);
     this.f32(style.margin);
     this.f32(style.minThumbLength);

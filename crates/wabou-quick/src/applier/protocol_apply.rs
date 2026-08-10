@@ -282,6 +282,8 @@ impl Applier {
             Op::SetScrollbarStyle {
                 id,
                 visibility,
+                hide_delay,
+                fade_duration,
                 thickness,
                 margin,
                 min_thumb_length,
@@ -303,6 +305,8 @@ impl Applier {
                             2 => ScrollbarVisibility::Hidden,
                             _ => ScrollbarVisibility::Auto,
                         },
+                        hide_delay: Duration::from_secs_f32(*hide_delay / 1000.0),
+                        fade_duration: Duration::from_secs_f32(*fade_duration / 1000.0),
                         thickness: *thickness,
                         margin: *margin,
                         min_thumb_length: *min_thumb_length,

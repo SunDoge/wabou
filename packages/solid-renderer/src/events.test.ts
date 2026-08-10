@@ -114,6 +114,8 @@ test("native scrollbar customization uses one typed host operation", () => {
     "scrollbar",
     {
       visibility: "always",
+      hideDelay: 700,
+      fadeDuration: 160,
       thickness: 14,
       margin: 3,
       minThumbLength: 40,
@@ -128,9 +130,11 @@ test("native scrollbar customization uses one typed host operation", () => {
 
   expect(frame[8]).toBe(OP.SetScrollbarStyle);
   expect(frame[13]).toBe(1);
-  expect(bytes.getFloat32(14, true)).toBe(14);
-  expect(bytes.getUint32(30, true)).toBe(0x11182788);
-  expect(bytes.getUint32(34, true)).toBe(0x38bdf8ff);
+  expect(bytes.getFloat32(14, true)).toBe(700);
+  expect(bytes.getFloat32(18, true)).toBe(160);
+  expect(bytes.getFloat32(22, true)).toBe(14);
+  expect(bytes.getUint32(38, true)).toBe(0x11182788);
+  expect(bytes.getUint32(42, true)).toBe(0x38bdf8ff);
 });
 
 test("typed inline style bypasses UTF-8 serialization", () => {

@@ -71,26 +71,40 @@ impl Applier {
 
     pub(super) fn update_scrollbar_visuals(&mut self, placed: &mut [PlacedNode]) {
         let now = Instant::now();
-        self.scrollbar_activity.retain(|_, started| {
-            now.duration_since(*started) < SCROLLBAR_FADE_DELAY + SCROLLBAR_FADE_DURATION
-        });
+        let mut expired = Vec::new();
         for node in placed {
+            let held = self
+                .scrollbar_drag
+                .is_some_and(|drag| drag.node == node.node_id)
+                || self
+                    .hovered_scrollbar
+                    .is_some_and(|(owner, _)| owner == node.node_id);
             node.scroll.opacity = match node.paint.scrollbar.visibility {
-                ScrollbarVisibility::Always => 1.0,
-                ScrollbarVisibility::Hidden => 0.0,
-                ScrollbarVisibility::Auto => self
-                    .scrollbar_activity
-                    .get(&node.node_id)
-                    .map_or(0.0, |started| {
-                        let elapsed = now.duration_since(*started);
-                        if elapsed <= SCROLLBAR_FADE_DELAY {
-                            1.0
-                        } else {
-                            1.0 - (elapsed - SCROLLBAR_FADE_DELAY).as_secs_f32()
-                                / SCROLLBAR_FADE_DURATION.as_secs_f32()
-                        }
-                    })
-                    .clamp(0.0, 1.0),
+                ScrollbarVisibility::Always => {
+                    expired.push(node.node_id);
+                    1.0
+                }
+                ScrollbarVisibility::Hidden => {
+                    expired.push(node.node_id);
+                    0.0
+                }
+                ScrollbarVisibility::Auto => {
+                    let opacity =
+                        self.scrollbar_activity
+                            .get(&node.node_id)
+                            .map_or(0.0, |started| {
+                                scrollbar_auto_opacity(
+                                    now.duration_since(*started),
+                                    node.paint.scrollbar.hide_delay,
+                                    node.paint.scrollbar.fade_duration,
+                                    held,
+                                )
+                            });
+                    if opacity <= 0.0 {
+                        expired.push(node.node_id);
+                    }
+                    opacity
+                }
             };
             node.scroll.interaction = if self
                 .scrollbar_drag
@@ -105,6 +119,9 @@ impl Applier {
             } else {
                 0
             };
+        }
+        for node in expired {
+            self.scrollbar_activity.remove(&node);
         }
     }
 
@@ -645,5 +662,55 @@ impl Applier {
         changed |= self.dispatch_json(target, focus, "");
         changed |= self.dispatch_json(target, focus_within, "");
         changed
+    }
+}
+
+fn scrollbar_auto_opacity(elapsed: Duration, delay: Duration, fade: Duration, held: bool) -> f32 {
+    if held {
+        return 1.0;
+    }
+    if elapsed <= delay {
+        return 1.0;
+    }
+    if fade.is_zero() {
+        return 0.0;
+    }
+    (1.0 - (elapsed - delay).as_secs_f32() / fade.as_secs_f32()).clamp(0.0, 1.0)
+}
+
+#[cfg(test)]
+mod scrollbar_visibility_tests {
+    use super::scrollbar_auto_opacity;
+    use std::time::Duration;
+
+    #[test]
+    fn auto_opacity_waits_then_fades_and_supports_immediate_hide() {
+        let delay = Duration::from_millis(700);
+        let fade = Duration::from_millis(200);
+        assert_eq!(
+            scrollbar_auto_opacity(Duration::ZERO, delay, fade, false),
+            1.0
+        );
+        assert_eq!(
+            scrollbar_auto_opacity(Duration::from_millis(700), delay, fade, false),
+            1.0
+        );
+        assert!(
+            (scrollbar_auto_opacity(Duration::from_millis(800), delay, fade, false) - 0.5).abs()
+                < 0.001
+        );
+        assert_eq!(
+            scrollbar_auto_opacity(Duration::from_millis(901), delay, fade, false),
+            0.0
+        );
+        assert_eq!(
+            scrollbar_auto_opacity(Duration::from_millis(701), delay, Duration::ZERO, false),
+            0.0
+        );
+        assert_eq!(
+            scrollbar_auto_opacity(Duration::from_secs(10), delay, fade, true),
+            1.0,
+            "hover and drag hold the scrollbar fully visible"
+        );
     }
 }

@@ -362,6 +362,8 @@
       this.emit(OP.SetScrollbarStyle);
       this.u32(id);
       this.u8(style.visibility);
+      this.f32(style.hideDelay);
+      this.f32(style.fadeDuration);
       this.f32(style.thickness);
       this.f32(style.margin);
       this.f32(style.minThumbLength);
@@ -2066,6 +2068,8 @@
       const style = value && typeof value === "object" ? value : {};
       writer.setScrollbarStyle(node.id, {
         visibility: style.visibility === "always" ? 1 : style.visibility === "hidden" ? 2 : 0,
+        hideDelay: style.hideDelay ?? 500,
+        fadeDuration: style.fadeDuration ?? 200,
         thickness: style.thickness ?? 10,
         margin: style.margin ?? 2,
         minThumbLength: style.minThumbLength ?? 32,

@@ -75,8 +75,6 @@ use projections::FrameProjections;
 use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
-const SCROLLBAR_FADE_DELAY: Duration = Duration::from_millis(500);
-const SCROLLBAR_FADE_DURATION: Duration = Duration::from_millis(200);
 // Widget actions retain their tagged 32-bit namespace. Native effects use a
 // process-wide sequence so window resource handles stay unique across runtimes.
 const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;

@@ -226,7 +226,9 @@ configured without moving pointer capture into JavaScript:
 ```tsx
 <ScrollArea
   scrollbar={{
-    visibility: "always",
+    visibility: "auto",
+    hideDelay: 700,
+    fadeDuration: 160,
     thickness: 12,
     minThumbLength: 36,
     thumbColor: 0x38bdf8cc,
@@ -237,6 +239,11 @@ configured without moving pointer capture into JavaScript:
   {children}
 </ScrollArea>
 ```
+
+`auto` scrollbars appear for wheel, touchpad, programmatic, and thumb-driven
+scrolling, remain visible while hovered or dragged, then fade after
+`hideDelay`. Both timing values are milliseconds; use `fadeDuration: 0` for an
+immediate hide. `always` and `hidden` bypass the auto-hide lifecycle.
 
 ```tsx
 <Popover

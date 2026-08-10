@@ -254,6 +254,8 @@ pub enum ScrollbarVisibility {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollbarStyle {
     pub visibility: ScrollbarVisibility,
+    pub hide_delay: std::time::Duration,
+    pub fade_duration: std::time::Duration,
     pub thickness: f32,
     pub margin: f32,
     pub min_thumb_length: f32,
@@ -269,6 +271,8 @@ impl Default for ScrollbarStyle {
     fn default() -> Self {
         Self {
             visibility: ScrollbarVisibility::Auto,
+            hide_delay: std::time::Duration::from_millis(500),
+            fade_duration: std::time::Duration::from_millis(200),
             thickness: 10.0,
             margin: 2.0,
             min_thumb_length: 32.0,

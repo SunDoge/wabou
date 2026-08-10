@@ -131,6 +131,8 @@ pub enum Op<'a> {
     SetScrollbarStyle {
         id: u32,
         visibility: u8,
+        hide_delay: f32,
+        fade_duration: f32,
         thickness: f32,
         margin: f32,
         min_thumb_length: f32,
@@ -435,11 +437,17 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
         op::SET_SCROLLBAR_STYLE => {
             let id = r.u32()?;
             let visibility = r.u8()?;
+            let hide_delay = r.f32()?;
+            let fade_duration = r.f32()?;
             let thickness = r.f32()?;
             let margin = r.f32()?;
             let min_thumb_length = r.f32()?;
             let radius = r.f32()?;
             if visibility > 2
+                || !hide_delay.is_finite()
+                || !(0.0..=86_400_000.0).contains(&hide_delay)
+                || !fade_duration.is_finite()
+                || !(0.0..=86_400_000.0).contains(&fade_duration)
                 || !thickness.is_finite()
                 || thickness <= 0.0
                 || !margin.is_finite()
@@ -453,6 +461,8 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::SetScrollbarStyle {
                 id,
                 visibility,
+                hide_delay,
+                fade_duration,
                 thickness,
                 margin,
                 min_thumb_length,
@@ -553,7 +563,7 @@ mod tests {
         bytes.push(op::SET_SCROLLBAR_STYLE);
         push_u32(&mut bytes, 42);
         bytes.push(1);
-        for value in [14.0_f32, 3.0, 40.0, 5.0] {
+        for value in [700.0_f32, 160.0, 14.0, 3.0, 40.0, 5.0] {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
         for color in [0x11182788, 0x38bdf8ff, 0x7dd3fcff, 0x0284c7ff] {
@@ -566,6 +576,8 @@ mod tests {
             Op::SetScrollbarStyle {
                 id: 42,
                 visibility: 1,
+                hide_delay: 700.0,
+                fade_duration: 160.0,
                 thickness: 14.0,
                 margin: 3.0,
                 min_thumb_length: 40.0,

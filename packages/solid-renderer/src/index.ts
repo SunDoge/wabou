@@ -75,6 +75,10 @@ declare module "solid-js" {
 
 export interface NativeScrollbarStyle {
   visibility?: "auto" | "always" | "hidden";
+  /** Idle time before an auto scrollbar fades, in milliseconds. */
+  hideDelay?: number;
+  /** Auto-hide fade duration in milliseconds. Zero hides immediately. */
+  fadeDuration?: number;
   thickness?: number;
   margin?: number;
   minThumbLength?: number;
@@ -296,6 +300,8 @@ function applyProperty(
           : style.visibility === "hidden"
             ? 2
             : 0,
+      hideDelay: style.hideDelay ?? 500,
+      fadeDuration: style.fadeDuration ?? 200,
       thickness: style.thickness ?? 10,
       margin: style.margin ?? 2,
       minThumbLength: style.minThumbLength ?? 32,

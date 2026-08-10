@@ -455,7 +455,9 @@ function ScrollAreaPage() {
           <ScrollArea
             contentClass="p-2 gap-1"
             scrollbar={{
-              visibility: "always",
+              visibility: "auto",
+              hideDelay: 700,
+              fadeDuration: 160,
               thickness: 12,
               margin: 3,
               minThumbLength: 36,

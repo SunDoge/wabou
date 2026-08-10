@@ -499,14 +499,30 @@ impl FrameSource for Applier {
 
     fn animation_deadline(&self) -> Option<Instant> {
         let now = Instant::now();
-        let scrollbar_deadline = self.scrollbar_activity.values().map(|started| {
-            let fade_start = *started + SCROLLBAR_FADE_DELAY;
-            if now < fade_start {
-                fade_start
-            } else {
-                now + Duration::from_millis(16)
-            }
-        });
+        let scrollbar_deadline = self
+            .scrollbar_activity
+            .iter()
+            .filter_map(|(node, started)| {
+                if self.scrollbar_drag.is_some_and(|drag| drag.node == *node)
+                    || self
+                        .hovered_scrollbar
+                        .is_some_and(|(owner, _)| owner == *node)
+                {
+                    return None;
+                }
+                let style = self.node_store.tree.get_node_context(*node)?.scrollbar;
+                if style.visibility != ScrollbarVisibility::Auto {
+                    return None;
+                }
+                let fade_start = *started + style.hide_delay;
+                if now < fade_start {
+                    Some(fade_start)
+                } else if style.fade_duration.is_zero() || now >= fade_start + style.fade_duration {
+                    None
+                } else {
+                    Some(now + Duration::from_millis(16))
+                }
+            });
         self.widget_manager
             .widgets
             .values()
@@ -769,8 +785,12 @@ impl FrameSource for Applier {
                     .scrollbar_at(x, y)
                     .map(|(node, target)| (node, target.axis));
                 let scrollbar_hover_changed = hovered_scrollbar != self.hovered_scrollbar;
+                let previous_hover = self.hovered_scrollbar;
                 self.hovered_scrollbar = hovered_scrollbar;
                 if let Some((node, _)) = hovered_scrollbar {
+                    self.scrollbar_activity.insert(node, Instant::now());
+                }
+                if scrollbar_hover_changed && let Some((node, _)) = previous_hover {
                     self.scrollbar_activity.insert(node, Instant::now());
                 }
                 if self.scrollbar_drag.is_some() {
@@ -910,7 +930,8 @@ impl FrameSource for Applier {
                 let button = pointer.button.unwrap_or(PointerButton::Primary);
                 self.input.pointer_position = (x, y);
                 self.input.pointer_buttons = pointer.buttons;
-                if self.scrollbar_drag.take().is_some() {
+                if let Some(drag) = self.scrollbar_drag.take() {
+                    self.scrollbar_activity.insert(drag.node, Instant::now());
                     return Self::response(true);
                 }
                 if button == PointerButton::Primary
@@ -962,7 +983,8 @@ impl FrameSource for Applier {
                 changed
             }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Cancel => {
-                if self.scrollbar_drag.take().is_some() {
+                if let Some(drag) = self.scrollbar_drag.take() {
+                    self.scrollbar_activity.insert(drag.node, Instant::now());
                     return Self::response(true);
                 }
                 self.cancel_pointer_gesture(pointer)
