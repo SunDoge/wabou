@@ -532,6 +532,13 @@ impl Applier {
                     if self.rule_index.contains_key(class) {
                         continue;
                     }
+                    if self.style_ir.as_ref().is_some_and(|sheet| {
+                        atoms
+                            .resolve(*class)
+                            .is_some_and(|name| sheet.ignores_class(name))
+                    }) {
+                        continue;
+                    }
                     let utility = self.utility_cache.entry(*class).or_insert_with(|| {
                         atoms
                             .resolve(*class)

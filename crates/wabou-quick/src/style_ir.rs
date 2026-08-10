@@ -2,7 +2,7 @@ use bon::Builder;
 use serde::Deserialize;
 use wabou_shell::style::IrValue;
 
-pub const VERSION: u16 = 5;
+pub const VERSION: u16 = 6;
 
 #[derive(Clone, Deserialize)]
 #[serde(untagged)]
@@ -23,6 +23,9 @@ pub(crate) struct StyleSheet {
     #[serde(default)]
     #[builder(default)]
     pub diagnostics: Vec<String>,
+    #[serde(default, rename = "ignoredClassPatterns")]
+    #[builder(default)]
+    pub ignored_class_patterns: Vec<String>,
     #[serde(default)]
     #[builder(default)]
     pub rules: Vec<StyleRule>,
@@ -91,6 +94,38 @@ impl StyleSheet {
         }
         Ok(())
     }
+
+    pub fn ignores_class(&self, candidate: &str) -> bool {
+        self.ignored_class_patterns
+            .iter()
+            .any(|pattern| glob_matches(pattern, candidate))
+    }
+}
+
+fn glob_matches(pattern: &str, candidate: &str) -> bool {
+    let pattern = pattern.as_bytes();
+    let candidate = candidate.as_bytes();
+    let (mut p, mut c, mut star, mut retry) = (0, 0, None, 0);
+    while c < candidate.len() {
+        if p < pattern.len() && pattern[p] == candidate[c] {
+            p += 1;
+            c += 1;
+        } else if p < pattern.len() && pattern[p] == b'*' {
+            star = Some(p);
+            p += 1;
+            retry = c;
+        } else if let Some(star_index) = star {
+            p = star_index + 1;
+            retry += 1;
+            c = retry;
+        } else {
+            return false;
+        }
+    }
+    while p < pattern.len() && pattern[p] == b'*' {
+        p += 1;
+    }
+    p == pattern.len()
 }
 
 pub(crate) fn utility_value(value: &wabou_style::Value) -> IrValue {
@@ -221,6 +256,14 @@ pub(crate) mod fixture {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn class_patterns_support_exact_and_glob_matches() {
+        assert!(glob_matches("lucide", "lucide"));
+        assert!(glob_matches("lucide-*", "lucide-sun"));
+        assert!(glob_matches("icon-*-filled", "icon-home-filled"));
+        assert!(!glob_matches("lucide-*", "text-lucide-sun"));
+    }
 
     #[test]
     fn deserializes_versioned_style_ir() {

@@ -26,6 +26,8 @@ export interface WabouViteOptions {
   vite?: UserConfig;
   /** Named semantic color palettes compiled into Wabou Style IR. */
   theme?: WabouColorThemeOptions;
+  /** Ignore third-party metadata classes. Supports `*` globs. */
+  ignoreClasses?: string[];
 }
 
 export type WabouViteOptionsExport =
@@ -49,9 +51,10 @@ function disableSolidDependencyOptimizer(): Plugin {
 export function wabouPlugins(
   root = process.cwd(),
   theme?: WabouColorThemeOptions,
+  ignoreClasses?: string[],
 ): Plugin[] {
   return [
-    wabouStylePlugin({ root, colorThemes: theme }),
+    wabouStylePlugin({ root, colorThemes: theme, ignoreClasses }),
     solid({
       solid: { generate: "universal", moduleName: "@wabou/solid-renderer" },
     }),
@@ -80,7 +83,7 @@ function resolveWabouConfig(options: WabouViteOptions): UserConfig {
         process.env.NODE_ENV ?? "production",
       ),
     },
-    plugins: wabouPlugins(root, options.theme),
+    plugins: wabouPlugins(root, options.theme, options.ignoreClasses),
     resolve: {
       alias: {
         "@wabou/solid-renderer": renderer,

@@ -18,6 +18,26 @@ import {
 export interface WabouStylePluginOptions {
   root: string;
   colorThemes?: WabouColorThemeOptions;
+  /** Metadata classes that are not Wabou utilities. Supports `*` globs. */
+  ignoreClasses?: string[];
+}
+
+export function matchesClassPattern(
+  candidate: string,
+  pattern: string,
+): boolean {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped.replaceAll("*", ".*")}$`).test(candidate);
+}
+
+export function filterIgnoredClasses(
+  candidates: Iterable<string>,
+  patterns: readonly string[] = [],
+): string[] {
+  return [...candidates].filter(
+    (candidate) =>
+      !patterns.some((pattern) => matchesClassPattern(candidate, pattern)),
+  );
 }
 
 export interface WabouColorThemeOptions {
@@ -268,6 +288,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   const semanticTokens = new Set(
     Object.keys(colorThemes?.themes[colorThemes.default]?.colors ?? {}),
   );
+  const ignoredClassPatterns = [...new Set(options.ignoreClasses ?? [])];
   let stylesheet: WabouStyleSheet = {
     version: STYLE_IR_VERSION,
     theme: {
@@ -276,6 +297,7 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     },
     colorThemes,
     diagnostics: [],
+    ignoredClassPatterns,
     rules: [],
   };
   const virtual = "virtual:wabou-stylesheet";
@@ -287,7 +309,11 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
     const reference = await referenceGenerator.generate(utilitySource, {
       preflights: false,
     });
-    assertSupportedWabouCandidates(reference.matched, semanticTokens);
+    const matched = filterIgnoredClasses(
+      reference.matched,
+      ignoredClassPatterns,
+    );
+    assertSupportedWabouCandidates(matched, semanticTokens);
     stylesheet = {
       version: STYLE_IR_VERSION,
       theme: {
@@ -296,7 +322,8 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
       },
       colorThemes,
       diagnostics: [],
-      rules: compileWabouUtilities(reference.matched, 0, semanticTokens),
+      ignoredClassPatterns,
+      rules: compileWabouUtilities(matched, 0, semanticTokens),
     };
   }
 

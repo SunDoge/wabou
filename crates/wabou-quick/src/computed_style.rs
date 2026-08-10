@@ -491,6 +491,47 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
 }
 
 #[test]
+fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, lucide) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (atoms.intern("div"), atoms.intern("lucide-sun"))
+    };
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement {
+                id: 2,
+                tag: div,
+                attrs: vec![],
+            },
+            Op::SetClassName {
+                id: 2,
+                classes: vec![lucide],
+            },
+            Op::AppendChild {
+                parent: 1,
+                child: 2,
+            },
+            Op::FrameEnd,
+        ],
+    });
+    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+        StyleSheet::builder()
+            .ignored_class_patterns(vec!["lucide-*".into()])
+            .build(),
+    ));
+
+    let mut text = wabou_shell::TextContext::new();
+    applier.build_frame(&mut text, 800, 600);
+
+    assert!(!applier.utility_cache.contains_key(&lucide));
+    assert!(!applier.warned_utility_classes.contains(&lucide));
+    let node = applier.node_store.solid_to_node[&2];
+    assert!(applier.style_diagnostics[&node].is_empty());
+}
+
+#[test]
 fn unsupported_inline_css_never_enters_cascade_state() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, transition, transform) = {

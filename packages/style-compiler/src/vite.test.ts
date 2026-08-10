@@ -6,9 +6,22 @@ import {
   compileColorThemes,
   extractUtilitySource,
   findWorkspacePackages,
+  filterIgnoredClasses,
+  matchesClassPattern,
 } from "./vite";
 
 describe("utility source extraction", () => {
+  test("filters exact and globbed third-party metadata classes", () => {
+    expect(matchesClassPattern("lucide-sun", "lucide-*")).toBe(true);
+    expect(matchesClassPattern("text-primary", "lucide-*")).toBe(false);
+    expect(
+      filterIgnoredClasses(
+        ["lucide", "lucide-icon", "lucide-sun", "w-4"],
+        ["lucide", "lucide-*"],
+      ),
+    ).toEqual(["w-4"]);
+  });
+
   test("turns unsupported utility candidates into build errors", () => {
     expect(() =>
       assertSupportedWabouCandidates(["flex", "p-[var(--space)]"]),

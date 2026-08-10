@@ -1,4 +1,4 @@
-export const STYLE_IR_VERSION = 5 as const;
+export const STYLE_IR_VERSION = 6 as const;
 
 export type Length =
   | { unit: "px"; value: number }
@@ -48,5 +48,6 @@ export interface WabouStyleSheet {
     >;
   };
   diagnostics: string[];
+  ignoredClassPatterns: string[];
   rules: StyleRule[];
 }
