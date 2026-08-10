@@ -15,6 +15,8 @@ import {
   type WabouStyleSheet,
 } from "./ir.ts";
 
+const DEFAULT_IGNORED_CLASS_PATTERNS = ["lucide", "lucide-*"];
+
 export interface WabouStylePluginOptions {
   root: string;
   colorThemes?: WabouColorThemeOptions;
@@ -288,7 +290,12 @@ export function wabouStylePlugin(options: WabouStylePluginOptions): Plugin {
   const semanticTokens = new Set(
     Object.keys(colorThemes?.themes[colorThemes.default]?.colors ?? {}),
   );
-  const ignoredClassPatterns = [...new Set(options.ignoreClasses ?? [])];
+  const ignoredClassPatterns = [
+    ...new Set([
+      ...DEFAULT_IGNORED_CLASS_PATTERNS,
+      ...(options.ignoreClasses ?? []),
+    ]),
+  ];
   let stylesheet: WabouStyleSheet = {
     version: STYLE_IR_VERSION,
     theme: {

@@ -12,6 +12,8 @@ import {
   splitProps,
   useContext,
 } from "solid-js";
+import ChevronDown from "lucide-solid/icons/chevron-down";
+import ChevronUp from "lucide-solid/icons/chevron-up";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -195,7 +197,12 @@ export function AccordionTrigger(props: {
         <Text class="min-w-0 whitespace-normal text-sm font-medium text-primary">
           {props.children}
         </Text>
-        <Text class="flex-none text-muted">{open() ? "⌃" : "⌄"}</Text>
+        <Show
+          when={open()}
+          fallback={<ChevronDown class="flex-none text-muted" size={16} />}
+        >
+          <ChevronUp class="flex-none text-muted" size={16} />
+        </Show>
       </View>
     </Button>
   );
