@@ -37,6 +37,7 @@ import {
   Select,
 } from "@wabou/components";
 import { Text, View } from "@wabou/primitives";
+import Rocket from "lucide-solid/icons/rocket";
 import { createSignal } from "solid-js";
 import { Preview } from "../preview";
 
@@ -207,7 +208,7 @@ export function EmptyPage() {
       <Empty class="w-[560px]">
         <EmptyHeader>
           <EmptyMedia>
-            <Text class="text-xl">◇</Text>
+            <Rocket aria-hidden="true" size={24} />
           </EmptyMedia>
           <EmptyTitle>No deployments yet</EmptyTitle>
           <EmptyDescription>
