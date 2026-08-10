@@ -22,6 +22,11 @@ import {
 import { match, P } from "ts-pattern";
 
 export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
+export * from "./avatar";
+export * from "./dialog";
+export * from "./disclosure";
+export * from "./forms";
+export * from "./layout";
 export {
   Checkbox,
   type CheckboxProps,

@@ -49,7 +49,13 @@ type ComponentId =
   | "skeleton"
   | "spinner"
   | "kbd"
-  | "separator";
+  | "separator"
+  | "dialog"
+  | "accordion"
+  | "avatar"
+  | "field"
+  | "empty"
+  | "button-group";
 
 const groups: Array<{
   label: string;
@@ -59,6 +65,7 @@ const groups: Array<{
     label: "Actions",
     items: [
       { id: "button", name: "Button" },
+      { id: "button-group", name: "Button group" },
       { id: "toggle", name: "Toggle" },
       { id: "switch", name: "Switch" },
     ],
@@ -69,6 +76,7 @@ const groups: Array<{
       { id: "input", name: "Input" },
       { id: "checkbox", name: "Checkbox" },
       { id: "radio-group", name: "Radio group" },
+      { id: "field", name: "Field & input group" },
     ],
   },
   {
@@ -80,6 +88,7 @@ const groups: Array<{
       { id: "progress", name: "Progress" },
       { id: "tabs", name: "Tabs" },
       { id: "kbd", name: "Kbd" },
+      { id: "avatar", name: "Avatar" },
     ],
   },
   {
@@ -94,6 +103,9 @@ const groups: Array<{
     label: "Feedback",
     items: [
       { id: "alert", name: "Alert" },
+      { id: "dialog", name: "Dialog" },
+      { id: "empty", name: "Empty" },
+      { id: "accordion", name: "Accordion" },
       { id: "skeleton", name: "Skeleton" },
       { id: "spinner", name: "Spinner" },
       { id: "animation", name: "Animation" },
@@ -139,6 +151,14 @@ const descriptions: Record<ComponentId, string> = {
   spinner: "An animated status indicator for indeterminate work.",
   kbd: "Displays keyboard input and shortcut chords.",
   separator: "Visually separates content in a list or layout.",
+  dialog: "A modal surface with native focus isolation and dismissal behavior.",
+  accordion:
+    "Vertically stacked disclosure sections with controlled or uncontrolled state.",
+  avatar: "A compact visual identity with initials, images and grouped counts.",
+  field: "Composable labels, descriptions, errors and input adornments.",
+  empty: "A centered placeholder for collections that do not contain data yet.",
+  "button-group":
+    "Groups related actions into horizontal or vertical toolbars.",
 };
 
 const history = createMemoryHistory();
@@ -169,6 +189,14 @@ import {
   UtilitiesPage,
 } from "./pages/basics";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
+import {
+  AccordionPage,
+  AvatarPage,
+  ButtonGroupPage,
+  DialogPage,
+  EmptyPage,
+  FieldPage,
+} from "./pages/widgets";
 
 function App() {
   const window = useWindow();
@@ -469,6 +497,24 @@ function App() {
                   </Match>
                   <Match when={selected() === "separator"}>
                     <SeparatorPage />
+                  </Match>
+                  <Match when={selected() === "dialog"}>
+                    <DialogPage />
+                  </Match>
+                  <Match when={selected() === "accordion"}>
+                    <AccordionPage />
+                  </Match>
+                  <Match when={selected() === "avatar"}>
+                    <AvatarPage />
+                  </Match>
+                  <Match when={selected() === "field"}>
+                    <FieldPage />
+                  </Match>
+                  <Match when={selected() === "empty"}>
+                    <EmptyPage />
+                  </Match>
+                  <Match when={selected() === "button-group"}>
+                    <ButtonGroupPage />
                   </Match>
                 </ShowCase>
               </View>
