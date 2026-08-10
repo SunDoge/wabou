@@ -15,6 +15,8 @@ Install the following public packages only when the application uses them:
 
 - `@wabou/components` — styled application components.
 - `@wabou/primitives` — unstyled, composable interaction primitives.
+- `@wabou/interactions` — renderer-independent behavior, collections,
+  selection, keyboard navigation and Solid state adapters.
 - `@wabou/router` — native application routing.
 - `@wabou/animation` — Motion-backed animation helpers.
 - `@wabou/terminal` — native terminal component.
@@ -33,3 +35,7 @@ The release command publishes with Bun so `workspace:*` dependencies are
 rewritten to the shared concrete version in the npm tarball.
 `bun run packages:check` verifies aligned versions, publication metadata and
 that application manifests do not directly depend on internal packages.
+
+The component stack is intentionally layered: `@wabou/interactions` provides
+behavior, `@wabou/primitives` connects it to the native host, and
+`@wabou/components` supplies themed, shadcn-inspired recipes.

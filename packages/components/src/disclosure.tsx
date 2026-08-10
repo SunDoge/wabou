@@ -1,13 +1,17 @@
 import { Button, Text, View } from "@wabou/primitives";
 import {
+  createControllableState,
+  createDisclosure,
+  isSelected,
+  toggleSelection,
+} from "@wabou/interactions";
+import {
   createContext,
   type JSX,
   Show,
   splitProps,
   useContext,
 } from "solid-js";
-import { match } from "ts-pattern";
-import { createControllableState } from "./state";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -33,18 +37,16 @@ export interface CollapsibleProps {
   class?: string;
 }
 export function Collapsible(props: CollapsibleProps) {
-  const state = createControllableState({
-    value: () => props.open,
-    defaultValue: props.defaultOpen ?? false,
+  const state = createDisclosure({
+    open: () => props.open,
+    defaultOpen: props.defaultOpen,
     disabled: () => props.disabled ?? false,
-    onChange: props.onOpenChange,
+    onOpenChange: props.onOpenChange,
   });
   const context = {
-    open: state.value,
-    toggle: () => {
-      state.set(!state.value());
-    },
-    disabled: () => props.disabled ?? false,
+    open: state.open,
+    toggle: state.toggle,
+    disabled: state.disabled,
   };
   return (
     <CollapsibleContext.Provider value={context}>
@@ -90,22 +92,15 @@ export function CollapsibleContent(props: {
 }
 
 export type AccordionType = "single" | "multiple";
-type AccordionValue = string | string[];
+type AccordionValue = string | readonly string[];
 export function nextAccordionValue(
   current: AccordionValue,
   type: AccordionType,
   item: string,
   collapsible = false,
 ): AccordionValue {
-  return match(type)
-    .with("single", () => (current === item && collapsible ? "" : item))
-    .with("multiple", () => {
-      const values = Array.isArray(current) ? current : [];
-      return values.includes(item)
-        ? values.filter((value) => value !== item)
-        : [...values, item];
-    })
-    .exhaustive();
+  const next = toggleSelection(current, item, type, collapsible);
+  return next ?? "";
 }
 interface AccordionContextValue {
   active: (value: string) => boolean;
@@ -146,10 +141,7 @@ export function Accordion(props: AccordionProps) {
     onChange: props.onValueChange,
   });
   const context: AccordionContextValue = {
-    active: (item) =>
-      Array.isArray(state.value())
-        ? state.value().includes(item)
-        : state.value() === item,
+    active: (item) => isSelected(state.value(), item),
     toggle: (item) => {
       state.set(
         nextAccordionValue(state.value(), type(), item, props.collapsible),

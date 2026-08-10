@@ -1,4 +1,8 @@
 import { Button as HeadlessButton, Text, View } from "@wabou/primitives";
+import {
+  createControllableState,
+  createRovingFocus,
+} from "@wabou/interactions";
 import type { Handle } from "@wabou/solid-renderer";
 import {
   createComponent,
@@ -7,8 +11,7 @@ import {
   onCleanup,
   useContext,
 } from "solid-js";
-import { match, P } from "ts-pattern";
-import { createControllableState } from "./state";
+import { match } from "ts-pattern";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -27,7 +30,7 @@ interface TabsContextValue {
   value: () => string | undefined;
   orientation: () => "horizontal" | "vertical";
   select(value: string): void;
-  register(value: string, node: Handle): () => void;
+  register(value: string, node: Handle, disabled: () => boolean): () => void;
   move(value: string, key: string): boolean;
 }
 
@@ -49,56 +52,23 @@ export function Tabs(props: TabsProps): JSX.Element {
     onChange: (value) => value !== undefined && props.onValueChange?.(value),
   });
   const value = state.value;
-  const triggers: Array<{ value: string; node: Handle }> = [];
   const select = (next: string) => {
     state.set(next);
   };
+  const roving = createRovingFocus({
+    orientation: () => props.orientation ?? "horizontal",
+    onMove: select,
+  });
   const context: TabsContextValue = {
     value,
     orientation: () => props.orientation ?? "horizontal",
     select,
-    register: (next, node) => {
-      triggers.push({ value: next, node });
+    register: (next, node, disabled) => {
+      const unregister = roving.register({ id: next, target: node, disabled });
       if (value() === undefined) select(next);
-      return () => {
-        const index = triggers.findIndex(
-          (trigger) => trigger.value === next && trigger.node === node,
-        );
-        if (index >= 0) triggers.splice(index, 1);
-      };
+      return unregister;
     },
-    move: (current, key) => {
-      const delta = match({ orientation: context.orientation(), key })
-        .with({ key: "Home" }, () => -Infinity)
-        .with({ key: "End" }, () => Infinity)
-        .with(
-          P.union(
-            { orientation: "horizontal", key: "ArrowRight" },
-            { orientation: "vertical", key: "ArrowDown" },
-          ),
-          () => 1,
-        )
-        .with(
-          P.union(
-            { orientation: "horizontal", key: "ArrowLeft" },
-            { orientation: "vertical", key: "ArrowUp" },
-          ),
-          () => -1,
-        )
-        .otherwise(() => 0);
-      if (!delta || triggers.length === 0) return false;
-      const index = triggers.findIndex((trigger) => trigger.value === current);
-      if (index < 0) return false;
-      const target = match(delta)
-        .with(-Infinity, () => 0)
-        .with(Infinity, () => triggers.length - 1)
-        .otherwise(
-          (offset) => (index + offset + triggers.length) % triggers.length,
-        );
-      select(triggers[target].value);
-      triggers[target].node.focus();
-      return true;
-    },
+    move: roving.move,
   };
   return createComponent(TabsContext.Provider, {
     value: context,
@@ -168,7 +138,11 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
       aria-selected={selected()}
       ref={(node) => {
         unregister?.();
-        unregister = context.register(props.value, node);
+        unregister = context.register(
+          props.value,
+          node,
+          () => props.disabled ?? false,
+        );
       }}
       class={(state) =>
         join(

@@ -134,6 +134,7 @@
       "dependencies": {
         "@wabou/animation": "workspace:*",
         "@wabou/core": "workspace:*",
+        "@wabou/interactions": "workspace:*",
         "@wabou/primitives": "workspace:*",
         "@wabou/solid-renderer": "workspace:*",
         "solid-js": "1.9.14",
@@ -149,6 +150,14 @@
         "@wabou/style": "workspace:*",
         "solid-js": "1.9.14",
         "whatwg-url": "^17.1.0",
+      },
+    },
+    "packages/interactions": {
+      "name": "@wabou/interactions",
+      "version": "0.1.0",
+      "dependencies": {
+        "solid-js": "1.9.14",
+        "ts-pattern": "^5.9.0",
       },
     },
     "packages/primitives": {
@@ -581,6 +590,8 @@
     "@wabou/gallery": ["@wabou/gallery@workspace:apps/gallery"],
 
     "@wabou/hackernews": ["@wabou/hackernews@workspace:apps/hackernews"],
+
+    "@wabou/interactions": ["@wabou/interactions@workspace:packages/interactions"],
 
     "@wabou/primitives": ["@wabou/primitives@workspace:packages/primitives"],
 

@@ -4,9 +4,19 @@ import {
   Text,
   View,
 } from "@wabou/primitives";
-import { createComponent, createContext, type JSX, useContext } from "solid-js";
+import {
+  createControllableState,
+  createRovingFocus,
+} from "@wabou/interactions";
+import type { Handle } from "@wabou/solid-renderer";
+import {
+  createComponent,
+  createContext,
+  type JSX,
+  onCleanup,
+  useContext,
+} from "solid-js";
 import { match } from "ts-pattern";
-import { createControllableState } from "./state";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -89,6 +99,8 @@ interface RadioContextValue {
   value: () => string | undefined;
   select(value: string): void;
   disabled: () => boolean;
+  register(value: string, node: Handle, disabled: () => boolean): () => void;
+  move(value: string, key: string): boolean;
 }
 
 const RadioContext = createContext<RadioContextValue>();
@@ -114,8 +126,19 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
   const select = (next: string) => {
     state.set(next);
   };
+  const roving = createRovingFocus({
+    orientation: () => "vertical",
+    onMove: select,
+  });
   return createComponent(RadioContext.Provider, {
-    value: { value, select, disabled: () => props.disabled ?? false },
+    value: {
+      value,
+      select,
+      disabled: () => props.disabled ?? false,
+      register: (id, target, disabled) =>
+        roving.register({ id, target, disabled }),
+      move: roving.move,
+    },
     get children() {
       return (
         <View
@@ -142,6 +165,8 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
   if (!group) throw new Error("RadioGroupItem must be used inside RadioGroup");
   const checked = () => group.value() === props.value;
   const disabled = () => group.disabled() || (props.disabled ?? false);
+  let unregister: (() => void) | undefined;
+  onCleanup(() => unregister?.());
   return (
     <HeadlessButton
       unstyled
@@ -150,6 +175,10 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       selected={checked()}
       aria-label={props.label}
       aria-checked={checked()}
+      ref={(node) => {
+        unregister?.();
+        unregister = group.register(props.value, node, disabled);
+      }}
       class={(buttonState) =>
         join(
           "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
@@ -162,6 +191,9 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         opacity: buttonState.disabled ? 0.45 : 1,
       })}
       onClick={() => group.select(props.value)}
+      onKeyDown={(event) => {
+        if (group.move(props.value, event.key)) event.preventDefault();
+      }}
     >
       <View
         class={join(
