@@ -3,16 +3,16 @@
 use super::*;
 
 pub(super) struct WidgetManager {
-    pub(super) widgets: HashMap<NodeId, Box<dyn crate::widget::Widget>>,
-    pub(super) styles: HashMap<NodeId, crate::widget::WidgetStyle>,
-    pub(super) factories: HashMap<Atom, crate::widget::WidgetFactory>,
+    pub(super) widgets: HashMap<NodeId, Box<dyn wabou_shell::Widget>>,
+    pub(super) styles: HashMap<NodeId, wabou_shell::WidgetStyle>,
+    pub(super) factories: HashMap<Atom, wabou_shell::WidgetFactory>,
     pub(super) host_action_routes: HashMap<u64, (NodeId, u64)>,
     pub(super) next_host_action_id: u64,
     pub(super) pending_value_sync: HashSet<u32>,
 }
 
 impl WidgetManager {
-    pub(super) fn new(factories: HashMap<Atom, crate::widget::WidgetFactory>) -> Self {
+    pub(super) fn new(factories: HashMap<Atom, wabou_shell::WidgetFactory>) -> Self {
         Self {
             widgets: HashMap::new(),
             styles: HashMap::new(),
@@ -27,7 +27,7 @@ impl WidgetManager {
         &self,
         tag: Atom,
         wake: Option<&WakeCallback>,
-    ) -> Option<Box<dyn crate::widget::Widget>> {
+    ) -> Option<Box<dyn wabou_shell::Widget>> {
         self.factories.get(&tag).map(|factory| {
             let mut widget = factory();
             if let Some(wake) = wake {

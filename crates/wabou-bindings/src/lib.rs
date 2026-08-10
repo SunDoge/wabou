@@ -232,12 +232,12 @@ impl Bindings {
         self
     }
 
-    /// Render one deterministic module containing DTOs, raw Host augmentation,
-    /// and typed JSON clients.
+    /// Render one deterministic module containing DTOs, a module-local native
+    /// capability contract, and typed JSON clients.
     pub fn render(&self) -> String {
         let mut output = String::from(HEADER);
-        output.push_str("import type { Host } from \"@wabou/solid-renderer\";\n");
-        output.push_str("import \"@wabou/solid-renderer\";\n\n");
+        output.push_str("import type { Host } from \"@wabou/core\";\n");
+        output.push_str("import \"@wabou/core\";\n\n");
         output.push_str("export type NativeResult<T> = T | PromiseLike<T>;\n\n");
 
         let declarations = self
@@ -253,10 +253,9 @@ impl Bindings {
             output.push_str("\n\n");
         }
 
-        output.push_str("declare module \"@wabou/solid-renderer\" {\n");
-        output.push_str("  interface HostCapabilities {\n");
+        output.push_str("interface NativeHostCapabilities {\n");
         for capability in sorted_capabilities(&self.capabilities) {
-            output.push_str(&format!("    readonly {}: {{\n", capability.name));
+            output.push_str(&format!("  readonly {}: {{\n", capability.name));
             for method in sorted_methods(&capability.methods) {
                 let parameter = method
                     .arguments
@@ -279,13 +278,13 @@ impl Bindings {
                     .collect::<Vec<_>>()
                     .join(", ");
                 output.push_str(&format!(
-                    "      {}({parameter}): NativeResult<string>;\n",
+                    "    {}({parameter}): NativeResult<string>;\n",
                     method.name,
                 ));
             }
-            output.push_str("    };\n");
+            output.push_str("  };\n");
         }
-        output.push_str("  }\n}\n\n");
+        output.push_str("}\n\n");
 
         if self
             .capabilities
@@ -324,6 +323,7 @@ impl Bindings {
             output.push_str(&format!(
                 "export function create{interface}(host: Host): {interface} {{\n"
             ));
+            output.push_str("  const nativeHost = host as Host & NativeHostCapabilities;\n");
             output.push_str("  return {\n");
             for method in sorted_methods(&capability.methods) {
                 let parameter = method
@@ -346,12 +346,12 @@ impl Bindings {
                     .join(", ");
                 let decode = if method.result_envelope {
                     format!(
-                        "decodeNativeResult<{}>(await host.{}.{}({argument}))",
+                        "decodeNativeResult<{}>(await nativeHost.{}.{}({argument}))",
                         method.response.name, capability.name, method.name
                     )
                 } else {
                     format!(
-                        "JSON.parse(await host.{}.{}({argument})) as {}",
+                        "JSON.parse(await nativeHost.{}.{}({argument})) as {}",
                         capability.name, method.name, method.response.name
                     )
                 };
@@ -582,14 +582,16 @@ mod tests {
         assert!(output.contains("export type FunctionRequest ="));
         assert!(output.contains("displayName: string"));
         assert!(output.contains("export type NativeResult<T> = T | PromiseLike<T>"));
+        assert!(output.contains("interface NativeHostCapabilities"));
+        assert!(!output.contains("@wabou/solid-renderer"));
         assert!(output.contains("updateFile(id: string, request: string): NativeResult<string>"));
         assert!(output.contains(
             "updateFile(id: string, request: FunctionRequest): Promise<FunctionResponse>"
         ));
         assert!(output.contains("JSON.stringify(request)"));
-        assert!(
-            output.contains("decodeNativeResult<FunctionResponse>(await host.workspace.updateFile")
-        );
+        assert!(output.contains(
+            "decodeNativeResult<FunctionResponse>(await nativeHost.workspace.updateFile"
+        ));
     }
 
     #[test]
@@ -604,7 +606,7 @@ mod tests {
         assert!(output.contains(
             "updateFile(id: string, request: FunctionRequest): Promise<FunctionResponse>"
         ));
-        assert!(output.contains("host.workspace.updateFile(id, JSON.stringify(request))"));
+        assert!(output.contains("nativeHost.workspace.updateFile(id, JSON.stringify(request))"));
     }
 
     #[test]

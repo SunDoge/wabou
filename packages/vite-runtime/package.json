@@ -1,8 +1,0 @@
-{
-  "name": "@wabou/vite-runtime",
-  "version": "0.0.0",
-  "private": true,
-  "exports": {
-    ".": "./src/client.ts"
-  }
-}

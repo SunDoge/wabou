@@ -2,7 +2,7 @@
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
 import { Button, Popover, Text } from "@wabou/primitives";
-import { mount, useHost } from "@wabou/solid-renderer";
+import { mount, useHost } from "@wabou/core";
 import {
   createEffect,
   createMemo,

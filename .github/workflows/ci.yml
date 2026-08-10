@@ -79,6 +79,9 @@ jobs:
       - name: Check types
         run: bun run check
 
+      - name: Check package boundaries
+        run: bun run packages:check
+
       - name: Test packages
         run: bun --conditions=browser test packages
 

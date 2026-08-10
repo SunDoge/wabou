@@ -13,9 +13,6 @@
     "@wabou/core": "workspace:*",
     "@wabou/primitives": "workspace:*",
     "@wabou/router": "workspace:*",
-    "@wabou/solid-renderer": "workspace:*",
-    "@wabou/style": "workspace:*",
-    "@wabou/unocss-preset": "workspace:*",
     "solid-js": "1.9.14"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Host } from "@wabou/solid-renderer";
+import type { Host } from "@wabou/core";
 import { createDevtoolsClient } from "./generated/host-bindings";
 
 test("generated DevTools client preserves primitive and optional arguments", async () => {

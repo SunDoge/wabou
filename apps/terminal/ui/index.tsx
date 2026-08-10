@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from "@wabou/primitives";
-import { type Handle, mount } from "@wabou/solid-renderer";
+import { type Handle, mount } from "@wabou/core";
 import { Terminal } from "@wabou/terminal";
 import { For } from "solid-js";
 

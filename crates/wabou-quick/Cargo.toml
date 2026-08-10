@@ -13,11 +13,6 @@ path = "src/lib.rs"
 bitflags = { workspace = true }
 bon = { workspace = true }
 futures-lite = "2"
-image = {
-  version = "0.25",
-  default-features = false,
-  features = ["bmp", "gif", "jpeg", "png", "webp"]
-}
 lasso = "0.7.3"
 open = "5.4.0"
 parley = "0.10"
@@ -43,7 +38,7 @@ wabou-devtools = { path = "../wabou-devtools" }
 wabou-host-api = { workspace = true }
 wabou-shell = { path = "../wabou-shell" }
 wabou-style = { workspace = true }
-zeroize = "1.9.0"
+wabou-widgets = { workspace = true }
 
 tungstenite = {
   version = "0.28",

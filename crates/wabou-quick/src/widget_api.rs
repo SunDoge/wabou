@@ -6,12 +6,9 @@
 
 pub use crate::HostBuilder;
 pub use crate::vello;
-pub use crate::widget::{
-    PasswordInput, SecretStore, Widget, WidgetChanges, WidgetEventResult, WidgetFactory,
-    WidgetNodeEvent, WidgetStyle,
-};
 pub use wabou_shell::{
     ClipboardRequest, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
     Modifiers, Point, PointerButton, PointerEvent, PointerPhase, TextContext, UiEvent,
-    WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
+    WakeCallback, WheelEvent, Widget, WidgetChanges, WidgetEventResult, WidgetFactory,
+    WidgetNodeEvent, WidgetStyle, WindowCommand, WindowMetrics, WindowOptions,
 };

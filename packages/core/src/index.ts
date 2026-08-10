@@ -26,6 +26,12 @@ import "./glue/window-metrics";
 import "./glue/effects";
 import "./glue/clipboard";
 
+// The renderer and typed style surface are re-exported here so application
+// code has one stable runtime entry point. Their package names remain an
+// implementation detail used by the Vite transform and Wabou's own packages.
+export * from "@wabou/solid-renderer";
+export * from "@wabou/style";
+
 export {
   colorTheme,
   ColorThemeProvider,

@@ -1,7 +1,7 @@
 // Hacker News UI entry.
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
-import { mount } from "@wabou/solid-renderer";
+import { mount } from "@wabou/core";
 import { MemoryRouter, Route } from "@wabou/router";
 import { AppShell } from "./AppShell";
 import { ThemeProvider } from "./contexts/ThemeContext";

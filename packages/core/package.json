@@ -1,13 +1,16 @@
 {
   "name": "@wabou/core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
     "@wabou/protocol": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
+    "@wabou/style": "workspace:*",
     "solid-js": "1.9.14",
     "whatwg-url": "^17.1.0"
   }

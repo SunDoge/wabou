@@ -85,10 +85,11 @@ OS rather than only on routing and serialization.
 
 ## TypeScript declarations for application capabilities
 
-`HostCapabilities` and `WabouIntrinsicElements` are package-root extension
-registries. Applications and widget packages augment
-`@wabou/solid-renderer`, rather than the internal module that happens to
-implement `useHost` or Solid's global JSX namespace:
+`HostCapabilities` and `WabouIntrinsicElements` are renderer extension
+registries. Generated application bindings manage the internal augmentation;
+ordinary application code imports `Host`, `useHost`, and renderer types from
+`@wabou/core`. Native widget packages that add low-level intrinsic tags are the
+one supported exception and augment the renderer registry directly:
 
 ```ts
 declare module "@wabou/solid-renderer" {

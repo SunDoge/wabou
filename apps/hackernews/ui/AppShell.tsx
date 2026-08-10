@@ -1,6 +1,6 @@
 // Hacker News application shell.
 import { Text } from "@wabou/primitives";
-import { createFps } from "@wabou/solid-renderer";
+import { createFps } from "@wabou/core";
 import type { JSX } from "solid-js";
 import { Sidebar } from "./components/Sidebar";
 import { useTheme } from "./contexts/ThemeContext";

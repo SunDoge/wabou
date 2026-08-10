@@ -1,10 +1,14 @@
 {
   "name": "@wabou/vite",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./runtime": "./src/runtime/client.ts",
+    "./utility-manifest": "./src/utility-manifest.ts"
   },
   "scripts": {
     "test": "bun test"
@@ -12,6 +16,7 @@
   "dependencies": {
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style-compiler": "workspace:*",
+    "@wabou/unocss-preset": "workspace:*",
     "vite": "^5.4.0",
     "vite-plugin-solid": "2.11.12"
   }

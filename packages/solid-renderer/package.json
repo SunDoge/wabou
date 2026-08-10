@@ -1,7 +1,12 @@
 {
   "name": "@wabou/solid-renderer",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "wabou": {
+    "stability": "internal"
+  },
   "exports": {
     ".": "./src/index.ts"
   },

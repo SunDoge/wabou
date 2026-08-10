@@ -10,6 +10,10 @@
     "commit:hook": "cog install-hook commit-msg",
     "test:solid-refresh": "bun --conditions=browser --conditions=development test packages/solid-renderer/src/hmr.test.ts",
     "test:router": "bun --conditions=browser test packages/router/src/index.test.tsx",
+    "packages:check": "bun run scripts/check-package-boundaries.ts",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release-packages": "bun run packages:check && bun run scripts/publish-packages.ts",
     "gen": "bun run scripts/codegen/index.ts",
     "build": "bun run gen && bun run wabou build --app-dir apps/gallery",
     "dev": "bun run wabou dev --app-dir apps/gallery"
@@ -20,6 +24,7 @@
   ],
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
+    "@changesets/cli": "^2.29.8",
     "@types/bun": "^1.3.14",
     "@wabou/unocss-preset": "workspace:*",
     "bun-types": "^1.3.14",

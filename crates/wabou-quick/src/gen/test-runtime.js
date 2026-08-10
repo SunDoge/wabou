@@ -2826,7 +2826,6 @@
       return;
     })
   });
-
   // packages/core/src/glue/color-theme.tsx
   var [current, setCurrent] = createSignal();
   var currentPalette;

@@ -7,7 +7,7 @@
 //
 //  2. Guest-provided (Rust calls JS): callbacks the JS side installs so Rust
 //     can drive rendering and deliver events. Installed by the glue modules in
-//     `./glue/*` (and `@wabou/vite-runtime` for HMR); Rust looks them up via
+//     `./glue/*` (and `@wabou/vite/runtime` for HMR); Rust looks them up via
 //     `JsRuntime::{tick, has_raf, dispatch_host_frame, apply_hmr_update}`.
 //
 // Naming: every `__`-prefixed global uses one convention — `__wabou_*` = the

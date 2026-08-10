@@ -66,13 +66,13 @@ use crate::jsrt::{JsRuntime, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, Re
 use crate::protocol::{Frame, Op, decode_frame};
 use crate::protocol::{event, event_data};
 use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
-use crate::widget::builtin_factories;
 use crate::{Atom, AtomPool};
 #[cfg(test)]
 use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
 use node_store::NodeStore;
 use projections::FrameProjections;
+use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
 const SCROLLBAR_FADE_DELAY: Duration = Duration::from_millis(500);
@@ -671,7 +671,7 @@ impl Applier {
     /// Like `from_runtime` but with a widget factory registry (from `HostBuilder`).
     pub fn from_runtime_with_factories(
         js: JsRuntime,
-        widget_factories: HashMap<String, crate::widget::WidgetFactory>,
+        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
         base_color: Color,
     ) -> Self {
         Self::from_runtime_with_factories_and_window(js, widget_factories, base_color, 1)
@@ -679,7 +679,7 @@ impl Applier {
 
     pub fn from_runtime_with_factories_and_window(
         js: JsRuntime,
-        widget_factories: HashMap<String, crate::widget::WidgetFactory>,
+        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
         base_color: Color,
         window_id: u64,
     ) -> Self {

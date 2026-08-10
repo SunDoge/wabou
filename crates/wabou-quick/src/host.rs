@@ -29,8 +29,9 @@ use vello::peniko::Color;
 
 use crate::applier::Applier;
 use crate::jsrt::JsRuntime;
-use crate::widget::{PasswordInput, SecretStore, Widget, WidgetFactory, builtin_factories};
 use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
+use wabou_shell::{Widget, WidgetFactory};
+use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 
@@ -88,10 +89,8 @@ impl HostBuilder {
 
     /// Register the framework password widget backed by a Rust-only secret store.
     pub fn password_inputs(mut self, secrets: SecretStore) -> Self {
-        self.widget_factories.insert(
-            "password-input".into(),
-            Arc::new(move || Box::new(PasswordInput::new(secrets.clone()))),
-        );
+        self.widget_factories
+            .insert("password-input".into(), password_input_factory(secrets));
         self
     }
 

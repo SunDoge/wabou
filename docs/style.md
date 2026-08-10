@@ -148,10 +148,10 @@ can use `Theme`, `parse_utility_with_theme`, and `manifest_with_theme` directly.
 
 ## Typed dynamic styles
 
-Import value constructors from `@wabou/style` when a value changes at runtime:
+Import value constructors from `@wabou/core` when a value changes at runtime:
 
 ```tsx
-import { number, percent, px } from "@wabou/style";
+import { number, percent, px } from "@wabou/core";
 
 <View
   style={{ width: px(width()), height: percent(0.5), opacity: number(0.8) }}
@@ -169,7 +169,7 @@ Each layer maps to one Vello blurred rounded rectangle, and layers paint in
 array order:
 
 ```tsx
-import { shadow } from "@wabou/style";
+import { shadow } from "@wabou/core";
 
 <View
   shadows={[

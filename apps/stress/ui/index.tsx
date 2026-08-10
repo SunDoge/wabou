@@ -15,7 +15,7 @@ import {
   setTransform2D,
   createFps,
   useHost,
-} from "@wabou/solid-renderer";
+} from "@wabou/core";
 import {
   createEffect,
   createSignal,

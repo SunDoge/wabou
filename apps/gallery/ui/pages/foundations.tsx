@@ -40,9 +40,15 @@ import {
   useNavigate,
   useParams,
 } from "@wabou/router";
-import { type Handle, mount } from "@wabou/solid-renderer";
-import { px, rgba, shadow, number as styleNumber } from "@wabou/style";
-import wabouUtilityManifest from "@wabou/unocss-preset/manifest";
+import {
+  type Handle,
+  mount,
+  px,
+  rgba,
+  shadow,
+  number as styleNumber,
+} from "@wabou/core";
+import wabouUtilityManifest from "@wabou/vite/utility-manifest";
 import {
   createSignal,
   For,

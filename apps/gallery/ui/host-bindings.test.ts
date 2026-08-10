@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Host } from "@wabou/solid-renderer";
+import type { Host } from "@wabou/core";
 import { createBindingsDemoClient } from "./generated/host-bindings";
 
 test("generated client owns the JSON capability boundary", async () => {

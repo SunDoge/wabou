@@ -27,7 +27,7 @@ const bundles: Bundle[] = [
   },
   {
     name: "Vite runtime",
-    entries: ["packages/vite-runtime/src/client.ts"],
+    entries: ["packages/vite/src/runtime/client.ts"],
     output: "crates/wabou-quick/src/gen/vite-client.js",
     format: "esm",
     header:

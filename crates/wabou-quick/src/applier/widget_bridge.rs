@@ -173,7 +173,7 @@ impl Applier {
             let Some(paint) = self.node_store.tree.get_node_context(node) else {
                 continue;
             };
-            let style = crate::widget::WidgetStyle::from(paint);
+            let style = wabou_shell::WidgetStyle::from(paint);
             if self.widget_manager.styles.get(&node) != Some(&style) {
                 widget.style_changed(&style);
                 self.widget_manager.styles.insert(node, style);

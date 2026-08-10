@@ -11,7 +11,6 @@
   "dependencies": {
     "@wabou/core": "workspace:*",
     "@wabou/primitives": "workspace:*",
-    "@wabou/solid-renderer": "workspace:*",
     "solid-js": "1.9.14"
   },
   "devDependencies": {

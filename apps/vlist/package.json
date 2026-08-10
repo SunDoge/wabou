@@ -9,8 +9,6 @@
   },
   "dependencies": {
     "@wabou/core": "workspace:*",
-    "@wabou/protocol": "workspace:*",
-    "@wabou/solid-renderer": "workspace:*",
     "solid-js": "1.9.14"
   },
   "devDependencies": {

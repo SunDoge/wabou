@@ -19,6 +19,7 @@ pub mod source;
 pub mod style;
 pub mod svg;
 pub mod text;
+pub mod widget;
 pub mod window_lifecycle;
 
 pub use app::{
@@ -43,4 +44,7 @@ pub use source::{
     WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;
+pub use widget::{
+    Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent, WidgetStyle,
+};
 pub use winit::raw_window_handle;

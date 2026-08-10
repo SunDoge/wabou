@@ -5,7 +5,7 @@
 
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
-import { createFps, mount, VirtualList } from "@wabou/solid-renderer";
+import { createFps, mount, VirtualList } from "@wabou/core";
 
 const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
   const tag = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta"][
