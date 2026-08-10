@@ -28,3 +28,19 @@ not exposed. This keeps the backend replaceable. DOM targets, selectors,
 object timelines, scroll observers and gesture helpers are intentionally out
 of scope. Animate values into Solid signals, then bind those values to Wabou
 classes or inline styles.
+
+For component-owned repeating motion, use the Solid-aware controllers. They
+create the signal, expose playback controls, and stop automatically when the
+current Solid owner is disposed:
+
+```tsx
+const rotation = createRotation({ duration: 0.9 });
+<View transform={rotation.transform()} />;
+
+const pulse = createPulse({ from: 0.45, to: 0.85, duration: 1.8 });
+<View style={{ opacity: pulse.value() }} />;
+```
+
+`createLoop` is the lower-level repeating scalar controller. Rotation matrices
+contain no manual pivot translation: Wabou's native scene builder applies
+runtime transforms around the node's border-box center.

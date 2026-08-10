@@ -1,9 +1,11 @@
 import "@wabou/core";
+import { rotate2d, type Affine2D } from "@wabou/style";
 import type {
   AnimationPlaybackControlsWithThen as MotionControls,
   ValueAnimationOptions,
 } from "motion-dom";
 import { animateValue } from "motion-dom";
+import { createSignal, onCleanup, type Accessor } from "solid-js";
 
 export type AnimationValue = number | string;
 export type AnimationType = "tween" | "spring" | false;
@@ -155,4 +157,99 @@ export function animateKeyframes<V extends AnimationValue>(
     keyframes: [...keyframes],
   });
   return new Controls(backend);
+}
+
+export interface ReactiveAnimation<T> {
+  value: Accessor<T>;
+  controls: AnimationControls;
+}
+
+export interface LoopOptions
+  extends Omit<AnimationOptions<number>, "onUpdate"> {
+  from?: number;
+  to?: number;
+  onUpdate?: (value: number) => void;
+}
+
+/**
+ * Lifecycle-owned repeating scalar animation for Solid components.
+ *
+ * The controls stop automatically with the current Solid owner.
+ */
+export function createLoop(
+  options: LoopOptions = {},
+): ReactiveAnimation<number> {
+  const from = options.from ?? 0;
+  const to = options.to ?? 1;
+  const { from: _from, to: _to, onUpdate, ...animationOptions } = options;
+  const [value, setValue] = createSignal(from);
+  const controls = animate(from, to, {
+    duration: 1,
+    ease: "linear",
+    repeat: Infinity,
+    ...animationOptions,
+    onUpdate(next) {
+      setValue(next);
+      onUpdate?.(next);
+    },
+  });
+  onCleanup(() => controls.stop());
+  return { value, controls };
+}
+
+export interface RotationOptions extends Omit<LoopOptions, "from" | "to"> {
+  /** Initial angle in radians. Defaults to zero. */
+  from?: number;
+  /** Final angle in radians. Defaults to one full turn. */
+  to?: number;
+}
+
+export interface RotationAnimation extends ReactiveAnimation<number> {
+  angle: Accessor<number>;
+  transform: Accessor<Affine2D>;
+}
+
+/** Repeating center-pivoted rotation backed by Motion value animation. */
+export function createRotation(
+  options: RotationOptions = {},
+): RotationAnimation {
+  const loop = createLoop({
+    ...options,
+    from: options.from ?? 0,
+    to: options.to ?? Math.PI * 2,
+  });
+  return {
+    ...loop,
+    angle: loop.value,
+    transform: () => rotate2d(loop.value()),
+  };
+}
+
+export interface PulseOptions
+  extends Omit<AnimationOptions<number>, "onUpdate"> {
+  from?: number;
+  to?: number;
+  onUpdate?: (value: number) => void;
+}
+
+/** Repeating from→to→from value animation with automatic cleanup. */
+export function createPulse(
+  options: PulseOptions = {},
+): ReactiveAnimation<number> {
+  const from = options.from ?? 0.5;
+  const to = options.to ?? 1;
+  const { from: _from, to: _to, onUpdate, ...animationOptions } = options;
+  const [value, setValue] = createSignal(from);
+  const controls = animateKeyframes([from, to, from], {
+    duration: 1,
+    ease: "easeInOut",
+    repeat: Infinity,
+    ...animationOptions,
+    onUpdate(next) {
+      setValue(next);
+      onUpdate?.(next);
+    },
+  });
+  onCleanup(() => controls.stop());
+  return { value, controls };
 }

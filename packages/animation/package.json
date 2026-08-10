@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@wabou/core": "workspace:*",
+    "@wabou/style": "workspace:*",
+    "solid-js": "1.9.14",
     "motion-dom": "^12.43.0"
   }
 }

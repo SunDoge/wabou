@@ -125,7 +125,9 @@
       "version": "0.1.0",
       "dependencies": {
         "@wabou/core": "workspace:*",
+        "@wabou/style": "workspace:*",
         "motion-dom": "^12.43.0",
+        "solid-js": "1.9.14",
       },
     },
     "packages/components": {
@@ -165,6 +167,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@floating-ui/core": "^1.8.0",
+        "@wabou/animation": "workspace:*",
         "@wabou/solid-renderer": "workspace:*",
         "@wabou/style": "workspace:*",
         "solid-js": "1.9.14",

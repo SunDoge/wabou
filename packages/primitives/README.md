@@ -33,6 +33,18 @@ Each layout primitive creates exactly one native `view`; it does not add an
 extra wrapper. Use `View class="flex ..."` when more direct CSS control is
 needed.
 
+Repeating component motion has the same one-node guarantee:
+
+```tsx
+<Spin duration={0.9} class="w-4 h-4">...</Spin>
+<Pulse from={0.45} to={0.85} duration={1.8} class="rounded bg-control" />
+```
+
+Both primitives expose `paused` and `speed`. Their Motion playback controls and
+Solid cleanup are owned internally; use `createRotation`, `createPulse`, or
+`createLoop` from `@wabou/animation` when the animated value must be composed
+manually.
+
 The capitalized APIs create internal `view`, `text`, `img`, and `textarea` host
 nodes. Those tags are implementation details and should not be written directly
 by apps.

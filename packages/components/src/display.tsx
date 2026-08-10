@@ -1,24 +1,17 @@
-import { animate, animateKeyframes } from "@wabou/animation";
-import { rotate2d, Text, View } from "@wabou/primitives";
-import { createSignal, type JSX, onCleanup } from "solid-js";
+import { Pulse, Spin, Text, View } from "@wabou/primitives";
+import type { JSX } from "solid-js";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
 
 export function Skeleton(props: { class?: string }): JSX.Element {
-  const [opacity, setOpacity] = createSignal(0.55);
-  const animation = animateKeyframes([0.45, 0.85, 0.45], {
-    duration: 1.8,
-    ease: "easeInOut",
-    repeat: Infinity,
-    onUpdate: setOpacity,
-  });
-  onCleanup(() => animation.stop());
   return (
-    <View
+    <Pulse
       aria-hidden="true"
       class={join("rounded-md bg-control", props.class)}
-      style={{ opacity: opacity() }}
+      from={0.45}
+      to={0.85}
+      duration={1.8}
     />
   );
 }
@@ -27,20 +20,12 @@ export function Spinner(props: {
   label?: string;
   class?: string;
 }): JSX.Element {
-  const [angle, setAngle] = createSignal(0);
-  const animation = animate(0, Math.PI * 2, {
-    duration: 0.9,
-    ease: "linear",
-    repeat: Infinity,
-    onUpdate: setAngle,
-  });
-  onCleanup(() => animation.stop());
   return (
-    <View
+    <Spin
       role="status"
       aria-label={props.label ?? "Loading"}
       class={join("w-4 h-4 flex-none text-accent", props.class)}
-      transform={rotate2d(angle())}
+      duration={0.9}
     >
       <svg class="w-full h-full" viewBox="0 0 24 24" fill="none">
         <circle
@@ -58,7 +43,7 @@ export function Spinner(props: {
           stroke-linecap="round"
         />
       </svg>
-    </View>
+    </Spin>
   );
 }
 

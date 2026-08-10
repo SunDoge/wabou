@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@floating-ui/core": "^1.8.0",
+    "@wabou/animation": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style": "workspace:*",
     "solid-js": "1.9.14"

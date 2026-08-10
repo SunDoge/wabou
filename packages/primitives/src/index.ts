@@ -29,6 +29,7 @@ export {
   type ModalProps,
   type ModalTriggerProps,
 } from "./modal";
+export { Pulse, type PulseProps, Spin, type SpinProps } from "./motion";
 export {
   createNotifications,
   type NotificationControls,
