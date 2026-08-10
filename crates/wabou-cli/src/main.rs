@@ -69,6 +69,22 @@ enum Commands {
         #[arg(long)]
         release: bool,
     },
+    /// Run a bundled TypeScript behavior scenario against the native host.
+    Test {
+        #[arg(long, value_name = "PATH")]
+        app_dir: Option<PathBuf>,
+        #[arg(value_name = "SCENARIO", required_unless_present = "replay")]
+        scenario: Option<PathBuf>,
+        /// Replay a JSON action trace produced by an earlier test run.
+        #[arg(long, value_name = "TRACE", conflicts_with = "scenario")]
+        replay: Option<PathBuf>,
+        /// Directory for the JSON report and replayable action trace.
+        #[arg(long, value_name = "DIR")]
+        artifacts: Option<PathBuf>,
+        /// Use the real platform event loop instead of the deterministic backend.
+        #[arg(long)]
+        native: bool,
+    },
     /// Generate or verify Rust-owned TypeScript capability bindings.
     Bindings {
         #[arg(long, value_name = "PATH")]
@@ -271,6 +287,23 @@ fn main() -> Result<()> {
                 &workspace,
                 &load_app(&workspace, &cwd, app_dir.as_deref())?,
                 release,
+            )
+        }
+        Commands::Test {
+            app_dir,
+            scenario,
+            replay,
+            artifacts,
+            native,
+        } => {
+            let workspace = find_workspace(&cwd)?;
+            test_scenario(
+                &workspace,
+                &load_app(&workspace, &cwd, app_dir.as_deref())?,
+                scenario.as_deref().map(|path| cwd.join(path)).as_deref(),
+                replay.as_deref().map(|path| cwd.join(path)).as_deref(),
+                artifacts.as_deref(),
+                native,
             )
         }
         Commands::Bindings { app_dir, command } => {
@@ -566,6 +599,80 @@ fn run(workspace: &Path, app: &App, release: bool) -> Result<()> {
     }
     cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app));
     ensure(cargo.status()?, "Rust host")
+}
+
+fn test_scenario(
+    workspace: &Path,
+    app: &App,
+    scenario: Option<&Path>,
+    replay: Option<&Path>,
+    artifacts: Option<&Path>,
+    native: bool,
+) -> Result<()> {
+    ensure(frontend(app, "build", &[])?, "Vite build")?;
+
+    let test_dir = workspace.join("target/wabou-test").join(&app.name);
+    fs::create_dir_all(&test_dir)?;
+    let generated_replay = test_dir.join("replay.ts");
+    let scenario = if let Some(trace) = replay {
+        let actions = fs::read_to_string(trace)
+            .map_err(|error| format!("cannot read trace {}: {error}", trace.display()))?;
+        let parsed: Value = serde_json::from_str(&actions)
+            .map_err(|error| format!("invalid trace {}: {error}", trace.display()))?;
+        if !parsed.is_array() {
+            return Err(format!("trace {} must contain a JSON array", trace.display()).into());
+        }
+        fs::write(
+            &generated_replay,
+            format!(
+                "import {{ replay }} from {};\nreplay({});\n",
+                serde_json::to_string(
+                    &workspace
+                        .join("packages/test/src/index.ts")
+                        .to_string_lossy()
+                )?,
+                serde_json::to_string(&parsed)?
+            ),
+        )?;
+        generated_replay.as_path()
+    } else {
+        scenario.ok_or("a scenario or --replay trace is required")?
+    };
+    if !scenario.is_file() {
+        return Err(format!("test scenario {} does not exist", scenario.display()).into());
+    }
+    let scenario_bundle = test_dir.join("scenario.js");
+    let mut bun = Command::new("bun");
+    bun.current_dir(workspace).args([
+        "build",
+        &scenario.to_string_lossy(),
+        "--target=browser",
+        "--format=iife",
+        &format!("--outfile={}", scenario_bundle.display()),
+    ]);
+    ensure(bun.status()?, "test scenario build")?;
+
+    let artifact_dir = artifacts
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| test_dir.join("artifacts"));
+    fs::create_dir_all(&artifact_dir)?;
+    let stale_failure = artifact_dir.join("failure.png");
+    if stale_failure.is_file() {
+        fs::remove_file(stale_failure)?;
+    }
+    let manifest = manifest(app);
+    let binary = app_binary(workspace, app)?;
+    let mut cargo = Command::new("cargo");
+    cargo
+        .current_dir(workspace)
+        .args(["run", "--manifest-path", &manifest, "--bin", &binary])
+        .env("WABOU_BUNDLE_PATH", bundle_path(workspace, app))
+        .env("WABOU_TEST_SCRIPT", scenario_bundle)
+        .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir);
+    if !native {
+        cargo.env("WABOU_TEST_HEADLESS", "1");
+    }
+    ensure(cargo.status()?, "Wabou behavior test")
 }
 
 fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
@@ -1192,6 +1299,57 @@ mod tests {
             assert_eq!(app_dir.as_deref(), Some(Path::new("apps/gallery")));
             assert_eq!(command, expected);
         }
+    }
+
+    #[test]
+    fn parses_behavior_test_scenarios_and_replays() {
+        let Cli {
+            command:
+                Commands::Test {
+                    app_dir,
+                    scenario,
+                    replay,
+                    artifacts,
+                    native,
+                },
+        } = Cli::try_parse_from([
+            "wabou",
+            "test",
+            "--app-dir",
+            "apps/warden-desktop",
+            "tests/close-to-tray.test.ts",
+            "--artifacts",
+            "artifacts",
+            "--native",
+        ])
+        .unwrap()
+        else {
+            panic!("expected test command");
+        };
+        assert_eq!(app_dir.as_deref(), Some(Path::new("apps/warden-desktop")));
+        assert_eq!(
+            scenario.as_deref(),
+            Some(Path::new("tests/close-to-tray.test.ts"))
+        );
+        assert!(replay.is_none());
+        assert_eq!(artifacts.as_deref(), Some(Path::new("artifacts")));
+        assert!(native);
+
+        let Cli {
+            command:
+                Commands::Test {
+                    scenario,
+                    replay,
+                    native,
+                    ..
+                },
+        } = Cli::try_parse_from(["wabou", "test", "--replay", "trace.json"]).unwrap()
+        else {
+            panic!("expected test replay command");
+        };
+        assert!(scenario.is_none());
+        assert_eq!(replay.as_deref(), Some(Path::new("trace.json")));
+        assert!(!native);
     }
 
     #[test]

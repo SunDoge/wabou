@@ -21,6 +21,7 @@ pub mod inline_context;
 pub mod jsrt;
 pub mod protocol;
 mod style_ir;
+mod test_driver;
 
 #[cfg(test)]
 mod css_support_matrix_test;

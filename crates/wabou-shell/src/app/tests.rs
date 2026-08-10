@@ -1,8 +1,10 @@
 use super::*;
 use crate::layout::PlacedNode;
 use crate::text::TextContext;
+use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use winit::keyboard::NamedKey;
+use winit::raw_window_handle::WaylandWindowHandle;
 
 struct EventActionSource {
     pending: bool,
@@ -45,6 +47,14 @@ fn targeted_window_commands_do_not_affect_other_windows() {
     assert!(!windows[0].close_requested);
     assert!(windows[1].close_requested);
     assert!(find_window_by_logical_id(windows.iter_mut(), 99).is_none());
+}
+
+#[test]
+fn wayland_windows_report_that_visibility_requires_surface_recreation() {
+    let surface = NonNull::from(&()).cast();
+    let handle = RawWindowHandle::Wayland(WaylandWindowHandle::new(surface));
+    assert!(!window_capabilities(Some(handle)).mutable_visibility);
+    assert!(window_capabilities(None).mutable_visibility);
 }
 
 #[test]

@@ -792,6 +792,10 @@ impl Applier {
         self.js.boot(source)
     }
 
+    pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
+        self.js.eval_script(source)
+    }
+
     #[cfg(feature = "vite")]
     pub fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
         self.js.boot_vite(entry)

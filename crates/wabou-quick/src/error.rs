@@ -30,6 +30,9 @@ pub enum Error {
     #[snafu(display("effect trace failed: {message}"))]
     EffectTrace { message: String },
 
+    #[snafu(display("test scenario failed: {message}"))]
+    TestScenario { message: String },
+
     #[cfg(feature = "vite")]
     #[snafu(display("Vite integration failed: {source}"))]
     Vite { source: crate::vite::ViteError },

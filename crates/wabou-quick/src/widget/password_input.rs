@@ -11,7 +11,7 @@ use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
 use wabou_shell::{ImeEvent, KeyPhase, StandardShortcut, UiEvent};
 use zeroize::{Zeroize, Zeroizing};
 
-use super::{Widget, WidgetEventResult, WidgetStyle};
+use super::{Widget, WidgetEventResult, WidgetStyle, single_line_y_offset};
 
 const PLACEHOLDER: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
 const DEFAULT_SLOT: &str = "default";
@@ -61,6 +61,8 @@ pub struct PasswordInput {
     disabled: bool,
     font_size: f32,
     font_weight: f32,
+    line_height: Option<(f32, bool)>,
+    font_family: Option<Arc<str>>,
     color: Color,
     device_scale: f64,
 }
@@ -75,6 +77,8 @@ impl PasswordInput {
             disabled: false,
             font_size: 16.0,
             font_weight: 400.0,
+            line_height: None,
+            font_family: None,
             color: Color::WHITE,
             device_scale: 1.0,
         }
@@ -112,14 +116,14 @@ impl Widget for PasswordInput {
             Arc::from(text),
             self.font_size,
             self.font_weight,
-            None,
+            self.line_height,
             TextAlign::Start,
             brush_for_color(color),
             Arc::from([]),
-            None,
+            self.font_family.as_ref(),
             None,
         );
-        let y = ((f64::from(height) - f64::from(layout.height())) * 0.5).max(0.0);
+        let y = single_line_y_offset(height, layout.height(), self.font_size);
         let glyphs = tcx.glyph_scene_scaled(&layout, self.device_scale);
         let mut scene = Scene::new();
         scene.append(
@@ -204,6 +208,8 @@ impl Widget for PasswordInput {
     fn style_changed(&mut self, style: &WidgetStyle) {
         self.font_size = style.font_size;
         self.font_weight = style.font_weight;
+        self.line_height = style.line_height;
+        self.font_family = style.font_family.clone();
         self.color = style.color;
     }
 

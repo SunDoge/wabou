@@ -650,6 +650,13 @@ impl JsRuntime {
         Ok(())
     }
 
+    /// Evaluate an additional bundled script in the already-booted runtime.
+    /// Used by the opt-in test host; production applications never call it.
+    pub fn eval_script(&self, source: &str) -> JsResult<()> {
+        let source = source.to_owned();
+        self.with(move |ctx| ctx.eval::<(), _>(source.as_str()))
+    }
+
     /// Run one rAF tick: drains the JS requestAnimationFrame queue (which makes
     /// Solid reactive updates emit ops into the writer), then flushes the
     /// writer — which calls `__wabou_flush` and lands the bytes in `self.out`.

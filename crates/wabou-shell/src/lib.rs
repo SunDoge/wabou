@@ -19,6 +19,7 @@ pub mod source;
 pub mod style;
 pub mod svg;
 pub mod text;
+pub mod window_lifecycle;
 
 pub use app::{
     ExtensionContext, FrameSourceFactory, ShellExtension, run_window, run_window_with_options,

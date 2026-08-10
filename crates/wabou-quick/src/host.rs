@@ -23,6 +23,7 @@ use snafu::ResultExt;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use vello::peniko::Color;
 
@@ -171,7 +172,32 @@ impl HostBuilder {
     }
 
     /// Build the JsRuntime + Applier + run the winit event loop.
-    pub fn run(self) -> crate::Result<()> {
+    pub fn run(mut self) -> crate::Result<()> {
+        let test_script = std::env::var_os("WABOU_TEST_SCRIPT")
+            .map(PathBuf::from)
+            .map(|path| {
+                std::fs::read_to_string(&path).context(crate::error::ReadFileSnafu {
+                    kind: "test scenario bundle",
+                    path,
+                })
+            })
+            .transpose()?;
+        let test_controller = test_script
+            .as_ref()
+            .map(|_| crate::test_driver::TestController::default());
+        let headless_test = test_controller.is_some()
+            && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
+        if let Some(controller) = &test_controller {
+            let capability_controller = controller.clone();
+            self.capabilities
+                .push(Arc::new(move |js| capability_controller.mount(js)));
+            if !headless_test {
+                self.extensions
+                    .push(Box::new(crate::test_driver::TestDriver::new(
+                        controller.clone(),
+                    )));
+            }
+        }
         let trace_path = self.effect_trace.as_ref().map(|config| match config {
             EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
                 path.clone()
@@ -273,6 +299,15 @@ impl HostBuilder {
                 .context(crate::error::JavaScriptSnafu {
                     operation: "boot JavaScript bundle",
                 })?;
+            if index == 0
+                && let Some(script) = &test_script
+            {
+                applier
+                    .eval_script(script)
+                    .context(crate::error::JavaScriptSnafu {
+                        operation: "evaluate test scenario",
+                    })?;
+            }
             if let Some(state) = &debug_state {
                 applier.set_debug_state(state.clone());
             }
@@ -285,6 +320,66 @@ impl HostBuilder {
                 );
             }
             sources.push((Box::new(applier) as Box<dyn crate::FrameSource>, options));
+        }
+
+        if headless_test && let Some(controller) = &test_controller {
+            controller.initialize_headless(1..=sources.len() as u64);
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut text = crate::TextContext::new();
+            let mut last_nodes = vec![Vec::new(); sources.len()];
+            while !controller.has_report() && Instant::now() < deadline {
+                for (index, (source, _)) in sources.iter_mut().enumerate() {
+                    source.set_semantics_enabled(true);
+                    source.handle_event(wabou_shell::UiEvent::WindowMetrics(
+                        crate::WindowMetrics {
+                            window_id: index as u64 + 1,
+                            logical_width: 1100,
+                            logical_height: 720,
+                            physical_width: 1100,
+                            physical_height: 720,
+                            scale_factor: 1.0,
+                            maximized: false,
+                            focused: true,
+                        },
+                    ));
+                    last_nodes[index] = source.build_frame(&mut text, 1100, 720);
+                    controller.poll_headless_source(index as u64 + 1, source.as_mut());
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            if controller.report_passed() == Some(false)
+                && let Some(directory) =
+                    std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(PathBuf::from)
+                && let Some(nodes) = last_nodes.first()
+            {
+                std::fs::create_dir_all(&directory).map_err(|error| {
+                    crate::Error::TestScenario {
+                        message: format!("cannot create failure artifact directory: {error}"),
+                    }
+                })?;
+                let mut scene = vello::Scene::new();
+                wabou_shell::scene::build_scene_scaled(
+                    &mut scene,
+                    nodes,
+                    &mut text,
+                    1100,
+                    720,
+                    self.base_color,
+                    1.0,
+                );
+                let output = directory.join("failure.png");
+                wabou_shell::renderer::render_to_png(
+                    &scene,
+                    1100,
+                    720,
+                    self.base_color,
+                    output.to_string_lossy().as_ref(),
+                )
+                .map_err(|error| crate::Error::TestScenario {
+                    message: format!("cannot render failure screenshot: {error:?}"),
+                })?;
+            }
+            return finish_test_report(controller.clone());
         }
 
         let capabilities = self.capabilities.clone();
@@ -364,6 +459,9 @@ impl HostBuilder {
             };
         run_result?;
         trace_result?;
+        if let Some(controller) = test_controller {
+            finish_test_report(controller)?;
+        }
         #[cfg(feature = "vite")]
         drop(hmr_clients);
         #[cfg(feature = "vite")]
@@ -371,6 +469,48 @@ impl HostBuilder {
         drop(devtools_server);
         Ok(())
     }
+}
+
+fn finish_test_report(controller: crate::test_driver::TestController) -> crate::Result<()> {
+    let report = controller
+        .take_report()
+        .ok_or_else(|| crate::Error::TestScenario {
+            message: "host exited or timed out before the scenario reported a result".into(),
+        })?;
+    let value = serde_json::from_str::<serde_json::Value>(&report).map_err(|error| {
+        crate::Error::TestScenario {
+            message: format!("scenario returned invalid JSON: {error}"),
+        }
+    })?;
+    if let Some(directory) = std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(PathBuf::from) {
+        std::fs::create_dir_all(&directory).map_err(|error| crate::Error::TestScenario {
+            message: format!(
+                "cannot create artifact directory {}: {error}",
+                directory.display()
+            ),
+        })?;
+        std::fs::write(directory.join("report.json"), format!("{value:#}\n")).map_err(|error| {
+            crate::Error::TestScenario {
+                message: format!("cannot write test report: {error}"),
+            }
+        })?;
+        if let Some(trace) = value.get("trace") {
+            std::fs::write(directory.join("trace.json"), format!("{trace:#}\n")).map_err(
+                |error| crate::Error::TestScenario {
+                    message: format!("cannot write action trace: {error}"),
+                },
+            )?;
+        }
+    }
+    println!("{report}");
+    if !value
+        .get("passed")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false)
+    {
+        return Err(crate::Error::TestScenario { message: report });
+    }
+    Ok(())
 }
 
 fn load_bundle() -> crate::Result<String> {

@@ -119,6 +119,57 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                 || attribute(declared, "aria-disabled").as_deref() == Some("true"),
         });
     }
+    let semantic_indices = nodes
+        .iter()
+        .enumerate()
+        .map(|(index, node)| (node.id, index))
+        .collect::<HashMap<_, _>>();
+    fn descendant_text(
+        id: u64,
+        nodes: &[SemanticNode],
+        indices: &HashMap<u64, usize>,
+        output: &mut Vec<String>,
+    ) {
+        let Some(node) = indices.get(&id).and_then(|index| nodes.get(*index)) else {
+            return;
+        };
+        if matches!(node.role, SemanticRole::Label)
+            && let Some(label) = node.label.as_deref()
+            && !label.trim().is_empty()
+        {
+            output.push(label.trim().to_owned());
+            return;
+        }
+        for child in &node.children {
+            descendant_text(*child, nodes, indices, output);
+        }
+    }
+    let inferred_labels = nodes
+        .iter()
+        .map(|node| {
+            if node.label.is_some()
+                || !matches!(
+                    node.role,
+                    SemanticRole::Button
+                        | SemanticRole::Link
+                        | SemanticRole::Dialog
+                        | SemanticRole::Generic
+                )
+            {
+                return None;
+            }
+            let mut parts = Vec::new();
+            for child in &node.children {
+                descendant_text(*child, &nodes, &semantic_indices, &mut parts);
+            }
+            (!parts.is_empty()).then(|| parts.join(" "))
+        })
+        .collect::<Vec<_>>();
+    for (node, inferred) in nodes.iter_mut().zip(inferred_labels) {
+        if node.label.is_none() {
+            node.label = inferred;
+        }
+    }
     let root_children = applier
         .node_store
         .children

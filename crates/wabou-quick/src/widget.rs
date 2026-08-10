@@ -78,6 +78,18 @@ pub use image::ImageWidget;
 pub use password_input::{PasswordInput, SecretStore};
 pub use text_input::TextInput;
 
+/// Vertically position the contents of a single-line native input.
+///
+/// Parley centers the typographic line box, while hinted Latin glyphs tend to
+/// look slightly high inside it. Apply the same small optical correction to
+/// every single-line input, in logical pixels, so secure and ordinary inputs
+/// stay aligned at both 1x and HiDPI scales.
+pub(super) fn single_line_y_offset(container_height: f32, line_height: f32, font_size: f32) -> f64 {
+    let available = (container_height - line_height).max(0.0);
+    let optical_offset = font_size / 16.0;
+    f64::from((available * 0.5 + optical_offset).min(available))
+}
+
 pub type WidgetFactory = Arc<dyn Fn() -> Box<dyn Widget>>;
 
 pub fn builtin_factories() -> HashMap<String, WidgetFactory> {
@@ -338,5 +350,12 @@ mod tests {
         let textarea = factories["textarea"]();
         assert_eq!(textarea.intrinsic_size(), Some([240.0, 96.0]));
         assert!(textarea.accepts_focus());
+    }
+
+    #[test]
+    fn single_line_inputs_share_a_scale_independent_optical_offset() {
+        assert_eq!(single_line_y_offset(32.0, 24.0, 16.0), 5.0);
+        assert_eq!(single_line_y_offset(32.0, 32.0, 16.0), 0.0);
+        assert_eq!(single_line_y_offset(16.0, 24.0, 16.0), 0.0);
     }
 }

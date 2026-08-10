@@ -102,6 +102,22 @@ Supported adapters are `app`, `dmg`, `nsis`, `wix`, `deb`, `appimage`, and
 reproduction. Package on the target operating system so platform signing and
 native packaging tools are available.
 
+## Behavior tests
+
+`wabou test` bundles a TypeScript scenario and evaluates it beside the normal
+application bundle in QuickJS:
+
+```bash
+bun run wabou test --app-dir apps/warden-desktop \
+  apps/warden-desktop/tests/close-to-tray.test.ts
+bun run wabou test --app-dir apps/warden-desktop \
+  --replay target/wabou-test/warden-desktop/artifacts/trace.json
+```
+
+The default deterministic backend does not require a display server. Use
+`--native` for a real platform smoke test. See the [behavior testing
+guide](testing.md) for semantic locators, artifacts and trace replay.
+
 ## Rust-owned TypeScript bindings
 
 An application can expose a conventional Cargo example named

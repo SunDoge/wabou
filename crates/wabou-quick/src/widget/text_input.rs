@@ -18,7 +18,7 @@ use wabou_shell::style::TextAlign;
 use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
 use wabou_shell::{ImeEvent, KeyPhase, PointerPhase, UiEvent};
 
-use super::{Widget, WidgetEventResult};
+use super::{Widget, WidgetEventResult, single_line_y_offset};
 
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
 const CARET_COLOR: Color = Color::from_rgb8(0xe2, 0xe8, 0xf0);
@@ -284,7 +284,7 @@ impl Widget for TextInput {
             let y_offset = if self.multiline {
                 0.0
             } else {
-                ((h - f64::from(placeholder_layout.height())) * 0.5).max(0.0)
+                single_line_y_offset(height, placeholder_layout.height(), self.font_size)
             };
             let glyph_scene = tcx.glyph_scene_scaled(&placeholder_layout, self.device_scale);
             scene.append(
@@ -295,11 +295,10 @@ impl Widget for TextInput {
 
         // If editor layout is available, paint selection + caret + text from it.
         if let Some(layout) = self.editor.try_layout() {
-            let text_height = layout.height() as f64;
             let y_offset = if self.multiline {
                 -f64::from(self.scroll_y)
             } else {
-                ((h - text_height) * 0.5).max(0.0)
+                single_line_y_offset(height, layout.height(), self.font_size)
             };
             let transform = Affine::translate((0.0, y_offset));
 

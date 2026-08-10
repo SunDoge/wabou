@@ -21,8 +21,10 @@ use crate::shell::Shell;
 use crate::source::{
     ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
     ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
-    PointerPhase, UiEvent, WakeCallback, WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
+    PointerPhase, SemanticRole, UiEvent, WakeCallback, WheelEvent, WindowCommand, WindowMetrics,
+    WindowOptions,
 };
+use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle};
 
 fn ms(d: std::time::Duration) -> f64 {
     d.as_secs_f64() * 1000.0
@@ -42,6 +44,12 @@ fn update_present_retry(presented: bool, retry_pending: &mut bool) -> bool {
         true
     } else {
         false
+    }
+}
+
+fn window_capabilities(handle: Option<RawWindowHandle>) -> WindowCapabilities {
+    WindowCapabilities {
+        mutable_visibility: !matches!(handle, Some(RawWindowHandle::Wayland(_))),
     }
 }
 
@@ -71,6 +79,7 @@ pub struct App {
     pending_window_commands: Vec<(u64, WindowCommand)>,
     pending_extension_effects: Vec<crate::EffectRequest>,
     close_requested: bool,
+    lifecycle: WindowLifecycle,
 }
 
 impl App {
@@ -129,6 +138,7 @@ impl App {
             pending_window_commands: Vec::new(),
             pending_extension_effects: Vec::new(),
             close_requested: false,
+            lifecycle: WindowLifecycle::visible(),
         }
     }
 
@@ -809,6 +819,10 @@ impl ApplicationHandler for App {
 struct MultiWindowApp {
     pending: Vec<App>,
     windows: HashMap<WindowId, App>,
+    /// Windows intentionally closed to the tray on platforms such as Wayland,
+    /// where an existing native window cannot be made invisible. Their frame
+    /// sources stay alive and a fresh native surface is created when shown.
+    hidden_windows: HashMap<u64, App>,
     startup_errors: Vec<Arc<Mutex<Option<crate::Error>>>>,
     factory: Option<FrameSourceFactory>,
     wake: WakeCallback,
@@ -824,10 +838,57 @@ struct MultiWindowApp {
 /// window backend.
 pub struct ExtensionContext<'a> {
     windows: &'a mut HashMap<WindowId, App>,
+    hidden_windows: &'a mut HashMap<u64, App>,
     event_loop: &'a dyn ActiveEventLoop,
 }
 
 impl ExtensionContext<'_> {
+    /// Find an enabled semantic node and activate it through the normal pointer
+    /// hit-test and event-dispatch path.
+    pub fn click_by_role(&mut self, logical_window_id: u64, role: &str, label: &str) -> bool {
+        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+        else {
+            return false;
+        };
+        let Some(snapshot) = app.source.semantic_snapshot() else {
+            return false;
+        };
+        let role_matches = |candidate: SemanticRole| {
+            matches!(
+                (role, candidate),
+                ("button", SemanticRole::Button)
+                    | ("textbox", SemanticRole::TextInput)
+                    | ("link", SemanticRole::Link)
+                    | ("dialog", SemanticRole::Dialog)
+                    | ("label", SemanticRole::Label)
+            )
+        };
+        let Some(node) = snapshot.nodes.iter().find(|node| {
+            role_matches(node.role) && node.label.as_deref() == Some(label) && !node.disabled
+        }) else {
+            return false;
+        };
+        let position = Point {
+            x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
+            y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
+        };
+        app.source.handle_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Down,
+            position,
+            button: Some(PointerButton::Primary),
+            buttons: 1,
+            modifiers: Modifiers::default(),
+        }));
+        app.source.handle_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Up,
+            position,
+            button: Some(PointerButton::Primary),
+            buttons: 0,
+            modifiers: Modifiers::default(),
+        }));
+        true
+    }
+
     pub fn complete_effect(
         &mut self,
         logical_window_id: u64,
@@ -862,29 +923,110 @@ impl ExtensionContext<'_> {
             .map(|shell| shell.scale_factor())
     }
 
+    pub fn window_lifecycle(&self, logical_window_id: u64) -> Option<WindowLifecycle> {
+        self.windows
+            .values()
+            .find(|app| app.logical_window_id == logical_window_id)
+            .or_else(|| self.hidden_windows.get(&logical_window_id))
+            .map(|app| app.lifecycle)
+    }
+
     pub fn show_window(&mut self, logical_window_id: u64) -> bool {
-        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
-        else {
+        if let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id) {
+            let Some(shell) = app.state.as_ref() else {
+                return false;
+            };
+            let capabilities = window_capabilities(
+                shell
+                    .window()
+                    .window_handle()
+                    .ok()
+                    .map(|handle| handle.as_raw()),
+            );
+            return match app.lifecycle.transition(WindowIntent::Show, capabilities) {
+                Some(WindowEffect::SetVisible(true)) => {
+                    shell.window().set_visible(true);
+                    shell.window().focus_window();
+                    true
+                }
+                None => true,
+                _ => false,
+            };
+        }
+
+        let Some(mut app) = self.hidden_windows.remove(&logical_window_id) else {
             return false;
         };
-        let Some(shell) = app.state.as_ref() else {
+        if app
+            .lifecycle
+            .transition(WindowIntent::Show, WindowCapabilities::default())
+            != Some(WindowEffect::RecreateSurface)
+        {
+            self.hidden_windows.insert(logical_window_id, app);
+            return false;
+        }
+        app.can_create_surfaces(self.event_loop);
+        let Some(window_id) = app.state.as_ref().map(|shell| shell.window().id()) else {
+            self.hidden_windows.insert(logical_window_id, app);
             return false;
         };
-        shell.window().set_visible(true);
-        shell.window().focus_window();
+        self.windows.insert(window_id, app);
         true
     }
 
     pub fn hide_window(&mut self, logical_window_id: u64) -> bool {
-        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+        self.hide_window_with_capabilities(logical_window_id, None)
+    }
+
+    /// Hide using an optional capability override. The override exists for the
+    /// deterministic test host; production derives capabilities from the real
+    /// native handle.
+    pub fn hide_window_with_capabilities(
+        &mut self,
+        logical_window_id: u64,
+        override_capabilities: Option<WindowCapabilities>,
+    ) -> bool {
+        let Some(window_id) = self.windows.iter().find_map(|(window_id, app)| {
+            (app.logical_window_id == logical_window_id).then_some(*window_id)
+        }) else {
+            return false;
+        };
+        let Some(handle) = self
+            .windows
+            .get(&window_id)
+            .and_then(|app| app.state.as_ref())
+            .and_then(|shell| shell.window().window_handle().ok())
+            .map(|handle| handle.as_raw())
         else {
             return false;
         };
-        let Some(shell) = app.state.as_ref() else {
-            return false;
-        };
-        shell.window().set_visible(false);
-        true
+
+        let capabilities =
+            override_capabilities.unwrap_or_else(|| window_capabilities(Some(handle)));
+        let effect = self
+            .windows
+            .get_mut(&window_id)
+            .and_then(|app| app.lifecycle.transition(WindowIntent::Hide, capabilities));
+        match effect {
+            Some(WindowEffect::ReleaseSurface) => {
+                let Some(mut app) = self.windows.remove(&window_id) else {
+                    return false;
+                };
+                app.destroy_surfaces(self.event_loop);
+                self.hidden_windows.insert(logical_window_id, app);
+                true
+            }
+            Some(WindowEffect::SetVisible(false)) => self
+                .windows
+                .get(&window_id)
+                .and_then(|app| app.state.as_ref())
+                .is_some_and(|shell| {
+                    shell.window().set_visible(false);
+                    true
+                }),
+            None => true,
+            _ => false,
+        }
     }
 
     pub fn exit(&self) {
@@ -972,6 +1114,7 @@ impl MultiWindowApp {
         Self {
             pending: apps,
             windows: HashMap::new(),
+            hidden_windows: HashMap::new(),
             startup_errors,
             factory,
             wake,
@@ -983,16 +1126,19 @@ impl MultiWindowApp {
 
     fn extension_context<'a>(
         windows: &'a mut HashMap<WindowId, App>,
+        hidden_windows: &'a mut HashMap<u64, App>,
         event_loop: &'a dyn ActiveEventLoop,
     ) -> ExtensionContext<'a> {
         ExtensionContext {
             windows,
+            hidden_windows,
             event_loop,
         }
     }
 
     fn poll_extensions(&mut self, event_loop: &dyn ActiveEventLoop) {
-        let mut context = Self::extension_context(&mut self.windows, event_loop);
+        let mut context =
+            Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
         for extension in &mut self.extensions {
             extension.poll(&mut context);
         }
@@ -1010,7 +1156,8 @@ impl MultiWindowApp {
             })
             .collect::<Vec<_>>();
         for (logical_window_id, request) in requests {
-            let mut context = Self::extension_context(&mut self.windows, event_loop);
+            let mut context =
+                Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
             let handled = self
                 .extensions
                 .iter_mut()
@@ -1079,7 +1226,7 @@ impl MultiWindowApp {
         for id in closed {
             self.windows.remove(&id);
         }
-        if self.windows.is_empty() {
+        if self.windows.is_empty() && self.hidden_windows.is_empty() {
             event_loop.exit();
         }
     }
@@ -1113,7 +1260,7 @@ impl ApplicationHandler for MultiWindowApp {
         // loop, so explicitly drain those boot-time requests here.
         self.apply_window_requests(event_loop);
         self.apply_extension_effects(event_loop);
-        if self.windows.is_empty() {
+        if self.windows.is_empty() && self.hidden_windows.is_empty() {
             event_loop.exit();
         }
     }
@@ -1123,10 +1270,14 @@ impl ApplicationHandler for MultiWindowApp {
             app.destroy_surfaces(event_loop);
         }
         self.windows.clear();
+        self.hidden_windows.clear();
     }
 
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
         for app in self.windows.values_mut() {
+            app.proxy_wake_up(event_loop);
+        }
+        for app in self.hidden_windows.values_mut() {
             app.proxy_wake_up(event_loop);
         }
         self.poll_extensions(event_loop);
@@ -1146,7 +1297,8 @@ impl ApplicationHandler for MultiWindowApp {
                 .get(&window_id)
                 .map(|app| app.logical_window_id)
                 .unwrap_or_default();
-            let mut context = Self::extension_context(&mut self.windows, event_loop);
+            let mut context =
+                Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
             if self
                 .extensions
                 .iter_mut()
@@ -1155,7 +1307,7 @@ impl ApplicationHandler for MultiWindowApp {
                 return;
             }
             self.windows.remove(&window_id);
-            if self.windows.is_empty() {
+            if self.windows.is_empty() && self.hidden_windows.is_empty() {
                 event_loop.exit();
             }
             return;
@@ -1176,7 +1328,8 @@ impl ApplicationHandler for MultiWindowApp {
                 ElementState::Pressed => PointerPhase::Down,
                 ElementState::Released => PointerPhase::Up,
             };
-            let mut context = Self::extension_context(&mut self.windows, event_loop);
+            let mut context =
+                Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
             if self.extensions.iter_mut().any(|extension| {
                 extension.pointer_button(logical_window_id, button, phase, position, &mut context)
             }) {

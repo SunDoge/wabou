@@ -126,6 +126,7 @@
       },
       "devDependencies": {
         "@types/node": "^26.1.1",
+        "@wabou/test": "workspace:*",
         "@wabou/vite": "workspace:*",
         "vite": "^5.4.0",
       },
@@ -214,6 +215,13 @@
       "dependencies": {
         "@wabou/solid-renderer": "workspace:*",
         "solid-js": "1.9.14",
+      },
+    },
+    "packages/test": {
+      "name": "@wabou/test",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/solid-renderer": "workspace:*",
       },
     },
     "packages/unocss-preset": {
@@ -554,6 +562,8 @@
     "@wabou/terminal": ["@wabou/terminal@workspace:packages/terminal"],
 
     "@wabou/terminal-demo": ["@wabou/terminal-demo@workspace:apps/terminal"],
+
+    "@wabou/test": ["@wabou/test@workspace:packages/test"],
 
     "@wabou/unocss-preset": ["@wabou/unocss-preset@workspace:packages/unocss-preset"],
 
