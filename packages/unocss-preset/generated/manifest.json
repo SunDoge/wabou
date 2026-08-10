@@ -2293,6 +2293,15 @@
         }
       }
     ],
+    "text-ellipsis": [
+      {
+        "property": "text-overflow",
+        "value": {
+          "type": "keyword",
+          "value": "ellipsis"
+        }
+      }
+    ],
     "text-left": [
       {
         "property": "text-align",

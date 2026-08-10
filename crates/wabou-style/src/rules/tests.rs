@@ -27,6 +27,19 @@ fn truncate_emits_clipping_nowrap_and_ellipsis() {
 }
 
 #[test]
+fn text_ellipsis_does_not_require_overflow_clipping() {
+    let parsed = parse_utility("text-ellipsis").unwrap();
+    assert_eq!(parsed.declarations.len(), 1);
+    assert_eq!(parsed.declarations[0].property, "text-overflow");
+    assert_eq!(
+        parsed.declarations[0].value,
+        Value::Keyword {
+            value: "ellipsis".into()
+        }
+    );
+}
+
+#[test]
 fn static_transform_utilities_emit_typed_nested_ir() {
     let parsed = parse_utility("translate-x-4").unwrap();
     assert!(matches!(

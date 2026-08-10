@@ -14,6 +14,7 @@ export interface ScrollAreaProps {
   style?: WabouStyle;
   ref?: (node: Handle) => void;
   scrollbar?: NativeScrollbarStyle;
+  onScroll?: (event: { scrollX?: number; scrollY?: number }) => void;
 }
 
 /**
@@ -30,6 +31,7 @@ export function ScrollArea(props: ScrollAreaProps): JSX.Element {
       class={join("flex-1 min-h-0 overflow-y-auto", props.class)}
       style={props.style}
       scrollbar={props.scrollbar}
+      onScroll={props.onScroll}
     >
       <View
         class={join("flex-none flex flex-col min-h-full", props.contentClass)}

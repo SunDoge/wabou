@@ -5,6 +5,7 @@ import {
 import {
   Button as HeadlessButton,
   Popover,
+  ScrollArea,
   Text,
   View,
 } from "@wabou/primitives";
@@ -14,6 +15,9 @@ import { match } from "ts-pattern";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
+
+const ITEM_HEIGHT = 40;
+const VISIBLE_ITEMS = 6;
 
 export interface SelectOption {
   value: string;
@@ -41,6 +45,8 @@ export function Select(props: SelectProps): JSX.Element {
   const id = createUniqueId();
   let trigger: Handle | undefined;
   let content: Handle | undefined;
+  let viewport: Handle | undefined;
+  let scrollTop = 0;
   const items = () =>
     props.options.map((option) => ({
       id: option.value,
@@ -55,9 +61,22 @@ export function Select(props: SelectProps): JSX.Element {
       .with({ type: "FOCUS_CONTENT" }, () =>
         requestAnimationFrame(() => content?.focus()),
       )
-      // Native ScrollArea owns scrolling. Item visibility will become an
-      // explicit host command when virtualized collections are introduced.
-      .with({ type: "SCROLL_TO_ITEM" }, () => undefined)
+      .with({ type: "SCROLL_TO_ITEM" }, ({ id }) => {
+        const index = props.options.findIndex((option) => option.value === id);
+        if (index < 0) return;
+        const firstVisible = Math.floor(scrollTop / ITEM_HEIGHT);
+        const lastVisible = firstVisible + VISIBLE_ITEMS - 1;
+        const nextTop =
+          index < firstVisible
+            ? index * ITEM_HEIGHT
+            : index > lastVisible
+              ? (index - VISIBLE_ITEMS + 1) * ITEM_HEIGHT
+              : scrollTop;
+        if (nextTop !== scrollTop) {
+          scrollTop = nextTop;
+          requestAnimationFrame(() => viewport?.scrollTo({ top: nextTop }));
+        }
+      })
       .exhaustive();
   };
   const interaction = createSelectInteraction({
@@ -140,54 +159,71 @@ export function Select(props: SelectProps): JSX.Element {
         </HeadlessButton>
       )}
     >
-      <View
-        id={`${id}-listbox`}
-        ref={(node) => (content = node)}
-        role="listbox"
-        aria-label={props["aria-label"]}
-        aria-activedescendant={
-          interaction.highlighted()
-            ? `${id}-option-${interaction.highlighted()}`
-            : undefined
-        }
-        tabIndex={0}
-        class="min-w-0 flex flex-col gap-1"
-        onKeyDown={handleKeyDown}
+      <ScrollArea
+        ref={(node) => {
+          viewport = node;
+          scrollTop = 0;
+        }}
+        class="w-full flex-none"
+        contentClass="gap-1"
+        style={{
+          height: `${Math.max(1, Math.min(props.options.length, VISIBLE_ITEMS)) * ITEM_HEIGHT - 4}px`,
+        }}
+        onScroll={(event) => {
+          scrollTop = event.scrollY ?? scrollTop;
+        }}
       >
-        <Index each={props.options}>
-          {(option) => {
-            const selected = () => interaction.value() === option().value;
-            const highlighted = () =>
-              interaction.highlighted() === option().value;
-            return (
-              <View
-                id={`${id}-option-${option().value}`}
-                role="option"
-                aria-selected={selected()}
-                aria-disabled={option().disabled}
-                class={join(
-                  "w-full h-9 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm",
-                  highlighted()
-                    ? "bg-control-hover text-primary"
-                    : "bg-transparent text-secondary",
-                )}
-                style={{ opacity: option().disabled ? 0.45 : 1 }}
-                onPointerEnter={() =>
-                  interaction.send({ type: "HIGHLIGHT", id: option().value })
-                }
-                onClick={() =>
-                  interaction.send({ type: "SELECT", id: option().value })
-                }
-              >
-                <Text class="min-w-0 flex-1 text-sm">{option().label}</Text>
-                <Text class="w-4 flex-none text-sm text-accent">
-                  {selected() ? "✓" : ""}
-                </Text>
-              </View>
-            );
-          }}
-        </Index>
-      </View>
+        <View
+          id={`${id}-listbox`}
+          ref={(node) => (content = node)}
+          role="listbox"
+          aria-label={props["aria-label"]}
+          aria-activedescendant={
+            interaction.highlighted()
+              ? `${id}-option-${interaction.highlighted()}`
+              : undefined
+          }
+          tabIndex={0}
+          class="min-w-0 flex flex-col gap-1"
+          onKeyDown={handleKeyDown}
+        >
+          <Index each={props.options}>
+            {(option) => {
+              const selected = () => interaction.value() === option().value;
+              const highlighted = () =>
+                interaction.highlighted() === option().value;
+              return (
+                <View
+                  id={`${id}-option-${option().value}`}
+                  role="option"
+                  aria-selected={selected()}
+                  aria-disabled={option().disabled}
+                  class={join(
+                    "w-full h-9 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm",
+                    highlighted()
+                      ? "bg-control-hover text-primary"
+                      : "bg-transparent text-secondary",
+                  )}
+                  style={{ opacity: option().disabled ? 0.45 : 1 }}
+                  onPointerEnter={() =>
+                    interaction.send({ type: "HIGHLIGHT", id: option().value })
+                  }
+                  onClick={() =>
+                    interaction.send({ type: "SELECT", id: option().value })
+                  }
+                >
+                  <Text class="min-w-0 flex-1 text-sm whitespace-nowrap text-ellipsis">
+                    {option().label}
+                  </Text>
+                  <Text class="w-4 flex-none text-sm text-accent">
+                    {selected() ? "✓" : ""}
+                  </Text>
+                </View>
+              );
+            }}
+          </Index>
+        </View>
+      </ScrollArea>
     </Popover>
   );
 }

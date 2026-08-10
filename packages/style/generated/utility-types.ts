@@ -111,6 +111,7 @@ export type WabouStaticUtility =
   | "text-3xl"
   | "text-base"
   | "text-center"
+  | "text-ellipsis"
   | "text-left"
   | "text-lg"
   | "text-right"

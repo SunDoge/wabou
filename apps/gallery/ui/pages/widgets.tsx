@@ -280,6 +280,19 @@ export function SelectPage() {
           ]}
         />
       </Preview>
+      <Preview title="Long list and labels">
+        <Select
+          aria-label="Project"
+          placeholder="Select a project"
+          options={Array.from({ length: 16 }, (_, index) => ({
+            value: `project-${index + 1}`,
+            label:
+              index === 7
+                ? "Project 8 — a deliberately long label that should be truncated"
+                : `Project ${index + 1}`,
+          }))}
+        />
+      </Preview>
     </View>
   );
 }

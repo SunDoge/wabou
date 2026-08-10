@@ -602,6 +602,7 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("text-right", vec![keyword("text-align", "right")]),
         ("whitespace-nowrap", vec![keyword("white-space", "nowrap")]),
         ("whitespace-normal", vec![keyword("white-space", "normal")]),
+        ("text-ellipsis", vec![keyword("text-overflow", "ellipsis")]),
         (
             "truncate",
             vec![

@@ -21,7 +21,7 @@ Wabou host capabilities.
 
 ## P1 — component behaviors
 
-- [x] Select and Listbox (native scrolling command remains for virtualization)
+- [x] Select and Listbox (native long-list scrolling; virtualization remains optional)
 - [ ] Menu and Context Menu
 - [ ] Combobox
 - [ ] Tooltip
