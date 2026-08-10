@@ -17,6 +17,19 @@ cargo test --workspace
 mise exec -- bun x tsc --noEmit
 ```
 
+To run the GitHub Actions workflow locally, use the repository's `act`
+wrapper. It uses Docker's host network and forwards the host proxy at
+`localhost:7890` into each job container:
+
+```bash
+mise exec -- bun run ci:local
+```
+
+Set `WABOU_ACT_PROXY` to override the proxy URL.
+The wrapper reuses the locally cached runner image by default because Docker
+daemon image pulls do not inherit job-container proxy variables; pass
+`--pull=true` when the daemon itself has working registry access.
+
 ## Commits and pull requests
 
 Wabou follows [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):

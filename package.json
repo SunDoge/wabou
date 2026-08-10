@@ -6,6 +6,7 @@
     "format": "biome format --write .",
     "check": "bun x tsc --noEmit",
     "test": "bun --conditions=browser test",
+    "ci:local": "bash scripts/run-act.sh",
     "commit:check": "cog check",
     "commit:hook": "cog install-hook commit-msg",
     "test:solid-refresh": "bun --conditions=browser --conditions=development test packages/solid-renderer/src/hmr.test.ts",

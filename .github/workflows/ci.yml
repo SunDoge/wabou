@@ -21,7 +21,14 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install Linux dependencies
-        run: sudo apt-get update && sudo apt-get install --yes libfontconfig1-dev libegl1-mesa-dev mesa-vulkan-drivers
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libegl1-mesa-dev \
+            libfontconfig1-dev \
+            libgtk-3-dev \
+            mesa-vulkan-drivers \
+            pkg-config
 
       - name: Install Rust toolchain
         uses: actions-rust-lang/setup-rust-toolchain@v1
