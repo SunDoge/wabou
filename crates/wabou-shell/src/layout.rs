@@ -332,6 +332,13 @@ fn walk(
             }
         }
     }
+    // A clipped subtree with an empty effective clip is fully invisible. The
+    // zero-sized clipping node itself may have been omitted from `out`; walking
+    // its descendants would therefore lose the layer boundary and flash them
+    // un-clipped for one frame during collapse animations.
+    if child_clip.is_some_and(|clip| clip[2] <= clip[0] || clip[3] <= clip[1]) {
+        return;
+    }
     // Sibling-relative z order (Slint/Qt-Quick model): higher z paints later.
     let mut children: Vec<NodeId> = tree.child_ids(node).collect();
     children.sort_by_key(|c| {
@@ -469,6 +476,58 @@ mod tests {
         assert_eq!(placed[2].clip_radius, 11.0);
         assert_eq!(placed[1].own_clip, Some([1.0, 1.0, 99.0, 99.0]));
         assert_eq!(placed[1].own_clip_radius, 11.0);
+    }
+
+    #[test]
+    fn empty_overflow_clip_prunes_visible_descendants() {
+        let mut tree = TaffyTree::<Paint>::new();
+        let child = tree
+            .new_leaf(taffy::Style {
+                size: Size {
+                    width: taffy::Dimension::length(80.0),
+                    height: taffy::Dimension::length(20.0),
+                },
+                ..Default::default()
+            })
+            .unwrap();
+        let collapsed = tree
+            .new_with_children(
+                taffy::Style {
+                    size: Size {
+                        width: taffy::Dimension::length(100.0),
+                        height: taffy::Dimension::length(0.0),
+                    },
+                    overflow: taffy::Point {
+                        x: taffy::Overflow::Hidden,
+                        y: taffy::Overflow::Hidden,
+                    },
+                    ..Default::default()
+                },
+                &[child],
+            )
+            .unwrap();
+        let root = tree
+            .new_with_children(
+                taffy::Style {
+                    size: Size {
+                        width: taffy::Dimension::length(100.0),
+                        height: taffy::Dimension::length(100.0),
+                    },
+                    ..Default::default()
+                },
+                &[collapsed],
+            )
+            .unwrap();
+        for node in [root, collapsed, child] {
+            tree.set_node_context(node, Some(Paint::default())).unwrap();
+        }
+
+        let mut text = TextContext::new();
+        let placed =
+            compute_and_walk_with_scroll(&mut tree, root, 100.0, 100.0, &mut text, &HashMap::new());
+
+        assert_eq!(placed.len(), 1);
+        assert_eq!(placed[0].node_id, root);
     }
 
     #[test]

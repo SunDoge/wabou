@@ -54,7 +54,7 @@ export function Kbd(props: {
   return (
     <Text
       class={join(
-        "h-5 min-w-5 px-1 flex-none text-center rounded bg-control text-xs font-medium text-muted",
+        "h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted",
         props.class,
       )}
     >
