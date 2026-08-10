@@ -91,6 +91,24 @@ fn parse_length(token: &str, spacing: bool, theme: &Theme) -> Option<Length> {
         .ok()
 }
 
+fn dimension_fraction(token: &str) -> Option<Length> {
+    let (numerator, denominator) = token.split_once('/')?;
+    let numerator: u32 = numerator.parse().ok()?;
+    let denominator: u32 = denominator.parse().ok()?;
+    if denominator == 0 {
+        return None;
+    }
+    Some(Length::Percent {
+        value: numerator as f32 / denominator as f32,
+    })
+}
+
+fn parse_dimension_length(token: &str, theme: &Theme) -> Option<Length> {
+    parse_length(token, false, theme)
+        .or_else(|| dimension_fraction(token))
+        .or_else(|| parse_length(token, true, theme))
+}
+
 fn candidate<'a>(input: &mut &'a str) -> ModalResult<&'a str, ContextError> {
     let utility = *input;
     let plain = take_while(1.., |character: char| {
@@ -334,11 +352,10 @@ pub fn parse_utility_with_theme(
                 expected: "negative values are only valid for inset and positioned edges",
             });
         }
-        let mut value = parse_length(token, false, theme)
-            .or_else(|| parse_length(token, true, theme))
-            .ok_or_else(|| ParseError::InvalidValue {
+        let mut value =
+            parse_dimension_length(token, theme).ok_or_else(|| ParseError::InvalidValue {
                 utility: class_name.into(),
-                expected: "auto, full, a spacing token, px, rem, or percentage",
+                expected: "auto, full, a fraction, a spacing token, px, rem, or percentage",
             })?;
         if negative {
             if value == Length::Auto {

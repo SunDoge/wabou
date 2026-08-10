@@ -111,6 +111,29 @@ function parseLength(token: string, spacing: boolean): Length | undefined {
   }
 }
 
+function parseDimensionFraction(token: string): Length | undefined {
+  const match = /^(\d+)\/([1-9]\d*)$/.exec(token);
+  if (!match) return;
+  const numerator = Number(match[1]);
+  const denominator = Number(match[2]);
+  if (
+    !Number.isInteger(numerator) ||
+    !Number.isInteger(denominator) ||
+    numerator > 0xffffffff ||
+    denominator > 0xffffffff
+  )
+    return;
+  return { unit: "percent", value: Math.fround(numerator / denominator) };
+}
+
+function parseDimensionLength(token: string): Length | undefined {
+  return (
+    parseLength(token, false) ??
+    parseDimensionFraction(token) ??
+    parseLength(token, true)
+  );
+}
+
 function negateLength(value: Length): Length | undefined {
   if (value.unit === "auto") return;
   return { ...value, value: -value.value };
@@ -196,8 +219,7 @@ function parseCandidate(
   }
   const dimension = matchDynamic(matcher, "dimension");
   if (!declarations && dimension) {
-    let value =
-      parseLength(dimension.token, false) ?? parseLength(dimension.token, true);
+    let value = parseDimensionLength(dimension.token);
     if (dimension.negative) {
       if (
         !dimension.properties.every((property) =>
@@ -213,7 +235,7 @@ function parseCandidate(
     if (!value)
       return {
         candidate,
-        message: `invalid Wabou dimension in \`${candidate}\`; expected auto, full, a scale token, px, rem, or percentage`,
+        message: `invalid Wabou dimension in \`${candidate}\`; expected auto, full, a fraction, a scale token, px, rem, or percentage`,
       };
     declarations = dimension.properties.map((name) =>
       lengthDeclaration(name, value),

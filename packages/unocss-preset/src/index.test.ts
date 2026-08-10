@@ -35,6 +35,35 @@ describe("presetWabou", () => {
     });
   });
 
+  test("supports fractional dimensions and scoped container widths", () => {
+    expect(resolveWabouUtility("w-2/3")?.declarations[0]).toEqual({
+      property: "width",
+      value: {
+        type: "length",
+        value: { unit: "percent", value: Math.fround(2 / 3) },
+      },
+    });
+    expect(resolveWabouUtility("-left-1/2")?.declarations[0]).toEqual({
+      property: "left",
+      value: { type: "length", value: { unit: "percent", value: -0.5 } },
+    });
+    expect(resolveWabouUtility("max-w-md")?.declarations[0]).toEqual({
+      property: "max-width",
+      value: { type: "length", value: { unit: "px", value: 448 } },
+    });
+    for (const candidate of [
+      "w-1/0",
+      "w-1.5/3",
+      "p-1/2",
+      "rounded-1/2",
+      "w-md",
+      "h-md",
+      "p-md",
+    ]) {
+      expect(validateWabouUtility(candidate)).toBeDefined();
+    }
+  });
+
   test("exports every stop for every default color family", () => {
     const families = [
       "rose",
@@ -119,6 +148,9 @@ describe("presetWabou", () => {
     expect(transform.css).toContain("transform:translateX(16px)");
     expect(transform.css).toContain("transform:scale(1.5, 1.5)");
     expect(transform.css).toContain("transform:rotate(0.785398");
+    const dimensions = await uno.generate("w-2/3 max-w-md");
+    expect(dimensions.css).toContain("width:66.666");
+    expect(dimensions.css).toContain("max-width:448px");
   });
 
   test("matches Rust-generated conformance cases exactly", () => {

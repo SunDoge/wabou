@@ -14,6 +14,58 @@ fn parses_dynamic_spacing() {
 }
 
 #[test]
+fn parses_fractional_dimensions_without_extending_spacing_or_length_rules() {
+    for (candidate, property, value) in [
+        ("w-2/3", "width", 2.0 / 3.0),
+        ("h-4/5", "height", 4.0 / 5.0),
+        ("max-w-3/4", "max-width", 3.0 / 4.0),
+        ("-left-1/2", "left", -0.5),
+    ] {
+        let declaration = &parse_utility(candidate).unwrap().declarations[0];
+        assert_eq!(declaration.property, property);
+        assert_eq!(
+            declaration.value,
+            Value::Length {
+                value: Length::Percent { value }
+            }
+        );
+    }
+    for candidate in ["w-1/0", "w-1.5/3", "p-1/2", "rounded-1/2"] {
+        assert!(
+            parse_utility(candidate).is_err(),
+            "{candidate} must be rejected"
+        );
+    }
+}
+
+#[test]
+fn named_container_widths_are_scoped_to_max_width() {
+    for (candidate, value) in [
+        ("max-w-xs", 320.0),
+        ("max-w-sm", 384.0),
+        ("max-w-md", 448.0),
+        ("max-w-lg", 512.0),
+        ("max-w-xl", 576.0),
+        ("max-w-2xl", 672.0),
+        ("max-w-3xl", 768.0),
+        ("max-w-4xl", 896.0),
+    ] {
+        assert_eq!(
+            parse_utility(candidate).unwrap().declarations[0].value,
+            Value::Length {
+                value: Length::Px { value }
+            }
+        );
+    }
+    for candidate in ["w-md", "h-md", "p-md"] {
+        assert!(
+            parse_utility(candidate).is_err(),
+            "{candidate} must be rejected"
+        );
+    }
+}
+
+#[test]
 fn truncate_emits_clipping_nowrap_and_ellipsis() {
     let parsed = parse_utility("truncate").unwrap();
     assert_eq!(

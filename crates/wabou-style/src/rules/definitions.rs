@@ -705,8 +705,28 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
             )],
         ),
         (
+            "max-w-xs",
+            vec![length("max-width", Length::Px { value: 320.0 })],
+        ),
+        (
+            "max-w-sm",
+            vec![length("max-width", Length::Px { value: 384.0 })],
+        ),
+        (
+            "max-w-md",
+            vec![length("max-width", Length::Px { value: 448.0 })],
+        ),
+        (
+            "max-w-lg",
+            vec![length("max-width", Length::Px { value: 512.0 })],
+        ),
+        (
             "max-w-xl",
             vec![length("max-width", Length::Px { value: 576.0 })],
+        ),
+        (
+            "max-w-2xl",
+            vec![length("max-width", Length::Px { value: 672.0 })],
         ),
         (
             "max-w-3xl",

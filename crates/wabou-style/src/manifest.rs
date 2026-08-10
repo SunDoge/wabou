@@ -2,7 +2,7 @@ use crate::model::{DynamicPrefix, DynamicRule, Manifest, Theme};
 use crate::rules::{parse_utility_with_theme, static_utilities};
 use crate::theme::default_theme;
 
-pub const MANIFEST_VERSION: u16 = 4;
+pub const MANIFEST_VERSION: u16 = 5;
 
 pub fn manifest() -> Manifest {
     manifest_with_theme(default_theme())
@@ -119,6 +119,8 @@ pub fn manifest_with_theme(theme: &Theme) -> Manifest {
         "px-[13px]",
         "gap-x-4",
         "w-full",
+        "w-2/3",
+        "max-w-md",
         "w-38%",
         "min-h-0",
         "inset-[5%]",

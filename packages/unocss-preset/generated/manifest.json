@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "spacing": {
     "0": 0.0,
     "0.5": 2.0,
@@ -1311,6 +1311,18 @@
         }
       }
     ],
+    "max-w-2xl": [
+      {
+        "property": "max-width",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 672.0
+          }
+        }
+      }
+    ],
     "max-w-3xl": [
       {
         "property": "max-width",
@@ -1335,6 +1347,42 @@
         }
       }
     ],
+    "max-w-lg": [
+      {
+        "property": "max-width",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 512.0
+          }
+        }
+      }
+    ],
+    "max-w-md": [
+      {
+        "property": "max-width",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 448.0
+          }
+        }
+      }
+    ],
+    "max-w-sm": [
+      {
+        "property": "max-width",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 384.0
+          }
+        }
+      }
+    ],
     "max-w-xl": [
       {
         "property": "max-width",
@@ -1343,6 +1391,18 @@
           "value": {
             "unit": "px",
             "value": 576.0
+          }
+        }
+      }
+    ],
+    "max-w-xs": [
+      {
+        "property": "max-width",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 320.0
           }
         }
       }
@@ -2997,6 +3057,36 @@
             "value": {
               "unit": "percent",
               "value": 1.0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "w-2/3",
+      "declarations": [
+        {
+          "property": "width",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "percent",
+              "value": 0.6666667
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "max-w-md",
+      "declarations": [
+        {
+          "property": "max-width",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 448.0
             }
           }
         }
