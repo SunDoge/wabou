@@ -1,39 +1,37 @@
-import { Text, View } from "@wabou/primitives";
+import { Center, Column, Text, View } from "@wabou/primitives";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
 export function Empty(props: { children?: JSX.Element; class?: string }) {
   return (
-    <View
+    <Column
       class={join(
-        "w-full min-h-64 p-8 flex flex-col items-center justify-center gap-5 rounded-xl border border-subtle bg-surface",
+        "w-full min-h-64 p-8 items-center justify-center gap-5 rounded-xl border border-subtle bg-surface",
         props.class,
       )}
     >
       {props.children}
-    </View>
+    </Column>
   );
 }
 export function EmptyHeader(props: { children?: JSX.Element; class?: string }) {
   return (
-    <View
-      class={join("max-w-md flex flex-col items-center gap-2", props.class)}
-    >
+    <Column class={join("max-w-md items-center gap-2", props.class)}>
       {props.children}
-    </View>
+    </Column>
   );
 }
 export function EmptyMedia(props: { children?: JSX.Element; class?: string }) {
   return (
-    <View
+    <Center
       class={join(
-        "w-12 h-12 flex-none items-center justify-center rounded-lg bg-control text-secondary",
+        "w-12 h-12 flex-none rounded-lg bg-control text-secondary",
         props.class,
       )}
     >
       {props.children}
-    </View>
+    </Center>
   );
 }
 export function EmptyTitle(props: { children?: JSX.Element; class?: string }) {

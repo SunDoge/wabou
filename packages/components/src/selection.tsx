@@ -1,6 +1,7 @@
 import {
   type ButtonState,
   Button as HeadlessButton,
+  Center,
   Text,
   View,
 } from "@wabou/primitives";
@@ -21,8 +22,7 @@ import { match } from "ts-pattern";
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
 
-const SELECTION_INDICATOR_CLASS =
-  "w-5 h-5 flex flex-none items-center justify-center border";
+const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 
 export interface CheckboxProps {
   checked?: boolean;
@@ -85,7 +85,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       })}
       onClick={toggle}
     >
-      <View
+      <Center
         class={join(
           SELECTION_INDICATOR_CLASS,
           "rounded text-xs font-bold",
@@ -93,7 +93,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
         )}
       >
         <Text class="text-xs font-bold text-on-accent">{indicator()}</Text>
-      </View>
+      </Center>
       {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
     </HeadlessButton>
   );
@@ -199,7 +199,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         if (group.move(props.value, event.key)) event.preventDefault();
       }}
     >
-      <View
+      <Center
         class={join(
           SELECTION_INDICATOR_CLASS,
           "rounded-full bg-input",
@@ -210,7 +210,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         )}
       >
         {checked() && <View class="w-2.5 h-2.5 rounded-full bg-accent" />}
-      </View>
+      </Center>
       {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
     </HeadlessButton>
   );

@@ -19,6 +19,7 @@ export {
   type FocusWithinResult,
 } from "./focus";
 export { createHover, type HoverResult } from "./hover";
+export { Center, Column, type LayoutProps, Row } from "./layout";
 export {
   Modal,
   type ModalControls,

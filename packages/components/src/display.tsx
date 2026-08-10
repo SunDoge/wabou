@@ -1,5 +1,5 @@
 import { animate, animateKeyframes } from "@wabou/animation";
-import { Text, View } from "@wabou/primitives";
+import { Center, Text, View } from "@wabou/primitives";
 import { createSignal, type JSX, onCleanup } from "solid-js";
 
 const join = (...values: Array<string | undefined | false>) =>
@@ -15,7 +15,7 @@ export function Skeleton(props: { class?: string }): JSX.Element {
   });
   onCleanup(() => animation.stop());
   return (
-    <View
+    <Center
       aria-hidden="true"
       class={join("rounded-md bg-control", props.class)}
       style={{ opacity: opacity() }}
@@ -49,18 +49,15 @@ export function Spinner(props: {
     ] as const;
   };
   return (
-    <View
+    <Center
       role="status"
       aria-label={props.label ?? "Loading"}
-      class={join(
-        "w-4 h-4 flex-none items-center justify-center text-accent",
-        props.class,
-      )}
+      class={join("w-4 h-4 flex-none text-accent", props.class)}
     >
       <Text class="w-4 h-4 text-sm font-bold" transform={transform()}>
         ◒
       </Text>
-    </View>
+    </Center>
   );
 }
 

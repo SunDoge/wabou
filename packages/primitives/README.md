@@ -16,6 +16,23 @@ of its static and reactive text children form one measured run and one item in
 its parent's layout. Use `Text` rather than placing bare text directly in a
 flex or grid container.
 
+`View` does not choose a layout mode. Alignment utilities such as
+`items-center`, `justify-center`, and `gap-2` only take effect after the same
+node explicitly enables flex or grid. Prefer the layout primitives when their
+intent matches the UI:
+
+```tsx
+import { Center, Column, Row } from "@wabou/primitives";
+
+<Row class="items-center gap-2">...</Row>
+<Column class="gap-3">...</Column>
+<Center class="w-8 h-8 rounded-full">...</Center>
+```
+
+Each layout primitive creates exactly one native `view`; it does not add an
+extra wrapper. Use `View class="flex ..."` when more direct CSS control is
+needed.
+
 The capitalized APIs create internal `view`, `text`, `img`, and `textarea` host
 nodes. Those tags are implementation details and should not be written directly
 by apps.
