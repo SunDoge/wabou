@@ -21,6 +21,9 @@ import { match } from "ts-pattern";
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
 
+const SELECTION_INDICATOR_CLASS =
+  "w-5 h-5 flex flex-none items-center justify-center border";
+
 export interface CheckboxProps {
   checked?: boolean;
   defaultChecked?: boolean;
@@ -84,7 +87,8 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
     >
       <View
         class={join(
-          "w-5 h-5 flex-none items-center justify-center rounded border text-xs font-bold",
+          SELECTION_INDICATOR_CLASS,
+          "rounded text-xs font-bold",
           boxColors(),
         )}
       >
@@ -197,7 +201,8 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
     >
       <View
         class={join(
-          "w-5 h-5 flex-none items-center justify-center rounded-full border bg-input",
+          SELECTION_INDICATOR_CLASS,
+          "rounded-full bg-input",
           match(checked())
             .with(true, () => "border-accent")
             .with(false, () => "border-strong")
