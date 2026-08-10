@@ -1,19 +1,19 @@
-import { Button, Text, View } from "@wabou/primitives";
+import { createTransition } from "@wabou/animation";
+import {
+  Button,
+  CollapsiblePresence,
+  rotate2d,
+  Text,
+  View,
+} from "@wabou/primitives";
 import {
   createControllableState,
   createDisclosure,
   isSelected,
   toggleSelection,
 } from "@wabou/interactions";
-import {
-  createContext,
-  type JSX,
-  Show,
-  splitProps,
-  useContext,
-} from "solid-js";
+import { createContext, type JSX, useContext } from "solid-js";
 import ChevronDown from "lucide-solid/icons/chevron-down";
-import ChevronUp from "lucide-solid/icons/chevron-up";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -22,6 +22,7 @@ interface CollapsibleContextValue {
   open: () => boolean;
   toggle: () => void;
   disabled: () => boolean;
+  reducedMotion: () => boolean;
 }
 const CollapsibleContext = createContext<CollapsibleContextValue>();
 const useCollapsible = () => {
@@ -35,6 +36,7 @@ export interface CollapsibleProps {
   open?: boolean;
   defaultOpen?: boolean;
   disabled?: boolean;
+  reducedMotion?: boolean;
   onOpenChange?: (open: boolean) => void;
   class?: string;
 }
@@ -49,6 +51,7 @@ export function Collapsible(props: CollapsibleProps) {
     open: state.open,
     toggle: state.toggle,
     disabled: state.disabled,
+    reducedMotion: () => props.reducedMotion ?? false,
   };
   return (
     <CollapsibleContext.Provider value={context}>
@@ -87,9 +90,13 @@ export function CollapsibleContent(props: {
 }) {
   const context = useCollapsible();
   return (
-    <Show when={context.open()}>
-      <View class={props.class}>{props.children}</View>
-    </Show>
+    <CollapsiblePresence
+      open={context.open()}
+      reducedMotion={context.reducedMotion()}
+      contentClass={props.class}
+    >
+      {props.children}
+    </CollapsiblePresence>
   );
 }
 
@@ -108,6 +115,7 @@ interface AccordionContextValue {
   active: (value: string) => boolean;
   toggle: (value: string) => void;
   disabled: () => boolean;
+  reducedMotion: () => boolean;
 }
 const AccordionContext = createContext<AccordionContextValue>();
 const AccordionItemContext = createContext<{
@@ -131,6 +139,7 @@ export interface AccordionProps {
   defaultValue?: AccordionValue;
   collapsible?: boolean;
   disabled?: boolean;
+  reducedMotion?: boolean;
   onValueChange?: (value: AccordionValue) => void;
   class?: string;
 }
@@ -150,6 +159,7 @@ export function Accordion(props: AccordionProps) {
       );
     },
     disabled: () => props.disabled ?? false,
+    reducedMotion: () => props.reducedMotion ?? false,
   };
   return (
     <AccordionContext.Provider value={context}>
@@ -180,6 +190,11 @@ export function AccordionTrigger(props: {
   const root = useAccordion();
   const item = useAccordionItem();
   const open = () => root.active(item.value);
+  const rotation = createTransition(() => (open() ? Math.PI : 0), {
+    duration: 0.2,
+    ease: "easeOut",
+    reducedMotion: root.reducedMotion,
+  });
   return (
     <Button
       unstyled
@@ -197,12 +212,13 @@ export function AccordionTrigger(props: {
         <Text class="min-w-0 whitespace-normal text-sm font-medium text-primary">
           {props.children}
         </Text>
-        <Show
-          when={open()}
-          fallback={<ChevronDown class="flex-none text-muted" size={16} />}
+        <View
+          class="w-4 h-4 flex-none"
+          transform={rotate2d(rotation.value())}
+          aria-hidden="true"
         >
-          <ChevronUp class="flex-none text-muted" size={16} />
-        </Show>
+          <ChevronDown class="text-muted" size={16} />
+        </View>
       </View>
     </Button>
   );
@@ -214,8 +230,12 @@ export function AccordionContent(props: {
   const root = useAccordion();
   const item = useAccordionItem();
   return (
-    <Show when={root.active(item.value)}>
-      <View class={join("pb-4", props.class)}>{props.children}</View>
-    </Show>
+    <CollapsiblePresence
+      open={root.active(item.value)}
+      reducedMotion={root.reducedMotion()}
+      contentClass={join("pb-4", props.class)}
+    >
+      {props.children}
+    </CollapsiblePresence>
   );
 }

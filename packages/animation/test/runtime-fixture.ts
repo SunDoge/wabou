@@ -1,4 +1,5 @@
-import { animate, animateKeyframes } from "@wabou/animation";
+import { animate, animateKeyframes, createTransition } from "@wabou/animation";
+import { createRoot, createSignal } from "solid-js";
 
 const result = {
   done: false,
@@ -7,6 +8,9 @@ const result = {
   spring: 0,
   keyframe: 0,
   cancelled: 0,
+  transition: 0,
+  transitionPeak: 0,
+  transitionDone: false,
 };
 
 Object.assign(globalThis, { __wabou_motion_result: result });
@@ -45,5 +49,26 @@ const animations = [
 Promise.all(
   animations.map((animation) => animation.then(() => undefined)),
 ).then(() => {
-  result.done = true;
+  result.done = result.transitionDone;
+});
+
+createRoot(() => {
+  const [target, setTarget] = createSignal(0);
+  createTransition(target, {
+    duration: 0.08,
+    ease: "linear",
+    onUpdate(value) {
+      result.transition = value;
+      result.transitionPeak = Math.max(result.transitionPeak, value);
+    },
+    onComplete(value) {
+      if (value !== 20) return;
+      result.transitionDone = true;
+      result.done = animations.every(
+        (animation) => animation.state === "finished",
+      );
+    },
+  });
+  setTarget(100);
+  requestAnimationFrame(() => setTarget(20));
 });

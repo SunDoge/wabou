@@ -331,6 +331,14 @@ fn motion_value_animations_run_inside_quickjs() {
     assert_eq!(result["keyframe"].as_f64(), Some(10.0));
     assert!(result["spring"].as_f64().is_some_and(|value| value > 0.99));
     assert_eq!(result["cancelled"].as_f64(), Some(0.0));
+    assert_eq!(result["transition"].as_f64(), Some(20.0));
+    assert_eq!(result["transitionDone"].as_bool(), Some(true));
+    assert!(
+        result["transitionPeak"]
+            .as_f64()
+            .is_some_and(|value| value > 0.0 && value < 100.0),
+        "retargeted transition should continue from an in-flight value"
+    );
     assert!(result["color"].as_str().is_some_and(|color| {
         matches!(
             color,

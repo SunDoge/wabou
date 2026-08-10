@@ -924,6 +924,138 @@ fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
 }
 
 #[test]
+fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (view, button, inert, aria_hidden, width, height) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("view"),
+            atoms.intern("button"),
+            atoms.intern("inert"),
+            atoms.intern("aria-hidden"),
+            atoms.intern("width"),
+            atoms.intern("height"),
+        )
+    };
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: view,
+        attrs: Vec::new(),
+    });
+    applier.apply_op(&Op::CreateElement {
+        id: 3,
+        tag: button,
+        attrs: Vec::new(),
+    });
+    for id in [2, 3] {
+        applier.apply_op(&Op::SetStyle {
+            id,
+            prop: width,
+            value: "100px",
+        });
+        applier.apply_op(&Op::SetStyle {
+            id,
+            prop: height,
+            value: "50px",
+        });
+    }
+    applier.apply_op(&Op::AppendChild {
+        parent: 2,
+        child: 3,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+    applier.rebuild_layout_boxes();
+    let mut root_style = applier
+        .node_store
+        .tree
+        .style(applier.node_store.root)
+        .unwrap()
+        .clone();
+    root_style.size.width = taffy::Dimension::length(200.0);
+    root_style.size.height = taffy::Dimension::length(200.0);
+    applier
+        .node_store
+        .tree
+        .set_style(applier.node_store.root, root_style)
+        .unwrap();
+    applier
+        .node_store
+        .tree
+        .compute_layout(
+            applier.node_store.root,
+            taffy::geometry::Size {
+                width: taffy::AvailableSpace::Definite(200.0),
+                height: taffy::AvailableSpace::Definite(200.0),
+            },
+        )
+        .unwrap();
+    let placed = layout::flatten_with_scroll(
+        &applier.node_store.tree,
+        applier.node_store.root,
+        &applier.scroll_offsets,
+    );
+
+    applier.rebuild_hit_geometry(&placed);
+    applier.rebuild_focus_order(&placed);
+    applier.rebuild_semantic_snapshot(&placed);
+    assert_eq!(applier.input.hit_test(10.0, 10.0), Some(3));
+    assert_eq!(applier.input.focus_order, [3]);
+    assert!(
+        applier
+            .projections
+            .semantic_snapshot
+            .nodes
+            .iter()
+            .any(|node| node.id == 3)
+    );
+
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: inert,
+        value: "",
+    });
+    applier.rebuild_hit_geometry(&placed);
+    applier.rebuild_focus_order(&placed);
+    applier.rebuild_semantic_snapshot(&placed);
+    assert_eq!(applier.input.hit_test(10.0, 10.0), Some(1));
+    assert!(applier.input.focus_order.is_empty());
+    assert!(
+        applier
+            .projections
+            .semantic_snapshot
+            .nodes
+            .iter()
+            .all(|node| node.id != 2 && node.id != 3)
+    );
+    assert!(!applier.handle_semantic_action(SemanticAction::Click { target: 3 }));
+    assert!(!applier.handle_semantic_action(SemanticAction::Focus { target: 3 }));
+
+    applier.apply_op(&Op::RemoveAttribute { id: 2, name: inert });
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: aria_hidden,
+        value: "true",
+    });
+    applier.rebuild_hit_geometry(&placed);
+    applier.rebuild_focus_order(&placed);
+    applier.rebuild_semantic_snapshot(&placed);
+    assert_eq!(applier.input.hit_test(10.0, 10.0), Some(3));
+    assert!(applier.input.focus_order.is_empty());
+    assert!(
+        applier
+            .projections
+            .semantic_snapshot
+            .nodes
+            .iter()
+            .all(|node| node.id != 2 && node.id != 3)
+    );
+}
+
+#[test]
 fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);

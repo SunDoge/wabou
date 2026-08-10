@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { createRoot } from "solid-js";
-import { createLoop, createPulse, createRotation } from "./index";
+import { createRoot, createSignal } from "solid-js";
+import {
+  createLoop,
+  createPulse,
+  createRotation,
+  createTransition,
+} from "./index";
 
 describe("Solid animation primitives", () => {
   test("owns a loop value and playback controls", () =>
@@ -27,5 +32,22 @@ describe("Solid animation primitives", () => {
       expect(pulse.value()).toBe(0.35);
       dispose();
       expect(pulse.controls.state).toBe("idle");
+    }));
+
+  test("transitions synchronously under reduced motion and can jump", () =>
+    createRoot((dispose) => {
+      const [target, setTarget] = createSignal(2);
+      const completed: number[] = [];
+      const transition = createTransition(target, {
+        reducedMotion: true,
+        onComplete: (value) => completed.push(value),
+      });
+      expect(transition.value()).toBe(2);
+      setTarget(8);
+      expect(transition.value()).toBe(8);
+      transition.jump(3);
+      expect(transition.value()).toBe(3);
+      expect(completed).toEqual([8, 3]);
+      dispose();
     }));
 });

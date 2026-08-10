@@ -30,6 +30,14 @@ impl Applier {
                 || modal_node.is_some_and(|modal| {
                     !self.node_store.is_logical_descendant(placed.node_id, modal)
                 })
+                || subtree_has_attribute(&self.node_store, &atoms, placed.node_id, "inert", None)
+                || subtree_has_attribute(
+                    &self.node_store,
+                    &atoms,
+                    placed.node_id,
+                    "aria-hidden",
+                    Some("true"),
+                )
             {
                 continue;
             }
@@ -38,7 +46,6 @@ impl Applier {
             };
             if attribute(declared, "disabled").is_some()
                 || attribute(declared, "aria-disabled").as_deref() == Some("true")
-                || attribute(declared, "aria-hidden").as_deref() == Some("true")
             {
                 continue;
             }

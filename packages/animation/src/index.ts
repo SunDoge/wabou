@@ -5,7 +5,13 @@ import type {
   ValueAnimationOptions,
 } from "motion-dom";
 import { animateValue } from "motion-dom";
-import { createSignal, onCleanup, type Accessor } from "solid-js";
+import {
+  createComputed,
+  createSignal,
+  onCleanup,
+  type Accessor,
+  untrack,
+} from "solid-js";
 
 export type AnimationValue = number | string;
 export type AnimationType = "tween" | "spring" | false;
@@ -162,6 +168,99 @@ export function animateKeyframes<V extends AnimationValue>(
 export interface ReactiveAnimation<T> {
   value: Accessor<T>;
   controls: AnimationControls;
+}
+
+type MaybeAccessor<T> = T | Accessor<T>;
+
+const read = <T>(value: MaybeAccessor<T> | undefined, fallback: T): T =>
+  typeof value === "function" ? (value as Accessor<T>)() : (value ?? fallback);
+
+export interface TransitionOptions
+  extends Omit<
+    AnimationOptions<number>,
+    "autoplay" | "onUpdate" | "onComplete"
+  > {
+  /** Skip interpolation while the user's/application's reduced-motion policy is active. */
+  reducedMotion?: MaybeAccessor<boolean>;
+  onUpdate?: (value: number) => void;
+  onComplete?: (value: number) => void;
+}
+
+export interface ReactiveTransition {
+  value: Accessor<number>;
+  state: Accessor<AnimationState>;
+  /** Cancel the current run and synchronously move to a value. */
+  jump(value: number): void;
+  stop(): void;
+}
+
+/**
+ * Lifecycle-owned scalar transition that retargets from its current value.
+ *
+ * Unlike a one-shot animation, changing `target` while a run is active does
+ * not restart from the previous keyframe. This makes it suitable for rapidly
+ * toggled disclosure, hover and selection state.
+ */
+export function createTransition(
+  target: Accessor<number>,
+  options: TransitionOptions = {},
+): ReactiveTransition {
+  const [value, setValue] = createSignal(target());
+  const [state, setState] = createSignal<AnimationState>("idle");
+  let controls: AnimationControls | undefined;
+  let generation = 0;
+
+  const stop = () => {
+    generation++;
+    controls?.stop();
+    controls = undefined;
+    setState("idle");
+  };
+  const jump = (next: number) => {
+    stop();
+    setValue(next);
+    options.onUpdate?.(next);
+    options.onComplete?.(next);
+  };
+
+  createComputed(() => {
+    const next = target();
+    const reduced = read(options.reducedMotion, false);
+    const current = untrack(value);
+    if (Object.is(next, current)) return;
+    if (reduced || options.type === false || options.duration === 0) {
+      jump(next);
+      return;
+    }
+
+    const run = ++generation;
+    controls?.stop();
+    setState("running");
+    const {
+      reducedMotion: _reducedMotion,
+      onUpdate,
+      onComplete,
+      ...animationOptions
+    } = options;
+    controls = animate(current, next, {
+      ...animationOptions,
+      onUpdate(current) {
+        if (run !== generation) return;
+        setValue(current);
+        onUpdate?.(current);
+      },
+      onComplete() {
+        if (run !== generation) return;
+        controls = undefined;
+        setValue(next);
+        setState("finished");
+        onComplete?.(next);
+      },
+    });
+  });
+
+  onCleanup(stop);
+  return { value, state, jump, stop };
 }
 
 export interface LoopOptions

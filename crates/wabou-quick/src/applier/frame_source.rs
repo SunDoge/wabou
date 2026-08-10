@@ -323,6 +323,15 @@ impl FrameSource for Applier {
         else {
             return false;
         };
+        if !self
+            .projections
+            .semantic_snapshot
+            .nodes
+            .iter()
+            .any(|node| node.id == u64::from(target))
+        {
+            return false;
+        }
         if let Some(modal) = self.projections.semantic_snapshot.modal_root {
             let Some(modal_node) = u32::try_from(modal)
                 .ok()

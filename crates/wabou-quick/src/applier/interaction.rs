@@ -4,6 +4,7 @@ impl Applier {
     pub(super) fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {
         self.input.hit_items.clear();
         self.scrollbar_hits.clear();
+        let atoms = self.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut transforms = HashMap::with_capacity(placed.len());
         let mut clip_chains: HashMap<NodeId, Vec<HitClip>> = HashMap::with_capacity(placed.len());
@@ -29,6 +30,8 @@ impl Applier {
                     transform: transforms[&parent],
                 });
             }
+            let inert =
+                subtree_has_attribute(&self.node_store, &atoms, node.node_id, "inert", None);
             if let Some(&solid_id) = self.node_store.node_to_solid.get(&node.node_id) {
                 content_hits.insert(
                     node.node_id,
@@ -37,11 +40,14 @@ impl Applier {
                         rect: node.rect,
                         transform,
                         clips: clips.clone(),
-                        pointer_events: node.paint.pointer_events,
+                        pointer_events: node.paint.pointer_events && !inert,
                     },
                 );
             }
-            if node.scroll.opacity > 0.0 && node.scroll.range.iter().any(|range| *range > 0.5) {
+            if !inert
+                && node.scroll.opacity > 0.0
+                && node.scroll.range.iter().any(|range| *range > 0.5)
+            {
                 let hit = ScrollbarHit {
                     node: node.node_id,
                     placed: node.clone(),

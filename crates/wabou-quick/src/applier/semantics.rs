@@ -20,11 +20,26 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             HitItem::Scrollbar(_) => None,
         })
         .collect();
+    let hidden: HashSet<_> = placed
+        .iter()
+        .filter(|node| {
+            subtree_has_attribute(&applier.node_store, &atoms, node.node_id, "inert", None)
+                || subtree_has_attribute(
+                    &applier.node_store,
+                    &atoms,
+                    node.node_id,
+                    "aria-hidden",
+                    Some("true"),
+                )
+        })
+        .map(|node| node.node_id)
+        .collect();
     let modal_node = placed
         .iter()
         .rev()
         .find(|node| {
-            node.paint.overlay_plane == OverlayPlane::Modal
+            !hidden.contains(&node.node_id)
+                && node.paint.overlay_plane == OverlayPlane::Modal
                 && applier
                     .node_store
                     .declared
@@ -59,7 +74,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     };
     let mut nodes = Vec::with_capacity(placed.len().saturating_sub(1));
     for placed_node in placed {
-        if placed_node.node_id == applier.node_store.root {
+        if placed_node.node_id == applier.node_store.root || hidden.contains(&placed_node.node_id) {
             continue;
         }
         let Some(&solid_id) = applier.node_store.node_to_solid.get(&placed_node.node_id) else {
@@ -83,6 +98,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .into_iter()
             .flatten()
             .filter(|child| present.contains(child))
+            .filter(|child| !hidden.contains(child))
             .filter_map(|child| applier.node_store.node_to_solid.get(child).copied())
             .map(u64::from)
             .collect();
@@ -184,6 +200,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .into_iter()
         .flatten()
         .filter(|child| present.contains(child))
+        .filter(|child| !hidden.contains(child))
         .filter_map(|child| applier.node_store.node_to_solid.get(child).copied())
         .map(u64::from)
         .collect();

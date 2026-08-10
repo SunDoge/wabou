@@ -21,6 +21,15 @@ export {
 export { createHover, type HoverResult } from "./hover";
 export { Center, Column, type LayoutProps, Row } from "./layout";
 export {
+  CollapsiblePresence,
+  type CollapsiblePresenceProps,
+} from "./collapsible-presence";
+export {
+  createMeasuredSize,
+  type MeasuredSize,
+  type MeasuredSizeOptions,
+} from "./measure";
+export {
   Modal,
   type ModalControls,
   type ModalEvent,
@@ -30,6 +39,11 @@ export {
   type ModalTriggerProps,
 } from "./modal";
 export { Pulse, type PulseProps, Spin, type SpinProps } from "./motion";
+export {
+  createPresence,
+  type Presence,
+  type PresencePhase,
+} from "./presence";
 export {
   createNotifications,
   type NotificationControls,

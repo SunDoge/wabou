@@ -75,6 +75,40 @@ use projections::FrameProjections;
 use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
+fn declared_attribute_is(
+    declared: &Declared,
+    atoms: &AtomPool,
+    name: &str,
+    expected: Option<&str>,
+) -> bool {
+    declared.attrs.iter().any(|(atom, value)| {
+        atoms.resolve(*atom) == Some(name)
+            && expected.is_none_or(|expected| value.as_ref() == expected)
+    })
+}
+
+fn subtree_has_attribute(
+    node_store: &NodeStore,
+    atoms: &AtomPool,
+    mut node: NodeId,
+    name: &str,
+    expected: Option<&str>,
+) -> bool {
+    loop {
+        if node_store
+            .declared
+            .get(&node)
+            .is_some_and(|declared| declared_attribute_is(declared, atoms, name, expected))
+        {
+            return true;
+        }
+        let Some(parent) = node_store.logical_parent.get(&node).copied() else {
+            return false;
+        };
+        node = parent;
+    }
+}
+
 // Widget actions retain their tagged 32-bit namespace. Native effects use a
 // process-wide sequence so window resource handles stay unique across runtimes.
 const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
