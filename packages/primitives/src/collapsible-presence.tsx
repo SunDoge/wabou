@@ -1,5 +1,5 @@
 import { createTransition, type Easing } from "@wabou/animation";
-import { px } from "@wabou/style";
+import { number, px } from "@wabou/style";
 import { createEffect, type JSX, Show } from "solid-js";
 import { createMeasuredSize } from "./measure";
 import { createPresence } from "./presence";
@@ -21,7 +21,8 @@ export interface CollapsiblePresenceProps {
 
 /**
  * Measured disclosure content with explicit presence and subtree isolation.
- * Height participates in layout and clips overflowing descendants.
+ * Height participates in layout while a subtree opacity layer masks glyphs
+ * crossing the moving clip edge.
  */
 export function CollapsiblePresence(
   props: CollapsiblePresenceProps,
@@ -31,6 +32,11 @@ export function CollapsiblePresence(
   const presence = createPresence(open);
   let initialMeasurement = true;
   let heightTransition: ReturnType<typeof createTransition> | undefined;
+  const opacityTransition = createTransition(() => (open() ? 1 : 0), {
+    duration: props.duration ?? 0.2,
+    ease: props.ease ?? "easeOut",
+    reducedMotion: () => props.reducedMotion ?? false,
+  });
   const measured = createMeasuredSize({
     onChange(size) {
       if (initialMeasurement && initiallyOpen && !props.animateInitial) {
@@ -63,6 +69,7 @@ export function CollapsiblePresence(
   const style = (): WabouStyle => ({
     ...props.style,
     height: px(heightTransition?.value() ?? 0),
+    opacity: number(opacityTransition.value()),
   });
 
   return (

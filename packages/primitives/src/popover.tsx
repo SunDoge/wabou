@@ -168,8 +168,8 @@ export function Popover(props: PopoverProps): JSX.Element {
               position: "absolute",
               // The panel must participate in layout before Floating UI can
               // measure it. Keep that measurement pass outside the viewport:
-              // opacity is a paint property in Wabou, not inherited visibility,
-              // so opacity: 0 on the container cannot hide descendant text.
+              // Keep the measurement pass outside the viewport so it is also
+              // absent from hit testing while the position is unresolved.
               left: positioned() ? `${position().x}px` : "-100000px",
               top: positioned() ? `${position().y}px` : "-100000px",
               ...props.contentStyle,
