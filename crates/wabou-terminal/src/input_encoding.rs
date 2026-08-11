@@ -35,115 +35,103 @@ impl TerminalWidget {
             return bytes;
         }
 
-        let modifier = 1
-            + u8::from(key.modifiers.shift())
-            + u8::from(key.modifiers.alt()) * 2
-            + u8::from(key.modifiers.control()) * 4;
-        let modified = modifier != 1;
-        let csi_key = |final_byte: char| format!("\x1b[1;{modifier}{final_byte}").into_bytes();
+        legacy_special_key(key, mode)
+    }
+}
 
-        match key.key.as_str() {
-            "Enter" => b"\r".to_vec(),
-            "Backspace" if key.modifiers.alt() => b"\x1b\x7f".to_vec(),
-            "Backspace" => vec![0x7f],
-            "Tab" if key.modifiers.shift() => b"\x1b[Z".to_vec(),
-            "Tab" => b"\t".to_vec(),
-            "Escape" => vec![0x1b],
-            "ArrowUp" if modified => csi_key('A'),
-            "ArrowDown" if modified => csi_key('B'),
-            "ArrowRight" if modified => csi_key('C'),
-            "ArrowLeft" if modified => csi_key('D'),
-            "ArrowUp" if mode.contains(Mode::APP_CURSOR) => b"\x1bOA".to_vec(),
-            "ArrowDown" if mode.contains(Mode::APP_CURSOR) => b"\x1bOB".to_vec(),
-            "ArrowRight" if mode.contains(Mode::APP_CURSOR) => b"\x1bOC".to_vec(),
-            "ArrowLeft" if mode.contains(Mode::APP_CURSOR) => b"\x1bOD".to_vec(),
-            "ArrowUp" => b"\x1b[A".to_vec(),
-            "ArrowDown" => b"\x1b[B".to_vec(),
-            "ArrowRight" => b"\x1b[C".to_vec(),
-            "ArrowLeft" => b"\x1b[D".to_vec(),
-            "Home" if modified => csi_key('H'),
-            "End" if modified => csi_key('F'),
-            "Home" if mode.contains(Mode::APP_CURSOR) => b"\x1bOH".to_vec(),
-            "End" if mode.contains(Mode::APP_CURSOR) => b"\x1bOF".to_vec(),
-            "Home" => b"\x1b[H".to_vec(),
-            "End" => b"\x1b[F".to_vec(),
-            "Insert" => format!(
-                "\x1b[2{}~",
-                if modified {
-                    format!(";{modifier}")
-                } else {
-                    String::new()
-                }
-            )
-            .into_bytes(),
-            "Delete" => format!(
-                "\x1b[3{}~",
-                if modified {
-                    format!(";{modifier}")
-                } else {
-                    String::new()
-                }
-            )
-            .into_bytes(),
-            "PageUp" => format!(
-                "\x1b[5{}~",
-                if modified {
-                    format!(";{modifier}")
-                } else {
-                    String::new()
-                }
-            )
-            .into_bytes(),
-            "PageDown" => format!(
-                "\x1b[6{}~",
-                if modified {
-                    format!(";{modifier}")
-                } else {
-                    String::new()
-                }
-            )
-            .into_bytes(),
-            "F1" if modified => csi_key('P'),
-            "F2" if modified => csi_key('Q'),
-            "F3" if modified => csi_key('R'),
-            "F4" if modified => csi_key('S'),
-            "F1" => b"\x1bOP".to_vec(),
-            "F2" => b"\x1bOQ".to_vec(),
-            "F3" => b"\x1bOR".to_vec(),
-            "F4" => b"\x1bOS".to_vec(),
-            "F5" => function_key(15, modifier),
-            "F6" => function_key(17, modifier),
-            "F7" => function_key(18, modifier),
-            "F8" => function_key(19, modifier),
-            "F9" => function_key(20, modifier),
-            "F10" => function_key(21, modifier),
-            "F11" => function_key(23, modifier),
-            "F12" => function_key(24, modifier),
-            "F13" => csi_function_key('P', force_shift_modifier(modifier)),
-            "F14" => csi_function_key('Q', force_shift_modifier(modifier)),
-            "F15" => csi_function_key('R', force_shift_modifier(modifier)),
-            "F16" => csi_function_key('S', force_shift_modifier(modifier)),
-            "F17" => function_key(15, force_shift_modifier(modifier)),
-            "F18" => function_key(17, force_shift_modifier(modifier)),
-            "F19" => function_key(18, force_shift_modifier(modifier)),
-            "F20" => function_key(19, force_shift_modifier(modifier)),
-            "F21" => function_key(20, force_shift_modifier(modifier)),
-            "F22" => function_key(21, force_shift_modifier(modifier)),
-            "F23" => function_key(23, force_shift_modifier(modifier)),
-            "F24" => function_key(24, force_shift_modifier(modifier)),
-            "F25" => csi_function_key('P', force_control_modifier(modifier)),
-            "F26" => csi_function_key('Q', force_control_modifier(modifier)),
-            "F27" => csi_function_key('R', force_control_modifier(modifier)),
-            "F28" => csi_function_key('S', force_control_modifier(modifier)),
-            "F29" => function_key(15, force_control_modifier(modifier)),
-            "F30" => function_key(17, force_control_modifier(modifier)),
-            "F31" => function_key(18, force_control_modifier(modifier)),
-            "F32" => function_key(19, force_control_modifier(modifier)),
-            "F33" => function_key(20, force_control_modifier(modifier)),
-            "F34" => function_key(21, force_control_modifier(modifier)),
-            "F35" => function_key(23, force_control_modifier(modifier)),
-            _ => Vec::new(),
+fn legacy_special_key(key: &wabou_shell::KeyEvent, mode: Mode) -> Vec<u8> {
+    let modifier = modifier_code(key.modifiers);
+    if let Some(sequence) = cursor_key_sequence(&key.key, mode, modifier) {
+        return sequence;
+    }
+    if let Some(number) = key
+        .key
+        .strip_prefix('F')
+        .and_then(|number| number.parse::<u8>().ok())
+        && let Some(sequence) = legacy_function_key(number, modifier)
+    {
+        return sequence;
+    }
+
+    match key.key.as_str() {
+        "Enter" => b"\r".to_vec(),
+        "Backspace" if key.modifiers.alt() => b"\x1b\x7f".to_vec(),
+        "Backspace" => vec![0x7f],
+        "Tab" if key.modifiers.shift() => b"\x1b[Z".to_vec(),
+        "Tab" => b"\t".to_vec(),
+        "Escape" => vec![0x1b],
+        "Insert" => tilde_key(2, modifier),
+        "Delete" => tilde_key(3, modifier),
+        "PageUp" => tilde_key(5, modifier),
+        "PageDown" => tilde_key(6, modifier),
+        _ => Vec::new(),
+    }
+}
+
+fn modifier_code(modifiers: wabou_shell::Modifiers) -> u8 {
+    1 + u8::from(modifiers.shift())
+        + u8::from(modifiers.alt()) * 2
+        + u8::from(modifiers.control()) * 4
+}
+
+fn cursor_key_sequence(key: &str, mode: Mode, modifier: u8) -> Option<Vec<u8>> {
+    let final_byte = match key {
+        "ArrowUp" => 'A',
+        "ArrowDown" => 'B',
+        "ArrowRight" => 'C',
+        "ArrowLeft" => 'D',
+        "Home" => 'H',
+        "End" => 'F',
+        _ => return None,
+    };
+    if modifier != 1 {
+        return Some(csi_function_key(final_byte, modifier));
+    }
+    let prefix = if mode.contains(Mode::APP_CURSOR) {
+        "\x1bO"
+    } else {
+        "\x1b["
+    };
+    Some(format!("{prefix}{final_byte}").into_bytes())
+}
+
+fn legacy_function_key(number: u8, modifier: u8) -> Option<Vec<u8>> {
+    const TILDE_CODES: [u8; 8] = [15, 17, 18, 19, 20, 21, 23, 24];
+    match number {
+        1..=4 => {
+            let final_byte = char::from(b'P' + number - 1);
+            Some(if modifier == 1 {
+                format!("\x1bO{final_byte}").into_bytes()
+            } else {
+                csi_function_key(final_byte, modifier)
+            })
         }
+        5..=12 => Some(function_key(TILDE_CODES[usize::from(number - 5)], modifier)),
+        13..=16 => Some(csi_function_key(
+            char::from(b'P' + number - 13),
+            force_shift_modifier(modifier),
+        )),
+        17..=24 => Some(function_key(
+            TILDE_CODES[usize::from(number - 17)],
+            force_shift_modifier(modifier),
+        )),
+        25..=28 => Some(csi_function_key(
+            char::from(b'P' + number - 25),
+            force_control_modifier(modifier),
+        )),
+        29..=35 => Some(function_key(
+            TILDE_CODES[usize::from(number - 29)],
+            force_control_modifier(modifier),
+        )),
+        _ => None,
+    }
+}
+
+fn tilde_key(number: u8, modifier: u8) -> Vec<u8> {
+    if modifier == 1 {
+        format!("\x1b[{number}~").into_bytes()
+    } else {
+        format!("\x1b[{number};{modifier}~").into_bytes()
     }
 }
 
