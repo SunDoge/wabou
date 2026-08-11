@@ -573,14 +573,19 @@ pub struct Response {
     pub error: Option<String>,
 }
 
+fn configured_socket_path() -> Option<PathBuf> {
+    std::env::var_os("WABOU_DEVTOOLS_SOCKET").map(PathBuf::from)
+}
+
+fn runtime_dir() -> PathBuf {
+    std::env::var_os("XDG_RUNTIME_DIR").map_or_else(std::env::temp_dir, PathBuf::from)
+}
+
 pub fn socket_path() -> PathBuf {
-    if let Some(path) = std::env::var_os("WABOU_DEVTOOLS_SOCKET") {
-        return PathBuf::from(path);
+    if let Some(path) = configured_socket_path() {
+        return path;
     }
-    let base = std::env::var_os("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    base.join(format!("wabou-{}.sock", std::process::id()))
+    runtime_dir().join(format!("wabou-{}.sock", std::process::id()))
 }
 
 /// Find the most recently created live-looking Wabou socket. Explicit
@@ -589,12 +594,10 @@ pub fn socket_path() -> PathBuf {
 pub fn discover_socket() -> Result<PathBuf, String> {
     #[cfg(unix)]
     use std::os::unix::fs::FileTypeExt;
-    if let Some(path) = std::env::var_os("WABOU_DEVTOOLS_SOCKET") {
-        return Ok(PathBuf::from(path));
+    if let Some(path) = configured_socket_path() {
+        return Ok(path);
     }
-    let base = std::env::var_os("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
+    let base = runtime_dir();
     let mut candidates: Vec<_> = fs::read_dir(&base)
         .map_err(|e| format!("cannot scan {}: {e}", base.display()))?
         .filter_map(Result::ok)
@@ -619,9 +622,9 @@ pub fn discover_socket() -> Result<PathBuf, String> {
         #[cfg(unix)]
         if std::os::unix::net::UnixStream::connect(&path).is_ok() {
             return Ok(path);
-        } else {
-            let _ = fs::remove_file(path);
         }
+        #[cfg(unix)]
+        let _ = fs::remove_file(path);
         #[cfg(not(unix))]
         return Ok(path);
     }
