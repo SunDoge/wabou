@@ -336,6 +336,157 @@ impl TerminalWidget {
             Some(Affine::translate((4.0, 4.0)) * Affine::scale(device_scale.recip())),
         );
     }
+
+    fn handle_pointer_event(&mut self, pointer: &wabou_shell::PointerEvent) -> WidgetEventResult {
+        if pointer.phase == PointerPhase::Down && pointer.button != Some(PointerButton::Primary) {
+            self.last_click = None;
+        }
+        if pointer.phase == PointerPhase::Down
+            && pointer.button == Some(PointerButton::Primary)
+            && terminal_primary_shortcut(pointer.modifiers)
+            && let Some(url) = self.hyperlink_at(pointer.position.x, pointer.position.y)
+        {
+            self.last_click = None;
+            self.pending_hyperlink = Some(PendingHyperlink {
+                url,
+                origin: (pointer.position.x, pointer.position.y),
+                cancelled: false,
+            });
+            return WidgetEventResult::HANDLED;
+        }
+        if let Some(pending) = self.pending_hyperlink.as_mut()
+            && pointer.phase == PointerPhase::Move
+        {
+            let distance = (pointer.position.x - pending.origin.0)
+                .hypot(pointer.position.y - pending.origin.1);
+            pending.cancelled |= distance > SELECTION_DRAG_THRESHOLD;
+            return WidgetEventResult::HANDLED;
+        }
+        if pointer.phase == PointerPhase::Up
+            && let Some(pending) = self.pending_hyperlink.take()
+        {
+            if !pending.cancelled
+                && self
+                    .hyperlink_at(pointer.position.x, pointer.position.y)
+                    .as_deref()
+                    == Some(pending.url.as_str())
+            {
+                self.pending_host_actions
+                    .push_back(HostAction::OpenUrl(pending.url));
+            }
+            return WidgetEventResult::HANDLED;
+        }
+        if pointer.phase == PointerPhase::Cancel && self.pending_hyperlink.take().is_some() {
+            return WidgetEventResult::HANDLED;
+        }
+        if !self.selecting && self.report_pointer(pointer) {
+            return WidgetEventResult::HANDLED;
+        }
+        match (pointer.phase, pointer.button, self.selecting) {
+            (PointerPhase::Down, Some(PointerButton::Primary), _) => {
+                self.begin_or_extend_selection(
+                    pointer.position.x,
+                    pointer.position.y,
+                    pointer.modifiers,
+                );
+                WidgetEventResult::HANDLED
+            }
+            (PointerPhase::Move, _, true) => {
+                self.update_selection(pointer.position.x, pointer.position.y);
+                WidgetEventResult::HANDLED
+            }
+            (PointerPhase::Up, _, true) => {
+                self.update_selection(pointer.position.x, pointer.position.y);
+                self.finish_selection_gesture();
+                WidgetEventResult::HANDLED
+            }
+            (PointerPhase::Cancel, _, true) => {
+                self.last_click = None;
+                self.finish_selection_gesture();
+                WidgetEventResult::HANDLED
+            }
+            _ => WidgetEventResult::IGNORED,
+        }
+    }
+
+    fn handle_key_event(&mut self, key: &wabou_shell::KeyEvent) -> WidgetEventResult {
+        if key.phase == KeyPhase::Down {
+            self.last_click = None;
+        }
+        if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("a") {
+            if key.phase == KeyPhase::Down {
+                self.select_all();
+            }
+            return WidgetEventResult::HANDLED;
+        }
+        if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("c") {
+            return if key.phase == KeyPhase::Down {
+                self.selected_text()
+                    .map_or(WidgetEventResult::HANDLED, WidgetEventResult::copy)
+            } else {
+                WidgetEventResult::HANDLED
+            };
+        }
+        if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("v") {
+            return if self.exit_reported {
+                WidgetEventResult::HANDLED
+            } else if key.phase == KeyPhase::Down {
+                WidgetEventResult::paste()
+            } else {
+                WidgetEventResult::HANDLED
+            };
+        }
+        let mode = self.terminal.lock().mode();
+        if key.phase == KeyPhase::Down
+            && key.modifiers == Modifiers::SHIFT
+            && !mode.contains(Mode::ALT_SCREEN)
+            && let Some(scroll) = scrollback_key(&key.key)
+        {
+            self.terminal.lock().scroll_display(scroll);
+            return WidgetEventResult::HANDLED;
+        }
+        if self.exit_reported {
+            return WidgetEventResult::HANDLED;
+        }
+        let bytes = self.key_bytes(key);
+        if bytes.is_empty() {
+            return WidgetEventResult::IGNORED;
+        }
+        self.begin_terminal_input();
+        self.send_bytes(bytes);
+        if key.phase == KeyPhase::Down {
+            WidgetEventResult::handled_consuming_key_text()
+        } else {
+            WidgetEventResult::HANDLED
+        }
+    }
+
+    fn handle_wheel_event(&mut self, wheel: &wabou_shell::WheelEvent) -> WidgetEventResult {
+        self.last_click = None;
+        let context = self.wheel_context(wheel);
+        let lines = self.wheel_lines.push(context, wheel.delta_y);
+        if self.selecting {
+            self.scroll_active_selection(wheel, lines);
+        } else if !self.report_wheel(wheel, lines)
+            && !self.report_alternate_scroll(lines)
+            && lines != 0
+        {
+            self.terminal.lock().scroll_display(Scroll::Delta(lines));
+        }
+        // Fractional trackpad input remains terminal-owned until it reaches a
+        // complete grid line.
+        WidgetEventResult::HANDLED
+    }
+}
+
+fn scrollback_key(key: &str) -> Option<Scroll> {
+    match key {
+        "Home" => Some(Scroll::Top),
+        "End" => Some(Scroll::Bottom),
+        "PageUp" => Some(Scroll::PageUp),
+        "PageDown" => Some(Scroll::PageDown),
+        _ => None,
+    }
 }
 
 impl Widget for TerminalWidget {
@@ -460,90 +611,8 @@ impl Widget for TerminalWidget {
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {
-        if matches!(
-            event,
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Down
-                    && pointer.button != Some(PointerButton::Primary)
-        ) {
-            self.last_click = None;
-        }
         match event {
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Down
-                    && pointer.button == Some(PointerButton::Primary)
-                    && terminal_primary_shortcut(pointer.modifiers)
-                    && let Some(url) =
-                        self.hyperlink_at(pointer.position.x, pointer.position.y) =>
-            {
-                self.last_click = None;
-                self.pending_hyperlink = Some(PendingHyperlink {
-                    url,
-                    origin: (pointer.position.x, pointer.position.y),
-                    cancelled: false,
-                });
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Move && self.pending_hyperlink.is_some() =>
-            {
-                let pending = self.pending_hyperlink.as_mut().unwrap();
-                let distance = (pointer.position.x - pending.origin.0)
-                    .hypot(pointer.position.y - pending.origin.1);
-                pending.cancelled |= distance > SELECTION_DRAG_THRESHOLD;
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Up && self.pending_hyperlink.is_some() =>
-            {
-                let pending = self.pending_hyperlink.take().unwrap();
-                if !pending.cancelled
-                    && self
-                        .hyperlink_at(pointer.position.x, pointer.position.y)
-                        .as_deref()
-                        == Some(pending.url.as_str())
-                {
-                    self.pending_host_actions
-                        .push_back(HostAction::OpenUrl(pending.url));
-                }
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Cancel && self.pending_hyperlink.is_some() =>
-            {
-                self.pending_hyperlink = None;
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer) if !self.selecting && self.report_pointer(pointer) => {
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Down
-                    && pointer.button == Some(PointerButton::Primary) =>
-            {
-                self.begin_or_extend_selection(
-                    pointer.position.x,
-                    pointer.position.y,
-                    pointer.modifiers,
-                );
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Move && self.selecting => {
-                self.update_selection(pointer.position.x, pointer.position.y);
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Up && self.selecting => {
-                self.update_selection(pointer.position.x, pointer.position.y);
-                self.finish_selection_gesture();
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Cancel && self.selecting =>
-            {
-                self.last_click = None;
-                self.finish_selection_gesture();
-                WidgetEventResult::HANDLED
-            }
+            UiEvent::Pointer(pointer) => self.handle_pointer_event(pointer),
             UiEvent::TextInput(text) | UiEvent::Ime(ImeEvent::Commit(text)) => {
                 if self.exit_reported {
                     return WidgetEventResult::HANDLED;
@@ -561,92 +630,8 @@ impl Widget for TerminalWidget {
                 self.send_bytes(encode_paste(text, bracketed));
                 WidgetEventResult::HANDLED
             }
-            UiEvent::Key(key) => {
-                // Multi-click gestures must consist exclusively of pointer
-                // clicks. Local terminal shortcuts (copy, paste, scrollback)
-                // do not reach `begin_terminal_input`, but still separate two
-                // clicks just like input forwarded to the PTY does.
-                if key.phase == KeyPhase::Down {
-                    self.last_click = None;
-                }
-                if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("a") {
-                    if key.phase == KeyPhase::Down {
-                        self.select_all();
-                    }
-                    return WidgetEventResult::HANDLED;
-                }
-                if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("c") {
-                    return if key.phase == KeyPhase::Down {
-                        self.selected_text()
-                            .map_or(WidgetEventResult::HANDLED, WidgetEventResult::copy)
-                    } else {
-                        WidgetEventResult::HANDLED
-                    };
-                }
-                if terminal_clipboard_shortcut(key.modifiers) && key.key.eq_ignore_ascii_case("v") {
-                    return if self.exit_reported {
-                        WidgetEventResult::HANDLED
-                    } else if key.phase == KeyPhase::Down {
-                        WidgetEventResult::paste()
-                    } else {
-                        WidgetEventResult::HANDLED
-                    };
-                }
-                let mode = self.terminal.lock().mode();
-                if key.phase == KeyPhase::Down
-                    && key.modifiers == Modifiers::SHIFT
-                    && !mode.contains(Mode::ALT_SCREEN)
-                {
-                    let scroll = match key.key.as_str() {
-                        "Home" => Some(Scroll::Top),
-                        "End" => Some(Scroll::Bottom),
-                        "PageUp" => Some(Scroll::PageUp),
-                        "PageDown" => Some(Scroll::PageDown),
-                        _ => None,
-                    };
-                    if let Some(scroll) = scroll {
-                        self.terminal.lock().scroll_display(scroll);
-                        return WidgetEventResult::HANDLED;
-                    }
-                }
-                if self.exit_reported {
-                    return WidgetEventResult::HANDLED;
-                }
-                let bytes = self.key_bytes(key);
-                if bytes.is_empty() {
-                    WidgetEventResult::IGNORED
-                } else {
-                    self.begin_terminal_input();
-                    self.send_bytes(bytes);
-                    if key.phase == KeyPhase::Down {
-                        WidgetEventResult::handled_consuming_key_text()
-                    } else {
-                        WidgetEventResult::HANDLED
-                    }
-                }
-            }
-            UiEvent::Wheel(wheel) => {
-                self.last_click = None;
-                let context = self.wheel_context(wheel);
-                let lines = self.wheel_lines.push(context, wheel.delta_y);
-                if self.selecting {
-                    self.scroll_active_selection(wheel, lines);
-                    return WidgetEventResult::HANDLED;
-                }
-                if self.report_wheel(wheel, lines) {
-                    return WidgetEventResult::HANDLED;
-                }
-                if self.report_alternate_scroll(lines) {
-                    return WidgetEventResult::HANDLED;
-                }
-                if lines == 0 {
-                    // Keep fractional trackpad input owned by the terminal
-                    // until it accumulates into a whole grid line.
-                    return WidgetEventResult::HANDLED;
-                }
-                self.terminal.lock().scroll_display(Scroll::Delta(lines));
-                WidgetEventResult::HANDLED
-            }
+            UiEvent::Key(key) => self.handle_key_event(key),
+            UiEvent::Wheel(wheel) => self.handle_wheel_event(wheel),
             _ => WidgetEventResult::IGNORED,
         }
     }
