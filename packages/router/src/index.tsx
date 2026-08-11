@@ -19,7 +19,6 @@ import {
 import {
   joinPaths,
   matchPath,
-  normalizePathname,
   parsePath,
   resolvePath,
   type RouteParams,

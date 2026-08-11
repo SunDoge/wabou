@@ -1,7 +1,6 @@
 import { createComponent, createContext, type JSX, useContext } from "solid-js";
 import type {
   FrameStats,
-  LayoutNodeMetrics,
   LayoutRect,
   LayoutSnapshot,
   NativeHostApi,
