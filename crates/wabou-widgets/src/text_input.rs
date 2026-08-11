@@ -15,9 +15,7 @@ use vello::Scene;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
-#[cfg(test)]
-use wabou_shell::text::TextContext;
-use wabou_shell::text::{brush_for_color, layout_text_styled};
+use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
 use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
 
 use wabou_shell::{PaintContext, Widget, WidgetEventResult, WidgetStyle};
@@ -323,6 +321,190 @@ impl TextInput {
             _ => WidgetEventResult::IGNORED,
         }
     }
+
+    fn refresh_editor(&mut self, tcx: &mut TextContext) {
+        if self.pending.is_empty() && !self.needs_refresh {
+            self.clamp_scroll();
+            return;
+        }
+        let multiline = self.multiline;
+        {
+            let mut driver = self.editor.driver(&mut tcx.font_cx, &mut tcx.layout_cx);
+            for edit in self.pending.drain(..) {
+                match edit {
+                    PendingEdit::Insert(text) => driver.insert_or_replace_selection(&text),
+                    PendingEdit::SetCompose(text, cursor) => driver.set_compose(&text, cursor),
+                    PendingEdit::CommitCompose(text) => {
+                        driver.clear_compose();
+                        driver.insert_or_replace_selection(&text);
+                    }
+                    PendingEdit::ClearCompose => driver.clear_compose(),
+                    PendingEdit::DeleteSurrounding(before, after) => {
+                        driver.clear_compose();
+                        if let Some(before) = NonZeroUsize::new(before) {
+                            driver.delete_bytes_before_selection(before);
+                        }
+                        if let Some(after) = NonZeroUsize::new(after) {
+                            driver.delete_bytes_after_selection(after);
+                        }
+                    }
+                    PendingEdit::Delete => driver.backdelete(),
+                    PendingEdit::DeleteForward => driver.delete(),
+                    PendingEdit::MoveLeft => driver.move_left(),
+                    PendingEdit::MoveRight => driver.move_right(),
+                    PendingEdit::MoveWordLeft => driver.move_word_left(),
+                    PendingEdit::MoveWordRight => driver.move_word_right(),
+                    PendingEdit::SelectLeft => driver.select_left(),
+                    PendingEdit::SelectRight => driver.select_right(),
+                    PendingEdit::SelectWordLeft => driver.select_word_left(),
+                    PendingEdit::SelectWordRight => driver.select_word_right(),
+                    PendingEdit::MoveUp => driver.move_up(),
+                    PendingEdit::MoveDown => driver.move_down(),
+                    PendingEdit::SelectUp => driver.select_up(),
+                    PendingEdit::SelectDown => driver.select_down(),
+                    PendingEdit::MoveToStart if multiline => driver.move_to_line_start(),
+                    PendingEdit::MoveToStart => driver.move_to_text_start(),
+                    PendingEdit::MoveToEnd if multiline => driver.move_to_line_end(),
+                    PendingEdit::MoveToEnd => driver.move_to_text_end(),
+                    PendingEdit::SelectToStart if multiline => driver.select_to_line_start(),
+                    PendingEdit::SelectToStart => driver.select_to_text_start(),
+                    PendingEdit::SelectToEnd if multiline => driver.select_to_line_end(),
+                    PendingEdit::SelectToEnd => driver.select_to_text_end(),
+                    PendingEdit::MoveToPoint(x, y) => driver.move_to_point(x, y),
+                    PendingEdit::ExtendToPoint(x, y) => driver.extend_selection_to_point(x, y),
+                    PendingEdit::SelectWordAtPoint(x, y) => driver.select_word_at_point(x, y),
+                    PendingEdit::SelectLineAtPoint(x, y) => driver.select_line_at_point(x, y),
+                    PendingEdit::SelectAll => driver.select_all(),
+                }
+            }
+            driver.refresh_layout();
+        }
+        self.needs_refresh = false;
+        self.reveal_caret();
+    }
+
+    fn paint_placeholder(
+        &self,
+        scene: &mut Scene,
+        tcx: &mut TextContext,
+        width: f32,
+        height: f32,
+        device_scale: f64,
+    ) {
+        if !self.cached_value.is_empty() || self.placeholder.is_empty() {
+            return;
+        }
+        let layout = layout_text_styled(
+            tcx,
+            Arc::from(self.placeholder.as_str()),
+            self.font_size,
+            self.font_weight,
+            self.line_height,
+            TextAlign::Start,
+            brush_for_color(PLACEHOLDER_COLOR),
+            Arc::from([]),
+            None,
+            self.multiline.then_some(width.max(0.0)),
+        );
+        let y_offset = if self.multiline {
+            0.0
+        } else {
+            single_line_y_offset(height, layout.height(), self.font_size)
+        };
+        let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
+        scene.append(
+            &glyph_scene,
+            Some(Affine::translate((0.0, y_offset)) * Affine::scale(device_scale.recip())),
+        );
+    }
+
+    fn paint_editor(
+        &self,
+        scene: &mut Scene,
+        tcx: &mut TextContext,
+        height: f32,
+        device_scale: f64,
+    ) {
+        let Some(layout) = self.editor.try_layout() else {
+            return;
+        };
+        let transform = Affine::translate((
+            0.0,
+            if self.multiline {
+                -f64::from(self.scroll_y)
+            } else {
+                single_line_y_offset(height, layout.height(), self.font_size)
+            },
+        ));
+        if self.focused {
+            for (bounds, _) in self.editor.selection_geometry() {
+                scene.fill(
+                    Fill::NonZero,
+                    transform,
+                    SELECTION_COLOR,
+                    None,
+                    &Rect::new(bounds.x0, bounds.y0, bounds.x1, bounds.y1),
+                );
+            }
+        }
+        if !self.cached_value.is_empty() && !self.password {
+            for line in layout.lines() {
+                for item in line.items() {
+                    let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
+                        continue;
+                    };
+                    let glyphs: Vec<_> = glyph_run
+                        .positioned_glyphs()
+                        .map(|glyph| vello::Glyph {
+                            id: glyph.id,
+                            x: glyph.x * device_scale as f32,
+                            y: glyph.y * device_scale as f32,
+                        })
+                        .collect();
+                    if !glyphs.is_empty() {
+                        scene
+                            .draw_glyphs(glyph_run.run().font())
+                            .font_size(glyph_run.run().font_size() * device_scale as f32)
+                            .hint(true)
+                            .brush(self.text_color)
+                            .transform(transform * Affine::scale(device_scale.recip()))
+                            .draw(Fill::NonZero, glyphs.into_iter());
+                    }
+                }
+            }
+        } else if !self.cached_value.is_empty() {
+            let masked = "•".repeat(self.cached_value.chars().count());
+            let masked_layout = layout_text_styled(
+                tcx,
+                Arc::from(masked),
+                self.font_size,
+                self.font_weight,
+                self.line_height,
+                TextAlign::Start,
+                brush_for_color(self.text_color),
+                Arc::from([]),
+                None,
+                None,
+            );
+            let glyph_scene = tcx.glyph_scene_scaled(&masked_layout, device_scale);
+            scene.append(
+                &glyph_scene,
+                Some(transform * Affine::scale(device_scale.recip())),
+            );
+        }
+        if self.focused
+            && self.blink_on
+            && let Some(cursor) = self.editor.cursor_geometry(1.5)
+        {
+            scene.fill(
+                Fill::NonZero,
+                transform,
+                CARET_COLOR,
+                None,
+                &Rect::new(cursor.x0, cursor.y0, cursor.x1, cursor.y1),
+            );
+        }
+    }
 }
 
 impl Widget for TextInput {
@@ -343,68 +525,7 @@ impl Widget for TextInput {
             self.next_blink = Some(Instant::now() + Duration::from_millis(500));
         }
 
-        // Apply pending edits + refresh layout (needs FontContext/LayoutContext).
-        if !self.pending.is_empty() || self.needs_refresh {
-            {
-                let mut driver = self.editor.driver(&mut tcx.font_cx, &mut tcx.layout_cx);
-                for edit in self.pending.drain(..) {
-                    match edit {
-                        PendingEdit::Insert(s) => driver.insert_or_replace_selection(&s),
-                        PendingEdit::SetCompose(text, cursor) => {
-                            driver.set_compose(&text, cursor);
-                        }
-                        PendingEdit::CommitCompose(text) => {
-                            driver.clear_compose();
-                            driver.insert_or_replace_selection(&text);
-                        }
-                        PendingEdit::ClearCompose => driver.clear_compose(),
-                        PendingEdit::DeleteSurrounding(before, after) => {
-                            driver.clear_compose();
-                            if let Some(before) = NonZeroUsize::new(before) {
-                                driver.delete_bytes_before_selection(before);
-                            }
-                            if let Some(after) = NonZeroUsize::new(after) {
-                                driver.delete_bytes_after_selection(after);
-                            }
-                        }
-                        PendingEdit::Delete => driver.backdelete(),
-                        PendingEdit::DeleteForward => driver.delete(),
-                        PendingEdit::MoveLeft => driver.move_left(),
-                        PendingEdit::MoveRight => driver.move_right(),
-                        PendingEdit::MoveWordLeft => driver.move_word_left(),
-                        PendingEdit::MoveWordRight => driver.move_word_right(),
-                        PendingEdit::SelectLeft => driver.select_left(),
-                        PendingEdit::SelectRight => driver.select_right(),
-                        PendingEdit::SelectWordLeft => driver.select_word_left(),
-                        PendingEdit::SelectWordRight => driver.select_word_right(),
-                        PendingEdit::MoveUp => driver.move_up(),
-                        PendingEdit::MoveDown => driver.move_down(),
-                        PendingEdit::SelectUp => driver.select_up(),
-                        PendingEdit::SelectDown => driver.select_down(),
-                        PendingEdit::MoveToStart if self.multiline => driver.move_to_line_start(),
-                        PendingEdit::MoveToStart => driver.move_to_text_start(),
-                        PendingEdit::MoveToEnd if self.multiline => driver.move_to_line_end(),
-                        PendingEdit::MoveToEnd => driver.move_to_text_end(),
-                        PendingEdit::SelectToStart if self.multiline => {
-                            driver.select_to_line_start();
-                        }
-                        PendingEdit::SelectToStart => driver.select_to_text_start(),
-                        PendingEdit::SelectToEnd if self.multiline => driver.select_to_line_end(),
-                        PendingEdit::SelectToEnd => driver.select_to_text_end(),
-                        PendingEdit::MoveToPoint(x, y) => driver.move_to_point(x, y),
-                        PendingEdit::ExtendToPoint(x, y) => driver.extend_selection_to_point(x, y),
-                        PendingEdit::SelectWordAtPoint(x, y) => driver.select_word_at_point(x, y),
-                        PendingEdit::SelectLineAtPoint(x, y) => driver.select_line_at_point(x, y),
-                        PendingEdit::SelectAll => driver.select_all(),
-                    }
-                }
-                driver.refresh_layout();
-            }
-            self.needs_refresh = false;
-            self.reveal_caret();
-        } else {
-            self.clamp_scroll();
-        }
+        self.refresh_editor(tcx);
 
         // Cache value for current_value().
         self.cached_value = self.editor.text().to_string();
@@ -419,123 +540,8 @@ impl Widget for TextInput {
             );
         }
 
-        // Determine display text + color.
-        let value_str = self.editor.text().to_string();
-        let is_empty = value_str.is_empty();
-        let display_text = value_str.as_str();
-        let text_color = self.text_color;
-
-        if is_empty && !self.placeholder.is_empty() {
-            let placeholder_layout = layout_text_styled(
-                tcx,
-                Arc::from(self.placeholder.as_str()),
-                self.font_size,
-                self.font_weight,
-                self.line_height,
-                TextAlign::Start,
-                brush_for_color(PLACEHOLDER_COLOR),
-                Arc::from([]),
-                None,
-                self.multiline.then_some(width.max(0.0)),
-            );
-            let y_offset = if self.multiline {
-                0.0
-            } else {
-                single_line_y_offset(height, placeholder_layout.height(), self.font_size)
-            };
-            let glyph_scene = tcx.glyph_scene_scaled(&placeholder_layout, device_scale);
-            scene.append(
-                &glyph_scene,
-                Some(Affine::translate((0.0, y_offset)) * Affine::scale(device_scale.recip())),
-            );
-        }
-
-        // If editor layout is available, paint selection + caret + text from it.
-        if let Some(layout) = self.editor.try_layout() {
-            let y_offset = if self.multiline {
-                -f64::from(self.scroll_y)
-            } else {
-                single_line_y_offset(height, layout.height(), self.font_size)
-            };
-            let transform = Affine::translate((0.0, y_offset));
-
-            // Selection rects.
-            if self.focused {
-                for (bbox, _line) in self.editor.selection_geometry() {
-                    scene.fill(
-                        Fill::NonZero,
-                        transform,
-                        SELECTION_COLOR,
-                        None,
-                        &Rect::new(bbox.x0, bbox.y0, bbox.x1, bbox.y1),
-                    );
-                }
-            }
-
-            // Text glyph runs.
-            if !display_text.is_empty() && !self.password {
-                for line in layout.lines() {
-                    for item in line.items() {
-                        if let PositionedLayoutItem::GlyphRun(gr) = item {
-                            let font_data = gr.run().font().clone();
-                            let font_size = gr.run().font_size();
-                            let glyphs: Vec<vello::Glyph> = gr
-                                .positioned_glyphs()
-                                .map(|g| vello::Glyph {
-                                    id: g.id,
-                                    x: g.x * device_scale as f32,
-                                    y: g.y * device_scale as f32,
-                                })
-                                .collect();
-                            if !glyphs.is_empty() {
-                                scene
-                                    .draw_glyphs(&font_data)
-                                    .font_size(font_size * device_scale as f32)
-                                    .hint(true)
-                                    .brush(text_color)
-                                    .transform(transform * Affine::scale(device_scale.recip()))
-                                    .draw(Fill::NonZero, glyphs.into_iter());
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !display_text.is_empty() && self.password {
-                let masked = "•".repeat(display_text.chars().count());
-                let masked_layout = layout_text_styled(
-                    tcx,
-                    Arc::from(masked),
-                    self.font_size,
-                    self.font_weight,
-                    self.line_height,
-                    TextAlign::Start,
-                    brush_for_color(text_color),
-                    Arc::from([]),
-                    None,
-                    None,
-                );
-                let glyph_scene = tcx.glyph_scene_scaled(&masked_layout, device_scale);
-                scene.append(
-                    &glyph_scene,
-                    Some(transform * Affine::scale(device_scale.recip())),
-                );
-            }
-
-            // Caret.
-            if self.focused
-                && self.blink_on
-                && let Some(cursor) = self.editor.cursor_geometry(1.5)
-            {
-                scene.fill(
-                    Fill::NonZero,
-                    transform,
-                    CARET_COLOR,
-                    None,
-                    &Rect::new(cursor.x0, cursor.y0, cursor.x1, cursor.y1),
-                );
-            }
-        }
+        self.paint_placeholder(&mut scene, tcx, width, height, device_scale);
+        self.paint_editor(&mut scene, tcx, height, device_scale);
 
         if self.multiline {
             scene.pop_layer();
