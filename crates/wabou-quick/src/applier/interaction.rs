@@ -1,6 +1,78 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_pointer_down(
+        &mut self,
+        pointer: wabou_shell::PointerEvent,
+    ) -> EventResponse {
+        let (x, y) = (pointer.position.x, pointer.position.y);
+        let button = pointer.button.unwrap_or(PointerButton::Primary);
+        self.input.pointer_position = (x, y);
+        self.input.pointer_buttons = pointer.buttons;
+        if button == PointerButton::Primary
+            && let Some((node, target)) = self.scrollbar_at(x, y)
+            && let Some(hit) = self.scrollbar_hits.iter().find(|hit| hit.node == node)
+        {
+            self.scrollbar_activity.insert(node, Instant::now());
+            if target.part != ScrollbarPart::Thumb {
+                let index = usize::from(target.axis == ScrollAxis::Vertical);
+                let viewport = match target.axis {
+                    ScrollAxis::Horizontal => hit.placed.scroll.port[2] - hit.placed.scroll.port[0],
+                    ScrollAxis::Vertical => hit.placed.scroll.port[3] - hit.placed.scroll.port[1],
+                };
+                let direction = if target.part == ScrollbarPart::TrackBefore {
+                    -1.0
+                } else {
+                    1.0
+                };
+                let offset = self.scroll_offsets.entry(node).or_insert([0.0; 2]);
+                offset[index] = (offset[index] + direction * viewport)
+                    .clamp(0.0, hit.placed.scroll.range[index]);
+                self.queue_scroll_event(node);
+                self.projections.semantics_dirty = true;
+                return Self::response(true);
+            }
+            let local = hit.transform.inverse() * Point::new(x, y);
+            self.scrollbar_drag = Some(ScrollbarDrag {
+                node,
+                axis: target.axis,
+                last_position: match target.axis {
+                    ScrollAxis::Horizontal => local.x,
+                    ScrollAxis::Vertical => local.y,
+                },
+            });
+            return Self::response(true);
+        }
+
+        let target = self.input.hit_test(x, y);
+        self.input.pointer_down_target = target;
+        self.input.pointer_down_position = Some((x, y));
+        self.input.pointer_dragged = false;
+        let mut changed = self.set_focused_target(self.pointer_focus_target(target));
+        if button == PointerButton::Primary {
+            self.next_text_selection_scroll = None;
+            changed |= target
+                .is_some_and(|target| self.begin_text_selection(target, x, y, pointer.modifiers));
+        }
+        if let Some(target) = target
+            && let Some(mut response) = self.handle_widget_event(target, &UiEvent::Pointer(pointer))
+        {
+            response.text_input = Some(self.is_text_input_target(target));
+            return response;
+        }
+        let handled = changed
+            | target.is_some_and(|target| {
+                self.dispatch_pointer(target, event::POINTERDOWN, Some(button), pointer.modifiers)
+            });
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            consume_key_text: false,
+            text_input: Some(target.is_some_and(|target| self.is_text_input_target(target))),
+            clipboard: None,
+        }
+    }
+
     pub(super) fn handle_pointer_move(
         &mut self,
         pointer: wabou_shell::PointerEvent,
