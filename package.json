@@ -5,7 +5,7 @@
     "wabou": "cargo run -p wabou-cli --",
     "format": "biome format --write .",
     "check": "bun x tsc --noEmit",
-    "test": "bun --conditions=browser test",
+    "test": "bun test --conditions=browser packages apps/*/ui",
     "ci:local": "bash scripts/run-act.sh",
     "commit:check": "cog check",
     "commit:hook": "cog install-hook commit-msg",
