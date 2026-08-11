@@ -1,6 +1,7 @@
+use std::future::Future;
 use std::path::Path;
 
-use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+use rfd::{AsyncFileDialog, AsyncMessageDialog, MessageButtons, MessageDialogResult, MessageLevel};
 use winit::window::Window;
 
 use crate::{
@@ -9,12 +10,12 @@ use crate::{
 };
 
 fn configure_file_dialog(
-    mut dialog: FileDialog,
+    mut dialog: AsyncFileDialog,
     parent: Option<&dyn Window>,
     title: Option<&str>,
     directory: Option<&str>,
     filters: &[DialogFilter],
-) -> FileDialog {
+) -> AsyncFileDialog {
     if let Some(parent) = parent {
         dialog = dialog.set_parent(parent);
     }
@@ -39,29 +40,37 @@ fn path_string(path: std::path::PathBuf) -> String {
 pub(crate) fn open_dialog(
     parent: Option<&dyn Window>,
     request: OpenDialogRequest,
-) -> Option<Vec<String>> {
+) -> impl Future<Output = Option<Vec<String>>> + use<> {
     let dialog = configure_file_dialog(
-        FileDialog::new(),
+        AsyncFileDialog::new(),
         parent,
         request.title.as_deref(),
         request.directory.as_deref(),
         &request.filters,
     );
-    if request.multiple {
-        dialog
-            .pick_files()
-            .map(|paths| paths.into_iter().map(path_string).collect())
-    } else {
-        dialog.pick_file().map(|path| vec![path_string(path)])
+    async move {
+        if request.multiple {
+            dialog.pick_files().await.map(|paths| {
+                paths
+                    .into_iter()
+                    .map(|path| path_string(path.path().to_owned()))
+                    .collect()
+            })
+        } else {
+            dialog
+                .pick_file()
+                .await
+                .map(|path| vec![path_string(path.path().to_owned())])
+        }
     }
 }
 
 pub(crate) fn save_dialog(
     parent: Option<&dyn Window>,
     request: SaveDialogRequest,
-) -> Option<Vec<String>> {
+) -> impl Future<Output = Option<Vec<String>>> + use<> {
     let mut dialog = configure_file_dialog(
-        FileDialog::new(),
+        AsyncFileDialog::new(),
         parent,
         request.title.as_deref(),
         request.directory.as_deref(),
@@ -70,26 +79,38 @@ pub(crate) fn save_dialog(
     if let Some(name) = request.default_name.filter(|name| !name.is_empty()) {
         dialog = dialog.set_file_name(name);
     }
-    dialog.save_file().map(|path| vec![path_string(path)])
+    async move {
+        dialog
+            .save_file()
+            .await
+            .map(|path| vec![path_string(path.path().to_owned())])
+    }
 }
 
 pub(crate) fn pick_directory(
     parent: Option<&dyn Window>,
     request: PickDirectoryRequest,
-) -> Option<Vec<String>> {
-    configure_file_dialog(
-        FileDialog::new(),
+) -> impl Future<Output = Option<Vec<String>>> + use<> {
+    let dialog = configure_file_dialog(
+        AsyncFileDialog::new(),
         parent,
         request.title.as_deref(),
         request.directory.as_deref(),
         &[],
-    )
-    .pick_folder()
-    .map(|path| vec![path_string(path)])
+    );
+    async move {
+        dialog
+            .pick_folder()
+            .await
+            .map(|path| vec![path_string(path.path().to_owned())])
+    }
 }
 
-pub(crate) fn message_dialog(parent: Option<&dyn Window>, request: MessageDialogRequest) -> String {
-    let mut dialog = MessageDialog::new()
+pub(crate) fn message_dialog(
+    parent: Option<&dyn Window>,
+    request: MessageDialogRequest,
+) -> impl Future<Output = String> + use<> {
+    let mut dialog = AsyncMessageDialog::new()
         .set_description(request.message)
         .set_level(match request.level {
             MessageDialogLevel::Info => MessageLevel::Info,
@@ -108,14 +129,16 @@ pub(crate) fn message_dialog(parent: Option<&dyn Window>, request: MessageDialog
     if let Some(title) = request.title.filter(|title| !title.is_empty()) {
         dialog = dialog.set_title(title);
     }
-    match dialog.show() {
-        MessageDialogResult::Yes => "yes",
-        MessageDialogResult::No => "no",
-        MessageDialogResult::Ok => "ok",
-        MessageDialogResult::Cancel => "cancel",
-        MessageDialogResult::Custom(_) => "custom",
+    async move {
+        match dialog.show().await {
+            MessageDialogResult::Yes => "yes",
+            MessageDialogResult::No => "no",
+            MessageDialogResult::Ok => "ok",
+            MessageDialogResult::Cancel => "cancel",
+            MessageDialogResult::Custom(_) => "custom",
+        }
+        .into()
     }
-    .into()
 }
 
 pub(crate) fn show_notification(
@@ -156,7 +179,7 @@ mod tests {
     fn dialog_configuration_accepts_empty_optional_fields() {
         let request = OpenDialogRequest::default();
         let _dialog = configure_file_dialog(
-            FileDialog::new(),
+            AsyncFileDialog::new(),
             None,
             request.title.as_deref(),
             request.directory.as_deref(),

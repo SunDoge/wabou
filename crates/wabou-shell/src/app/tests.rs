@@ -17,6 +17,7 @@ use crate::layout::PlacedNode;
 use crate::text::TextContext;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::task::Waker;
 use winit::keyboard::NamedKey;
 use winit::raw_window_handle::WaylandWindowHandle;
 
@@ -26,6 +27,83 @@ struct EventActionSource {
 }
 
 struct EventRecordingSource(Arc<Mutex<Vec<UiEvent>>>);
+
+struct EffectRecordingSource(Arc<Mutex<Vec<crate::EffectCompletion>>>);
+
+impl FrameSource for EffectRecordingSource {
+    fn build_frame(
+        &mut self,
+        _tcx: &mut TextContext,
+        _width: u32,
+        _height: u32,
+    ) -> Vec<PlacedNode> {
+        Vec::new()
+    }
+
+    fn base_color(&self) -> Color {
+        Color::BLACK
+    }
+
+    fn complete_effect(&mut self, completion: crate::EffectCompletion) {
+        self.0.lock().unwrap().push(completion);
+    }
+}
+
+#[test]
+fn modal_effects_complete_after_waking_without_blocking_dispatch() {
+    let completions = Arc::new(Mutex::new(Vec::new()));
+    let wake_count = Arc::new(AtomicUsize::new(0));
+    let pending_waker = Arc::new(Mutex::new(None::<Waker>));
+    let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut app = App::new(Box::new(EffectRecordingSource(completions.clone())));
+    let wake_count_for_callback = wake_count.clone();
+    app.set_wake_callback(Arc::new(move || {
+        wake_count_for_callback.fetch_add(1, Ordering::Relaxed);
+    }));
+
+    let pending_waker_for_future = pending_waker.clone();
+    let ready_for_future = ready.clone();
+    app.pending_modal_effects
+        .push(Box::pin(std::future::poll_fn(move |context| {
+            if ready_for_future.load(Ordering::Relaxed) {
+                Poll::Ready(crate::EffectCompletion {
+                    id: crate::EffectId(7),
+                    op: crate::effect::builtin::DIALOG_MESSAGE,
+                    result: crate::EffectResult::DialogMessage("ok".into()),
+                })
+            } else {
+                *pending_waker_for_future.lock().unwrap() = Some(context.waker().clone());
+                Poll::Pending
+            }
+        })));
+
+    assert!(!app.poll_modal_effects());
+    assert!(completions.lock().unwrap().is_empty());
+
+    ready.store(true, Ordering::Relaxed);
+    pending_waker.lock().unwrap().take().unwrap().wake();
+    assert_eq!(wake_count.load(Ordering::Relaxed), 1);
+    assert!(app.poll_modal_effects());
+    assert_eq!(completions.lock().unwrap().len(), 1);
+    assert!(!app.poll_modal_effects());
+}
+
+#[test]
+fn worker_effect_completions_are_drained_on_the_event_loop_thread() {
+    let completions = Arc::new(Mutex::new(Vec::new()));
+    let mut app = App::new(Box::new(EffectRecordingSource(completions.clone())));
+    app.effect_completion_tx
+        .send(crate::EffectCompletion {
+            id: crate::EffectId(8),
+            op: crate::effect::builtin::NOTIFICATION_SHOW,
+            result: crate::EffectResult::Unit,
+        })
+        .unwrap();
+
+    assert!(app.poll_effect_completions());
+    assert_eq!(completions.lock().unwrap().len(), 1);
+    assert!(!app.poll_effect_completions());
+}
 
 impl FrameSource for EventRecordingSource {
     fn build_frame(

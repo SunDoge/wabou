@@ -2,7 +2,11 @@
 
 use snafu::ResultExt;
 use std::collections::HashMap;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll, Wake, Waker};
 use std::time::Instant;
 use vello::peniko::Color;
 use winit::application::ApplicationHandler;
@@ -68,6 +72,20 @@ fn frame_wake(has_animation: bool, deadline: Option<Instant>, now: Instant) -> F
     }
 }
 
+type ModalEffectFuture = Pin<Box<dyn Future<Output = crate::EffectCompletion>>>;
+
+struct CallbackWaker(WakeCallback);
+
+impl Wake for CallbackWaker {
+    fn wake(self: Arc<Self>) {
+        (self.0)();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        (self.0)();
+    }
+}
+
 /// The winit application. Owns a [`FrameSource`] (the frame producer) and a
 /// lazily-created [`Shell`] (window + GPU surface + renderer). Created in
 /// `can_create_surfaces` once the event loop is ready.
@@ -93,6 +111,10 @@ pub struct App {
     pending_windows: Vec<(u64, WindowOptions)>,
     pending_window_commands: Vec<(u64, WindowCommand)>,
     pending_extension_effects: Vec<crate::EffectRequest>,
+    pending_modal_effects: Vec<ModalEffectFuture>,
+    effect_completion_tx: Sender<crate::EffectCompletion>,
+    effect_completion_rx: Receiver<crate::EffectCompletion>,
+    wake_callback: Option<WakeCallback>,
     close_requested: bool,
     lifecycle: WindowLifecycle,
 }
@@ -134,6 +156,7 @@ impl App {
     }
 
     pub fn with_options(source: Box<dyn FrameSource>, window_options: WindowOptions) -> Self {
+        let (effect_completion_tx, effect_completion_rx) = std::sync::mpsc::channel();
         Self {
             logical_window_id: 1,
             source,
@@ -152,9 +175,18 @@ impl App {
             pending_windows: Vec::new(),
             pending_window_commands: Vec::new(),
             pending_extension_effects: Vec::new(),
+            pending_modal_effects: Vec::new(),
+            effect_completion_tx,
+            effect_completion_rx,
+            wake_callback: None,
             close_requested: false,
             lifecycle: WindowLifecycle::visible(),
         }
+    }
+
+    fn set_wake_callback(&mut self, wake: WakeCallback) {
+        self.source.set_wake_callback(wake.clone());
+        self.wake_callback = Some(wake);
     }
 
     fn sync_window_metrics(&mut self) {
@@ -312,7 +344,8 @@ impl App {
             }
         }
         let host_action = self.drain_host_actions();
-        let effect = self.drain_effects();
+        let effect =
+            self.drain_effects() | self.poll_modal_effects() | self.poll_effect_completions();
         response.handled |= host_action || effect;
         response.request_redraw |= host_action || effect;
         if let Some(allowed) = response.text_input
@@ -506,58 +539,80 @@ impl App {
                 }
                 crate::EffectPayload::DialogOpen(request) => {
                     let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let paths = crate::system::open_dialog(parent, request);
-                    self.source.complete_effect(crate::EffectCompletion {
-                        id,
-                        op,
-                        result: crate::EffectResult::DialogPaths(paths),
-                    });
+                    let future = crate::system::open_dialog(parent, request);
+                    self.pending_modal_effects.push(Box::pin(async move {
+                        crate::EffectCompletion {
+                            id,
+                            op,
+                            result: crate::EffectResult::DialogPaths(future.await),
+                        }
+                    }));
                 }
                 crate::EffectPayload::DialogSave(request) => {
                     let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let paths = crate::system::save_dialog(parent, request);
-                    self.source.complete_effect(crate::EffectCompletion {
-                        id,
-                        op,
-                        result: crate::EffectResult::DialogPaths(paths),
-                    });
+                    let future = crate::system::save_dialog(parent, request);
+                    self.pending_modal_effects.push(Box::pin(async move {
+                        crate::EffectCompletion {
+                            id,
+                            op,
+                            result: crate::EffectResult::DialogPaths(future.await),
+                        }
+                    }));
                 }
                 crate::EffectPayload::DialogPickDirectory(request) => {
                     let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let paths = crate::system::pick_directory(parent, request);
-                    self.source.complete_effect(crate::EffectCompletion {
-                        id,
-                        op,
-                        result: crate::EffectResult::DialogPaths(paths),
-                    });
+                    let future = crate::system::pick_directory(parent, request);
+                    self.pending_modal_effects.push(Box::pin(async move {
+                        crate::EffectCompletion {
+                            id,
+                            op,
+                            result: crate::EffectResult::DialogPaths(future.await),
+                        }
+                    }));
                 }
                 crate::EffectPayload::DialogMessage(request) => {
                     let parent = self.state.as_ref().map(|shell| &**shell.window());
-                    let result = crate::system::message_dialog(parent, request);
-                    self.source.complete_effect(crate::EffectCompletion {
-                        id,
-                        op,
-                        result: crate::EffectResult::DialogMessage(result),
-                    });
+                    let future = crate::system::message_dialog(parent, request);
+                    self.pending_modal_effects.push(Box::pin(async move {
+                        crate::EffectCompletion {
+                            id,
+                            op,
+                            result: crate::EffectResult::DialogMessage(future.await),
+                        }
+                    }));
                 }
                 crate::EffectPayload::NotificationShow(request) => {
-                    let result = if request.title.trim().is_empty() {
-                        crate::EffectResult::Error {
-                            code: crate::EffectErrorCode::InvalidRequest,
-                            message: "notification title must not be empty".into(),
-                        }
-                    } else {
-                        match crate::system::show_notification(&self.window_options.title, request)
-                        {
-                            Ok(()) => crate::EffectResult::Unit,
-                            Err(message) => crate::EffectResult::Error {
-                                code: crate::EffectErrorCode::PlatformFailure,
-                                message,
+                    if request.title.trim().is_empty() {
+                        self.source.complete_effect(crate::EffectCompletion {
+                            id,
+                            op,
+                            result: crate::EffectResult::Error {
+                                code: crate::EffectErrorCode::InvalidRequest,
+                                message: "notification title must not be empty".into(),
                             },
-                        }
-                    };
-                    self.source
-                        .complete_effect(crate::EffectCompletion { id, op, result });
+                        });
+                    } else {
+                        let app_name = self.window_options.title.clone();
+                        let completion_tx = self.effect_completion_tx.clone();
+                        let wake = self.wake_callback.clone();
+                        std::thread::spawn(move || {
+                            let result = match crate::system::show_notification(&app_name, request)
+                            {
+                                Ok(()) => crate::EffectResult::Unit,
+                                Err(message) => crate::EffectResult::Error {
+                                    code: crate::EffectErrorCode::PlatformFailure,
+                                    message,
+                                },
+                            };
+                            if completion_tx
+                                .send(crate::EffectCompletion { id, op, result })
+                                .is_ok()
+                                && let Some(wake) = wake
+                            {
+                                wake();
+                            }
+                        });
+                    }
                 }
                 payload @ (crate::EffectPayload::ContextMenuShow(_)
                 | crate::EffectPayload::Extension { .. }) => {
@@ -580,6 +635,42 @@ impl App {
             }
         }
         handled
+    }
+
+    fn poll_modal_effects(&mut self) -> bool {
+        let Some(wake) = self.wake_callback.clone() else {
+            return false;
+        };
+        let waker = Waker::from(Arc::new(CallbackWaker(wake)));
+        let mut context = Context::from_waker(&waker);
+        let mut completed = Vec::new();
+        let mut index = 0;
+        while index < self.pending_modal_effects.len() {
+            match self.pending_modal_effects[index]
+                .as_mut()
+                .poll(&mut context)
+            {
+                Poll::Ready(completion) => {
+                    completed.push(completion);
+                    drop(self.pending_modal_effects.swap_remove(index));
+                }
+                Poll::Pending => index += 1,
+            }
+        }
+        let changed = !completed.is_empty();
+        for completion in completed {
+            self.source.complete_effect(completion);
+        }
+        changed
+    }
+
+    fn poll_effect_completions(&mut self) -> bool {
+        let mut changed = false;
+        while let Ok(completion) = self.effect_completion_rx.try_recv() {
+            changed = true;
+            self.source.complete_effect(completion);
+        }
+        changed
     }
 
     fn redraw(&mut self) {
@@ -759,7 +850,8 @@ impl ApplicationHandler for App {
     }
 
     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
-        let changed = self.source.poll_async();
+        let changed =
+            self.poll_modal_effects() | self.poll_effect_completions() | self.source.poll_async();
         let host_action = self.drain_host_actions();
         if (changed || host_action)
             && let Some(shell) = self.state.as_ref()
@@ -1276,9 +1368,9 @@ impl MultiWindowApp {
         if let Some(factory) = self.factory.clone() {
             for (window_id, options) in requests {
                 match factory(window_id, &options) {
-                    Ok(mut source) => {
-                        source.set_wake_callback(self.wake.clone());
+                    Ok(source) => {
                         let mut app = App::with_options(source, options);
+                        app.set_wake_callback(self.wake.clone());
                         app.logical_window_id = window_id;
                         app.can_create_surfaces(event_loop);
                         if let Some(id) = app.state.as_ref().map(|shell| shell.window().id()) {
@@ -1475,9 +1567,9 @@ pub fn run_window_with_options(
     let event_loop: EventLoop = EventLoop::new().context(crate::error::CreateEventLoopSnafu)?;
     event_loop.set_control_flow(ControlFlow::Wait);
     let proxy = event_loop.create_proxy();
-    let mut source = source;
-    source.set_wake_callback(std::sync::Arc::new(move || proxy.wake_up()));
-    let app = App::with_options(source, options);
+    let wake: WakeCallback = std::sync::Arc::new(move || proxy.wake_up());
+    let mut app = App::with_options(source, options);
+    app.set_wake_callback(wake);
     let startup_error = app.startup_error.clone();
     event_loop
         .run_app(app)
@@ -1518,9 +1610,10 @@ pub fn run_windows_with_factory_and_extensions(
     let wake: WakeCallback = std::sync::Arc::new(move || proxy.wake_up());
     let apps = windows
         .drain(..)
-        .map(|(mut source, options)| {
-            source.set_wake_callback(wake.clone());
-            App::with_options(source, options)
+        .map(|(source, options)| {
+            let mut app = App::with_options(source, options);
+            app.set_wake_callback(wake.clone());
+            app
         })
         .collect();
     let app = MultiWindowApp::new(apps, factory, wake, extensions);
