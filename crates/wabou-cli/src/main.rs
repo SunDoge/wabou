@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 use vello::Scene;
 use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
 use wabou_quick::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
+use wabou_shell::layout::PlacedNode;
 use wabou_shell::renderer::render_to_png;
 use wabou_shell::scene as scene_builder;
 use wabou_shell::{
@@ -249,9 +250,28 @@ struct App {
     entry: String,
 }
 
+struct RenderOptions {
+    out: PathBuf,
+    width: u32,
+    height: u32,
+    window_id: u64,
+    scale_factor: f64,
+    mode: Option<String>,
+    wait_ms: u64,
+    clicks: Vec<f64>,
+    wheels: Vec<f64>,
+    text: Option<String>,
+    keys: Vec<String>,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let cwd = env::current_dir()?;
+    let resolve_app = |app_dir: Option<&Path>| {
+        let workspace = find_workspace(&cwd)?;
+        let app = load_app(&workspace, &cwd, app_dir)?;
+        Ok::<_, Box<dyn Error>>((workspace, app))
+    };
     match cli.command {
         Commands::Dev {
             app_dir,
@@ -259,38 +279,20 @@ fn main() -> Result<()> {
             devtools,
             mode,
         } => {
-            let workspace = find_workspace(&cwd)?;
-            dev(
-                &workspace,
-                load_app(&workspace, &cwd, app_dir.as_deref())?,
-                port,
-                devtools,
-                mode.as_deref(),
-            )
+            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            dev(&workspace, app, port, devtools, mode.as_deref())
         }
         Commands::Build { app_dir, release } => {
-            let workspace = find_workspace(&cwd)?;
-            build(
-                &workspace,
-                &load_app(&workspace, &cwd, app_dir.as_deref())?,
-                release,
-            )
+            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            build(&workspace, &app, release)
         }
         Commands::Package { app_dir, format } => {
-            let workspace = find_workspace(&cwd)?;
-            package(
-                &workspace,
-                &load_app(&workspace, &cwd, app_dir.as_deref())?,
-                &format,
-            )
+            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            package(&workspace, &app, &format)
         }
         Commands::Run { app_dir, release } => {
-            let workspace = find_workspace(&cwd)?;
-            run(
-                &workspace,
-                &load_app(&workspace, &cwd, app_dir.as_deref())?,
-                release,
-            )
+            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            run(&workspace, &app, release)
         }
         Commands::Test {
             app_dir,
@@ -300,10 +302,10 @@ fn main() -> Result<()> {
             failure_screenshot,
             native,
         } => {
-            let workspace = find_workspace(&cwd)?;
+            let (workspace, app) = resolve_app(app_dir.as_deref())?;
             test_scenario(
                 &workspace,
-                &load_app(&workspace, &cwd, app_dir.as_deref())?,
+                &app,
                 scenario.as_deref().map(|path| cwd.join(path)).as_deref(),
                 replay.as_deref().map(|path| cwd.join(path)).as_deref(),
                 artifacts.as_deref(),
@@ -312,12 +314,8 @@ fn main() -> Result<()> {
             )
         }
         Commands::Bindings { app_dir, command } => {
-            let workspace = find_workspace(&cwd)?;
-            bindings(
-                &workspace,
-                &load_app(&workspace, &cwd, app_dir.as_deref())?,
-                command,
-            )
+            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            bindings(&workspace, &app, command)
         }
         Commands::Render {
             app_dir,
@@ -333,21 +331,23 @@ fn main() -> Result<()> {
             key,
             text,
         } => {
-            let workspace = find_workspace(&cwd)?;
+            let (workspace, app) = resolve_app(app_dir.as_deref())?;
             render(
                 &workspace,
-                &load_app(&workspace, &cwd, app_dir.as_deref())?,
-                &out,
-                width,
-                height,
-                window_id,
-                scale_factor,
-                mode.as_deref(),
-                wait_ms,
-                &click,
-                &wheel,
-                text.as_deref(),
-                &key,
+                &app,
+                &RenderOptions {
+                    out,
+                    width,
+                    height,
+                    window_id,
+                    scale_factor,
+                    mode,
+                    wait_ms,
+                    clicks: click,
+                    wheels: wheel,
+                    text,
+                    keys: key,
+                },
             )
         }
         Commands::Devtools => run_devtools(&find_workspace(&cwd).unwrap_or(cwd)),
@@ -710,26 +710,92 @@ fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
     ensure(cargo.status()?, "Wabou bindings generator")
 }
 
-#[allow(clippy::too_many_arguments)]
-fn render(
-    workspace: &Path,
-    app: &App,
-    out: &Path,
+fn settle_render_actions(
+    applier: &mut Applier,
+    text: &mut TextContext,
+    nodes: &mut Vec<PlacedNode>,
     width: u32,
     height: u32,
-    window_id: u64,
-    scale_factor: f64,
-    mode: Option<&str>,
-    wait_ms: u64,
-    clicks: &[f64],
-    wheels: &[f64],
-    text: Option<&str>,
-    keys: &[String],
-) -> Result<()> {
-    if !scale_factor.is_finite() || scale_factor <= 0.0 {
+) {
+    for _ in 0..4 {
+        *nodes = applier.build_frame(text, width, height);
+    }
+}
+
+fn apply_render_actions(
+    applier: &mut Applier,
+    text_context: &mut TextContext,
+    nodes: &mut Vec<PlacedNode>,
+    options: &RenderOptions,
+) {
+    let mut settle = |applier: &mut Applier| {
+        settle_render_actions(applier, text_context, nodes, options.width, options.height);
+    };
+    for position in options.clicks.chunks_exact(2) {
+        let point = Point {
+            x: position[0],
+            y: position[1],
+        };
+        for (phase, buttons) in [(PointerPhase::Down, 1), (PointerPhase::Up, 0)] {
+            applier.handle_event(UiEvent::Pointer(PointerEvent {
+                phase,
+                position: point,
+                button: Some(PointerButton::Primary),
+                buttons,
+                modifiers: Modifiers::default(),
+            }));
+        }
+        settle(applier);
+    }
+    for gesture in options.wheels.chunks_exact(4) {
+        applier.handle_event(UiEvent::Wheel(WheelEvent {
+            position: Point {
+                x: gesture[0],
+                y: gesture[1],
+            },
+            delta_x: gesture[2],
+            delta_y: gesture[3],
+            modifiers: Modifiers::default(),
+        }));
+        settle(applier);
+    }
+    if let Some(value) = &options.text {
+        applier.handle_event(UiEvent::TextInput(value.clone()));
+        settle(applier);
+    }
+    for key in &options.keys {
+        for phase in [KeyPhase::Down, KeyPhase::Up] {
+            applier.handle_event(UiEvent::Key(KeyEvent {
+                phase,
+                key: key.clone(),
+                key_without_modifiers: key.clone(),
+                code: key.clone(),
+                text: None,
+                text_with_all_modifiers: None,
+                location: KeyLocation::Standard,
+                modifiers: Modifiers::default(),
+                repeat: false,
+            }));
+        }
+        settle(applier);
+    }
+}
+
+fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
+    let RenderOptions {
+        out,
+        width,
+        height,
+        window_id,
+        scale_factor,
+        mode,
+        wait_ms,
+        ..
+    } = options;
+    if !scale_factor.is_finite() || *scale_factor <= 0.0 {
         return Err("--scale-factor must be a finite number greater than zero".into());
     }
-    let mode_args = mode.map(|mode| ["--mode", mode]);
+    let mode_args = mode.as_deref().map(|mode| ["--mode", mode]);
     ensure(
         frontend(app, "build", mode_args.as_ref().map_or(&[], |args| args))?,
         "Vite build",
@@ -754,99 +820,38 @@ fn render(
         Arc::new(|| Box::new(PasswordInput::new(SecretStore::default()))),
     );
     let mut applier =
-        Applier::from_runtime_with_factories_and_window(js, factories, base_color, window_id);
+        Applier::from_runtime_with_factories_and_window(js, factories, base_color, *window_id);
     applier
         .boot(&source)
         .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
-    applier.set_device_scale(scale_factor);
-    let physical_width = (f64::from(width) * scale_factor)
+    applier.set_device_scale(*scale_factor);
+    let physical_width = (f64::from(*width) * scale_factor)
         .round()
         .clamp(1.0, f64::from(u32::MAX)) as u32;
-    let physical_height = (f64::from(height) * scale_factor)
+    let physical_height = (f64::from(*height) * scale_factor)
         .round()
         .clamp(1.0, f64::from(u32::MAX)) as u32;
     applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
-        window_id,
-        logical_width: width,
-        logical_height: height,
+        window_id: *window_id,
+        logical_width: *width,
+        logical_height: *height,
         physical_width,
         physical_height,
-        scale_factor,
+        scale_factor: *scale_factor,
         maximized: false,
         focused: true,
     }));
     let mut text_context = TextContext::new();
-    let mut nodes = applier.build_frame(&mut text_context, width, height);
+    let mut nodes = applier.build_frame(&mut text_context, *width, *height);
 
-    if wait_ms > 0 {
-        let deadline = Instant::now() + Duration::from_millis(wait_ms);
+    if *wait_ms > 0 {
+        let deadline = Instant::now() + Duration::from_millis(*wait_ms);
         while Instant::now() < deadline {
             thread::sleep(Duration::from_millis(10));
-            nodes = applier.build_frame(&mut text_context, width, height);
+            nodes = applier.build_frame(&mut text_context, *width, *height);
         }
     }
-
-    for position in clicks.chunks_exact(2) {
-        let point = Point {
-            x: position[0],
-            y: position[1],
-        };
-        applier.handle_event(UiEvent::Pointer(PointerEvent {
-            phase: PointerPhase::Down,
-            position: point,
-            button: Some(PointerButton::Primary),
-            buttons: 1,
-            modifiers: Modifiers::default(),
-        }));
-        applier.handle_event(UiEvent::Pointer(PointerEvent {
-            phase: PointerPhase::Up,
-            position: point,
-            button: Some(PointerButton::Primary),
-            buttons: 0,
-            modifiers: Modifiers::default(),
-        }));
-        for _ in 0..4 {
-            nodes = applier.build_frame(&mut text_context, width, height);
-        }
-    }
-    for gesture in wheels.chunks_exact(4) {
-        applier.handle_event(UiEvent::Wheel(WheelEvent {
-            position: Point {
-                x: gesture[0],
-                y: gesture[1],
-            },
-            delta_x: gesture[2],
-            delta_y: gesture[3],
-            modifiers: Modifiers::default(),
-        }));
-        for _ in 0..4 {
-            nodes = applier.build_frame(&mut text_context, width, height);
-        }
-    }
-    if let Some(text) = text {
-        applier.handle_event(UiEvent::TextInput(text.to_owned()));
-        for _ in 0..4 {
-            nodes = applier.build_frame(&mut text_context, width, height);
-        }
-    }
-    for key in keys {
-        for phase in [KeyPhase::Down, KeyPhase::Up] {
-            applier.handle_event(UiEvent::Key(KeyEvent {
-                phase,
-                key: key.clone(),
-                key_without_modifiers: key.clone(),
-                code: key.clone(),
-                text: None,
-                text_with_all_modifiers: None,
-                location: KeyLocation::Standard,
-                modifiers: Modifiers::default(),
-                repeat: false,
-            }));
-        }
-        for _ in 0..4 {
-            nodes = applier.build_frame(&mut text_context, width, height);
-        }
-    }
+    apply_render_actions(&mut applier, &mut text_context, &mut nodes, options);
 
     if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
         fs::create_dir_all(parent)?;
@@ -856,10 +861,10 @@ fn render(
         &mut scene,
         &nodes,
         &mut text_context,
-        width,
-        height,
+        *width,
+        *height,
         base_color,
-        scale_factor,
+        *scale_factor,
     );
     let out_text = out
         .to_str()
