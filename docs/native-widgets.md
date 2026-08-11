@@ -9,6 +9,8 @@ wabou-shell       public Widget trait and host-facing data types
 wabou-widgets     canvas, image, text input, textarea, password input
       ↑
 wabou-quick       registry and JavaScript protocol adapter
+      ↑
+wabou             stable application-facing facade
 ```
 
 `wabou-widgets` deliberately does not depend on `wabou-quick`. It is the
@@ -16,11 +18,11 @@ reference external implementation of the same trait available to application
 authors. QuickJS only stores `WidgetFactory` values keyed by element tag; a
 built-in and an application widget enter the applier through the same path.
 
-Applications normally depend on `wabou-quick`, which re-exports the public SDK
+Applications normally depend on `wabou`, which re-exports the public SDK
 through `widget_api`:
 
 ```rust
-use wabou_quick::widget_api::{
+use wabou::widget_api::{
     HostBuilder, TextContext, UiEvent, Widget, WidgetEventResult, vello,
 };
 

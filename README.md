@@ -120,6 +120,15 @@ contributing):
 cargo install --git https://github.com/SunDoge/wabou.git wabou-cli
 ```
 
+Rust application code should depend on the `wabou` facade instead of its
+implementation crates. For a developer preview, pin the dependency to the
+preview tag you are testing:
+
+```toml
+[dependencies]
+wabou = { git = "https://github.com/SunDoge/wabou.git", tag = "v0.1.0-alpha.1" }
+```
+
 Other examples include a [Hacker News client](apps/hackernews) and a
 [terminal](apps/terminal). See the [CLI guide](docs/cli.md) for development and
 packaging commands.

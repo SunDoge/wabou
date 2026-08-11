@@ -3515,8 +3515,8 @@ dependencies = [
  "specta",
  "tracing",
  "tracing-subscriber",
+ "wabou",
  "wabou-bindings",
- "wabou-quick",
 ]
 
 [[package]]
@@ -9962,6 +9962,13 @@ dependencies = [
  "snafu",
  "tracing",
  "tracing-subscriber",
+ "wabou-quick",
+]
+
+[[package]]
+name = "wabou"
+version = "0.1.0"
+dependencies = [
  "wabou-quick",
 ]
 

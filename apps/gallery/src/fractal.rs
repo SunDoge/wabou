@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use wabou_quick::widget_api::{
+use wabou::widget_api::{
     PaintContext, UiEvent, Widget, WidgetEventResult,
     vello::{
         kurbo::Affine,

@@ -903,6 +903,7 @@ fn dev(
 
     let app_manifest = manifest(&app);
     let binary = app_binary(workspace, &app)?;
+    let vite_feature = app_vite_feature(workspace, &app)?;
     let mut host = Command::new("cargo")
         .current_dir(workspace)
         .args([
@@ -912,7 +913,7 @@ fn dev(
             "--bin",
             &binary,
             "--features",
-            "wabou-quick/vite",
+            &vite_feature,
         ])
         .env("WABOU_VITE_URL", &url)
         .env("WABOU_VITE_ENTRY", &app.entry)
@@ -1088,6 +1089,33 @@ fn app_binary(workspace: &Path, app: &App) -> Result<String> {
         .and_then(|target| target["name"].as_str())
         .map(str::to_owned)
         .ok_or_else(|| "application binary target has no name".into())
+}
+
+fn app_vite_feature(workspace: &Path, app: &App) -> Result<String> {
+    let metadata = cargo_metadata(workspace, app)?;
+    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    vite_feature(&metadata, &manifest_path)
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            "application must depend on `wabou` or the legacy `wabou-quick` crate".into()
+        })
+}
+
+fn vite_feature<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a str> {
+    let dependencies = package_metadata(metadata, manifest_path)?["dependencies"].as_array()?;
+    if dependencies
+        .iter()
+        .any(|dependency| dependency["name"] == "wabou")
+    {
+        Some("wabou/vite")
+    } else if dependencies
+        .iter()
+        .any(|dependency| dependency["name"] == "wabou-quick")
+    {
+        Some("wabou-quick/vite")
+    } else {
+        None
+    }
 }
 
 fn cargo_metadata(workspace: &Path, app: &App) -> Result<Value> {
@@ -1497,6 +1525,34 @@ formats = ["deb"]
         )
         .unwrap();
         assert!(release.starts_with("/workspace/target/release"));
+    }
+
+    #[test]
+    fn selects_the_facade_vite_feature_for_new_apps() {
+        let metadata = serde_json::json!({
+            "packages": [{
+                "manifest_path": "/workspace/apps/gallery/Cargo.toml",
+                "dependencies": [{"name": "wabou"}]
+            }]
+        });
+        assert_eq!(
+            vite_feature(&metadata, Path::new("/workspace/apps/gallery/Cargo.toml")),
+            Some("wabou/vite")
+        );
+    }
+
+    #[test]
+    fn keeps_the_legacy_quick_vite_feature_compatible() {
+        let metadata = serde_json::json!({
+            "packages": [{
+                "manifest_path": "/workspace/apps/legacy/Cargo.toml",
+                "dependencies": [{"name": "wabou-quick"}]
+            }]
+        });
+        assert_eq!(
+            vite_feature(&metadata, Path::new("/workspace/apps/legacy/Cargo.toml")),
+            Some("wabou-quick/vite")
+        );
     }
 
     #[test]

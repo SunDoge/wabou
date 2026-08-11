@@ -41,7 +41,8 @@ bun run wabou dev --app-dir apps/gallery
 bun run wabou dev --app-dir apps/hackernews --devtools
 ```
 
-Development starts Vite and compiles the Rust host with `wabou-quick/vite`.
+Development starts Vite and compiles the Rust host with `wabou/vite`. Apps that
+still depend directly on the legacy `wabou-quick` entry point remain supported.
 QuickJS imports the live Vite graph and receives HMR updates. No JavaScript
 production build is required before Rust compilation. Ctrl-C terminates Vite,
 the host, and the optional inspector.

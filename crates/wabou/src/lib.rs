@@ -1,0 +1,30 @@
+//! Public Rust application API for Wabou.
+//!
+//! Applications should depend on this crate rather than Wabou's internal
+//! implementation crates. The facade deliberately preserves one stable import
+//! path while the renderer, QuickJS host, widgets, and platform crates evolve.
+//!
+//! ```no_run
+//! use wabou::{HostBuilder, WindowOptions};
+//!
+//! # fn run() -> wabou::Result<()> {
+//! HostBuilder::new()
+//!     .window(WindowOptions::new().title("My Wabou app"))
+//!     .run()
+//! # }
+//! ```
+
+pub use wabou_quick::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn facade_exposes_application_and_extension_entry_points() {
+        let _builder = HostBuilder::new();
+        let _window = WindowOptions::new().title("Facade test");
+        let _: Option<&dyn Widget> = None;
+        let _: Option<widget_api::UiEvent> = None;
+    }
+}

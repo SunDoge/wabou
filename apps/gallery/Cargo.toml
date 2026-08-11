@@ -15,4 +15,4 @@ specta = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 wabou-bindings = { workspace = true }
-wabou-quick = { workspace = true }
+wabou = { workspace = true }

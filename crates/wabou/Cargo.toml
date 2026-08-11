@@ -1,0 +1,15 @@
+[package]
+name = "wabou"
+version = "0.1.0"
+edition = "2024"
+description = "Public Rust application API for the Wabou native SolidJS runtime."
+readme = "README.md"
+publish = false
+
+license.workspace = true
+
+[dependencies]
+wabou-quick = { workspace = true }
+
+[features]
+vite = ["wabou-quick/vite"]

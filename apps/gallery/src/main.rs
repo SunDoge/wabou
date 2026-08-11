@@ -1,6 +1,6 @@
 use snafu::{ResultExt, Whatever};
-use wabou_quick::rquickjs::{Function, prelude::Async};
-use wabou_quick::{HostBuilder, WindowOptions};
+use wabou::rquickjs::{Function, prelude::Async};
+use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
