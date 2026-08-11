@@ -38,6 +38,13 @@ function clipLabel(clip: DebugClip): string {
   return `${clip.coordinateSpace} · ${rect.x}, ${rect.y} · ${rect.width}×${rect.height} · r${clip.radius} · [${clip.transform?.join(", ") ?? "1, 0, 0, 1, 0, 0"}]`;
 }
 
+function optionalClipLabel(
+  clip: DebugClip | null | undefined,
+  fallback: string,
+): string {
+  return clip ? clipLabel(clip) : fallback;
+}
+
 function App() {
   const devtools = createDevtoolsClient(useHost());
   const [status, setStatus] = createSignal<DebugStatus>();
@@ -452,11 +459,7 @@ function App() {
                 <Panel title="Clip Coordinates">
                   <Row
                     label="widget local"
-                    value={
-                      node().clip?.widgetLocal
-                        ? clipLabel(node().clip!.widgetLocal!)
-                        : "—"
-                    }
+                    value={optionalClipLabel(node().clip?.widgetLocal, "—")}
                   />
                   <For each={node().clip?.chain ?? []}>
                     {(clip) => (
@@ -468,11 +471,7 @@ function App() {
                   </For>
                   <Row
                     label="effective"
-                    value={
-                      node().clip?.effective
-                        ? clipLabel(node().clip!.effective!)
-                        : "none"
-                    }
+                    value={optionalClipLabel(node().clip?.effective, "none")}
                   />
                   <Row
                     label="static transform"
