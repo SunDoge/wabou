@@ -1,4 +1,18 @@
 use super::*;
+
+#[test]
+fn frame_wake_unifies_animation_and_deadline_scheduling() {
+    let now = Instant::now();
+    let future = now + std::time::Duration::from_secs(1);
+
+    assert_eq!(frame_wake(true, Some(future), now), FrameWake::Redraw);
+    assert_eq!(frame_wake(false, Some(now), now), FrameWake::Redraw);
+    assert_eq!(
+        frame_wake(false, Some(future), now),
+        FrameWake::Deadline(future)
+    );
+    assert_eq!(frame_wake(false, None, now), FrameWake::Idle);
+}
 use crate::layout::PlacedNode;
 use crate::text::TextContext;
 use std::ptr::NonNull;

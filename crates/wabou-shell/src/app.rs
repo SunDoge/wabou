@@ -53,6 +53,21 @@ fn window_capabilities(handle: Option<RawWindowHandle>) -> WindowCapabilities {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FrameWake {
+    Idle,
+    Redraw,
+    Deadline(Instant),
+}
+
+fn frame_wake(has_animation: bool, deadline: Option<Instant>, now: Instant) -> FrameWake {
+    if has_animation || deadline.is_some_and(|deadline| deadline <= now) {
+        FrameWake::Redraw
+    } else {
+        deadline.map_or(FrameWake::Idle, FrameWake::Deadline)
+    }
+}
+
 /// The winit application. Owns a [`FrameSource`] (the frame producer) and a
 /// lazily-created [`Shell`] (window + GPU surface + renderer). Created in
 /// `can_create_surfaces` once the event loop is ready.
@@ -794,22 +809,21 @@ impl ApplicationHandler for App {
         // A reactive source keeps the redraw loop spinning at vsync while it has
         // pending rAF work; a static source idles (ControlFlow::Wait) until a
         // resize/close.
-        if self.source.has_anim() {
-            event_loop.set_control_flow(ControlFlow::Wait);
-            if let Some(shell) = self.state.as_ref() {
-                shell.window().request_redraw();
-            }
-        } else if let Some(deadline) = self.source.animation_deadline() {
-            if deadline <= std::time::Instant::now() {
+        let has_animation = self.source.has_anim();
+        let deadline = (!has_animation)
+            .then(|| self.source.animation_deadline())
+            .flatten();
+        match frame_wake(has_animation, deadline, Instant::now()) {
+            FrameWake::Redraw => {
                 event_loop.set_control_flow(ControlFlow::Wait);
                 if let Some(shell) = self.state.as_ref() {
                     shell.window().request_redraw();
                 }
-            } else {
+            }
+            FrameWake::Deadline(deadline) => {
                 event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
             }
-        } else {
-            event_loop.set_control_flow(ControlFlow::Wait);
+            FrameWake::Idle => event_loop.set_control_flow(ControlFlow::Wait),
         }
     }
 }
@@ -1347,20 +1361,20 @@ impl ApplicationHandler for MultiWindowApp {
         let now = Instant::now();
         let mut earliest = None;
         for app in self.windows.values_mut() {
-            if app.source.has_anim() {
-                if let Some(shell) = app.state.as_ref() {
-                    shell.window().request_redraw();
-                }
-                continue;
-            }
-            if let Some(deadline) = app.source.animation_deadline() {
-                if deadline <= now {
+            let has_animation = app.source.has_anim();
+            let deadline = (!has_animation)
+                .then(|| app.source.animation_deadline())
+                .flatten();
+            match frame_wake(has_animation, deadline, now) {
+                FrameWake::Redraw => {
                     if let Some(shell) = app.state.as_ref() {
                         shell.window().request_redraw();
                     }
-                } else {
+                }
+                FrameWake::Deadline(deadline) => {
                     earliest = Some(earliest.map_or(deadline, |old: Instant| old.min(deadline)));
                 }
+                FrameWake::Idle => {}
             }
         }
         event_loop.set_control_flow(earliest.map_or(ControlFlow::Wait, ControlFlow::WaitUntil));
