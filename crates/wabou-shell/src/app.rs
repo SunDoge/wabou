@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vello::peniko::Color;
 use winit::application::ApplicationHandler;
-use winit::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
+use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::{ButtonSource, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
@@ -519,6 +519,152 @@ impl App {
         }
         handled
     }
+
+    fn redraw(&mut self) {
+        let frame_span = tracing::trace_span!(
+            target: "wabou::perf",
+            "frame",
+            window_id = self.logical_window_id,
+            node_count = tracing::field::Empty,
+            build_ms = tracing::field::Empty,
+            scene_ms = tracing::field::Empty,
+            present_ms = tracing::field::Empty,
+        );
+        let _frame_guard = frame_span.enter();
+        let Some(shell) = self.state.as_mut() else {
+            return;
+        };
+        let semantics_enabled = shell.accessibility.prepare_frame();
+        self.source.set_semantics_enabled(semantics_enabled);
+        for action in shell.accessibility.take_actions() {
+            self.source.handle_semantic_action(action);
+        }
+        let base_color = self.source.base_color();
+        let (node_count, build_frame_ms, scene_ms) =
+            Self::build(shell, self.source.as_mut(), base_color);
+        self.update_ime_cursor_area();
+        let Some(shell) = self.state.as_mut() else {
+            return;
+        };
+        shell
+            .accessibility
+            .set_snapshot(self.source.semantic_snapshot());
+        if let Some(path) = self.source.take_screenshot_request() {
+            let (width, height) = shell.size();
+            let result = crate::renderer::render_to_png(
+                &shell.scene,
+                width,
+                height,
+                base_color,
+                &path.to_string_lossy(),
+            )
+            .map(|_| path.clone())
+            .map_err(|error| error.to_string());
+            self.source.complete_screenshot(result);
+        }
+        let t2 = Instant::now();
+        let presented = {
+            let span = tracing::trace_span!(target: "wabou::perf", "frame.present");
+            let _guard = span.enter();
+            shell.present(base_color)
+        };
+        let present_ms = ms(Instant::now() - t2);
+        frame_span.record("node_count", node_count as u64);
+        frame_span.record("build_ms", build_frame_ms);
+        frame_span.record("scene_ms", scene_ms);
+        frame_span.record("present_ms", present_ms);
+        tracing::trace!(
+            target: "wabou::perf",
+            window_id = self.logical_window_id,
+            node_count,
+            build_ms = build_frame_ms,
+            scene_ms,
+            present_ms,
+            presented,
+            "frame.complete"
+        );
+        self.frame_stats
+            .update(build_frame_ms, scene_ms, present_ms, node_count);
+        self.source.push_frame_stats(&self.frame_stats);
+        if update_present_retry(presented, &mut self.present_retry_pending) {
+            shell.window().request_redraw();
+        }
+    }
+
+    fn logical_pointer_position(&self, position: PhysicalPosition<f64>) -> Point {
+        let scale = self
+            .state
+            .as_ref()
+            .map_or(1.0, |shell| shell.scale_factor());
+        Point {
+            x: position.x / scale,
+            y: position.y / scale,
+        }
+    }
+
+    fn handle_pointer_moved(&mut self, position: PhysicalPosition<f64>) {
+        self.pointer_position = self.logical_pointer_position(position);
+        self.dispatch_event(UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Move,
+            position: self.pointer_position,
+            button: None,
+            buttons: self.pointer_buttons,
+            modifiers: self.modifiers,
+        }));
+    }
+
+    fn handle_pointer_button(
+        &mut self,
+        position: PhysicalPosition<f64>,
+        source: ButtonSource,
+        state: ElementState,
+    ) {
+        let button = Self::pointer_button(&source);
+        self.pointer_position = self.logical_pointer_position(position);
+        let phase = match state {
+            ElementState::Pressed => {
+                self.pointer_buttons |= Self::button_mask(button);
+                PointerPhase::Down
+            }
+            ElementState::Released => {
+                self.pointer_buttons &= !Self::button_mask(button);
+                PointerPhase::Up
+            }
+        };
+        self.dispatch_event(UiEvent::Pointer(PointerEvent {
+            phase,
+            position: self.pointer_position,
+            button: Some(button),
+            buttons: self.pointer_buttons,
+            modifiers: self.modifiers,
+        }));
+    }
+
+    fn handle_wheel(&mut self, delta: MouseScrollDelta) {
+        let (delta_x, delta_y) = match delta {
+            // Winit reports the direction content should move; the DOM/Wabou
+            // event reports the scroll-position delta.
+            MouseScrollDelta::LineDelta(x, y) => (
+                -f64::from(x) * crate::WHEEL_LINE_DELTA,
+                -f64::from(y) * crate::WHEEL_LINE_DELTA,
+            ),
+            MouseScrollDelta::PixelDelta(position) => {
+                let scale = self
+                    .state
+                    .as_ref()
+                    .map_or(1.0, |shell| shell.scale_factor());
+                (-position.x / scale, -position.y / scale)
+            }
+        };
+        // Winit's wheel event has no position, so expose the latest logical
+        // pointer position as a stable framework invariant.
+        self.dispatch_event(UiEvent::Wheel(WheelEvent {
+            position: self.pointer_position,
+            delta_x,
+            delta_y,
+            modifiers: self.modifiers,
+        }));
+    }
 }
 
 impl ApplicationHandler for App {
@@ -576,76 +722,7 @@ impl ApplicationHandler for App {
                 self.state = None;
                 event_loop.exit();
             }
-            WindowEvent::RedrawRequested => {
-                let frame_span = tracing::trace_span!(
-                    target: "wabou::perf",
-                    "frame",
-                    window_id = self.logical_window_id,
-                    node_count = tracing::field::Empty,
-                    build_ms = tracing::field::Empty,
-                    scene_ms = tracing::field::Empty,
-                    present_ms = tracing::field::Empty,
-                );
-                let _frame_guard = frame_span.enter();
-                let Some(shell) = self.state.as_mut() else {
-                    return;
-                };
-                let semantics_enabled = shell.accessibility.prepare_frame();
-                self.source.set_semantics_enabled(semantics_enabled);
-                for action in shell.accessibility.take_actions() {
-                    self.source.handle_semantic_action(action);
-                }
-                let base_color = self.source.base_color();
-                let (node_count, build_frame_ms, scene_ms) =
-                    Self::build(shell, self.source.as_mut(), base_color);
-                self.update_ime_cursor_area();
-                let Some(shell) = self.state.as_mut() else {
-                    return;
-                };
-                shell
-                    .accessibility
-                    .set_snapshot(self.source.semantic_snapshot());
-                if let Some(path) = self.source.take_screenshot_request() {
-                    let (width, height) = shell.size();
-                    let result = crate::renderer::render_to_png(
-                        &shell.scene,
-                        width,
-                        height,
-                        base_color,
-                        &path.to_string_lossy(),
-                    )
-                    .map(|_| path.clone())
-                    .map_err(|error| error.to_string());
-                    self.source.complete_screenshot(result);
-                }
-                let t2 = Instant::now();
-                let presented = {
-                    let span = tracing::trace_span!(target: "wabou::perf", "frame.present");
-                    let _guard = span.enter();
-                    shell.present(base_color)
-                };
-                let present_ms = ms(Instant::now() - t2);
-                frame_span.record("node_count", node_count as u64);
-                frame_span.record("build_ms", build_frame_ms);
-                frame_span.record("scene_ms", scene_ms);
-                frame_span.record("present_ms", present_ms);
-                tracing::trace!(
-                    target: "wabou::perf",
-                    window_id = self.logical_window_id,
-                    node_count,
-                    build_ms = build_frame_ms,
-                    scene_ms,
-                    present_ms,
-                    presented,
-                    "frame.complete"
-                );
-                self.frame_stats
-                    .update(build_frame_ms, scene_ms, present_ms, node_count);
-                self.source.push_frame_stats(&self.frame_stats);
-                if update_present_retry(presented, &mut self.present_retry_pending) {
-                    shell.window().request_redraw();
-                }
-            }
+            WindowEvent::RedrawRequested => self.redraw(),
             WindowEvent::SurfaceResized(PhysicalSize { width, height }) => {
                 let Some(shell) = self.state.as_mut() else {
                     return;
@@ -669,81 +746,14 @@ impl ApplicationHandler for App {
                     shell.window().request_redraw();
                 }
             }
-            WindowEvent::PointerMoved { position, .. } => {
-                let scale = self
-                    .state
-                    .as_ref()
-                    .map_or(1.0, |shell| shell.scale_factor());
-                self.pointer_position = Point {
-                    x: position.x / scale,
-                    y: position.y / scale,
-                };
-                self.dispatch_event(UiEvent::Pointer(PointerEvent {
-                    phase: PointerPhase::Move,
-                    position: self.pointer_position,
-                    button: None,
-                    buttons: self.pointer_buttons,
-                    modifiers: self.modifiers,
-                }));
-            }
+            WindowEvent::PointerMoved { position, .. } => self.handle_pointer_moved(position),
             WindowEvent::PointerButton {
                 position,
                 button,
                 state,
                 ..
-            } => {
-                let scale = self
-                    .state
-                    .as_ref()
-                    .map_or(1.0, |shell| shell.scale_factor());
-                let button = Self::pointer_button(&button);
-                self.pointer_position = Point {
-                    x: position.x / scale,
-                    y: position.y / scale,
-                };
-                let phase = match state {
-                    ElementState::Pressed => {
-                        self.pointer_buttons |= Self::button_mask(button);
-                        PointerPhase::Down
-                    }
-                    ElementState::Released => {
-                        self.pointer_buttons &= !Self::button_mask(button);
-                        PointerPhase::Up
-                    }
-                };
-                self.dispatch_event(UiEvent::Pointer(PointerEvent {
-                    phase,
-                    position: self.pointer_position,
-                    button: Some(button),
-                    buttons: self.pointer_buttons,
-                    modifiers: self.modifiers,
-                }));
-            }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let (delta_x, delta_y) = match delta {
-                    // Winit reports the direction content should move; the
-                    // DOM/Wabou event reports the scroll-position delta.
-                    MouseScrollDelta::LineDelta(x, y) => (
-                        -x as f64 * crate::WHEEL_LINE_DELTA,
-                        -y as f64 * crate::WHEEL_LINE_DELTA,
-                    ),
-                    MouseScrollDelta::PixelDelta(p) => {
-                        let scale = self
-                            .state
-                            .as_ref()
-                            .map_or(1.0, |shell| shell.scale_factor());
-                        (-p.x / scale, -p.y / scale)
-                    }
-                };
-                // Winit's wheel event has no position, so expose the latest
-                // logical pointer position as a stable framework invariant.
-                self.dispatch_event(UiEvent::Wheel(WheelEvent {
-                    position: self.pointer_position,
-                    delta_x,
-                    delta_y,
-                    modifiers: self.modifiers,
-                }));
-            }
+            } => self.handle_pointer_button(position, button, state),
+            WindowEvent::MouseWheel { delta, .. } => self.handle_wheel(delta),
             WindowEvent::KeyboardInput { event, .. } => {
                 let phase = match event.state {
                     ElementState::Pressed => KeyPhase::Down,
