@@ -806,21 +806,13 @@ impl FrameSource for Applier {
                     self.dispatch_json(target, event::KEYUP, &payload)
                 })
             }
-            UiEvent::TextInput(text) => self.input.focused_target.is_some_and(|target| {
+            UiEvent::TextInput(text)
+            | UiEvent::Ime(wabou_shell::ImeEvent::Commit(text))
+            | UiEvent::Paste(text) => self.input.focused_target.is_some_and(|target| {
                 let payload = serde_json::json!({ "data": text }).to_string();
                 self.dispatch_json(target, event::IMECOMMIT, &payload)
             }),
-            UiEvent::Ime(wabou_shell::ImeEvent::Commit(text)) => {
-                self.input.focused_target.is_some_and(|target| {
-                    let payload = serde_json::json!({ "data": text }).to_string();
-                    self.dispatch_json(target, event::IMECOMMIT, &payload)
-                })
-            }
             UiEvent::Ime(_) => widget_response.is_some(),
-            UiEvent::Paste(text) => self.input.focused_target.is_some_and(|target| {
-                let payload = serde_json::json!({ "data": text }).to_string();
-                self.dispatch_json(target, event::IMECOMMIT, &payload)
-            }),
             UiEvent::Focus(focused) => {
                 let mut changed = if focused {
                     false
