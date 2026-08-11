@@ -29,6 +29,34 @@ struct Argument {
     optional: bool,
 }
 
+impl Argument {
+    fn typed_parameter(&self) -> String {
+        format!(
+            "{}{}: {}",
+            self.name,
+            if self.optional { "?" } else { "" },
+            self.ty.name
+        )
+    }
+
+    fn native_parameter(&self) -> String {
+        format!(
+            "{}{}: {}",
+            self.name,
+            if self.optional { "?" } else { "" },
+            if self.json { "string" } else { &self.ty.name }
+        )
+    }
+
+    fn native_value(&self) -> String {
+        if self.json {
+            format!("JSON.stringify({})", self.name)
+        } else {
+            self.name.clone()
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Method {
     name: String,
@@ -165,11 +193,7 @@ impl FunctionModule {
     pub fn render(&self) -> String {
         let config = specta_config();
         let mut output = String::from(HEADER);
-        for declaration in self.declarations.values() {
-            output.push_str("export ");
-            output.push_str(declaration.trim());
-            output.push_str("\n\n");
-        }
+        push_declarations(&mut output, self.declarations.values());
         output.push_str(&format!("export interface {} {{\n", self.name));
         let mut functions = self.functions.iter().collect::<Vec<_>>();
         functions.sort_by_key(|function| function.name);
@@ -247,36 +271,13 @@ impl Bindings {
             .flat_map(|method| &method.declarations)
             .map(|(name, declaration)| (name.clone(), declaration.clone()))
             .collect::<BTreeMap<_, _>>();
-        for declaration in declarations.values() {
-            output.push_str("export ");
-            output.push_str(declaration.trim());
-            output.push_str("\n\n");
-        }
+        push_declarations(&mut output, declarations.values());
 
         output.push_str("interface NativeHostCapabilities {\n");
         for capability in sorted_capabilities(&self.capabilities) {
             output.push_str(&format!("  readonly {}: {{\n", capability.name));
             for method in sorted_methods(&capability.methods) {
-                let parameter = method
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        format!(
-                            "{}: {}",
-                            if argument.optional {
-                                format!("{}?", argument.name)
-                            } else {
-                                argument.name.clone()
-                            },
-                            if argument.json {
-                                "string"
-                            } else {
-                                &argument.ty.name
-                            }
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let parameter = join_arguments(method, Argument::native_parameter);
                 output.push_str(&format!(
                     "    {}({parameter}): NativeResult<string>;\n",
                     method.name,
@@ -301,19 +302,7 @@ impl Bindings {
             let interface = format!("{}Client", upper_camel_case(&capability.name));
             output.push_str(&format!("export interface {interface} {{\n"));
             for method in sorted_methods(&capability.methods) {
-                let parameter = method
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        format!(
-                            "{}{}: {}",
-                            argument.name,
-                            if argument.optional { "?" } else { "" },
-                            argument.ty.name
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let parameter = join_arguments(method, Argument::typed_parameter);
                 output.push_str(&format!(
                     "  {}({parameter}): Promise<{}>;\n",
                     method.name, method.response.name
@@ -332,18 +321,7 @@ impl Bindings {
                     .map(|argument| argument.name.as_str())
                     .collect::<Vec<_>>()
                     .join(", ");
-                let argument = method
-                    .arguments
-                    .iter()
-                    .map(|argument| {
-                        if argument.json {
-                            format!("JSON.stringify({})", argument.name)
-                        } else {
-                            argument.name.clone()
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let argument = join_arguments(method, Argument::native_value);
                 let decode = if method.result_envelope {
                     format!(
                         "decodeNativeResult<{}>(await nativeHost.{}.{}({argument}))",
@@ -374,6 +352,23 @@ impl Bindings {
     pub fn check(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
         check_generated(path.as_ref(), self.render())
     }
+}
+
+fn push_declarations<'a>(output: &mut String, declarations: impl Iterator<Item = &'a String>) {
+    for declaration in declarations {
+        output.push_str("export ");
+        output.push_str(declaration.trim());
+        output.push_str("\n\n");
+    }
+}
+
+fn join_arguments(method: &Method, render: fn(&Argument) -> String) -> String {
+    method
+        .arguments
+        .iter()
+        .map(render)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn write_generated(path: &Path, output: String) -> Result<(), BindingsError> {
