@@ -63,6 +63,142 @@ impl Applier {
         }
     }
 
+    fn create_element(&mut self, id: u32, tag: Atom, attrs: &[(Atom, &str)]) {
+        let mut declared = Declared {
+            tag: Some(tag),
+            ..Declared::default()
+        };
+        let class_value = {
+            let atoms = self.atoms.borrow();
+            if atoms.resolve(tag).is_none() {
+                tracing::warn!(atom = tag.get(), "unknown tag atom");
+            }
+            attrs.iter().find_map(|(name, value)| {
+                matches!(atoms.resolve(*name), Some("class" | "className")).then_some(*value)
+            })
+        };
+        if let Some(value) = class_value {
+            // CreateElement attributes are retained for protocol compatibility;
+            // class tokens normally arrive as atoms through SetClassName.
+            let mut atoms = self.atoms.borrow_mut();
+            declared.classes = value
+                .split_whitespace()
+                .map(|value| atoms.intern(value))
+                .collect();
+        }
+        declared
+            .attrs
+            .extend(attrs.iter().map(|(name, value)| (*name, Arc::from(*value))));
+
+        let node = self.node_store.create_leaf(id, declared);
+        self.recompute_solid(id);
+        let Some(mut widget) = self.widget_manager.create(tag, self.wake_callback.as_ref()) else {
+            return;
+        };
+        let atoms = self.atoms.borrow();
+        for (name, value) in attrs {
+            if let Some(name) = atoms.resolve(*name) {
+                widget.attribute_changed(name, value);
+            }
+        }
+        drop(atoms);
+        self.widget_manager.widgets.insert(node, widget);
+        self.recompute_node(node);
+    }
+
+    fn set_shadows(&mut self, id: u32, shadows: &[crate::protocol::ShadowValue]) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        let prop = self.atoms.borrow_mut().intern("box-shadow");
+        let values = shadows
+            .iter()
+            .map(|shadow| {
+                let length = |value| IrValue::Length {
+                    value: wabou_shell::style::IrLength::Px { value },
+                };
+                let mut fields = HashMap::from([
+                    ("x".to_owned(), length(shadow.offset_x)),
+                    ("y".to_owned(), length(shadow.offset_y)),
+                    ("spread".to_owned(), length(shadow.spread)),
+                    ("stdDev".to_owned(), length(shadow.std_dev)),
+                    (
+                        "color".to_owned(),
+                        IrValue::Color {
+                            value: wabou_shell::style::IrColor::Literal { rgba: shadow.color },
+                        },
+                    ),
+                ]);
+                if let Some(radius) = shadow.radius {
+                    fields.insert("radius".to_owned(), length(radius));
+                }
+                IrValue::Record { fields }
+            })
+            .collect();
+        let ir = IrValue::List { values };
+        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+            declared.inline.insert(prop, InlineValue::Typed(ir.clone()));
+        }
+        if !self.apply_inline_ir_fast(node, "box-shadow", &ir) {
+            if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                declared.inline.remove(&prop);
+            }
+            tracing::warn!("invalid Vello shadow list");
+        }
+    }
+
+    fn drop_node(&mut self, id: u32) {
+        if self.input.pointer_down_target == Some(id) {
+            self.cancel_active_pointer_gesture();
+        }
+        let node = self.node_store.solid_to_node.get(&id).copied();
+        if self
+            .active_text_selection
+            .as_ref()
+            .is_some_and(|active| active.anchor_target == id || active.focus_target == id)
+        {
+            self.active_text_selection = None;
+            self.next_text_selection_scroll = None;
+            self.sync_text_selection_change();
+        }
+        if self.input.focused_target == Some(id) {
+            if self.input.window_focused
+                && let Some(widget) =
+                    node.and_then(|node| self.widget_manager.widgets.get_mut(&node))
+            {
+                widget.focus_changed(false);
+            }
+            self.input.focused_target = None;
+        }
+        self.input.listeners.remove(&id);
+        self.pending_scroll_events.remove(&id);
+        self.resize_targets.borrow_mut().remove(&id);
+        // Never retain an id after its generational node has been removed.
+        if self.input.hovered_target == Some(id) {
+            self.input.hovered_target = None;
+        }
+
+        let Some(node) = self.node_store.remove(id) else {
+            return;
+        };
+        self.runtime_transforms.remove(&node);
+        self.overlay_planes.remove(&node);
+        self.scrollbar_styles.remove(&node);
+        self.scroll_offsets.remove(&node);
+        self.svg_cache.remove(&node);
+        self.style_diagnostics.remove(&node);
+        if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
+            widget.unmount();
+        }
+        self.drain_widget_host_actions(node);
+        self.widget_manager.widgets.remove(&node);
+        self.widget_manager.styles.remove(&node);
+        self.widget_manager
+            .host_action_routes
+            .retain(|_, (widget_node, _)| *widget_node != node);
+        self.invalidation.insert(InvalidationFlags::LAYOUT);
+    }
+
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
         self.batching_styles = true;
@@ -81,54 +217,7 @@ impl Applier {
         self.projections.semantics_dirty = true;
         match op {
             Op::CreateElement { id, tag, attrs } => {
-                let id = *id;
-                let mut decl = Declared {
-                    tag: Some(*tag),
-                    ..Declared::default()
-                };
-                let class_value = {
-                    let atoms = self.atoms.borrow();
-                    if atoms.resolve(*tag).is_none() {
-                        tracing::warn!(atom = tag.get(), "unknown tag atom");
-                    }
-                    attrs.iter().find_map(|(name, value)| {
-                        matches!(atoms.resolve(*name), Some("class" | "className"))
-                            .then_some(*value)
-                    })
-                };
-                if let Some(value) = class_value {
-                    // CreateElement attributes are retained for protocol
-                    // compatibility; class tokens normally arrive through
-                    // SetClassName and are already atoms there.
-                    let mut atoms = self.atoms.borrow_mut();
-                    decl.classes = value
-                        .split_whitespace()
-                        .map(|value| atoms.intern(value))
-                        .collect();
-                }
-                for (name, value) in attrs {
-                    decl.attrs.insert(*name, Arc::from(*value));
-                }
-                let node = self.node_store.create_leaf(id, decl);
-                self.recompute_solid(id);
-                // Rust-side widget creation: when the tag matches a known widget
-                // type, create + store it. The widget paints custom content
-                // (shapes, text+caret, …) that the standard renderer can't.
-                if let Some(mut widget) = self
-                    .widget_manager
-                    .create(*tag, self.wake_callback.as_ref())
-                {
-                    // Feed initial attrs to the widget so it receives JS params.
-                    let atoms = self.atoms.borrow();
-                    for (name, value) in attrs {
-                        if let Some(n) = atoms.resolve(*name) {
-                            widget.attribute_changed(n, value);
-                        }
-                    }
-                    drop(atoms);
-                    self.widget_manager.widgets.insert(node, widget);
-                    self.recompute_node(node);
-                }
+                self.create_element(*id, *tag, attrs);
             }
             Op::CreateText { id, text } => {
                 let id = *id;
@@ -194,45 +283,7 @@ impl Applier {
                 self.set_inline_ir(*id, *prop, style_value_ir(*value));
             }
             Op::SetShadows { id, shadows } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    let prop = self.atoms.borrow_mut().intern("box-shadow");
-                    let values = shadows
-                        .iter()
-                        .map(|shadow| {
-                            let length = |value| IrValue::Length {
-                                value: wabou_shell::style::IrLength::Px { value },
-                            };
-                            let mut fields = HashMap::from([
-                                ("x".to_owned(), length(shadow.offset_x)),
-                                ("y".to_owned(), length(shadow.offset_y)),
-                                ("spread".to_owned(), length(shadow.spread)),
-                                ("stdDev".to_owned(), length(shadow.std_dev)),
-                                (
-                                    "color".to_owned(),
-                                    IrValue::Color {
-                                        value: wabou_shell::style::IrColor::Literal {
-                                            rgba: shadow.color,
-                                        },
-                                    },
-                                ),
-                            ]);
-                            if let Some(radius) = shadow.radius {
-                                fields.insert("radius".to_owned(), length(radius));
-                            }
-                            IrValue::Record { fields }
-                        })
-                        .collect();
-                    let ir = IrValue::List { values };
-                    if let Some(declared) = self.node_store.declared.get_mut(&n) {
-                        declared.inline.insert(prop, InlineValue::Typed(ir.clone()));
-                    }
-                    if !self.apply_inline_ir_fast(n, "box-shadow", &ir) {
-                        if let Some(declared) = self.node_store.declared.get_mut(&n) {
-                            declared.inline.remove(&prop);
-                        }
-                        tracing::warn!("invalid Vello shadow list");
-                    }
-                }
+                self.set_shadows(*id, shadows);
             }
             Op::SetTransform2D { id, matrix } => {
                 if let Some(&n) = self.node_store.solid_to_node.get(id) {
@@ -392,55 +443,7 @@ impl Applier {
                 }
             }
             Op::DropNode { id } => {
-                if self.input.pointer_down_target == Some(*id) {
-                    self.cancel_active_pointer_gesture();
-                }
-                let node = self.node_store.solid_to_node.get(id).copied();
-                let selection_dropped = self.active_text_selection.as_ref().is_some_and(|active| {
-                    active.anchor_target == *id || active.focus_target == *id
-                });
-                if selection_dropped {
-                    self.active_text_selection = None;
-                    self.next_text_selection_scroll = None;
-                    self.sync_text_selection_change();
-                }
-                if self.input.focused_target == Some(*id) {
-                    if self.input.window_focused
-                        && let Some(widget) =
-                            node.and_then(|node| self.widget_manager.widgets.get_mut(&node))
-                    {
-                        widget.focus_changed(false);
-                    }
-                    self.input.focused_target = None;
-                }
-                self.input.listeners.remove(id);
-                self.pending_scroll_events.remove(id);
-                self.resize_targets.borrow_mut().remove(id);
-                // Keep the cached hover/focus targets from dangling at a solid
-                // id whose node was just torn down — a stale hit would make
-                // wheel/scroll (and keyboard delivery) silently no-op until a
-                // pointer move re-establishes the hit.
-                if self.input.hovered_target == Some(*id) {
-                    self.input.hovered_target = None;
-                }
-                if let Some(n) = self.node_store.remove(*id) {
-                    self.runtime_transforms.remove(&n);
-                    self.overlay_planes.remove(&n);
-                    self.scrollbar_styles.remove(&n);
-                    self.scroll_offsets.remove(&n);
-                    self.svg_cache.remove(&n);
-                    self.style_diagnostics.remove(&n);
-                    if let Some(widget) = self.widget_manager.widgets.get_mut(&n) {
-                        widget.unmount();
-                    }
-                    self.drain_widget_host_actions(n);
-                    self.widget_manager.widgets.remove(&n);
-                    self.widget_manager.styles.remove(&n);
-                    self.widget_manager
-                        .host_action_routes
-                        .retain(|_, (widget_node, _)| *widget_node != n);
-                    self.invalidation.insert(InvalidationFlags::LAYOUT);
-                }
+                self.drop_node(*id);
             }
             Op::CreateComment { .. } | Op::FrameEnd => {}
         }
