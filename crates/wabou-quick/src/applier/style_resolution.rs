@@ -1,5 +1,14 @@
 use super::*;
 
+struct ResolvedNodeStyle {
+    layout: taffy::Style,
+    paint: DeclaredPaint,
+    host_text: Option<Arc<str>>,
+    host_intrinsic: Option<[f32; 2]>,
+    display_explicit: bool,
+    diagnostics: Vec<String>,
+}
+
 fn resolve_color_tokens(value: &IrValue, colors: &HashMap<String, u32>) -> IrValue {
     match value {
         IrValue::Color {
@@ -451,6 +460,49 @@ impl Applier {
         true
     }
 
+    fn install_resolved_style(&mut self, node: NodeId, resolved: ResolvedNodeStyle) {
+        self.style_diagnostics.insert(node, resolved.diagnostics);
+        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+            declared.paint = resolved.paint.clone();
+            declared.display_explicit = resolved.display_explicit;
+        }
+        let _ = self.node_store.tree.set_style(node, resolved.layout);
+
+        // Resolve immediately against the parent so this node is current before
+        // the next full inheritance walk updates its descendants.
+        let parent = self
+            .node_store
+            .tree
+            .parent(node)
+            .and_then(|parent| self.node_store.tree.get_node_context(parent))
+            .map(inherited_paint)
+            .unwrap_or_default();
+        let previous = self.node_store.tree.get_node_context(node);
+        let host = HostPaint {
+            text: resolved.host_text,
+            text_runs: previous
+                .map(|paint| paint.text_runs.clone())
+                .unwrap_or_else(|| Arc::from([])),
+            selection_rects: previous
+                .map(|paint| paint.selection_rects.clone())
+                .unwrap_or_else(|| Arc::from([])),
+            svg: previous.and_then(|paint| paint.svg.clone()),
+            widget: previous.and_then(|paint| paint.widget.clone()),
+            intrinsic_size: resolved.host_intrinsic,
+            runtime_transform: self.runtime_transforms.get(&node).copied(),
+            overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
+            scrollbar: self
+                .scrollbar_styles
+                .get(&node)
+                .copied()
+                .unwrap_or_default(),
+        };
+        let paint = resolved.paint.resolve(&parent, host);
+        let _ = self.node_store.tree.set_node_context(node, Some(paint));
+        self.invalidation
+            .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
+    }
+
     pub(super) fn recompute_node_now(&mut self, node: NodeId) {
         if node == self.node_store.root {
             return;
@@ -458,13 +510,13 @@ impl Applier {
         let Some(decl) = self.node_store.declared.get(&node) else {
             return;
         };
-        let mut style_diagnostics = Vec::new();
         let active_theme_colors = self.active_theme_colors.clone();
-        let (layout, declared_paint, host_text, host_intrinsic, display_explicit) = {
+        let resolved = {
             let atoms = self.atoms.borrow();
             let mut layout = taffy::Style::default();
             let mut paint = DeclaredPaint::default();
             let mut display_explicit = false;
+            let mut diagnostics = Vec::new();
             let tag_name = decl.tag.and_then(|tag| atoms.resolve(tag));
             if tag_name.is_some_and(NodeFacts::is_block_tag) {
                 layout.display = taffy::Display::Block;
@@ -616,12 +668,12 @@ impl Applier {
                     .insert(class_key, cached.clone());
                 cached
             };
-            style_diagnostics.extend(cached.diagnostics.iter().cloned());
+            diagnostics.extend(cached.diagnostics.iter().cloned());
             for (property, value) in &cached.declarations {
                 display_explicit |= property == "display";
                 let value = resolve_color_tokens(value, &active_theme_colors);
                 if !style::apply_ir(&mut layout, &mut paint, property, &value) {
-                    style_diagnostics.push(format!(
+                    diagnostics.push(format!(
                         "{property}: unsupported Style IR property or value"
                     ));
                     if let Some(atom) = atoms.get(property)
@@ -636,7 +688,7 @@ impl Applier {
                     display_explicit |= property == "display";
                     let ir = value.ir();
                     if !style::apply_ir(&mut layout, &mut paint, property, &ir) {
-                        style_diagnostics
+                        diagnostics
                             .push(format!("inline {property}: unsupported property or value"));
                     }
                 }
@@ -700,61 +752,29 @@ impl Applier {
             {
                 host_intrinsic = Some(size);
             }
-            (layout, paint, host_text, host_intrinsic, display_explicit)
+            ResolvedNodeStyle {
+                layout,
+                paint,
+                host_text,
+                host_intrinsic,
+                display_explicit,
+                diagnostics,
+            }
         };
-        self.style_diagnostics.insert(node, style_diagnostics);
-        // Persist cascade output for the inherit pass (and future resolves).
-        if let Some(decl) = self.node_store.declared.get_mut(&node) {
-            decl.paint = declared_paint.clone();
-            decl.display_explicit = display_explicit;
-        }
-        let _ = self.node_store.tree.set_style(node, layout);
+        self.install_resolved_style(node, resolved);
+    }
+}
 
-        // Resolve this node immediately against the parent so non-inherited
-        // fields (background, …) and own inherited decls are correct without
-        // waiting for the next build_frame inherit walk. Descendants still
-        // need the full inherit pass when inherited props change.
-        let parent_inherited = self
-            .node_store
-            .tree
-            .parent(node)
-            .and_then(|parent| self.node_store.tree.get_node_context(parent))
-            .map(|p| InheritedPaint {
-                text_color: p.text_color,
-                font_size: p.font_size,
-                font_weight: p.font_weight,
-                line_height: p.line_height,
-                wrap_text: p.wrap_text,
-                text_selectable: p.text_selectable,
-                text_select_all: p.text_select_all,
-                text_align: p.text_align,
-                font_family: p.font_family.clone(),
-            })
-            .unwrap_or_default();
-        let prev = self.node_store.tree.get_node_context(node);
-        let host = HostPaint {
-            text: host_text,
-            text_runs: prev
-                .map(|p| p.text_runs.clone())
-                .unwrap_or_else(|| Arc::from([])),
-            selection_rects: prev
-                .map(|p| p.selection_rects.clone())
-                .unwrap_or_else(|| Arc::from([])),
-            svg: prev.and_then(|p| p.svg.clone()),
-            widget: prev.and_then(|p| p.widget.clone()),
-            intrinsic_size: host_intrinsic,
-            runtime_transform: self.runtime_transforms.get(&node).copied(),
-            overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
-            scrollbar: self
-                .scrollbar_styles
-                .get(&node)
-                .copied()
-                .unwrap_or_default(),
-        };
-        let paint = declared_paint.resolve(&parent_inherited, host);
-        let _ = self.node_store.tree.set_node_context(node, Some(paint));
-        self.invalidation.insert(InvalidationFlags::LAYOUT);
-        // Cascade may have changed declared inherited props → re-resolve tree.
-        self.invalidation.insert(InvalidationFlags::INHERIT);
+fn inherited_paint(paint: &Paint) -> InheritedPaint {
+    InheritedPaint {
+        text_color: paint.text_color,
+        font_size: paint.font_size,
+        font_weight: paint.font_weight,
+        line_height: paint.line_height,
+        wrap_text: paint.wrap_text,
+        text_selectable: paint.text_selectable,
+        text_select_all: paint.text_select_all,
+        text_align: paint.text_align,
+        font_family: paint.font_family.clone(),
     }
 }
