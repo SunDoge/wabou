@@ -1,6 +1,33 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_window_metrics(
+        &mut self,
+        metrics: wabou_shell::WindowMetrics,
+    ) -> EventResponse {
+        let payload = serde_json::json!({
+            "windowId": metrics.window_id,
+            "logicalWidth": metrics.logical_width,
+            "logicalHeight": metrics.logical_height,
+            "physicalWidth": metrics.physical_width,
+            "physicalHeight": metrics.physical_height,
+            "scaleFactor": metrics.scale_factor,
+            "maximized": metrics.maximized,
+            "focused": metrics.focused,
+        })
+        .to_string();
+        let event = HostEvent::Application(crate::host_msg::HostMsg::str(
+            "wabou:window-metrics",
+            payload,
+        ));
+        let handled = self.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
     pub(super) fn drain_host_messages(&mut self) {
         let batch = self.host_msg_inbox.drain_batch();
         if batch.is_empty() {

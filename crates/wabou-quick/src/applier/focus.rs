@@ -10,6 +10,29 @@ struct FocusCandidate {
 }
 
 impl Applier {
+    pub(super) fn handle_window_focus(&mut self, focused: bool) -> EventResponse {
+        let mut changed = if focused {
+            false
+        } else {
+            self.last_text_click = None;
+            self.cancel_active_pointer_gesture()
+        };
+        changed |= self.set_window_focused(focused);
+        EventResponse {
+            handled: changed,
+            request_redraw: changed,
+            consume_key_text: false,
+            text_input: Some(
+                focused
+                    && self
+                        .input
+                        .focused_target
+                        .is_some_and(|target| self.is_text_input_target(target)),
+            ),
+            clipboard: None,
+        }
+    }
+
     pub(super) fn rebuild_focus_order(&mut self, placed: &[PlacedNode]) {
         let atoms = self.atoms.borrow();
         let attribute = |declared: &Declared, wanted: &str| {

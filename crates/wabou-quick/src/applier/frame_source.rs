@@ -669,27 +669,7 @@ impl FrameSource for Applier {
     fn handle_event(&mut self, input: UiEvent) -> EventResponse {
         self.projections.debug_dirty |= self.projections.debug_state.is_some();
         if let UiEvent::WindowMetrics(metrics) = &input {
-            let payload = serde_json::json!({
-                "windowId": metrics.window_id,
-                "logicalWidth": metrics.logical_width,
-                "logicalHeight": metrics.logical_height,
-                "physicalWidth": metrics.physical_width,
-                "physicalHeight": metrics.physical_height,
-                "scaleFactor": metrics.scale_factor,
-                "maximized": metrics.maximized,
-                "focused": metrics.focused,
-            })
-            .to_string();
-            let event = HostEvent::Application(crate::host_msg::HostMsg::str(
-                "wabou:window-metrics",
-                payload,
-            ));
-            let handled = self.js.dispatch_host_frame(&[event]).is_ok();
-            return EventResponse {
-                handled,
-                request_redraw: handled,
-                ..EventResponse::IGNORED
-            };
+            return self.handle_window_metrics(*metrics);
         }
         if matches!(
             &input,
@@ -813,28 +793,7 @@ impl FrameSource for Applier {
                 self.dispatch_json(target, event::IMECOMMIT, &payload)
             }),
             UiEvent::Ime(_) => widget_response.is_some(),
-            UiEvent::Focus(focused) => {
-                let mut changed = if focused {
-                    false
-                } else {
-                    self.last_text_click = None;
-                    self.cancel_active_pointer_gesture()
-                };
-                changed |= self.set_window_focused(focused);
-                return EventResponse {
-                    handled: changed,
-                    request_redraw: changed,
-                    consume_key_text: false,
-                    text_input: Some(
-                        focused
-                            && self
-                                .input
-                                .focused_target
-                                .is_some_and(|target| self.is_text_input_target(target)),
-                    ),
-                    clipboard: None,
-                };
-            }
+            UiEvent::Focus(focused) => return self.handle_window_focus(focused),
             UiEvent::Pointer(_) | UiEvent::Key(_) | UiEvent::WindowMetrics(_) => false,
         };
         if let Some(widget) = widget_response {
