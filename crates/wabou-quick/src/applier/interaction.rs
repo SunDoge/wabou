@@ -497,10 +497,10 @@ impl Applier {
     }
 
     pub(super) fn tick_text_selection_autoscroll(&mut self) -> bool {
-        if !self
-            .next_text_selection_scroll
-            .is_some_and(|deadline| Instant::now() >= deadline)
-        {
+        let Some(deadline) = self.next_text_selection_scroll else {
+            return false;
+        };
+        if Instant::now() < deadline {
             return false;
         }
         let Some((target, dx, dy)) = self.text_selection_scroll_delta() else {
@@ -777,7 +777,7 @@ fn scrollbar_auto_opacity(elapsed: Duration, delay: Duration, fade: Duration, he
     if fade.is_zero() {
         return 0.0;
     }
-    (1.0 - (elapsed - delay).as_secs_f32() / fade.as_secs_f32()).clamp(0.0, 1.0)
+    (1.0 - elapsed.saturating_sub(delay).as_secs_f32() / fade.as_secs_f32()).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]
