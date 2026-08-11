@@ -10,4 +10,4 @@ path = "src/main.rs"
 [dependencies]
 snafu = { workspace = true }
 wabou-quick = { workspace = true }
-wabou-terminal = { path = "../../crates/wabou-terminal" }
+wabou-terminal = { workspace = true }

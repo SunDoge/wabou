@@ -9,10 +9,10 @@ percent-encoding = "2"
 rio-graphics = "0.5.5"
 rio-vt = "0.5.5"
 rustc-hash = "2"
-serde_json = "1"
+serde_json = { workspace = true }
 teletypewriter = "0.5.5"
-tracing = "0.1"
-vello = "0.9.0"
+tracing = { workspace = true }
+vello = { workspace = true }
 wabou-quick = { workspace = true }
 wabou-shell = { workspace = true }
 

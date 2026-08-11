@@ -8,4 +8,4 @@ license.workspace = true
 specta = { workspace = true }
 
 [dev-dependencies]
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }

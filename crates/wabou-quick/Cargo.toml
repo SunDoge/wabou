@@ -14,8 +14,8 @@ bitflags = { workspace = true }
 bon = { workspace = true }
 futures-lite = "2"
 lasso = "0.7.3"
-open = "5.4.0"
-parley = "0.10"
+open = { workspace = true }
+parley = { workspace = true }
 reqwest = {
   version = "0.12",
   default-features = false,
@@ -25,18 +25,18 @@ rquickjs = {
   version = "0.12.1",
   features = ["full-async", "loader", "rust-alloc"]
 }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 snafu = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
-tokio = { version = "1", features = ["rt-multi-thread", "time"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-url = "2.5"
-vello = "0.9.0"
-wabou-devtools = { path = "../wabou-devtools" }
+tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+url = { workspace = true }
+vello = { workspace = true }
+wabou-devtools = { workspace = true }
 wabou-host-api = { workspace = true }
-wabou-shell = { path = "../wabou-shell" }
+wabou-shell = { workspace = true }
 wabou-style = { workspace = true }
 wabou-widgets = { workspace = true }
 

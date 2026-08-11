@@ -10,23 +10,23 @@ name = "wabou_shell"
 path = "src/lib.rs"
 
 [dependencies]
-arboard = { version = "3.6", default-features = false }
+arboard = { workspace = true }
 bitflags = { workspace = true }
-clap = { version = "4.6.4", features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
 directories = { workspace = true }
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { workspace = true, features = ["png"] }
 lru = "0.18.1"
-open = "5.4.0"
-parley = "0.10"
+open = { workspace = true }
+parley = { workspace = true }
 pollster = "0.4"
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 snafu = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
-tracing = "0.1"
+tracing = { workspace = true }
 unicode-segmentation = "1.12"
-url = "2.5"
-vello = "0.9.0"
+url = { workspace = true }
+vello = { workspace = true }
 vello_svg = { version = "0.10.0", default-features = false }
 wgpu_context = "0.7"
-winit = "=0.31.0-beta.2"
+winit = { workspace = true }
 wabou-accessibility = { workspace = true }

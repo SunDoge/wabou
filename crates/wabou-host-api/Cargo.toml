@@ -8,7 +8,7 @@ license.workspace = true
 bindings = ["dep:specta", "dep:wabou-bindings"]
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 specta = { workspace = true, optional = true }
 wabou-bindings = { workspace = true, optional = true }
 

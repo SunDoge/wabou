@@ -9,4 +9,4 @@ license.workspace = true
 accesskit = "0.24.1"
 accesskit_xplat = "=0.1.1"
 raw-window-handle = "0.6"
-winit = "=0.31.0-beta.2"
+winit = { workspace = true }
