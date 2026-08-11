@@ -326,33 +326,26 @@ pub fn layout_text_styled_overflow(
     max_width: Option<f32>,
     ellipsis: bool,
 ) -> Arc<Layout<[u8; 4]>> {
+    let layout =
+        |tcx: &mut TextContext, text: Arc<str>, runs: Arc<[TextRun]>, max_width: Option<f32>| {
+            layout_text_styled(
+                tcx,
+                text,
+                font_size,
+                font_weight,
+                line_height,
+                alignment,
+                color,
+                runs,
+                font_family,
+                max_width,
+            )
+        };
     let Some(max_width) = max_width.filter(|width| width.is_finite()) else {
-        return layout_text_styled(
-            tcx,
-            text,
-            font_size,
-            font_weight,
-            line_height,
-            alignment,
-            color,
-            runs,
-            font_family,
-            max_width,
-        );
+        return layout(tcx, text, runs, max_width);
     };
     if !ellipsis {
-        return layout_text_styled(
-            tcx,
-            text,
-            font_size,
-            font_weight,
-            line_height,
-            alignment,
-            color,
-            runs,
-            font_family,
-            Some(max_width),
-        );
+        return layout(tcx, text, runs, Some(max_width));
     }
 
     let overflow_key = text_layout_key(
@@ -370,18 +363,7 @@ pub fn layout_text_styled_overflow(
         return layout.clone();
     }
 
-    let unconstrained = layout_text_styled(
-        tcx,
-        text.clone(),
-        font_size,
-        font_weight,
-        line_height,
-        alignment,
-        color,
-        runs.clone(),
-        font_family,
-        None,
-    );
+    let unconstrained = layout(tcx, text.clone(), runs.clone(), None);
     if unconstrained.width() <= max_width.max(0.0) {
         tcx.ellipsis_cache.put(overflow_key, unconstrained.clone());
         return unconstrained;
@@ -394,20 +376,9 @@ pub fn layout_text_styled_overflow(
         .collect::<Vec<_>>();
     let mut low = 0;
     let mut high = boundaries.len();
-    let mut best = layout_text_styled(
-        tcx,
-        Arc::from(""),
-        font_size,
-        font_weight,
-        line_height,
-        alignment,
-        color,
-        Arc::from([]),
-        font_family,
-        None,
-    );
+    let mut best = layout(tcx, Arc::from(""), Arc::from([]), None);
     while low < high {
-        let middle = (low + high) / 2;
+        let middle = usize::midpoint(low, high);
         let prefix_end = boundaries[middle];
         let candidate: Arc<str> = Arc::from(format!("{}…", &text[..prefix_end]));
         let candidate_runs: Arc<[TextRun]> = runs
@@ -419,20 +390,9 @@ pub fn layout_text_styled_overflow(
             })
             .collect::<Vec<_>>()
             .into();
-        let layout = layout_text_styled(
-            tcx,
-            candidate,
-            font_size,
-            font_weight,
-            line_height,
-            alignment,
-            color,
-            candidate_runs,
-            font_family,
-            None,
-        );
-        if layout.width() <= max_width.max(0.0) {
-            best = layout;
+        let candidate_layout = layout(tcx, candidate, candidate_runs, None);
+        if candidate_layout.width() <= max_width.max(0.0) {
+            best = candidate_layout;
             low = middle + 1;
         } else {
             high = middle;
