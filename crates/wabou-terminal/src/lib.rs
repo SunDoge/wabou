@@ -310,7 +310,6 @@ pub struct TerminalWidget {
     pending_hyperlink: Option<PendingHyperlink>,
     remote_mouse_button: Option<PointerButton>,
     wheel_lines: WheelLineAccumulator,
-    device_scale: f64,
     last_click: Option<(Instant, f32, f32, u8)>,
     graphics: TerminalGraphics,
 }
@@ -390,7 +389,6 @@ impl TerminalWidget {
             pending_hyperlink: None,
             remote_mouse_button: None,
             wheel_lines: WheelLineAccumulator::default(),
-            device_scale: 1.0,
             last_click: None,
             graphics: TerminalGraphics::default(),
         }
@@ -679,13 +677,13 @@ impl TerminalWidget {
         self.sync_selection_change();
     }
 
-    fn resize(&mut self, width: f32, height: f32) {
+    fn resize(&mut self, width: f32, height: f32, device_scale: f64) {
         let size = TerminalSize::from_viewport(
             width,
             height,
             self.cell_width,
             self.line_height,
-            self.device_scale,
+            device_scale,
         );
         if size == self.size {
             return;

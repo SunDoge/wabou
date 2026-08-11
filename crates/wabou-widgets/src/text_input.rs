@@ -76,7 +76,6 @@ pub struct TextInput {
     /// Cached value string (updated in paint after edits) for current_value().
     cached_value: String,
     selecting: bool,
-    device_scale: f64,
     last_click: Option<(Instant, f32, f32, u8)>,
     multiline: bool,
     viewport_width: f32,
@@ -118,7 +117,6 @@ impl TextInput {
             window_to_local: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             cached_value: String::new(),
             selecting: false,
-            device_scale: 1.0,
             last_click: None,
             multiline,
             viewport_width: 0.0,
@@ -178,7 +176,7 @@ impl TextInput {
 impl Widget for TextInput {
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
         let [width, height] = cx.size();
-        self.device_scale = cx.device_scale();
+        let device_scale = cx.device_scale();
         let tcx = cx.text();
         if self.multiline && self.viewport_width != width {
             self.viewport_width = width;
@@ -293,10 +291,10 @@ impl Widget for TextInput {
             } else {
                 single_line_y_offset(height, placeholder_layout.height(), self.font_size)
             };
-            let glyph_scene = tcx.glyph_scene_scaled(&placeholder_layout, self.device_scale);
+            let glyph_scene = tcx.glyph_scene_scaled(&placeholder_layout, device_scale);
             scene.append(
                 &glyph_scene,
-                Some(Affine::translate((0.0, y_offset)) * Affine::scale(self.device_scale.recip())),
+                Some(Affine::translate((0.0, y_offset)) * Affine::scale(device_scale.recip())),
             );
         }
 
@@ -333,17 +331,17 @@ impl Widget for TextInput {
                                 .positioned_glyphs()
                                 .map(|g| vello::Glyph {
                                     id: g.id,
-                                    x: g.x * self.device_scale as f32,
-                                    y: g.y * self.device_scale as f32,
+                                    x: g.x * device_scale as f32,
+                                    y: g.y * device_scale as f32,
                                 })
                                 .collect();
                             if !glyphs.is_empty() {
                                 scene
                                     .draw_glyphs(&font_data)
-                                    .font_size(font_size * self.device_scale as f32)
+                                    .font_size(font_size * device_scale as f32)
                                     .hint(true)
                                     .brush(text_color)
-                                    .transform(transform * Affine::scale(self.device_scale.recip()))
+                                    .transform(transform * Affine::scale(device_scale.recip()))
                                     .draw(Fill::NonZero, glyphs.into_iter());
                             }
                         }
@@ -365,10 +363,10 @@ impl Widget for TextInput {
                     None,
                     None,
                 );
-                let glyph_scene = tcx.glyph_scene_scaled(&masked_layout, self.device_scale);
+                let glyph_scene = tcx.glyph_scene_scaled(&masked_layout, device_scale);
                 scene.append(
                     &glyph_scene,
-                    Some(transform * Affine::scale(self.device_scale.recip())),
+                    Some(transform * Affine::scale(device_scale.recip())),
                 );
             }
 
@@ -742,7 +740,7 @@ fn parse_px(value: &str) -> Option<f32> {
 #[cfg(test)]
 impl TextInput {
     fn paint(&mut self, width: f32, height: f32, text: &mut TextContext) -> Scene {
-        let mut cx = PaintContext::new(width, height, self.device_scale, text);
+        let mut cx = PaintContext::new(width, height, 1.0, text);
         <Self as Widget>::paint(self, &mut cx);
         cx.finish()
     }

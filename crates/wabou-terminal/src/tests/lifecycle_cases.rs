@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn resizing_updates_rio_grid() {
     let mut widget = TerminalWidget::headless(80, 24);
-    widget.resize(DEFAULT_CELL_WIDTH * 40.0, DEFAULT_LINE_HEIGHT * 10.0);
+    widget.resize(DEFAULT_CELL_WIDTH * 40.0, DEFAULT_LINE_HEIGHT * 10.0, 1.0);
     let terminal = widget.terminal.lock();
     assert_eq!((terminal.columns(), terminal.screen_lines()), (40, 10));
 }
@@ -229,8 +229,7 @@ fn failed_terminal_spawn_can_be_reconfigured_without_retrying_each_frame() {
 #[test]
 fn terminal_reports_physical_text_area_and_cell_dimensions() {
     let mut widget = TerminalWidget::headless(40, 10);
-    widget.device_scale = 2.0;
-    widget.resize(340.0, 180.0);
+    widget.resize(340.0, 180.0, 2.0);
 
     // 340 logical pixels still fit 40 columns, but the pixel width must
     // update independently from the grid and be reported in device pixels.

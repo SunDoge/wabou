@@ -709,7 +709,7 @@ fn selection_survives_vertical_resize_without_reflow() {
     widget.handle_event(&pointer(PointerPhase::Move, cell * 2.75, row, 1));
     widget.handle_event(&pointer(PointerPhase::Up, cell * 2.75, row, 0));
 
-    widget.resize(DEFAULT_CELL_WIDTH * 20.0, DEFAULT_LINE_HEIGHT * 2.0);
+    widget.resize(DEFAULT_CELL_WIDTH * 20.0, DEFAULT_LINE_HEIGHT * 2.0, 1.0);
 
     assert_eq!(widget.selected_text().as_deref(), Some("two"));
 }
@@ -722,7 +722,8 @@ fn scale_aware_paint_tracks_retina_density() {
 
     widget.paint_scaled(200.0, 80.0, 2.0, &mut tcx);
 
-    assert_eq!(widget.device_scale, 2.0);
+    assert_eq!(widget.size.pixel_width, 400);
+    assert_eq!(widget.size.pixel_height, 160);
 }
 
 #[test]

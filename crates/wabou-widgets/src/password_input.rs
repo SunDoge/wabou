@@ -66,7 +66,6 @@ pub struct PasswordInput {
     line_height: Option<(f32, bool)>,
     font_family: Option<Arc<str>>,
     color: Color,
-    device_scale: f64,
 }
 
 impl PasswordInput {
@@ -82,7 +81,6 @@ impl PasswordInput {
             line_height: None,
             font_family: None,
             color: Color::WHITE,
-            device_scale: 1.0,
         }
     }
 
@@ -108,7 +106,7 @@ impl PasswordInput {
 impl Widget for PasswordInput {
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
         let height = cx.height();
-        self.device_scale = cx.device_scale();
+        let device_scale = cx.device_scale();
         let tcx = cx.text();
         let count = self.secrets.character_count(&self.slot);
         let (text, color) = if count == 0 {
@@ -129,11 +127,11 @@ impl Widget for PasswordInput {
             None,
         );
         let y = single_line_y_offset(height, layout.height(), self.font_size);
-        let glyphs = tcx.glyph_scene_scaled(&layout, self.device_scale);
+        let glyphs = tcx.glyph_scene_scaled(&layout, device_scale);
         let mut scene = Scene::new();
         scene.append(
             &glyphs,
-            Some(Affine::translate((0.0, y)) * Affine::scale(self.device_scale.recip())),
+            Some(Affine::translate((0.0, y)) * Affine::scale(device_scale.recip())),
         );
         if self.focused && !self.disabled {
             let x = if count == 0 {

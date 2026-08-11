@@ -13,10 +13,10 @@ impl Widget for TerminalWidget {
 
     fn paint(&mut self, cx: &mut wabou_shell::PaintContext<'_>) {
         let [width, height] = cx.size();
-        self.device_scale = cx.device_scale();
+        let device_scale = cx.device_scale();
         let tcx = cx.text();
         self.update_font_metrics(tcx);
-        self.resize(width, height);
+        self.resize(width, height, device_scale);
         self.ensure_launched();
         self.tick_selection_autoscroll();
         if self.focused
@@ -86,7 +86,7 @@ impl Widget for TerminalWidget {
             &Rect::new(0.0, 0.0, width as f64, height as f64),
         );
 
-        let scale = self.device_scale.max(f64::EPSILON);
+        let scale = device_scale;
         let viewport = rio_vt::ansi::graphics::OverlayViewport {
             cell_width: (f64::from(self.cell_width) * scale) as f32,
             cell_height: (f64::from(self.line_height) * scale) as f32,
@@ -272,7 +272,7 @@ impl Widget for TerminalWidget {
                     Some(&self.font_family),
                     None,
                 );
-                let glyph_scene = tcx.glyph_scene_scaled(&layout, self.device_scale);
+                let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
                 let x = column as f64 * self.cell_width as f64;
                 let text_y =
                     y as f64 + ((self.line_height - layout.height()) * 0.5).max(0.0) as f64;
@@ -286,7 +286,7 @@ impl Widget for TerminalWidget {
                     Some(
                         Affine::translate((x, text_y))
                             * italic
-                            * Affine::scale(self.device_scale.recip()),
+                            * Affine::scale(device_scale.recip()),
                     ),
                 );
             }
@@ -349,8 +349,8 @@ impl Widget for TerminalWidget {
                 Some(width),
             );
             scene.append(
-                &tcx.glyph_scene_scaled(&layout, self.device_scale),
-                Some(Affine::translate((4.0, 4.0)) * Affine::scale(self.device_scale.recip())),
+                &tcx.glyph_scene_scaled(&layout, device_scale),
+                Some(Affine::translate((4.0, 4.0)) * Affine::scale(device_scale.recip())),
             );
         }
         cx.scene_mut().append(&scene, None);
@@ -811,7 +811,7 @@ impl Widget for TerminalWidget {
 #[cfg(test)]
 impl TerminalWidget {
     pub(crate) fn paint(&mut self, width: f32, height: f32, text: &mut TextContext) -> Scene {
-        self.paint_scaled(width, height, self.device_scale, text)
+        self.paint_scaled(width, height, 1.0, text)
     }
 
     pub(crate) fn paint_scaled(
