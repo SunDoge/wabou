@@ -6,7 +6,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use taffy::prelude::*;
-use taffy::style::{GridTemplateArea, GridTemplateRepetition};
+use taffy::style::{GridTemplateArea, GridTemplateAreas, GridTemplateRepetition};
 use vello::peniko::Color;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -156,13 +156,20 @@ fn grid_template(value: &IrValue) -> Option<Vec<GridTemplateComponent<String>>> 
         .collect()
 }
 
-fn grid_template_areas(value: &IrValue) -> Option<Vec<GridTemplateArea<String>>> {
+fn grid_template_areas(value: &IrValue) -> Option<GridTemplateAreas<String>> {
     let columns = field(value, "columns")?.number()? as usize;
     let IrValue::List { values } = field(value, "cells")? else {
         return None;
     };
     if columns == 0 {
-        return Some(Vec::new());
+        return Some(GridTemplateAreas {
+            areas: Vec::new(),
+            row_count: 0,
+            column_count: 0,
+        });
+    }
+    if values.len() % columns != 0 {
+        return None;
     }
     let mut bounds: HashMap<&str, (usize, usize, usize, usize)> = HashMap::new();
     for (index, cell) in values.iter().enumerate() {
@@ -182,8 +189,8 @@ fn grid_template_areas(value: &IrValue) -> Option<Vec<GridTemplateArea<String>>>
             })
             .or_insert((row, row, column, column));
     }
-    Some(
-        bounds
+    Some(GridTemplateAreas {
+        areas: bounds
             .into_iter()
             .map(|(name, (r0, r1, c0, c1))| GridTemplateArea {
                 name: name.to_owned(),
@@ -193,7 +200,9 @@ fn grid_template_areas(value: &IrValue) -> Option<Vec<GridTemplateArea<String>>>
                 column_end: c1 as u16 + 2,
             })
             .collect(),
-    )
+        row_count: (values.len() / columns).try_into().ok()?,
+        column_count: columns.try_into().ok()?,
+    })
 }
 
 fn ir_lp(value: &IrValue) -> Option<taffy::LengthPercentage> {
@@ -800,6 +809,7 @@ pub fn apply_ir(
                 Some("flex") => taffy::Display::Flex,
                 Some("grid") => taffy::Display::Grid,
                 Some("none") => taffy::Display::None,
+                Some("flow-root") => taffy::Display::FlowRoot,
                 _ => taffy::Display::Block,
             };
         }
@@ -843,7 +853,7 @@ pub fn apply_ir(
         }
         "grid-template-areas" => {
             if let Some(v) = grid_template_areas(value) {
-                style.grid_template_areas = v;
+                style.grid_template_areas = Some(v);
             }
         }
         "grid-template" => {
@@ -855,7 +865,7 @@ pub fn apply_ir(
                     style.grid_template_rows = v;
                 }
                 if let Some(v) = fields.get("areas").and_then(grid_template_areas) {
-                    style.grid_template_areas = v;
+                    style.grid_template_areas = Some(v);
                 }
             }
         }

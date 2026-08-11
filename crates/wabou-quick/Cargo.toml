@@ -28,7 +28,7 @@ rquickjs = {
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 snafu = { workspace = true }
-taffy = { version = "0.12.2", features = ["content_size", "parse"] }
+taffy = { workspace = true, features = ["content_size", "parse"] }
 tokio = { version = "1", features = ["rt-multi-thread", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

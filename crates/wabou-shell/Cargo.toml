@@ -20,7 +20,7 @@ parley = "0.10"
 pollster = "0.4"
 serde = { version = "1", features = ["derive"] }
 snafu = { workspace = true }
-taffy = { version = "0.12.2", features = ["content_size", "parse"] }
+taffy = { workspace = true, features = ["content_size", "parse"] }
 tracing = "0.1"
 unicode-segmentation = "1.12"
 url = "2.5"

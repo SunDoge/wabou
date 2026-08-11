@@ -23,7 +23,7 @@ bitflags = "2.10.0"
 bon = "3.9.3"
 snafu = "0.9.2"
 specta = { version = "1.0.5", features = ["functions"] }
-taffy = "0.12.2"
+taffy = "0.13.0"
 
 [profile.dev.package."*"]
 opt-level = 2

@@ -175,7 +175,9 @@ impl NodeFacts {
     /// [`Self::establishes_item_layout`] after cascade has set `display:flex`.
     fn is_block_level_display(&self) -> bool {
         match self.display {
-            Display::Block | Display::Grid | Display::None => self.display_explicit,
+            Display::Block | Display::FlowRoot | Display::Grid | Display::None => {
+                self.display_explicit
+            }
             // Flex on a block tag (or after CSS) is block-level participation.
             Display::Flex => self.display_explicit,
         }

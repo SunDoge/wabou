@@ -153,8 +153,10 @@ fn maps_repeated_minmax_grid_tracks() {
         "grid-template-areas",
         &areas
     ));
-    let head = layout
-        .grid_template_areas
+    let template = layout.grid_template_areas.as_ref().unwrap();
+    assert_eq!((template.row_count, template.column_count), (2, 2));
+    let head = template
+        .areas
         .iter()
         .find(|area| area.name == "head")
         .unwrap();
