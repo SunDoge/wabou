@@ -30,6 +30,9 @@ pub enum Error {
     #[snafu(display("effect trace failed: {message}"))]
     EffectTrace { message: String },
 
+    #[snafu(display("cannot determine application directories for {application}"))]
+    AppDirectories { application: String },
+
     #[snafu(display("test scenario failed: {message}"))]
     TestScenario { message: String },
 

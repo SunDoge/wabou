@@ -13,6 +13,7 @@ path = "src/lib.rs"
 arboard = { version = "3.6", default-features = false }
 bitflags = { workspace = true }
 clap = { version = "4.6.4", features = ["derive"] }
+directories = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["png"] }
 lru = "0.18.1"
 open = "5.4.0"

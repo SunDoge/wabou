@@ -497,6 +497,13 @@ impl App {
                         result: crate::EffectResult::Unit,
                     });
                 }
+                crate::EffectPayload::AppDirsResolve(directories) => {
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::AppDirectories(directories),
+                    });
+                }
                 payload @ (crate::EffectPayload::ContextMenuShow(_)
                 | crate::EffectPayload::Extension { .. }) => {
                     self.pending_extension_effects.push(crate::EffectRequest {

@@ -50,6 +50,7 @@ pub struct HostBuilder {
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
     effect_trace: Option<EffectTraceConfig>,
+    app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
 }
 
 impl Default for HostBuilder {
@@ -73,6 +74,7 @@ impl HostBuilder {
             devtools: cfg!(debug_assertions),
             extensions: Vec::new(),
             effect_trace: None,
+            app_directory_config: None,
         }
     }
 
@@ -129,6 +131,25 @@ impl HostBuilder {
 
     pub fn base_color(mut self, color: Color) -> Self {
         self.base_color = color;
+        self
+    }
+
+    /// Configure the stable identity used by app-private storage directories.
+    pub fn app_directories(
+        self,
+        qualifier: impl Into<String>,
+        organization: impl Into<String>,
+        application: impl Into<String>,
+    ) -> Self {
+        self.app_directory_config(wabou_shell::AppDirectoryConfig::new(
+            qualifier,
+            organization,
+            application,
+        ))
+    }
+
+    pub fn app_directory_config(mut self, config: wabou_shell::AppDirectoryConfig) -> Self {
+        self.app_directory_config = Some(config);
         self
     }
 
@@ -214,6 +235,18 @@ impl HostBuilder {
             None => None,
         };
         let recording_effects = matches!(self.effect_trace, Some(EffectTraceConfig::Record { .. }));
+        let app_directories = self
+            .app_directory_config
+            .as_ref()
+            .map(|config| {
+                let resource = resource_directory()?;
+                wabou_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
+                    crate::Error::AppDirectories {
+                        application: "configured application".into(),
+                    }
+                })
+            })
+            .transpose()?;
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();
@@ -276,6 +309,9 @@ impl HostBuilder {
                 self.base_color,
                 index as u64 + 1,
             );
+            if let Some(directories) = &app_directories {
+                applier.set_app_directories(directories.clone());
+            }
             if let Some(trace) = &effect_trace {
                 applier.set_effect_trace(trace.clone());
             }
@@ -331,6 +367,7 @@ impl HostBuilder {
         let base_color = self.base_color;
         let child_debug_state = debug_state.clone();
         let child_effect_trace = effect_trace.clone();
+        let child_app_directories = app_directories.clone();
         #[cfg(feature = "vite")]
         let child_vite = vite.clone();
         #[cfg(feature = "vite")]
@@ -360,6 +397,9 @@ impl HostBuilder {
                 base_color,
                 window_id,
             );
+            if let Some(directories) = &child_app_directories {
+                applier.set_app_directories(directories.clone());
+            }
             if let Some(trace) = &child_effect_trace {
                 applier.set_effect_trace(trace.clone());
             }
@@ -546,6 +586,11 @@ fn bundle_path() -> crate::Result<PathBuf> {
         .into_iter()
         .find(|path| path.is_file())
         .unwrap_or_else(|| resource_bundle_path(&executable)))
+}
+
+fn resource_directory() -> crate::Result<PathBuf> {
+    let bundle = bundle_path()?;
+    Ok(bundle.parent().unwrap_or_else(|| Path::new(".")).to_owned())
 }
 
 fn resource_bundle_path(executable: &Path) -> PathBuf {

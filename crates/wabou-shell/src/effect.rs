@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
+use crate::AppDirectories;
 use crate::{WindowCommand, WindowOptions};
 
 pub const EFFECT_ABI_VERSION: u16 = 1;
@@ -58,6 +59,7 @@ pub mod builtin {
     pub const WINDOW_SET_MAXIMIZED: EffectOp = EffectOp::new(2, 3);
     pub const WINDOW_SET_TITLE: EffectOp = EffectOp::new(2, 4);
     pub const CONTEXT_MENU_SHOW: EffectOp = EffectOp::new(3, 1);
+    pub const APP_DIRS_RESOLVE: EffectOp = EffectOp::new(4, 1);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,6 +195,7 @@ pub enum EffectPayload {
         command: WindowCommand,
     },
     ContextMenuShow(ContextMenuRequest),
+    AppDirsResolve(AppDirectories),
     Extension {
         op: EffectOp,
         bytes: Vec<u8>,
@@ -222,6 +225,7 @@ impl EffectPayload {
                 ..
             } => builtin::WINDOW_SET_TITLE,
             Self::ContextMenuShow(_) => builtin::CONTEXT_MENU_SHOW,
+            Self::AppDirsResolve(_) => builtin::APP_DIRS_RESOLVE,
             Self::Extension { op, .. } | Self::Invalid { op, .. } => *op,
         }
     }
@@ -250,6 +254,7 @@ pub enum EffectResult {
     Unit,
     ClipboardText(Option<String>),
     ContextMenuSelection(Option<String>),
+    AppDirectories(AppDirectories),
     Cancelled,
     Error {
         code: EffectErrorCode,
@@ -381,6 +386,7 @@ mod tests {
     fn builtin_operation_ids_are_stable() {
         assert_eq!(builtin::CLIPBOARD_READ, EffectOp::new(1, 1));
         assert_eq!(builtin::CONTEXT_MENU_SHOW, EffectOp::new(3, 1));
+        assert_eq!(builtin::APP_DIRS_RESOLVE, EffectOp::new(4, 1));
     }
 
     #[test]

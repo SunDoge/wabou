@@ -7,6 +7,7 @@
 
 pub use wabou_accessibility as accessibility;
 pub mod app;
+pub mod app_dirs;
 pub mod effect;
 pub mod error;
 pub mod layout;
@@ -27,6 +28,7 @@ pub use app::{
     run_window_with_size, run_windows, run_windows_with_factory,
     run_windows_with_factory_and_extensions,
 };
+pub use app_dirs::{AppDirectories, AppDirectoryConfig};
 pub use effect::{
     CapabilityDescriptor, CapabilityId, CapabilityRegistry, CapabilityRegistryError,
     ContextMenuItem, ContextMenuRequest, EFFECT_ABI_VERSION, EffectCompletion, EffectDispatch,

@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn app_directory_effect_uses_host_configuration_only() {
+    let directories = wabou_shell::AppDirectories::resolve(
+        &wabou_shell::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),
+        "/app/resources",
+    )
+    .unwrap();
+    let configured = decode_effect_payload(
+        wabou_shell::effect::builtin::APP_DIRS_RESOLVE,
+        1,
+        1,
+        "null".into(),
+        Some(&directories),
+    );
+    assert_eq!(
+        configured,
+        wabou_shell::EffectPayload::AppDirsResolve(directories)
+    );
+
+    assert!(matches!(
+        decode_effect_payload(
+            wabou_shell::effect::builtin::APP_DIRS_RESOLVE,
+            2,
+            1,
+            r#"{"application":"other"}"#.into(),
+            None,
+        ),
+        wabou_shell::EffectPayload::Invalid { .. }
+    ));
+}
+
+#[test]
 fn key_payload_keeps_physical_modifiers_separate_from_primary() {
     let platform_primary = if cfg!(target_os = "macos") {
         Modifiers::META

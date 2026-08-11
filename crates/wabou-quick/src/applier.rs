@@ -471,6 +471,7 @@ pub struct Applier {
     pending_js_effects: Rc<RefCell<HashSet<u64>>>,
     effect_trace: Rc<RefCell<Option<crate::effect_trace::EffectTrace>>>,
     replay_completions: Rc<RefCell<VecDeque<wabou_shell::EffectCompletion>>>,
+    app_directories: Rc<RefCell<Option<wabou_shell::AppDirectories>>>,
     host_action_wake: Rc<RefCell<Option<WakeCallback>>>,
     wake_callback: Option<WakeCallback>,
     scroll_offsets: HashMap<NodeId, [f32; 2]>,
@@ -497,6 +498,7 @@ fn decode_effect_payload(
     id: u64,
     window_id: u64,
     payload_json: String,
+    app_directories: Option<&wabou_shell::AppDirectories>,
 ) -> wabou_shell::EffectPayload {
     let invalid = |message: String| wabou_shell::EffectPayload::Invalid { op, message };
     match op {
@@ -579,6 +581,10 @@ fn decode_effect_payload(
                 .map(wabou_shell::EffectPayload::ContextMenuShow)
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
+        wabou_shell::effect::builtin::APP_DIRS_RESOLVE => app_directories
+            .cloned()
+            .map(wabou_shell::EffectPayload::AppDirsResolve)
+            .unwrap_or_else(|| invalid("application directories are not configured".into())),
         _ => wabou_shell::EffectPayload::Extension {
             op,
             bytes: payload_json.into_bytes(),
@@ -586,19 +592,19 @@ fn decode_effect_payload(
     }
 }
 
-fn install_effect_functions(
-    js: &JsRuntime,
-    window_id: u64,
+#[derive(Clone)]
+struct EffectBridgeState {
     effects: Rc<RefCell<VecDeque<wabou_shell::EffectRequest>>>,
     action_wake: Rc<RefCell<Option<WakeCallback>>>,
     pending: Rc<RefCell<HashSet<u64>>>,
     trace: Rc<RefCell<Option<crate::effect_trace::EffectTrace>>>,
     replay_completions: Rc<RefCell<VecDeque<wabou_shell::EffectCompletion>>>,
-) {
+    app_directories: Rc<RefCell<Option<wabou_shell::AppDirectories>>>,
+}
+
+fn install_effect_functions(js: &JsRuntime, window_id: u64, state: EffectBridgeState) {
     js.with(|ctx| -> rquickjs::Result<()> {
-        let submit_effects = effects.clone();
-        let submit_wake = action_wake.clone();
-        let submit_pending = pending.clone();
+        let submit_state = state.clone();
         ctx.globals().set(
             "__wabou_effect_submit",
             rquickjs::Function::new(
@@ -606,8 +612,14 @@ fn install_effect_functions(
                 move |capability: u32, method: u16, payload_json: String| -> u64 {
                     let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
                     let op = wabou_shell::EffectOp::new(capability, method);
-                    let payload = decode_effect_payload(op, id, window_id, payload_json);
-                    submit_pending.borrow_mut().insert(id);
+                    let payload = decode_effect_payload(
+                        op,
+                        id,
+                        window_id,
+                        payload_json,
+                        submit_state.app_directories.borrow().as_ref(),
+                    );
+                    submit_state.pending.borrow_mut().insert(id);
                     let request = wabou_shell::EffectRequest {
                         id: wabou_shell::EffectId(id),
                         scope: wabou_shell::EffectScope::Window(window_id),
@@ -620,16 +632,23 @@ fn install_effect_functions(
                         method,
                         "native_effect.submit"
                     );
-                    let submission = trace.borrow().as_ref().map(|trace| trace.submit(&request));
+                    let submission = submit_state
+                        .trace
+                        .borrow()
+                        .as_ref()
+                        .map(|trace| trace.submit(&request));
                     match submission {
                         Some(crate::effect_trace::TraceSubmission::Replay(completions)) => {
-                            replay_completions.borrow_mut().extend(completions);
+                            submit_state
+                                .replay_completions
+                                .borrow_mut()
+                                .extend(completions);
                         }
                         Some(crate::effect_trace::TraceSubmission::Live) | None => {
-                            submit_effects.borrow_mut().push_back(request);
+                            submit_state.effects.borrow_mut().push_back(request);
                         }
                     }
-                    if let Some(wake) = submit_wake.borrow().as_ref() {
+                    if let Some(wake) = submit_state.action_wake.borrow().as_ref() {
                         wake();
                     }
                     id
@@ -661,6 +680,10 @@ fn complete_js_effect(js: &JsRuntime, completion: &wabou_shell::EffectCompletion
         wabou_shell::EffectResult::ContextMenuSelection(selection) => (
             0,
             serde_json::to_string(selection).unwrap_or_else(|_| "null".into()),
+        ),
+        wabou_shell::EffectResult::AppDirectories(directories) => (
+            0,
+            serde_json::to_string(directories).unwrap_or_else(|_| "null".into()),
         ),
         wabou_shell::EffectResult::Cancelled => (1, "null".to_owned()),
         wabou_shell::EffectResult::Error { code, message } => (
@@ -733,14 +756,18 @@ impl Applier {
         let pending_effects = Rc::new(RefCell::new(VecDeque::new()));
         let effect_trace = Rc::new(RefCell::new(None));
         let replay_completions = Rc::new(RefCell::new(VecDeque::new()));
+        let app_directories = Rc::new(RefCell::new(None));
         install_effect_functions(
             &js,
             window_id,
-            pending_effects.clone(),
-            host_action_wake.clone(),
-            pending_js_effects.clone(),
-            effect_trace.clone(),
-            replay_completions.clone(),
+            EffectBridgeState {
+                effects: pending_effects.clone(),
+                action_wake: host_action_wake.clone(),
+                pending: pending_js_effects.clone(),
+                trace: effect_trace.clone(),
+                replay_completions: replay_completions.clone(),
+                app_directories: app_directories.clone(),
+            },
         );
         Self {
             js,
@@ -799,6 +826,7 @@ impl Applier {
             pending_js_effects,
             effect_trace,
             replay_completions,
+            app_directories,
             host_action_wake,
             wake_callback: None,
             scroll_offsets: HashMap::new(),
@@ -830,6 +858,10 @@ impl Applier {
 
     pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
         *self.effect_trace.borrow_mut() = Some(trace);
+    }
+
+    pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
+        *self.app_directories.borrow_mut() = Some(directories);
     }
 
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {

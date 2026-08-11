@@ -13,6 +13,7 @@ export const effectOps = Object.freeze({
   windowSetMaximized: { capability: 2, method: 3 },
   windowSetTitle: { capability: 2, method: 4 },
   contextMenuShow: { capability: 3, method: 1 },
+  appDirsResolve: { capability: 4, method: 1 },
 } satisfies Record<string, EffectOp>);
 
 interface PendingEffect {

@@ -25,6 +25,7 @@ import "./glue/host-frame";
 import "./glue/window-metrics";
 import "./glue/effects";
 import "./glue/clipboard";
+import "./glue/app-dirs";
 
 // The renderer and typed style surface are re-exported here so application
 // code has one stable runtime entry point. Their package names remain an
@@ -57,6 +58,18 @@ export {
 } from "./glue/window";
 
 export { clipboard, type Clipboard, useClipboard } from "./glue/clipboard";
+export {
+  appCacheDir,
+  appConfigDir,
+  appDataDir,
+  appDirs,
+  appLocalDataDir,
+  appLogDir,
+  type AppDirectories,
+  resourceDir,
+  resolveAppDirectories,
+  tempDir,
+} from "./glue/app-dirs";
 export {
   showNativeMenu,
   type NativeMenuItem,
