@@ -18,7 +18,7 @@ use wabou_shell::style::TextAlign;
 #[cfg(test)]
 use wabou_shell::text::TextContext;
 use wabou_shell::text::{brush_for_color, layout_text_styled};
-use wabou_shell::{ImeEvent, KeyPhase, PointerPhase, UiEvent};
+use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
 
 use wabou_shell::{PaintContext, Widget, WidgetEventResult, WidgetStyle};
 
@@ -170,6 +170,158 @@ impl TextInput {
             }
         }
         self.clamp_scroll();
+    }
+
+    fn handle_pointer(&mut self, event: &PointerEvent) -> WidgetEventResult {
+        match event.phase {
+            PointerPhase::Down if event.button == Some(wabou_shell::PointerButton::Primary) => {
+                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                if event.modifiers.shift() {
+                    self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
+                } else {
+                    let now = Instant::now();
+                    let clicks = self.last_click.map_or(1, |(time, x, y, count)| {
+                        if now.duration_since(time) <= Duration::from_millis(400)
+                            && (local_x - x).abs() <= 4.0
+                            && (local_y - y).abs() <= 4.0
+                        {
+                            count % 3 + 1
+                        } else {
+                            1
+                        }
+                    });
+                    self.last_click = Some((now, local_x, local_y, clicks));
+                    self.queue(match clicks {
+                        2 => PendingEdit::SelectWordAtPoint(local_x, local_y),
+                        3 => PendingEdit::SelectLineAtPoint(local_x, local_y),
+                        _ => PendingEdit::MoveToPoint(local_x, local_y),
+                    });
+                }
+                self.selecting = true;
+                WidgetEventResult::HANDLED
+            }
+            PointerPhase::Move if self.selecting => {
+                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
+                WidgetEventResult::HANDLED
+            }
+            PointerPhase::Up if self.selecting => {
+                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
+                self.selecting = false;
+                WidgetEventResult::HANDLED
+            }
+            PointerPhase::Cancel if self.selecting => {
+                self.selecting = false;
+                WidgetEventResult::HANDLED
+            }
+            _ => WidgetEventResult::IGNORED,
+        }
+    }
+
+    fn horizontal_edit(right: bool, extend: bool, by_word: bool) -> PendingEdit {
+        match (right, extend, by_word) {
+            (false, false, false) => PendingEdit::MoveLeft,
+            (false, false, true) => PendingEdit::MoveWordLeft,
+            (false, true, false) => PendingEdit::SelectLeft,
+            (false, true, true) => PendingEdit::SelectWordLeft,
+            (true, false, false) => PendingEdit::MoveRight,
+            (true, false, true) => PendingEdit::MoveWordRight,
+            (true, true, false) => PendingEdit::SelectRight,
+            (true, true, true) => PendingEdit::SelectWordRight,
+        }
+    }
+
+    fn handle_key(&mut self, event: &KeyEvent) -> WidgetEventResult {
+        match event.key.as_str() {
+            _ if event.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy) => self
+                .editor
+                .selected_text()
+                .map(str::to_owned)
+                .map_or(WidgetEventResult::IGNORED, WidgetEventResult::copy),
+            _ if event.matches_standard_shortcut(wabou_shell::StandardShortcut::Cut) => {
+                if self.editable()
+                    && let Some(text) = self.editor.selected_text().map(str::to_owned)
+                {
+                    self.queue(PendingEdit::Delete);
+                    WidgetEventResult::copy_with_value_change(text)
+                } else {
+                    WidgetEventResult::IGNORED
+                }
+            }
+            _ if event.matches_standard_shortcut(wabou_shell::StandardShortcut::Paste) => {
+                if self.editable() {
+                    WidgetEventResult::paste()
+                } else {
+                    WidgetEventResult::IGNORED
+                }
+            }
+            "Backspace" if self.editable() => {
+                self.queue(PendingEdit::Delete);
+                WidgetEventResult::VALUE_CHANGED
+            }
+            "Delete" if self.editable() => {
+                self.queue(PendingEdit::DeleteForward);
+                WidgetEventResult::VALUE_CHANGED
+            }
+            "ArrowLeft" => {
+                self.queue(Self::horizontal_edit(
+                    false,
+                    event.modifiers.shift(),
+                    event.modifiers.control() || event.modifiers.alt(),
+                ));
+                WidgetEventResult::HANDLED
+            }
+            "ArrowRight" => {
+                self.queue(Self::horizontal_edit(
+                    true,
+                    event.modifiers.shift(),
+                    event.modifiers.control() || event.modifiers.alt(),
+                ));
+                WidgetEventResult::HANDLED
+            }
+            "ArrowUp" if self.multiline => {
+                self.queue(if event.modifiers.shift() {
+                    PendingEdit::SelectUp
+                } else {
+                    PendingEdit::MoveUp
+                });
+                WidgetEventResult::HANDLED
+            }
+            "ArrowDown" if self.multiline => {
+                self.queue(if event.modifiers.shift() {
+                    PendingEdit::SelectDown
+                } else {
+                    PendingEdit::MoveDown
+                });
+                WidgetEventResult::HANDLED
+            }
+            "Enter" if self.multiline && self.editable() => {
+                self.queue(PendingEdit::Insert("\n".into()));
+                WidgetEventResult::value_changed_consuming_key_text()
+            }
+            "Home" => {
+                self.queue(if event.modifiers.shift() {
+                    PendingEdit::SelectToStart
+                } else {
+                    PendingEdit::MoveToStart
+                });
+                WidgetEventResult::HANDLED
+            }
+            "End" => {
+                self.queue(if event.modifiers.shift() {
+                    PendingEdit::SelectToEnd
+                } else {
+                    PendingEdit::MoveToEnd
+                });
+                WidgetEventResult::HANDLED
+            }
+            _ if event.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll) => {
+                self.queue(PendingEdit::SelectAll);
+                WidgetEventResult::HANDLED
+            }
+            _ => WidgetEventResult::IGNORED,
+        }
     }
 }
 
@@ -396,51 +548,7 @@ impl Widget for TextInput {
             return WidgetEventResult::IGNORED;
         }
         match event {
-            UiEvent::Pointer(e)
-                if e.phase == PointerPhase::Down
-                    && e.button == Some(wabou_shell::PointerButton::Primary) =>
-            {
-                // Convert absolute pointer to local content-box coords.
-                let (local_x, local_y) = self.local_point(e.position.x, e.position.y);
-                if e.modifiers.shift() {
-                    self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
-                } else {
-                    let now = Instant::now();
-                    let clicks = self.last_click.map_or(1, |(time, x, y, count)| {
-                        if now.duration_since(time) <= Duration::from_millis(400)
-                            && (local_x - x).abs() <= 4.0
-                            && (local_y - y).abs() <= 4.0
-                        {
-                            count % 3 + 1
-                        } else {
-                            1
-                        }
-                    });
-                    self.last_click = Some((now, local_x, local_y, clicks));
-                    self.queue(match clicks {
-                        2 => PendingEdit::SelectWordAtPoint(local_x, local_y),
-                        3 => PendingEdit::SelectLineAtPoint(local_x, local_y),
-                        _ => PendingEdit::MoveToPoint(local_x, local_y),
-                    });
-                }
-                self.selecting = true;
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(e) if e.phase == PointerPhase::Move && self.selecting => {
-                let (local_x, local_y) = self.local_point(e.position.x, e.position.y);
-                self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(e) if e.phase == PointerPhase::Up && self.selecting => {
-                let (local_x, local_y) = self.local_point(e.position.x, e.position.y);
-                self.queue(PendingEdit::ExtendToPoint(local_x, local_y));
-                self.selecting = false;
-                WidgetEventResult::HANDLED
-            }
-            UiEvent::Pointer(e) if e.phase == PointerPhase::Cancel && self.selecting => {
-                self.selecting = false;
-                WidgetEventResult::HANDLED
-            }
+            UiEvent::Pointer(event) => self.handle_pointer(event),
             UiEvent::Wheel(event) if self.multiline => {
                 let previous = self.scroll_y;
                 self.scroll_y += event.delta_y as f32;
@@ -498,107 +606,7 @@ impl Widget for TextInput {
                 WidgetEventResult::HANDLED
             }
             UiEvent::Ime(ImeEvent::Enabled) => WidgetEventResult::HANDLED,
-            UiEvent::Key(e) if e.phase == KeyPhase::Down => match e.key.as_str() {
-                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy) => self
-                    .editor
-                    .selected_text()
-                    .map(str::to_owned)
-                    .map_or(WidgetEventResult::IGNORED, WidgetEventResult::copy),
-                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Cut) => {
-                    if self.editable()
-                        && let Some(text) = self.editor.selected_text().map(str::to_owned)
-                    {
-                        self.queue(PendingEdit::Delete);
-                        WidgetEventResult::copy_with_value_change(text)
-                    } else {
-                        WidgetEventResult::IGNORED
-                    }
-                }
-                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::Paste) => {
-                    if self.editable() {
-                        WidgetEventResult::paste()
-                    } else {
-                        WidgetEventResult::IGNORED
-                    }
-                }
-                "Backspace" if self.editable() => {
-                    self.queue(PendingEdit::Delete);
-                    WidgetEventResult::VALUE_CHANGED
-                }
-                "Delete" if self.editable() => {
-                    self.queue(PendingEdit::DeleteForward);
-                    WidgetEventResult::VALUE_CHANGED
-                }
-                "ArrowLeft" => {
-                    self.queue(
-                        match (
-                            e.modifiers.shift(),
-                            e.modifiers.control() || e.modifiers.alt(),
-                        ) {
-                            (true, true) => PendingEdit::SelectWordLeft,
-                            (true, false) => PendingEdit::SelectLeft,
-                            (false, true) => PendingEdit::MoveWordLeft,
-                            (false, false) => PendingEdit::MoveLeft,
-                        },
-                    );
-                    WidgetEventResult::HANDLED
-                }
-                "ArrowRight" => {
-                    self.queue(
-                        match (
-                            e.modifiers.shift(),
-                            e.modifiers.control() || e.modifiers.alt(),
-                        ) {
-                            (true, true) => PendingEdit::SelectWordRight,
-                            (true, false) => PendingEdit::SelectRight,
-                            (false, true) => PendingEdit::MoveWordRight,
-                            (false, false) => PendingEdit::MoveRight,
-                        },
-                    );
-                    WidgetEventResult::HANDLED
-                }
-                "ArrowUp" if self.multiline => {
-                    self.queue(if e.modifiers.shift() {
-                        PendingEdit::SelectUp
-                    } else {
-                        PendingEdit::MoveUp
-                    });
-                    WidgetEventResult::HANDLED
-                }
-                "ArrowDown" if self.multiline => {
-                    self.queue(if e.modifiers.shift() {
-                        PendingEdit::SelectDown
-                    } else {
-                        PendingEdit::MoveDown
-                    });
-                    WidgetEventResult::HANDLED
-                }
-                "Enter" if self.multiline && self.editable() => {
-                    self.queue(PendingEdit::Insert("\n".into()));
-                    WidgetEventResult::value_changed_consuming_key_text()
-                }
-                "Home" => {
-                    self.queue(if e.modifiers.shift() {
-                        PendingEdit::SelectToStart
-                    } else {
-                        PendingEdit::MoveToStart
-                    });
-                    WidgetEventResult::HANDLED
-                }
-                "End" => {
-                    self.queue(if e.modifiers.shift() {
-                        PendingEdit::SelectToEnd
-                    } else {
-                        PendingEdit::MoveToEnd
-                    });
-                    WidgetEventResult::HANDLED
-                }
-                _ if e.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll) => {
-                    self.queue(PendingEdit::SelectAll);
-                    WidgetEventResult::HANDLED
-                }
-                _ => WidgetEventResult::IGNORED,
-            },
+            UiEvent::Key(event) if event.phase == KeyPhase::Down => self.handle_key(event),
             _ => WidgetEventResult::IGNORED,
         }
     }
