@@ -1,5 +1,69 @@
 use super::*;
 
+fn debug_rect([x0, y0, x1, y1]: [f32; 4]) -> wabou_devtools::Rect {
+    wabou_devtools::Rect {
+        x: x0,
+        y: y0,
+        width: (x1 - x0).max(0.0),
+        height: (y1 - y0).max(0.0),
+    }
+}
+
+fn intersect_rect(left: [f32; 4], right: [f32; 4]) -> [f32; 4] {
+    [
+        left[0].max(right[0]),
+        left[1].max(right[1]),
+        left[2].min(right[2]),
+        left[3].min(right[3]),
+    ]
+}
+
+fn debug_attrs(declared: Option<&Declared>, atoms: &AtomPool) -> Vec<(String, String)> {
+    let mut attrs: Vec<_> = declared
+        .into_iter()
+        .flat_map(|declared| declared.attrs.iter())
+        .filter_map(|(name, value)| {
+            atoms.resolve(*name).map(|name| {
+                let lower = name.to_ascii_lowercase();
+                let value = if ["password", "token", "secret", "authorization"]
+                    .iter()
+                    .any(|needle| lower.contains(needle))
+                {
+                    "[REDACTED]".to_owned()
+                } else {
+                    value.chars().take(4096).collect()
+                };
+                (name.to_owned(), value)
+            })
+        })
+        .collect();
+    attrs.sort_by(|left, right| left.0.cmp(&right.0));
+    attrs
+}
+
+fn debug_classes(declared: Option<&Declared>, atoms: &AtomPool) -> Vec<String> {
+    declared
+        .into_iter()
+        .flat_map(|declared| declared.classes.iter())
+        .filter_map(|class| atoms.resolve(*class).map(str::to_owned))
+        .collect()
+}
+
+fn resolved_css_transforms(placed: &[PlacedNode]) -> HashMap<NodeId, Affine> {
+    let mut transforms = HashMap::with_capacity(placed.len());
+    for node in placed {
+        let parent = node
+            .parent_node_id
+            .and_then(|parent| transforms.get(&parent).copied())
+            .unwrap_or(Affine::IDENTITY);
+        transforms.insert(
+            node.node_id,
+            wabou_shell::scene::resolve_node_transform(node, parent),
+        );
+    }
+    transforms
+}
+
 impl Applier {
     pub(super) fn publish_layout_metrics(&self, placed: &[PlacedNode], width: u32, height: u32) {
         let viewport = LayoutRect {
@@ -33,6 +97,152 @@ impl Applier {
         }
     }
 
+    fn debug_clip_info(
+        &self,
+        placed_node: &PlacedNode,
+        id: u32,
+        placed_by_id: &HashMap<NodeId, &PlacedNode>,
+        css_transforms: &HashMap<NodeId, Affine>,
+    ) -> wabou_devtools::DebugClipInfo {
+        let [cx, cy] = placed_node.content_origin;
+        let [cw, ch] = placed_node.content_size;
+        let border_transform = css_transforms[&placed_node.node_id];
+        let content_transform = border_transform * Affine::translate((cx as f64, cy as f64));
+        let (static_transform, _) = wabou_shell::scene::resolve_local_transforms(placed_node);
+        let mut chain = Vec::new();
+        let mut ancestor_id = placed_node.parent_node_id;
+        while let Some(node_id) = ancestor_id {
+            let Some(ancestor) = placed_by_id.get(&node_id).copied() else {
+                break;
+            };
+            if let Some(rect) = ancestor.own_clip {
+                chain.push(wabou_devtools::DebugClip {
+                    node_id: self
+                        .node_store
+                        .node_to_solid
+                        .get(&node_id)
+                        .copied()
+                        .unwrap_or(0),
+                    kind: "ancestor-overflow".into(),
+                    coordinate_space: "layout-window-logical".into(),
+                    rect: debug_rect(rect),
+                    radius: ancestor.own_clip_radius,
+                    transform: css_transforms[&node_id].as_coeffs(),
+                });
+            }
+            ancestor_id = ancestor.parent_node_id;
+        }
+        chain.reverse();
+        if let Some(rect) = placed_node.own_clip {
+            chain.push(wabou_devtools::DebugClip {
+                node_id: id,
+                kind: "self-overflow".into(),
+                coordinate_space: "layout-window-logical".into(),
+                rect: debug_rect(rect),
+                radius: placed_node.own_clip_radius,
+                transform: border_transform.as_coeffs(),
+            });
+        }
+        let widget_local = self
+            .widget_manager
+            .widgets
+            .contains_key(&placed_node.node_id)
+            .then(|| {
+                let border_inset = placed_node.border_widths.into_iter().fold(0.0, f32::max);
+                wabou_devtools::DebugClip {
+                    node_id: id,
+                    kind: "widget-content".into(),
+                    coordinate_space: "content-local".into(),
+                    rect: wabou_devtools::Rect {
+                        x: 0.0,
+                        y: 0.0,
+                        width: cw,
+                        height: ch,
+                    },
+                    radius: (placed_node.paint.border_radius - border_inset).max(0.0),
+                    transform: content_transform.as_coeffs(),
+                }
+            });
+        let widget_self_clip = widget_local.as_ref().and_then(|clip| {
+            if clip.radius > 0.0 {
+                Some(([cx, cy, cx + cw, cy + ch], clip.radius))
+            } else {
+                placed_node
+                    .own_clip
+                    .map(|rect| (rect, placed_node.own_clip_radius))
+            }
+        });
+        let effective_rect = match (placed_node.clip, widget_self_clip) {
+            (Some(inherited), Some((local, _))) => Some((intersect_rect(inherited, local), 0.0)),
+            (Some(inherited), None) => Some((inherited, placed_node.clip_radius)),
+            (None, Some(local)) => Some(local),
+            (None, None) => None,
+        };
+        let axis_aligned = chain
+            .iter()
+            .all(|clip| clip.transform == Affine::IDENTITY.as_coeffs())
+            && (widget_self_clip.is_none() || border_transform == Affine::IDENTITY);
+        let effective = axis_aligned
+            .then_some(effective_rect)
+            .flatten()
+            .map(|(rect, radius)| wabou_devtools::DebugClip {
+                node_id: id,
+                kind: "effective".into(),
+                coordinate_space: "window-logical".into(),
+                rect: debug_rect(rect),
+                radius,
+                transform: Affine::IDENTITY.as_coeffs(),
+            });
+        wabou_devtools::DebugClipInfo {
+            widget_local,
+            chain,
+            effective,
+            static_transform: static_transform.as_coeffs(),
+            runtime_transform: placed_node
+                .paint
+                .runtime_transform
+                .map(|matrix| matrix.map(f64::from)),
+            border_transform: border_transform.as_coeffs(),
+            scene_transform: content_transform.as_coeffs(),
+            device_scale: self.device_scale,
+        }
+    }
+
+    fn debug_listeners(&self, id: u32) -> Vec<u8> {
+        let mut listeners: Vec<_> = self
+            .input
+            .listeners
+            .get(&id)
+            .into_iter()
+            .flat_map(|events| events.codes())
+            .collect();
+        listeners.sort_unstable();
+        listeners
+    }
+
+    fn debug_matched_rules(&self, declared: Option<&Declared>) -> Vec<String> {
+        declared
+            .into_iter()
+            .flat_map(|declared| {
+                std::iter::once(&self.universal_rules).chain(
+                    declared
+                        .classes
+                        .iter()
+                        .filter_map(|class| self.rule_index.get(class)),
+                )
+            })
+            .flatten()
+            .filter_map(|index| self.style_ir.as_ref()?.rules.get(*index))
+            .map(|rule| {
+                if rule.class_name == "*" {
+                    "*".to_owned()
+                } else {
+                    format!(".{}", rule.class_name)
+                }
+            })
+            .collect()
+    }
+
     pub(super) fn publish_debug_snapshot(&mut self, placed: &[PlacedNode]) {
         let Some(state) = self.projections.debug_state.clone() else {
             return;
@@ -40,17 +250,7 @@ impl Applier {
         self.projections.debug_revision = self.projections.debug_revision.wrapping_add(1);
         let atoms = self.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
-        let mut css_transforms = HashMap::with_capacity(placed.len());
-        for node in placed {
-            let parent_transform = node
-                .parent_node_id
-                .and_then(|parent| css_transforms.get(&parent).copied())
-                .unwrap_or(Affine::IDENTITY);
-            css_transforms.insert(
-                node.node_id,
-                wabou_shell::scene::resolve_node_transform(node, parent_transform),
-            );
-        }
+        let css_transforms = resolved_css_transforms(placed);
         let mut nodes = Vec::with_capacity(placed.len());
         for placed_node in placed {
             let Some(&id) = self.node_store.node_to_solid.get(&placed_node.node_id) else {
@@ -62,165 +262,15 @@ impl Applier {
                 .and_then(|tag| atoms.resolve(tag))
                 .unwrap_or(if id == 1 { "#root" } else { "#text" })
                 .to_owned();
-            let mut attrs: Vec<_> = declared
-                .into_iter()
-                .flat_map(|declared| declared.attrs.iter())
-                .filter_map(|(name, value)| {
-                    atoms.resolve(*name).map(|name| {
-                        let lower = name.to_ascii_lowercase();
-                        let value = if ["password", "token", "secret", "authorization"]
-                            .iter()
-                            .any(|needle| lower.contains(needle))
-                        {
-                            "[REDACTED]".to_owned()
-                        } else {
-                            value.chars().take(4096).collect()
-                        };
-                        (name.to_owned(), value)
-                    })
-                })
-                .collect();
-            attrs.sort_by(|left, right| left.0.cmp(&right.0));
-            let mut listeners: Vec<_> = self
-                .input
-                .listeners
-                .get(&id)
-                .into_iter()
-                .flat_map(|events| events.codes())
-                .collect();
-            listeners.sort_unstable();
-            let classes = declared
-                .into_iter()
-                .flat_map(|declared| declared.classes.iter())
-                .filter_map(|class| atoms.resolve(*class).map(str::to_owned))
-                .collect();
-            let matched_rules = declared
-                .into_iter()
-                .flat_map(|declared| {
-                    std::iter::once(&self.universal_rules).chain(
-                        declared
-                            .classes
-                            .iter()
-                            .filter_map(|class| self.rule_index.get(class)),
-                    )
-                })
-                .flatten()
-                .filter_map(|index| self.style_ir.as_ref()?.rules.get(*index))
-                .map(|rule| {
-                    if rule.class_name == "*" {
-                        "*".to_owned()
-                    } else {
-                        format!(".{}", rule.class_name)
-                    }
-                })
-                .collect();
+            let attrs = debug_attrs(declared, &atoms);
+            let listeners = self.debug_listeners(id);
+            let classes = debug_classes(declared, &atoms);
+            let matched_rules = self.debug_matched_rules(declared);
             let [x0, y0, x1, y1] = placed_node.rect;
             let [cx, cy] = placed_node.content_origin;
             let [cw, ch] = placed_node.content_size;
-            let content_transform =
-                css_transforms[&placed_node.node_id] * Affine::translate((cx as f64, cy as f64));
-            let (static_transform, _) = wabou_shell::scene::resolve_local_transforms(placed_node);
             let layout = self.node_store.tree.style(placed_node.node_id).ok();
-            let debug_rect = |[x0, y0, x1, y1]: [f32; 4]| wabou_devtools::Rect {
-                x: x0,
-                y: y0,
-                width: (x1 - x0).max(0.0),
-                height: (y1 - y0).max(0.0),
-            };
-            let intersect = |left: [f32; 4], right: [f32; 4]| {
-                [
-                    left[0].max(right[0]),
-                    left[1].max(right[1]),
-                    left[2].min(right[2]),
-                    left[3].min(right[3]),
-                ]
-            };
-            let mut clip_ancestors = Vec::new();
-            let mut ancestor_id = placed_node.parent_node_id;
-            while let Some(node_id) = ancestor_id {
-                let Some(ancestor) = placed_by_id.get(&node_id).copied() else {
-                    break;
-                };
-                if let Some(rect) = ancestor.own_clip {
-                    clip_ancestors.push(wabou_devtools::DebugClip {
-                        node_id: self
-                            .node_store
-                            .node_to_solid
-                            .get(&node_id)
-                            .copied()
-                            .unwrap_or(0),
-                        kind: "ancestor-overflow".into(),
-                        coordinate_space: "layout-window-logical".into(),
-                        rect: debug_rect(rect),
-                        radius: ancestor.own_clip_radius,
-                        transform: css_transforms[&node_id].as_coeffs(),
-                    });
-                }
-                ancestor_id = ancestor.parent_node_id;
-            }
-            clip_ancestors.reverse();
-            if let Some(rect) = placed_node.own_clip {
-                clip_ancestors.push(wabou_devtools::DebugClip {
-                    node_id: id,
-                    kind: "self-overflow".into(),
-                    coordinate_space: "layout-window-logical".into(),
-                    rect: debug_rect(rect),
-                    radius: placed_node.own_clip_radius,
-                    transform: css_transforms[&placed_node.node_id].as_coeffs(),
-                });
-            }
-            let widget_local = self
-                .widget_manager
-                .widgets
-                .contains_key(&placed_node.node_id)
-                .then(|| {
-                    let border_inset = placed_node.border_widths.into_iter().fold(0.0, f32::max);
-                    wabou_devtools::DebugClip {
-                        node_id: id,
-                        kind: "widget-content".into(),
-                        coordinate_space: "content-local".into(),
-                        rect: wabou_devtools::Rect {
-                            x: 0.0,
-                            y: 0.0,
-                            width: cw,
-                            height: ch,
-                        },
-                        radius: (placed_node.paint.border_radius - border_inset).max(0.0),
-                        transform: content_transform.as_coeffs(),
-                    }
-                });
-            let widget_self_clip = widget_local.as_ref().and_then(|clip| {
-                if clip.radius > 0.0 {
-                    Some(([cx, cy, cx + cw, cy + ch], clip.radius))
-                } else {
-                    placed_node
-                        .own_clip
-                        .map(|rect| (rect, placed_node.own_clip_radius))
-                }
-            });
-            let effective_rect = match (placed_node.clip, widget_self_clip) {
-                (Some(inherited), Some((local, _))) => Some((intersect(inherited, local), 0.0)),
-                (Some(inherited), None) => Some((inherited, placed_node.clip_radius)),
-                (None, Some(local)) => Some(local),
-                (None, None) => None,
-            };
-            let axis_aligned_clips = clip_ancestors
-                .iter()
-                .all(|clip| clip.transform == Affine::IDENTITY.as_coeffs())
-                && (widget_self_clip.is_none()
-                    || css_transforms[&placed_node.node_id] == Affine::IDENTITY);
-            let effective =
-                axis_aligned_clips
-                    .then_some(effective_rect)
-                    .flatten()
-                    .map(|(rect, radius)| wabou_devtools::DebugClip {
-                        node_id: id,
-                        kind: "effective".into(),
-                        coordinate_space: "window-logical".into(),
-                        rect: debug_rect(rect),
-                        radius,
-                        transform: Affine::IDENTITY.as_coeffs(),
-                    });
+            let clip = self.debug_clip_info(placed_node, id, &placed_by_id, &css_transforms);
             nodes.push(wabou_devtools::DebugNode {
                 id,
                 parent_id: placed_node
@@ -258,19 +308,7 @@ impl Applier {
                     .widgets
                     .contains_key(&placed_node.node_id)
                     .then(|| "native".into()),
-                clip: wabou_devtools::DebugClipInfo {
-                    widget_local,
-                    chain: clip_ancestors,
-                    effective,
-                    static_transform: static_transform.as_coeffs(),
-                    runtime_transform: placed_node
-                        .paint
-                        .runtime_transform
-                        .map(|matrix| matrix.map(f64::from)),
-                    border_transform: css_transforms[&placed_node.node_id].as_coeffs(),
-                    scene_transform: content_transform.as_coeffs(),
-                    device_scale: self.device_scale,
-                },
+                clip,
                 computed: wabou_devtools::DebugComputedStyle {
                     display: layout.map(|style| format!("{:?}", style.display)),
                     position: layout.map(|style| format!("{:?}", style.position)),
