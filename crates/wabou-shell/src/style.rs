@@ -338,7 +338,87 @@ fn font_family_stack(value: &IrValue) -> Option<Arc<str>> {
     (!normalized.is_empty()).then(|| Arc::from(normalized.join(", ")))
 }
 
+fn apply_transform_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) -> Option<bool> {
+    let values = match property {
+        "transform"
+        | "transform-translate-x"
+        | "transform-translate-y"
+        | "transform-scale"
+        | "transform-rotate"
+        | "transform-component" => match value {
+            IrValue::List { values } => values,
+            _ => return Some(false),
+        },
+        _ => return None,
+    };
+    match property {
+        "transform" => {
+            paint.transform = values.iter().filter_map(PaintTransform::from_ir).collect();
+        }
+        "transform-translate-x" | "transform-translate-y" => {
+            let Some(PaintTransform::Translate(x, y)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return Some(true);
+            };
+            if let Some(PaintTransform::Translate(current_x, current_y)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Translate(_, _)))
+            {
+                if property == "transform-translate-x" {
+                    *current_x = x;
+                } else {
+                    *current_y = y;
+                }
+            } else {
+                paint.transform.push(PaintTransform::Translate(x, y));
+            }
+        }
+        "transform-scale" => {
+            let Some(component @ PaintTransform::Scale(_, _)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return Some(true);
+            };
+            if let Some(current @ PaintTransform::Scale(_, _)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Scale(_, _)))
+            {
+                *current = component;
+            } else {
+                paint.transform.push(component);
+            }
+        }
+        "transform-rotate" => {
+            let Some(component @ PaintTransform::Rotate(_)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return Some(true);
+            };
+            if let Some(current @ PaintTransform::Rotate(_)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Rotate(_)))
+            {
+                *current = component;
+            } else {
+                paint.transform.push(component);
+            }
+        }
+        "transform-component" => paint
+            .transform
+            .extend(values.iter().filter_map(PaintTransform::from_ir)),
+        _ => unreachable!("transform properties were filtered above"),
+    }
+    Some(true)
+}
+
 fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) -> Option<bool> {
+    if let Some(applied) = apply_transform_ir(paint, property, value) {
+        return Some(applied);
+    }
     match property {
         "border-radius" => {
             if let Some(IrLength::Px { value }) = value.length() {
@@ -395,81 +475,6 @@ fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) ->
             };
         }
         "pointer-events" => paint.pointer_events = value.keyword() != Some("none"),
-        "transform" => {
-            let IrValue::List { values } = value else {
-                return Some(false);
-            };
-            paint.transform = values.iter().filter_map(PaintTransform::from_ir).collect();
-        }
-        "transform-translate-x" | "transform-translate-y" => {
-            let IrValue::List { values } = value else {
-                return Some(false);
-            };
-            let Some(PaintTransform::Translate(x, y)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return Some(true);
-            };
-            if let Some(PaintTransform::Translate(current_x, current_y)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Translate(_, _)))
-            {
-                if property == "transform-translate-x" {
-                    *current_x = x;
-                } else {
-                    *current_y = y;
-                }
-            } else {
-                paint.transform.push(PaintTransform::Translate(x, y));
-            }
-        }
-        "transform-scale" => {
-            let IrValue::List { values } = value else {
-                return Some(false);
-            };
-            let Some(component @ PaintTransform::Scale(_, _)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return Some(true);
-            };
-            if let Some(current @ PaintTransform::Scale(_, _)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Scale(_, _)))
-            {
-                *current = component;
-            } else {
-                paint.transform.push(component);
-            }
-        }
-        "transform-rotate" => {
-            let IrValue::List { values } = value else {
-                return Some(false);
-            };
-            let Some(component @ PaintTransform::Rotate(_)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return Some(true);
-            };
-            if let Some(current @ PaintTransform::Rotate(_)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Rotate(_)))
-            {
-                *current = component;
-            } else {
-                paint.transform.push(component);
-            }
-        }
-        "transform-component" => {
-            let IrValue::List { values } = value else {
-                return Some(false);
-            };
-            paint
-                .transform
-                .extend(values.iter().filter_map(PaintTransform::from_ir));
-        }
         "box-shadow" => {
             if let IrValue::List { values } = value {
                 paint.shadows = values.iter().filter_map(Shadow::from_ir).collect();
@@ -490,6 +495,261 @@ fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) ->
             }
             _ => {}
         },
+        _ => return None,
+    }
+    Some(true)
+}
+
+fn apply_sizing_ir(style: &mut taffy::Style, property: &str, value: &IrValue) -> Option<bool> {
+    match property {
+        "width" => style.size.width = ir_dim(value).unwrap_or(style.size.width),
+        "height" => style.size.height = ir_dim(value).unwrap_or(style.size.height),
+        "min-width" => style.min_size.width = ir_dim(value).unwrap_or(style.min_size.width),
+        "min-height" => style.min_size.height = ir_dim(value).unwrap_or(style.min_size.height),
+        "max-width" => style.max_size.width = ir_dim(value).unwrap_or(style.max_size.width),
+        "max-height" => style.max_size.height = ir_dim(value).unwrap_or(style.max_size.height),
+        "aspect-ratio" => style.aspect_ratio = value.number().or(style.aspect_ratio),
+        "position" => {
+            // Taffy has no distinct static/fixed/sticky positioning model.
+            style.position = if value.keyword() == Some("absolute") {
+                taffy::Position::Absolute
+            } else {
+                taffy::Position::Relative
+            };
+        }
+        "top" => {
+            if let Some(inset) = ir_lpa(value) {
+                style.inset.top = inset;
+            }
+        }
+        "right" => {
+            if let Some(inset) = ir_lpa(value) {
+                style.inset.right = inset;
+            }
+        }
+        "bottom" => {
+            if let Some(inset) = ir_lpa(value) {
+                style.inset.bottom = inset;
+            }
+        }
+        "left" => {
+            if let Some(inset) = ir_lpa(value) {
+                style.inset.left = inset;
+            }
+        }
+        "box-sizing" => {
+            style.box_sizing = if value.keyword() == Some("content-box") {
+                taffy::BoxSizing::ContentBox
+            } else {
+                taffy::BoxSizing::BorderBox
+            };
+        }
+        _ => return None,
+    }
+    Some(true)
+}
+
+fn apply_gap_padding_ir(style: &mut taffy::Style, property: &str, value: &IrValue) -> Option<bool> {
+    match property {
+        "gap" => {
+            if let IrValue::Record { fields } = value {
+                if let Some(column) = fields.get("column").and_then(ir_lp) {
+                    style.gap.width = column;
+                }
+                if let Some(row) = fields.get("row").and_then(ir_lp) {
+                    style.gap.height = row;
+                }
+            } else if let Some(gap) = ir_lp(value) {
+                style.gap.width = gap;
+                style.gap.height = gap;
+            }
+        }
+        "row-gap" | "gap-y" => {
+            if let Some(gap) = ir_lp(value) {
+                style.gap.height = gap;
+            }
+        }
+        "column-gap" | "gap-x" => {
+            if let Some(gap) = ir_lp(value) {
+                style.gap.width = gap;
+            }
+        }
+        "padding-top" => {
+            if let Some(padding) = ir_lp(value) {
+                style.padding.top = padding;
+            }
+        }
+        "padding-right" => {
+            if let Some(padding) = ir_lp(value) {
+                style.padding.right = padding;
+            }
+        }
+        "padding-bottom" => {
+            if let Some(padding) = ir_lp(value) {
+                style.padding.bottom = padding;
+            }
+        }
+        "padding-left" => {
+            if let Some(padding) = ir_lp(value) {
+                style.padding.left = padding;
+            }
+        }
+        "padding" => {
+            if let IrValue::Record { fields } = value {
+                if let Some(padding) = fields.get("top").and_then(ir_lp) {
+                    style.padding.top = padding;
+                }
+                if let Some(padding) = fields.get("right").and_then(ir_lp) {
+                    style.padding.right = padding;
+                }
+                if let Some(padding) = fields.get("bottom").and_then(ir_lp) {
+                    style.padding.bottom = padding;
+                }
+                if let Some(padding) = fields.get("left").and_then(ir_lp) {
+                    style.padding.left = padding;
+                }
+            } else if let Some(padding) = ir_lp(value) {
+                style.padding = taffy::Rect {
+                    top: padding,
+                    right: padding,
+                    bottom: padding,
+                    left: padding,
+                };
+            }
+        }
+        _ => return None,
+    }
+    Some(true)
+}
+
+fn apply_margin_ir(style: &mut taffy::Style, property: &str, value: &IrValue) -> Option<bool> {
+    match property {
+        "margin-top" => {
+            if let Some(margin) = ir_lpa(value) {
+                style.margin.top = margin;
+            }
+        }
+        "margin-right" | "margin-inline-end" => {
+            if let Some(margin) = ir_lpa(value) {
+                style.margin.right = margin;
+            }
+        }
+        "margin-bottom" => {
+            if let Some(margin) = ir_lpa(value) {
+                style.margin.bottom = margin;
+            }
+        }
+        "margin-left" | "margin-inline-start" => {
+            if let Some(margin) = ir_lpa(value) {
+                style.margin.left = margin;
+            }
+        }
+        "margin" => {
+            if let IrValue::Record { fields } = value {
+                if let Some(margin) = fields.get("top").and_then(ir_lpa) {
+                    style.margin.top = margin;
+                }
+                if let Some(margin) = fields.get("right").and_then(ir_lpa) {
+                    style.margin.right = margin;
+                }
+                if let Some(margin) = fields.get("bottom").and_then(ir_lpa) {
+                    style.margin.bottom = margin;
+                }
+                if let Some(margin) = fields.get("left").and_then(ir_lpa) {
+                    style.margin.left = margin;
+                }
+            } else if let Some(margin) = ir_lpa(value) {
+                style.margin = taffy::Rect {
+                    top: margin,
+                    right: margin,
+                    bottom: margin,
+                    left: margin,
+                };
+            }
+        }
+        _ => return None,
+    }
+    Some(true)
+}
+
+fn apply_overflow_border_ir(
+    style: &mut taffy::Style,
+    paint: &mut DeclaredPaint,
+    property: &str,
+    value: &IrValue,
+) -> Option<bool> {
+    match property {
+        "overflow" => {
+            if let IrValue::Record { fields } = value {
+                if let Some(overflow) = fields.get("x").and_then(ir_overflow) {
+                    style.overflow.x = overflow;
+                }
+                if let Some(overflow) = fields.get("y").and_then(ir_overflow) {
+                    style.overflow.y = overflow;
+                }
+            } else if let Some(overflow) = ir_overflow(value) {
+                style.overflow.x = overflow;
+                style.overflow.y = overflow;
+            }
+        }
+        "overflow-x" => {
+            if let Some(overflow) = ir_overflow(value) {
+                style.overflow.x = overflow;
+            }
+        }
+        "overflow-y" => {
+            if let Some(overflow) = ir_overflow(value) {
+                style.overflow.y = overflow;
+            }
+        }
+        "border-width" => {
+            if let IrValue::Record { fields } = value {
+                let mut max_width = 0.0f32;
+                for (side, target) in [
+                    ("top", &mut style.border.top),
+                    ("right", &mut style.border.right),
+                    ("bottom", &mut style.border.bottom),
+                    ("left", &mut style.border.left),
+                ] {
+                    if let Some(IrLength::Px { value }) = fields.get(side).and_then(IrValue::length)
+                    {
+                        *target = taffy::LengthPercentage::length(*value);
+                        max_width = max_width.max(*value);
+                    }
+                }
+                paint.border = Some((
+                    max_width,
+                    paint.border.map_or(Color::BLACK, |(_, color)| color),
+                ));
+            } else if let Some(IrLength::Px { value }) = value.length() {
+                style.border = rect_lp_uniform(*value);
+                paint.border = Some((
+                    *value,
+                    paint.border.map_or(Color::BLACK, |(_, color)| color),
+                ));
+            }
+        }
+        "border-color" => {
+            if let Some(color) = ir_color(value) {
+                paint.border = Some((paint.border.map_or(1.0, |(width, _)| width), color));
+            }
+        }
+        "border-top-width" | "border-right-width" | "border-bottom-width" | "border-left-width" => {
+            if let Some(IrLength::Px { value }) = value.length() {
+                let width = taffy::LengthPercentage::length(*value);
+                match property {
+                    "border-top-width" => style.border.top = width,
+                    "border-right-width" => style.border.right = width,
+                    "border-bottom-width" => style.border.bottom = width,
+                    "border-left-width" => style.border.left = width,
+                    _ => unreachable!(),
+                }
+                paint.border = Some((
+                    *value,
+                    paint.border.map_or(Color::BLACK, |(_, color)| color),
+                ));
+            }
+        }
         _ => return None,
     }
     Some(true)
@@ -516,6 +776,18 @@ pub fn apply_ir(
     value: &IrValue,
 ) -> bool {
     if let Some(applied) = apply_paint_ir(paint, property, value) {
+        return applied;
+    }
+    if let Some(applied) = apply_sizing_ir(style, property, value) {
+        return applied;
+    }
+    if let Some(applied) = apply_gap_padding_ir(style, property, value) {
+        return applied;
+    }
+    if let Some(applied) = apply_margin_ir(style, property, value) {
+        return applied;
+    }
+    if let Some(applied) = apply_overflow_border_ir(style, paint, property, value) {
         return applied;
     }
     match property {
@@ -587,236 +859,11 @@ pub fn apply_ir(
                 }
             }
         }
-        "width" => style.size.width = ir_dim(value).unwrap_or(style.size.width),
-        "height" => style.size.height = ir_dim(value).unwrap_or(style.size.height),
-        "min-width" => style.min_size.width = ir_dim(value).unwrap_or(style.min_size.width),
-        "min-height" => style.min_size.height = ir_dim(value).unwrap_or(style.min_size.height),
-        "max-width" => style.max_size.width = ir_dim(value).unwrap_or(style.max_size.width),
-        "max-height" => style.max_size.height = ir_dim(value).unwrap_or(style.max_size.height),
         "flex-wrap" => {
             style.flex_wrap = value
                 .keyword()
                 .and_then(|v| taffy::FlexWrap::from_str(v).ok())
                 .unwrap_or(style.flex_wrap);
-        }
-        "aspect-ratio" => {
-            style.aspect_ratio = value.number().or(style.aspect_ratio);
-        }
-        "position" => {
-            // taffy models only `relative` (default, in-flow) and `absolute`
-            // (out-of-flow, inset offsets from the parent's content box).
-            // `static`/`fixed`/`sticky` have no taffy equivalent → relative.
-            style.position = match value.keyword() {
-                Some("absolute") => taffy::Position::Absolute,
-                _ => taffy::Position::Relative,
-            };
-        }
-        "top" => {
-            if let Some(v) = ir_lpa(value) {
-                style.inset.top = v;
-            }
-        }
-        "right" => {
-            if let Some(v) = ir_lpa(value) {
-                style.inset.right = v;
-            }
-        }
-        "bottom" => {
-            if let Some(v) = ir_lpa(value) {
-                style.inset.bottom = v;
-            }
-        }
-        "left" => {
-            if let Some(v) = ir_lpa(value) {
-                style.inset.left = v;
-            }
-        }
-        "gap" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(v) = fields.get("column").and_then(ir_lp) {
-                    style.gap.width = v;
-                }
-                if let Some(v) = fields.get("row").and_then(ir_lp) {
-                    style.gap.height = v;
-                }
-            } else if let Some(v) = ir_lp(value) {
-                style.gap.width = v;
-                style.gap.height = v;
-            }
-        }
-        "row-gap" | "gap-y" => {
-            if let Some(v) = ir_lp(value) {
-                style.gap.height = v;
-            }
-        }
-        "column-gap" | "gap-x" => {
-            if let Some(v) = ir_lp(value) {
-                style.gap.width = v;
-            }
-        }
-        "padding-top" => {
-            if let Some(v) = ir_lp(value) {
-                style.padding.top = v;
-            }
-        }
-        "padding-right" => {
-            if let Some(v) = ir_lp(value) {
-                style.padding.right = v;
-            }
-        }
-        "padding-bottom" => {
-            if let Some(v) = ir_lp(value) {
-                style.padding.bottom = v;
-            }
-        }
-        "padding-left" => {
-            if let Some(v) = ir_lp(value) {
-                style.padding.left = v;
-            }
-        }
-        "padding" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(v) = fields.get("top").and_then(ir_lp) {
-                    style.padding.top = v;
-                }
-                if let Some(v) = fields.get("right").and_then(ir_lp) {
-                    style.padding.right = v;
-                }
-                if let Some(v) = fields.get("bottom").and_then(ir_lp) {
-                    style.padding.bottom = v;
-                }
-                if let Some(v) = fields.get("left").and_then(ir_lp) {
-                    style.padding.left = v;
-                }
-            } else if let Some(v) = ir_lp(value) {
-                style.padding = taffy::Rect {
-                    top: v,
-                    right: v,
-                    bottom: v,
-                    left: v,
-                };
-            }
-        }
-        "margin-top" => {
-            if let Some(v) = ir_lpa(value) {
-                style.margin.top = v;
-            }
-        }
-        "margin-right" | "margin-inline-end" => {
-            if let Some(v) = ir_lpa(value) {
-                style.margin.right = v;
-            }
-        }
-        "margin-bottom" => {
-            if let Some(v) = ir_lpa(value) {
-                style.margin.bottom = v;
-            }
-        }
-        "margin-left" | "margin-inline-start" => {
-            if let Some(v) = ir_lpa(value) {
-                style.margin.left = v;
-            }
-        }
-        "margin" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(v) = fields.get("top").and_then(ir_lpa) {
-                    style.margin.top = v;
-                }
-                if let Some(v) = fields.get("right").and_then(ir_lpa) {
-                    style.margin.right = v;
-                }
-                if let Some(v) = fields.get("bottom").and_then(ir_lpa) {
-                    style.margin.bottom = v;
-                }
-                if let Some(v) = fields.get("left").and_then(ir_lpa) {
-                    style.margin.left = v;
-                }
-            } else if let Some(v) = ir_lpa(value) {
-                style.margin = taffy::Rect {
-                    top: v,
-                    right: v,
-                    bottom: v,
-                    left: v,
-                };
-            }
-        }
-        "overflow" => {
-            if let IrValue::Record { fields } = value {
-                if let Some(v) = fields.get("x").and_then(ir_overflow) {
-                    style.overflow.x = v;
-                }
-                if let Some(v) = fields.get("y").and_then(ir_overflow) {
-                    style.overflow.y = v;
-                }
-            } else if let Some(v) = ir_overflow(value) {
-                style.overflow.x = v;
-                style.overflow.y = v;
-            }
-        }
-        "overflow-x" => {
-            if let Some(v) = ir_overflow(value) {
-                style.overflow.x = v;
-            }
-        }
-        "overflow-y" => {
-            if let Some(v) = ir_overflow(value) {
-                style.overflow.y = v;
-            }
-        }
-        "border-width" => {
-            if let IrValue::Record { fields } = value {
-                let mut max_width = 0.0f32;
-                for (side, target) in [
-                    ("top", &mut style.border.top),
-                    ("right", &mut style.border.right),
-                    ("bottom", &mut style.border.bottom),
-                    ("left", &mut style.border.left),
-                ] {
-                    if let Some(IrLength::Px { value }) = fields.get(side).and_then(IrValue::length)
-                    {
-                        *target = taffy::LengthPercentage::length(*value);
-                        max_width = max_width.max(*value);
-                    }
-                }
-                paint.border = Some((
-                    max_width,
-                    paint.border.map_or(Color::BLACK, |(_, color)| color),
-                ));
-            } else if let Some(IrLength::Px { value }) = value.length() {
-                style.border = rect_lp_uniform(*value);
-                paint.border = Some((
-                    *value,
-                    paint.border.map_or(Color::BLACK, |(_, color)| color),
-                ));
-            }
-        }
-        "border-color" => {
-            if let Some(color) = ir_color(value) {
-                paint.border = Some((paint.border.map_or(1.0, |(width, _)| width), color));
-            }
-        }
-        "border-top-width" | "border-right-width" | "border-bottom-width" | "border-left-width" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                let width = taffy::LengthPercentage::length(*value);
-                match property {
-                    "border-top-width" => style.border.top = width,
-                    "border-right-width" => style.border.right = width,
-                    "border-bottom-width" => style.border.bottom = width,
-                    "border-left-width" => style.border.left = width,
-                    _ => {}
-                }
-                paint.border = Some((
-                    *value,
-                    paint.border.map_or(Color::BLACK, |(_, color)| color),
-                ));
-            }
-        }
-        "box-sizing" => {
-            style.box_sizing = if value.keyword() == Some("content-box") {
-                taffy::BoxSizing::ContentBox
-            } else {
-                taffy::BoxSizing::BorderBox
-            };
         }
         _ => return false,
     }
