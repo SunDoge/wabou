@@ -673,139 +673,42 @@ impl FrameSource for Applier {
         }
         if matches!(
             &input,
-            UiEvent::Key(key) if key.phase == KeyPhase::Down
-        ) || matches!(
-            &input,
-            UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_) | UiEvent::Wheel(_)
-        ) || matches!(
-            &input,
-            UiEvent::Pointer(pointer)
-                if pointer.phase == PointerPhase::Down
-                    && pointer.button != Some(PointerButton::Primary)
+            UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
         ) {
+            return self.handle_focused_input(input);
+        }
+        if matches!(&input, UiEvent::Wheel(_))
+            || matches!(
+                &input,
+                UiEvent::Pointer(pointer)
+                    if pointer.phase == PointerPhase::Down
+                        && pointer.button != Some(PointerButton::Primary)
+            )
+        {
             self.last_text_click = None;
         }
-        // Application shortcuts get first refusal before a focused Rust
-        // widget consumes the key. This is the native equivalent of a
-        // cancellable keydown boundary: preventDefault keeps shortcuts like
-        // Cmd+T out of a terminal PTY while ordinary keys continue unchanged.
-        let keydown_dispatched = if let UiEvent::Key(key) = &input
-            && key.phase == KeyPhase::Down
-            && let Some(target) = self.input.focused_target
-        {
-            let payload = key_event_payload(key);
-            let (dispatched, prevented) =
-                self.dispatch_cancellable_json(target, event::KEYDOWN, payload);
-            if prevented {
-                return EventResponse {
-                    handled: true,
-                    request_redraw: true,
-                    consume_key_text: true,
-                    text_input: None,
-                    clipboard: None,
-                };
-            }
-            dispatched
-        } else {
-            false
-        };
-        // Keyboard and committed text belong to the focused widget. Pointer
-        // focus is established in the pointer-down branch before delivery.
-        let widget_response = if matches!(
-            input,
-            UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
-        ) && let Some(target) = self.input.focused_target
-        {
-            self.handle_widget_event(target, &input)
-        } else {
-            None
-        };
-        if widget_response.is_none()
-            && let UiEvent::Key(key) = &input
-            && key.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy)
-            && let Some(text) = self.selected_text()
-        {
-            return EventResponse {
-                handled: true,
-                request_redraw: false,
-                consume_key_text: false,
-                text_input: None,
-                clipboard: Some(wabou_shell::ClipboardRequest::Write(text)),
-            };
-        }
-        if widget_response.is_none()
-            && let UiEvent::Key(key) = &input
-            && key.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll)
-            && self.select_all_text()
-        {
-            self.sync_text_selection_change();
-            return EventResponse {
-                handled: true,
-                request_redraw: true,
-                consume_key_text: false,
-                text_input: None,
-                clipboard: None,
-            };
-        }
-        if widget_response.is_none()
-            && let UiEvent::Key(key) = &input
-            && key.phase == KeyPhase::Down
-            && key.key == "Tab"
-            && !key.modifiers.control()
-            && !key.modifiers.alt()
-            && !key.modifiers.meta()
-            && let Some(target) = self.advance_focus(key.modifiers.shift())
-        {
-            return EventResponse {
-                handled: true,
-                request_redraw: true,
-                consume_key_text: true,
-                text_input: Some(self.is_text_input_target(target)),
-                clipboard: None,
-            };
-        }
 
-        let handled = match input {
+        match input {
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Move => {
-                return self.handle_pointer_move(pointer);
+                self.handle_pointer_move(pointer)
             }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Down => {
-                return self.handle_pointer_down(pointer);
+                self.handle_pointer_down(pointer)
             }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Up => {
-                return self.handle_pointer_up(pointer);
+                self.handle_pointer_up(pointer)
             }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Cancel => {
-                return self.handle_pointer_cancel(pointer);
+                self.handle_pointer_cancel(pointer)
             }
-            UiEvent::Wheel(wheel) => return self.handle_wheel_event(wheel),
-            UiEvent::Key(key) if key.phase == KeyPhase::Down => keydown_dispatched,
-            UiEvent::Key(key) if key.phase == KeyPhase::Up => {
-                self.input.focused_target.is_some_and(|target| {
-                    let payload = key_event_payload(&key);
-                    self.dispatch_json(target, event::KEYUP, &payload)
-                })
-            }
-            UiEvent::TextInput(text)
-            | UiEvent::Ime(wabou_shell::ImeEvent::Commit(text))
-            | UiEvent::Paste(text) => self.input.focused_target.is_some_and(|target| {
-                let payload = serde_json::json!({ "data": text }).to_string();
-                self.dispatch_json(target, event::IMECOMMIT, &payload)
-            }),
-            UiEvent::Ime(_) => widget_response.is_some(),
-            UiEvent::Focus(focused) => return self.handle_window_focus(focused),
-            UiEvent::Pointer(_) | UiEvent::Key(_) | UiEvent::WindowMetrics(_) => false,
-        };
-        if let Some(widget) = widget_response {
-            EventResponse {
-                handled: widget.handled || handled,
-                request_redraw: widget.request_redraw || handled,
-                consume_key_text: widget.consume_key_text,
-                text_input: widget.text_input,
-                clipboard: widget.clipboard,
-            }
-        } else {
-            Self::response(handled)
+            UiEvent::Wheel(wheel) => self.handle_wheel_event(wheel),
+            UiEvent::Focus(focused) => self.handle_window_focus(focused),
+            UiEvent::Pointer(_)
+            | UiEvent::Key(_)
+            | UiEvent::TextInput(_)
+            | UiEvent::Ime(_)
+            | UiEvent::Paste(_)
+            | UiEvent::WindowMetrics(_) => EventResponse::IGNORED,
         }
     }
 }
