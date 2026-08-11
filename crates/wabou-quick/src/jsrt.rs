@@ -289,142 +289,9 @@ impl JsRuntime {
                 .with_name("__wabou_load_font")?,
             )?;
 
-            // Latest per-frame render-stage timings (EMA)
-            // as JSON, or null until the first frame. For a live perf overlay.
-            let stats = self.frame_stats.clone();
-            globals.set(
-                "__wabou_frame_stats",
-                rquickjs::Function::new(ctx.clone(), move || -> String {
-                    let cell = stats.borrow();
-                    serde_json::to_string(&cell.as_ref().map(|f| HostFrameStats {
-                        build_frame_ms: f.build_frame_ms,
-                        js_tick_ms: f.js_tick_ms,
-                        scene_ms: f.scene_ms,
-                        present_ms: f.present_ms,
-                        node_count: f.node_count,
-                        viewport_w: f.viewport_w,
-                        viewport_h: f.viewport_h,
-                    }))
-                    .expect("frame stats are serializable")
-                })?
-                .with_name("__wabou_frame_stats")?,
-            )?;
+            self.register_observability_host_fns(ctx.clone(), &globals)?;
 
-            // Batch layout measurement. The request stays binary (u32 IDs),
-            // while the low-frequency result uses JSON like diagnostics. All
-            // records come from the same completed native layout pass.
-            let metrics = self.layout_metrics.clone();
-            globals.set(
-                "__wabou_layout_snapshot",
-                rquickjs::Function::new(
-                    ctx.clone(),
-                    move |ids: TypedArray<u32>| -> JsResult<String> {
-                        let snapshot = metrics.borrow();
-                        let requested = ids.as_bytes().map_or(&[][..], |bytes| bytes);
-                        let ids = requested
-                            .chunks_exact(std::mem::size_of::<u32>())
-                            .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()));
-                        let nodes = ids
-                            .filter_map(|id| snapshot.nodes.get(&id).map(|node| (id, node)))
-                            .map(|(id, node)| LayoutNodeMetrics {
-                                id,
-                                rect: node.rect,
-                                clip: node.clip,
-                            })
-                            .collect::<Vec<_>>();
-                        serde_json::to_string(&LayoutSnapshot {
-                            revision: snapshot.revision,
-                            viewport: snapshot.viewport,
-                            nodes,
-                        })
-                        .map_err(|error| rquickjs::Error::new_from_js_message(
-                            "layout snapshot",
-                            "string",
-                            error.to_string(),
-                        ))
-                    },
-                )?
-                .with_name("__wabou_layout_snapshot")?,
-            )?;
-
-            // The style compiler pushes its Style IR through this private ABI.
-            // virtual module pushes the compiled Style IR here as a JSON string.
-            // The host forwards it to the applier, which swaps the sheet +
-            // re-resolves every node.
-            let pc = self.pending_css.clone();
-            let available_themes = self.color_themes.clone();
-            globals.set(
-                "__wabou_set_stylesheet",
-                rquickjs::Function::new(ctx.clone(), move |s: String| -> JsResult<()> {
-                    match serde_json::from_str::<StylesheetUpdate>(&s) {
-                        Ok(m) => {
-                            let StylesheetUpdate::Ir(sheet) = &m;
-                            *available_themes.borrow_mut() = sheet.color_themes.clone();
-                            *pc.borrow_mut() = Some(m);
-                            Ok(())
-                        }
-                        Err(e) => {
-                            tracing::error!(target: "stylesheet", "setStylesheet parse failed: {e}");
-                            Err(rquickjs::Error::Unknown)
-                        }
-                    }
-                })?
-                .with_name("__wabou_set_stylesheet")?,
-            )?;
-
-            let pending_theme = self.pending_color_theme.clone();
-            let wake = self.runtime_wake.clone();
-            globals.set(
-                "__wabou_set_color_theme",
-                rquickjs::Function::new(ctx.clone(), move |name: String| {
-                    *pending_theme.borrow_mut() = Some(name);
-                    wake.notify();
-                })?
-                .with_name("__wabou_set_color_theme")?,
-            )?;
-
-            let available_themes = self.color_themes.clone();
-            globals.set(
-                "__wabou_get_color_theme_palette",
-                rquickjs::Function::new(ctx.clone(), move |name: String| -> JsResult<String> {
-                    let themes = available_themes.borrow();
-                    let themes = themes.as_ref().ok_or(rquickjs::Error::Unknown)?;
-                    let theme = themes
-                        .themes
-                        .get(&name)
-                        .ok_or(rquickjs::Error::Unknown)?;
-                    let mut tokens = theme.colors.keys().collect::<Vec<_>>();
-                    tokens.sort_unstable();
-                    serde_json::to_string(
-                        &tokens
-                            .into_iter()
-                            .map(|token| theme.colors[token])
-                            .collect::<Vec<_>>(),
-                    )
-                    .map_err(|_| rquickjs::Error::Unknown)
-                })?
-                .with_name("__wabou_get_color_theme_palette")?,
-            )?;
-
-            let pending_palette = self.pending_color_palette.clone();
-            let wake = self.runtime_wake.clone();
-            globals.set(
-                "__wabou_set_color_palette",
-                rquickjs::Function::new(
-                    ctx.clone(),
-                    move |colors: TypedArray<u32>| -> JsResult<()> {
-                        let bytes = colors.as_bytes().ok_or(rquickjs::Error::Unknown)?;
-                        let values = bytes
-                            .chunks_exact(std::mem::size_of::<u32>())
-                            .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()))
-                            .collect();
-                        *pending_palette.borrow_mut() = Some(values);
-                        wake.notify();
-                        Ok(())
-                    },
-                )?
-                .with_name("__wabou_set_color_palette")?,
-            )?;
+            self.register_style_host_fns(ctx.clone(), &globals)?;
 
             let targets = self.resize_targets.clone();
             globals.set(
@@ -444,6 +311,147 @@ impl JsRuntime {
             )?;
             Ok(())
         })
+    }
+
+    fn register_style_host_fns<'js>(
+        &self,
+        ctx: rquickjs::Ctx<'js>,
+        globals: &rquickjs::Object<'js>,
+    ) -> JsResult<()> {
+        let pending_css = self.pending_css.clone();
+        let available_themes = self.color_themes.clone();
+        globals.set(
+            "__wabou_set_stylesheet",
+            rquickjs::Function::new(ctx.clone(), move |source: String| -> JsResult<()> {
+                match serde_json::from_str::<StylesheetUpdate>(&source) {
+                    Ok(update) => {
+                        let StylesheetUpdate::Ir(sheet) = &update;
+                        *available_themes.borrow_mut() = sheet.color_themes.clone();
+                        *pending_css.borrow_mut() = Some(update);
+                        Ok(())
+                    }
+                    Err(error) => {
+                        tracing::error!(target: "stylesheet", "setStylesheet parse failed: {error}");
+                        Err(rquickjs::Error::Unknown)
+                    }
+                }
+            })?
+            .with_name("__wabou_set_stylesheet")?,
+        )?;
+
+        let pending_theme = self.pending_color_theme.clone();
+        let wake = self.runtime_wake.clone();
+        globals.set(
+            "__wabou_set_color_theme",
+            rquickjs::Function::new(ctx.clone(), move |name: String| {
+                *pending_theme.borrow_mut() = Some(name);
+                wake.notify();
+            })?
+            .with_name("__wabou_set_color_theme")?,
+        )?;
+
+        let available_themes = self.color_themes.clone();
+        globals.set(
+            "__wabou_get_color_theme_palette",
+            rquickjs::Function::new(ctx.clone(), move |name: String| -> JsResult<String> {
+                let themes = available_themes.borrow();
+                let themes = themes.as_ref().ok_or(rquickjs::Error::Unknown)?;
+                let theme = themes.themes.get(&name).ok_or(rquickjs::Error::Unknown)?;
+                let mut tokens = theme.colors.keys().collect::<Vec<_>>();
+                tokens.sort_unstable();
+                serde_json::to_string(
+                    &tokens
+                        .into_iter()
+                        .map(|token| theme.colors[token])
+                        .collect::<Vec<_>>(),
+                )
+                .map_err(|_| rquickjs::Error::Unknown)
+            })?
+            .with_name("__wabou_get_color_theme_palette")?,
+        )?;
+
+        let pending_palette = self.pending_color_palette.clone();
+        let wake = self.runtime_wake.clone();
+        globals.set(
+            "__wabou_set_color_palette",
+            rquickjs::Function::new(
+                ctx.clone(),
+                move |colors: TypedArray<u32>| -> JsResult<()> {
+                    let bytes = colors.as_bytes().ok_or(rquickjs::Error::Unknown)?;
+                    let values = bytes
+                        .chunks_exact(std::mem::size_of::<u32>())
+                        .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()))
+                        .collect();
+                    *pending_palette.borrow_mut() = Some(values);
+                    wake.notify();
+                    Ok(())
+                },
+            )?
+            .with_name("__wabou_set_color_palette")?,
+        )?;
+        Ok(())
+    }
+
+    fn register_observability_host_fns<'js>(
+        &self,
+        ctx: rquickjs::Ctx<'js>,
+        globals: &rquickjs::Object<'js>,
+    ) -> JsResult<()> {
+        let stats = self.frame_stats.clone();
+        globals.set(
+            "__wabou_frame_stats",
+            rquickjs::Function::new(ctx.clone(), move || -> String {
+                let cell = stats.borrow();
+                serde_json::to_string(&cell.as_ref().map(|frame| HostFrameStats {
+                    build_frame_ms: frame.build_frame_ms,
+                    js_tick_ms: frame.js_tick_ms,
+                    scene_ms: frame.scene_ms,
+                    present_ms: frame.present_ms,
+                    node_count: frame.node_count,
+                    viewport_w: frame.viewport_w,
+                    viewport_h: frame.viewport_h,
+                }))
+                .expect("frame stats are serializable")
+            })?
+            .with_name("__wabou_frame_stats")?,
+        )?;
+
+        let metrics = self.layout_metrics.clone();
+        globals.set(
+            "__wabou_layout_snapshot",
+            rquickjs::Function::new(
+                ctx.clone(),
+                move |ids: TypedArray<u32>| -> JsResult<String> {
+                    let snapshot = metrics.borrow();
+                    let requested = ids.as_bytes().map_or(&[][..], |bytes| bytes);
+                    let ids = requested
+                        .chunks_exact(std::mem::size_of::<u32>())
+                        .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()));
+                    let nodes = ids
+                        .filter_map(|id| snapshot.nodes.get(&id).map(|node| (id, node)))
+                        .map(|(id, node)| LayoutNodeMetrics {
+                            id,
+                            rect: node.rect,
+                            clip: node.clip,
+                        })
+                        .collect::<Vec<_>>();
+                    serde_json::to_string(&LayoutSnapshot {
+                        revision: snapshot.revision,
+                        viewport: snapshot.viewport,
+                        nodes,
+                    })
+                    .map_err(|error| {
+                        rquickjs::Error::new_from_js_message(
+                            "layout snapshot",
+                            "string",
+                            error.to_string(),
+                        )
+                    })
+                },
+            )?
+            .with_name("__wabou_layout_snapshot")?,
+        )?;
+        Ok(())
     }
 
     /// Register the rquickjs-native async `__wabou_fetch(url, initJson)`. rquickjs
