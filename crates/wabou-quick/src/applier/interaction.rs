@@ -1,6 +1,42 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_wheel_event(&mut self, wheel: wabou_shell::WheelEvent) -> EventResponse {
+        self.input.pointer_position = (wheel.position.x, wheel.position.y);
+        // A wheel gesture remains targeted at the element under the last
+        // pointer move. Refresh a stale cached target lazily so virtualized
+        // nodes keep scrolling without requiring another pointer move.
+        if !self
+            .input
+            .hovered_target
+            .is_some_and(|target| self.node_store.solid_to_node.contains_key(&target))
+        {
+            self.input.hovered_target = self
+                .input
+                .hit_test(self.input.pointer_position.0, self.input.pointer_position.1);
+        }
+        let Some(target) = self.input.hovered_target else {
+            return EventResponse::IGNORED;
+        };
+
+        // Rust widgets, such as terminal scrollback, get first refusal before
+        // JavaScript listeners and native overflow scrolling.
+        if let Some(response) = self.handle_widget_event(target, &UiEvent::Wheel(wheel)) {
+            return response;
+        }
+
+        let mut data = [0.0; event_data::LEN];
+        data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
+        data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
+        data[event_data::MODS as usize] = wheel.modifiers.bits() as f64;
+        data[event_data::DELTA_X as usize] = wheel.delta_x;
+        data[event_data::DELTA_Y as usize] = wheel.delta_y;
+        let (dispatched, prevented) = self.dispatch_cancellable_numeric(target, event::WHEEL, data);
+        let scrolled =
+            !prevented && self.scroll_nearest(target, wheel.delta_x as f32, wheel.delta_y as f32);
+        Self::response(dispatched || scrolled)
+    }
+
     pub(super) fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {
         self.input.hit_items.clear();
         self.scrollbar_hits.clear();

@@ -998,48 +998,7 @@ impl FrameSource for Applier {
                 }
                 self.cancel_pointer_gesture(pointer)
             }
-            UiEvent::Wheel(wheel) => {
-                self.input.pointer_position = (wheel.position.x, wheel.position.y);
-                // A wheel gesture remains targeted at the element under the
-                // last pointer move. Re-running a full-tree hit test for every
-                // high-frequency trackpad sample is both redundant and a
-                // major source of input latency. BUT the cached hit can go
-                // stale if the node under the pointer was dropped (e.g. a
-                // virtualised slot recycled at a list edge) — without a
-                // pointer move to refresh it, wheel/scroll would silently
-                // no-op until the user wiggles the mouse. Lazily validate +
-                // refresh the cache here so wheel keeps dispatching.
-                if !self
-                    .input
-                    .hovered_target
-                    .is_some_and(|t| self.node_store.solid_to_node.contains_key(&t))
-                {
-                    self.input.hovered_target = self
-                        .input
-                        .hit_test(self.input.pointer_position.0, self.input.pointer_position.1);
-                }
-                let Some(target) = self.input.hovered_target else {
-                    return EventResponse::IGNORED;
-                };
-                // Route wheel to a Rust widget at the hit target first (e.g.
-                // the terminal's scrollback) — before JS WHEEL listeners or
-                // native overflow scroll. Non-widget targets have no widget,
-                // so this returns None and falls through unchanged.
-                if let Some(response) = self.handle_widget_event(target, &UiEvent::Wheel(wheel)) {
-                    return response;
-                }
-                let mut data = [0.0; event_data::LEN];
-                data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
-                data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
-                data[event_data::MODS as usize] = wheel.modifiers.bits() as f64;
-                data[event_data::DELTA_X as usize] = wheel.delta_x;
-                data[event_data::DELTA_Y as usize] = wheel.delta_y;
-                let (dispatched, prevented) =
-                    self.dispatch_cancellable_numeric(target, event::WHEEL, data);
-                let scrolled = !prevented
-                    && self.scroll_nearest(target, wheel.delta_x as f32, wheel.delta_y as f32);
-                dispatched || scrolled
-            }
+            UiEvent::Wheel(wheel) => return self.handle_wheel_event(wheel),
             UiEvent::Key(key) if key.phase == KeyPhase::Down => keydown_dispatched,
             UiEvent::Key(key) if key.phase == KeyPhase::Up => {
                 self.input.focused_target.is_some_and(|target| {
