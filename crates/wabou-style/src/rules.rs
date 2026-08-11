@@ -281,18 +281,10 @@ fn negate_length(value: Length) -> Length {
     }
 }
 
-pub fn parse_utility(class_name: &str) -> Result<ParsedUtility, ParseError> {
-    parse_utility_with_theme(class_name, default_theme())
-}
+type RuleResult = Result<Vec<Declaration>, ParseError>;
 
-pub fn parse_utility_with_theme(
-    class_name: &str,
-    theme: &Theme,
-) -> Result<ParsedUtility, ParseError> {
-    let utility = candidate_parts(class_name)?;
-    let declarations = if let Some(value) = static_utilities().get(utility) {
-        value.clone()
-    } else if let Some((prefix, token, negative)) = spacing_rule
+fn parse_spacing_utility(utility: &str, class_name: &str, theme: &Theme) -> Option<RuleResult> {
+    let (prefix, token, negative) = spacing_rule
         .parse(utility)
         .ok()
         .map(|(prefix, token)| (prefix, token, false))
@@ -301,8 +293,8 @@ pub fn parse_utility_with_theme(
                 .strip_prefix('-')
                 .and_then(|value| spacing_rule.parse(value).ok())
                 .map(|(prefix, token)| (prefix, token, true))
-        })
-    {
+        })?;
+    Some((|| {
         if negative && !prefix.starts_with('m') {
             return Err(ParseError::InvalidValue {
                 utility: class_name.into(),
@@ -329,13 +321,17 @@ pub fn parse_utility_with_theme(
             }
             value = negate_length(value);
         }
-        edge_properties(prefix)
-            .unwrap()
+        Ok(edge_properties(prefix)
+            .expect("spacing parser only accepts known edge prefixes")
             .1
             .iter()
             .map(|property| length(property, value.clone()))
-            .collect()
-    } else if let Some((prefix, token, negative)) = dimension_rule
+            .collect())
+    })())
+}
+
+fn parse_dimension_utility(utility: &str, class_name: &str, theme: &Theme) -> Option<RuleResult> {
+    let (prefix, token, negative) = dimension_rule
         .parse(utility)
         .ok()
         .map(|(prefix, token)| (prefix, token, false))
@@ -344,8 +340,8 @@ pub fn parse_utility_with_theme(
                 .strip_prefix('-')
                 .and_then(|value| dimension_rule.parse(value).ok())
                 .map(|(prefix, token)| (prefix, token, true))
-        })
-    {
+        })?;
+    Some((|| {
         if negative && !matches!(prefix, "top" | "right" | "bottom" | "left" | "inset") {
             return Err(ParseError::InvalidValue {
                 utility: class_name.into(),
@@ -375,15 +371,19 @@ pub fn parse_utility_with_theme(
             "max-h" => "max-height",
             other => other,
         };
-        if prefix == "inset" {
+        Ok(if prefix == "inset" {
             ["top", "right", "bottom", "left"]
                 .iter()
-                .map(|p| length(p, value.clone()))
+                .map(|property| length(property, value.clone()))
                 .collect()
         } else {
             vec![length(property, value)]
-        }
-    } else if let Some((kind, token, negative)) = [
+        })
+    })())
+}
+
+fn parse_transform_utility(utility: &str, class_name: &str, theme: &Theme) -> Option<RuleResult> {
+    if let Some((kind, token, negative)) = [
         ("translate-x-", "translateX"),
         ("translate-y-", "translateY"),
     ]
@@ -399,49 +399,75 @@ pub fn parse_utility_with_theme(
                     .map(|token| (kind, token, true))
             })
     }) {
-        let mut value =
-            parse_length(token, true, theme).ok_or_else(|| ParseError::InvalidValue {
-                utility: class_name.into(),
-                expected: "a translate spacing token, px, rem, or percentage",
-            })?;
-        if negative {
-            value = negate_length(value);
-        }
-        vec![transform(kind, Value::Length { value })]
-    } else if let Some(token) = utility.strip_prefix("scale-") {
-        let value = arbitrary_number(token)
-            .or_else(|| token.parse::<f32>().ok().map(|value| value / 100.0))
-            .filter(|value| value.is_finite())
+        let result = parse_length(token, true, theme)
             .ok_or_else(|| ParseError::InvalidValue {
                 utility: class_name.into(),
-                expected: "a finite scale percentage or arbitrary number",
-            })?;
-        vec![transform(
-            "scale",
-            Value::List {
-                values: vec![Value::Number { value }, Value::Number { value }],
-            },
-        )]
-    } else if let Some((token, negative)) = utility
+                expected: "a translate spacing token, px, rem, or percentage",
+            })
+            .map(|value| {
+                let value = if negative {
+                    negate_length(value)
+                } else {
+                    value
+                };
+                vec![transform(kind, Value::Length { value })]
+            });
+        return Some(result);
+    }
+    if let Some(token) = utility.strip_prefix("scale-") {
+        return Some(
+            arbitrary_number(token)
+                .or_else(|| token.parse::<f32>().ok().map(|value| value / 100.0))
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| ParseError::InvalidValue {
+                    utility: class_name.into(),
+                    expected: "a finite scale percentage or arbitrary number",
+                })
+                .map(|value| {
+                    vec![transform(
+                        "scale",
+                        Value::List {
+                            values: vec![Value::Number { value }, Value::Number { value }],
+                        },
+                    )]
+                }),
+        );
+    }
+    let (token, negative) = utility
         .strip_prefix("rotate-")
         .map(|token| (token, false))
-        .or_else(|| utility.strip_prefix("-rotate-").map(|token| (token, true)))
-    {
-        let mut degrees = arbitrary_number(token)
+        .or_else(|| utility.strip_prefix("-rotate-").map(|token| (token, true)))?;
+    Some(
+        arbitrary_number(token)
             .or_else(|| token.parse().ok())
             .ok_or_else(|| ParseError::InvalidValue {
                 utility: class_name.into(),
                 expected: "a finite rotation in degrees",
-            })?;
-        if negative {
-            degrees = -degrees;
-        }
-        vec![transform(
-            "rotate",
-            Value::Number {
-                value: degrees * std::f32::consts::PI / 180.0,
-            },
-        )]
+            })
+            .map(|degrees: f32| {
+                let radians = if negative { -degrees } else { degrees }.to_radians();
+                vec![transform("rotate", Value::Number { value: radians })]
+            }),
+    )
+}
+
+pub fn parse_utility(class_name: &str) -> Result<ParsedUtility, ParseError> {
+    parse_utility_with_theme(class_name, default_theme())
+}
+
+pub fn parse_utility_with_theme(
+    class_name: &str,
+    theme: &Theme,
+) -> Result<ParsedUtility, ParseError> {
+    let utility = candidate_parts(class_name)?;
+    let declarations = if let Some(value) = static_utilities().get(utility) {
+        value.clone()
+    } else if let Some(declarations) = parse_spacing_utility(utility, class_name, theme) {
+        declarations?
+    } else if let Some(declarations) = parse_dimension_utility(utility, class_name, theme) {
+        declarations?
+    } else if let Some(declarations) = parse_transform_utility(utility, class_name, theme) {
+        declarations?
     } else if let Some((property, value)) = [
         ("rounded-", "border-radius"),
         ("text-", "font-size"),
