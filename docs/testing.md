@@ -28,11 +28,15 @@ bun run wabou test --app-dir apps/warden-desktop \
 
 The deterministic backend uses the same Rust window lifecycle state machine as
 the winit executor, so Wayland and surface recreation can be tested without a
-compositor. Pass `--native` for a real platform smoke test.
+compositor. It also uses an isolated temporary XDG data directory so persisted
+application state cannot make scenarios order-dependent. Pass `--native` for a
+real platform smoke test.
 
 Every run writes `report.json` and `trace.json` beneath
-`target/wabou-test/<app>/artifacts` by default. A failed deterministic run also
-writes `failure.png`. Use `--artifacts <dir>` to select another destination.
+`target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
+select another destination. Deterministic tests do not initialize wgpu, which
+keeps them usable in display-less CI. Pass `--failure-screenshot` to opt into a
+GPU-rendered `failure.png` when a working wgpu backend is available.
 Recorded actions are directly replayable:
 
 ```bash

@@ -16,6 +16,7 @@ ctrlc = "3.5"
 cargo-packager = { version = "0.11.8", default-features = false, features = ["rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+tempfile = "3"
 toml = "0.9"
 wabou-devtools = { workspace = true }
 wabou-quick = { workspace = true }

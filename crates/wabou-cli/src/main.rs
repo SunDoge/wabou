@@ -81,6 +81,9 @@ enum Commands {
         /// Directory for the JSON report and replayable action trace.
         #[arg(long, value_name = "DIR")]
         artifacts: Option<PathBuf>,
+        /// Render a PNG after failure; requires an available wgpu backend.
+        #[arg(long)]
+        failure_screenshot: bool,
         /// Use the real platform event loop instead of the deterministic backend.
         #[arg(long)]
         native: bool,
@@ -294,6 +297,7 @@ fn main() -> Result<()> {
             scenario,
             replay,
             artifacts,
+            failure_screenshot,
             native,
         } => {
             let workspace = find_workspace(&cwd)?;
@@ -303,6 +307,7 @@ fn main() -> Result<()> {
                 scenario.as_deref().map(|path| cwd.join(path)).as_deref(),
                 replay.as_deref().map(|path| cwd.join(path)).as_deref(),
                 artifacts.as_deref(),
+                failure_screenshot,
                 native,
             )
         }
@@ -607,6 +612,7 @@ fn test_scenario(
     scenario: Option<&Path>,
     replay: Option<&Path>,
     artifacts: Option<&Path>,
+    failure_screenshot: bool,
     native: bool,
 ) -> Result<()> {
     ensure(frontend(app, "build", &[])?, "Vite build")?;
@@ -662,6 +668,9 @@ fn test_scenario(
     }
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
+    let test_data = (!native)
+        .then(|| tempfile::tempdir_in(&test_dir))
+        .transpose()?;
     let mut cargo = Command::new("cargo");
     cargo
         .current_dir(workspace)
@@ -670,7 +679,13 @@ fn test_scenario(
         .env("WABOU_TEST_SCRIPT", scenario_bundle)
         .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir);
     if !native {
-        cargo.env("WABOU_TEST_HEADLESS", "1");
+        cargo.env("WABOU_TEST_HEADLESS", "1").env(
+            "XDG_DATA_HOME",
+            test_data.as_ref().expect("test data dir").path(),
+        );
+    }
+    if failure_screenshot {
+        cargo.env("WABOU_TEST_FAILURE_SCREENSHOT", "1");
     }
     ensure(cargo.status()?, "Wabou behavior test")
 }
@@ -1310,6 +1325,7 @@ mod tests {
                     scenario,
                     replay,
                     artifacts,
+                    failure_screenshot,
                     native,
                 },
         } = Cli::try_parse_from([
@@ -1320,6 +1336,7 @@ mod tests {
             "tests/close-to-tray.test.ts",
             "--artifacts",
             "artifacts",
+            "--failure-screenshot",
             "--native",
         ])
         .unwrap()
@@ -1333,6 +1350,7 @@ mod tests {
         );
         assert!(replay.is_none());
         assert_eq!(artifacts.as_deref(), Some(Path::new("artifacts")));
+        assert!(failure_screenshot);
         assert!(native);
 
         let Cli {

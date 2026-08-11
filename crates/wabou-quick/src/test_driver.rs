@@ -2,6 +2,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use rquickjs::{Function, prelude::Async};
 use tokio::sync::oneshot;
@@ -32,6 +33,7 @@ enum TestActionKind {
 struct TestAction {
     kind: TestActionKind,
     completion: oneshot::Sender<bool>,
+    deadline: Instant,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -58,7 +60,11 @@ impl TestController {
             let Ok(mut state) = self.0.lock() else {
                 return receiver;
             };
-            let action = TestAction { kind, completion };
+            let action = TestAction {
+                kind,
+                completion,
+                deadline: Instant::now() + Duration::from_secs(2),
+            };
             if state.headless {
                 if matches!(action.kind, TestActionKind::ClickByRole { .. }) {
                     state.actions.push_back(action);
@@ -197,7 +203,16 @@ impl TestController {
                     TestActionKind::ClickByRole { window_id: target, .. } if *target == window_id
                 )
             })?;
-            state.actions.remove(index)
+            let action = state.actions.get(index)?;
+            let ready = match (&action.kind, snapshot.as_deref()) {
+                (TestActionKind::ClickByRole { role, label, .. }, Some(snapshot)) => {
+                    semantic_target(snapshot, role, label).is_some()
+                }
+                _ => false,
+            };
+            (ready || Instant::now() >= action.deadline)
+                .then(|| state.actions.remove(index))
+                .flatten()
         });
         let Some(action) = action else {
             return;
@@ -257,25 +272,7 @@ fn click_semantic_target(
     role: &str,
     label: &str,
 ) -> bool {
-    let role_matches = |candidate: SemanticRole| {
-        matches!(
-            (role, candidate),
-            ("button", SemanticRole::Button)
-                | ("textbox", SemanticRole::TextInput)
-                | ("link", SemanticRole::Link)
-                | ("dialog", SemanticRole::Dialog)
-                | ("checkbox", SemanticRole::CheckBox)
-                | ("radio", SemanticRole::RadioButton)
-                | ("switch", SemanticRole::Switch)
-                | ("combobox", SemanticRole::ComboBox)
-                | ("listbox", SemanticRole::ListBox)
-                | ("option", SemanticRole::Option)
-                | ("label", SemanticRole::Label)
-        )
-    };
-    let Some(node) = snapshot.nodes.iter().find(|node| {
-        role_matches(node.role) && node.label.as_deref() == Some(label) && !node.disabled
-    }) else {
+    let Some(node) = semantic_target(snapshot, role, label) else {
         return false;
     };
     let point = Point {
@@ -297,6 +294,32 @@ fn click_semantic_target(
         modifiers: Modifiers::default(),
     }));
     true
+}
+
+fn semantic_target<'a>(
+    snapshot: &'a SemanticSnapshot,
+    role: &str,
+    label: &str,
+) -> Option<&'a wabou_shell::SemanticNode> {
+    let role_matches = |candidate: SemanticRole| {
+        matches!(
+            (role, candidate),
+            ("button", SemanticRole::Button)
+                | ("textbox", SemanticRole::TextInput)
+                | ("link", SemanticRole::Link)
+                | ("dialog", SemanticRole::Dialog)
+                | ("checkbox", SemanticRole::CheckBox)
+                | ("radio", SemanticRole::RadioButton)
+                | ("switch", SemanticRole::Switch)
+                | ("combobox", SemanticRole::ComboBox)
+                | ("listbox", SemanticRole::ListBox)
+                | ("option", SemanticRole::Option)
+                | ("label", SemanticRole::Label)
+        )
+    };
+    snapshot.nodes.iter().find(|node| {
+        role_matches(node.role) && node.label.as_deref() == Some(label) && !node.disabled
+    })
 }
 
 pub(crate) struct TestDriver {

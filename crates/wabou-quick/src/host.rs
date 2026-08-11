@@ -347,6 +347,7 @@ impl HostBuilder {
                 std::thread::sleep(Duration::from_millis(1));
             }
             if controller.report_passed() == Some(false)
+                && std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0")
                 && let Some(directory) =
                     std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(PathBuf::from)
                 && let Some(nodes) = last_nodes.first()
