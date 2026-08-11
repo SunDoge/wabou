@@ -9,7 +9,7 @@ use raw_window_handle::HasWindowHandle;
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-use crate::{SemanticAction, SemanticRole, SemanticSnapshot};
+use crate::{SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot};
 
 const ROOT_ID: NodeId = NodeId(0);
 
@@ -33,6 +33,78 @@ fn publication_key(
         height,
         scale_bits: scale.to_bits(),
     }
+}
+
+fn modal_subtree(snapshot: &SemanticSnapshot) -> Option<HashSet<u64>> {
+    snapshot.modal_root.map(|modal| {
+        let by_id: HashMap<_, _> = snapshot.nodes.iter().map(|node| (node.id, node)).collect();
+        let mut allowed = HashSet::new();
+        let mut pending = vec![modal];
+        while let Some(id) = pending.pop() {
+            if allowed.insert(id)
+                && let Some(node) = by_id.get(&id)
+            {
+                pending.extend(node.children.iter().copied());
+            }
+        }
+        allowed
+    })
+}
+
+fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
+    let role = match semantic.role {
+        SemanticRole::Generic => Role::GenericContainer,
+        SemanticRole::Label => Role::Label,
+        SemanticRole::Button => Role::Button,
+        SemanticRole::TextInput => Role::TextInput,
+        SemanticRole::Image => Role::Image,
+        SemanticRole::Link => Role::Link,
+        SemanticRole::Dialog => Role::Dialog,
+        SemanticRole::Alert => Role::Alert,
+        SemanticRole::Status => Role::Status,
+        SemanticRole::CheckBox => Role::CheckBox,
+        SemanticRole::RadioButton => Role::RadioButton,
+        SemanticRole::Switch => Role::Switch,
+        SemanticRole::ComboBox => Role::ComboBox,
+        SemanticRole::ListBox => Role::ListBox,
+        SemanticRole::Option => Role::ListBoxOption,
+    };
+    let mut node = Node::new(role);
+    if let Some(label) = &semantic.label {
+        node.set_label(label.clone());
+    }
+    let [x0, y0, x1, y1] = semantic.bounds.map(|value| f64::from(value) * scale);
+    node.set_bounds(Rect::new(x0, y0, x1, y1));
+    node.set_children(
+        semantic
+            .children
+            .iter()
+            .copied()
+            .map(NodeId)
+            .collect::<Vec<_>>(),
+    );
+    if semantic.disabled {
+        node.set_disabled();
+    }
+    match semantic.role {
+        SemanticRole::Button
+        | SemanticRole::Link
+        | SemanticRole::CheckBox
+        | SemanticRole::RadioButton
+        | SemanticRole::Switch
+        | SemanticRole::ComboBox
+        | SemanticRole::Option
+            if !semantic.disabled =>
+        {
+            node.add_action(Action::Click);
+            node.add_action(Action::Focus);
+        }
+        SemanticRole::TextInput | SemanticRole::ListBox if !semantic.disabled => {
+            node.add_action(Action::Focus);
+        }
+        _ => {}
+    }
+    node
 }
 
 fn root_update(
@@ -64,19 +136,7 @@ fn root_update(
         .unwrap_or(ROOT_ID);
     let mut nodes = vec![(ROOT_ID, root)];
     if let Some(snapshot) = snapshot {
-        let allowed = snapshot.modal_root.map(|modal| {
-            let by_id: HashMap<_, _> = snapshot.nodes.iter().map(|node| (node.id, node)).collect();
-            let mut allowed = HashSet::new();
-            let mut pending = vec![modal];
-            while let Some(id) = pending.pop() {
-                if allowed.insert(id)
-                    && let Some(node) = by_id.get(&id)
-                {
-                    pending.extend(node.children.iter().copied());
-                }
-            }
-            allowed
-        });
+        let allowed = modal_subtree(snapshot);
         nodes.extend(
             snapshot
                 .nodes
@@ -86,61 +146,7 @@ fn root_update(
                         .as_ref()
                         .is_none_or(|allowed| allowed.contains(&semantic.id))
                 })
-                .map(|semantic| {
-                    let role = match semantic.role {
-                        SemanticRole::Generic => Role::GenericContainer,
-                        SemanticRole::Label => Role::Label,
-                        SemanticRole::Button => Role::Button,
-                        SemanticRole::TextInput => Role::TextInput,
-                        SemanticRole::Image => Role::Image,
-                        SemanticRole::Link => Role::Link,
-                        SemanticRole::Dialog => Role::Dialog,
-                        SemanticRole::Alert => Role::Alert,
-                        SemanticRole::Status => Role::Status,
-                        SemanticRole::CheckBox => Role::CheckBox,
-                        SemanticRole::RadioButton => Role::RadioButton,
-                        SemanticRole::Switch => Role::Switch,
-                        SemanticRole::ComboBox => Role::ComboBox,
-                        SemanticRole::ListBox => Role::ListBox,
-                        SemanticRole::Option => Role::ListBoxOption,
-                    };
-                    let mut node = Node::new(role);
-                    if let Some(label) = &semantic.label {
-                        node.set_label(label.clone());
-                    }
-                    let [x0, y0, x1, y1] = semantic.bounds.map(|value| f64::from(value) * scale);
-                    node.set_bounds(Rect::new(x0, y0, x1, y1));
-                    node.set_children(
-                        semantic
-                            .children
-                            .iter()
-                            .copied()
-                            .map(NodeId)
-                            .collect::<Vec<_>>(),
-                    );
-                    if semantic.disabled {
-                        node.set_disabled();
-                    }
-                    match semantic.role {
-                        SemanticRole::Button
-                        | SemanticRole::Link
-                        | SemanticRole::CheckBox
-                        | SemanticRole::RadioButton
-                        | SemanticRole::Switch
-                        | SemanticRole::ComboBox
-                        | SemanticRole::Option
-                            if !semantic.disabled =>
-                        {
-                            node.add_action(Action::Click);
-                            node.add_action(Action::Focus);
-                        }
-                        SemanticRole::TextInput | SemanticRole::ListBox if !semantic.disabled => {
-                            node.add_action(Action::Focus);
-                        }
-                        _ => {}
-                    }
-                    (NodeId(semantic.id), node)
-                }),
+                .map(|semantic| (NodeId(semantic.id), accesskit_node(semantic, scale))),
         );
     }
     TreeUpdate {
