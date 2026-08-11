@@ -14,6 +14,11 @@ export const effectOps = Object.freeze({
   windowSetTitle: { capability: 2, method: 4 },
   contextMenuShow: { capability: 3, method: 1 },
   appDirsResolve: { capability: 4, method: 1 },
+  dialogOpen: { capability: 5, method: 1 },
+  dialogSave: { capability: 5, method: 2 },
+  dialogPickDirectory: { capability: 5, method: 3 },
+  dialogMessage: { capability: 5, method: 4 },
+  notificationShow: { capability: 6, method: 1 },
 } satisfies Record<string, EffectOp>);
 
 interface PendingEffect {

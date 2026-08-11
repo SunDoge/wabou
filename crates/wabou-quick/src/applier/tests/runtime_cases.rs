@@ -262,6 +262,78 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
 }
 
 #[test]
+fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
+    const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    applier
+        .boot(CORE_FIXTURE)
+        .expect("boot public core fixture");
+    applier
+        .js
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.systemResults = [];
+                __wabou_test_host_api.dialog.open({
+                  multiple: true,
+                  filters: [{ name: "Text", extensions: [".txt"] }],
+                }).then(paths => systemResults.push(["dialog", paths]));
+                __wabou_test_host_api.notification.show({
+                  title: "Ready",
+                  silent: true,
+                }).then(() => systemResults.push(["notification", true]));
+                "#,
+            )
+        })
+        .expect("call public system bridges");
+
+    let dialog = applier.take_effect().expect("dialog effect");
+    assert!(matches!(
+        dialog.payload,
+        wabou_shell::EffectPayload::DialogOpen(wabou_shell::OpenDialogRequest {
+            multiple: true,
+            ref filters,
+            ..
+        }) if filters == &[wabou_shell::DialogFilter {
+            name: "Text".into(),
+            extensions: vec!["txt".into()],
+        }]
+    ));
+    let notification = applier.take_effect().expect("notification effect");
+    assert!(matches!(
+        notification.payload,
+        wabou_shell::EffectPayload::NotificationShow(wabou_shell::NotificationRequest {
+            ref title,
+            silent: true,
+            ..
+        }) if title == "Ready"
+    ));
+
+    applier.complete_effect(wabou_shell::EffectCompletion {
+        id: notification.id,
+        op: wabou_shell::effect::builtin::NOTIFICATION_SHOW,
+        result: wabou_shell::EffectResult::Unit,
+    });
+    applier.complete_effect(wabou_shell::EffectCompletion {
+        id: dialog.id,
+        op: wabou_shell::effect::builtin::DIALOG_OPEN,
+        result: wabou_shell::EffectResult::DialogPaths(Some(vec!["/tmp/note.txt".into()])),
+    });
+    for _ in 0..4 {
+        applier.js.poll_async_runtime();
+    }
+    let completions = applier
+        .js
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(systemResults)"))
+        .expect("system effect completions");
+    assert_eq!(
+        completions,
+        r#"[["dialog",["/tmp/note.txt"]],["notification",true]]"#
+    );
+}
+
+#[test]
 fn applier_host_ffi_surface_matches_the_generated_schema() {
     let mut expected = crate::host_abi::HOST_ABI
         .iter()

@@ -585,6 +585,31 @@ fn decode_effect_payload(
             .cloned()
             .map(wabou_shell::EffectPayload::AppDirsResolve)
             .unwrap_or_else(|| invalid("application directories are not configured".into())),
+        wabou_shell::effect::builtin::DIALOG_OPEN => {
+            serde_json::from_str::<wabou_shell::OpenDialogRequest>(&payload_json)
+                .map(wabou_shell::EffectPayload::DialogOpen)
+                .unwrap_or_else(|error| invalid(error.to_string()))
+        }
+        wabou_shell::effect::builtin::DIALOG_SAVE => {
+            serde_json::from_str::<wabou_shell::SaveDialogRequest>(&payload_json)
+                .map(wabou_shell::EffectPayload::DialogSave)
+                .unwrap_or_else(|error| invalid(error.to_string()))
+        }
+        wabou_shell::effect::builtin::DIALOG_PICK_DIRECTORY => {
+            serde_json::from_str::<wabou_shell::PickDirectoryRequest>(&payload_json)
+                .map(wabou_shell::EffectPayload::DialogPickDirectory)
+                .unwrap_or_else(|error| invalid(error.to_string()))
+        }
+        wabou_shell::effect::builtin::DIALOG_MESSAGE => {
+            serde_json::from_str::<wabou_shell::MessageDialogRequest>(&payload_json)
+                .map(wabou_shell::EffectPayload::DialogMessage)
+                .unwrap_or_else(|error| invalid(error.to_string()))
+        }
+        wabou_shell::effect::builtin::NOTIFICATION_SHOW => {
+            serde_json::from_str::<wabou_shell::NotificationRequest>(&payload_json)
+                .map(wabou_shell::EffectPayload::NotificationShow)
+                .unwrap_or_else(|error| invalid(error.to_string()))
+        }
         _ => wabou_shell::EffectPayload::Extension {
             op,
             bytes: payload_json.into_bytes(),
@@ -684,6 +709,14 @@ fn complete_js_effect(js: &JsRuntime, completion: &wabou_shell::EffectCompletion
         wabou_shell::EffectResult::AppDirectories(directories) => (
             0,
             serde_json::to_string(directories).unwrap_or_else(|_| "null".into()),
+        ),
+        wabou_shell::EffectResult::DialogPaths(paths) => (
+            0,
+            serde_json::to_string(paths).unwrap_or_else(|_| "null".into()),
+        ),
+        wabou_shell::EffectResult::DialogMessage(result) => (
+            0,
+            serde_json::to_string(result).unwrap_or_else(|_| "null".into()),
         ),
         wabou_shell::EffectResult::Cancelled => (1, "null".to_owned()),
         wabou_shell::EffectResult::Error { code, message } => (

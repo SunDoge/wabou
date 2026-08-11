@@ -504,6 +504,61 @@ impl App {
                         result: crate::EffectResult::AppDirectories(directories),
                     });
                 }
+                crate::EffectPayload::DialogOpen(request) => {
+                    let parent = self.state.as_ref().map(|shell| &**shell.window());
+                    let paths = crate::system::open_dialog(parent, request);
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::DialogPaths(paths),
+                    });
+                }
+                crate::EffectPayload::DialogSave(request) => {
+                    let parent = self.state.as_ref().map(|shell| &**shell.window());
+                    let paths = crate::system::save_dialog(parent, request);
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::DialogPaths(paths),
+                    });
+                }
+                crate::EffectPayload::DialogPickDirectory(request) => {
+                    let parent = self.state.as_ref().map(|shell| &**shell.window());
+                    let paths = crate::system::pick_directory(parent, request);
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::DialogPaths(paths),
+                    });
+                }
+                crate::EffectPayload::DialogMessage(request) => {
+                    let parent = self.state.as_ref().map(|shell| &**shell.window());
+                    let result = crate::system::message_dialog(parent, request);
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::DialogMessage(result),
+                    });
+                }
+                crate::EffectPayload::NotificationShow(request) => {
+                    let result = if request.title.trim().is_empty() {
+                        crate::EffectResult::Error {
+                            code: crate::EffectErrorCode::InvalidRequest,
+                            message: "notification title must not be empty".into(),
+                        }
+                    } else {
+                        match crate::system::show_notification(&self.window_options.title, request)
+                        {
+                            Ok(()) => crate::EffectResult::Unit,
+                            Err(message) => crate::EffectResult::Error {
+                                code: crate::EffectErrorCode::PlatformFailure,
+                                message,
+                            },
+                        }
+                    };
+                    self.source
+                        .complete_effect(crate::EffectCompletion { id, op, result });
+                }
                 payload @ (crate::EffectPayload::ContextMenuShow(_)
                 | crate::EffectPayload::Extension { .. }) => {
                     self.pending_extension_effects.push(crate::EffectRequest {

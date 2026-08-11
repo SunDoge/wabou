@@ -16,9 +16,11 @@ clap = { workspace = true, features = ["derive"] }
 directories = { workspace = true }
 image = { workspace = true, features = ["png"] }
 lru = "0.18.1"
+notify-rust = { workspace = true }
 open = { workspace = true }
 parley = { workspace = true }
 pollster = "0.4"
+rfd = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 snafu = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }

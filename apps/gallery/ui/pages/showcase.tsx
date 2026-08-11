@@ -13,7 +13,7 @@ function PropertyRow(props: { name: string; value: string }) {
           : "h-10 px-3 flex items-center border-b border-slate-200"
       }
     >
-      <Text class="w-36 flex-none text-xs font-mono text-sky-400">
+      <Text class="w-48 flex-none text-xs font-mono text-sky-400">
         {props.name}
       </Text>
       <Text

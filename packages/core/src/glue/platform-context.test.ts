@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { createComponent, createRoot } from "solid-js";
 import { type Clipboard, useClipboard } from "./clipboard";
+import { type Dialog, useDialog } from "./dialog";
+import { type Notification, useNotification } from "./notification";
 import { PlatformProvider } from "./platform-context";
 import { useWindow, type WindowState } from "./window-metrics";
 
@@ -31,14 +33,30 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     maximized: () => metrics().maximized,
     focused: () => metrics().focused,
   };
+  const fakeDialog: Dialog = {
+    open: async () => null,
+    save: async () => null,
+    pickDirectory: async () => null,
+    message: async () => "ok",
+  };
+  const fakeNotification: Notification = { show: async () => {} };
   let receivedClipboard: Clipboard | undefined;
+  let receivedDialog: Dialog | undefined;
+  let receivedNotification: Notification | undefined;
   let receivedWindow: WindowState | undefined;
 
   createRoot((dispose) => {
     createComponent(PlatformProvider, {
-      value: { clipboard: fakeClipboard, window: fakeWindow },
+      value: {
+        clipboard: fakeClipboard,
+        dialog: fakeDialog,
+        notification: fakeNotification,
+        window: fakeWindow,
+      },
       get children() {
         receivedClipboard = useClipboard();
+        receivedDialog = useDialog();
+        receivedNotification = useNotification();
         receivedWindow = useWindow();
         return null;
       },
@@ -47,6 +65,8 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
   });
 
   expect(receivedClipboard).toBe(fakeClipboard);
+  expect(receivedDialog).toBe(fakeDialog);
+  expect(receivedNotification).toBe(fakeNotification);
   expect(receivedWindow).toBe(fakeWindow);
 });
 

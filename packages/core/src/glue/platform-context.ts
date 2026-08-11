@@ -1,9 +1,13 @@
 import { createComponent, createContext, type JSX, useContext } from "solid-js";
 import type { Clipboard } from "./clipboard";
+import type { Dialog } from "./dialog";
+import type { Notification } from "./notification";
 import type { WindowState } from "./window-metrics";
 
 export interface PlatformServices {
   clipboard: Clipboard;
+  dialog: Dialog;
+  notification: Notification;
   window: WindowState;
 }
 
@@ -20,6 +24,12 @@ export function PlatformProvider(props: PlatformProviderProps): JSX.Element {
   const value: Partial<PlatformServices> = {
     get clipboard() {
       return props.value.clipboard ?? parent.clipboard;
+    },
+    get dialog() {
+      return props.value.dialog ?? parent.dialog;
+    },
+    get notification() {
+      return props.value.notification ?? parent.notification;
     },
     get window() {
       return props.value.window ?? parent.window;

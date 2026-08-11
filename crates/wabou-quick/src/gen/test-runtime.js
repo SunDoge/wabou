@@ -2727,7 +2727,13 @@
     windowClose: { capability: 2, method: 2 },
     windowSetMaximized: { capability: 2, method: 3 },
     windowSetTitle: { capability: 2, method: 4 },
-    contextMenuShow: { capability: 3, method: 1 }
+    contextMenuShow: { capability: 3, method: 1 },
+    appDirsResolve: { capability: 4, method: 1 },
+    dialogOpen: { capability: 5, method: 1 },
+    dialogSave: { capability: 5, method: 2 },
+    dialogPickDirectory: { capability: 5, method: 3 },
+    dialogMessage: { capability: 5, method: 4 },
+    notificationShow: { capability: 6, method: 1 }
   });
   var pending = new Map;
   function assertAbi() {
@@ -2847,6 +2853,76 @@
     writeText: (text) => dispatchEffect(effectOps.clipboardWrite, { text: String(text) }).then(() => {
       return;
     })
+  });
+
+  // packages/core/src/glue/app-dirs.ts
+  var resolved;
+  function resolveAppDirectories() {
+    return resolved ??= dispatchEffect(effectOps.appDirsResolve);
+  }
+  var appDirs = Object.freeze({
+    resolve: resolveAppDirectories,
+    config: () => resolveAppDirectories().then((paths) => paths.configDir),
+    data: () => resolveAppDirectories().then((paths) => paths.dataDir),
+    localData: () => resolveAppDirectories().then((paths) => paths.localDataDir),
+    cache: () => resolveAppDirectories().then((paths) => paths.cacheDir),
+    log: () => resolveAppDirectories().then((paths) => paths.logDir),
+    resource: () => resolveAppDirectories().then((paths) => paths.resourceDir),
+    temp: () => resolveAppDirectories().then((paths) => paths.tempDir)
+  });
+  var appConfigDir = appDirs.config;
+  var appDataDir = appDirs.data;
+  var appLocalDataDir = appDirs.localData;
+  var appCacheDir = appDirs.cache;
+  var appLogDir = appDirs.log;
+  var resourceDir = appDirs.resource;
+  var tempDir = appDirs.temp;
+
+  // packages/core/src/glue/dialog.ts
+  function normalizeFilters(filters) {
+    return (filters ?? []).map((filter) => ({
+      name: String(filter.name),
+      extensions: filter.extensions.map((extension) => String(extension).replace(/^\./, "")).filter(Boolean)
+    }));
+  }
+  var dialog = Object.freeze({
+    open(options = {}) {
+      return dispatchEffect(effectOps.dialogOpen, {
+        ...options,
+        filters: normalizeFilters(options.filters),
+        multiple: options.multiple ?? false
+      });
+    },
+    save(options = {}) {
+      return dispatchEffect(effectOps.dialogSave, {
+        ...options,
+        filters: normalizeFilters(options.filters)
+      }).then((paths) => paths?.[0] ?? null);
+    },
+    pickDirectory(options = {}) {
+      return dispatchEffect(effectOps.dialogPickDirectory, options).then((paths) => paths?.[0] ?? null);
+    },
+    message(options) {
+      return dispatchEffect(effectOps.dialogMessage, {
+        ...options,
+        message: String(options.message),
+        level: options.level ?? "info",
+        buttons: options.buttons ?? "ok"
+      });
+    }
+  });
+
+  // packages/core/src/glue/notification.ts
+  var notification = Object.freeze({
+    show(options) {
+      return dispatchEffect(effectOps.notificationShow, {
+        ...options,
+        title: String(options.title),
+        silent: options.silent ?? false
+      }).then(() => {
+        return;
+      });
+    }
   });
   // packages/core/src/glue/color-theme.tsx
   var [current, setCurrent] = createSignal();
@@ -3009,6 +3085,8 @@
   Object.assign(globalThis, {
     __wabou_test_host_api: {
       clipboard,
+      dialog,
+      notification,
       createWindow,
       currentWindow,
       host: defaultHost,

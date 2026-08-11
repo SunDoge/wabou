@@ -23,7 +23,46 @@ in `CapabilityRegistry`. Registration rejects collisions and records:
 JavaScript submits an effect with a request ID, operation ID, scope, and typed
 payload. Rust completes it with the same request and operation IDs. The public
 API exposes typed wrappers such as `clipboard.readText()`, `createWindow()`,
-and `showNativeMenu()`; `__wabou_effect_*` globals are private ABI.
+`dialog.open()`, `notification.show()`, and `showNativeMenu()`;
+`__wabou_effect_*` globals are private ABI.
+
+## System dialogs and notifications
+
+`@wabou/core` exposes native dialogs as Promise-based effects. Cancellation is
+a normal result rather than an exception: file and directory methods resolve
+to `null`. Platform or permission failures reject the Promise.
+
+```ts
+import { dialog, notification } from "@wabou/core";
+
+const files = await dialog.open({
+  multiple: true,
+  filters: [{ name: "Images", extensions: ["png", "jpg"] }],
+});
+
+const destination = await dialog.save({ defaultName: "export.json" });
+const directory = await dialog.pickDirectory({ title: "Choose a workspace" });
+const answer = await dialog.message({
+  title: "Discard changes?",
+  message: "This cannot be undone.",
+  level: "warning",
+  buttons: "yesNoCancel",
+});
+
+await notification.show({
+  title: "Export complete",
+  body: destination ?? "The export was cancelled",
+});
+```
+
+Dialogs are parented to the requesting Wabou window. The current native
+backend uses each platform's file/message dialog through `rfd`; Linux uses the
+XDG desktop portal by default. Notifications use the operating-system
+notification service through `notify-rust`. Native backend types and handles
+do not cross the effect protocol.
+
+`useDialog()` and `useNotification()` read `PlatformProvider` overrides, so
+component tests can inject deterministic services without opening native UI.
 
 External packages can build equally typed wrappers with `EffectOp` and
 `dispatchEffect`. The Rust side accepts extension payload bytes, so adding a
@@ -67,6 +106,13 @@ request IDs to the current run.
 
 ## Current limitations
 
+- Notification actions and activation routing are not part of the initial
+  common API. `notification.show()` currently covers title, body, icon and
+  silent delivery only. macOS does not permit applications to replace the
+  notification icon; Windows notification identity follows the configured
+  window/application name until packaging provides a dedicated AppUserModelID.
+- Native dialogs are modal. Their JavaScript API remains asynchronous, but the
+  shell event thread waits inside the platform dialog's own modal event loop.
 - Context-menu selection is implemented by `wabou-tray`; dismissal detection
   is not portable through `muda` yet, so `showNativeMenu()` currently resolves
   only after an item is selected.

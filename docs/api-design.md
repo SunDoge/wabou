@@ -28,8 +28,8 @@ called from a component.
 | Owned interaction primitives | `createHover`, `createFocus`, `createFocusWithin`, `createPress`, `createActive`, `createButton` | Correct: each constructs local reactive state and bindings. |
 | Stateful controllers | `createTabs`, `createShortcuts`, `createMemoryHistory` | Correct: each returns a new independently testable controller; no ambient host is required. |
 | Owned effects | `createScrollReset`, `createFps` | Correct: both create effects or scheduled work and rely on Solid-owner cleanup. |
-| Context consumers | `useHost`, `usePlatformServices`, `useWindow`, `useClipboard`, router hooks, `useComponentsTheme` | Correct: each reads a Provider-backed value; required contexts fail clearly while services with a real runtime default use that default. |
-| Imperative native resources | `createWindow`, `currentWindow`, `clipboard` | Correct: these are callable outside a component and do not pretend to be context hooks. |
+| Context consumers | `useHost`, `usePlatformServices`, `useWindow`, `useClipboard`, `useDialog`, `useNotification`, router hooks, `useComponentsTheme` | Correct: each reads a Provider-backed value; required contexts fail clearly while services with a real runtime default use that default. |
+| Imperative native resources | `createWindow`, `currentWindow`, `clipboard`, `dialog`, `notification` | Correct: these are callable outside a component and do not pretend to be context hooks. |
 
 `HostProvider` and `PlatformProvider` deliberately replace different layers.
 `HostProvider` replaces renderer-facing layout, diagnostics, font, and system
@@ -41,8 +41,8 @@ services such as clipboard and window state. A partial nested
 violated this rule. The canonical name is `createFps`; `useFps` remains only as
 a deprecated compatibility alias.
 
-`useWindow` and `useClipboard` return the native service for the current
-QuickJS window. `PlatformProvider` can override either service for a Solid
+`useWindow`, `useClipboard`, `useDialog`, and `useNotification` return the
+native service for the current QuickJS window. `PlatformProvider` can override these services for a Solid
 subtree. This makes the names honest context consumers and lets component tests
 avoid mutating globals or loading a real clipboard.
 

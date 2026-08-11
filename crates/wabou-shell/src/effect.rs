@@ -60,6 +60,11 @@ pub mod builtin {
     pub const WINDOW_SET_TITLE: EffectOp = EffectOp::new(2, 4);
     pub const CONTEXT_MENU_SHOW: EffectOp = EffectOp::new(3, 1);
     pub const APP_DIRS_RESOLVE: EffectOp = EffectOp::new(4, 1);
+    pub const DIALOG_OPEN: EffectOp = EffectOp::new(5, 1);
+    pub const DIALOG_SAVE: EffectOp = EffectOp::new(5, 2);
+    pub const DIALOG_PICK_DIRECTORY: EffectOp = EffectOp::new(5, 3);
+    pub const DIALOG_MESSAGE: EffectOp = EffectOp::new(5, 4);
+    pub const NOTIFICATION_SHOW: EffectOp = EffectOp::new(6, 1);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,6 +188,91 @@ pub struct WindowCreateRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DialogFilter {
+    pub name: String,
+    pub extensions: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenDialogRequest {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub directory: Option<String>,
+    #[serde(default)]
+    pub filters: Vec<DialogFilter>,
+    #[serde(default)]
+    pub multiple: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDialogRequest {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub directory: Option<String>,
+    #[serde(default)]
+    pub default_name: Option<String>,
+    #[serde(default)]
+    pub filters: Vec<DialogFilter>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PickDirectoryRequest {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub directory: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MessageDialogLevel {
+    #[default]
+    Info,
+    Warning,
+    Error,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MessageDialogButtons {
+    #[default]
+    Ok,
+    OkCancel,
+    YesNo,
+    YesNoCancel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageDialogRequest {
+    #[serde(default)]
+    pub title: Option<String>,
+    pub message: String,
+    #[serde(default)]
+    pub level: MessageDialogLevel,
+    #[serde(default)]
+    pub buttons: MessageDialogButtons,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationRequest {
+    pub title: String,
+    #[serde(default)]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub silent: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum EffectPayload {
     ClipboardRead,
@@ -196,6 +286,11 @@ pub enum EffectPayload {
     },
     ContextMenuShow(ContextMenuRequest),
     AppDirsResolve(AppDirectories),
+    DialogOpen(OpenDialogRequest),
+    DialogSave(SaveDialogRequest),
+    DialogPickDirectory(PickDirectoryRequest),
+    DialogMessage(MessageDialogRequest),
+    NotificationShow(NotificationRequest),
     Extension {
         op: EffectOp,
         bytes: Vec<u8>,
@@ -226,6 +321,11 @@ impl EffectPayload {
             } => builtin::WINDOW_SET_TITLE,
             Self::ContextMenuShow(_) => builtin::CONTEXT_MENU_SHOW,
             Self::AppDirsResolve(_) => builtin::APP_DIRS_RESOLVE,
+            Self::DialogOpen(_) => builtin::DIALOG_OPEN,
+            Self::DialogSave(_) => builtin::DIALOG_SAVE,
+            Self::DialogPickDirectory(_) => builtin::DIALOG_PICK_DIRECTORY,
+            Self::DialogMessage(_) => builtin::DIALOG_MESSAGE,
+            Self::NotificationShow(_) => builtin::NOTIFICATION_SHOW,
             Self::Extension { op, .. } | Self::Invalid { op, .. } => *op,
         }
     }
@@ -255,6 +355,8 @@ pub enum EffectResult {
     ClipboardText(Option<String>),
     ContextMenuSelection(Option<String>),
     AppDirectories(AppDirectories),
+    DialogPaths(Option<Vec<String>>),
+    DialogMessage(String),
     Cancelled,
     Error {
         code: EffectErrorCode,
@@ -387,6 +489,9 @@ mod tests {
         assert_eq!(builtin::CLIPBOARD_READ, EffectOp::new(1, 1));
         assert_eq!(builtin::CONTEXT_MENU_SHOW, EffectOp::new(3, 1));
         assert_eq!(builtin::APP_DIRS_RESOLVE, EffectOp::new(4, 1));
+        assert_eq!(builtin::DIALOG_OPEN, EffectOp::new(5, 1));
+        assert_eq!(builtin::DIALOG_MESSAGE, EffectOp::new(5, 4));
+        assert_eq!(builtin::NOTIFICATION_SHOW, EffectOp::new(6, 1));
     }
 
     #[test]

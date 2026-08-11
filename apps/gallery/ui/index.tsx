@@ -25,6 +25,7 @@ import { createSignal, For, Match, Switch as ShowCase } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { OverlayPage } from "./pages/overlay";
+import { SystemPage } from "./pages/system";
 
 type ComponentId =
   | "button"
@@ -40,6 +41,7 @@ type ComponentId =
   | "fps"
   | "animation"
   | "platform"
+  | "system"
   | "colors"
   | "shadows"
   | "utilities"
@@ -123,7 +125,10 @@ const groups: Array<{
   },
   {
     label: "Platform",
-    items: [{ id: "platform", name: "Native window" }],
+    items: [
+      { id: "platform", name: "Native window" },
+      { id: "system", name: "System APIs" },
+    ],
   },
 ];
 
@@ -142,6 +147,7 @@ const descriptions: Record<ComponentId, string> = {
   fps: "Measures native host frames and highlights performance regressions.",
   animation: "Pure JavaScript value animations rendered by the native host.",
   platform: "Native windows and Rust-powered custom widgets.",
+  system: "Native file dialogs, message dialogs and desktop notifications.",
   colors: "Every color token exported by the native Wabou utility theme.",
   shadows:
     "Vello-native blurred rounded rectangles with explicit Gaussian parameters.",
@@ -498,6 +504,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "platform"}>
                     <PlatformPage />
+                  </Match>
+                  <Match when={selected() === "system"}>
+                    <SystemPage />
                   </Match>
                   <Match when={selected() === "separator"}>
                     <SeparatorPage />
