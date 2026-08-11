@@ -152,6 +152,146 @@ fn draw_scrollbars(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     }
 }
 
+fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
+    let [x0, y0, x1, y1] = node.rect;
+    let rect = Rect::new(f64::from(x0), f64::from(y0), f64::from(x1), f64::from(y1));
+    let radius = f64::from(node.paint.border_radius);
+    for shadow in &node.paint.shadows {
+        let (shadow_rect, radius, std_dev) = shadow_geometry(rect, radius, shadow);
+        scene.draw_blurred_rounded_rect(transform, shadow_rect, shadow.color, radius, std_dev);
+    }
+    if let Some(background) = node.paint.background {
+        scene.fill(
+            Fill::NonZero,
+            transform,
+            background,
+            None,
+            &rect.to_rounded_rect(radius),
+        );
+    }
+    let Some((_, border_color)) = node.paint.border else {
+        return;
+    };
+    let [top, right, bottom, left] = node.border_widths;
+    if top > 0.0 && top == right && top == bottom && top == left {
+        let width = f64::from(top);
+        let half = width / 2.0;
+        let inset = Rect::new(
+            f64::from(x0) + half,
+            f64::from(y0) + half,
+            f64::from(x1) - half,
+            f64::from(y1) - half,
+        );
+        scene.stroke(
+            &Stroke::new(width),
+            transform,
+            border_color,
+            None,
+            &inset.to_rounded_rect((radius - half).max(0.0)),
+        );
+        return;
+    }
+    // Side-specific utility borders must not turn into a uniform rectangle.
+    let sides = [
+        (top, (x0, y0 + top * 0.5), (x1, y0 + top * 0.5)),
+        (right, (x1 - right * 0.5, y0), (x1 - right * 0.5, y1)),
+        (bottom, (x0, y1 - bottom * 0.5), (x1, y1 - bottom * 0.5)),
+        (left, (x0 + left * 0.5, y0), (x0 + left * 0.5, y1)),
+    ];
+    for (width, from, to) in sides {
+        if width > 0.0 {
+            let line = vello::kurbo::Line::new(
+                (f64::from(from.0), f64::from(from.1)),
+                (f64::from(to.0), f64::from(to.1)),
+            );
+            scene.stroke(
+                &Stroke::new(f64::from(width)),
+                transform,
+                border_color,
+                None,
+                &line,
+            );
+        }
+    }
+}
+
+fn draw_svg(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
+    let Some(svg) = &node.paint.svg else {
+        return;
+    };
+    let [svg_width, svg_height] = svg.size();
+    let [x0, y0, x1, y1] = node.rect;
+    let width = (x1 - x0).max(0.0);
+    let height = (y1 - y0).max(0.0);
+    if svg_width <= 0.0 || svg_height <= 0.0 || width <= 0.0 || height <= 0.0 {
+        return;
+    }
+    let scale = f64::from((width / svg_width).min(height / svg_height));
+    let dx = f64::from(x0) + (f64::from(width) - f64::from(svg_width) * scale) * 0.5;
+    let dy = f64::from(y0) + (f64::from(height) - f64::from(svg_height) * scale) * 0.5;
+    scene.append(
+        svg.scene(),
+        Some(transform * Affine::translate((dx, dy)) * Affine::scale(scale)),
+    );
+}
+
+fn draw_text(
+    scene: &mut Scene,
+    node: &PlacedNode,
+    tcx: &mut TextContext,
+    transform: Affine,
+    device_scale: f64,
+) {
+    let Some(text) = &node.paint.text else {
+        return;
+    };
+    let layout = crate::text::layout_text_styled_overflow(
+        tcx,
+        text.clone(),
+        node.paint.font_size,
+        node.paint.font_weight,
+        node.paint.line_height,
+        node.paint.text_align,
+        crate::text::brush_for_color(node.paint.text_color),
+        node.paint.text_runs.clone(),
+        node.paint.font_family.as_ref(),
+        (node.paint.wrap_text || node.paint.text_ellipsis)
+            .then_some((node.rect[2] - node.rect[0]).max(0.0)),
+        node.paint.text_ellipsis,
+    );
+    let origin = Affine::translate((
+        f64::from(node.content_origin[0]),
+        f64::from(node.content_origin[1]),
+    ));
+    for &[x0, y0, x1, y1] in node.paint.selection_rects.iter() {
+        scene.fill(
+            Fill::NonZero,
+            transform * origin,
+            Color::from_rgba8(59, 130, 246, 105),
+            None,
+            &Rect::new(f64::from(x0), f64::from(y0), f64::from(x1), f64::from(y1)),
+        );
+    }
+    let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
+    scene.append(
+        &glyph_scene,
+        Some(transform * origin * Affine::scale(device_scale.recip())),
+    );
+}
+
+enum Layer {
+    Clip { depth: usize },
+    Opacity { depth: usize },
+}
+
+impl Layer {
+    fn depth(&self) -> usize {
+        match self {
+            Self::Clip { depth } | Self::Opacity { depth } => *depth,
+        }
+    }
+}
+
 /// Paint `nodes` into `scene` over a `base_color` background. Text nodes are
 /// laid out with parley and rendered as vello glyph runs.
 pub fn build_scene(
@@ -183,17 +323,6 @@ pub fn build_scene_scaled(
     scene.fill(Fill::NonZero, device, base_color, None, &bg);
 
     let mut transforms = HashMap::new();
-    enum Layer {
-        Clip { depth: usize },
-        Opacity { depth: usize },
-    }
-    impl Layer {
-        fn depth(&self) -> usize {
-            match self {
-                Self::Clip { depth } | Self::Opacity { depth } => *depth,
-            }
-        }
-    }
     let mut layers = Vec::new();
     for event in subtree_events(nodes) {
         let SubtreeEvent::Enter(n) = event else {
@@ -212,8 +341,6 @@ pub fn build_scene_scaled(
             }
             continue;
         };
-        let [x0, y0, x1, y1] = n.rect;
-        let rect = Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64);
         let r = n.paint.border_radius as f64;
         let parent_transform = n
             .parent_node_id
@@ -238,61 +365,7 @@ pub fn build_scene_scaled(
             layers.push(Layer::Opacity { depth: n.depth });
         }
 
-        for shadow in &n.paint.shadows {
-            let (shadow_rect, radius, std_dev) = shadow_geometry(rect, r, shadow);
-            scene.draw_blurred_rounded_rect(
-                node_transform,
-                shadow_rect,
-                shadow.color,
-                radius,
-                std_dev,
-            );
-        }
-
-        if let Some(bg) = n.paint.background {
-            let rr = rect.to_rounded_rect(r);
-            scene.fill(Fill::NonZero, node_transform, bg, None, &rr);
-        }
-
-        if let Some((_, bc)) = n.paint.border {
-            let [top, right, bottom, left] = n.border_widths;
-            if top > 0.0 && top == right && top == bottom && top == left {
-                let bw = top as f64;
-                let half = bw / 2.0;
-                let inset = Rect::new(
-                    x0 as f64 + half,
-                    y0 as f64 + half,
-                    x1 as f64 - half,
-                    y1 as f64 - half,
-                );
-                let ir = (r - half).max(0.0);
-                scene.stroke(
-                    &Stroke::new(bw),
-                    node_transform,
-                    bc,
-                    None,
-                    &inset.to_rounded_rect(ir),
-                );
-            } else {
-                // Side-specific utility borders (`border-b`, `border-r`, ...)
-                // must not turn into a uniform rectangle.
-                let sides = [
-                    (top, (x0, y0 + top * 0.5), (x1, y0 + top * 0.5)),
-                    (right, (x1 - right * 0.5, y0), (x1 - right * 0.5, y1)),
-                    (bottom, (x0, y1 - bottom * 0.5), (x1, y1 - bottom * 0.5)),
-                    (left, (x0 + left * 0.5, y0), (x0 + left * 0.5, y1)),
-                ];
-                for (width, from, to) in sides {
-                    if width > 0.0 {
-                        let line = vello::kurbo::Line::new(
-                            (from.0 as f64, from.1 as f64),
-                            (to.0 as f64, to.1 as f64),
-                        );
-                        scene.stroke(&Stroke::new(width as f64), node_transform, bc, None, &line);
-                    }
-                }
-            }
-        }
+        draw_node_box(scene, n, node_transform);
 
         if let Some([cx0, cy0, cx1, cy1]) = n.own_clip {
             let extent = f64::from(width.max(height)) * 4.0 + 4096.0;
@@ -314,21 +387,7 @@ pub fn build_scene_scaled(
             layers.push(Layer::Clip { depth: n.depth });
         }
 
-        if let Some(svg) = &n.paint.svg {
-            let [sw, sh] = svg.size();
-            let width = (x1 - x0).max(0.0);
-            let height = (y1 - y0).max(0.0);
-            if sw > 0.0 && sh > 0.0 && width > 0.0 && height > 0.0 {
-                // SVG's default preserveAspectRatio is xMidYMid meet. usvg has
-                // already applied the viewBox transform within the fragment;
-                // this transform fits its viewport into the CSS border box.
-                let scale = (width / sw).min(height / sh) as f64;
-                let dx = x0 as f64 + (width as f64 - sw as f64 * scale) * 0.5;
-                let dy = y0 as f64 + (height as f64 - sh as f64 * scale) * 0.5;
-                let transform = node_transform * Affine::translate((dx, dy)) * Affine::scale(scale);
-                scene.append(svg.scene(), Some(transform));
-            }
-        }
+        draw_svg(scene, n, node_transform);
 
         if let Some(ws) = &n.paint.widget {
             // Keep rounded widget clipping inside the fragment itself. Some
@@ -361,45 +420,7 @@ pub fn build_scene_scaled(
             }
         }
 
-        if let Some(text) = &n.paint.text {
-            let layout = crate::text::layout_text_styled_overflow(
-                tcx,
-                text.clone(),
-                n.paint.font_size,
-                n.paint.font_weight,
-                n.paint.line_height,
-                n.paint.text_align,
-                crate::text::brush_for_color(n.paint.text_color),
-                n.paint.text_runs.clone(),
-                n.paint.font_family.as_ref(),
-                (n.paint.wrap_text || n.paint.text_ellipsis)
-                    .then_some((n.rect[2] - n.rect[0]).max(0.0)),
-                n.paint.text_ellipsis,
-            );
-            let text_transform = node_transform
-                * Affine::translate((n.content_origin[0] as f64, n.content_origin[1] as f64));
-            for &[x0, y0, x1, y1] in n.paint.selection_rects.iter() {
-                scene.fill(
-                    Fill::NonZero,
-                    text_transform,
-                    Color::from_rgba8(59, 130, 246, 105),
-                    None,
-                    &Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64),
-                );
-            }
-            let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
-            scene.append(
-                &glyph_scene,
-                Some(
-                    node_transform
-                        * Affine::translate((
-                            n.content_origin[0] as f64,
-                            n.content_origin[1] as f64,
-                        ))
-                        * Affine::scale(device_scale.recip()),
-                ),
-            );
-        }
+        draw_text(scene, n, tcx, node_transform, device_scale);
     }
     while layers.pop().is_some() {
         scene.pop_layer();
