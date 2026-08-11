@@ -635,6 +635,112 @@ pub fn discover_socket() -> Result<PathBuf, String> {
 }
 
 #[cfg(unix)]
+fn execute_capture(state: &SharedDebugState, command: &DebugCommand) -> Result<Value, String> {
+    let point = match command {
+        DebugCommand::CaptureCase(params) => params.point(),
+        DebugCommand::CaptureScreenshot(_) => Ok(None),
+        _ => unreachable!("capture helper only accepts capture commands"),
+    }?;
+    let capture_case = matches!(command, DebugCommand::CaptureCase(_));
+    let path = state
+        .write()
+        .map_err(|_| "debug state poisoned".to_string())
+        .map(|mut state| {
+            if capture_case {
+                state.request_capture_case(point)
+            } else {
+                state.request_screenshot()
+            }
+        })?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let result = {
+            let state = state
+                .read()
+                .map_err(|_| "debug state poisoned".to_string())?;
+            if capture_case {
+                state.capture_case_result().cloned().map(|result| {
+                    result.and_then(|capture| {
+                        serde_json::to_value(capture).map_err(|error| error.to_string())
+                    })
+                })
+            } else {
+                state
+                    .screenshot_result()
+                    .cloned()
+                    .map(|result| result.map(|path| json!({"path": path})))
+            }
+        };
+        if let Some(result) = result {
+            return result;
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(format!(
+                "screenshot timed out; requested {}",
+                path.display()
+            ));
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+#[cfg(unix)]
+fn execute_request(state: &SharedDebugState, request: Request) -> Response {
+    let outcome = if matches!(
+        &request.command,
+        DebugCommand::CaptureScreenshot(_) | DebugCommand::CaptureCase(_)
+    ) {
+        execute_capture(state, &request.command)
+    } else {
+        state
+            .write()
+            .map_err(|_| "debug state poisoned".to_string())
+            .and_then(|mut state| state.execute(&request.command))
+    };
+    match outcome {
+        Ok(result) => Response {
+            id: request.id,
+            result: Some(result),
+            error: None,
+        },
+        Err(error) => Response {
+            id: request.id,
+            result: None,
+            error: Some(error),
+        },
+    }
+}
+
+#[cfg(unix)]
+fn serve_stream(state: &SharedDebugState, mut stream: std::os::unix::net::UnixStream) {
+    let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(1)));
+    let Ok(reader_stream) = stream.try_clone() else {
+        return;
+    };
+    for line in BufReader::new(reader_stream).lines() {
+        let response = match line.map_err(|error| error.to_string()).and_then(|line| {
+            if line.len() > MAX_REQUEST_BYTES {
+                Err("DevTools request exceeds 1 MiB".to_string())
+            } else {
+                serde_json::from_str::<Request>(&line).map_err(|error| error.to_string())
+            }
+        }) {
+            Ok(request) => execute_request(state, request),
+            Err(error) => Response {
+                id: 0,
+                result: None,
+                error: Some(error),
+            },
+        };
+        if serde_json::to_writer(&mut stream, &response).is_err()
+            || stream.write_all(b"\n").is_err()
+        {
+            break;
+        }
+    }
+}
+
+#[cfg(unix)]
 pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHandle> {
     use std::os::unix::fs::FileTypeExt;
     use std::os::unix::fs::PermissionsExt;
@@ -667,107 +773,8 @@ pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHa
                 if !thread_running.load(Ordering::Acquire) {
                     break;
                 }
-                let Ok(mut stream) = stream else { continue };
-                let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(1)));
-                let Ok(reader_stream) = stream.try_clone() else {
-                    continue;
-                };
-                let reader = BufReader::new(reader_stream);
-                for line in reader.lines() {
-                    let response = match line.map_err(|e| e.to_string()).and_then(|line| {
-                        if line.len() > MAX_REQUEST_BYTES {
-                            Err("DevTools request exceeds 1 MiB".to_string())
-                        } else {
-                            serde_json::from_str::<Request>(&line).map_err(|e| e.to_string())
-                        }
-                    }) {
-                        Ok(request) => {
-                            let outcome = if matches!(
-                                &request.command,
-                                DebugCommand::CaptureScreenshot(_) | DebugCommand::CaptureCase(_)
-                            ) {
-                                let point = match &request.command {
-                                    DebugCommand::CaptureCase(params) => params.point(),
-                                    DebugCommand::CaptureScreenshot(_) => Ok(None),
-                                    _ => unreachable!(),
-                                };
-                                let capture_case =
-                                    matches!(&request.command, DebugCommand::CaptureCase(_));
-                                let path = state
-                                    .write()
-                                    .map_err(|_| "debug state poisoned".to_string())
-                                    .and_then(|mut state| {
-                                        let point = point?;
-                                        if capture_case {
-                                            Ok(state.request_capture_case(point))
-                                        } else {
-                                            Ok(state.request_screenshot())
-                                        }
-                                    });
-                                path.and_then(|path| {
-                                    let deadline = std::time::Instant::now()
-                                        + std::time::Duration::from_secs(10);
-                                    loop {
-                                        let result = {
-                                            let state = state
-                                                .read()
-                                                .map_err(|_| "debug state poisoned".to_string())?;
-                                            if capture_case {
-                                                state.capture_case_result().cloned().map(|result| {
-                                                    result.and_then(|capture| {
-                                                        serde_json::to_value(capture)
-                                                            .map_err(|error| error.to_string())
-                                                    })
-                                                })
-                                            } else {
-                                                state.screenshot_result().cloned().map(|result| {
-                                                    result.map(|path| json!({"path": path}))
-                                                })
-                                            }
-                                        };
-                                        if let Some(result) = result {
-                                            break result;
-                                        }
-                                        if std::time::Instant::now() >= deadline {
-                                            break Err(format!(
-                                                "screenshot timed out; requested {}",
-                                                path.display()
-                                            ));
-                                        }
-                                        std::thread::sleep(std::time::Duration::from_millis(10));
-                                    }
-                                })
-                            } else {
-                                state
-                                    .write()
-                                    .map_err(|_| "debug state poisoned".to_string())
-                                    .and_then(|mut state| state.execute(&request.command))
-                            };
-                            match outcome {
-                                Ok(result) => Response {
-                                    id: request.id,
-                                    result: Some(result),
-                                    error: None,
-                                },
-                                Err(error) => Response {
-                                    id: request.id,
-                                    result: None,
-                                    error: Some(error),
-                                },
-                            }
-                        }
-                        Err(error) => Response {
-                            id: 0,
-                            result: None,
-                            error: Some(error),
-                        },
-                    };
-                    if serde_json::to_writer(&mut stream, &response).is_err()
-                        || stream.write_all(b"\n").is_err()
-                    {
-                        break;
-                    }
-                }
+                let Ok(stream) = stream else { continue };
+                serve_stream(&state, stream);
             }
             let _ = fs::remove_file(thread_path);
         })?;
