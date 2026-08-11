@@ -13,6 +13,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "allowImportingTsExtensions": true,
+    "noEmit": true,
     "types": ["bun"]
   },
   "include": [
