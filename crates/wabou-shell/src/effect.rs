@@ -222,8 +222,7 @@ impl EffectPayload {
                 ..
             } => builtin::WINDOW_SET_TITLE,
             Self::ContextMenuShow(_) => builtin::CONTEXT_MENU_SHOW,
-            Self::Extension { op, .. } => *op,
-            Self::Invalid { op, .. } => *op,
+            Self::Extension { op, .. } | Self::Invalid { op, .. } => *op,
         }
     }
 }
