@@ -787,72 +787,7 @@ impl FrameSource for Applier {
 
         let handled = match input {
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Move => {
-                let (x, y) = (pointer.position.x, pointer.position.y);
-                self.input.pointer_buttons = pointer.buttons;
-                self.input.pointer_position = (x, y);
-                let hovered_scrollbar = self
-                    .scrollbar_at(x, y)
-                    .map(|(node, target)| (node, target.axis));
-                let scrollbar_hover_changed = hovered_scrollbar != self.hovered_scrollbar;
-                let previous_hover = self.hovered_scrollbar;
-                self.hovered_scrollbar = hovered_scrollbar;
-                if let Some((node, _)) = hovered_scrollbar {
-                    self.scrollbar_activity.insert(node, Instant::now());
-                }
-                if scrollbar_hover_changed && let Some((node, _)) = previous_hover {
-                    self.scrollbar_activity.insert(node, Instant::now());
-                }
-                if self.scrollbar_drag.is_some() {
-                    let changed = self.drag_scrollbar(x, y);
-                    return EventResponse {
-                        handled: true,
-                        request_redraw: changed || scrollbar_hover_changed,
-                        ..EventResponse::IGNORED
-                    };
-                }
-                if pointer.buttons & 1 != 0
-                    && let Some((down_x, down_y)) = self.input.pointer_down_position
-                {
-                    let dx = x - down_x;
-                    let dy = y - down_y;
-                    self.input.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
-                }
-                let target = self.input.hit_test(x, y);
-                let mut changed = scrollbar_hover_changed;
-                if let Some(captured) = self.input.pointer_down_target
-                    && let Some(response) =
-                        self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
-                {
-                    changed |= response.handled || response.request_redraw;
-                }
-                if pointer.buttons & 1 != 0 {
-                    changed |= self.extend_text_selection(target, x, y);
-                    self.arm_text_selection_autoscroll();
-                }
-                if target != self.input.hovered_target {
-                    if let Some(old) = self.input.hovered_target {
-                        changed |= self.dispatch_pointer(
-                            old,
-                            event::POINTERLEAVE,
-                            None,
-                            pointer.modifiers,
-                        );
-                    }
-                    if let Some(new) = target {
-                        changed |= self.dispatch_pointer(
-                            new,
-                            event::POINTERENTER,
-                            None,
-                            pointer.modifiers,
-                        );
-                    }
-                    self.input.hovered_target = target;
-                }
-                if let Some(target) = target {
-                    changed |=
-                        self.dispatch_pointer(target, event::POINTERMOVE, None, pointer.modifiers);
-                }
-                changed
+                return self.handle_pointer_move(pointer);
             }
             UiEvent::Pointer(pointer) if pointer.phase == PointerPhase::Down => {
                 let (x, y) = (pointer.position.x, pointer.position.y);
