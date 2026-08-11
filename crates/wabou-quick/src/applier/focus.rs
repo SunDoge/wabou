@@ -20,27 +20,9 @@ impl Applier {
             self.last_text_click = None;
         }
 
-        // Application shortcuts get first refusal before a focused Rust
-        // widget consumes the key.
-        let keydown_dispatched = if let UiEvent::Key(key) = &input
-            && key.phase == KeyPhase::Down
-            && let Some(target) = self.input.focused_target
-        {
-            let payload = key_event_payload(key);
-            let (dispatched, prevented) =
-                self.dispatch_cancellable_json(target, event::KEYDOWN, payload);
-            if prevented {
-                return EventResponse {
-                    handled: true,
-                    request_redraw: true,
-                    consume_key_text: true,
-                    text_input: None,
-                    clipboard: None,
-                };
-            }
-            dispatched
-        } else {
-            false
+        let keydown_dispatched = match self.dispatch_focused_keydown(&input) {
+            Ok(dispatched) => dispatched,
+            Err(response) => return response,
         };
 
         let widget_response = self
@@ -48,51 +30,106 @@ impl Applier {
             .focused_target
             .and_then(|target| self.handle_widget_event(target, &input));
         if widget_response.is_none()
-            && let UiEvent::Key(key) = &input
-            && key.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy)
+            && let Some(response) = self.handle_unclaimed_focused_input(&input)
+        {
+            return response;
+        }
+
+        let handled =
+            self.dispatch_focused_dom_input(input, keydown_dispatched, widget_response.is_some());
+        widget_response.map_or_else(
+            || Self::response(handled),
+            |widget| EventResponse {
+                handled: widget.handled || handled,
+                request_redraw: widget.request_redraw || handled,
+                consume_key_text: widget.consume_key_text,
+                text_input: widget.text_input,
+                clipboard: widget.clipboard,
+            },
+        )
+    }
+
+    fn dispatch_focused_keydown(&mut self, input: &UiEvent) -> Result<bool, EventResponse> {
+        let UiEvent::Key(key) = input else {
+            return Ok(false);
+        };
+        if key.phase != KeyPhase::Down {
+            return Ok(false);
+        }
+        let Some(target) = self.input.focused_target else {
+            return Ok(false);
+        };
+
+        // Application shortcuts get first refusal before a focused Rust
+        // widget consumes the key.
+        let payload = key_event_payload(key);
+        let (dispatched, prevented) =
+            self.dispatch_cancellable_json(target, event::KEYDOWN, payload);
+        if prevented {
+            Err(EventResponse {
+                handled: true,
+                request_redraw: true,
+                consume_key_text: true,
+                text_input: None,
+                clipboard: None,
+            })
+        } else {
+            Ok(dispatched)
+        }
+    }
+
+    fn handle_unclaimed_focused_input(&mut self, input: &UiEvent) -> Option<EventResponse> {
+        let UiEvent::Key(key) = input else {
+            return None;
+        };
+        if key.matches_standard_shortcut(wabou_shell::StandardShortcut::Copy)
             && let Some(text) = self.selected_text()
         {
-            return EventResponse {
+            return Some(EventResponse {
                 handled: true,
                 request_redraw: false,
                 consume_key_text: false,
                 text_input: None,
                 clipboard: Some(wabou_shell::ClipboardRequest::Write(text)),
-            };
+            });
         }
-        if widget_response.is_none()
-            && let UiEvent::Key(key) = &input
-            && key.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll)
+        if key.matches_standard_shortcut(wabou_shell::StandardShortcut::SelectAll)
             && self.select_all_text()
         {
             self.sync_text_selection_change();
-            return EventResponse {
+            return Some(EventResponse {
                 handled: true,
                 request_redraw: true,
                 consume_key_text: false,
                 text_input: None,
                 clipboard: None,
-            };
+            });
         }
-        if widget_response.is_none()
-            && let UiEvent::Key(key) = &input
-            && key.phase == KeyPhase::Down
-            && key.key == "Tab"
-            && !key.modifiers.control()
-            && !key.modifiers.alt()
-            && !key.modifiers.meta()
-            && let Some(target) = self.advance_focus(key.modifiers.shift())
+        if key.phase != KeyPhase::Down
+            || key.key != "Tab"
+            || key.modifiers.control()
+            || key.modifiers.alt()
+            || key.modifiers.meta()
         {
-            return EventResponse {
-                handled: true,
-                request_redraw: true,
-                consume_key_text: true,
-                text_input: Some(self.is_text_input_target(target)),
-                clipboard: None,
-            };
+            return None;
         }
+        let target = self.advance_focus(key.modifiers.shift())?;
+        Some(EventResponse {
+            handled: true,
+            request_redraw: true,
+            consume_key_text: true,
+            text_input: Some(self.is_text_input_target(target)),
+            clipboard: None,
+        })
+    }
 
-        let handled = match input {
+    fn dispatch_focused_dom_input(
+        &mut self,
+        input: UiEvent,
+        keydown_dispatched: bool,
+        widget_handled: bool,
+    ) -> bool {
+        match input {
             UiEvent::Key(key) if key.phase == KeyPhase::Down => keydown_dispatched,
             UiEvent::Key(key) if key.phase == KeyPhase::Up => {
                 self.input.focused_target.is_some_and(|target| {
@@ -106,19 +143,8 @@ impl Applier {
                 let payload = serde_json::json!({ "data": text }).to_string();
                 self.dispatch_json(target, event::IMECOMMIT, &payload)
             }),
-            UiEvent::Ime(_) => widget_response.is_some(),
+            UiEvent::Ime(_) => widget_handled,
             _ => unreachable!("focused input routing received a non-input event"),
-        };
-        if let Some(widget) = widget_response {
-            EventResponse {
-                handled: widget.handled || handled,
-                request_redraw: widget.request_redraw || handled,
-                consume_key_text: widget.consume_key_text,
-                text_input: widget.text_input,
-                clipboard: widget.clipboard,
-            }
-        } else {
-            Self::response(handled)
         }
     }
 
