@@ -3,61 +3,9 @@ import {
   animate,
   animateKeyframes,
 } from "@wabou/animation";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-  ComponentsProvider,
-  Fps,
-  Input,
-  Progress,
-  Separator,
-  Switch,
-  TextArea,
-  useComponentsTheme,
-} from "@wabou/components";
-import { createWindow, useWindow } from "@wabou/core";
-import {
-  createHover,
-  createScrollReset,
-  Button as PrimitiveButton,
-  ScrollArea,
-  Text,
-  translate2d,
-  View,
-} from "@wabou/primitives";
-import {
-  createMemoryHistory,
-  MemoryRouter,
-  Route,
-  useLocation,
-  useNavigate,
-  useParams,
-} from "@wabou/router";
-import {
-  type Handle,
-  mount,
-  px,
-  rgba,
-  shadow,
-  number as styleNumber,
-} from "@wabou/core";
-import wabouUtilityManifest from "@wabou/vite/utility-manifest";
-import {
-  createSignal,
-  For,
-  type JSX,
-  Match,
-  onCleanup,
-  onMount,
-  Switch as ShowCase,
-} from "solid-js";
+import { Button } from "@wabou/components";
+import { Text, translate2d, View } from "@wabou/primitives";
+import { createSignal, onCleanup, onMount } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { Preview } from "../preview";
