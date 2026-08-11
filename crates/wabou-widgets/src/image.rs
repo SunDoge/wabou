@@ -7,13 +7,10 @@
 
 use std::sync::Arc;
 
-use vello::Scene;
 use vello::kurbo::Affine;
 use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 use wabou_shell::UiEvent;
-use wabou_shell::text::TextContext;
-
-use wabou_shell::{Widget, WidgetEventResult};
+use wabou_shell::{PaintContext, Widget, WidgetEventResult};
 
 pub struct ImageWidget {
     src: Option<String>,
@@ -42,7 +39,7 @@ impl ImageWidget {
 }
 
 impl Widget for ImageWidget {
-    fn paint(&mut self, width: f32, height: f32, _tcx: &mut TextContext) -> Scene {
+    fn paint(&mut self, cx: &mut PaintContext<'_>) {
         if let Some(src) = &self.src
             && self.cached_src.as_deref() != Some(src.as_str())
         {
@@ -68,16 +65,15 @@ impl Widget for ImageWidget {
                 }
             }
         }
-        let mut scene = Scene::new();
         if let Some(brush) = &self.image
             && self.img_w > 0
             && self.img_h > 0
         {
-            let sx = width as f64 / self.img_w as f64;
-            let sy = height as f64 / self.img_h as f64;
-            scene.draw_image(brush, Affine::scale_non_uniform(sx, sy));
+            let sx = cx.width() as f64 / self.img_w as f64;
+            let sy = cx.height() as f64 / self.img_h as f64;
+            cx.scene_mut()
+                .draw_image(brush, Affine::scale_non_uniform(sx, sy));
         }
-        scene
     }
 
     fn attribute_changed(&mut self, name: &str, value: &str) {

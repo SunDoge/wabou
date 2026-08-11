@@ -3,9 +3,8 @@
 use std::sync::Arc;
 
 use wabou_quick::widget_api::{
-    TextContext, UiEvent, Widget, WidgetEventResult,
+    PaintContext, UiEvent, Widget, WidgetEventResult,
     vello::{
-        Scene,
         kurbo::Affine,
         peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat},
     },
@@ -56,7 +55,7 @@ impl JuliaWidget {
 }
 
 impl Widget for JuliaWidget {
-    fn paint(&mut self, width: f32, height: f32, _text: &mut TextContext) -> Scene {
+    fn paint(&mut self, paint: &mut PaintContext<'_>) {
         let key = (self.cx, self.cy);
         if self.cached != Some(key) {
             let data = ImageData {
@@ -70,9 +69,9 @@ impl Widget for JuliaWidget {
             self.cached = Some(key);
         }
 
-        let mut scene = Scene::new();
         if let Some(brush) = &self.image {
-            scene.draw_image(
+            let [width, height] = paint.size();
+            paint.scene_mut().draw_image(
                 brush,
                 Affine::scale_non_uniform(
                     width as f64 / RENDER_SIZE as f64,
@@ -80,7 +79,6 @@ impl Widget for JuliaWidget {
                 ),
             );
         }
-        scene
     }
 
     fn attribute_changed(&mut self, name: &str, value: &str) {

@@ -63,9 +63,7 @@ impl crate::widget::Widget for MeasuringWidget {
         Some(self.0)
     }
 
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 }
 
 impl crate::widget::Widget for StyleAwareMeasuringWidget {
@@ -78,15 +76,11 @@ impl crate::widget::Widget for StyleAwareMeasuringWidget {
         Some([100.0, 40.0])
     }
 
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 }
 
 impl crate::widget::Widget for HostActionWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.0.is_some()
@@ -98,9 +92,7 @@ impl crate::widget::Widget for HostActionWidget {
 }
 
 impl crate::widget::Widget for EventHostActionWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, _event: &UiEvent) -> crate::widget::WidgetEventResult {
         crate::widget::WidgetEventResult::HANDLED
@@ -112,9 +104,7 @@ impl crate::widget::Widget for EventHostActionWidget {
 }
 
 impl crate::widget::Widget for UnmountActionWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn unmount(&mut self) {
         self.0 = Some(wabou_shell::HostAction::SetWindowTitle(None));
@@ -126,9 +116,7 @@ impl crate::widget::Widget for UnmountActionWidget {
 }
 
 impl crate::widget::Widget for LifecycleWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn focus_changed(&mut self, focused: bool) {
         self.0
@@ -156,9 +144,7 @@ impl crate::widget::Widget for LifecycleWidget {
 }
 
 impl crate::widget::Widget for NodeEventWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.0.is_some()
@@ -170,9 +156,7 @@ impl crate::widget::Widget for NodeEventWidget {
 }
 
 impl crate::widget::Widget for ClipboardReadWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn poll_async(&mut self) -> bool {
         self.action.is_some()
@@ -188,9 +172,7 @@ impl crate::widget::Widget for ClipboardReadWidget {
 }
 
 impl crate::widget::Widget for WheelCaptureWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, event: &UiEvent) -> crate::widget::WidgetEventResult {
         if let UiEvent::Wheel(wheel) = event {
@@ -203,9 +185,7 @@ impl crate::widget::Widget for WheelCaptureWidget {
 }
 
 impl crate::widget::Widget for KeyCaptureWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _tcx: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
     fn handle_event(&mut self, event: &UiEvent) -> crate::widget::WidgetEventResult {
         if matches!(event, UiEvent::Key(_)) {

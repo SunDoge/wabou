@@ -11,7 +11,10 @@ impl Widget for TerminalWidget {
         self.intrinsic_size()
     }
 
-    fn paint(&mut self, width: f32, height: f32, tcx: &mut TextContext) -> Scene {
+    fn paint(&mut self, cx: &mut wabou_shell::PaintContext<'_>) {
+        let [width, height] = cx.size();
+        self.device_scale = cx.device_scale();
+        let tcx = cx.text();
         self.update_font_metrics(tcx);
         self.resize(width, height);
         self.ensure_launched();
@@ -350,18 +353,7 @@ impl Widget for TerminalWidget {
                 Some(Affine::translate((4.0, 4.0)) * Affine::scale(self.device_scale.recip())),
             );
         }
-        scene
-    }
-
-    fn paint_scaled(
-        &mut self,
-        width: f32,
-        height: f32,
-        device_scale: f64,
-        tcx: &mut TextContext,
-    ) -> Scene {
-        self.device_scale = device_scale.max(f64::EPSILON);
-        self.paint(width, height, tcx)
+        cx.scene_mut().append(&scene, None);
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {
@@ -813,5 +805,24 @@ impl Widget for TerminalWidget {
             self.pending_host_actions
                 .push_back(HostAction::SetWindowTitle(None));
         }
+    }
+}
+
+#[cfg(test)]
+impl TerminalWidget {
+    pub(crate) fn paint(&mut self, width: f32, height: f32, text: &mut TextContext) -> Scene {
+        self.paint_scaled(width, height, self.device_scale, text)
+    }
+
+    pub(crate) fn paint_scaled(
+        &mut self,
+        width: f32,
+        height: f32,
+        device_scale: f64,
+        text: &mut TextContext,
+    ) -> Scene {
+        let mut cx = wabou_shell::PaintContext::new(width, height, device_scale, text);
+        <Self as Widget>::paint(self, &mut cx);
+        cx.finish()
     }
 }

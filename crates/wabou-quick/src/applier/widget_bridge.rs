@@ -203,8 +203,10 @@ impl Applier {
                 w.set_window_to_local(window_to_local.as_coeffs());
                 let [width, height] = n.content_size;
                 if width > 0.0 && height > 0.0 {
-                    let scene = w.paint_scaled(width, height, self.device_scale, tcx);
-                    n.paint.widget = Some(std::sync::Arc::new(scene));
+                    let mut paint =
+                        wabou_shell::PaintContext::new(width, height, self.device_scale, tcx);
+                    w.paint(&mut paint);
+                    n.paint.widget = Some(std::sync::Arc::new(paint.finish()));
                 }
                 if self.input.focused_target == self.node_store.solid_id_for_node(n.node_id)
                     && let Some([x0, y0, x1, y1]) = w.ime_cursor_area()

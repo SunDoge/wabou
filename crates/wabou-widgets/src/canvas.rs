@@ -4,21 +4,17 @@
 //! Widget::paint → Scene → build_scene append. No interaction.
 //! Registered when the applier encounters `tag == "canvas"`.
 
-use vello::Scene;
 use vello::kurbo::{Affine, Circle, Line, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 use wabou_shell::UiEvent;
-use wabou_shell::text::TextContext;
-
-use wabou_shell::{Widget, WidgetEventResult};
+use wabou_shell::{PaintContext, Widget, WidgetEventResult};
 
 pub struct Canvas;
 
 impl Widget for Canvas {
-    fn paint(&mut self, width: f32, height: f32, _tcx: &mut TextContext) -> Scene {
-        let mut scene = Scene::new();
-        let w = width as f64;
-        let h = height as f64;
+    fn paint(&mut self, cx: &mut PaintContext<'_>) {
+        let w = cx.width() as f64;
+        let h = cx.height() as f64;
 
         // A checkerboard background to show the widget fills the content box.
         let tile = 16.0;
@@ -27,7 +23,7 @@ impl Widget for Canvas {
         for r in 0..rows {
             for c in 0..cols {
                 if (r + c) % 2 == 0 {
-                    scene.fill(
+                    cx.scene_mut().fill(
                         Fill::NonZero,
                         Affine::IDENTITY,
                         Color::from_rgb8(0x1e, 0x29, 0x3b),
@@ -44,27 +40,25 @@ impl Widget for Canvas {
         }
 
         // A circle in the center.
-        let cx = w / 2.0;
-        let cy = h / 2.0;
+        let center_x = w / 2.0;
+        let center_y = h / 2.0;
         let radius = w.min(h) * 0.3;
-        scene.fill(
+        cx.scene_mut().fill(
             Fill::NonZero,
             Affine::IDENTITY,
             Color::from_rgba8(0x63, 0x66, 0xf1, 0x80),
             None,
-            &Circle::new((cx, cy), radius),
+            &Circle::new((center_x, center_y), radius),
         );
 
         // A diagonal line.
-        scene.stroke(
+        cx.scene_mut().stroke(
             &Stroke::new(2.0),
             Affine::IDENTITY,
             Color::from_rgb8(0x22, 0xd3, 0xee),
             None,
             &Line::new((0.0, 0.0), (w, h)),
         );
-
-        scene
     }
 
     fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {

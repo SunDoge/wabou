@@ -15,10 +15,12 @@ use vello::Scene;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
-use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
+#[cfg(test)]
+use wabou_shell::text::TextContext;
+use wabou_shell::text::{brush_for_color, layout_text_styled};
 use wabou_shell::{ImeEvent, KeyPhase, PointerPhase, UiEvent};
 
-use wabou_shell::{Widget, WidgetEventResult, WidgetStyle};
+use wabou_shell::{PaintContext, Widget, WidgetEventResult, WidgetStyle};
 
 use crate::single_line_y_offset;
 
@@ -174,7 +176,10 @@ impl TextInput {
 }
 
 impl Widget for TextInput {
-    fn paint(&mut self, width: f32, height: f32, tcx: &mut TextContext) -> Scene {
+    fn paint(&mut self, cx: &mut PaintContext<'_>) {
+        let [width, height] = cx.size();
+        self.device_scale = cx.device_scale();
+        let tcx = cx.text();
         if self.multiline && self.viewport_width != width {
             self.viewport_width = width;
             self.editor.set_width(Some(width.max(0.0)));
@@ -385,18 +390,7 @@ impl Widget for TextInput {
         if self.multiline {
             scene.pop_layer();
         }
-        scene
-    }
-
-    fn paint_scaled(
-        &mut self,
-        width: f32,
-        height: f32,
-        device_scale: f64,
-        tcx: &mut TextContext,
-    ) -> Scene {
-        self.device_scale = device_scale.max(f64::EPSILON);
-        self.paint(width, height, tcx)
+        cx.scene_mut().append(&scene, None);
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {
@@ -743,6 +737,15 @@ fn parse_px(value: &str) -> Option<f32> {
         return p.trim().parse::<f32>().ok();
     }
     v.parse::<f32>().ok()
+}
+
+#[cfg(test)]
+impl TextInput {
+    fn paint(&mut self, width: f32, height: f32, text: &mut TextContext) -> Scene {
+        let mut cx = PaintContext::new(width, height, self.device_scale, text);
+        <Self as Widget>::paint(self, &mut cx);
+        cx.finish()
+    }
 }
 
 #[cfg(test)]

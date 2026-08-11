@@ -16,7 +16,63 @@ use std::time::Instant;
 use crate::style::{Paint, TextAlign};
 use crate::text::TextContext;
 use crate::{ClipboardRequest, HostAction, HostActionResult, UiEvent, WakeCallback};
+use vello::Scene;
 use vello::peniko::Color;
+
+/// Per-frame painting state passed to a native widget.
+///
+/// This is intentionally a thin boundary around Vello rather than a second
+/// drawing API. Widgets get the geometry and text resources they need while
+/// direct scene access remains available for operations Wabou has not earned
+/// an abstraction for yet.
+pub struct PaintContext<'a> {
+    width: f32,
+    height: f32,
+    device_scale: f64,
+    text: &'a mut TextContext,
+    scene: Scene,
+}
+
+impl<'a> PaintContext<'a> {
+    pub fn new(width: f32, height: f32, device_scale: f64, text: &'a mut TextContext) -> Self {
+        Self {
+            width,
+            height,
+            device_scale: device_scale.max(f64::EPSILON),
+            text,
+            scene: Scene::new(),
+        }
+    }
+
+    pub fn width(&self) -> f32 {
+        self.width
+    }
+
+    pub fn height(&self) -> f32 {
+        self.height
+    }
+
+    pub fn device_scale(&self) -> f64 {
+        self.device_scale
+    }
+
+    pub fn size(&self) -> [f32; 2] {
+        [self.width, self.height]
+    }
+
+    pub fn text(&mut self) -> &mut TextContext {
+        self.text
+    }
+
+    /// Direct access to the Vello scene while the painting API is evolving.
+    pub fn scene_mut(&mut self) -> &mut Scene {
+        &mut self.scene
+    }
+
+    pub fn finish(self) -> Scene {
+        self.scene
+    }
+}
 
 /// Resolved content styles exposed to native widgets.
 ///
@@ -170,7 +226,7 @@ impl WidgetEventResult {
     }
 }
 
-/// A Rust-side widget that paints custom content into a vello Scene.
+/// A Rust-side widget that paints custom content through a [`PaintContext`].
 ///
 /// Ported from blitz's `Widget` trait
 /// (`packages/blitz-dom/src/node/custom_widget.rs`), adapted to wabou's
@@ -183,24 +239,9 @@ pub trait Widget {
         self.intrinsic_size()
     }
 
-    /// Paint a vello Scene fragment for the node's content box (0..w, 0..h).
-    /// Called every frame after layout; the result is composited by
-    /// `build_scene` at the node's content-box origin.
-    fn paint(&mut self, width: f32, height: f32, tcx: &mut TextContext) -> vello::Scene;
-
-    /// Scale-aware paint entry point. Bitmap-backed content such as native
-    /// color emoji must be encoded at physical resolution; ordinary widgets
-    /// can keep implementing `paint` and use this default.
-    fn paint_scaled(
-        &mut self,
-        width: f32,
-        height: f32,
-        device_scale: f64,
-        tcx: &mut TextContext,
-    ) -> vello::Scene {
-        let _ = device_scale;
-        self.paint(width, height, tcx)
-    }
+    /// Paint inside the node's local content box. The framework composites
+    /// the context's scene fragment at the content-box origin.
+    fn paint(&mut self, cx: &mut PaintContext<'_>);
 
     /// Handle an event targeted at this widget's node.
     fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
@@ -292,6 +333,17 @@ pub trait Widget {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn paint_context_carries_frame_geometry_and_normalizes_scale() {
+        let mut text = TextContext::new();
+        let paint = PaintContext::new(320.0, 180.0, 0.0, &mut text);
+
+        assert_eq!(paint.size(), [320.0, 180.0]);
+        assert_eq!(paint.width(), 320.0);
+        assert_eq!(paint.height(), 180.0);
+        assert_eq!(paint.device_scale(), f64::EPSILON);
+    }
 
     #[test]
     fn widget_changes_are_composable_flags() {

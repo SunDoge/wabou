@@ -5,7 +5,8 @@
 //! crate.
 
 pub use wabou_shell::{
-    Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent, WidgetStyle,
+    PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent,
+    WidgetStyle,
 };
 pub use wabou_widgets::{
     Canvas, ImageWidget, PasswordInput, SecretStore, TextInput, builtin_factories,

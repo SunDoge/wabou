@@ -20,9 +20,7 @@ impl ExternalWidget {
 }
 
 impl Widget for ExternalWidget {
-    fn paint(&mut self, _width: f32, _height: f32, _text: &mut TextContext) -> vello::Scene {
-        vello::Scene::new()
-    }
+    fn paint(&mut self, _cx: &mut PaintContext<'_>) {}
 
     fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
         WidgetEventResult::HANDLED

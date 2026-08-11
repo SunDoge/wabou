@@ -7,11 +7,11 @@ use vello::Scene;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
-use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
+use wabou_shell::text::{brush_for_color, layout_text_styled};
 use wabou_shell::{ImeEvent, KeyPhase, StandardShortcut, UiEvent};
 use zeroize::{Zeroize, Zeroizing};
 
-use wabou_shell::{Widget, WidgetEventResult, WidgetStyle};
+use wabou_shell::{PaintContext, Widget, WidgetEventResult, WidgetStyle};
 
 use crate::single_line_y_offset;
 
@@ -106,7 +106,10 @@ impl PasswordInput {
 }
 
 impl Widget for PasswordInput {
-    fn paint(&mut self, _width: f32, height: f32, tcx: &mut TextContext) -> Scene {
+    fn paint(&mut self, cx: &mut PaintContext<'_>) {
+        let height = cx.height();
+        self.device_scale = cx.device_scale();
+        let tcx = cx.text();
         let count = self.secrets.character_count(&self.slot);
         let (text, color) = if count == 0 {
             (self.placeholder.clone(), PLACEHOLDER)
@@ -146,18 +149,7 @@ impl Widget for PasswordInput {
                 &Rect::new(x, y, x + 1.5, y + f64::from(layout.height())),
             );
         }
-        scene
-    }
-
-    fn paint_scaled(
-        &mut self,
-        width: f32,
-        height: f32,
-        device_scale: f64,
-        tcx: &mut TextContext,
-    ) -> Scene {
-        self.device_scale = device_scale.max(f64::EPSILON);
-        self.paint(width, height, tcx)
+        cx.scene_mut().append(&scene, None);
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {

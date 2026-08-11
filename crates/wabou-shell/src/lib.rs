@@ -45,6 +45,7 @@ pub use source::{
 };
 pub use text::TextContext;
 pub use widget::{
-    Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent, WidgetStyle,
+    PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent,
+    WidgetStyle,
 };
 pub use winit::raw_window_handle;
