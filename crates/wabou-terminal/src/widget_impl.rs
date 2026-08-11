@@ -5,6 +5,339 @@ pub fn terminal_widget() -> Box<dyn Widget> {
     Box::new(TerminalWidget::lazy_default_shell())
 }
 
+struct RowPaintContext<'a> {
+    scene: &'a mut Scene,
+    text: &'a mut TextContext,
+    colors: &'a TermColors,
+    default_background: Color,
+    device_scale: f64,
+}
+
+fn cell_has_no_glyph(square: Square, character: char) -> bool {
+    matches!(square.wide(), Wide::Spacer | Wide::LeadingSpacer)
+        || character == '\0'
+        || (character == ' ' && !square.has_extras())
+        || character.is_control()
+}
+
+fn cell_font_weight(style: Style) -> f32 {
+    if style.flags.contains(StyleFlags::BOLD) {
+        700.0
+    } else {
+        400.0
+    }
+}
+
+fn terminal_scene(width: f32, height: f32, background: Color) -> Scene {
+    let mut scene = Scene::new();
+    scene.fill(
+        Fill::NonZero,
+        Affine::IDENTITY,
+        background,
+        None,
+        &Rect::new(0.0, 0.0, width as f64, height as f64),
+    );
+    scene
+}
+
+impl TerminalWidget {
+    fn draw_visible_rows(
+        &self,
+        context: &mut RowPaintContext<'_>,
+        selection: Option<SelectionRange>,
+        display_offset: usize,
+    ) {
+        for (row_index, row) in self.visible_rows.iter().enumerate() {
+            let y = row_index as f32 * self.line_height;
+            for column in 0..self.size.columns.min(row.inner.len()) {
+                let square = row[Column(column)];
+                let point = Pos::new(
+                    Line(row_index as i32 - display_offset as i32),
+                    Column(column),
+                );
+                let selected = selection
+                    .is_some_and(|selection| selection_contains_square(selection, point, square));
+                let (character, style) = match square.content_tag() {
+                    ContentTag::Codepoint => (
+                        square.c(),
+                        self.visible_styles
+                            .get(square.style_id() as usize)
+                            .copied()
+                            .unwrap_or_default(),
+                    ),
+                    ContentTag::BgPalette => {
+                        let background =
+                            terminal_indexed_color(square.bg_palette_index(), context.colors);
+                        self.draw_background_cell(
+                            context.scene,
+                            column,
+                            row_index,
+                            background,
+                            selected,
+                            context.device_scale,
+                        );
+                        continue;
+                    }
+                    ContentTag::BgRgb => {
+                        let (red, green, blue) = square.bg_rgb();
+                        self.draw_background_cell(
+                            context.scene,
+                            column,
+                            row_index,
+                            Color::from_rgb8(red, green, blue),
+                            selected,
+                            context.device_scale,
+                        );
+                        continue;
+                    }
+                };
+                self.draw_codepoint_cell(
+                    context.scene,
+                    context.text,
+                    square,
+                    character,
+                    style,
+                    column,
+                    row_index,
+                    y,
+                    selected,
+                    context.colors,
+                    context.default_background,
+                    context.device_scale,
+                );
+            }
+        }
+    }
+
+    fn draw_background_cell(
+        &self,
+        scene: &mut Scene,
+        column: usize,
+        row: usize,
+        background: Color,
+        selected: bool,
+        device_scale: f64,
+    ) {
+        fill_cell(
+            scene,
+            column,
+            row,
+            self.cell_width,
+            self.line_height,
+            device_scale,
+            background,
+        );
+        if selected {
+            fill_cell(
+                scene,
+                column,
+                row,
+                self.cell_width,
+                self.line_height,
+                device_scale,
+                self.selection_background,
+            );
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn draw_codepoint_cell(
+        &self,
+        scene: &mut Scene,
+        tcx: &mut TextContext,
+        square: Square,
+        character: char,
+        style: Style,
+        column: usize,
+        row: usize,
+        y: f32,
+        selected: bool,
+        colors: &TermColors,
+        default_background: Color,
+        device_scale: f64,
+    ) {
+        let mut foreground = terminal_ansi_color(
+            style.fg,
+            true,
+            colors,
+            self.theme_foreground,
+            self.theme_background,
+        );
+        let mut background = terminal_ansi_color(
+            style.bg,
+            false,
+            colors,
+            self.theme_foreground,
+            self.theme_background,
+        );
+        if style.flags.contains(StyleFlags::INVERSE) {
+            std::mem::swap(&mut foreground, &mut background);
+        }
+        if background != default_background {
+            fill_cell(
+                scene,
+                column,
+                row,
+                self.cell_width,
+                self.line_height,
+                device_scale,
+                background,
+            );
+        }
+        if selected {
+            fill_cell(
+                scene,
+                column,
+                row,
+                self.cell_width,
+                self.line_height,
+                device_scale,
+                self.selection_background,
+            );
+        }
+        if style.flags.contains(StyleFlags::HIDDEN) {
+            return;
+        }
+        if style.flags.contains(StyleFlags::DIM) {
+            foreground = dim(foreground);
+        }
+        if selected && let Some(selection_foreground) = self.selection_foreground {
+            foreground = selection_foreground;
+        }
+        draw_cell_decorations(
+            scene,
+            column,
+            y,
+            self.cell_width,
+            self.line_height,
+            style,
+            foreground,
+            colors,
+            self.theme_foreground,
+            self.theme_background,
+            selected.then_some(self.selection_foreground).flatten(),
+        );
+        if cell_has_no_glyph(square, character) {
+            return;
+        }
+
+        let cell_text = cell_text(
+            square,
+            square
+                .extras_id()
+                .and_then(|extras_id| self.visible_extras.get(&extras_id)),
+        );
+        let font_weight = cell_font_weight(style);
+        let layout = layout_text_styled(
+            tcx,
+            Arc::from(cell_text),
+            self.font_size,
+            font_weight,
+            None,
+            Default::default(),
+            foreground.to_rgba8().to_u8_array(),
+            Arc::from([]),
+            Some(&self.font_family),
+            None,
+        );
+        let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
+        let x = column as f64 * self.cell_width as f64;
+        let text_y = y as f64 + ((self.line_height - layout.height()) * 0.5).max(0.0) as f64;
+        let italic = if style.flags.contains(StyleFlags::ITALIC) {
+            Affine::skew(-0.18, 0.0)
+        } else {
+            Affine::IDENTITY
+        };
+        scene.append(
+            &glyph_scene,
+            Some(Affine::translate((x, text_y)) * italic * Affine::scale(device_scale.recip())),
+        );
+    }
+
+    fn update_cursor_blink(&mut self) {
+        if self.focused
+            && self
+                .next_cursor_blink
+                .is_some_and(|time| Instant::now() >= time)
+        {
+            self.cursor_on = !self.cursor_on;
+            self.next_cursor_blink = Some(Instant::now() + Duration::from_millis(500));
+        }
+    }
+
+    fn draw_cursor(
+        &self,
+        scene: &mut Scene,
+        cursor: &CursorState,
+        display_offset: usize,
+        colors: &TermColors,
+    ) {
+        if display_offset != 0 || !cursor.is_visible() || cursor.pos.row < 0 {
+            return;
+        }
+        let x = cursor.pos.col.0 as f64 * self.cell_width as f64;
+        let y = cursor.pos.row.0 as f64 * self.line_height as f64;
+        let Some(visual) = cursor_visual(
+            self.focused,
+            self.cursor_on,
+            cursor.content,
+            x,
+            y,
+            self.cell_width as f64,
+            self.line_height as f64,
+        ) else {
+            return;
+        };
+        let color = terminal_ansi_color(
+            AnsiColor::Named(NamedColor::Cursor),
+            true,
+            colors,
+            self.theme_foreground,
+            self.theme_background,
+        );
+        match visual {
+            CursorVisual::Filled(rect) => scene.fill(
+                Fill::NonZero,
+                Affine::IDENTITY,
+                color.with_alpha(0.43),
+                None,
+                &rect,
+            ),
+            CursorVisual::Hollow(rect) => {
+                scene.stroke(&Stroke::new(1.0), Affine::IDENTITY, color, None, &rect);
+            }
+        }
+    }
+
+    fn draw_spawn_error(
+        &self,
+        scene: &mut Scene,
+        text: &mut TextContext,
+        width: f32,
+        device_scale: f64,
+    ) {
+        let Some(error) = &self.spawn_error else {
+            return;
+        };
+        let layout = layout_text_styled(
+            text,
+            Arc::from(format!("terminal: {error}")),
+            13.0,
+            400.0,
+            None,
+            Default::default(),
+            [248, 113, 113, 255],
+            Arc::from([]),
+            Some(&self.font_family),
+            Some(width),
+        );
+        scene.append(
+            &text.glyph_scene_scaled(&layout, device_scale),
+            Some(Affine::translate((4.0, 4.0)) * Affine::scale(device_scale.recip())),
+        );
+    }
+}
+
 impl Widget for TerminalWidget {
     fn measure(&mut self, tcx: &mut TextContext) -> Option<[f32; 2]> {
         self.update_font_metrics(tcx);
@@ -19,14 +352,7 @@ impl Widget for TerminalWidget {
         self.resize(width, height, device_scale);
         self.ensure_launched();
         self.tick_selection_autoscroll();
-        if self.focused
-            && self
-                .next_cursor_blink
-                .is_some_and(|time| Instant::now() >= time)
-        {
-            self.cursor_on = !self.cursor_on;
-            self.next_cursor_blink = Some(Instant::now() + Duration::from_millis(500));
-        }
+        self.update_cursor_blink();
 
         let (
             cursor,
@@ -77,14 +403,7 @@ impl Widget for TerminalWidget {
             self.theme_foreground,
             self.theme_background,
         );
-        let mut scene = Scene::new();
-        scene.fill(
-            Fill::NonZero,
-            Affine::IDENTITY,
-            default_background,
-            None,
-            &Rect::new(0.0, 0.0, width as f64, height as f64),
-        );
+        let mut scene = terminal_scene(width, height, default_background);
 
         let scale = device_scale;
         let viewport = rio_vt::ansi::graphics::OverlayViewport {
@@ -113,218 +432,19 @@ impl Widget for TerminalWidget {
             scale,
         );
 
-        for (row_index, row) in self.visible_rows.iter().enumerate() {
-            let y = row_index as f32 * self.line_height;
-            for column in 0..self.size.columns.min(row.inner.len()) {
-                let square = row[Column(column)];
-                let point = Pos::new(
-                    Line(row_index as i32 - display_offset as i32),
-                    Column(column),
-                );
-                let selected = selection.is_some_and(|selection: SelectionRange| {
-                    selection_contains_square(selection, point, square)
-                });
-                let (character, style) = match square.content_tag() {
-                    ContentTag::Codepoint => (
-                        square.c(),
-                        self.visible_styles
-                            .get(square.style_id() as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    ),
-                    ContentTag::BgPalette => {
-                        let bg = terminal_indexed_color(square.bg_palette_index(), &colors);
-                        fill_cell(
-                            &mut scene,
-                            column,
-                            row_index,
-                            self.cell_width,
-                            self.line_height,
-                            scale,
-                            bg,
-                        );
-                        if selected {
-                            fill_cell(
-                                &mut scene,
-                                column,
-                                row_index,
-                                self.cell_width,
-                                self.line_height,
-                                scale,
-                                self.selection_background,
-                            );
-                        }
-                        continue;
-                    }
-                    ContentTag::BgRgb => {
-                        let (r, g, b) = square.bg_rgb();
-                        fill_cell(
-                            &mut scene,
-                            column,
-                            row_index,
-                            self.cell_width,
-                            self.line_height,
-                            scale,
-                            Color::from_rgb8(r, g, b),
-                        );
-                        if selected {
-                            fill_cell(
-                                &mut scene,
-                                column,
-                                row_index,
-                                self.cell_width,
-                                self.line_height,
-                                scale,
-                                self.selection_background,
-                            );
-                        }
-                        continue;
-                    }
-                };
-                let mut fg = terminal_ansi_color(
-                    style.fg,
-                    true,
-                    &colors,
-                    self.theme_foreground,
-                    self.theme_background,
-                );
-                let mut bg = terminal_ansi_color(
-                    style.bg,
-                    false,
-                    &colors,
-                    self.theme_foreground,
-                    self.theme_background,
-                );
-                if style.flags.contains(StyleFlags::INVERSE) {
-                    std::mem::swap(&mut fg, &mut bg);
-                }
-                if bg != default_background {
-                    fill_cell(
-                        &mut scene,
-                        column,
-                        row_index,
-                        self.cell_width,
-                        self.line_height,
-                        scale,
-                        bg,
-                    );
-                }
-                if selected {
-                    fill_cell(
-                        &mut scene,
-                        column,
-                        row_index,
-                        self.cell_width,
-                        self.line_height,
-                        scale,
-                        self.selection_background,
-                    );
-                }
-                if style.flags.contains(StyleFlags::HIDDEN) {
-                    continue;
-                }
-                if style.flags.contains(StyleFlags::DIM) {
-                    fg = dim(fg);
-                }
-                if selected && let Some(selection_foreground) = self.selection_foreground {
-                    fg = selection_foreground;
-                }
-                draw_cell_decorations(
-                    &mut scene,
-                    column,
-                    y,
-                    self.cell_width,
-                    self.line_height,
-                    style,
-                    fg,
-                    &colors,
-                    self.theme_foreground,
-                    self.theme_background,
-                    selected.then_some(self.selection_foreground).flatten(),
-                );
-                if matches!(square.wide(), Wide::Spacer | Wide::LeadingSpacer)
-                    || character == '\0'
-                    || (character == ' ' && !square.has_extras())
-                    || character.is_control()
-                {
-                    continue;
-                }
-                let cell_text = cell_text(
-                    square,
-                    square
-                        .extras_id()
-                        .and_then(|extras_id| self.visible_extras.get(&extras_id)),
-                );
-                let font_weight = if style.flags.contains(StyleFlags::BOLD) {
-                    700.0
-                } else {
-                    400.0
-                };
-                let layout = layout_text_styled(
-                    tcx,
-                    Arc::from(cell_text),
-                    self.font_size,
-                    font_weight,
-                    None,
-                    Default::default(),
-                    fg.to_rgba8().to_u8_array(),
-                    Arc::from([]),
-                    Some(&self.font_family),
-                    None,
-                );
-                let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
-                let x = column as f64 * self.cell_width as f64;
-                let text_y =
-                    y as f64 + ((self.line_height - layout.height()) * 0.5).max(0.0) as f64;
-                let italic = if style.flags.contains(StyleFlags::ITALIC) {
-                    Affine::skew(-0.18, 0.0)
-                } else {
-                    Affine::IDENTITY
-                };
-                scene.append(
-                    &glyph_scene,
-                    Some(
-                        Affine::translate((x, text_y))
-                            * italic
-                            * Affine::scale(device_scale.recip()),
-                    ),
-                );
-            }
-        }
+        self.draw_visible_rows(
+            &mut RowPaintContext {
+                scene: &mut scene,
+                text: tcx,
+                colors: &colors,
+                default_background,
+                device_scale,
+            },
+            selection,
+            display_offset,
+        );
 
-        if display_offset == 0 && cursor.is_visible() && cursor.pos.row >= 0 {
-            let x = cursor.pos.col.0 as f64 * self.cell_width as f64;
-            let y = cursor.pos.row.0 as f64 * self.line_height as f64;
-            if let Some(visual) = cursor_visual(
-                self.focused,
-                self.cursor_on,
-                cursor.content,
-                x,
-                y,
-                self.cell_width as f64,
-                self.line_height as f64,
-            ) {
-                let color = terminal_ansi_color(
-                    AnsiColor::Named(NamedColor::Cursor),
-                    true,
-                    &colors,
-                    self.theme_foreground,
-                    self.theme_background,
-                );
-                match visual {
-                    CursorVisual::Filled(rect) => scene.fill(
-                        Fill::NonZero,
-                        Affine::IDENTITY,
-                        color.with_alpha(0.43),
-                        None,
-                        &rect,
-                    ),
-                    CursorVisual::Hollow(rect) => {
-                        scene.stroke(&Stroke::new(1.0), Affine::IDENTITY, color, None, &rect)
-                    }
-                }
-            }
-        }
+        self.draw_cursor(&mut scene, &cursor, display_offset, &colors);
 
         self.graphics.draw_kitty(
             &mut scene,
@@ -335,24 +455,7 @@ impl Widget for TerminalWidget {
             scale,
         );
 
-        if let Some(error) = &self.spawn_error {
-            let layout = layout_text_styled(
-                tcx,
-                Arc::from(format!("terminal: {error}")),
-                13.0,
-                400.0,
-                None,
-                Default::default(),
-                [248, 113, 113, 255],
-                Arc::from([]),
-                Some(&self.font_family),
-                Some(width),
-            );
-            scene.append(
-                &tcx.glyph_scene_scaled(&layout, device_scale),
-                Some(Affine::translate((4.0, 4.0)) * Affine::scale(device_scale.recip())),
-            );
-        }
+        self.draw_spawn_error(&mut scene, tcx, width, device_scale);
         cx.scene_mut().append(&scene, None);
     }
 

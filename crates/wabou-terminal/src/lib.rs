@@ -16,7 +16,7 @@ use rio_vt::config::colors::term::{COUNT as TERMINAL_COLOR_COUNT, TermColors};
 use rio_vt::config::colors::{AnsiColor, ColorRgb, NamedColor};
 use rio_vt::crosswords::grid::Scroll;
 use rio_vt::crosswords::grid::row::Row;
-use rio_vt::crosswords::pos::{Column, Line, Pos, Side};
+use rio_vt::crosswords::pos::{Column, CursorState, Line, Pos, Side};
 use rio_vt::crosswords::square::{ContentTag, Extras, Square, Wide};
 use rio_vt::crosswords::style::{Style, StyleFlags};
 use rio_vt::crosswords::{Crosswords, CrosswordsSize, Mode};
