@@ -1,6 +1,79 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_pointer_up(
+        &mut self,
+        pointer: wabou_shell::PointerEvent,
+    ) -> EventResponse {
+        let (x, y) = (pointer.position.x, pointer.position.y);
+        let button = pointer.button.unwrap_or(PointerButton::Primary);
+        self.input.pointer_position = (x, y);
+        self.input.pointer_buttons = pointer.buttons;
+        if let Some(drag) = self.scrollbar_drag.take() {
+            self.scrollbar_activity.insert(drag.node, Instant::now());
+            return Self::response(true);
+        }
+        if button == PointerButton::Primary
+            && let Some((down_x, down_y)) = self.input.pointer_down_position
+        {
+            let dx = x - down_x;
+            let dy = y - down_y;
+            self.input.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+        }
+        let target = self.input.hit_test(x, y);
+        let captured = self.input.pointer_down_target;
+        let mut changed = captured.is_some_and(|captured| {
+            self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
+                .is_some_and(|response| response.handled || response.request_redraw)
+        });
+        if button == PointerButton::Primary {
+            changed |= self.extend_text_selection(target, x, y);
+            self.next_text_selection_scroll = None;
+            if self.input.pointer_dragged {
+                self.last_text_click = None;
+            }
+        }
+        changed |= target.is_some_and(|target| {
+            self.dispatch_pointer(target, event::POINTERUP, Some(button), pointer.modifiers)
+        });
+        if let Some(target) = target
+            && button == PointerButton::Primary
+            && !self.input.pointer_dragged
+            && Some(target) == self.input.pointer_down_target
+        {
+            let mut data = [0.0; event_data::LEN];
+            data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
+            data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
+            data[event_data::BUTTON as usize] = Self::web_button(button) as f64;
+            data[event_data::BUTTONS as usize] =
+                Self::web_buttons(self.input.pointer_buttons) as f64;
+            data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
+            let (dispatched, prevented) =
+                self.dispatch_cancellable_numeric(target, event::CLICK, data);
+            changed |= dispatched;
+            if !prevented {
+                changed |= self.open_link_default(target);
+            }
+        }
+        self.input.pointer_down_target.take();
+        self.input.pointer_down_position = None;
+        self.input.pointer_dragged = false;
+        changed |= self.sync_text_selection_change();
+        Self::response(changed)
+    }
+
+    pub(super) fn handle_pointer_cancel(
+        &mut self,
+        pointer: wabou_shell::PointerEvent,
+    ) -> EventResponse {
+        if let Some(drag) = self.scrollbar_drag.take() {
+            self.scrollbar_activity.insert(drag.node, Instant::now());
+            Self::response(true)
+        } else {
+            Self::response(self.cancel_pointer_gesture(pointer))
+        }
+    }
+
     pub(super) fn handle_pointer_down(
         &mut self,
         pointer: wabou_shell::PointerEvent,
