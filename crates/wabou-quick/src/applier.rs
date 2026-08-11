@@ -492,6 +492,100 @@ pub struct Applier {
     host_msg_handle: HostMsgHandle,
 }
 
+fn decode_effect_payload(
+    op: wabou_shell::EffectOp,
+    id: u64,
+    window_id: u64,
+    payload_json: String,
+) -> wabou_shell::EffectPayload {
+    let invalid = |message: String| wabou_shell::EffectPayload::Invalid { op, message };
+    match op {
+        wabou_shell::effect::builtin::CLIPBOARD_READ => wabou_shell::EffectPayload::ClipboardRead,
+        wabou_shell::effect::builtin::CLIPBOARD_WRITE => {
+            #[derive(serde::Deserialize)]
+            struct Request {
+                text: String,
+            }
+            serde_json::from_str::<Request>(&payload_json)
+                .map(|request| wabou_shell::EffectPayload::ClipboardWrite { text: request.text })
+                .unwrap_or_else(|error| invalid(error.to_string()))
+        }
+        wabou_shell::effect::builtin::WINDOW_CREATE => {
+            let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
+            let mut options = wabou_shell::WindowOptions::new();
+            if let Some(title) = value.get("title").and_then(|value| value.as_str()) {
+                options = options.title(title);
+            }
+            options = options.initial_inner_size(
+                value
+                    .get("width")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(800) as u32,
+                value
+                    .get("height")
+                    .and_then(|value| value.as_u64())
+                    .unwrap_or(600) as u32,
+            );
+            if let Some(resizable) = value.get("resizable").and_then(|value| value.as_bool()) {
+                options = options.resizable(resizable);
+            }
+            if let Some(transparent) = value.get("transparent").and_then(|value| value.as_bool()) {
+                options = options.transparent(transparent);
+            }
+            if let (Some(width), Some(height)) = (
+                value.get("minWidth").and_then(|value| value.as_u64()),
+                value.get("minHeight").and_then(|value| value.as_u64()),
+            ) {
+                options = options.min_inner_size(width as u32, height as u32);
+            }
+            wabou_shell::EffectPayload::WindowCreate(wabou_shell::effect::WindowCreateRequest {
+                window_id: id,
+                options,
+            })
+        }
+        wabou_shell::effect::builtin::WINDOW_CLOSE
+        | wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED
+        | wabou_shell::effect::builtin::WINDOW_SET_TITLE => {
+            let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
+            let target = value
+                .get("windowId")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(window_id);
+            let command = if op == wabou_shell::effect::builtin::WINDOW_CLOSE {
+                wabou_shell::WindowCommand::Close
+            } else if op == wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED {
+                wabou_shell::WindowCommand::SetMaximized(
+                    value
+                        .get("value")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false),
+                )
+            } else {
+                wabou_shell::WindowCommand::SetTitle(
+                    value
+                        .get("title")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default()
+                        .to_owned(),
+                )
+            };
+            wabou_shell::EffectPayload::WindowControl {
+                window_id: target,
+                command,
+            }
+        }
+        wabou_shell::effect::builtin::CONTEXT_MENU_SHOW => {
+            serde_json::from_str::<wabou_shell::ContextMenuRequest>(&payload_json)
+                .map(wabou_shell::EffectPayload::ContextMenuShow)
+                .unwrap_or_else(|error| invalid(error.to_string()))
+        }
+        _ => wabou_shell::EffectPayload::Extension {
+            op,
+            bytes: payload_json.into_bytes(),
+        },
+    }
+}
+
 fn install_effect_functions(
     js: &JsRuntime,
     window_id: u64,
@@ -512,106 +606,7 @@ fn install_effect_functions(
                 move |capability: u32, method: u16, payload_json: String| -> u64 {
                     let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
                     let op = wabou_shell::EffectOp::new(capability, method);
-                    let parse =
-                        |message: String| wabou_shell::EffectPayload::Invalid { op, message };
-                    let payload = match op {
-                        wabou_shell::effect::builtin::CLIPBOARD_READ => {
-                            wabou_shell::EffectPayload::ClipboardRead
-                        }
-                        wabou_shell::effect::builtin::CLIPBOARD_WRITE => {
-                            #[derive(serde::Deserialize)]
-                            struct Request {
-                                text: String,
-                            }
-                            serde_json::from_str::<Request>(&payload_json)
-                                .map(|request| wabou_shell::EffectPayload::ClipboardWrite {
-                                    text: request.text,
-                                })
-                                .unwrap_or_else(|error| parse(error.to_string()))
-                        }
-                        wabou_shell::effect::builtin::WINDOW_CREATE => {
-                            let value: serde_json::Value =
-                                serde_json::from_str(&payload_json).unwrap_or_default();
-                            let mut options = wabou_shell::WindowOptions::new();
-                            if let Some(title) = value.get("title").and_then(|value| value.as_str())
-                            {
-                                options = options.title(title);
-                            }
-                            options = options.initial_inner_size(
-                                value
-                                    .get("width")
-                                    .and_then(|value| value.as_u64())
-                                    .unwrap_or(800) as u32,
-                                value
-                                    .get("height")
-                                    .and_then(|value| value.as_u64())
-                                    .unwrap_or(600) as u32,
-                            );
-                            if let Some(resizable) =
-                                value.get("resizable").and_then(|value| value.as_bool())
-                            {
-                                options = options.resizable(resizable);
-                            }
-                            if let Some(transparent) =
-                                value.get("transparent").and_then(|value| value.as_bool())
-                            {
-                                options = options.transparent(transparent);
-                            }
-                            if let (Some(width), Some(height)) = (
-                                value.get("minWidth").and_then(|value| value.as_u64()),
-                                value.get("minHeight").and_then(|value| value.as_u64()),
-                            ) {
-                                options = options.min_inner_size(width as u32, height as u32);
-                            }
-                            wabou_shell::EffectPayload::WindowCreate(
-                                wabou_shell::effect::WindowCreateRequest {
-                                    window_id: id,
-                                    options,
-                                },
-                            )
-                        }
-                        wabou_shell::effect::builtin::WINDOW_CLOSE
-                        | wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED
-                        | wabou_shell::effect::builtin::WINDOW_SET_TITLE => {
-                            let value: serde_json::Value =
-                                serde_json::from_str(&payload_json).unwrap_or_default();
-                            let target = value
-                                .get("windowId")
-                                .and_then(|value| value.as_u64())
-                                .unwrap_or(window_id);
-                            let command = if op == wabou_shell::effect::builtin::WINDOW_CLOSE {
-                                wabou_shell::WindowCommand::Close
-                            } else if op == wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED {
-                                wabou_shell::WindowCommand::SetMaximized(
-                                    value
-                                        .get("value")
-                                        .and_then(|value| value.as_bool())
-                                        .unwrap_or(false),
-                                )
-                            } else {
-                                wabou_shell::WindowCommand::SetTitle(
-                                    value
-                                        .get("title")
-                                        .and_then(|value| value.as_str())
-                                        .unwrap_or_default()
-                                        .to_owned(),
-                                )
-                            };
-                            wabou_shell::EffectPayload::WindowControl {
-                                window_id: target,
-                                command,
-                            }
-                        }
-                        wabou_shell::effect::builtin::CONTEXT_MENU_SHOW => {
-                            serde_json::from_str::<wabou_shell::ContextMenuRequest>(&payload_json)
-                                .map(wabou_shell::EffectPayload::ContextMenuShow)
-                                .unwrap_or_else(|error| parse(error.to_string()))
-                        }
-                        _ => wabou_shell::EffectPayload::Extension {
-                            op,
-                            bytes: payload_json.into_bytes(),
-                        },
-                    };
+                    let payload = decode_effect_payload(op, id, window_id, payload_json);
                     submit_pending.borrow_mut().insert(id);
                     let request = wabou_shell::EffectRequest {
                         id: wabou_shell::EffectId(id),
