@@ -53,6 +53,13 @@ pub struct ScrollMetrics {
     pub interaction: u8,
 }
 
+#[derive(Clone, Copy, Default)]
+struct ClipState {
+    rect: Option<[f32; 4]>,
+    radius: f32,
+    depth: Option<usize>,
+}
+
 /// A depth-derived traversal boundary for the flattened retained tree.
 /// `Exit` is the reusable paint/hit boundary for owner-local overlays.
 #[derive(Clone, Copy)]
@@ -173,9 +180,7 @@ pub fn flatten_with_scroll(
         0,
         0.0,
         0.0,
-        None,
-        0.0,
-        None,
+        ClipState::default(),
         scroll_offsets,
         &mut out,
     );
@@ -202,9 +207,7 @@ fn walk(
     depth: usize,
     parent_x0: f32,
     parent_y0: f32,
-    inherited_clip: Option<[f32; 4]>,
-    inherited_clip_radius: f32,
-    inherited_clip_depth: Option<usize>,
+    inherited_clip: ClipState,
     scroll_offsets: &HashMap<NodeId, [f32; 2]>,
     out: &mut Vec<PlacedNode>,
 ) {
@@ -256,9 +259,9 @@ fn walk(
             rect,
             content_origin: [cx, cy],
             content_size: [content_width, content_height],
-            clip: inherited_clip,
-            clip_radius: inherited_clip_radius,
-            clip_depth: inherited_clip_depth,
+            clip: inherited_clip.rect,
+            clip_radius: inherited_clip.radius,
+            clip_depth: inherited_clip.depth,
             own_clip: None,
             own_clip_radius: 0.0,
             border_widths: [
@@ -285,8 +288,6 @@ fn walk(
     }
 
     let mut child_clip = inherited_clip;
-    let mut child_clip_radius = inherited_clip_radius;
-    let mut child_clip_depth = inherited_clip_depth;
     if let Ok(style) = tree.style(node) {
         let clips_x = style.overflow.x != taffy::Overflow::Visible;
         let clips_y = style.overflow.y != taffy::Overflow::Visible;
@@ -305,8 +306,8 @@ fn walk(
                 own[1] = y0 + layout.border.top;
                 own[3] = y0 + h - layout.border.bottom;
             }
-            let next_clip = child_clip.map_or(own, |clip| intersect(clip, own));
-            child_clip_radius = if clips_x && clips_y && next_clip == own {
+            let next_clip = child_clip.rect.map_or(own, |clip| intersect(clip, own));
+            child_clip.radius = if clips_x && clips_y && next_clip == own {
                 tree.get_node_context(node).map_or(0.0, |paint| {
                     (paint.border_radius
                         - layout
@@ -317,18 +318,18 @@ fn walk(
                             .max(layout.border.left))
                     .max(0.0)
                 })
-            } else if child_clip != Some(next_clip) {
+            } else if child_clip.rect != Some(next_clip) {
                 0.0
             } else {
-                child_clip_radius
+                child_clip.radius
             };
-            child_clip = Some(next_clip);
-            child_clip_depth = Some(depth);
+            child_clip.rect = Some(next_clip);
+            child_clip.depth = Some(depth);
             if let Some(placed) = out.last_mut()
                 && placed.node_id == node
             {
                 placed.own_clip = Some(next_clip);
-                placed.own_clip_radius = child_clip_radius;
+                placed.own_clip_radius = child_clip.radius;
             }
         }
     }
@@ -336,7 +337,10 @@ fn walk(
     // zero-sized clipping node itself may have been omitted from `out`; walking
     // its descendants would therefore lose the layer boundary and flash them
     // un-clipped for one frame during collapse animations.
-    if child_clip.is_some_and(|clip| clip[2] <= clip[0] || clip[3] <= clip[1]) {
+    if child_clip
+        .rect
+        .is_some_and(|clip| clip[2] <= clip[0] || clip[3] <= clip[1])
+    {
         return;
     }
     // Sibling-relative z order (Slint/Qt-Quick model): higher z paints later.
@@ -354,8 +358,6 @@ fn walk(
             x0 - scroll[0],
             y0 - scroll[1],
             child_clip,
-            child_clip_radius,
-            child_clip_depth,
             scroll_offsets,
             out,
         );
