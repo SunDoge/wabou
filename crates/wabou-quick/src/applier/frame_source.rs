@@ -1,183 +1,164 @@
 use super::*;
 
-impl FrameSource for Applier {
-    fn set_device_scale(&mut self, scale: f64) {
-        self.device_scale = scale.max(f64::EPSILON);
+impl Applier {
+    fn drain_pending_fonts(&mut self, tcx: &mut TextContext) {
+        let Some(fonts) = self.pending_fonts.clone() else {
+            return;
+        };
+        for bytes in std::mem::take(&mut *fonts.borrow_mut()) {
+            tcx.load_font(bytes);
+        }
     }
 
-    fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode> {
-        let build_span = tracing::trace_span!(target: "wabou::perf", "quick.build_frame");
-        let _build_guard = build_span.enter();
-        self.invalidation.remove(InvalidationFlags::TICK);
-        self.js.take_async_wake();
-        self.js.poll_async_runtime();
-
-        // Drain fonts queued by the Host API (typically once at boot):
-        // register each blob into the shared text FontContext + clear the layout
-        // cache so subsequent text measurement picks up the new family.
-        if let Some(pf) = self.pending_fonts.clone() {
-            let queued = std::mem::take(&mut *pf.borrow_mut());
-            for bytes in queued {
-                tcx.load_font(bytes);
-            }
-        }
-
-        // Drain a stylesheet pushed through the private host ABI (the UnoCSS Vite
-        // plugin's virtual module): replace the Style IR + re-resolve every node.
-        // Clone the Rc out so the mutable self borrows below don't alias it.
-        if let Some(p) = self.pending_css.clone()
-            && let Some(update) = p.borrow_mut().take()
-        {
-            match update {
-                StylesheetUpdate::Ir(sheet) if sheet.validate().is_ok() => {
-                    for diagnostic in &sheet.diagnostics {
-                        tracing::warn!(target: "stylesheet", %diagnostic);
-                    }
-                    // Build the class→rules index (interning each rule's
-                    // class_name so node-side class atoms match by identity)
-                    // so recompute_node_now matches in O(C) not O(R).
-                    let (rule_index, universal_rules) = {
-                        let mut atoms = self.atoms.borrow_mut();
-                        let mut rule_index: HashMap<Atom, Vec<usize>> = HashMap::new();
-                        let mut universal_rules = Vec::new();
-                        for (idx, rule) in sheet.rules.iter().enumerate() {
-                            for declaration in &rule.declarations {
-                                atoms.intern(&declaration.property);
-                            }
-                            if rule.class_name == "*" {
-                                universal_rules.push(idx);
-                            } else {
-                                rule_index
-                                    .entry(atoms.intern(&rule.class_name))
-                                    .or_default()
-                                    .push(idx);
-                            }
+    fn drain_pending_stylesheet(&mut self) {
+        let Some(pending) = self.pending_css.clone() else {
+            return;
+        };
+        let Some(update) = pending.borrow_mut().take() else {
+            return;
+        };
+        match update {
+            StylesheetUpdate::Ir(sheet) if sheet.validate().is_ok() => {
+                for diagnostic in &sheet.diagnostics {
+                    tracing::warn!(target: "stylesheet", %diagnostic);
+                }
+                let (rule_index, universal_rules) = {
+                    let mut atoms = self.atoms.borrow_mut();
+                    let mut rule_index: HashMap<Atom, Vec<usize>> = HashMap::new();
+                    let mut universal_rules = Vec::new();
+                    for (index, rule) in sheet.rules.iter().enumerate() {
+                        for declaration in &rule.declarations {
+                            atoms.intern(&declaration.property);
                         }
-                        (rule_index, universal_rules)
-                    };
-                    self.style_theme = sheet.theme.clone();
-                    if let Some(themes) = &sheet.color_themes {
-                        let selected = self
-                            .active_color_theme
-                            .as_ref()
-                            .filter(|name| themes.themes.contains_key(*name))
-                            .cloned()
-                            .unwrap_or_else(|| themes.default.clone());
-                        self.active_theme_colors =
-                            Arc::new(themes.themes[&selected].colors.clone());
-                        // Runtime-created utilities must accept the same
-                        // semantic color names as the compiler. These values
-                        // validate parsing; declarations remain theme tokens.
-                        self.style_theme.colors.extend(
-                            self.active_theme_colors
-                                .iter()
-                                .map(|(name, color)| (name.clone(), *color)),
-                        );
-                        self.active_color_theme = Some(selected);
-                    } else {
-                        self.active_color_theme = None;
-                        self.active_theme_colors = Arc::new(HashMap::new());
+                        if rule.class_name == "*" {
+                            universal_rules.push(index);
+                        } else {
+                            rule_index
+                                .entry(atoms.intern(&rule.class_name))
+                                .or_default()
+                                .push(index);
+                        }
                     }
-                    self.style_ir = Some(sheet);
-                    self.rule_index = rule_index;
-                    self.universal_rules = universal_rules;
-                    self.utility_cache.clear();
-                    self.class_resolution_cache.clear();
-                    self.warned_utility_classes.clear();
-                    self.warned_ir_properties.clear();
-                }
-                StylesheetUpdate::Ir(sheet) => {
-                    tracing::error!(
-                        version = sheet.version,
-                        supported = style_ir::VERSION,
-                        "invalid or unsupported Style IR"
+                    (rule_index, universal_rules)
+                };
+                self.style_theme = sheet.theme.clone();
+                if let Some(themes) = &sheet.color_themes {
+                    let selected = self
+                        .active_color_theme
+                        .as_ref()
+                        .filter(|name| themes.themes.contains_key(*name))
+                        .cloned()
+                        .unwrap_or_else(|| themes.default.clone());
+                    self.active_theme_colors = Arc::new(themes.themes[&selected].colors.clone());
+                    self.style_theme.colors.extend(
+                        self.active_theme_colors
+                            .iter()
+                            .map(|(name, color)| (name.clone(), *color)),
                     );
-                }
-            }
-            self.recompute_all();
-        }
-
-        if let Some(pending) = self.pending_color_theme.clone()
-            && let Some(name) = pending.borrow_mut().take()
-        {
-            let selected = self
-                .style_ir
-                .as_ref()
-                .and_then(|sheet| sheet.color_themes.as_ref())
-                .and_then(|themes| themes.themes.get(&name));
-            if let Some(theme) = selected {
-                if self.active_color_theme.as_deref() != Some(name.as_str()) {
-                    self.active_theme_colors = Arc::new(theme.colors.clone());
-                    self.active_color_theme = Some(name);
-                    self.class_resolution_cache.clear();
-                    self.recompute_color_palette();
-                }
-            } else {
-                tracing::warn!(theme = %name, "unknown Wabou color theme");
-            }
-        }
-
-        if let Some(pending) = self.pending_color_palette.clone()
-            && let Some(colors) = pending.borrow_mut().take()
-        {
-            let tokens = self
-                .style_ir
-                .as_ref()
-                .and_then(|sheet| sheet.color_themes.as_ref())
-                .and_then(|themes| themes.themes.get(&themes.default))
-                .map(|theme| {
-                    let mut tokens = theme.colors.keys().cloned().collect::<Vec<_>>();
-                    tokens.sort_unstable();
-                    tokens
-                });
-            if let Some(tokens) = tokens {
-                if tokens.len() == colors.len() {
-                    self.active_theme_colors = Arc::new(tokens.into_iter().zip(colors).collect());
-                    self.class_resolution_cache.clear();
-                    self.recompute_color_palette();
+                    self.active_color_theme = Some(selected);
                 } else {
-                    tracing::warn!(
-                        expected = tokens.len(),
-                        actual = colors.len(),
-                        "ignored Wabou color palette with the wrong token count"
-                    );
+                    self.active_color_theme = None;
+                    self.active_theme_colors = Arc::new(HashMap::new());
                 }
+                self.style_ir = Some(sheet);
+                self.rule_index = rule_index;
+                self.universal_rules = universal_rules;
+                self.utility_cache.clear();
+                self.class_resolution_cache.clear();
+                self.warned_utility_classes.clear();
+                self.warned_ir_properties.clear();
             }
+            StylesheetUpdate::Ir(sheet) => tracing::error!(
+                version = sheet.version,
+                supported = style_ir::VERSION,
+                "invalid or unsupported Style IR"
+            ),
         }
+        self.recompute_all();
+    }
 
-        // Drain Vite HMR updates (from the background websocket client) before
-        // the tick so re-imported module effects land in this frame's flush.
-        // Style IR is already applied above via pending_css (same frame as the
-        // virtual:wabou-stylesheet JS update when both fire together).
+    fn drain_pending_color_theme(&mut self) {
+        let Some(pending) = self.pending_color_theme.clone() else {
+            return;
+        };
+        let Some(name) = pending.borrow_mut().take() else {
+            return;
+        };
+        let selected = self
+            .style_ir
+            .as_ref()
+            .and_then(|sheet| sheet.color_themes.as_ref())
+            .and_then(|themes| themes.themes.get(&name));
+        if let Some(theme) = selected {
+            if self.active_color_theme.as_deref() != Some(name.as_str()) {
+                self.active_theme_colors = Arc::new(theme.colors.clone());
+                self.active_color_theme = Some(name);
+                self.class_resolution_cache.clear();
+                self.recompute_color_palette();
+            }
+        } else {
+            tracing::warn!(theme = %name, "unknown Wabou color theme");
+        }
+    }
+
+    fn drain_pending_color_palette(&mut self) {
+        let Some(pending) = self.pending_color_palette.clone() else {
+            return;
+        };
+        let Some(colors) = pending.borrow_mut().take() else {
+            return;
+        };
+        let tokens = self
+            .style_ir
+            .as_ref()
+            .and_then(|sheet| sheet.color_themes.as_ref())
+            .and_then(|themes| themes.themes.get(&themes.default))
+            .map(|theme| {
+                let mut tokens = theme.colors.keys().cloned().collect::<Vec<_>>();
+                tokens.sort_unstable();
+                tokens
+            });
+        let Some(tokens) = tokens else {
+            return;
+        };
+        if tokens.len() == colors.len() {
+            self.active_theme_colors = Arc::new(tokens.into_iter().zip(colors).collect());
+            self.class_resolution_cache.clear();
+            self.recompute_color_palette();
+        } else {
+            tracing::warn!(
+                expected = tokens.len(),
+                actual = colors.len(),
+                "ignored Wabou color palette with the wrong token count"
+            );
+        }
+    }
+
+    fn run_javascript_tick(&mut self, width: u32, height: u32) -> bool {
         let hmr = self.drain_hmr_batch();
         if !matches!(hmr, HmrDrainResult::Idle) {
             self.last_hmr_result = hmr;
         }
         self.has_hmr_pending.store(false, Ordering::Release);
-
-        // Host application messages before tick so subscribe
-        // handlers can update signals before this frame's rAF flush.
         self.drain_host_messages();
         self.dispatch_scroll_changes();
 
-        // One rAF round-trip: runs queued rAF callbacks (Solid effects re-emit
-        // ops), flushes the writer → __wabou_flush lands bytes here. Timed so
-        // the host overlay can show the QuickJS portion of build_frame.
-        let js_t0 = std::time::Instant::now();
-        let (bytes, has_raf) = {
+        let started = std::time::Instant::now();
+        let result = {
             let span = tracing::trace_span!(target: "wabou::perf", "quick.js_tick");
             let _guard = span.enter();
-            match self.js.tick() {
-                Ok(v) => v,
-                Err(e) => {
-                    tracing::error!(target: "bridge", "JS tick failed: {e:?}");
-                    self.has_raf = false;
-                    return Vec::new();
-                }
+            self.js.tick()
+        };
+        let (bytes, has_raf) = match result {
+            Ok(result) => result,
+            Err(error) => {
+                tracing::error!(target: "bridge", "JS tick failed: {error:?}");
+                self.has_raf = false;
+                return false;
             }
         };
-        let js_tick_ms = js_t0.elapsed().as_secs_f64() * 1000.0;
-        self.js_tick_ema = self.js_tick_ema * 0.9 + js_tick_ms * 0.1;
+        let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+        self.js_tick_ema = self.js_tick_ema * 0.9 + elapsed_ms * 0.1;
         self.last_viewport = (width, height);
         self.has_raf = has_raf;
         if !bytes.is_empty() {
@@ -194,14 +175,37 @@ impl FrameSource for Applier {
                             bytes_hex: Some(wabou_devtools::bytes_hex(&bytes, 4096)),
                         });
                     }
-                    self.apply_frame(&frame)
+                    self.apply_frame(&frame);
                 }
-                Err(e) => tracing::error!(target: "bridge", "decode frame failed: {e}"),
+                Err(error) => tracing::error!(target: "bridge", "decode frame failed: {error}"),
             }
         }
-        // Arm rquickjs's async scheduler after this tick may have started new
-        // work. Pending IO keeps its waker and does not imply animation.
         self.js.poll_async_runtime();
+        true
+    }
+}
+
+impl FrameSource for Applier {
+    fn set_device_scale(&mut self, scale: f64) {
+        self.device_scale = scale.max(f64::EPSILON);
+    }
+
+    fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode> {
+        let build_span = tracing::trace_span!(target: "wabou::perf", "quick.build_frame");
+        let _build_guard = build_span.enter();
+        self.invalidation.remove(InvalidationFlags::TICK);
+        self.js.take_async_wake();
+        self.js.poll_async_runtime();
+
+        self.drain_pending_fonts(tcx);
+
+        self.drain_pending_stylesheet();
+        self.drain_pending_color_theme();
+        self.drain_pending_color_palette();
+
+        if !self.run_javascript_tick(width, height) {
+            return Vec::new();
+        }
 
         let selection_scrolled = self.tick_text_selection_autoscroll();
         // Only re-inherit when a change can affect inherited content styles.
