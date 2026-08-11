@@ -1,5 +1,27 @@
 use super::*;
 
+fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
+    use crate::protocol::StyleValue;
+    use wabou_shell::style::IrLength;
+
+    match value {
+        StyleValue::Px(value) => IrValue::Length {
+            value: IrLength::Px { value },
+        },
+        StyleValue::Percent(value) => IrValue::Length {
+            value: IrLength::Percent { value },
+        },
+        StyleValue::Number(value) => IrValue::Number { value },
+        StyleValue::Boolean(value) => IrValue::Boolean { value },
+        StyleValue::Color(rgba) => IrValue::Color {
+            value: wabou_shell::style::IrColor::Literal { rgba },
+        },
+        StyleValue::Auto => IrValue::Length {
+            value: IrLength::Auto,
+        },
+    }
+}
+
 impl Applier {
     fn inline_property(&mut self, atom: Atom) -> Option<InlineProperty> {
         if let Some(property) = self.inline_properties.get(&atom) {
@@ -13,6 +35,32 @@ impl Applier {
         let property = InlineProperty { name, inherited };
         self.inline_properties.insert(atom, property.clone());
         Some(property)
+    }
+
+    fn set_inline_ir(&mut self, id: u32, prop: Atom, ir: IrValue) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        let Some(property) = self.inline_property(prop) else {
+            tracing::warn!(atom = prop.get(), "unknown style-property atom");
+            return;
+        };
+        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+            declared.inline.insert(prop, InlineValue::Typed(ir.clone()));
+        }
+
+        // Non-inherited values can update the post-inheritance computed style
+        // directly. Inherited values must propagate through the subtree.
+        if property.inherited {
+            self.recompute_node(node);
+        } else if !self.apply_inline_ir_fast(node, &property.name, &ir) {
+            if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                declared.inline.remove(&prop);
+            }
+            if self.warned_ir_properties.insert(prop) {
+                tracing::warn!(property = %property.name, "unsupported inline style property or value");
+            }
+        }
     }
 
     /// Decode + apply one frame's ops in order.
@@ -140,75 +188,10 @@ impl Applier {
                 }
             }
             Op::SetStyle { id, prop, value } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    let Some(property) = self.inline_property(*prop) else {
-                        tracing::warn!(atom = prop.get(), "unknown style-property atom");
-                        return;
-                    };
-                    let ir = style::parse_ir_value(value);
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
-                        d.inline.insert(*prop, InlineValue::Typed(ir.clone()));
-                    }
-                    // Fast path: a non-inherited inline property can be applied
-                    // directly to the existing (post-inherit) ComputedStyle —
-                    // the class rules haven't changed, so re-resolving them is
-                    // wasted work, and skipping it also lets the layout branch
-                    // skip the O(N) inherit pass. Inherited properties (color,
-                    // font-*) still need the slow path to propagate to
-                    // descendants. This is the hot path for per-frame animation
-                    // (e.g. moving N nodes via top/left = 2N SetStyles/frame).
-                    if property.inherited {
-                        self.recompute_node(n);
-                    } else if !self.apply_inline_ir_fast(n, &property.name, &ir) {
-                        if let Some(d) = self.node_store.declared.get_mut(&n) {
-                            d.inline.remove(prop);
-                        }
-                        if self.warned_ir_properties.insert(*prop) {
-                            tracing::warn!(property = %property.name, "unsupported inline style property or value");
-                        }
-                    }
-                }
+                self.set_inline_ir(*id, *prop, style::parse_ir_value(value));
             }
             Op::SetStyleValue { id, prop, value } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    let Some(property) = self.inline_property(*prop) else {
-                        tracing::warn!(atom = prop.get(), "unknown style-property atom");
-                        return;
-                    };
-                    let ir = match value {
-                        crate::protocol::StyleValue::Px(value) => IrValue::Length {
-                            value: wabou_shell::style::IrLength::Px { value: *value },
-                        },
-                        crate::protocol::StyleValue::Percent(value) => IrValue::Length {
-                            value: wabou_shell::style::IrLength::Percent { value: *value },
-                        },
-                        crate::protocol::StyleValue::Number(value) => {
-                            IrValue::Number { value: *value }
-                        }
-                        crate::protocol::StyleValue::Boolean(value) => {
-                            IrValue::Boolean { value: *value }
-                        }
-                        crate::protocol::StyleValue::Color(rgba) => IrValue::Color {
-                            value: wabou_shell::style::IrColor::Literal { rgba: *rgba },
-                        },
-                        crate::protocol::StyleValue::Auto => IrValue::Length {
-                            value: wabou_shell::style::IrLength::Auto,
-                        },
-                    };
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
-                        d.inline.insert(*prop, InlineValue::Typed(ir.clone()));
-                    }
-                    if property.inherited {
-                        self.recompute_node(n);
-                    } else if !self.apply_inline_ir_fast(n, &property.name, &ir) {
-                        if let Some(d) = self.node_store.declared.get_mut(&n) {
-                            d.inline.remove(prop);
-                        }
-                        if self.warned_ir_properties.insert(*prop) {
-                            tracing::warn!(property = %property.name, "unsupported typed inline style property or value");
-                        }
-                    }
-                }
+                self.set_inline_ir(*id, *prop, style_value_ir(*value));
             }
             Op::SetShadows { id, shadows } => {
                 if let Some(&n) = self.node_store.solid_to_node.get(id) {
