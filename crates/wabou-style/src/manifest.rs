@@ -9,110 +9,117 @@ pub fn manifest() -> Manifest {
 }
 
 pub fn manifest_with_theme(theme: &Theme) -> Manifest {
-    let mut manifest = Manifest {
+    Manifest {
         version: MANIFEST_VERSION,
         spacing: theme.spacing.clone(),
         colors: theme.colors.clone(),
         static_utilities: static_utilities(),
-        dynamic_rules: vec![
-            DynamicRule {
-                resolver: "spacing",
-                prefixes: vec![
-                    prefix(
-                        "p",
-                        &[
-                            "padding-top",
-                            "padding-right",
-                            "padding-bottom",
-                            "padding-left",
-                        ],
-                    ),
-                    prefix("px", &["padding-left", "padding-right"]),
-                    prefix("py", &["padding-top", "padding-bottom"]),
-                    prefix("pt", &["padding-top"]),
-                    prefix("pr", &["padding-right"]),
-                    prefix("pb", &["padding-bottom"]),
-                    prefix("pl", &["padding-left"]),
-                    prefix(
-                        "m",
-                        &["margin-top", "margin-right", "margin-bottom", "margin-left"],
-                    ),
-                    prefix("mx", &["margin-left", "margin-right"]),
-                    prefix("my", &["margin-top", "margin-bottom"]),
-                    prefix("mt", &["margin-top"]),
-                    prefix("mr", &["margin-right"]),
-                    prefix("mb", &["margin-bottom"]),
-                    prefix("ml", &["margin-left"]),
-                    prefix("ms", &["margin-inline-start"]),
-                    prefix("me", &["margin-inline-end"]),
-                    prefix("gap", &["row-gap", "column-gap"]),
-                    prefix("gap-x", &["column-gap"]),
-                    prefix("gap-y", &["row-gap"]),
-                ],
-            },
-            DynamicRule {
-                resolver: "dimension",
-                prefixes: vec![
-                    prefix("w", &["width"]),
-                    prefix("h", &["height"]),
-                    prefix("min-w", &["min-width"]),
-                    prefix("min-h", &["min-height"]),
-                    prefix("max-w", &["max-width"]),
-                    prefix("max-h", &["max-height"]),
-                    prefix("top", &["top"]),
-                    prefix("right", &["right"]),
-                    prefix("bottom", &["bottom"]),
-                    prefix("left", &["left"]),
-                    prefix("inset", &["top", "right", "bottom", "left"]),
-                ],
-            },
-            DynamicRule {
-                resolver: "color",
-                prefixes: vec![
-                    prefix("bg", &["background-color"]),
-                    prefix("text", &["color"]),
-                    prefix("border", &["border-color"]),
-                ],
-            },
-            DynamicRule {
-                resolver: "length",
-                prefixes: vec![
-                    prefix("rounded", &["border-radius"]),
-                    prefix("text", &["font-size"]),
-                    prefix("border", &["border-width"]),
-                ],
-            },
-            DynamicRule {
-                resolver: "opacity",
-                prefixes: vec![prefix("opacity", &["opacity"])],
-            },
-            DynamicRule {
-                resolver: "number",
-                prefixes: vec![prefix("z", &["z-index"])],
-            },
-            DynamicRule {
-                resolver: "ratio",
-                prefixes: vec![prefix("aspect", &["aspect-ratio"])],
-            },
-            DynamicRule {
-                resolver: "translate",
-                prefixes: vec![
-                    prefix("translate-x", &["transform-translate-x"]),
-                    prefix("translate-y", &["transform-translate-y"]),
-                ],
-            },
-            DynamicRule {
-                resolver: "scale",
-                prefixes: vec![prefix("scale", &["transform-scale"])],
-            },
-            DynamicRule {
-                resolver: "rotate",
-                prefixes: vec![prefix("rotate", &["transform-rotate"])],
-            },
-        ],
-        conformance: Vec::new(),
-    };
-    manifest.conformance = [
+        dynamic_rules: dynamic_rules(),
+        conformance: conformance_utilities(theme),
+    }
+}
+
+fn dynamic_rules() -> Vec<DynamicRule> {
+    vec![
+        DynamicRule {
+            resolver: "spacing",
+            prefixes: vec![
+                prefix(
+                    "p",
+                    &[
+                        "padding-top",
+                        "padding-right",
+                        "padding-bottom",
+                        "padding-left",
+                    ],
+                ),
+                prefix("px", &["padding-left", "padding-right"]),
+                prefix("py", &["padding-top", "padding-bottom"]),
+                prefix("pt", &["padding-top"]),
+                prefix("pr", &["padding-right"]),
+                prefix("pb", &["padding-bottom"]),
+                prefix("pl", &["padding-left"]),
+                prefix(
+                    "m",
+                    &["margin-top", "margin-right", "margin-bottom", "margin-left"],
+                ),
+                prefix("mx", &["margin-left", "margin-right"]),
+                prefix("my", &["margin-top", "margin-bottom"]),
+                prefix("mt", &["margin-top"]),
+                prefix("mr", &["margin-right"]),
+                prefix("mb", &["margin-bottom"]),
+                prefix("ml", &["margin-left"]),
+                prefix("ms", &["margin-inline-start"]),
+                prefix("me", &["margin-inline-end"]),
+                prefix("gap", &["row-gap", "column-gap"]),
+                prefix("gap-x", &["column-gap"]),
+                prefix("gap-y", &["row-gap"]),
+            ],
+        },
+        DynamicRule {
+            resolver: "dimension",
+            prefixes: vec![
+                prefix("w", &["width"]),
+                prefix("h", &["height"]),
+                prefix("min-w", &["min-width"]),
+                prefix("min-h", &["min-height"]),
+                prefix("max-w", &["max-width"]),
+                prefix("max-h", &["max-height"]),
+                prefix("top", &["top"]),
+                prefix("right", &["right"]),
+                prefix("bottom", &["bottom"]),
+                prefix("left", &["left"]),
+                prefix("inset", &["top", "right", "bottom", "left"]),
+            ],
+        },
+        DynamicRule {
+            resolver: "color",
+            prefixes: vec![
+                prefix("bg", &["background-color"]),
+                prefix("text", &["color"]),
+                prefix("border", &["border-color"]),
+            ],
+        },
+        DynamicRule {
+            resolver: "length",
+            prefixes: vec![
+                prefix("rounded", &["border-radius"]),
+                prefix("text", &["font-size"]),
+                prefix("border", &["border-width"]),
+            ],
+        },
+        DynamicRule {
+            resolver: "opacity",
+            prefixes: vec![prefix("opacity", &["opacity"])],
+        },
+        DynamicRule {
+            resolver: "number",
+            prefixes: vec![prefix("z", &["z-index"])],
+        },
+        DynamicRule {
+            resolver: "ratio",
+            prefixes: vec![prefix("aspect", &["aspect-ratio"])],
+        },
+        DynamicRule {
+            resolver: "translate",
+            prefixes: vec![
+                prefix("translate-x", &["transform-translate-x"]),
+                prefix("translate-y", &["transform-translate-y"]),
+            ],
+        },
+        DynamicRule {
+            resolver: "scale",
+            prefixes: vec![prefix("scale", &["transform-scale"])],
+        },
+        DynamicRule {
+            resolver: "rotate",
+            prefixes: vec![prefix("rotate", &["transform-rotate"])],
+        },
+    ]
+}
+
+fn conformance_utilities(theme: &Theme) -> Vec<crate::model::ParsedUtility> {
+    [
         "flex",
         "flex-1",
         "px-3",
@@ -155,8 +162,7 @@ pub fn manifest_with_theme(theme: &Theme) -> Manifest {
         parse_utility_with_theme(candidate, theme)
             .expect("manifest conformance utility must parse with the selected theme")
     })
-    .collect();
-    manifest
+    .collect()
 }
 
 fn prefix(name: &'static str, properties: &[&'static str]) -> DynamicPrefix {
