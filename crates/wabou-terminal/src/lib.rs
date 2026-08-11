@@ -726,114 +726,7 @@ impl TerminalWidget {
     fn handle_rio_events(&mut self) -> bool {
         let mut changed = self.listener.take_dirty();
         for event in self.listener.drain_events() {
-            match event {
-                RioEvent::PtyWrite(_, text) => self.send_bytes(text.into_bytes()),
-                RioEvent::TextAreaSizeRequest(_, formatter) => {
-                    let reply = formatter(self.size.winsize());
-                    self.send_bytes(reply.into_bytes());
-                }
-                RioEvent::TerminalDamaged(_) | RioEvent::Render | RioEvent::RenderRoute(_) => {
-                    changed = true;
-                }
-                RioEvent::UpdateGraphics { queues, .. } => {
-                    self.graphics.apply_updates(queues);
-                    changed = true;
-                }
-                RioEvent::Title(title) => {
-                    if self.sync_window_title {
-                        self.pending_host_actions
-                            .push_back(HostAction::SetWindowTitle(Some(title.clone())));
-                    }
-                    self.pending_node_events.push_back(WidgetNodeEvent::json(
-                        event::TERMINALTITLECHANGE,
-                        serde_json::json!({ "title": title, "subtitle": null }).to_string(),
-                    ));
-                }
-                RioEvent::TitleWithSubtitle(title, subtitle) => {
-                    if self.sync_window_title {
-                        self.pending_host_actions
-                            .push_back(HostAction::SetWindowTitle(Some(title.clone())));
-                    }
-                    self.pending_node_events.push_back(WidgetNodeEvent::json(
-                        event::TERMINALTITLECHANGE,
-                        serde_json::json!({ "title": title, "subtitle": subtitle }).to_string(),
-                    ));
-                }
-                RioEvent::ResetTitle => {
-                    if self.sync_window_title {
-                        self.pending_host_actions
-                            .push_back(HostAction::SetWindowTitle(None));
-                    }
-                    self.pending_node_events.push_back(WidgetNodeEvent::json(
-                        event::TERMINALTITLECHANGE,
-                        serde_json::json!({ "title": null, "subtitle": null }).to_string(),
-                    ));
-                }
-                RioEvent::ClipboardStore(_, text) => self
-                    .pending_host_actions
-                    .push_back(HostAction::SetClipboard(text)),
-                RioEvent::ClipboardLoad(_, _, formatter) => {
-                    if self.allow_clipboard_read {
-                        let request_id = self.next_clipboard_request_id;
-                        self.next_clipboard_request_id =
-                            self.next_clipboard_request_id.wrapping_add(1).max(1);
-                        self.pending_clipboard_loads.insert(request_id, formatter);
-                        self.pending_host_actions
-                            .push_back(HostAction::ReadClipboard { request_id });
-                    } else {
-                        self.send_bytes(formatter("").into_bytes());
-                    }
-                }
-                RioEvent::ColorRequest(_, index, formatter) => {
-                    let colors = self.terminal.lock().colors;
-                    self.send_bytes(
-                        formatter(terminal_color(
-                            index,
-                            &colors,
-                            self.theme_foreground,
-                            self.theme_background,
-                        ))
-                        .into_bytes(),
-                    );
-                }
-                RioEvent::CursorBlinkingChange | RioEvent::CursorBlinkingChangeOnRoute(_) => {
-                    self.cursor_on = true;
-                    let blinking = self.terminal.lock().blinking_cursor;
-                    self.next_cursor_blink = (self.focused && blinking)
-                        .then(|| Instant::now() + Duration::from_millis(500));
-                    changed = true;
-                }
-                RioEvent::Bell => {
-                    self.pending_host_actions
-                        .push_back(HostAction::RequestAttention);
-                    self.pending_node_events
-                        .push_back(WidgetNodeEvent::json(event::TERMINALBELL, "{}"));
-                }
-                RioEvent::CloseTerminal(_) | RioEvent::Exit | RioEvent::Quit => {
-                    self.report_exit_once();
-                }
-                RioEvent::ProgressReport(report) => {
-                    let state = match report.state {
-                        ProgressState::Remove => "remove",
-                        ProgressState::Set => "set",
-                        ProgressState::Error => "error",
-                        ProgressState::Indeterminate => "indeterminate",
-                        ProgressState::Pause => "pause",
-                    };
-                    self.pending_node_events.push_back(WidgetNodeEvent::json(
-                        event::TERMINALPROGRESS,
-                        serde_json::json!({ "state": state, "progress": report.progress })
-                            .to_string(),
-                    ));
-                }
-                RioEvent::DesktopNotification { title, body } => {
-                    self.pending_node_events.push_back(WidgetNodeEvent::json(
-                        event::TERMINALNOTIFICATION,
-                        serde_json::json!({ "title": title, "body": body }).to_string(),
-                    ))
-                }
-                _ => {}
-            }
+            changed |= self.handle_rio_event(event);
         }
         if changed {
             self.terminal.lock().damage_event_in_flight = false;
@@ -841,6 +734,107 @@ impl TerminalWidget {
         self.sync_current_directory();
         self.sync_selection_change();
         changed
+    }
+
+    fn handle_rio_event(&mut self, event: RioEvent) -> bool {
+        match event {
+            RioEvent::PtyWrite(_, text) => self.send_bytes(text.into_bytes()),
+            RioEvent::TextAreaSizeRequest(_, formatter) => {
+                let reply = formatter(self.size.winsize());
+                self.send_bytes(reply.into_bytes());
+            }
+            RioEvent::TerminalDamaged(_) | RioEvent::Render | RioEvent::RenderRoute(_) => {
+                return true;
+            }
+            RioEvent::UpdateGraphics { queues, .. } => {
+                self.graphics.apply_updates(queues);
+                return true;
+            }
+            RioEvent::Title(title) => {
+                self.report_terminal_title(Some(title), None);
+            }
+            RioEvent::TitleWithSubtitle(title, subtitle) => {
+                self.report_terminal_title(Some(title), Some(subtitle));
+            }
+            RioEvent::ResetTitle => {
+                self.report_terminal_title(None, None);
+            }
+            RioEvent::ClipboardStore(_, text) => self
+                .pending_host_actions
+                .push_back(HostAction::SetClipboard(text)),
+            RioEvent::ClipboardLoad(_, _, formatter) => {
+                if self.allow_clipboard_read {
+                    let request_id = self.next_clipboard_request_id;
+                    self.next_clipboard_request_id =
+                        self.next_clipboard_request_id.wrapping_add(1).max(1);
+                    self.pending_clipboard_loads.insert(request_id, formatter);
+                    self.pending_host_actions
+                        .push_back(HostAction::ReadClipboard { request_id });
+                } else {
+                    self.send_bytes(formatter("").into_bytes());
+                }
+            }
+            RioEvent::ColorRequest(_, index, formatter) => {
+                let colors = self.terminal.lock().colors;
+                self.send_bytes(
+                    formatter(terminal_color(
+                        index,
+                        &colors,
+                        self.theme_foreground,
+                        self.theme_background,
+                    ))
+                    .into_bytes(),
+                );
+            }
+            RioEvent::CursorBlinkingChange | RioEvent::CursorBlinkingChangeOnRoute(_) => {
+                self.cursor_on = true;
+                let blinking = self.terminal.lock().blinking_cursor;
+                self.next_cursor_blink =
+                    (self.focused && blinking).then(|| Instant::now() + Duration::from_millis(500));
+                return true;
+            }
+            RioEvent::Bell => {
+                self.pending_host_actions
+                    .push_back(HostAction::RequestAttention);
+                self.pending_node_events
+                    .push_back(WidgetNodeEvent::json(event::TERMINALBELL, "{}"));
+            }
+            RioEvent::CloseTerminal(_) | RioEvent::Exit | RioEvent::Quit => {
+                self.report_exit_once();
+            }
+            RioEvent::ProgressReport(report) => {
+                let state = match report.state {
+                    ProgressState::Remove => "remove",
+                    ProgressState::Set => "set",
+                    ProgressState::Error => "error",
+                    ProgressState::Indeterminate => "indeterminate",
+                    ProgressState::Pause => "pause",
+                };
+                self.pending_node_events.push_back(WidgetNodeEvent::json(
+                    event::TERMINALPROGRESS,
+                    serde_json::json!({ "state": state, "progress": report.progress }).to_string(),
+                ));
+            }
+            RioEvent::DesktopNotification { title, body } => {
+                self.pending_node_events.push_back(WidgetNodeEvent::json(
+                    event::TERMINALNOTIFICATION,
+                    serde_json::json!({ "title": title, "body": body }).to_string(),
+                ))
+            }
+            _ => {}
+        }
+        false
+    }
+
+    fn report_terminal_title(&mut self, title: Option<String>, subtitle: Option<String>) {
+        if self.sync_window_title {
+            self.pending_host_actions
+                .push_back(HostAction::SetWindowTitle(title.clone()));
+        }
+        self.pending_node_events.push_back(WidgetNodeEvent::json(
+            event::TERMINALTITLECHANGE,
+            serde_json::json!({ "title": title, "subtitle": subtitle }).to_string(),
+        ));
     }
 
     fn sync_current_directory(&mut self) {
