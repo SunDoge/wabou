@@ -200,6 +200,73 @@ fn intersect(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
 }
 
 #[allow(clippy::too_many_arguments)]
+fn node_clip(
+    tree: &TaffyTree<Paint>,
+    node: NodeId,
+    layout: &taffy::Layout,
+    x0: f32,
+    y0: f32,
+    width: f32,
+    height: f32,
+    inherited: ClipState,
+    depth: usize,
+) -> Option<ClipState> {
+    let style = tree.style(node).ok()?;
+    let clips_x = style.overflow.x != taffy::Overflow::Visible;
+    let clips_y = style.overflow.y != taffy::Overflow::Visible;
+    if !clips_x && !clips_y {
+        return None;
+    }
+    let mut own = [
+        f32::NEG_INFINITY,
+        f32::NEG_INFINITY,
+        f32::INFINITY,
+        f32::INFINITY,
+    ];
+    if clips_x {
+        own[0] = x0 + layout.border.left;
+        own[2] = x0 + width - layout.border.right;
+    }
+    if clips_y {
+        own[1] = y0 + layout.border.top;
+        own[3] = y0 + height - layout.border.bottom;
+    }
+    let rect = inherited.rect.map_or(own, |clip| intersect(clip, own));
+    let radius = if clips_x && clips_y && rect == own {
+        tree.get_node_context(node).map_or(0.0, |paint| {
+            (paint.border_radius
+                - layout
+                    .border
+                    .top
+                    .max(layout.border.right)
+                    .max(layout.border.bottom)
+                    .max(layout.border.left))
+            .max(0.0)
+        })
+    } else if inherited.rect != Some(rect) {
+        0.0
+    } else {
+        inherited.radius
+    };
+    Some(ClipState {
+        rect: Some(rect),
+        radius,
+        depth: Some(depth),
+    })
+}
+
+fn ordered_children(tree: &TaffyTree<Paint>, node: NodeId) -> Vec<NodeId> {
+    let mut children: Vec<_> = tree.child_ids(node).collect();
+    children.sort_by_key(|child| {
+        tree.get_node_context(*child)
+            .map_or_else(Default::default, |paint| {
+                (paint.overlay_plane, paint.z_index)
+            })
+    });
+    children
+}
+
+#[allow(clippy::too_many_arguments)]
 fn walk(
     tree: &TaffyTree<Paint>,
     node: NodeId,
@@ -287,51 +354,14 @@ fn walk(
         });
     }
 
-    let mut child_clip = inherited_clip;
-    if let Ok(style) = tree.style(node) {
-        let clips_x = style.overflow.x != taffy::Overflow::Visible;
-        let clips_y = style.overflow.y != taffy::Overflow::Visible;
-        if clips_x || clips_y {
-            let mut own = [
-                f32::NEG_INFINITY,
-                f32::NEG_INFINITY,
-                f32::INFINITY,
-                f32::INFINITY,
-            ];
-            if clips_x {
-                own[0] = x0 + layout.border.left;
-                own[2] = x0 + w - layout.border.right;
-            }
-            if clips_y {
-                own[1] = y0 + layout.border.top;
-                own[3] = y0 + h - layout.border.bottom;
-            }
-            let next_clip = child_clip.rect.map_or(own, |clip| intersect(clip, own));
-            child_clip.radius = if clips_x && clips_y && next_clip == own {
-                tree.get_node_context(node).map_or(0.0, |paint| {
-                    (paint.border_radius
-                        - layout
-                            .border
-                            .top
-                            .max(layout.border.right)
-                            .max(layout.border.bottom)
-                            .max(layout.border.left))
-                    .max(0.0)
-                })
-            } else if child_clip.rect != Some(next_clip) {
-                0.0
-            } else {
-                child_clip.radius
-            };
-            child_clip.rect = Some(next_clip);
-            child_clip.depth = Some(depth);
-            if let Some(placed) = out.last_mut()
-                && placed.node_id == node
-            {
-                placed.own_clip = Some(next_clip);
-                placed.own_clip_radius = child_clip.radius;
-            }
-        }
+    let established_clip = node_clip(tree, node, layout, x0, y0, w, h, inherited_clip, depth);
+    let child_clip = established_clip.unwrap_or(inherited_clip);
+    if let Some(clip) = established_clip
+        && let Some(placed) = out.last_mut()
+        && placed.node_id == node
+    {
+        placed.own_clip = clip.rect;
+        placed.own_clip_radius = clip.radius;
     }
     // A clipped subtree with an empty effective clip is fully invisible. The
     // zero-sized clipping node itself may have been omitted from `out`; walking
@@ -344,12 +374,7 @@ fn walk(
         return;
     }
     // Sibling-relative z order (Slint/Qt-Quick model): higher z paints later.
-    let mut children: Vec<NodeId> = tree.child_ids(node).collect();
-    children.sort_by_key(|c| {
-        tree.get_node_context(*c)
-            .map_or(Default::default(), |p| (p.overlay_plane, p.z_index))
-    });
-    for child in children {
+    for child in ordered_children(tree, node) {
         walk(
             tree,
             child,
