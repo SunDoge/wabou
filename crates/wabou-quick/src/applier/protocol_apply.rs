@@ -199,6 +199,55 @@ impl Applier {
         self.invalidation.insert(InvalidationFlags::LAYOUT);
     }
 
+    fn set_attribute(&mut self, id: u32, name: Atom, value: &str) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        let is_class = matches!(
+            self.atoms.borrow().resolve(name),
+            Some("class" | "className")
+        );
+        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+            if is_class {
+                let mut atoms = self.atoms.borrow_mut();
+                declared.classes = value
+                    .split_whitespace()
+                    .map(|value| atoms.intern(value))
+                    .collect();
+            }
+            declared.attrs.insert(name, Arc::from(value));
+        }
+        if !is_class
+            && let Some(widget) = self.widget_manager.widgets.get_mut(&node)
+            && let Some(name) = self.atoms.borrow().resolve(name)
+        {
+            widget.attribute_changed(name, value);
+        }
+        self.recompute_node(node);
+    }
+
+    fn remove_attribute(&mut self, id: u32, name: Atom) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        let is_class = matches!(
+            self.atoms.borrow().resolve(name),
+            Some("class" | "className")
+        );
+        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+            declared.attrs.remove(&name);
+            if is_class {
+                declared.classes.clear();
+            }
+        }
+        if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
+            && let Some(name) = self.atoms.borrow().resolve(name)
+        {
+            widget.attribute_removed(name);
+        }
+        self.recompute_node(node);
+    }
+
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
         self.batching_styles = true;
@@ -377,58 +426,11 @@ impl Applier {
                     self.recompute_node(n);
                 }
             }
-            Op::SetAttribute { id, name, value }
-                if matches!(
-                    self.atoms.borrow().resolve(*name),
-                    Some("class" | "className")
-                ) =>
-            {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
-                        let mut atoms = self.atoms.borrow_mut();
-                        d.classes = value
-                            .split_whitespace()
-                            .map(|value| atoms.intern(value))
-                            .collect();
-                        d.attrs.insert(*name, Arc::from(*value));
-                    }
-                    self.recompute_node(n);
-                }
-            }
             Op::SetAttribute { id, name, value } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
-                        d.attrs.insert(*name, Arc::from(*value));
-                    }
-                    // Forward attribute changes to Rust-side widgets.
-                    if let Some(widget) = self.widget_manager.widgets.get_mut(&n) {
-                        let atoms = self.atoms.borrow();
-                        if let Some(n_str) = atoms.resolve(*name) {
-                            widget.attribute_changed(n_str, value);
-                        }
-                    }
-                    self.recompute_node(n);
-                }
+                self.set_attribute(*id, *name, value);
             }
             Op::RemoveAttribute { id, name } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    let is_class = matches!(
-                        self.atoms.borrow().resolve(*name),
-                        Some("class" | "className")
-                    );
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
-                        d.attrs.remove(name);
-                        if is_class {
-                            d.classes.clear();
-                        }
-                    }
-                    if let Some(widget) = self.widget_manager.widgets.get_mut(&n)
-                        && let Some(n_str) = self.atoms.borrow().resolve(*name)
-                    {
-                        widget.attribute_removed(n_str);
-                    }
-                    self.recompute_node(n);
-                }
+                self.remove_attribute(*id, *name);
             }
             Op::AddEventListener { id, event_type } => {
                 self.input
