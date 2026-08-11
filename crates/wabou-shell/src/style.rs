@@ -338,6 +338,163 @@ fn font_family_stack(value: &IrValue) -> Option<Arc<str>> {
     (!normalized.is_empty()).then(|| Arc::from(normalized.join(", ")))
 }
 
+fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) -> Option<bool> {
+    match property {
+        "border-radius" => {
+            if let Some(IrLength::Px { value }) = value.length() {
+                paint.border_radius = *value;
+            }
+        }
+        "background-color" | "background" => {
+            paint.background = ir_color(value).or(paint.background)
+        }
+        "color" => paint.text_color = ir_color(value).or(paint.text_color),
+        "font-size" => {
+            if let Some(IrLength::Px { value }) = value.length() {
+                paint.font_size = Some(*value);
+            }
+        }
+        "font-family" => {
+            if let Some(stack) = font_family_stack(value) {
+                paint.font_family = Some(stack);
+            }
+        }
+        "font-weight" => {
+            let weight = match value.keyword() {
+                Some("normal") => Some(400.0),
+                Some("bold") => Some(700.0),
+                _ => value.number(),
+            };
+            paint.font_weight = weight.or(paint.font_weight);
+        }
+        "line-height" => match value {
+            IrValue::Number { value } => paint.line_height = Some((*value, true)),
+            IrValue::Length {
+                value: IrLength::Px { value },
+            } => paint.line_height = Some((*value, false)),
+            _ => {}
+        },
+        "white-space" => {
+            paint.wrap_text = Some(!matches!(value.keyword(), Some("nowrap" | "pre")));
+        }
+        "text-overflow" => paint.text_ellipsis = value.keyword() == Some("ellipsis"),
+        "text-align" => {
+            paint.text_align = Some(match value.keyword() {
+                Some("center") => TextAlign::Center,
+                Some("right" | "end") => TextAlign::End,
+                Some("justify") => TextAlign::Justify,
+                _ => TextAlign::Start,
+            });
+        }
+        "opacity" => paint.opacity = value.number().unwrap_or(paint.opacity).clamp(0.0, 1.0),
+        "z-index" => {
+            // Sibling-relative paint order; `auto` and non-numbers sort as 0.
+            paint.z_index = match value {
+                IrValue::Number { value } => *value as i32,
+                _ => 0,
+            };
+        }
+        "pointer-events" => paint.pointer_events = value.keyword() != Some("none"),
+        "transform" => {
+            let IrValue::List { values } = value else {
+                return Some(false);
+            };
+            paint.transform = values.iter().filter_map(PaintTransform::from_ir).collect();
+        }
+        "transform-translate-x" | "transform-translate-y" => {
+            let IrValue::List { values } = value else {
+                return Some(false);
+            };
+            let Some(PaintTransform::Translate(x, y)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return Some(true);
+            };
+            if let Some(PaintTransform::Translate(current_x, current_y)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Translate(_, _)))
+            {
+                if property == "transform-translate-x" {
+                    *current_x = x;
+                } else {
+                    *current_y = y;
+                }
+            } else {
+                paint.transform.push(PaintTransform::Translate(x, y));
+            }
+        }
+        "transform-scale" => {
+            let IrValue::List { values } = value else {
+                return Some(false);
+            };
+            let Some(component @ PaintTransform::Scale(_, _)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return Some(true);
+            };
+            if let Some(current @ PaintTransform::Scale(_, _)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Scale(_, _)))
+            {
+                *current = component;
+            } else {
+                paint.transform.push(component);
+            }
+        }
+        "transform-rotate" => {
+            let IrValue::List { values } = value else {
+                return Some(false);
+            };
+            let Some(component @ PaintTransform::Rotate(_)) =
+                values.iter().find_map(PaintTransform::from_ir)
+            else {
+                return Some(true);
+            };
+            if let Some(current @ PaintTransform::Rotate(_)) = paint
+                .transform
+                .iter_mut()
+                .find(|item| matches!(item, PaintTransform::Rotate(_)))
+            {
+                *current = component;
+            } else {
+                paint.transform.push(component);
+            }
+        }
+        "transform-component" => {
+            let IrValue::List { values } = value else {
+                return Some(false);
+            };
+            paint
+                .transform
+                .extend(values.iter().filter_map(PaintTransform::from_ir));
+        }
+        "box-shadow" => {
+            if let IrValue::List { values } = value {
+                paint.shadows = values.iter().filter_map(Shadow::from_ir).collect();
+            }
+        }
+        "user-select" => match value.keyword() {
+            Some("none") => {
+                paint.text_selectable = Some(false);
+                paint.text_select_all = Some(false);
+            }
+            Some("all") => {
+                paint.text_selectable = Some(true);
+                paint.text_select_all = Some(true);
+            }
+            Some("auto") | Some("text") => {
+                paint.text_selectable = Some(true);
+                paint.text_select_all = Some(false);
+            }
+            _ => {}
+        },
+        _ => return None,
+    }
+    Some(true)
+}
+
 /// Apply an already parsed Style IR declaration into cascaded layout +
 /// [`DeclaredPaint`]. This path performs no CSS parsing or unit normalization
 /// at runtime, and never writes computed/inherited values — those are produced
@@ -358,6 +515,9 @@ pub fn apply_ir(
     property: &str,
     value: &IrValue,
 ) -> bool {
+    if let Some(applied) = apply_paint_ir(paint, property, value) {
+        return applied;
+    }
     match property {
         "display" => {
             let keyword = value.keyword().or_else(|| match value {
@@ -580,42 +740,6 @@ pub fn apply_ir(
                 };
             }
         }
-        "border-radius" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                paint.border_radius = *value;
-            }
-        }
-        "background-color" | "background" => {
-            paint.background = ir_color(value).or(paint.background)
-        }
-        "color" => paint.text_color = ir_color(value).or(paint.text_color),
-        "font-size" => {
-            if let Some(IrLength::Px { value }) = value.length() {
-                paint.font_size = Some(*value);
-            }
-        }
-        "font-family" => {
-            if let Some(stack) = font_family_stack(value) {
-                paint.font_family = Some(stack);
-            }
-        }
-        "font-weight" => {
-            let fw = match value.keyword() {
-                Some("normal") => Some(400.0),
-                Some("bold") => Some(700.0),
-                _ => value.number(),
-            };
-            paint.font_weight = fw.or(paint.font_weight);
-        }
-        "line-height" => match value {
-            IrValue::Number { value } => paint.line_height = Some((*value, true)),
-            IrValue::Length {
-                value: IrLength::Px { value },
-            } => {
-                paint.line_height = Some((*value, false));
-            }
-            _ => {}
-        },
         "overflow" => {
             if let IrValue::Record { fields } = value {
                 if let Some(v) = fields.get("x").and_then(ir_overflow) {
@@ -694,133 +818,6 @@ pub fn apply_ir(
                 taffy::BoxSizing::BorderBox
             };
         }
-        "white-space" => {
-            // Record the declaration only. Effective wrap is resolved against
-            // the parent during inherit — never baked into a Paint default.
-            let wrap = !matches!(value.keyword(), Some("nowrap" | "pre"));
-            paint.wrap_text = Some(wrap);
-        }
-        "text-overflow" => {
-            paint.text_ellipsis = value.keyword() == Some("ellipsis");
-        }
-        "text-align" => {
-            paint.text_align = Some(match value.keyword() {
-                Some("center") => TextAlign::Center,
-                Some("right" | "end") => TextAlign::End,
-                Some("justify") => TextAlign::Justify,
-                _ => TextAlign::Start,
-            });
-        }
-        "opacity" => paint.opacity = value.number().unwrap_or(paint.opacity).clamp(0.0, 1.0),
-        "z-index" => {
-            // Slint/Qt-Quick z model: sibling-relative paint order, no DOM
-            // stacking context. `auto` and non-numbers sort as 0.
-            paint.z_index = match value {
-                IrValue::Number { value } => *value as i32,
-                _ => 0,
-            };
-        }
-        "pointer-events" => {
-            // `none` makes the node transparent to hit testing; descendants may
-            // re-enable with `auto` (children still hit). Other CSS values
-            // (`visiblePainted`, `all`, …) all behave as the default `auto`.
-            paint.pointer_events = value.keyword() != Some("none");
-        }
-        "transform" => {
-            let IrValue::List { values } = value else {
-                return false;
-            };
-            paint.transform = values.iter().filter_map(PaintTransform::from_ir).collect();
-        }
-        "transform-translate-x" | "transform-translate-y" => {
-            let IrValue::List { values } = value else {
-                return false;
-            };
-            let Some(PaintTransform::Translate(x, y)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return true;
-            };
-            if let Some(PaintTransform::Translate(current_x, current_y)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Translate(_, _)))
-            {
-                if property == "transform-translate-x" {
-                    *current_x = x;
-                } else {
-                    *current_y = y;
-                }
-            } else {
-                paint.transform.push(PaintTransform::Translate(x, y));
-            }
-        }
-        "transform-scale" => {
-            let IrValue::List { values } = value else {
-                return false;
-            };
-            let Some(component @ PaintTransform::Scale(_, _)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return true;
-            };
-            if let Some(current @ PaintTransform::Scale(_, _)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Scale(_, _)))
-            {
-                *current = component;
-            } else {
-                paint.transform.push(component);
-            }
-        }
-        "transform-rotate" => {
-            let IrValue::List { values } = value else {
-                return false;
-            };
-            let Some(component @ PaintTransform::Rotate(_)) =
-                values.iter().find_map(PaintTransform::from_ir)
-            else {
-                return true;
-            };
-            if let Some(current @ PaintTransform::Rotate(_)) = paint
-                .transform
-                .iter_mut()
-                .find(|item| matches!(item, PaintTransform::Rotate(_)))
-            {
-                *current = component;
-            } else {
-                paint.transform.push(component);
-            }
-        }
-        "transform-component" => {
-            let IrValue::List { values } = value else {
-                return false;
-            };
-            paint
-                .transform
-                .extend(values.iter().filter_map(PaintTransform::from_ir));
-        }
-        "box-shadow" => {
-            if let IrValue::List { values } = value {
-                paint.shadows = values.iter().filter_map(Shadow::from_ir).collect();
-            }
-        }
-        "user-select" => match value.keyword() {
-            Some("none") => {
-                paint.text_selectable = Some(false);
-                paint.text_select_all = Some(false);
-            }
-            Some("all") => {
-                paint.text_selectable = Some(true);
-                paint.text_select_all = Some(true);
-            }
-            Some("auto") | Some("text") => {
-                paint.text_selectable = Some(true);
-                paint.text_select_all = Some(false);
-            }
-            _ => {}
-        },
         _ => return false,
     }
     true
