@@ -34,6 +34,7 @@ use wabou_shell::{Widget, WidgetFactory};
 use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
+type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
 
 enum EffectTraceConfig {
     Record { path: PathBuf, record_all: bool },
@@ -322,64 +323,7 @@ impl HostBuilder {
         }
 
         if headless_test && let Some(controller) = &test_controller {
-            controller.initialize_headless(1..=sources.len() as u64);
-            let deadline = Instant::now() + Duration::from_secs(10);
-            let mut text = crate::TextContext::new();
-            let mut last_nodes = vec![Vec::new(); sources.len()];
-            while !controller.has_report() && Instant::now() < deadline {
-                for (index, (source, _)) in sources.iter_mut().enumerate() {
-                    source.set_semantics_enabled(true);
-                    source.handle_event(wabou_shell::UiEvent::WindowMetrics(
-                        crate::WindowMetrics {
-                            window_id: index as u64 + 1,
-                            logical_width: 1100,
-                            logical_height: 720,
-                            physical_width: 1100,
-                            physical_height: 720,
-                            scale_factor: 1.0,
-                            maximized: false,
-                            focused: true,
-                        },
-                    ));
-                    last_nodes[index] = source.build_frame(&mut text, 1100, 720);
-                    controller.poll_headless_source(index as u64 + 1, source.as_mut());
-                }
-                std::thread::sleep(Duration::from_millis(1));
-            }
-            if controller.report_passed() == Some(false)
-                && std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0")
-                && let Some(directory) =
-                    std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(PathBuf::from)
-                && let Some(nodes) = last_nodes.first()
-            {
-                std::fs::create_dir_all(&directory).map_err(|error| {
-                    crate::Error::TestScenario {
-                        message: format!("cannot create failure artifact directory: {error}"),
-                    }
-                })?;
-                let mut scene = vello::Scene::new();
-                wabou_shell::scene::build_scene_scaled(
-                    &mut scene,
-                    nodes,
-                    &mut text,
-                    1100,
-                    720,
-                    self.base_color,
-                    1.0,
-                );
-                let output = directory.join("failure.png");
-                wabou_shell::renderer::render_to_png(
-                    &scene,
-                    1100,
-                    720,
-                    self.base_color,
-                    output.to_string_lossy().as_ref(),
-                )
-                .map_err(|error| crate::Error::TestScenario {
-                    message: format!("cannot render failure screenshot: {error:?}"),
-                })?;
-            }
-            return finish_test_report(controller.clone());
+            return run_headless_test(controller, &mut sources, self.base_color);
         }
 
         let capabilities = self.capabilities.clone();
@@ -469,6 +413,75 @@ impl HostBuilder {
         drop(devtools_server);
         Ok(())
     }
+}
+
+fn run_headless_test(
+    controller: &crate::test_driver::TestController,
+    sources: &mut [WindowSource],
+    base_color: Color,
+) -> crate::Result<()> {
+    const WIDTH: u32 = 1100;
+    const HEIGHT: u32 = 720;
+
+    controller.initialize_headless(1..=sources.len() as u64);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let mut text = crate::TextContext::new();
+    let mut last_nodes = vec![Vec::new(); sources.len()];
+    while !controller.has_report() && Instant::now() < deadline {
+        for (index, (source, _)) in sources.iter_mut().enumerate() {
+            let window_id = index as u64 + 1;
+            source.set_semantics_enabled(true);
+            source.handle_event(wabou_shell::UiEvent::WindowMetrics(crate::WindowMetrics {
+                window_id,
+                logical_width: WIDTH,
+                logical_height: HEIGHT,
+                physical_width: WIDTH,
+                physical_height: HEIGHT,
+                scale_factor: 1.0,
+                maximized: false,
+                focused: true,
+            }));
+            last_nodes[index] = source.build_frame(&mut text, WIDTH, HEIGHT);
+            controller.poll_headless_source(window_id, source.as_mut());
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    if controller.report_passed() == Some(false) {
+        render_headless_failure(&last_nodes, &mut text, base_color)?;
+    }
+    finish_test_report(controller.clone())
+}
+
+fn render_headless_failure(
+    last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
+    text: &mut crate::TextContext,
+    base_color: Color,
+) -> crate::Result<()> {
+    if !std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0") {
+        return Ok(());
+    }
+    let Some(directory) = std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(PathBuf::from) else {
+        return Ok(());
+    };
+    let Some(nodes) = last_nodes.first() else {
+        return Ok(());
+    };
+    std::fs::create_dir_all(&directory).map_err(|error| crate::Error::TestScenario {
+        message: format!("cannot create failure artifact directory: {error}"),
+    })?;
+    let mut scene = vello::Scene::new();
+    wabou_shell::scene::build_scene_scaled(&mut scene, nodes, text, 1100, 720, base_color, 1.0);
+    let output = directory.join("failure.png");
+    wabou_shell::renderer::render_to_png(
+        &scene,
+        1100,
+        720,
+        base_color,
+        output.to_string_lossy().as_ref(),
+    )
+    .map_err(|error| crate::Error::TestScenario {
+        message: format!("cannot render failure screenshot: {error:?}"),
+    })
 }
 
 fn finish_test_report(controller: crate::test_driver::TestController) -> crate::Result<()> {
