@@ -31,6 +31,7 @@ snafu = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
 tracing = { workspace = true }
+tracing-chrome = { version = "0.7.2", optional = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url = { workspace = true }
 vello = { workspace = true }
@@ -50,5 +51,9 @@ tungstenite = {
 ureq = { version = "3.3", optional = true }
 
 [features]
+profiling = ["dep:tracing-chrome", "wabou-shell/profiling"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]
+
+[dev-dependencies]
+tempfile = "3"

@@ -12,4 +12,5 @@ license.workspace = true
 wabou-quick = { workspace = true }
 
 [features]
+profiling = ["wabou-quick/profiling"]
 vite = ["wabou-quick/vite"]

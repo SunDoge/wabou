@@ -69,6 +69,9 @@ enum Commands {
         app_dir: Option<PathBuf>,
         #[arg(long)]
         release: bool,
+        /// Write an opt-in performance trace for Perfetto/Chrome tracing.
+        #[arg(long, value_name = "JSON")]
+        profile_trace: Option<PathBuf>,
     },
     /// Run a bundled TypeScript behavior scenario against the native host.
     Test {
@@ -290,9 +293,14 @@ fn main() -> Result<()> {
             let (workspace, app) = resolve_app(app_dir.as_deref())?;
             package(&workspace, &app, &format)
         }
-        Commands::Run { app_dir, release } => {
+        Commands::Run {
+            app_dir,
+            release,
+            profile_trace,
+        } => {
             let (workspace, app) = resolve_app(app_dir.as_deref())?;
-            run(&workspace, &app, release)
+            let profile_trace = profile_trace.map(|path| cwd.join(path));
+            run(&workspace, &app, release, profile_trace.as_deref())
         }
         Commands::Test {
             app_dir,
@@ -591,7 +599,7 @@ fn copy_resource(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
-fn run(workspace: &Path, app: &App, release: bool) -> Result<()> {
+fn run(workspace: &Path, app: &App, release: bool, profile_trace: Option<&Path>) -> Result<()> {
     ensure(frontend(app, "build", &[])?, "Vite build")?;
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
@@ -601,6 +609,14 @@ fn run(workspace: &Path, app: &App, release: bool) -> Result<()> {
         .args(["run", "--manifest-path", &manifest, "--bin", &binary]);
     if release {
         cargo.arg("--release");
+    }
+    if let Some(path) = profile_trace {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        cargo
+            .args(["--features", &app_profiling_feature(workspace, app)?])
+            .env("WABOU_PROFILE_TRACE", path);
     }
     cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app));
     ensure(cargo.status()?, "Rust host")
@@ -1101,6 +1117,31 @@ fn app_vite_feature(workspace: &Path, app: &App) -> Result<String> {
         })
 }
 
+fn app_profiling_feature(workspace: &Path, app: &App) -> Result<String> {
+    let metadata = cargo_metadata(workspace, app)?;
+    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    framework_feature(&metadata, &manifest_path, "profiling").ok_or_else(|| {
+        "application must depend on `wabou` or the legacy `wabou-quick` crate".into()
+    })
+}
+
+fn framework_feature(metadata: &Value, manifest_path: &Path, feature: &str) -> Option<String> {
+    let dependencies = package_metadata(metadata, manifest_path)?["dependencies"].as_array()?;
+    if dependencies
+        .iter()
+        .any(|dependency| dependency["name"] == "wabou")
+    {
+        Some(format!("wabou/{feature}"))
+    } else if dependencies
+        .iter()
+        .any(|dependency| dependency["name"] == "wabou-quick")
+    {
+        Some(format!("wabou-quick/{feature}"))
+    } else {
+        None
+    }
+}
+
 fn vite_feature<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a str> {
     let dependencies = package_metadata(metadata, manifest_path)?["dependencies"].as_array()?;
     if dependencies
@@ -1539,6 +1580,42 @@ formats = ["deb"]
             vite_feature(&metadata, Path::new("/workspace/apps/gallery/Cargo.toml")),
             Some("wabou/vite")
         );
+    }
+
+    #[test]
+    fn selects_the_facade_profiling_feature_for_new_apps() {
+        let metadata = serde_json::json!({
+            "packages": [{
+                "manifest_path": "/workspace/apps/gallery/Cargo.toml",
+                "dependencies": [{"name": "wabou"}]
+            }]
+        });
+        assert_eq!(
+            framework_feature(
+                &metadata,
+                Path::new("/workspace/apps/gallery/Cargo.toml"),
+                "profiling"
+            ),
+            Some("wabou/profiling".into())
+        );
+    }
+
+    #[test]
+    fn parses_an_explicit_profile_trace_path() {
+        let Cli {
+            command:
+                Commands::Run {
+                    profile_trace,
+                    release,
+                    ..
+                },
+        } = Cli::try_parse_from(["wabou", "run", "--release", "--profile-trace", "trace.json"])
+            .unwrap()
+        else {
+            panic!("expected run command");
+        };
+        assert!(release);
+        assert_eq!(profile_trace.as_deref(), Some(Path::new("trace.json")));
     }
 
     #[test]

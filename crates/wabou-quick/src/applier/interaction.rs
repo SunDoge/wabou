@@ -252,6 +252,16 @@ impl Applier {
         let mut content_hits = HashMap::new();
         let mut scrollbar_hits = HashMap::new();
         for node in placed {
+            let is_non_interactive_leaf = !node.paint.pointer_events
+                && self
+                    .node_store
+                    .children
+                    .get(&node.node_id)
+                    .is_none_or(Vec::is_empty)
+                && !node.scroll.range.iter().any(|range| *range > 0.5);
+            if is_non_interactive_leaf {
+                continue;
+            }
             let parent_transform = node
                 .parent_node_id
                 .and_then(|parent| transforms.get(&parent).copied())
@@ -273,7 +283,10 @@ impl Applier {
             }
             let inert =
                 subtree_has_attribute(&self.node_store, &atoms, node.node_id, "inert", None);
-            if let Some(&solid_id) = self.node_store.node_to_solid.get(&node.node_id) {
+            if node.paint.pointer_events
+                && !inert
+                && let Some(&solid_id) = self.node_store.node_to_solid.get(&node.node_id)
+            {
                 content_hits.insert(
                     node.node_id,
                     HitNode {
@@ -281,7 +294,7 @@ impl Applier {
                         rect: node.rect,
                         transform,
                         clips: clips.clone(),
-                        pointer_events: node.paint.pointer_events && !inert,
+                        pointer_events: true,
                     },
                 );
             }

@@ -36,6 +36,55 @@ use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
 
+#[cfg(feature = "profiling")]
+fn init_tracing() -> Option<tracing_chrome::FlushGuard> {
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let Some(path) = std::env::var_os("WABOU_PROFILE_TRACE") else {
+        tracing_subscriber::fmt()
+            .with_env_filter(env_filter)
+            .try_init()
+            .ok();
+        return None;
+    };
+    let file = match std::fs::File::create(&path) {
+        Ok(file) => file,
+        Err(error) => {
+            eprintln!(
+                "failed to create Wabou profile trace {}: {error}",
+                Path::new(&path).display()
+            );
+            tracing_subscriber::fmt()
+                .with_env_filter(env_filter)
+                .try_init()
+                .ok();
+            return None;
+        }
+    };
+    init_profile_tracing(file, env_filter)
+}
+
+#[cfg(feature = "profiling")]
+fn init_profile_tracing(
+    file: std::fs::File,
+    env_filter: tracing_subscriber::EnvFilter,
+) -> Option<tracing_chrome::FlushGuard> {
+    use tracing_subscriber::filter::filter_fn;
+    use tracing_subscriber::prelude::*;
+
+    let (chrome, guard) = tracing_chrome::ChromeLayerBuilder::new()
+        .writer(file)
+        .include_args(true)
+        .include_locations(false)
+        .build();
+    let initialized = tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_filter(env_filter))
+        .with(chrome.with_filter(filter_fn(|metadata| metadata.target() == "wabou::perf")))
+        .try_init()
+        .is_ok();
+    initialized.then_some(guard)
+}
+
 enum EffectTraceConfig {
     Record { path: PathBuf, record_all: bool },
     Replay { path: PathBuf },
@@ -250,6 +299,9 @@ impl HostBuilder {
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();
+        #[cfg(feature = "profiling")]
+        let _profile_guard = init_tracing();
+        #[cfg(not(feature = "profiling"))]
         tracing_subscriber::fmt()
             .with_env_filter(
                 tracing_subscriber::EnvFilter::try_from_default_env()
@@ -629,6 +681,31 @@ fn resource_bundle_candidates(executable: &Path) -> Vec<PathBuf> {
 mod tests {
     use super::{resource_bundle_candidates, resource_bundle_path};
     use std::path::Path;
+
+    #[cfg(feature = "profiling")]
+    #[test]
+    fn profiling_writes_only_opted_in_perf_spans_without_source_locations() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("trace.json");
+        let file = std::fs::File::create(&path).unwrap();
+        let guard = super::init_profile_tracing(file, tracing_subscriber::EnvFilter::new("info"))
+            .expect("test owns the process-global tracing subscriber");
+        {
+            let span = tracing::trace_span!(
+                target: "wabou::perf",
+                "quick.test",
+                nodes = 3_u64,
+            );
+            let _guard = span.enter();
+            tracing::trace!(target: "unrelated", secret = "must-not-appear", "private");
+        }
+        drop(guard);
+        let trace = std::fs::read_to_string(path).unwrap();
+        assert!(trace.contains("quick.test"));
+        assert!(trace.contains("nodes"));
+        assert!(!trace.contains("must-not-appear"));
+        assert!(!trace.contains("host.rs"));
+    }
 
     #[test]
     fn packaged_bundle_is_resolved_next_to_the_executable() {

@@ -510,11 +510,19 @@ impl Applier {
         active_theme_colors: &HashMap<String, u32>,
     ) -> Arc<CachedClassResolution> {
         if let Some(cached) = self.class_resolution_cache.get(&class_key) {
+            #[cfg(feature = "profiling")]
+            {
+                self.profile_class_cache_hits += 1;
+            }
             #[cfg(test)]
             {
                 self.class_resolution_cache_hits += 1;
             }
             return cached.clone();
+        }
+        #[cfg(feature = "profiling")]
+        {
+            self.profile_class_cache_misses += 1;
         }
 
         let mut declarations = Vec::new();
@@ -582,6 +590,10 @@ impl Applier {
                             .map_err(|error| error.to_string())
                     })
             });
+            #[cfg(feature = "profiling")]
+            {
+                self.profile_runtime_utility_fallbacks += 1;
+            }
             let utility = match utility {
                 Ok(utility) => utility,
                 Err(diagnostic) => {

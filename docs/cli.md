@@ -56,6 +56,17 @@ bun run wabou package --app-dir apps/gallery
 bun run wabou devtools
 ```
 
+To diagnose a release build without adding instrumentation to normal releases,
+enable the compile-time profiler for that run only:
+
+```bash
+bun run wabou run --app-dir apps/stress --release \
+  --profile-trace /tmp/wabou-trace.json
+```
+
+See the [performance profiling guide](performance.md) for trace contents and
+privacy guarantees.
+
 `run` builds the UI and supplies its path to the Rust host through
 `WABOU_BUNDLE_PATH`; changing the bundle never recompiles Rust.
 

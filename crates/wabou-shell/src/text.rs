@@ -131,6 +131,16 @@ impl TextContext {
             return scene.clone();
         }
 
+        #[cfg(feature = "profiling")]
+        let span = tracing::trace_span!(
+            target: "wabou::perf",
+            "text.glyph_encode.cache_miss",
+            lines = layout.len() as u64,
+            device_scale,
+        );
+        #[cfg(feature = "profiling")]
+        let _guard = span.enter();
+
         let mut scene = Scene::new();
         for line in layout.lines() {
             for item in line.items() {
@@ -255,6 +265,16 @@ pub fn layout_text_styled(
     if let Some(layout) = tcx.cache.get(&key) {
         return layout.clone();
     }
+    #[cfg(feature = "profiling")]
+    let span = tracing::trace_span!(
+        target: "wabou::perf",
+        "text.shape.cache_miss",
+        bytes = text.len() as u64,
+        styled_runs = runs.len() as u64,
+        constrained = max_width.is_some(),
+    );
+    #[cfg(feature = "profiling")]
+    let _guard = span.enter();
     let mut builder = tcx
         .layout_cx
         .ranged_builder(&mut tcx.font_cx, &text, 1.0, false);

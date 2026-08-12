@@ -145,7 +145,9 @@ impl Applier {
 
         let started = std::time::Instant::now();
         let result = {
+            #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "quick.js_tick");
+            #[cfg(feature = "profiling")]
             let _guard = span.enter();
             self.js.tick()
         };
@@ -162,7 +164,18 @@ impl Applier {
         self.last_viewport = (width, height);
         self.has_raf = has_raf;
         if !bytes.is_empty() {
-            match decode_frame(&bytes) {
+            let decoded = {
+                #[cfg(feature = "profiling")]
+                let span = tracing::trace_span!(
+                    target: "wabou::perf",
+                    "quick.protocol.decode",
+                    bytes = bytes.len() as u64,
+                );
+                #[cfg(feature = "profiling")]
+                let _guard = span.enter();
+                decode_frame(&bytes)
+            };
+            match decoded {
                 Ok(frame) => {
                     if let Some(state) = &self.projections.debug_state
                         && let Ok(mut state) = state.write()
@@ -175,7 +188,29 @@ impl Applier {
                             bytes_hex: Some(wabou_devtools::bytes_hex(&bytes, 4096)),
                         });
                     }
-                    self.apply_frame(&frame);
+                    {
+                        #[cfg(feature = "profiling")]
+                        let span = tracing::trace_span!(
+                            target: "wabou::perf",
+                            "quick.protocol.apply",
+                            ops = frame.ops.len() as u64,
+                            class_cache_hits = tracing::field::Empty,
+                            class_cache_misses = tracing::field::Empty,
+                            runtime_utility_fallbacks = tracing::field::Empty,
+                        );
+                        #[cfg(feature = "profiling")]
+                        let _guard = span.enter();
+                        self.apply_frame(&frame);
+                        #[cfg(feature = "profiling")]
+                        {
+                            span.record("class_cache_hits", self.profile_class_cache_hits);
+                            span.record("class_cache_misses", self.profile_class_cache_misses);
+                            span.record(
+                                "runtime_utility_fallbacks",
+                                self.profile_runtime_utility_fallbacks,
+                            );
+                        }
+                    }
                 }
                 Err(error) => tracing::error!(target: "bridge", "decode frame failed: {error}"),
             }
@@ -191,8 +226,16 @@ impl FrameSource for Applier {
     }
 
     fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode> {
+        #[cfg(feature = "profiling")]
         let build_span = tracing::trace_span!(target: "wabou::perf", "quick.build_frame");
+        #[cfg(feature = "profiling")]
         let _build_guard = build_span.enter();
+        #[cfg(feature = "profiling")]
+        {
+            self.profile_class_cache_hits = 0;
+            self.profile_class_cache_misses = 0;
+            self.profile_runtime_utility_fallbacks = 0;
+        }
         self.invalidation.remove(InvalidationFlags::TICK);
         self.js.take_async_wake();
         self.js.poll_async_runtime();
@@ -212,11 +255,27 @@ impl FrameSource for Applier {
         // Per-frame non-inherited animation sets LAYOUT but not INHERIT, so
         // this O(N) pass remains skipped for those frames.
         if self.invalidation.contains(InvalidationFlags::INHERIT) {
-            self.inherit();
+            {
+                #[cfg(feature = "profiling")]
+                let span = tracing::trace_span!(
+                    target: "wabou::perf",
+                    "quick.style.inherit",
+                    nodes = self.node_store.solid_to_node.len() as u64,
+                );
+                #[cfg(feature = "profiling")]
+                let _guard = span.enter();
+                self.inherit();
+            }
             self.invalidation.remove(InvalidationFlags::INHERIT);
         }
-        self.sync_widget_styles();
-        self.measure_widgets(tcx);
+        {
+            #[cfg(feature = "profiling")]
+            let span = tracing::trace_span!(target: "wabou::perf", "quick.widgets.measure");
+            #[cfg(feature = "profiling")]
+            let _guard = span.enter();
+            self.sync_widget_styles();
+            self.measure_widgets(tcx);
+        }
         let viewport = (width, height);
         let viewport_changed = self.layout_viewport != Some(viewport);
         let semantic_layout_dirty =
@@ -234,14 +293,26 @@ impl FrameSource for Applier {
                 style.size.height = taffy::Dimension::length(height as f32);
                 let _ = self.node_store.tree.set_style(self.node_store.root, style);
             }
-            let mut placed = layout::compute_and_walk_with_scroll(
-                &mut self.node_store.tree,
-                self.node_store.root,
-                width as f32,
-                height as f32,
-                tcx,
-                &self.scroll_offsets,
-            );
+            let mut placed = {
+                #[cfg(feature = "profiling")]
+                let span = tracing::trace_span!(
+                    target: "wabou::perf",
+                    "quick.layout.compute",
+                    nodes = self.node_store.solid_to_node.len() as u64,
+                    viewport_width = width,
+                    viewport_height = height,
+                );
+                #[cfg(feature = "profiling")]
+                let _guard = span.enter();
+                layout::compute_and_walk_with_scroll(
+                    &mut self.node_store.tree,
+                    self.node_store.root,
+                    width as f32,
+                    height as f32,
+                    tcx,
+                    &self.scroll_offsets,
+                )
+            };
             if self.clamp_scroll_offsets(&placed) {
                 placed = layout::flatten_with_scroll(
                     &self.node_store.tree,
@@ -254,7 +325,13 @@ impl FrameSource for Applier {
             let resize_changed = self.dispatch_resize_changes();
             self.invalidation
                 .set(InvalidationFlags::TICK, resize_changed);
-            self.paint_widgets(&mut placed, tcx);
+            {
+                #[cfg(feature = "profiling")]
+                let span = tracing::trace_span!(target: "wabou::perf", "quick.widgets.paint");
+                #[cfg(feature = "profiling")]
+                let _guard = span.enter();
+                self.paint_widgets(&mut placed, tcx);
+            }
             placed
         } else {
             let mut placed = layout::flatten_with_scroll(
@@ -262,44 +339,82 @@ impl FrameSource for Applier {
                 self.node_store.root,
                 &self.scroll_offsets,
             );
-            self.paint_widgets(&mut placed, tcx);
+            {
+                #[cfg(feature = "profiling")]
+                let span = tracing::trace_span!(target: "wabou::perf", "quick.widgets.paint");
+                #[cfg(feature = "profiling")]
+                let _guard = span.enter();
+                self.paint_widgets(&mut placed, tcx);
+            }
             placed
         };
-        self.update_scrollbar_visuals(&mut placed);
-        self.placed_rects.clear();
-        self.placed_rects
-            .extend(placed.iter().map(|placed| (placed.node_id, placed.rect)));
-        self.rebuild_hit_geometry(&placed);
-        self.rebuild_focus_order(&placed);
-        let projection_dirty =
-            self.projections.semantics_dirty || semantic_layout_dirty || selection_scrolled;
-        if projection_dirty {
-            self.publish_layout_metrics(&placed, width, height);
-        }
-        self.prepare_text_selection(&mut placed, tcx);
-        if selection_scrolled {
-            let target = self
-                .input
-                .hit_test(self.input.pointer_position.0, self.input.pointer_position.1);
-            self.extend_text_selection(
-                target,
-                self.input.pointer_position.0,
-                self.input.pointer_position.1,
+        {
+            let projection_dirty =
+                self.projections.semantics_dirty || semantic_layout_dirty || selection_scrolled;
+            // Hit geometry, focus order, and selectable-text indices are retained
+            // projections of the placed tree. A requestAnimationFrame callback can
+            // produce no host operations, so rebuilding all of them on every such
+            // frame is unnecessary O(N) work. Scrollbar fades are included because
+            // their changing opacity controls whether a scrollbar participates in
+            // hit testing.
+            let scrollbars_changing = !self.scrollbar_activity.is_empty()
+                || self.scrollbar_drag.is_some()
+                || self.hovered_scrollbar.is_some();
+            let geometry_dirty = projection_dirty
+                || self.invalidation.contains(InvalidationFlags::GEOMETRY)
+                || scrollbars_changing;
+            #[cfg(feature = "profiling")]
+            let span = tracing::trace_span!(
+                target: "wabou::perf",
+                "quick.projections",
+                nodes = placed.len() as u64,
+                semantic_layout_dirty,
+                selection_scrolled,
+                geometry_dirty,
             );
-            self.prepare_text_selection(&mut placed, tcx);
-        }
-        if self.input.pointer_buttons & 1 == 0 {
-            self.sync_text_selection_change();
-        }
-        if self.projections.semantics_enabled && projection_dirty {
-            self.rebuild_semantic_snapshot(&placed);
-        }
-        self.projections.semantics_dirty = false;
-        // After paint applied pending edits, sync widget values → JS.
-        self.flush_value_sync();
-        if projection_dirty || self.projections.debug_dirty {
-            self.publish_debug_snapshot(&placed);
-            self.projections.debug_dirty = false;
+            #[cfg(feature = "profiling")]
+            let _guard = span.enter();
+            self.update_scrollbar_visuals(&mut placed);
+            if geometry_dirty {
+                self.rebuild_hit_geometry(&placed);
+            }
+            if projection_dirty {
+                self.placed_rects.clear();
+                self.placed_rects
+                    .extend(placed.iter().map(|placed| (placed.node_id, placed.rect)));
+                self.rebuild_focus_order(&placed);
+            }
+            if projection_dirty {
+                self.publish_layout_metrics(&placed, width, height);
+            }
+            if projection_dirty || self.active_text_selection.is_some() {
+                self.prepare_text_selection(&mut placed, tcx);
+            }
+            if selection_scrolled {
+                let target = self
+                    .input
+                    .hit_test(self.input.pointer_position.0, self.input.pointer_position.1);
+                self.extend_text_selection(
+                    target,
+                    self.input.pointer_position.0,
+                    self.input.pointer_position.1,
+                );
+                self.prepare_text_selection(&mut placed, tcx);
+            }
+            if self.input.pointer_buttons & 1 == 0 {
+                self.sync_text_selection_change();
+            }
+            if self.projections.semantics_enabled && projection_dirty {
+                self.rebuild_semantic_snapshot(&placed);
+            }
+            self.projections.semantics_dirty = false;
+            // After paint applied pending edits, sync widget values → JS.
+            self.flush_value_sync();
+            if projection_dirty || self.projections.debug_dirty {
+                self.publish_debug_snapshot(&placed);
+                self.projections.debug_dirty = false;
+            }
+            self.invalidation.remove(InvalidationFlags::GEOMETRY);
         }
         placed
     }

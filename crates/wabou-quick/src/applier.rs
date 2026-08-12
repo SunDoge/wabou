@@ -351,6 +351,8 @@ bitflags::bitflags! {
         const LAYOUT = 1 << 0;
         const INHERIT = 1 << 1;
         const TICK = 1 << 2;
+        /// Paint-space geometry changed without changing layout or semantics.
+        const GEOMETRY = 1 << 3;
     }
 }
 
@@ -448,6 +450,12 @@ pub struct Applier {
     /// EMA of `js.tick()` duration (the QuickJS portion of build_frame),
     /// folded into the FrameStats pushed to the host overlay.
     js_tick_ema: f64,
+    #[cfg(feature = "profiling")]
+    profile_class_cache_hits: u64,
+    #[cfg(feature = "profiling")]
+    profile_class_cache_misses: u64,
+    #[cfg(feature = "profiling")]
+    profile_runtime_utility_fallbacks: u64,
     /// Last frame's logical viewport (width, height) — exposed via
     /// Host diagnostics so the app can self-size / bounce within bounds.
     last_viewport: (u32, u32),
@@ -650,6 +658,7 @@ fn install_effect_functions(js: &JsRuntime, window_id: u64, state: EffectBridgeS
                         scope: wabou_shell::EffectScope::Window(window_id),
                         payload,
                     };
+                    #[cfg(feature = "profiling")]
                     tracing::trace!(
                         target: "wabou::perf",
                         effect_id = id,
@@ -689,6 +698,7 @@ fn install_effect_functions(js: &JsRuntime, window_id: u64, state: EffectBridgeS
 }
 
 fn complete_js_effect(js: &JsRuntime, completion: &wabou_shell::EffectCompletion) {
+    #[cfg(feature = "profiling")]
     tracing::trace!(
         target: "wabou::perf",
         effect_id = completion.id.0,
@@ -838,6 +848,12 @@ impl Applier {
             resize_targets,
             invalidation: InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT,
             js_tick_ema: 0.0,
+            #[cfg(feature = "profiling")]
+            profile_class_cache_hits: 0,
+            #[cfg(feature = "profiling")]
+            profile_class_cache_misses: 0,
+            #[cfg(feature = "profiling")]
+            profile_runtime_utility_fallbacks: 0,
             last_viewport: (0, 0),
             device_scale: 1.0,
             ime_cursor_area: None,

@@ -263,7 +263,26 @@ impl Applier {
     }
 
     pub(super) fn apply_op(&mut self, op: &Op) {
-        self.projections.semantics_dirty = true;
+        match op {
+            Op::SetTransform2D { id, .. } => {
+                let affects_hit_geometry =
+                    self.node_store.solid_to_node.get(id).is_some_and(|node| {
+                        self.node_store
+                            .tree
+                            .get_node_context(*node)
+                            .is_some_and(|paint| paint.pointer_events)
+                            || self
+                                .node_store
+                                .children
+                                .get(node)
+                                .is_some_and(|children| !children.is_empty())
+                    });
+                if affects_hit_geometry {
+                    self.invalidation.insert(InvalidationFlags::GEOMETRY);
+                }
+            }
+            _ => self.projections.semantics_dirty = true,
+        }
         match op {
             Op::CreateElement { id, tag, attrs } => {
                 self.create_element(*id, *tag, attrs);

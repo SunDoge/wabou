@@ -224,13 +224,17 @@ impl App {
         source.set_device_scale(scale);
         let t0 = Instant::now();
         let nodes = {
+            #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "frame.build");
+            #[cfg(feature = "profiling")]
             let _guard = span.enter();
             source.build_frame(&mut shell.tcx, w, h)
         };
         let t1 = Instant::now();
         {
+            #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "frame.scene");
+            #[cfg(feature = "profiling")]
             let _guard = span.enter();
             scene_builder::build_scene_scaled(
                 &mut shell.scene,
@@ -674,6 +678,7 @@ impl App {
     }
 
     fn redraw(&mut self) {
+        #[cfg(feature = "profiling")]
         let frame_span = tracing::trace_span!(
             target: "wabou::perf",
             "frame",
@@ -683,6 +688,7 @@ impl App {
             scene_ms = tracing::field::Empty,
             present_ms = tracing::field::Empty,
         );
+        #[cfg(feature = "profiling")]
         let _frame_guard = frame_span.enter();
         let Some(shell) = self.state.as_mut() else {
             return;
@@ -717,15 +723,22 @@ impl App {
         }
         let t2 = Instant::now();
         let presented = {
+            #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "frame.present");
+            #[cfg(feature = "profiling")]
             let _guard = span.enter();
             shell.present(base_color)
         };
         let present_ms = ms(Instant::now() - t2);
+        #[cfg(feature = "profiling")]
         frame_span.record("node_count", node_count as u64);
+        #[cfg(feature = "profiling")]
         frame_span.record("build_ms", build_frame_ms);
+        #[cfg(feature = "profiling")]
         frame_span.record("scene_ms", scene_ms);
+        #[cfg(feature = "profiling")]
         frame_span.record("present_ms", present_ms);
+        #[cfg(feature = "profiling")]
         tracing::trace!(
             target: "wabou::perf",
             window_id = self.logical_window_id,

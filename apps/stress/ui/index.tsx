@@ -82,8 +82,8 @@ function makeBodies(n: number): Body[] {
   return arr;
 }
 
-function moveBody(b: Body, w: number, h: number): Body {
-  let { x, y, dx, dy, char } = b;
+function moveBody(b: Body, w: number, h: number): void {
+  let { x, y, dx, dy } = b;
   x += dx;
   y += dy;
   const maxX = Math.max(1, w - SIZE);
@@ -102,7 +102,10 @@ function moveBody(b: Body, w: number, h: number): Body {
     y = maxY;
     dy = -Math.abs(dy);
   }
-  return { x, y, dx, dy, char };
+  b.x = x;
+  b.y = y;
+  b.dx = dx;
+  b.dy = dy;
 }
 
 function App() {
@@ -132,8 +135,8 @@ function App() {
     const w = s?.viewport_w ?? 800;
     const h = (s?.viewport_h ?? 600) - HEADER_H;
     for (let i = 0; i < movingBodies.length; i++) {
-      const body = moveBody(movingBodies[i], w, h);
-      movingBodies[i] = body;
+      const body = movingBodies[i];
+      moveBody(body, w, h);
       const handle = handles[i];
       if (handle) setTransform2D(handle, translate2d(body.x, body.y));
     }
@@ -184,6 +187,7 @@ function App() {
               class="px-2 py-1 text-xs rounded border border-slate-600"
               tone="sky"
               selected={n() === p}
+              aria-label={`${p} emojis`}
               onClick={() => setN(p)}
             >
               {p.toLocaleString()}
@@ -255,7 +259,7 @@ function App() {
         <Index each={bodies()}>
           {(body, index) => (
             <div
-              class="text-[28px]"
+              class="text-[28px] pointer-events-none"
               ref={(handle) => {
                 handles[index] = handle as unknown as Handle;
               }}
