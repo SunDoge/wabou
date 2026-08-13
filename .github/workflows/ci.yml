@@ -53,20 +53,14 @@ jobs:
       - name: Check TypeScript bindings
         run: |
           cargo run -p wabou-host-api --features bindings --example native-host-bindings -- check
-          cargo run -p wabou-cli -- bindings --app-dir apps/gallery check
-          cargo run -p wabou-cli -- bindings --app-dir apps/devtools check
-          cargo run -p wabou-cli -- bindings --app-dir apps/warden-desktop check
+          cargo run -p wabou-cli -- bindings check apps/gallery
+          cargo run -p wabou-cli -- bindings check apps/devtools
 
       - name: Lint workspace
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Test workspace
         run: cargo test --workspace --all-targets
-
-      - name: Test native behavior runner
-        run: >-
-          cargo run -p wabou-cli -- test --app-dir apps/warden-desktop
-          apps/warden-desktop/tests/close-to-tray.test.ts
 
   typescript:
     name: TypeScript

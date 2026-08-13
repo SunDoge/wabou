@@ -24,7 +24,7 @@ discover or recursively inspect itself.
 For distribution, build the GUI like any other Wabou application:
 
 ```bash
-mise exec -- cargo run -p wabou-cli -- build --app-dir apps/devtools --release
+mise exec -- cargo run -p wabou-cli -- build apps/devtools --release
 ```
 
 This produces `dist/devtools/wabou-devtools` with its
@@ -106,14 +106,14 @@ types rather than hand-maintained JSON.
 the native runtime. It defaults to logical window 1 and a 1× device scale:
 
 ```sh
-wabou render --app-dir apps/gallery --out /tmp/gallery.png
+wabou render apps/gallery --out /tmp/gallery.png
 ```
 
 Multi-window and HiDPI states can be selected explicitly. Width, height, and
 interaction coordinates remain logical pixels; the PNG dimensions are scaled:
 
 ```sh
-wabou render --app-dir apps/gallery --out /tmp/gallery@2x.png \
+wabou render apps/gallery --out /tmp/gallery@2x.png \
   --width 1440 --height 900 --window-id 1 --scale-factor 2
 ```
 
@@ -121,7 +121,7 @@ Repeat `--click X Y` to replay a short navigation path. `--text` is committed
 to the element focused by the final click:
 
 ```sh
-wabou render --app-dir apps/gallery --out /tmp/input.png \
+wabou render apps/gallery --out /tmp/input.png \
   --click 45 250 --click 700 760 --text $'hello\nworld'
 ```
 

@@ -7,7 +7,7 @@ clients, application code, and other instrumented dependencies.
 The normal `info` filter disables Wabou's frame spans. Enable them when needed:
 
 ```bash
-RUST_LOG='info,wabou::perf=trace' wabou run --app-dir apps/stress
+RUST_LOG='info,wabou::perf=trace' wabou run apps/stress
 ```
 
 The built-in formatting subscriber prints one `frame.complete` event with

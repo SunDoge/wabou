@@ -37,8 +37,8 @@ each application gets its own `dist/<app>/` directory.
 ## Development
 
 ```bash
-bun run wabou dev --app-dir apps/gallery
-bun run wabou dev --app-dir apps/hackernews --devtools
+bun run wabou dev apps/gallery
+bun run wabou dev apps/hackernews --devtools
 ```
 
 Development starts Vite and compiles the Rust host with `wabou/vite`. Apps that
@@ -50,9 +50,9 @@ the host, and the optional inspector.
 ## Run and package
 
 ```bash
-bun run wabou run --app-dir apps/gallery
-bun run wabou build --app-dir apps/gallery --release
-bun run wabou package --app-dir apps/gallery
+bun run wabou run apps/gallery
+bun run wabou build apps/gallery --release
+bun run wabou package apps/gallery
 bun run wabou devtools
 ```
 
@@ -60,7 +60,7 @@ To diagnose a release build without adding instrumentation to normal releases,
 enable the compile-time profiler for that run only:
 
 ```bash
-bun run wabou run --app-dir apps/stress --release \
+bun run wabou run apps/stress --release \
   --profile-trace /tmp/wabou-trace.json
 ```
 
@@ -105,7 +105,7 @@ formats = ["appimage", "deb"]
 Command-line formats override the file without changing it:
 
 ```bash
-bun run wabou package --app-dir apps/gallery --format appimage
+bun run wabou package apps/gallery --format appimage
 ```
 
 Supported adapters are `app`, `dmg`, `nsis`, `wix`, `deb`, `appimage`, and
@@ -120,10 +120,10 @@ native packaging tools are available.
 application bundle in QuickJS:
 
 ```bash
-bun run wabou test --app-dir apps/warden-desktop \
-  apps/warden-desktop/tests/close-to-tray.test.ts
-bun run wabou test --app-dir apps/warden-desktop \
-  --replay target/wabou-test/warden-desktop/artifacts/trace.json
+bun run wabou test /path/to/app/tests/window-lifecycle.test.ts \
+  --app /path/to/app
+bun run wabou test --replay target/wabou-test/app/artifacts/trace.json \
+  --app /path/to/app
 ```
 
 The default deterministic backend does not require a display server. Use
@@ -137,8 +137,8 @@ An application can expose a conventional Cargo example named
 writes its generated module beneath `ui/`:
 
 ```bash
-bun run wabou bindings --app-dir apps/gallery write
-bun run wabou bindings --app-dir apps/gallery check
+bun run wabou bindings write apps/gallery
+bun run wabou bindings check apps/gallery
 ```
 
 `write` explicitly updates the committed declaration. `check` never rewrites

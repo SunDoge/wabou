@@ -12,13 +12,13 @@ are available as `bun run dev:live` and `bun run build:live`.
 From the workspace root:
 
 ```sh
-mise exec -- bun run wabou run --app-dir apps/hackernews
+mise exec -- bun run wabou run apps/hackernews
 ```
 
 ## Development with HMR
 
 ```sh
-mise exec -- bun run wabou dev --app-dir apps/hackernews
+mise exec -- bun run wabou dev apps/hackernews
 ```
 
 Changes to TSX update the Solid component and regenerate the typed Style IR in

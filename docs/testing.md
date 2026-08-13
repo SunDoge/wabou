@@ -22,8 +22,8 @@ invokes a JSX handler directly.
 Run a scenario with the deterministic backend:
 
 ```bash
-bun run wabou test --app-dir apps/warden-desktop \
-  apps/warden-desktop/tests/close-to-tray.test.ts
+bun run wabou test /path/to/app/tests/window-lifecycle.test.ts \
+  --app /path/to/app
 ```
 
 The deterministic backend uses the same Rust window lifecycle state machine as
@@ -40,8 +40,8 @@ GPU-rendered `failure.png` when a working wgpu backend is available.
 Recorded actions are directly replayable:
 
 ```bash
-bun run wabou test --app-dir apps/warden-desktop \
-  --replay target/wabou-test/warden-desktop/artifacts/trace.json
+bun run wabou test --replay target/wabou-test/app/artifacts/trace.json \
+  --app /path/to/app
 ```
 
 Window behavior is modeled explicitly:

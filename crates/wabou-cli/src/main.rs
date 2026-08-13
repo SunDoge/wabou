@@ -38,8 +38,8 @@ struct Cli {
 enum Commands {
     /// Start Vite, the Rust host, and live HMR.
     Dev {
-        #[arg(long, value_name = "PATH")]
-        app_dir: Option<PathBuf>,
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
         #[arg(long, default_value_t = 5173)]
         port: u16,
         #[arg(long)]
@@ -50,23 +50,23 @@ enum Commands {
     },
     /// Build the frontend bundle and Rust host.
     Build {
-        #[arg(long, value_name = "PATH")]
-        app_dir: Option<PathBuf>,
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
         #[arg(long)]
         release: bool,
     },
     /// Build a release application and create native installers or bundles.
     Package {
-        #[arg(long, value_name = "PATH")]
-        app_dir: Option<PathBuf>,
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
         /// Override the formats declared in wabou.toml.
         #[arg(long, value_enum, action = clap::ArgAction::Append)]
         format: Vec<PackageFormat>,
     },
     /// Build the frontend bundle and run the Rust host.
     Run {
-        #[arg(long, value_name = "PATH")]
-        app_dir: Option<PathBuf>,
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
         #[arg(long)]
         release: bool,
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
@@ -75,10 +75,11 @@ enum Commands {
     },
     /// Run a bundled TypeScript behavior scenario against the native host.
     Test {
-        #[arg(long, value_name = "PATH")]
-        app_dir: Option<PathBuf>,
         #[arg(value_name = "SCENARIO", required_unless_present = "replay")]
         scenario: Option<PathBuf>,
+        /// Run the scenario against an application outside the current directory.
+        #[arg(long, value_name = "PATH")]
+        app: Option<PathBuf>,
         /// Replay a JSON action trace produced by an earlier test run.
         #[arg(long, value_name = "TRACE", conflicts_with = "scenario")]
         replay: Option<PathBuf>,
@@ -94,15 +95,13 @@ enum Commands {
     },
     /// Generate or verify Rust-owned TypeScript capability bindings.
     Bindings {
-        #[arg(long, value_name = "PATH")]
-        app_dir: Option<PathBuf>,
         #[command(subcommand)]
         command: BindingsCommand,
     },
     /// Render an application to a PNG without opening a native window.
     Render {
-        #[arg(long, value_name = "PATH")]
-        app_dir: Option<PathBuf>,
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
         #[arg(long, value_name = "PNG")]
         out: PathBuf,
         #[arg(long, default_value_t = 1440)]
@@ -155,12 +154,18 @@ enum Commands {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Subcommand)]
+#[derive(Clone, Debug, Eq, PartialEq, Subcommand)]
 enum BindingsCommand {
     /// Rewrite the committed TypeScript declarations.
-    Write,
+    Write {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+    },
     /// Fail when the committed declarations differ from Rust types.
-    Check,
+    Check {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
@@ -193,6 +198,14 @@ impl PackageFormat {
 #[serde(deny_unknown_fields)]
 struct WabouPackageFile {
     package: PackageConfig,
+    #[serde(default)]
+    build: Option<BuildConfig>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case", deny_unknown_fields)]
+struct BuildConfig {
+    out_dir: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]
@@ -270,47 +283,47 @@ struct RenderOptions {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let cwd = env::current_dir()?;
-    let resolve_app = |app_dir: Option<&Path>| {
+    let resolve_app = |app_path: Option<&Path>| {
         let workspace = find_workspace(&cwd)?;
-        let app = load_app(&workspace, &cwd, app_dir)?;
+        let app = load_app(&workspace, &cwd, app_path)?;
         Ok::<_, Box<dyn Error>>((workspace, app))
     };
     match cli.command {
         Commands::Dev {
-            app_dir,
+            app,
             port,
             devtools,
             mode,
         } => {
-            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            let (workspace, app) = resolve_app(app.as_deref())?;
             dev(&workspace, app, port, devtools, mode.as_deref())
         }
-        Commands::Build { app_dir, release } => {
-            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+        Commands::Build { app, release } => {
+            let (workspace, app) = resolve_app(app.as_deref())?;
             build(&workspace, &app, release)
         }
-        Commands::Package { app_dir, format } => {
-            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+        Commands::Package { app, format } => {
+            let (workspace, app) = resolve_app(app.as_deref())?;
             package(&workspace, &app, &format)
         }
         Commands::Run {
-            app_dir,
+            app,
             release,
             profile_trace,
         } => {
-            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            let (workspace, app) = resolve_app(app.as_deref())?;
             let profile_trace = profile_trace.map(|path| cwd.join(path));
             run(&workspace, &app, release, profile_trace.as_deref())
         }
         Commands::Test {
-            app_dir,
             scenario,
+            app,
             replay,
             artifacts,
             failure_screenshot,
             native,
         } => {
-            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            let (workspace, app) = resolve_app(app.as_deref())?;
             test_scenario(
                 &workspace,
                 &app,
@@ -321,12 +334,15 @@ fn main() -> Result<()> {
                 native,
             )
         }
-        Commands::Bindings { app_dir, command } => {
-            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+        Commands::Bindings { command } => {
+            let app_path = match &command {
+                BindingsCommand::Write { app } | BindingsCommand::Check { app } => app.as_deref(),
+            };
+            let (workspace, app) = resolve_app(app_path)?;
             bindings(&workspace, &app, command)
         }
         Commands::Render {
-            app_dir,
+            app,
             out,
             width,
             height,
@@ -339,7 +355,7 @@ fn main() -> Result<()> {
             key,
             text,
         } => {
-            let (workspace, app) = resolve_app(app_dir.as_deref())?;
+            let (workspace, app) = resolve_app(app.as_deref())?;
             render(
                 &workspace,
                 &app,
@@ -373,8 +389,8 @@ fn find_workspace(start: &Path) -> Result<PathBuf> {
     find_app_root(start).ok_or_else(|| "not inside a Wabou Cargo project".into())
 }
 
-fn load_app(workspace: &Path, cwd: &Path, app_dir: Option<&Path>) -> Result<App> {
-    let root = match app_dir {
+fn load_app(workspace: &Path, cwd: &Path, app_path: Option<&Path>) -> Result<App> {
+    let root = match app_path {
         Some(path) if path.is_absolute() => path.to_path_buf(),
         Some(path) => cwd.join(path),
         None => find_app_root(cwd).unwrap_or_else(|| workspace.join("apps/gallery")),
@@ -424,10 +440,18 @@ fn manifest(app: &App) -> String {
 }
 
 fn bundle_path(workspace: &Path, app: &App) -> PathBuf {
-    workspace
-        .join("dist")
-        .join(&app.name)
-        .join("resources/bundle.js")
+    if let Ok(source) = fs::read_to_string(app.root.join("wabou.toml"))
+        && let Ok(file) = toml::from_str::<WabouPackageFile>(&source)
+        && let Some(build) = file.build
+    {
+        return app.root.join(build.out_dir).join("bundle.js");
+    }
+    let dist = workspace.join("dist");
+    if workspace == app.root {
+        dist.join("resources/bundle.js")
+    } else {
+        dist.join(&app.name).join("resources/bundle.js")
+    }
 }
 
 fn frontend(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
@@ -709,8 +733,8 @@ fn test_scenario(
 fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
     let manifest = manifest(app);
     let mode = match mode {
-        BindingsCommand::Write => "write",
-        BindingsCommand::Check => "check",
+        BindingsCommand::Write { .. } => "write",
+        BindingsCommand::Check { .. } => "check",
     };
     let mut cargo = Command::new("cargo");
     cargo.current_dir(workspace).args([
@@ -1374,19 +1398,22 @@ mod tests {
 
     #[test]
     fn parses_bindings_write_and_check_commands() {
-        for (name, expected) in [
-            ("write", BindingsCommand::Write),
-            ("check", BindingsCommand::Check),
-        ] {
+        for name in ["write", "check"] {
             let Cli {
-                command: Commands::Bindings { app_dir, command },
-            } = Cli::try_parse_from(["wabou", "bindings", "--app-dir", "apps/gallery", name])
-                .unwrap()
+                command: Commands::Bindings { command },
+            } = Cli::try_parse_from(["wabou", "bindings", name, "apps/gallery"]).unwrap()
             else {
                 panic!("expected bindings command");
             };
-            assert_eq!(app_dir.as_deref(), Some(Path::new("apps/gallery")));
-            assert_eq!(command, expected);
+            match command {
+                BindingsCommand::Write { app } if name == "write" => {
+                    assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
+                }
+                BindingsCommand::Check { app } if name == "check" => {
+                    assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
+                }
+                _ => panic!("unexpected bindings command"),
+            }
         }
     }
 
@@ -1395,8 +1422,8 @@ mod tests {
         let Cli {
             command:
                 Commands::Test {
-                    app_dir,
                     scenario,
+                    app,
                     replay,
                     artifacts,
                     failure_screenshot,
@@ -1405,7 +1432,7 @@ mod tests {
         } = Cli::try_parse_from([
             "wabou",
             "test",
-            "--app-dir",
+            "--app",
             "apps/warden-desktop",
             "tests/close-to-tray.test.ts",
             "--artifacts",
@@ -1417,7 +1444,7 @@ mod tests {
         else {
             panic!("expected test command");
         };
-        assert_eq!(app_dir.as_deref(), Some(Path::new("apps/warden-desktop")));
+        assert_eq!(app.as_deref(), Some(Path::new("apps/warden-desktop")));
         assert_eq!(
             scenario.as_deref(),
             Some(Path::new("tests/close-to-tray.test.ts"))
@@ -1447,11 +1474,10 @@ mod tests {
     #[test]
     fn parses_native_package_format_overrides() {
         let Cli {
-            command: Commands::Package { app_dir, format },
+            command: Commands::Package { app, format },
         } = Cli::try_parse_from([
             "wabou",
             "package",
-            "--app-dir",
             "apps/warden-desktop",
             "--format",
             "appimage",
@@ -1462,8 +1488,13 @@ mod tests {
         else {
             panic!("expected package command");
         };
-        assert_eq!(app_dir.as_deref(), Some(Path::new("apps/warden-desktop")));
+        assert_eq!(app.as_deref(), Some(Path::new("apps/warden-desktop")));
         assert_eq!(format, [PackageFormat::Appimage, PackageFormat::Deb]);
+    }
+
+    #[test]
+    fn rejects_the_removed_app_dir_flag() {
+        assert!(Cli::try_parse_from(["wabou", "run", "--app-dir", "apps/gallery"]).is_err());
     }
 
     #[test]
@@ -1477,6 +1508,9 @@ product-name = "Example"
 identifier = "dev.wabou.example"
 resources = ["assets"]
 formats = ["deb"]
+
+[build]
+out-dir = "dist/resources"
 "#,
         )
         .unwrap();
@@ -1653,18 +1687,6 @@ formats = ["deb"]
     }
 
     #[test]
-    fn resolves_the_real_multi_binary_application() {
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let app = load_app(
-            &workspace,
-            &workspace,
-            Some(Path::new("apps/warden-desktop")),
-        )
-        .unwrap();
-        assert_eq!(app_binary(&workspace, &app).unwrap(), "warden-desktop");
-    }
-
-    #[test]
     fn uses_the_conventional_dist_resource_path() {
         let workspace = Path::new("/workspace");
         let app = App {
@@ -1677,6 +1699,43 @@ formats = ["deb"]
             bundle_path(workspace, &app),
             Path::new("/workspace/dist/gallery/resources/bundle.js")
         );
+    }
+
+    #[test]
+    fn standalone_app_uses_a_direct_dist_resource_path() {
+        let root = Path::new("/workspace/warden-desktop");
+        let app = App {
+            name: "warden-desktop".into(),
+            root: root.into(),
+            frontend: root.into(),
+            entry: "ui/index.tsx".into(),
+        };
+        assert_eq!(
+            bundle_path(root, &app),
+            Path::new("/workspace/warden-desktop/dist/resources/bundle.js")
+        );
+    }
+
+    #[test]
+    fn manifest_build_output_is_the_bundle_path_source_of_truth() {
+        let root = env::temp_dir().join(format!("wabou-cli-build-output-{}", std::process::id()));
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("wabou.toml"),
+            "[package]\nproduct-name = \"App\"\nidentifier = \"dev.wabou.app\"\n\n[build]\nout-dir = \"artifacts/ui\"\n",
+        )
+        .unwrap();
+        let app = App {
+            name: "app".into(),
+            root: root.clone(),
+            frontend: root.clone(),
+            entry: "ui/index.tsx".into(),
+        };
+        assert_eq!(
+            bundle_path(&root, &app),
+            root.join("artifacts/ui/bundle.js")
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

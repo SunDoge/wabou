@@ -109,7 +109,7 @@ You need a current Rust toolchain and
 ```bash
 mise install
 mise exec -- bun install
-mise exec -- bun run wabou run --app-dir apps/gallery
+mise exec -- bun run wabou run apps/gallery
 ```
 
 Until binary releases are available, the CLI can also be installed directly

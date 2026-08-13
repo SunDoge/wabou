@@ -8,7 +8,7 @@ feature and an explicit output path are present.
 Use the CLI to build and run a profiled release application:
 
 ```bash
-bun run wabou run --app-dir apps/stress --release \
+bun run wabou run apps/stress --release \
   --profile-trace /tmp/wabou-trace.json
 ```
 

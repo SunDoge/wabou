@@ -41,5 +41,5 @@ Badge, Card, Alert, Input, TextArea, Progress, Skeleton, Spinner, Kbd, FPS, and
 Separator. Run the gallery while developing:
 
 ```bash
-mise exec -- bun run wabou dev --app-dir apps/gallery
+mise exec -- bun run wabou dev apps/gallery
 ```

@@ -7,12 +7,17 @@ if (( $# != 2 && $# != 4 && $# != 6 )); then
 fi
 
 app=$1
+if [[ -f "${app}/Cargo.toml" ]]; then
+  app_path=$app
+else
+  app_path="apps/${app}"
+fi
 out=$2
 width=${3:-1440}
 height=${4:-900}
 args=(
   render
-  --app-dir "apps/${app}"
+  "${app_path}"
   --out "$out"
   --width "$width"
   --height "$height"

@@ -37,7 +37,7 @@ Prefer an assertion at the earliest incorrect layer. If geometry is correct but 
 Start with DevTools enabled:
 
 ```bash
-mise exec -- bun run wabou dev --app-dir apps/gallery --devtools
+mise exec -- bun run wabou dev apps/gallery --devtools
 ```
 
 Then inspect the discovered socket:
@@ -122,7 +122,7 @@ Run the narrow test first, then the affected app build:
 cargo test -p wabou-shell --lib
 cargo test -p wabou-quick --lib
 mise exec -- bun x tsc --noEmit
-mise exec -- bun run wabou build --app-dir apps/gallery
+mise exec -- bun run wabou build apps/gallery
 git diff --check
 ```
 

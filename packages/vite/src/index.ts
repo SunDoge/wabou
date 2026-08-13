@@ -1,4 +1,6 @@
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   wabouStylePlugin,
   type WabouColorThemeOptions,
@@ -12,6 +14,7 @@ import {
   type UserConfigExport,
 } from "vite";
 import solid from "vite-plugin-solid";
+import { parse } from "smol-toml";
 
 export interface WabouViteOptions {
   /** Application root. Defaults to Vite's current working directory. */
@@ -19,7 +22,8 @@ export interface WabouViteOptions {
   /** Solid entry module. */
   entry?: string;
   /** Directory for bundle.js and its assets. */
-  outDir: string;
+  /** Directory for bundle.js and its assets. Defaults to build.out-dir in wabou.toml. */
+  outDir?: string;
   /** IIFE global used by Rollup. */
   globalName?: string;
   /** Additional Vite configuration merged over Wabou defaults. */
@@ -76,6 +80,7 @@ export function defineWabouConfig(
 
 function resolveWabouConfig(options: WabouViteOptions): UserConfig {
   const root = options.root ?? process.cwd();
+  const outDir = options.outDir ?? manifestOutDir(root);
   const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
   const defaults: UserConfig = {
     define: {
@@ -101,10 +106,27 @@ function resolveWabouConfig(options: WabouViteOptions): UserConfig {
         output: { inlineDynamicImports: true, assetFileNames: "bundle.[ext]" },
       },
       cssCodeSplit: false,
-      outDir: options.outDir,
+      outDir,
       emptyOutDir: true,
       minify: false,
     },
   };
   return mergeConfig(defaults, options.vite ?? {});
+}
+
+function manifestOutDir(root: string): string {
+  const path = resolve(root, "wabou.toml");
+  let manifest: unknown;
+  try {
+    manifest = parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(`cannot read Wabou build output from ${path}: ${error}`);
+  }
+  const outDir = (manifest as { build?: { "out-dir"?: unknown } }).build?.[
+    "out-dir"
+  ];
+  if (typeof outDir !== "string" || outDir.trim() === "") {
+    throw new Error(`${path} must declare a non-empty build.out-dir`);
+  }
+  return outDir;
 }

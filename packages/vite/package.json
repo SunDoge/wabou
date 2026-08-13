@@ -24,6 +24,7 @@
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style-compiler": "workspace:*",
     "@wabou/unocss-preset": "workspace:*",
+    "smol-toml": "^1.3.1",
     "vite": "^5.4.0",
     "vite-plugin-solid": "2.11.12"
   }

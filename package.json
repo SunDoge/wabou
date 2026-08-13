@@ -16,8 +16,8 @@
     "version-packages": "changeset version",
     "release-packages": "bun run packages:check && bun run scripts/publish-packages.ts",
     "gen": "bun run scripts/codegen/index.ts",
-    "build": "bun run gen && bun run wabou build --app-dir apps/gallery",
-    "dev": "bun run wabou dev --app-dir apps/gallery"
+    "build": "bun run gen && bun run wabou build apps/gallery",
+    "dev": "bun run wabou dev apps/gallery"
   },
   "workspaces": [
     "packages/*",

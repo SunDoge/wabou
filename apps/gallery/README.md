@@ -6,5 +6,5 @@ custom widgets. Use the header theme control to cycle through the compiled
 `dark`, `light`, and `violet` semantic palettes.
 
 ```bash
-mise exec -- bun run wabou dev --app-dir apps/gallery
+mise exec -- bun run wabou dev apps/gallery
 ```
