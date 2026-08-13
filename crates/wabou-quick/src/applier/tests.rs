@@ -463,7 +463,7 @@ fn pointer_dispatch_resolves_a_listener_on_the_native_parent_chain() {
     });
     applier.apply_op(&Op::CreateText {
         id: 3,
-        text: "option".into(),
+        text: "option",
     });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
