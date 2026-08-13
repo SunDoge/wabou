@@ -206,7 +206,12 @@ export function Select(props: SelectProps): JSX.Element {
                       : "bg-transparent text-secondary",
                   )}
                   style={{ opacity: option().disabled ? 0.45 : 1 }}
-                  onPointerEnter={() =>
+                  // A floating listbox can be positioned underneath a
+                  // stationary pointer, and its leaf hit target can change
+                  // between the option and its text. Keep hover selection in
+                  // sync with pointer routing instead of relying on a single
+                  // enter boundary event.
+                  onPointerMove={() =>
                     interaction.send({ type: "HIGHLIGHT", id: option().value })
                   }
                   onClick={() =>
