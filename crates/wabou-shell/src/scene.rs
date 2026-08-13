@@ -71,7 +71,7 @@ fn widget_clip(node: &PlacedNode) -> Option<([f32; 4], f64)> {
 fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform: Affine) {
     let radius = node.paint.border_radius as f64;
     if radius <= 0.0 {
-        scene.append(widget, Some(transform));
+        append_fragment(scene, widget, Some(transform));
         return;
     }
     let [top, right, bottom, left] = node.border_widths;
@@ -83,9 +83,20 @@ fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform
         Affine::IDENTITY,
         &Rect::new(0.0, 0.0, width as f64, height as f64).to_rounded_rect(inner_radius),
     );
-    clipped.append(widget, None);
+    append_fragment(&mut clipped, widget, None);
     clipped.pop_layer();
-    scene.append(&clipped, Some(transform));
+    append_fragment(scene, &clipped, Some(transform));
+}
+
+/// Append a retained scene fragment without leaking its encoder state into
+/// commands recorded afterwards.
+///
+/// Vello 0.9 copies the child encoding's state flags during `Scene::append`.
+/// The transform and style at the append boundary therefore cannot safely be
+/// deduplicated against the next command in the parent scene.
+fn append_fragment(scene: &mut Scene, fragment: &Scene, transform: Option<Affine>) {
+    scene.append(fragment, transform);
+    scene.encoding_mut().force_next_transform_and_style();
 }
 
 fn shadow_geometry(rect: Rect, node_radius: f64, shadow: &Shadow) -> (Rect, f64, f64) {
@@ -229,7 +240,8 @@ fn draw_svg(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     let scale = f64::from((width / svg_width).min(height / svg_height));
     let dx = f64::from(x0) + (f64::from(width) - f64::from(svg_width) * scale) * 0.5;
     let dy = f64::from(y0) + (f64::from(height) - f64::from(svg_height) * scale) * 0.5;
-    scene.append(
+    append_fragment(
+        scene,
         svg.scene(),
         Some(transform * Affine::translate((dx, dy)) * Affine::scale(scale)),
     );
@@ -273,7 +285,8 @@ fn draw_text(
         );
     }
     let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
-    scene.append(
+    append_fragment(
+        scene,
         &glyph_scene,
         Some(transform * origin * Affine::scale(device_scale.recip())),
     );
@@ -626,5 +639,41 @@ mod tests {
             (120..=136).contains(&pixel[0]) && pixel[1] == 0 && pixel[2] == 0,
             "expected half-opacity red, got {pixel:?}"
         );
+    }
+
+    #[test]
+    fn cached_text_fragment_does_not_corrupt_the_following_fill() {
+        let mut clip = placed_node(Paint::default());
+        clip.rect = [5.0, 5.0, 95.0, 95.0];
+        clip.content_origin = [5.0, 5.0];
+        clip.own_clip = Some(clip.rect);
+        let mut nodes = vec![clip];
+        for index in 0..4_u64 {
+            let y = 10.0 + index as f32 * 20.0;
+            let mut option = placed_node(Paint {
+                background: (index == 1).then_some(Color::from_rgba8(51, 65, 85, 255)),
+                ..Paint::default()
+            });
+            option.node_id = taffy::tree::NodeId::from(index * 2 + 1);
+            option.parent_node_id = Some(nodes[0].node_id);
+            option.depth = 1;
+            option.rect = [10.0, y, 90.0, y + 20.0];
+            option.content_origin = [10.0, y];
+
+            let mut text = placed_node(Paint {
+                text: Some("option".into()),
+                text_color: Color::WHITE,
+                ..Paint::default()
+            });
+            text.node_id = taffy::tree::NodeId::from(index * 2 + 2);
+            text.parent_node_id = Some(option.node_id);
+            text.depth = 2;
+            text.rect = option.rect;
+            text.content_origin = [15.0, y];
+            nodes.extend([option, text]);
+        }
+
+        let image = render_nodes(&nodes, "text-followed-by-fill");
+        assert_eq!(image.get_pixel(20, 35).0, [51, 65, 85, 255]);
     }
 }

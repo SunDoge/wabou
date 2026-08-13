@@ -452,6 +452,40 @@ fn event_mask_is_compact_and_preserves_protocol_codes() {
 }
 
 #[test]
+fn pointer_dispatch_resolves_a_listener_on_the_native_parent_chain() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let div = applier.atoms.borrow_mut().intern("div");
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: div,
+        attrs: Vec::new(),
+    });
+    applier.apply_op(&Op::CreateText {
+        id: 3,
+        text: "option".into(),
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 2,
+        child: 3,
+    });
+    applier.apply_op(&Op::AddEventListener {
+        id: 2,
+        event_type: event::POINTERMOVE,
+    });
+
+    assert_eq!(
+        applier.listener_target_in_chain(3, event::POINTERMOVE),
+        Some(2)
+    );
+    assert_eq!(applier.listener_target_in_chain(3, event::CLICK), None);
+}
+
+#[test]
 fn native_scroll_observations_coalesce_by_target() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);

@@ -671,7 +671,11 @@ impl Applier {
         changed
     }
 
-    pub(super) fn has_listener_in_chain(&self, mut solid_id: u32, code: u8) -> bool {
+    pub(super) fn has_listener_in_chain(&self, solid_id: u32, code: u8) -> bool {
+        self.listener_target_in_chain(solid_id, code).is_some()
+    }
+
+    pub(super) fn listener_target_in_chain(&self, mut solid_id: u32, code: u8) -> Option<u32> {
         loop {
             if self
                 .input
@@ -679,18 +683,11 @@ impl Applier {
                 .get(&solid_id)
                 .is_some_and(|events| events.contains(code))
             {
-                return true;
+                return Some(solid_id);
             }
-            let Some(&node) = self.node_store.solid_to_node.get(&solid_id) else {
-                return false;
-            };
-            let Some(parent) = self.node_store.tree.parent(node) else {
-                return false;
-            };
-            let Some(parent_id) = self.node_store.solid_id_for_node(parent) else {
-                return false;
-            };
-            solid_id = parent_id;
+            let node = self.node_store.solid_to_node.get(&solid_id)?;
+            let parent = self.node_store.tree.parent(*node)?;
+            solid_id = self.node_store.solid_id_for_node(parent)?;
         }
     }
 
@@ -701,9 +698,9 @@ impl Applier {
         button: Option<PointerButton>,
         modifiers: Modifiers,
     ) -> bool {
-        if !self.has_listener_in_chain(target, code) {
+        let Some(target) = self.listener_target_in_chain(target, code) else {
             return false;
-        }
+        };
         let mut data = [0.0; event_data::LEN];
         data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
         data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
