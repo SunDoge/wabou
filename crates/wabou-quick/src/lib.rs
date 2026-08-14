@@ -17,7 +17,7 @@ pub mod host;
 pub(crate) mod host_abi;
 pub mod host_ffi;
 pub mod host_frame;
-pub mod host_msg;
+pub mod host_message;
 pub mod inline_context;
 pub mod jsrt;
 pub mod protocol;
@@ -40,9 +40,9 @@ pub use host::HostBuilder;
 pub use host_frame::{
     HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, ResizeObservation,
 };
-pub use host_msg::{
-    DEFAULT_HOST_MSG_CAPACITY, HostMsg, HostMsgError, HostMsgHandle, HostPayload,
-    MAX_HOST_MSG_PER_FRAME,
+pub use host_message::{
+    DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageError,
+    HostMessageHandle, HostMessagePayload, MAX_HOST_MESSAGES_PER_FRAME,
 };
 pub use jsrt::JsRuntime;
 pub use rquickjs;

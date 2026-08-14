@@ -277,3 +277,111 @@ export function Toggle(props: ToggleProps): JSX.Element {
     </HeadlessButton>
   );
 }
+
+interface ToggleGroupContextValue {
+  value: () => string | undefined;
+  disabled: () => boolean;
+  select(value: string): void;
+  register(value: string, node: Handle, disabled: () => boolean): () => void;
+  move(value: string, key: string): boolean;
+}
+
+const ToggleGroupContext = createContext<ToggleGroupContextValue>();
+
+export interface ToggleGroupProps {
+  type: "single";
+  value?: string;
+  defaultValue?: string;
+  disabled?: boolean;
+  "aria-label"?: string;
+  class?: string;
+  children?: JSX.Element;
+  onValueChange?: (value: string) => void;
+}
+
+/** Shadcn-style single-value toggle group with native roving focus. */
+export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
+  const state = createControllableState<string | undefined>({
+    value: () => props.value,
+    defaultValue: props.defaultValue,
+    disabled: () => props.disabled ?? false,
+    onChange: (value) => value !== undefined && props.onValueChange?.(value),
+  });
+  const roving = createRovingFocus({
+    orientation: () => "horizontal",
+    onMove: (value) => state.set(value),
+  });
+  const context: ToggleGroupContextValue = {
+    value: state.value,
+    disabled: () => props.disabled ?? false,
+    select: (value) => state.set(value),
+    register: (value, node, disabled) =>
+      roving.register({ id: value, target: node, disabled }),
+    move: roving.move,
+  };
+  return createComponent(ToggleGroupContext, {
+    value: context,
+    get children() {
+      return (
+        <View
+          role="group"
+          aria-label={props["aria-label"]}
+          class={join(
+            "flex flex-row items-center gap-1 rounded-lg bg-control p-1",
+            props.class,
+          )}
+        >
+          {props.children}
+        </View>
+      );
+    },
+  });
+}
+
+export interface ToggleGroupItemProps {
+  value: string;
+  disabled?: boolean;
+  class?: string;
+  children?: JSX.Element;
+}
+
+export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
+  const group = useContext(ToggleGroupContext);
+  if (!group)
+    throw new Error("ToggleGroupItem must be used inside ToggleGroup");
+  const selected = () => group.value() === props.value;
+  const disabled = () => group.disabled() || (props.disabled ?? false);
+  let unregister: (() => void) | undefined;
+  onCleanup(() => unregister?.());
+  return (
+    <HeadlessButton
+      unstyled
+      disabled={disabled()}
+      selected={selected()}
+      aria-pressed={selected()}
+      ref={(node) => {
+        unregister?.();
+        unregister = group.register(props.value, node, disabled);
+      }}
+      class={(state) =>
+        join(
+          "h-8 flex-1 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium",
+          selected()
+            ? "bg-surface text-primary"
+            : state.hovered
+              ? "bg-control-hover text-primary"
+              : "bg-transparent text-muted",
+          state.focused && "border-focus",
+          props.class,
+        )
+      }
+      style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
+      onClick={() => group.select(props.value)}
+      onKeyDown={(event) => {
+        if (group.move(props.value, event.key)) event.preventDefault();
+      }}
+    >
+      {props.children}
+    </HeadlessButton>
+  );
+}

@@ -578,6 +578,10 @@ impl JsRuntime {
         self.atoms.clone()
     }
 
+    pub(crate) fn tokio_handle(&self) -> tokio::runtime::Handle {
+        self._tokio.handle().clone()
+    }
+
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
         self.debug_state = Some(state);
     }

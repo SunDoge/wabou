@@ -284,7 +284,7 @@ function App() {
                 </Text>
               </View>
             </View>
-            <ScrollArea contentClass="px-3 py-4">
+            <ScrollArea class="flex-1" contentClass="px-3 py-4">
               <For each={groups}>
                 {(group) => (
                   <View class="flex-none flex flex-col gap-1 mb-5">

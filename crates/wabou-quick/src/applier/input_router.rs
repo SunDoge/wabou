@@ -3,12 +3,12 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(super) struct EventMask(u32);
+pub(super) struct EventMask(u64);
 
 impl EventMask {
-    fn bit(code: u8) -> Option<u32> {
+    fn bit(code: u8) -> Option<u64> {
         code.checked_sub(1)
-            .filter(|bit| u32::from(*bit) < u32::BITS)
+            .filter(|bit| u32::from(*bit) < u64::BITS)
             .map(|bit| 1 << bit)
     }
 
@@ -33,7 +33,7 @@ impl EventMask {
     }
 
     pub(super) fn codes(self) -> impl Iterator<Item = u8> {
-        (1..=u32::BITS as u8).filter(move |&code| self.contains(code))
+        (1..=u64::BITS as u8).filter(move |&code| self.contains(code))
     }
 }
 

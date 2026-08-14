@@ -31,7 +31,7 @@ export function Avatar(props: AvatarProps) {
       {props.src ? (
         <NetworkImage
           url={props.src}
-          format="png"
+          format="raster"
           cache="memory"
           class="w-full h-full"
         />

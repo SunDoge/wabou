@@ -39,3 +39,20 @@ with thousands of misses.
 
 Trace files may reveal window size, node counts, operation counts, and timing.
 Treat them as diagnostic artifacts and do not ship them with an application.
+
+## Regression workloads
+
+Use three workloads when evaluating a performance change:
+
+| Workload | Application | What it protects |
+| --- | --- | --- |
+| Typical UI | `apps/gallery` | component, text, overlay and mixed-layout overhead at ordinary node counts |
+| Large list | `apps/vlist` | bounded visible-node work while scrolling a much larger data set |
+| Pathological animation | `apps/stress` | dirty propagation, protocol traffic and scene construction at 1,000–25,000 moving nodes |
+
+Record `js`, `build`, `scene`, `present`, node count and viewport for all three.
+Compare identical release builds, viewport sizes, scale factors and renderer
+backends. A change is a regression candidate when the median of at least three
+runs increases by 10% in any stage without reducing work in another stage.
+Do not add a batch API solely to improve `apps/stress`; first prove the same
+cost appears in a real retained UI or virtualized list.

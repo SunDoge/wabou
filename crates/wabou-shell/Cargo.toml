@@ -14,7 +14,7 @@ arboard = { workspace = true }
 bitflags = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 directories = { workspace = true }
-image = { workspace = true, features = ["png"] }
+image = { workspace = true, features = ["ico", "jpeg", "png", "webp"] }
 lru = "0.18.1"
 notify-rust = { workspace = true }
 open = { workspace = true }

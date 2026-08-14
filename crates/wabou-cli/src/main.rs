@@ -3,11 +3,17 @@ use std::error::Error;
 use std::fs;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+
+#[cfg(windows)]
+use process_wrap::std::JobObject;
+#[cfg(unix)]
+use process_wrap::std::ProcessGroup;
+use process_wrap::std::{ChildWrapper, CommandWrap};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::Deserialize;
@@ -937,14 +943,15 @@ fn dev(
     if let Some(mode) = mode {
         vite_command.args(["--mode", mode]);
     }
-    let mut vite = vite_command.spawn()?;
+    let mut vite = ManagedChild::spawn(vite_command)?;
     let url = format!("http://127.0.0.1:{port}");
-    wait_for_vite(&url, &mut vite)?;
+    wait_for_vite(&url, vite.child.as_mut())?;
 
     let app_manifest = manifest(&app);
     let binary = app_binary(workspace, &app)?;
     let vite_feature = app_vite_feature(workspace, &app)?;
-    let mut host = Command::new("cargo")
+    let mut host_command = Command::new("cargo");
+    host_command
         .current_dir(workspace)
         .args([
             "run",
@@ -956,11 +963,12 @@ fn dev(
             &vite_feature,
         ])
         .env("WABOU_VITE_URL", &url)
-        .env("WABOU_VITE_ENTRY", &app.entry)
-        .spawn()?;
+        .env("WABOU_VITE_ENTRY", &app.entry);
+    let mut host = ManagedChild::spawn(host_command)?;
 
     let mut inspector = if open_devtools {
-        Some(devtools_command(workspace)?.spawn()?)
+        let command = devtools_command(workspace)?;
+        Some(ManagedChild::spawn(command)?)
     } else {
         None
     };
@@ -1252,7 +1260,7 @@ fn artifact_from_metadata(
     ))
 }
 
-fn wait_for_vite(url: &str, child: &mut Child) -> Result<()> {
+fn wait_for_vite(url: &str, child: &mut dyn ChildWrapper) -> Result<()> {
     let authority = url.trim_start_matches("http://");
     let address = authority
         .to_socket_addrs()?
@@ -1271,7 +1279,11 @@ fn wait_for_vite(url: &str, child: &mut Child) -> Result<()> {
     Err("timed out waiting for Vite".into())
 }
 
-fn supervise(host: &mut Child, vite: &mut Child, inspector: Option<&mut Child>) -> Result<()> {
+fn supervise(
+    host: &mut ManagedChild,
+    vite: &mut ManagedChild,
+    inspector: Option<&mut ManagedChild>,
+) -> Result<()> {
     let stopped = Arc::new(AtomicBool::new(false));
     let signal = stopped.clone();
     ctrlc::set_handler(move || signal.store(true, Ordering::Release))?;
@@ -1280,32 +1292,51 @@ fn supervise(host: &mut Child, vite: &mut Child, inspector: Option<&mut Child>) 
         if stopped.load(Ordering::Acquire) {
             break Ok(());
         }
-        if let Some(status) = host.try_wait()? {
+        if let Some(status) = host.child.try_wait()? {
             break ensure(status, "Rust host");
         }
-        if let Some(status) = vite.try_wait()? {
+        if let Some(status) = vite.child.try_wait()? {
             break ensure(status, "Vite dev server");
         }
-        if let Some(child) = inspector.as_deref_mut()
-            && let Some(status) = child.try_wait()?
+        if let Some(child) = inspector.as_mut()
+            && let Some(status) = child.child.try_wait()?
         {
             eprintln!("[wabou] DevTools exited: {status}");
             inspector = None;
         }
         thread::sleep(Duration::from_millis(50));
     };
-    terminate(host);
-    terminate(vite);
+    host.terminate();
+    vite.terminate();
     if let Some(child) = inspector {
-        terminate(child);
+        child.terminate();
     }
     result
 }
 
-fn terminate(child: &mut Child) {
-    if child.try_wait().ok().flatten().is_none() {
-        let _ = child.kill();
-        let _ = child.wait();
+struct ManagedChild {
+    child: Box<dyn ChildWrapper>,
+}
+
+impl ManagedChild {
+    fn spawn(command: Command) -> std::io::Result<Self> {
+        let mut command = CommandWrap::from(command);
+        #[cfg(unix)]
+        command.wrap(ProcessGroup::leader());
+        #[cfg(windows)]
+        command.wrap(JobObject);
+        command.spawn().map(|child| Self { child })
+    }
+
+    fn terminate(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+impl Drop for ManagedChild {
+    fn drop(&mut self) {
+        self.terminate();
     }
 }
 
@@ -1320,6 +1351,37 @@ fn ensure(status: ExitStatus, label: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn managed_child_terminates_descendants_after_group_leader_exits() {
+        use std::io::{BufRead, BufReader};
+
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "sleep 30 >/dev/null 2>&1 & echo $!"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        let mut managed = ManagedChild::spawn(command).unwrap();
+        let mut pid = String::new();
+        BufReader::new(managed.child.stdout().take().unwrap())
+            .read_line(&mut pid)
+            .unwrap();
+        managed.child.wait().unwrap();
+        let is_alive = || {
+            Command::new("kill")
+                .args(["-0", pid.trim()])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .unwrap()
+                .success()
+        };
+        assert!(is_alive());
+        managed.terminate();
+        assert!(!is_alive());
+    }
     use wabou_devtools::{DebugNode, DebugPointInspection, DebugSnapshot};
 
     #[test]

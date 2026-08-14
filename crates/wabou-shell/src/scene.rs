@@ -508,6 +508,23 @@ mod tests {
     }
 
     #[test]
+    fn rotation_keeps_a_non_origin_border_box_center_fixed() {
+        let node = placed_node(Paint {
+            runtime_transform: Some(
+                Affine::rotate(std::f64::consts::FRAC_PI_2)
+                    .as_coeffs()
+                    .map(|value| value as f32),
+            ),
+            ..Paint::default()
+        });
+        let transform = resolve_node_transform(&node, Affine::IDENTITY);
+        let center = Rect::new(10.0, 20.0, 110.0, 120.0).center();
+        let transformed = transform * center;
+        assert!((transformed.x - center.x).abs() < 1e-9);
+        assert!((transformed.y - center.y).abs() < 1e-9);
+    }
+
+    #[test]
     fn rounded_native_widget_is_clipped_without_overflow_hidden() {
         let node = placed_node(Paint {
             border_radius: 12.0,
@@ -605,7 +622,7 @@ mod tests {
         image::codecs::png::PngEncoder::new(&mut encoded)
             .write_image(&[20, 180, 240, 255], 1, 1, image::ExtendedColorType::Rgba8)
             .unwrap();
-        let raster = Arc::new(crate::image::RasterImage::decode_png(&encoded).unwrap());
+        let raster = Arc::new(crate::image::RasterImage::decode(&encoded).unwrap());
         let mut node = placed_node(Paint {
             image: Some(raster),
             ..Paint::default()

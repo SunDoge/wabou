@@ -5,9 +5,17 @@ import { View, type WabouStyle } from "./view";
 const join = (...values: Array<string | undefined>) =>
   values.filter(Boolean).join(" ");
 
+export const scrollAreaViewportClass = (className?: string) =>
+  join("min-h-0 overflow-y-auto", className);
+
 export interface ScrollAreaProps {
   children?: JSX.Element;
-  /** Classes applied to the clipped scrolling viewport. */
+  /**
+   * Classes applied to the clipped scrolling viewport.
+   *
+   * The viewport has no implicit flex growth. Give it an explicit height or
+   * use `flex-1 min-h-0` inside a bounded flex container.
+   */
   class?: string;
   /** Classes applied to the intrinsic-height content wrapper. */
   contentClass?: string;
@@ -18,17 +26,20 @@ export interface ScrollAreaProps {
 }
 
 /**
- * Vertical native scroll viewport.
+ * Vertical native scroll viewport with explicit sizing.
  *
  * The inner wrapper deliberately cannot shrink. This makes its intrinsic
  * height become the viewport's scroll extent instead of allowing a flex
  * parent to compress overflowing sections until no scroll range remains.
+ * The viewport itself deliberately does not grow: implicit `flex-1` makes a
+ * nested scroll area expand with an ancestor's intrinsic content instead of
+ * establishing its own scroll range.
  */
 export function ScrollArea(props: ScrollAreaProps): JSX.Element {
   return (
     <View
       ref={props.ref}
-      class={join("flex-1 min-h-0 overflow-y-auto", props.class)}
+      class={scrollAreaViewportClass(props.class)}
       style={props.style}
       scrollbar={props.scrollbar}
       onScroll={props.onScroll}

@@ -502,7 +502,7 @@ fn host_messages_are_delivered_to_js_before_tick() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let handle = applier.host_msg_handle();
+    let handle = applier.host_message_handle();
     handle.emit_str("logs", "hello").unwrap();
     handle.emit_i32("count", 7).unwrap();
 
@@ -609,4 +609,122 @@ fn inline_svg_cache_follows_node_lifetime() {
 
     applier.apply_op(&Op::DropNode { id: 2 });
     assert!(applier.svg_cache.is_empty());
+}
+
+#[test]
+fn image_resource_failure_routes_to_the_current_node_handle() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let img = applier.atoms.borrow_mut().intern("img");
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: img,
+        attrs: vec![],
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+    applier.apply_op(&Op::AddEventListener {
+        id: 2,
+        event_type: event::RESOURCEERROR,
+    });
+
+    let node = applier.node_store.solid_to_node[&2];
+    applier.dispatch_image_resource_result(
+        node,
+        "https://example.test/icon.png",
+        &Err(Arc::from("bad image")),
+    );
+
+    let dispatched = applier
+        .js
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
+        .unwrap();
+    let dispatched: serde_json::Value = serde_json::from_str(&dispatched).unwrap();
+    assert_eq!(dispatched[0][0], 2);
+    assert_eq!(dispatched[0][1], event::RESOURCEERROR);
+    let payload: serde_json::Value =
+        serde_json::from_str(dispatched[0][2].as_str().unwrap()).unwrap();
+    assert_eq!(
+        payload,
+        serde_json::json!({
+            "url": "https://example.test/icon.png",
+            "error": "bad image",
+        })
+    );
+}
+
+#[test]
+fn image_completion_only_notifies_current_source_subscribers() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let img = applier.atoms.borrow_mut().intern("img");
+    for id in [2, 3] {
+        applier.apply_op(&Op::CreateElement {
+            id,
+            tag: img,
+            attrs: vec![],
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 1,
+            child: id,
+        });
+        applier.apply_op(&Op::AddEventListener {
+            id,
+            event_type: event::RESOURCEERROR,
+        });
+    }
+
+    let first = applier.node_store.solid_to_node[&2];
+    let second = applier.node_store.solid_to_node[&3];
+    let first_source: Arc<str> = Arc::from("https://example.test/first.png");
+    let second_source: Arc<str> = Arc::from("https://example.test/second.png");
+    applier
+        .node_image_sources
+        .insert(first, first_source.clone());
+    applier
+        .node_image_sources
+        .insert(second, second_source.clone());
+    applier
+        .image_subscribers
+        .entry(first_source.clone())
+        .or_default()
+        .insert(first);
+    applier
+        .image_subscribers
+        .entry(second_source.clone())
+        .or_default()
+        .insert(second);
+
+    applier.finish_image_source(&first_source, &Err(Arc::from("first failed")));
+
+    let dispatched = applier
+        .js
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
+        .unwrap();
+    let dispatched: serde_json::Value = serde_json::from_str(&dispatched).unwrap();
+    assert_eq!(dispatched[0][0], 2);
+    assert_eq!(dispatched[0][1], event::RESOURCEERROR);
+    let payload: serde_json::Value =
+        serde_json::from_str(dispatched[0][2].as_str().unwrap()).unwrap();
+    assert_eq!(
+        payload,
+        serde_json::json!({
+            "url": "https://example.test/first.png",
+            "error": "first failed",
+        })
+    );
+    assert!(!applier.image_subscribers.contains_key(&first_source));
+    assert_eq!(applier.image_subscribers[&second_source].len(), 1);
+
+    applier.clear_image_source(second);
+    applier.finish_image_source(&second_source, &Err(Arc::from("stale failure")));
+    let dispatched_after_stale = applier
+        .js
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
+        .unwrap();
+    assert!(!dispatched_after_stale.contains("stale failure"));
 }

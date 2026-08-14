@@ -146,6 +146,7 @@ packaging commands.
   rendering; verify frame timing and output on the target platform and display.
 
 Read more about [styling](docs/style.md), [windows](docs/windows.md),
+[overlays](docs/overlays.md),
 [accessibility](docs/accessibility.md),
 [behavior testing](docs/testing.md),
 [performance profiling](docs/performance.md),

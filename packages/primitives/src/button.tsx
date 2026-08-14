@@ -21,6 +21,8 @@ export interface ButtonProps {
   variant?: "solid" | "ghost";
   /** Keep interaction behavior but do not inject the default visual geometry. */
   unstyled?: boolean;
+  /** Allow selecting the label text. Button labels are non-selectable by default. */
+  selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
   title?: string;
@@ -166,6 +168,7 @@ export function Button(props: ButtonProps): JSX.Element {
           "align-items": "center",
           "flex-shrink": 0,
           "white-space": "nowrap",
+          "user-select": props.selectable ? "text" : "none",
         }
       : {
           display: "flex",
@@ -173,10 +176,12 @@ export function Button(props: ButtonProps): JSX.Element {
           "justify-content": "center",
           "flex-shrink": 0,
           "white-space": "nowrap",
+          "user-select": props.selectable ? "text" : "none",
           "min-height": "32px",
           padding: "6px 12px",
           "border-radius": "6px",
-          "border-width": state().focused ? "2px" : "1px",
+          // Keep focus styling paint-only so focus cannot move the label.
+          "border-width": "1px",
           "border-color": state().focused ? "#7dd3fc" : "#64748b",
           "background-color": background(),
           color: "#f8fafc",

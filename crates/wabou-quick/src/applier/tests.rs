@@ -1,8 +1,8 @@
 use super::*;
 
 #[test]
-fn native_image_source_requires_explicit_network_png_memory_semantics() {
-    let valid = r#"{"kind":"network","url":"https://example.test/icon.png","format":"png","cache":"memory"}"#;
+fn native_image_source_requires_explicit_network_raster_memory_semantics() {
+    let valid = r#"{"kind":"network","url":"https://example.test/icon.png","format":"raster","cache":"memory"}"#;
     assert_eq!(
         remote_image_url(valid).as_deref(),
         Some("https://example.test/icon.png")
@@ -447,7 +447,7 @@ fn wheel_routing_preserves_pointer_position_for_widgets() {
 
 #[test]
 fn event_mask_is_compact_and_preserves_protocol_codes() {
-    assert_eq!(std::mem::size_of::<EventMask>(), 4);
+    assert_eq!(std::mem::size_of::<EventMask>(), 8);
     let mut mask = EventMask::default();
     mask.insert(event::CLICK);
     mask.insert(event::SCROLL);

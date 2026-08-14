@@ -57,7 +57,7 @@ export interface IconProps extends Omit<SvgProps, "source"> {
 export interface NetworkImageSource {
   kind: "network";
   url: string;
-  format: "png";
+  format: "raster";
   /** Decoded pixels are shared by URL for the lifetime of this native runtime. */
   cache: "memory";
 }
@@ -72,8 +72,12 @@ export interface ImageProps extends Omit<PrimitiveProps, "children"> {
 export interface NetworkImageProps extends Omit<ImageProps, "source"> {
   /** This component performs a host network request for the URL. */
   url: string;
-  format: "png";
+  format: "raster";
   cache: "memory";
+  /** Fired when the current URL is decoded and ready for native painting. */
+  onResourceReady?: (event: { url: string }) => void;
+  /** Fired when the current URL fails to download or decode. */
+  onResourceError?: (event: { url: string; error: string }) => void;
 }
 
 export interface TextAreaProps extends Omit<PrimitiveProps, "children"> {

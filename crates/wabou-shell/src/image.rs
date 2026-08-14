@@ -4,25 +4,78 @@ use std::sync::Arc;
 
 use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 
+const MAX_DECODED_PIXELS: u64 = 4 * 1024 * 1024;
+const MAX_RETAINED_DIMENSION: u32 = 1024;
+
 /// A decoded RGBA image retained by the host and shared by every node using it.
 #[derive(Clone, Debug)]
 pub struct RasterImage {
     brush: ImageBrush,
     size: [f32; 2],
+    byte_len: usize,
 }
 
 impl RasterImage {
-    /// Decode an encoded PNG with dimensions bounded for untrusted sources.
-    pub fn decode_png(bytes: &[u8]) -> Result<Self, image::ImageError> {
-        let decoder = image::codecs::png::PngDecoder::new(std::io::Cursor::new(bytes))?;
-        use image::ImageDecoder as _;
+    /// Decode a supported raster format by content, with dimensions bounded
+    /// before allocating decoded pixels for untrusted sources.
+    pub fn decode(bytes: &[u8]) -> Result<Self, image::ImageError> {
+        let image = match image::guess_format(bytes)? {
+            image::ImageFormat::Png => {
+                let decoder = image::codecs::png::PngDecoder::new(std::io::Cursor::new(bytes))?;
+                Self::decode_with(decoder)?
+            }
+            image::ImageFormat::Ico => {
+                let decoder = image::codecs::ico::IcoDecoder::new(std::io::Cursor::new(bytes))?;
+                Self::decode_with(decoder)?
+            }
+            image::ImageFormat::Jpeg => {
+                let decoder = image::codecs::jpeg::JpegDecoder::new(std::io::Cursor::new(bytes))?;
+                Self::decode_with(decoder)?
+            }
+            image::ImageFormat::WebP => {
+                let decoder = image::codecs::webp::WebPDecoder::new(std::io::Cursor::new(bytes))?;
+                Self::decode_with(decoder)?
+            }
+            format => {
+                return Err(image::ImageError::Unsupported(
+                    image::error::UnsupportedError::from_format_and_kind(
+                        image::error::ImageFormatHint::Exact(format),
+                        image::error::UnsupportedErrorKind::Format(
+                            image::error::ImageFormatHint::Exact(format),
+                        ),
+                    ),
+                ));
+            }
+        };
+        Ok(Self::from_rgba(image))
+    }
+
+    fn decode_with(
+        decoder: impl image::ImageDecoder,
+    ) -> Result<image::RgbaImage, image::ImageError> {
         let (width, height) = decoder.dimensions();
-        if width == 0 || height == 0 || width > 1024 || height > 1024 {
+        if width == 0 || height == 0 || u64::from(width) * u64::from(height) > MAX_DECODED_PIXELS {
             return Err(image::ImageError::Limits(
                 image::error::LimitError::from_kind(image::error::LimitErrorKind::DimensionError),
             ));
         }
-        let rgba = image::DynamicImage::from_decoder(decoder)?.into_rgba8();
+        let image = image::DynamicImage::from_decoder(decoder)?;
+        if width > MAX_RETAINED_DIMENSION || height > MAX_RETAINED_DIMENSION {
+            Ok(image
+                .resize(
+                    MAX_RETAINED_DIMENSION,
+                    MAX_RETAINED_DIMENSION,
+                    image::imageops::FilterType::Triangle,
+                )
+                .into_rgba8())
+        } else {
+            Ok(image.into_rgba8())
+        }
+    }
+
+    fn from_rgba(rgba: image::RgbaImage) -> Self {
+        let (width, height) = rgba.dimensions();
+        let byte_len = rgba.len();
         let data = ImageData {
             data: Blob::new(Arc::new(rgba.into_raw())),
             format: ImageFormat::Rgba8,
@@ -30,10 +83,11 @@ impl RasterImage {
             width,
             height,
         };
-        Ok(Self {
+        Self {
             brush: ImageBrush::new(data),
             size: [width as f32, height as f32],
-        })
+            byte_len,
+        }
     }
 
     pub fn brush(&self) -> &ImageBrush {
@@ -42,6 +96,10 @@ impl RasterImage {
 
     pub fn size(&self) -> [f32; 2] {
         self.size
+    }
+
+    pub fn byte_len(&self) -> usize {
+        self.byte_len
     }
 }
 
@@ -61,17 +119,53 @@ mod tests {
                 image::ExtendedColorType::Rgba8,
             )
             .unwrap();
-        let image = RasterImage::decode_png(&encoded).unwrap();
+        let image = RasterImage::decode(&encoded).unwrap();
         assert_eq!(image.size(), [2.0, 1.0]);
         assert_eq!(image.brush().image.data.data().len(), 8);
     }
 
     #[test]
-    fn rejects_oversized_png_dimensions_before_decoding_pixels() {
+    fn downsizes_large_images_before_retaining_them() {
         let mut encoded = Vec::new();
         image::codecs::png::PngEncoder::new(&mut encoded)
-            .write_image(&vec![0; 1025 * 4], 1025, 1, image::ExtendedColorType::Rgba8)
+            .write_image(
+                &vec![0; 1140 * 1140 * 4],
+                1140,
+                1140,
+                image::ExtendedColorType::Rgba8,
+            )
             .unwrap();
-        assert!(RasterImage::decode_png(&encoded).is_err());
+        assert_eq!(
+            RasterImage::decode(&encoded).unwrap().size(),
+            [1024.0, 1024.0]
+        );
+    }
+
+    #[test]
+    fn decodes_ico_by_content_instead_of_url_extension() {
+        let mut encoded = Vec::new();
+        image::codecs::ico::IcoEncoder::new(&mut encoded)
+            .write_image(&[255, 0, 0, 255], 1, 1, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        let image = RasterImage::decode(&encoded).unwrap();
+        assert_eq!(image.size(), [1.0, 1.0]);
+    }
+
+    #[test]
+    fn decodes_jpeg_by_content() {
+        let mut encoded = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new(&mut encoded)
+            .write_image(&[255, 0, 0], 1, 1, image::ExtendedColorType::Rgb8)
+            .unwrap();
+        assert_eq!(RasterImage::decode(&encoded).unwrap().size(), [1.0, 1.0]);
+    }
+
+    #[test]
+    fn decodes_webp_by_content() {
+        let mut encoded = Vec::new();
+        image::codecs::webp::WebPEncoder::new_lossless(&mut encoded)
+            .write_image(&[255, 0, 0, 255], 1, 1, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        assert_eq!(RasterImage::decode(&encoded).unwrap().size(), [1.0, 1.0]);
     }
 }

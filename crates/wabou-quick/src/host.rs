@@ -27,14 +27,16 @@ use std::time::{Duration, Instant};
 
 use vello::peniko::Color;
 
+use crate::HostMessageContext;
 use crate::applier::Applier;
-use crate::asset_cache::AssetCache;
+use crate::asset_cache::ResourceCache;
 use crate::jsrt::JsRuntime;
 use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
 use wabou_shell::{Widget, WidgetFactory};
 use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
+type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
 type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
 
 #[cfg(feature = "profiling")]
@@ -97,6 +99,7 @@ pub struct HostBuilder {
     additional_windows: Vec<WindowOptions>,
     widget_factories: HashMap<String, WidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
+    host_message_producers: Vec<HostMessageProducer>,
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
     effect_trace: Option<EffectTraceConfig>,
@@ -121,6 +124,7 @@ impl HostBuilder {
             additional_windows: Vec::new(),
             widget_factories: builtin_factories(),
             capabilities: Vec::new(),
+            host_message_producers: Vec::new(),
             devtools: cfg!(debug_assertions),
             extensions: Vec::new(),
             effect_trace: None,
@@ -164,6 +168,24 @@ impl HostBuilder {
             let mount = mount.clone();
             js.mount_capability(&name, move |ctx, capability| mount(ctx, capability))
         }));
+        self
+    }
+
+    /// Register a producer for application-level Rust → JavaScript messages.
+    ///
+    /// The callback runs once for every native window after that window's
+    /// bounded message queue is created and before its JavaScript bundle boots.
+    /// Background tasks may retain the cloneable context and emit from any
+    /// thread. JavaScript receives values through `hostMessages.subscribe()`.
+    /// The context is cancelled when its window is dropped.
+    ///
+    /// Producers should use `context.window_id()` to avoid duplicate global
+    /// streams when an application creates additional windows.
+    pub fn host_message_producer<F>(mut self, producer: F) -> Self
+    where
+        F: Fn(HostMessageContext) + Send + Sync + 'static,
+    {
+        self.host_message_producers.push(Arc::new(producer));
         self
     }
 
@@ -312,12 +334,12 @@ impl HostBuilder {
             .ok();
 
         let asset_cache = Arc::new(if let Some(directories) = &app_directories {
-            AssetCache::with_disk(&directories.cache_dir).unwrap_or_else(|error| {
+            ResourceCache::with_disk(&directories.cache_dir).unwrap_or_else(|error| {
                 tracing::warn!(%error, "failed to enable persistent asset cache");
-                AssetCache::memory_only()
+                ResourceCache::memory_only()
             })
         } else {
-            AssetCache::memory_only()
+            ResourceCache::memory_only()
         });
 
         #[cfg(feature = "vite")]
@@ -370,6 +392,11 @@ impl HostBuilder {
                 self.widget_factories.clone(),
                 self.base_color,
                 index as u64 + 1,
+            );
+            install_host_message_producers(
+                &self.host_message_producers,
+                index as u64 + 1,
+                &applier,
             );
             applier.set_asset_cache(asset_cache.clone());
             if let Some(directories) = &app_directories {
@@ -426,6 +453,7 @@ impl HostBuilder {
         }
 
         let capabilities = self.capabilities.clone();
+        let host_message_producers = self.host_message_producers.clone();
         let widget_factories = self.widget_factories.clone();
         let base_color = self.base_color;
         let child_debug_state = debug_state.clone();
@@ -461,6 +489,7 @@ impl HostBuilder {
                 base_color,
                 window_id,
             );
+            install_host_message_producers(&host_message_producers, window_id, &applier);
             applier.set_asset_cache(child_asset_cache.clone());
             if let Some(directories) = &child_app_directories {
                 applier.set_app_directories(directories.clone());
@@ -517,6 +546,16 @@ impl HostBuilder {
         drop(child_hmr_clients);
         drop(devtools_server);
         Ok(())
+    }
+}
+
+fn install_host_message_producers(
+    producers: &[HostMessageProducer],
+    window_id: u64,
+    applier: &Applier,
+) {
+    for producer in producers {
+        producer(applier.host_message_context(window_id));
     }
 }
 
@@ -692,8 +731,14 @@ fn resource_bundle_candidates(executable: &Path) -> Vec<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::{resource_bundle_candidates, resource_bundle_path};
+    use super::{
+        HostBuilder, install_host_message_producers, resource_bundle_candidates,
+        resource_bundle_path,
+    };
+    use crate::host_message::{HostMessagePayload, host_message_channel};
+    use crate::{Applier, HostMessageContext, JsRuntime};
     use std::path::Path;
+    use std::sync::{Arc, Mutex};
 
     #[cfg(feature = "profiling")]
     #[test]
@@ -749,5 +794,72 @@ mod tests {
                 Path::new("/Applications/Warden.app/Contents/Resources/bundle.js").to_path_buf(),
             ]
         );
+    }
+
+    #[test]
+    fn application_message_producers_receive_each_window_handle() {
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        let producer_observed = observed.clone();
+        let builder = HostBuilder::new().host_message_producer(move |context| {
+            producer_observed.lock().unwrap().push(context.window_id());
+            context
+                .messages()
+                .emit_i32("ready", context.window_id() as i32)
+                .unwrap();
+        });
+        let (handle, inbox) = host_message_channel(4);
+        let cancellation = tokio_util::sync::CancellationToken::new();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
+        for producer in &builder.host_message_producers {
+            producer(crate::HostMessageContext::new(
+                7,
+                handle.clone(),
+                cancellation.clone(),
+                runtime.handle().clone(),
+            ));
+        }
+
+        assert_eq!(*observed.lock().unwrap(), [7]);
+        let messages = inbox.drain_batch();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].topic, "ready");
+        assert_eq!(messages[0].payload, HostMessagePayload::I32(7));
+    }
+
+    #[test]
+    fn producer_context_is_cancelled_when_window_source_drops() {
+        let observed = Arc::new(Mutex::new(None::<HostMessageContext>));
+        let producer_observed = observed.clone();
+        let (started_tx, started_rx) = std::sync::mpsc::channel();
+        let (stopped_tx, stopped_rx) = std::sync::mpsc::channel();
+        let builder = HostBuilder::new().host_message_producer(move |context| {
+            *producer_observed.lock().unwrap() = Some(context.clone());
+            let task_context = context.clone();
+            let started_tx = started_tx.clone();
+            let stopped_tx = stopped_tx.clone();
+            context.spawn(async move {
+                started_tx.send(()).unwrap();
+                task_context.cancelled().await;
+                stopped_tx.send(()).unwrap();
+            });
+        });
+        let runtime = JsRuntime::new().unwrap();
+        let applier =
+            Applier::from_runtime(runtime, vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00));
+        install_host_message_producers(&builder.host_message_producers, 3, &applier);
+        started_rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .unwrap();
+        let context = observed.lock().unwrap().clone().unwrap();
+        assert_eq!(context.window_id(), 3);
+        assert!(!context.is_cancelled());
+
+        drop(applier);
+
+        stopped_rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .unwrap();
+        assert!(context.is_cancelled());
     }
 }

@@ -27,6 +27,8 @@ import {
   TabsTrigger,
   TextArea,
   Toggle,
+  ToggleGroup,
+  ToggleGroupItem,
   useComponentsTheme,
 } from "@wabou/components";
 import {
@@ -255,28 +257,44 @@ function RadioGroupPage() {
 function TogglePage() {
   const [bold, setBold] = createSignal(true);
   const [italic, setItalic] = createSignal(false);
+  const [mode, setMode] = createSignal("rule");
   return (
-    <Preview title="Formatting toolbar">
-      <View class="flex items-center gap-1 p-1 rounded-lg bg-control">
-        <Toggle
-          pressed={bold()}
-          onPressedChange={setBold}
-          aria-label="Toggle bold"
+    <View class="flex flex-col gap-5">
+      <Preview title="Formatting toolbar">
+        <View class="flex items-center gap-1 p-1 rounded-lg bg-control">
+          <Toggle
+            pressed={bold()}
+            onPressedChange={setBold}
+            aria-label="Toggle bold"
+          >
+            B
+          </Toggle>
+          <Toggle
+            pressed={italic()}
+            onPressedChange={setItalic}
+            aria-label="Toggle italic"
+          >
+            I
+          </Toggle>
+          <Toggle variant="outline" aria-label="Pin item">
+            Pin
+          </Toggle>
+        </View>
+      </Preview>
+      <Preview title="Single selection">
+        <ToggleGroup
+          type="single"
+          value={mode()}
+          onValueChange={setMode}
+          aria-label="Routing mode"
+          class="w-80"
         >
-          B
-        </Toggle>
-        <Toggle
-          pressed={italic()}
-          onPressedChange={setItalic}
-          aria-label="Toggle italic"
-        >
-          I
-        </Toggle>
-        <Toggle variant="outline" aria-label="Pin item">
-          Pin
-        </Toggle>
-      </View>
-    </Preview>
+          <ToggleGroupItem value="rule">Rule</ToggleGroupItem>
+          <ToggleGroupItem value="global">Global</ToggleGroupItem>
+          <ToggleGroupItem value="direct">Direct</ToggleGroupItem>
+        </ToggleGroup>
+      </Preview>
+    </View>
   );
 }
 
@@ -453,6 +471,7 @@ function ScrollAreaPage() {
           }
         >
           <ScrollArea
+            class="flex-1"
             contentClass="p-2 gap-1"
             scrollbar={{
               visibility: "auto",

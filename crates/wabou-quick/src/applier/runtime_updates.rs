@@ -16,7 +16,7 @@ impl Applier {
             "focused": metrics.focused,
         })
         .to_string();
-        let event = HostEvent::Application(crate::host_msg::HostMsg::str(
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
             "wabou:window-metrics",
             payload,
         ));
@@ -29,13 +29,13 @@ impl Applier {
     }
 
     pub(super) fn drain_host_messages(&mut self) {
-        let batch = self.host_msg_inbox.drain_batch();
+        let batch = self.host_message_inbox.drain_batch();
         if batch.is_empty() {
             return;
         }
         let events: Vec<_> = batch.into_iter().map(HostEvent::Application).collect();
         if let Err(e) = self.js.dispatch_host_frame(&events) {
-            tracing::error!(target: "host_msg", error = ?e, count = events.len(), "dispatch Host application frame failed");
+            tracing::error!(target: "host_message", error = ?e, count = events.len(), "dispatch Host application frame failed");
         }
     }
 
@@ -222,6 +222,8 @@ impl Applier {
         self.node_store.collapsed_text.clear();
         self.node_store.inline_roots.clear();
         self.svg_cache.clear();
+        self.image_subscribers.clear();
+        self.node_image_sources.clear();
         self.runtime_transforms.clear();
         self.overlay_planes.clear();
         self.scrollbar_styles.clear();

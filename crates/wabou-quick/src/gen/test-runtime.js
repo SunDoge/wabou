@@ -98,7 +98,9 @@
     terminalcwdchange: 28,
     terminalselectionchange: 29,
     textselectionchange: 30,
-    terminalbell: 31
+    terminalbell: 31,
+    resourceready: 32,
+    resourceerror: 33
   };
   var EVENT_DATA_SLOT = {
     clientX: 0,
@@ -788,7 +790,7 @@
     throw new TypeError(`invalid inline style value for ${property}`);
   }
 
-  // node_modules/.bun/@solidjs+signals@2.0.0-rc.0/node_modules/@solidjs/signals/dist/dev.js
+  // ../clashie/node_modules/.bun/@solidjs+signals@2.0.0-rc.0/node_modules/@solidjs/signals/dist/dev.js
   class NotReadyError extends Error {
     source;
     constructor(source) {
@@ -4029,7 +4031,7 @@
     return needsUnwrap;
   }
 
-  // node_modules/.bun/solid-js@2.0.0-rc.0/node_modules/solid-js/dist/dev.js
+  // ../clashie/node_modules/.bun/solid-js@2.0.0-rc.0/node_modules/solid-js/dist/dev.js
   var $DEVCOMP = Symbol("COMPONENT_DEV");
   function createContext(defaultValue, options) {
     const id = Symbol(options && options.name || "");
@@ -4105,7 +4107,7 @@
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
 
-  // node_modules/.bun/@solidjs+universal@2.0.0-rc.0+6b48b9f3356e564b/node_modules/@solidjs/universal/dist/dev.js
+  // ../clashie/node_modules/.bun/@solidjs+universal@2.0.0-rc.0+6b48b9f3356e564b/node_modules/@solidjs/universal/dist/dev.js
   var transparentOptions = {
     transparent: true,
     sync: true
@@ -4666,7 +4668,7 @@
         writer.removeAttribute(node.id, "image-source");
         return;
       }
-      if (typeof value !== "object" || value.kind !== "network" || typeof value.url !== "string" || value.format !== "png" || value.cache !== "memory") {
+      if (typeof value !== "object" || value.kind !== "network" || typeof value.url !== "string" || value.format !== "raster" || value.cache !== "memory") {
         throw new TypeError("invalid native image source");
       }
       writer.setAttribute(node.id, "image-source", JSON.stringify(value));

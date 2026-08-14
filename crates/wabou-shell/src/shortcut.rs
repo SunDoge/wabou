@@ -24,7 +24,8 @@ impl KeyEvent {
         self.phase == KeyPhase::Down
             && self.modifiers.primary_shortcut()
             && !self.modifiers.shift()
-            && self.key.eq_ignore_ascii_case(key)
+            && (self.key_without_modifiers.eq_ignore_ascii_case(key)
+                || self.key.eq_ignore_ascii_case(key))
     }
 }
 
@@ -58,5 +59,29 @@ mod tests {
         let mut shifted = event;
         shifted.modifiers |= Modifiers::SHIFT;
         assert!(!shifted.matches_standard_shortcut(StandardShortcut::Copy));
+    }
+
+    #[test]
+    fn standard_shortcuts_use_the_key_without_modifiers() {
+        let primary = if cfg!(target_os = "macos") {
+            Modifiers::META
+        } else {
+            Modifiers::CONTROL
+        };
+        let event = KeyEvent {
+            phase: KeyPhase::Down,
+            // Some platform/layout combinations do not expose the printable
+            // logical key while Control or Command is held.
+            key: "Unidentified".into(),
+            key_without_modifiers: "v".into(),
+            code: "KeyV".into(),
+            text: None,
+            text_with_all_modifiers: None,
+            location: KeyLocation::Standard,
+            modifiers: primary,
+            repeat: false,
+        };
+
+        assert!(event.matches_standard_shortcut(StandardShortcut::Paste));
     }
 }

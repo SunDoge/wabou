@@ -68,6 +68,8 @@ export const EVENT_CODE = {
   terminalselectionchange: 29,
   textselectionchange: 30,
   terminalbell: 31,
+  resourceready: 32,
+  resourceerror: 33,
 } as const;
 
 export type EventType = keyof typeof EVENT_CODE;

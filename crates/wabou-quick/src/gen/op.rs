@@ -61,6 +61,8 @@ pub mod event {
     pub const TERMINALSELECTIONCHANGE: u8 = 29;
     pub const TEXTSELECTIONCHANGE: u8 = 30;
     pub const TERMINALBELL: u8 = 31;
+    pub const RESOURCEREADY: u8 = 32;
+    pub const RESOURCEERROR: u8 = 33;
 }
 
 pub mod event_data {

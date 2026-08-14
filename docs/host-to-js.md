@@ -1,7 +1,7 @@
 # Host to JavaScript flow
 
-Status: core bridge implemented; generated capability wrappers, generic
-cancellation helpers and record/replay tooling remain follow-up work.
+Status: core bridge, application-producer lifecycle, generated capability
+wrappers and record/replay tooling implemented.
 
 ## Decision
 
@@ -28,8 +28,9 @@ This replaced the former independent guest callbacks:
 - `__wabou_host_messages`.
 
 HMR remains a development-runtime control channel and is not a UI host event.
-The existing `HostMsgHandle` remains a public producer API, but its messages are
-encoded as `ApplicationMessage` records in the unified frame.
+The public `HostMessageHandle` producer API sends messages as
+`ApplicationMessage` records in the unified frame. `HostMessageContext` binds
+each producer to a window, its Tokio runtime and window-lifetime cancellation.
 
 ## Ownership boundary
 
@@ -251,7 +252,7 @@ Rules:
 - UI discrete events reserve capacity and cannot be displaced by application
   messages;
 - coalescible events overwrite their keyed pending slot;
-- `HostMsgHandle::send` remains non-blocking and returns `Full`;
+- `HostMessageHandle::send` remains non-blocking and returns `Full`;
 - `send_timeout` is allowed only off the UI thread;
 - the event loop is woken on the empty-to-non-empty transition, not once per
   message;
@@ -414,7 +415,7 @@ the later steps below.
 
 1. Add protocol constants, Rust codec and TS decoder with fixture-based
    cross-language tests.
-2. Route existing `HostMsgHandle` batches through `ApplicationMessage` records.
+2. Route existing `HostMessageHandle` batches through `ApplicationMessage` records.
 3. Route ResizeObserver changes through `Resize` records and delete
    `__wabou_resize_dispatch`.
 4. Route JSON and numeric node events through `Node` records and delete the

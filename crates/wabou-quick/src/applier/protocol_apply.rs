@@ -181,6 +181,7 @@ impl Applier {
         let Some(node) = self.node_store.remove(id) else {
             return;
         };
+        self.clear_image_source(node);
         self.runtime_transforms.remove(&node);
         self.overlay_planes.remove(&node);
         self.scrollbar_styles.remove(&node);
@@ -219,7 +220,9 @@ impl Applier {
         }
         if self.atoms.borrow().resolve(name) == Some("image-source") {
             if let Some(url) = remote_image_url(value) {
-                self.load_image_source(&url);
+                self.load_image_source(node, &url);
+            } else {
+                self.clear_image_source(node);
             }
         }
         if !is_class
@@ -231,27 +234,35 @@ impl Applier {
         self.recompute_node(node);
     }
 
-    fn load_image_source(&mut self, value: &str) {
+    fn load_image_source(&mut self, node: NodeId, value: &str) {
         let source: Arc<str> = Arc::from(value);
-        if self.asset_cache.raster(source.as_ref()).is_some()
-            || !self.pending_images.insert(source.clone())
-        {
+        self.clear_image_source(node);
+        self.node_image_sources.insert(node, source.clone());
+        if let Some(result) = self.asset_cache.raster(source.as_ref()) {
+            self.dispatch_image_resource_result(node, source.as_ref(), &result);
+            return;
+        }
+        self.image_subscribers
+            .entry(source.clone())
+            .or_default()
+            .insert(node);
+        if !self.pending_images.insert(source.clone()) {
             return;
         }
         let Ok(url) = url::Url::parse(value) else {
             self.pending_images.remove(&source);
-            self.asset_cache.insert_raster(
-                source.to_string(),
-                Err(Arc::from("network image URL must use HTTP(S)")),
-            );
+            let result = Err(Arc::from("network image URL must use HTTP(S)"));
+            self.asset_cache
+                .insert_raster(source.to_string(), result.clone());
+            self.finish_image_source(&source, &result);
             return;
         };
         if !matches!(url.scheme(), "http" | "https") {
             self.pending_images.remove(&source);
-            self.asset_cache.insert_raster(
-                source.to_string(),
-                Err(Arc::from("network image URL must use HTTP(S)")),
-            );
+            let result = Err(Arc::from("network image URL must use HTTP(S)"));
+            self.asset_cache
+                .insert_raster(source.to_string(), result.clone());
+            self.finish_image_source(&source, &result);
             return;
         }
         let tx = self.image_result_tx.clone();
@@ -259,31 +270,9 @@ impl Applier {
         let asset_cache = self.asset_cache.clone();
         tracing::debug!(source = %source, "loading network image");
         let load = async move {
-            const MAX_IMAGE_BYTES: usize = 1024 * 1024;
             let result = async {
-                let bytes = if let Some(bytes) = asset_cache.encoded(source.as_ref()).await {
-                    bytes
-                } else {
-                    let response = reqwest::get(url)
-                        .await
-                        .map_err(|error| error.to_string())?
-                        .error_for_status()
-                        .map_err(|error| error.to_string())?;
-                    if response
-                        .content_length()
-                        .is_some_and(|size| size > MAX_IMAGE_BYTES as u64)
-                    {
-                        return Err("image response exceeds 1 MiB".to_string());
-                    }
-                    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
-                    if bytes.len() > MAX_IMAGE_BYTES {
-                        return Err("image response exceeds 1 MiB".to_string());
-                    }
-                    let bytes = bytes.to_vec();
-                    asset_cache.insert_encoded(source.to_string(), bytes.clone());
-                    bytes
-                };
-                wabou_shell::image::RasterImage::decode_png(&bytes)
+                let bytes = asset_cache.network_image_bytes(url).await?;
+                wabou_shell::image::RasterImage::decode(&bytes)
                     .map(Arc::new)
                     .map_err(|error| error.to_string())
             }
@@ -295,6 +284,32 @@ impl Applier {
             }
         };
         self.asset_cache.spawn(load);
+    }
+
+    pub(super) fn finish_image_source(
+        &mut self,
+        source: &Arc<str>,
+        result: &crate::asset_cache::RasterAsset,
+    ) {
+        let nodes = self.image_subscribers.remove(source).unwrap_or_default();
+        for node in nodes {
+            if self.node_image_sources.get(&node) == Some(source) {
+                self.recompute_node(node);
+                self.dispatch_image_resource_result(node, source, result);
+            }
+        }
+    }
+
+    pub(super) fn clear_image_source(&mut self, node: NodeId) {
+        let Some(source) = self.node_image_sources.remove(&node) else {
+            return;
+        };
+        if let Some(nodes) = self.image_subscribers.get_mut(&source) {
+            nodes.remove(&node);
+            if nodes.is_empty() {
+                self.image_subscribers.remove(&source);
+            }
+        }
     }
 
     fn remove_attribute(&mut self, id: u32, name: Atom) {
@@ -310,6 +325,9 @@ impl Applier {
             if is_class {
                 declared.classes.clear();
             }
+        }
+        if self.atoms.borrow().resolve(name) == Some("image-source") {
+            self.clear_image_source(node);
         }
         if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
             && let Some(name) = self.atoms.borrow().resolve(name)

@@ -6,7 +6,7 @@
 
 use std::time::Duration;
 
-use crate::host_msg::{HostMsg, HostPayload};
+use crate::host_message::{HostMessage, HostMessagePayload};
 use crate::protocol::{host_frame, host_node_payload, host_record};
 
 pub const MAX_HOST_FRAME_BYTES: usize = 4 * 1024 * 1024;
@@ -41,7 +41,7 @@ pub struct ResizeObservation {
 pub enum HostEvent {
     Node(HostNodeEvent),
     Resize(ResizeObservation),
-    Application(HostMsg),
+    Application(HostMessage),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,26 +89,26 @@ fn push_short_str(out: &mut Vec<u8>, value: &str) -> Result<(), HostFrameError> 
     Ok(())
 }
 
-fn encode_application(out: &mut Vec<u8>, msg: &HostMsg) -> Result<(), HostFrameError> {
+fn encode_application(out: &mut Vec<u8>, msg: &HostMessage) -> Result<(), HostFrameError> {
     push_short_str(out, &msg.topic)?;
     match &msg.payload {
-        HostPayload::Null => out.push(0),
-        HostPayload::Bool(value) => {
+        HostMessagePayload::Null => out.push(0),
+        HostMessagePayload::Bool(value) => {
             out.extend_from_slice(&[1, u8::from(*value)]);
         }
-        HostPayload::I32(value) => {
+        HostMessagePayload::I32(value) => {
             out.push(2);
             out.extend_from_slice(&value.to_le_bytes());
         }
-        HostPayload::F64(value) => {
+        HostMessagePayload::F64(value) => {
             out.push(3);
             push_f64(out, *value);
         }
-        HostPayload::Str(value) => {
+        HostMessagePayload::Str(value) => {
             out.push(4);
             push_short_str(out, value)?;
         }
-        HostPayload::Bytes(value) => {
+        HostMessagePayload::Bytes(value) => {
             out.push(5);
             push_u32(out, value.len() as u32);
             out.extend_from_slice(value);
@@ -217,7 +217,7 @@ mod tests {
                     width: 80.0,
                     height: 24.0,
                 }),
-                HostEvent::Application(HostMsg::str("status", "ready")),
+                HostEvent::Application(HostMessage::str("status", "ready")),
             ],
         )
         .unwrap();
@@ -234,7 +234,7 @@ mod tests {
         let error = encode_host_frame(
             1,
             Duration::ZERO,
-            &[HostEvent::Application(HostMsg::str(
+            &[HostEvent::Application(HostMessage::str(
                 "x".repeat(u16::MAX as usize + 1),
                 "value",
             ))],

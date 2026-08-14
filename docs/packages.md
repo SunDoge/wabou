@@ -11,6 +11,10 @@ bun add -d @wabou/vite vite
 helpers. Applications should not import renderer, protocol or style
 implementation packages directly.
 
+The 0.1 developer preview targets the exact `solid-js@2.0.0-rc.0` line. Keep
+Solid and Wabou packages pinned together until Solid 2 and the universal
+renderer publish stable releases; minor RC changes may alter renderer behavior.
+
 Install the following public packages only when the application uses them:
 
 - `@wabou/components` — styled application components.
@@ -39,3 +43,10 @@ that application manifests do not directly depend on internal packages.
 The component stack is intentionally layered: `@wabou/interactions` provides
 behavior, `@wabou/primitives` connects it to the native host, and
 `@wabou/components` supplies themed, shadcn-inspired recipes.
+
+On the Rust side, applications use the `wabou` facade from a pinned Git tag.
+The facade is deliberately not on crates.io for the first preview, allowing
+internal crates to be merged or renamed without reserving permanent public
+crate names. `wabou-quick`, `wabou-shell`, `wabou-widgets`, and the remaining
+workspace crates are implementation details; the preview tag and the facade
+are the supported Rust boundary.

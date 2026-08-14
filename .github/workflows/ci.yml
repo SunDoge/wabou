@@ -62,6 +62,13 @@ jobs:
       - name: Test workspace
         run: cargo test --workspace --all-targets
 
+      - name: Render gallery at 1x and 2x
+        run: |
+          cargo run -p wabou-cli -- render apps/gallery --out target/gallery-1x.png --width 800 --height 600 --scale-factor 1
+          cargo run -p wabou-cli -- render apps/gallery --out target/gallery-2x.png --width 800 --height 600 --scale-factor 2
+          test -s target/gallery-1x.png
+          test -s target/gallery-2x.png
+
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest

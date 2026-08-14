@@ -4,11 +4,19 @@ Wabou exposes native accessibility through AccessKit. The operating-system
 adapter and retained accessibility tree live in `wabou-shell`, alongside the
 authoritative window, focus, layout, and native-widget state.
 
-The initial integration publishes every Wabou window as an AccessKit `Window`
-node with its title and physical bounds. The adapter receives native focus,
-move, and resize events before normal application event handling. It is created
-while the winit window is hidden, as required by AccessKit, and requests a
-redraw when the platform asks for the initial tree.
+The current developer-preview integration publishes a retained semantic tree
+under every AccessKit `Window`. Supported roles are label, button, text input,
+image, link, dialog, alert, status, checkbox, radio button, switch, combobox,
+listbox, and option. Nodes expose labels, disabled state, completed layout
+bounds, child order, and native focus. Click, focus, and blur requests are
+routed back through the same host interaction path used by pointer and keyboard
+input.
+
+The adapter receives native focus, move, and resize events before normal
+application event handling. It is created while the winit window is hidden, as
+required by AccessKit, and requests a redraw when the platform asks for the
+initial tree. Semantic snapshots are revisioned so an unchanged tree is not
+republished every frame.
 
 Wabou currently uses `accesskit_xplat` as a narrow compatibility bridge because
 the official `accesskit_winit` adapter targets winit 0.30 while Wabou uses winit
@@ -16,8 +24,13 @@ the official `accesskit_winit` adapter targets winit 0.30 while Wabou uses winit
 be replaced without changing application APIs when the official adapter catches
 up.
 
-Semantic descendants and actions are the next layer. Solid primitives will
-declare typed roles, labels, values, and states; Rust will merge those
-declarations with final Taffy bounds, native focus, and widget state before
-publishing incremental AccessKit updates. Platform accessibility APIs never
-run inside QuickJS.
+Modal planes expose only the topmost modal subtree and reject background focus
+or semantic actions. Solid primitives declare the semantic contract; Rust
+merges it with final Taffy bounds, native focus, and widget state. Platform
+accessibility APIs never run inside QuickJS.
+
+This is intentionally proof-level accessibility for 0.1. Value/range metadata,
+rich text-editing actions, selection announcements, relationships such as
+`aria-labelledby`, and broader screen-reader/platform validation remain future
+work. Components must still provide an explicit accessible label where the
+preview bridge cannot derive one.

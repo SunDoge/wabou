@@ -235,10 +235,17 @@ pub(crate) struct ViteLoader {
 impl ViteLoader {
     pub(crate) fn new(cache: ViteModuleCache) -> Self {
         Self {
-            http: ureq::Agent::new_with_defaults(),
+            http: vite_http_agent(),
             cache,
         }
     }
+}
+
+fn vite_http_agent() -> ureq::Agent {
+    // Vite is an application-local transport. Inheriting HTTP_PROXY here can
+    // route loopback module requests through a corporate or development proxy,
+    // which commonly rejects CONNECT requests to 127.0.0.1.
+    ureq::Agent::config_builder().proxy(None).build().into()
 }
 
 impl Loader for ViteLoader {
@@ -384,7 +391,7 @@ pub fn start_hmr_client(
         "vite-hmr".parse().context(HeaderSnafu)?,
     );
     let (mut socket, _) = tungstenite::connect(request).context(WebSocketSnafu)?;
-    let client = ureq::Agent::new_with_defaults();
+    let client = vite_http_agent();
     let server_url = url::Url::parse(server_url).context(InvalidUrlSnafu)?;
 
     Ok(std::thread::spawn(move || {
@@ -568,6 +575,11 @@ mod tests {
             cache.get("http://127.0.0.1:5173/src/App.tsx?t=42"),
             Some("export const value = 42;".to_owned())
         );
+    }
+
+    #[test]
+    fn vite_http_transport_never_inherits_an_environment_proxy() {
+        assert!(vite_http_agent().config().proxy().is_none());
     }
 
     #[test]

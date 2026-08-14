@@ -37,6 +37,10 @@ export {
   type RadioGroupItemProps,
   type RadioGroupProps,
   Toggle,
+  ToggleGroup,
+  ToggleGroupItem,
+  type ToggleGroupItemProps,
+  type ToggleGroupProps,
   type ToggleProps,
 } from "./selection";
 export {
@@ -152,7 +156,9 @@ export function Button(props: ButtonProps): JSX.Element {
       }
       style={(state) =>
         ({
-          "border-width": state.focused ? 2 : 1,
+          // Focus feedback must not change the content box. A wider focused
+          // border makes labels jump by one pixel on every pointer click.
+          "border-width": 1,
           opacity: state.disabled ? 0.45 : 1,
           ...(typeof local.style === "function"
             ? local.style(state)

@@ -326,7 +326,7 @@ function applyProperty(
       typeof value !== "object" ||
       (value as { kind?: unknown }).kind !== "network" ||
       typeof (value as { url?: unknown }).url !== "string" ||
-      (value as { format?: unknown }).format !== "png" ||
+      (value as { format?: unknown }).format !== "raster" ||
       (value as { cache?: unknown }).cache !== "memory"
     ) {
       throw new TypeError("invalid native image source");

@@ -53,7 +53,7 @@ Promise.all(
 });
 
 createRoot(() => {
-  const [target, setTarget] = createSignal(0);
+  const [target, setTarget] = createSignal(0, { ownedWrite: true });
   createTransition(target, {
     duration: 0.08,
     ease: "linear",

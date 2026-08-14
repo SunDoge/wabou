@@ -243,32 +243,15 @@ impl FrameSource for Applier {
         while let Ok(loaded) = self.image_result_rx.try_recv() {
             self.pending_images.remove(&loaded.source);
             if let Err(error) = &loaded.result {
-                tracing::warn!(source = %loaded.source, %error, "failed to load image");
+                // Remote images are optional resources. The owner receives a
+                // resourceerror event and can keep its semantic fallback.
+                tracing::debug!(source = %loaded.source, %error, "failed to load image");
             } else {
                 tracing::debug!(source = %loaded.source, "network image loaded");
             }
             self.asset_cache
-                .insert_raster(loaded.source.to_string(), loaded.result);
-            let image_nodes = self
-                .node_store
-                .declared
-                .iter()
-                .filter_map(|(node, declared)| {
-                    declared
-                        .attrs
-                        .iter()
-                        .any(|(name, value)| {
-                            self.atoms.borrow().resolve(*name) == Some("image-source")
-                                && remote_image_url(value).is_some_and(|url| {
-                                    self.asset_cache.raster(url.as_str()).is_some()
-                                })
-                        })
-                        .then_some(*node)
-                })
-                .collect::<Vec<_>>();
-            for node in image_nodes {
-                self.recompute_node(node);
-            }
+                .insert_raster(loaded.source.to_string(), loaded.result.clone());
+            self.finish_image_source(&loaded.source, &loaded.result);
         }
 
         self.drain_pending_fonts(tcx);
@@ -651,7 +634,7 @@ impl FrameSource for Applier {
     fn has_anim(&self) -> bool {
         self.has_raf
             || self.has_hmr_pending.load(Ordering::Acquire)
-            || self.host_msg_inbox.has_pending()
+            || self.host_message_inbox.has_pending()
             || self.js.has_async_wake()
             || self.invalidation.contains(InvalidationFlags::TICK)
     }
@@ -701,7 +684,7 @@ impl FrameSource for Applier {
         for widget in self.widget_manager.widgets.values_mut() {
             widget.set_wake_callback(wake.clone());
         }
-        self.host_msg_inbox.set_wake(wake.clone());
+        self.host_message_inbox.set_wake(wake.clone());
         *self.host_action_wake.borrow_mut() = Some(wake.clone());
         self.wake_callback = Some(wake);
     }

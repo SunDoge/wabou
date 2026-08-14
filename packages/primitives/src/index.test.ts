@@ -313,7 +313,7 @@ describe("host primitives", () => {
       };
       const image = NetworkImage({
         url: "https://example.test/avatar.png",
-        format: "png",
+        format: "raster",
         cache: "memory",
       }) as unknown as {
         tag: string;

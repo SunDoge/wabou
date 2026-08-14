@@ -16,6 +16,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
+use tokio_util::sync::CancellationToken;
 
 use parley::{
     Affinity, Layout,
@@ -42,7 +43,7 @@ use wabou_shell::{
     SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, UiEvent, WakeCallback,
 };
 
-use crate::asset_cache::AssetCache;
+use crate::asset_cache::ResourceCache;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 
 mod debug_projection;
@@ -59,7 +60,9 @@ mod style_resolution;
 mod text_selection;
 mod widget_bridge;
 mod widget_manager;
-use crate::host_msg::{DEFAULT_HOST_MSG_CAPACITY, HostMsgHandle, HostMsgInbox, host_msg_channel};
+use crate::host_message::{
+    DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageHandle, HostMessageInbox, host_message_channel,
+};
 use crate::inline_context::{
     InlineFormattingContext, NodeFacts, rect_has_nonzero_lp, rect_has_nonzero_lpa, size_is_explicit,
 };
@@ -86,7 +89,7 @@ struct NetworkImageSource {
 
 fn remote_image_url(encoded: &str) -> Option<String> {
     let source: NetworkImageSource = serde_json::from_str(encoded).ok()?;
-    (source.kind == "network" && source.format == "png" && source.cache == "memory")
+    (source.kind == "network" && source.format == "raster" && source.cache == "memory")
         .then_some(source.url)
 }
 
@@ -436,8 +439,13 @@ pub struct Applier {
     svg_cache: HashMap<NodeId, (Arc<str>, Arc<wabou_shell::svg::SvgImage>)>,
     /// Encoded network assets use Foyer's memory/disk hybrid cache. Decoded
     /// paint resources are shared in memory by stable source keys.
-    asset_cache: Arc<AssetCache>,
+    asset_cache: Arc<ResourceCache>,
     pending_images: HashSet<Arc<str>>,
+    /// Nodes waiting for each in-flight source. A node is removed when it
+    /// changes source or is dropped, so stale completions cannot reach it.
+    image_subscribers: HashMap<Arc<str>, HashSet<NodeId>>,
+    /// The currently declared remote source for each image node.
+    node_image_sources: HashMap<NodeId, Arc<str>>,
     image_result_tx: mpsc::Sender<ImageLoadResult>,
     image_result_rx: mpsc::Receiver<ImageLoadResult>,
     /// Explicit host-driven transform state, independent of the CSS cascade.
@@ -520,9 +528,10 @@ pub struct Applier {
     vite_entry: Option<String>,
     /// Last HMR drain outcome (diagnostics / tests).
     last_hmr_result: HmrDrainResult,
-    /// Bounded host→JS message inbox. Producers use [`HostMsgHandle`].
-    host_msg_inbox: HostMsgInbox,
-    host_msg_handle: HostMsgHandle,
+    /// Bounded host→JS message inbox. Producers use [`HostMessageHandle`].
+    host_message_inbox: HostMessageInbox,
+    host_message_handle: HostMessageHandle,
+    host_message_cancellation: CancellationToken,
 }
 
 fn decode_effect_payload(
@@ -777,6 +786,12 @@ fn complete_js_effect(js: &JsRuntime, completion: &wabou_shell::EffectCompletion
     }
 }
 
+impl Drop for Applier {
+    fn drop(&mut self) {
+        self.host_message_cancellation.cancel();
+    }
+}
+
 impl Applier {
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns
     /// boot: `JsRuntime::new().boot(js)` for the static-bundle path, or
@@ -815,7 +830,9 @@ impl Applier {
             .into_iter()
             .map(|(k, v)| (atoms.borrow_mut().intern(&k), v))
             .collect();
-        let (host_msg_handle, host_msg_inbox) = host_msg_channel(DEFAULT_HOST_MSG_CAPACITY);
+        let (host_message_handle, host_message_inbox) =
+            host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
+        let host_message_cancellation = CancellationToken::new();
 
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
         let host_action_wake = Rc::new(RefCell::new(None));
@@ -855,8 +872,10 @@ impl Applier {
             inline_properties: HashMap::new(),
             style_diagnostics: HashMap::new(),
             svg_cache: HashMap::new(),
-            asset_cache: Arc::new(AssetCache::memory_only()),
+            asset_cache: Arc::new(ResourceCache::memory_only()),
             pending_images: HashSet::new(),
+            image_subscribers: HashMap::new(),
+            node_image_sources: HashMap::new(),
             image_result_tx,
             image_result_rx,
             runtime_transforms: HashMap::new(),
@@ -914,8 +933,9 @@ impl Applier {
             layout_viewport: None,
             vite_entry: None,
             last_hmr_result: HmrDrainResult::Idle,
-            host_msg_inbox,
-            host_msg_handle,
+            host_message_inbox,
+            host_message_handle,
+            host_message_cancellation,
         }
     }
 
@@ -942,7 +962,7 @@ impl Applier {
         *self.app_directories.borrow_mut() = Some(directories);
     }
 
-    pub(crate) fn set_asset_cache(&mut self, cache: Arc<AssetCache>) {
+    pub(crate) fn set_asset_cache(&mut self, cache: Arc<ResourceCache>) {
         self.asset_cache = cache;
     }
 
@@ -954,8 +974,17 @@ impl Applier {
 
     /// Cloneable handle for background tasks / streams to push application
     /// messages toward JS (`host.subscribe` on the guest side).
-    pub fn host_msg_handle(&self) -> HostMsgHandle {
-        self.host_msg_handle.clone()
+    pub fn host_message_handle(&self) -> HostMessageHandle {
+        self.host_message_handle.clone()
+    }
+
+    pub(crate) fn host_message_context(&self, window_id: u64) -> crate::HostMessageContext {
+        crate::HostMessageContext::new(
+            window_id,
+            self.host_message_handle(),
+            self.host_message_cancellation.clone(),
+            self.js.tokio_handle(),
+        )
     }
 
     /// Snapshot the currently resolved style for a Solid node id.
