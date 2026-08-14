@@ -10,6 +10,7 @@ pub mod app;
 pub mod app_dirs;
 pub mod effect;
 pub mod error;
+pub mod image;
 pub mod layout;
 pub mod renderer;
 pub mod scene;

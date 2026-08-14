@@ -247,6 +247,26 @@ fn draw_svg(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     );
 }
 
+fn draw_image(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
+    let Some(image) = &node.paint.image else {
+        return;
+    };
+    let [image_width, image_height] = image.size();
+    let [x0, y0, x1, y1] = node.rect;
+    let width = (x1 - x0).max(0.0);
+    let height = (y1 - y0).max(0.0);
+    if image_width <= 0.0 || image_height <= 0.0 || width <= 0.0 || height <= 0.0 {
+        return;
+    }
+    let scale = f64::from((width / image_width).min(height / image_height));
+    let dx = f64::from(x0) + (f64::from(width) - f64::from(image_width) * scale) * 0.5;
+    let dy = f64::from(y0) + (f64::from(height) - f64::from(image_height) * scale) * 0.5;
+    scene.draw_image(
+        image.brush(),
+        transform * Affine::translate((dx, dy)) * Affine::scale(scale),
+    );
+}
+
 fn draw_text(
     scene: &mut Scene,
     node: &PlacedNode,
@@ -401,6 +421,7 @@ pub fn build_scene_scaled(
         }
 
         draw_svg(scene, n, node_transform);
+        draw_image(scene, n, node_transform);
 
         if let Some(ws) = &n.paint.widget {
             // Keep rounded widget clipping inside the fragment itself. Some
@@ -574,6 +595,26 @@ mod tests {
             assert_eq!(image.get_pixel(50 * scale, 50 * scale).0[..3], [0, 0, 0]);
             std::fs::remove_file(path).expect("remove owned test png");
         }
+    }
+
+    #[test]
+    fn decoded_raster_image_reaches_offscreen_pixels() {
+        use image::ImageEncoder as _;
+        use std::sync::Arc;
+        let mut encoded = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut encoded)
+            .write_image(&[20, 180, 240, 255], 1, 1, image::ExtendedColorType::Rgba8)
+            .unwrap();
+        let raster = Arc::new(crate::image::RasterImage::decode_png(&encoded).unwrap());
+        let mut node = placed_node(Paint {
+            image: Some(raster),
+            ..Paint::default()
+        });
+        node.rect = [20.0, 20.0, 80.0, 80.0];
+        node.content_origin = [20.0, 20.0];
+        let image = render_nodes(&[node], "raster-image");
+        assert_eq!(image.get_pixel(50, 50).0, [20, 180, 240, 255]);
+        assert_eq!(image.get_pixel(10, 10).0, [0, 0, 0, 255]);
     }
 
     fn render_nodes(nodes: &[PlacedNode], name: &str) -> image::RgbaImage {

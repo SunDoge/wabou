@@ -8,7 +8,7 @@ import {
   createPress,
   createShortcuts,
   createTabs,
-  Image,
+  NetworkImage,
   PasswordInput,
   Text,
   TextArea,
@@ -294,7 +294,11 @@ describe("host primitives", () => {
         tag: string;
         firstChild: { tag: string } | null;
       };
-      const image = Image({ src: "avatar.png" }) as unknown as {
+      const image = NetworkImage({
+        url: "https://example.test/avatar.png",
+        format: "png",
+        cache: "memory",
+      }) as unknown as {
         tag: string;
       };
       const textarea = TextArea({ value: "two\nlines" }) as unknown as {

@@ -224,6 +224,7 @@ impl DeclaredPaint {
             z_index: self.z_index,
             font_family: inherited.font_family,
             svg: host.svg,
+            image: host.image,
             widget: host.widget,
             intrinsic_size: host.intrinsic_size,
         }
@@ -292,6 +293,7 @@ pub struct HostPaint {
     pub text_runs: Arc<[crate::text::TextRun]>,
     pub selection_rects: Arc<[[f32; 4]]>,
     pub svg: Option<Arc<crate::svg::SvgImage>>,
+    pub image: Option<Arc<crate::image::RasterImage>>,
     pub widget: Option<Arc<vello::Scene>>,
     pub intrinsic_size: Option<[f32; 2]>,
     pub runtime_transform: Option<[f32; 6]>,
@@ -347,6 +349,8 @@ pub struct Paint {
     /// Parsed inline SVG attached to an `<svg>` root. Descendant SVG elements
     /// are collapsed into this retained scene fragment by the host runtime.
     pub svg: Option<Arc<crate::svg::SvgImage>>,
+    /// A decoded raster image attached to an `<img>` replaced element.
+    pub image: Option<Arc<crate::image::RasterImage>>,
     /// A Rust-side `Widget`'s painted scene fragment (e.g. TextInput, Canvas).
     /// Composited by `build_scene` at the node's border-box origin, on top of
     /// the standard bg+border. The host runtime calls `Widget::paint` every

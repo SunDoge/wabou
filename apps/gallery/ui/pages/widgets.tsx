@@ -36,8 +36,8 @@ import {
   InputGroupText,
   Select,
 } from "@wabou/components";
-import { Text, View } from "@wabou/primitives";
-import Rocket from "lucide-solid/icons/rocket";
+import { Icon, Text, View } from "@wabou/primitives";
+import rocket from "lucide-static/icons/rocket.svg?raw";
 import { createSignal } from "solid-js";
 import { Preview } from "../preview";
 
@@ -208,7 +208,7 @@ export function EmptyPage() {
       <Empty class="w-[560px]">
         <EmptyHeader>
           <EmptyMedia>
-            <Rocket aria-hidden="true" size={24} />
+            <Icon source={rocket} aria-hidden="true" size={24} />
           </EmptyMedia>
           <EmptyTitle>No deployments yet</EmptyTitle>
           <EmptyDescription>

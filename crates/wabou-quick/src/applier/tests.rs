@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn native_image_source_requires_explicit_network_png_memory_semantics() {
+    let valid = r#"{"kind":"network","url":"https://example.test/icon.png","format":"png","cache":"memory"}"#;
+    assert_eq!(
+        remote_image_url(valid).as_deref(),
+        Some("https://example.test/icon.png")
+    );
+    assert!(remote_image_url(r#"{"kind":"network","url":"https://example.test/icon.webp","format":"webp","cache":"memory"}"#).is_none());
+    assert!(remote_image_url(r#"{"kind":"asset","url":"https://example.test/icon.png","format":"png","cache":"memory"}"#).is_none());
+}
+
+#[test]
 fn app_directory_effect_uses_host_configuration_only() {
     let directories = wabou_shell::AppDirectories::resolve(
         &wabou_shell::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),

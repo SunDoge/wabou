@@ -276,6 +276,11 @@ impl Applier {
             return None;
         }
         let current_color = format!("{:x}", color.to_rgba8());
+        if let Some(source) = decl.attrs.iter().find_map(|(name, source)| {
+            (atoms.resolve(*name) == Some("svg-source")).then_some(source)
+        }) {
+            return Some(source.replace("currentColor", &current_color));
+        }
         let mut source = String::new();
         write_node(self, &atoms, root, &current_color, true, &mut source)?;
         Some(source)
@@ -300,6 +305,7 @@ impl Applier {
                 .map(|p| p.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
             svg: None,
+            image: prev.and_then(|p| p.image.clone()),
             widget: prev.and_then(|p| p.widget.clone()),
             intrinsic_size: prev.and_then(|p| p.intrinsic_size),
             runtime_transform: self.runtime_transforms.get(&node).copied(),
@@ -311,26 +317,33 @@ impl Applier {
                 .unwrap_or_default(),
         };
         if let Some(source) = self.serialize_svg(node, inherited.text_color) {
-            let cached = self
+            let cached_for_node = self
                 .svg_cache
                 .get(&node)
                 .filter(|(cached_source, _)| cached_source.as_ref() == source)
                 .map(|(_, image)| image.clone());
-            host.svg = if let Some(image) = cached {
+            host.svg = if let Some(image) = cached_for_node {
                 Some(image)
             } else {
-                match wabou_shell::svg::SvgImage::parse(&source) {
+                let source: Arc<str> = Arc::from(source);
+                let cached_asset = self.asset_cache.svg(source.as_ref());
+                let asset = cached_asset.unwrap_or_else(|| {
+                    let parsed = wabou_shell::svg::SvgImage::parse(&source)
+                        .map(Arc::new)
+                        .map_err(|error| Arc::<str>::from(error.to_string()));
+                    if let Err(error) = &parsed {
+                        tracing::warn!(%error, "failed to parse inline SVG");
+                    }
+                    self.asset_cache
+                        .insert_svg(source.to_string(), parsed.clone());
+                    parsed
+                });
+                match asset {
                     Ok(image) => {
-                        let image = Arc::new(image);
-                        self.svg_cache
-                            .insert(node, (Arc::from(source), image.clone()));
+                        self.svg_cache.insert(node, (source, image.clone()));
                         Some(image)
                     }
-                    Err(error) => {
-                        tracing::warn!(%error, "failed to parse inline SVG");
-                        self.svg_cache.remove(&node);
-                        None
-                    }
+                    Err(_) => None,
                 }
             };
         } else {
@@ -478,6 +491,17 @@ impl Applier {
             .map(inherited_paint)
             .unwrap_or_default();
         let previous = self.node_store.tree.get_node_context(node);
+        let image_url = self.node_store.declared.get(&node).and_then(|declared| {
+            let atoms = self.atoms.borrow();
+            declared.attrs.iter().find_map(|(name, source)| {
+                (atoms.resolve(*name) == Some("image-source"))
+                    .then(|| remote_image_url(source))
+                    .flatten()
+            })
+        });
+        let image = image_url
+            .and_then(|url| self.asset_cache.raster(url.as_str()))
+            .and_then(Result::ok);
         let host = HostPaint {
             text: resolved.host_text,
             text_runs: previous
@@ -487,6 +511,7 @@ impl Applier {
                 .map(|paint| paint.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
             svg: previous.and_then(|paint| paint.svg.clone()),
+            image,
             widget: previous.and_then(|paint| paint.widget.clone()),
             intrinsic_size: resolved.host_intrinsic,
             runtime_transform: self.runtime_transforms.get(&node).copied(),
@@ -757,6 +782,20 @@ impl Applier {
                         _ => {}
                     }
                 }
+            }
+            if decl.tag.and_then(|tag| atoms.resolve(tag)) == Some("img")
+                && let Some(url) = decl.attrs.iter().find_map(|(name, source)| {
+                    (atoms.resolve(*name) == Some("image-source"))
+                        .then(|| remote_image_url(source))
+                        .flatten()
+                })
+                && let Some(size) = self
+                    .asset_cache
+                    .raster(url.as_str())
+                    .and_then(Result::ok)
+                    .map(|image| image.size())
+            {
+                host_intrinsic = Some(size);
             }
             // Replaced elements paint their own content. Standard text would
             // otherwise be drawn a second time underneath the widget scene.

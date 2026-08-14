@@ -6,6 +6,7 @@
 //! lays out + rasterises at vsync. Modeled on blitz-js.
 
 pub mod applier;
+mod asset_cache;
 pub mod atom;
 pub mod clock;
 pub mod config;

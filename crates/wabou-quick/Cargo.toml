@@ -12,6 +12,7 @@ path = "src/lib.rs"
 [dependencies]
 bitflags = { workspace = true }
 bon = { workspace = true }
+foyer = "0.22.3"
 futures-lite = "2"
 lasso = "0.7.3"
 open = { workspace = true }

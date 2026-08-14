@@ -28,6 +28,7 @@ use std::time::{Duration, Instant};
 use vello::peniko::Color;
 
 use crate::applier::Applier;
+use crate::asset_cache::AssetCache;
 use crate::jsrt::JsRuntime;
 use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
 use wabou_shell::{Widget, WidgetFactory};
@@ -310,6 +311,15 @@ impl HostBuilder {
             .try_init()
             .ok();
 
+        let asset_cache = Arc::new(if let Some(directories) = &app_directories {
+            AssetCache::with_disk(&directories.cache_dir).unwrap_or_else(|error| {
+                tracing::warn!(%error, "failed to enable persistent asset cache");
+                AssetCache::memory_only()
+            })
+        } else {
+            AssetCache::memory_only()
+        });
+
         #[cfg(feature = "vite")]
         let vite = std::env::var("WABOU_VITE_URL").ok().map(|url| {
             let entry =
@@ -361,6 +371,7 @@ impl HostBuilder {
                 self.base_color,
                 index as u64 + 1,
             );
+            applier.set_asset_cache(asset_cache.clone());
             if let Some(directories) = &app_directories {
                 applier.set_app_directories(directories.clone());
             }
@@ -420,6 +431,7 @@ impl HostBuilder {
         let child_debug_state = debug_state.clone();
         let child_effect_trace = effect_trace.clone();
         let child_app_directories = app_directories.clone();
+        let child_asset_cache = asset_cache.clone();
         #[cfg(feature = "vite")]
         let child_vite = vite.clone();
         #[cfg(feature = "vite")]
@@ -449,6 +461,7 @@ impl HostBuilder {
                 base_color,
                 window_id,
             );
+            applier.set_asset_cache(child_asset_cache.clone());
             if let Some(directories) = &child_app_directories {
                 applier.set_app_directories(directories.clone());
             }

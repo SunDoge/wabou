@@ -5,7 +5,7 @@ import {
   spread,
 } from "@wabou/solid-renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
-import type { JSX } from "solid-js";
+import { splitProps, type JSX } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/style";
 export { rotate2d, translate2d } from "@wabou/style";
@@ -40,8 +40,40 @@ export interface ViewProps extends PrimitiveProps {}
 
 export interface TextProps extends PrimitiveProps {}
 
+export interface SvgProps extends Omit<PrimitiveProps, "children"> {
+  /** Trusted inline SVG source parsed and cached by the native host. */
+  source: string;
+}
+
+export interface IconProps extends Omit<SvgProps, "source"> {
+  source: string;
+  size?: number;
+  /** Override Lucide's root `fill="none"`, for example with currentColor. */
+  fill?: "none" | "currentColor";
+  /** Accessible name. Omit for a decorative icon. */
+  label?: string;
+}
+
+export interface NetworkImageSource {
+  kind: "network";
+  url: string;
+  format: "png";
+  /** Decoded pixels are shared by URL for the lifetime of this native runtime. */
+  cache: "memory";
+}
+
+export type ImageSource = NetworkImageSource;
+
 export interface ImageProps extends Omit<PrimitiveProps, "children"> {
-  src?: string;
+  /** Low-level native source. Prefer a source-specific component. */
+  source?: ImageSource;
+}
+
+export interface NetworkImageProps extends Omit<ImageProps, "source"> {
+  /** This component performs a host network request for the URL. */
+  url: string;
+  format: "png";
+  cache: "memory";
 }
 
 export interface TextAreaProps extends Omit<PrimitiveProps, "children"> {
@@ -62,7 +94,7 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
 }
 
 function primitive(
-  tag: "view" | "text" | "img" | "textarea" | "password-input",
+  tag: "view" | "text" | "svg" | "img" | "textarea" | "password-input",
   props: PrimitiveProps,
 ) {
   const node = createElement(tag);
@@ -85,9 +117,70 @@ export function Text(props: TextProps): JSX.Element {
   return primitive("text", props);
 }
 
+/** A static SVG asset rendered through the native usvg/Vello pipeline. */
+export function Svg(props: SvgProps): JSX.Element {
+  return primitive("svg", props);
+}
+
+/** A theme-colored SVG icon with stable native sizing and semantics. */
+export function Icon(props: IconProps): JSX.Element {
+  const [icon, rest] = splitProps(props, ["source", "size", "fill", "label"]);
+  const node = createElement("svg");
+  spread(node, rest, false);
+  spread(
+    node,
+    {
+      get source() {
+        return icon.fill && icon.fill !== "none"
+          ? icon.source.replace('fill="none"', `fill="${icon.fill}"`)
+          : icon.source;
+      },
+      get width() {
+        return String(icon.size ?? 24);
+      },
+      get height() {
+        return String(icon.size ?? 24);
+      },
+      get role() {
+        return icon.label ? "img" : undefined;
+      },
+      get "aria-label"() {
+        return icon.label;
+      },
+      get "aria-hidden"() {
+        return icon.label ? undefined : "true";
+      },
+    },
+    false,
+  );
+  return node as unknown as JSX.Element;
+}
+
 /** A replaced image node rendered by the native host. */
 export function Image(props: ImageProps): JSX.Element {
   return primitive("img", props);
+}
+
+/** An explicit network-backed image with bounded decoding and host caching. */
+export function NetworkImage(props: NetworkImageProps): JSX.Element {
+  const [network, rest] = splitProps(props, ["url", "format", "cache"]);
+  const node = createElement("img");
+  spread(node, rest, false);
+  spread(
+    node,
+    {
+      get source(): NetworkImageSource {
+        return {
+          kind: "network",
+          url: network.url,
+          format: network.format,
+          cache: network.cache,
+        };
+      },
+    },
+    false,
+  );
+  return node as unknown as JSX.Element;
 }
 
 /** A native multiline text editor with wrapping, selection, and scrolling. */

@@ -1,10 +1,10 @@
 // Story list page.
 import { useNavigate } from "@wabou/router";
-import { Button, createHover, Text } from "@wabou/primitives";
-import Bookmark from "lucide-solid/icons/bookmark";
-import MessageSquare from "lucide-solid/icons/message-square";
-import Search from "lucide-solid/icons/search";
-import X from "lucide-solid/icons/x";
+import { Button, createHover, Icon, Text } from "@wabou/primitives";
+import bookmark from "lucide-static/icons/bookmark.svg?raw";
+import messageSquare from "lucide-static/icons/message-square.svg?raw";
+import search from "lucide-static/icons/search.svg?raw";
+import x from "lucide-static/icons/x.svg?raw";
 import { createMemo, For, type JSX, Show } from "solid-js";
 import { LoadingList } from "../components/LoadingList";
 import { useTheme } from "../contexts/ThemeContext";
@@ -72,7 +72,7 @@ export function StoryList(): JSX.Element {
             color: palette().textMuted,
           }}
         >
-          <Search size={15} />
+          <Icon source={search} size={15} />
           <input
             class="w-full min-w-0 border-0 bg-transparent text-sm"
             style={{ color: palette().text }}
@@ -83,7 +83,7 @@ export function StoryList(): JSX.Element {
             onInput={(event) => setQuery(event.currentTarget.value)}
           />
           <Show when={query()}>
-            <X size={14} onClick={() => setQuery("")} />
+            <Icon source={x} size={14} onClick={() => setQuery("")} />
           </Show>
         </label>
       </header>
@@ -158,7 +158,7 @@ export function StoryList(): JSX.Element {
                           class="w-12 flex-none flex items-center justify-end gap-1 text-xs"
                           style={{ color: palette().textMuted }}
                         >
-                          <MessageSquare size={13} />
+                          <Icon source={messageSquare} size={13} />
                           {story.descendants ?? 0}
                         </span>
                         <BookmarkAction story={story} />
@@ -208,7 +208,8 @@ function BookmarkAction(props: { story: Story }): JSX.Element {
       onClick={(event) => toggle(event as MouseEvent)}
       title={isSaved(props.story.id) ? "Remove saved story" : "Save story"}
     >
-      <Bookmark
+      <Icon
+        source={bookmark}
         size={16}
         fill={isSaved(props.story.id) ? "currentColor" : "none"}
       />
@@ -251,7 +252,7 @@ function EmptyState(): JSX.Element {
       class="min-h-80 flex flex-col items-center justify-center gap-2 text-center"
       style={{ color: palette().textMuted }}
     >
-      <Bookmark size={22} />
+      <Icon source={bookmark} size={22} />
       <strong style={{ color: palette().text }}>
         {activeView() === "saved" ? "No saved stories" : "No matching stories"}
       </strong>

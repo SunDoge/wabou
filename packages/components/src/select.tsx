@@ -4,6 +4,7 @@ import {
 } from "@wabou/interactions";
 import {
   Button as HeadlessButton,
+  Icon,
   Popover,
   ScrollArea,
   Text,
@@ -12,7 +13,7 @@ import {
 import type { Handle } from "@wabou/solid-renderer";
 import { createUniqueId, Index, type JSX } from "solid-js";
 import { match } from "ts-pattern";
-import ChevronDown from "lucide-solid/icons/chevron-down";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -156,7 +157,7 @@ export function Select(props: SelectProps): JSX.Element {
           >
             {selected()?.label ?? props.placeholder ?? "Select an option"}
           </Text>
-          <ChevronDown class="flex-none text-muted" size={16} />
+          <Icon source={chevronDown} class="flex-none text-muted" size={16} />
         </HeadlessButton>
       )}
     >

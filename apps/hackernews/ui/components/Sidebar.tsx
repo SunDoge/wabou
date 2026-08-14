@@ -4,16 +4,17 @@ import {
   Button,
   createActive,
   createHover,
+  Icon,
   Text,
   View,
 } from "@wabou/primitives";
-import Award from "lucide-solid/icons/award";
-import Bookmark from "lucide-solid/icons/bookmark";
-import Clock from "lucide-solid/icons/clock";
-import Moon from "lucide-solid/icons/moon";
-import Newspaper from "lucide-solid/icons/newspaper";
-import RefreshCw from "lucide-solid/icons/refresh-cw";
-import Sun from "lucide-solid/icons/sun";
+import award from "lucide-static/icons/award.svg?raw";
+import bookmark from "lucide-static/icons/bookmark.svg?raw";
+import clock from "lucide-static/icons/clock.svg?raw";
+import moon from "lucide-static/icons/moon.svg?raw";
+import newspaper from "lucide-static/icons/newspaper.svg?raw";
+import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
+import sun from "lucide-static/icons/sun.svg?raw";
 import { type JSX, onMount } from "solid-js";
 import { useTheme } from "../contexts/ThemeContext";
 import {
@@ -78,19 +79,19 @@ export function Sidebar(): JSX.Element {
         <SidebarNavItem
           active={activeView() === "top"}
           count={activeView() === "top" ? stories().length : undefined}
-          icon={<Newspaper size={17} />}
+          icon={<Icon source={newspaper} size={17} />}
           label="Top"
           onActivate={() => openView("top")}
         />
         <SidebarNavItem
           active={activeView() === "new"}
-          icon={<Clock size={17} />}
+          icon={<Icon source={clock} size={17} />}
           label="New"
           onActivate={() => openView("new")}
         />
         <SidebarNavItem
           active={activeView() === "best"}
-          icon={<Award size={17} />}
+          icon={<Icon source={award} size={17} />}
           label="Best"
           onActivate={() => openView("best")}
         />
@@ -104,7 +105,7 @@ export function Sidebar(): JSX.Element {
         <SidebarNavItem
           active={activeView() === "saved"}
           count={savedStories().length || undefined}
-          icon={<Bookmark size={17} />}
+          icon={<Icon source={bookmark} size={17} />}
           label="Saved"
           onActivate={() => openView("saved")}
         />
@@ -115,13 +116,13 @@ export function Sidebar(): JSX.Element {
         style={{ "border-color": palette().border }}
       >
         <SidebarAction
-          icon={theme() === "light" ? <Moon size={16} /> : <Sun size={16} />}
+          icon={<Icon source={theme() === "light" ? moon : sun} size={16} />}
           label={theme() === "light" ? "Dark theme" : "Light theme"}
           onActivate={toggleTheme}
         />
         <SidebarAction
           disabled={loading()}
-          icon={<RefreshCw size={16} />}
+          icon={<Icon source={refreshCw} size={16} />}
           label={loading() ? "Refreshing..." : "Refresh"}
           onActivate={() => void loadStories(undefined, true)}
         />

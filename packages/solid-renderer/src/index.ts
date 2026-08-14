@@ -313,6 +313,33 @@ function applyProperty(
     });
     return;
   }
+  if (name === "source") {
+    if (node.tag === "svg") {
+      if (value == null || value === false) {
+        writer.removeAttribute(node.id, "svg-source");
+      } else if (typeof value === "string") {
+        writer.setAttribute(node.id, "svg-source", value);
+      } else {
+        throw new TypeError("invalid native SVG source");
+      }
+      return;
+    }
+    if (value == null || value === false) {
+      writer.removeAttribute(node.id, "image-source");
+      return;
+    }
+    if (
+      typeof value !== "object" ||
+      (value as { kind?: unknown }).kind !== "network" ||
+      typeof (value as { url?: unknown }).url !== "string" ||
+      (value as { format?: unknown }).format !== "png" ||
+      (value as { cache?: unknown }).cache !== "memory"
+    ) {
+      throw new TypeError("invalid native image source");
+    }
+    writer.setAttribute(node.id, "image-source", JSON.stringify(value));
+    return;
+  }
   if (name === "transform") {
     const matrix =
       value == null || value === false ? [1, 0, 0, 1, 0, 0] : value;

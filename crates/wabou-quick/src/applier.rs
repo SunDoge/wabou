@@ -42,6 +42,7 @@ use wabou_shell::{
     SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, UiEvent, WakeCallback,
 };
 
+use crate::asset_cache::AssetCache;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 
 mod debug_projection;
@@ -74,6 +75,20 @@ use node_store::NodeStore;
 use projections::FrameProjections;
 use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
+
+#[derive(serde::Deserialize)]
+struct NetworkImageSource {
+    kind: String,
+    url: String,
+    format: String,
+    cache: String,
+}
+
+fn remote_image_url(encoded: &str) -> Option<String> {
+    let source: NetworkImageSource = serde_json::from_str(encoded).ok()?;
+    (source.kind == "network" && source.format == "png" && source.cache == "memory")
+        .then_some(source.url)
+}
 
 fn declared_attribute_is(
     declared: &Declared,
@@ -337,6 +352,11 @@ struct TextSelectionSnapshot {
     kind: Option<&'static str>,
 }
 
+struct ImageLoadResult {
+    source: Arc<str>,
+    result: Result<Arc<wabou_shell::image::RasterImage>, Arc<str>>,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextSelectionGranularity {
     #[default]
@@ -412,10 +432,14 @@ pub struct Applier {
     /// Rejections from the latest cascade pass, keyed by native node for
     /// DevTools inspection.
     style_diagnostics: HashMap<NodeId, Vec<String>>,
-    /// Serialized source + parsed Vello fragment for each inline `<svg>` root.
-    /// Source comparison makes attribute/child changes self-invalidating while
-    /// keeping parsing out of the per-frame paint path.
+    /// Current serialized source + parsed fragment bound to each `<svg>` node.
     svg_cache: HashMap<NodeId, (Arc<str>, Arc<wabou_shell::svg::SvgImage>)>,
+    /// Encoded network assets use Foyer's memory/disk hybrid cache. Decoded
+    /// paint resources are shared in memory by stable source keys.
+    asset_cache: Arc<AssetCache>,
+    pending_images: HashSet<Arc<str>>,
+    image_result_tx: mpsc::Sender<ImageLoadResult>,
+    image_result_rx: mpsc::Receiver<ImageLoadResult>,
     /// Explicit host-driven transform state, independent of the CSS cascade.
     runtime_transforms: HashMap<NodeId, [f32; 6]>,
     /// Explicit host stacking planes, independent from CSS cascade/z-index.
@@ -795,6 +819,7 @@ impl Applier {
 
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
         let host_action_wake = Rc::new(RefCell::new(None));
+        let (image_result_tx, image_result_rx) = mpsc::channel();
         let pending_js_effects = Rc::new(RefCell::new(HashSet::new()));
         let pending_effects = Rc::new(RefCell::new(VecDeque::new()));
         let effect_trace = Rc::new(RefCell::new(None));
@@ -830,6 +855,10 @@ impl Applier {
             inline_properties: HashMap::new(),
             style_diagnostics: HashMap::new(),
             svg_cache: HashMap::new(),
+            asset_cache: Arc::new(AssetCache::memory_only()),
+            pending_images: HashSet::new(),
+            image_result_tx,
+            image_result_rx,
             runtime_transforms: HashMap::new(),
             overlay_planes: HashMap::new(),
             scrollbar_styles: HashMap::new(),
@@ -911,6 +940,10 @@ impl Applier {
 
     pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
         *self.app_directories.borrow_mut() = Some(directories);
+    }
+
+    pub(crate) fn set_asset_cache(&mut self, cache: Arc<AssetCache>) {
+        self.asset_cache = cache;
     }
 
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {

@@ -6,7 +6,12 @@ Solid primitives for Wabou applications.
 import { Image, Text, View } from "@wabou/primitives";
 
 <View class="flex items-center gap-2">
-  <Image class="w-6 h-6" src="avatar.png" />
+  <NetworkImage
+    class="w-6 h-6"
+    url={avatarUrl}
+    format="png"
+    cache="memory"
+  />
   <Text class="text-sm">{count()} stories</Text>
 </View>;
 ```

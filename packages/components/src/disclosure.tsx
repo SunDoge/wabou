@@ -2,6 +2,7 @@ import { createTransition } from "@wabou/animation";
 import {
   Button,
   CollapsiblePresence,
+  Icon,
   rotate2d,
   Text,
   View,
@@ -13,7 +14,7 @@ import {
   toggleSelection,
 } from "@wabou/interactions";
 import { createContext, type JSX, useContext } from "solid-js";
-import ChevronDown from "lucide-solid/icons/chevron-down";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -217,7 +218,7 @@ export function AccordionTrigger(props: {
           transform={rotate2d(rotation.value())}
           aria-hidden="true"
         >
-          <ChevronDown class="text-muted" size={16} />
+          <Icon source={chevronDown} class="text-muted" size={16} />
         </View>
       </View>
     </Button>

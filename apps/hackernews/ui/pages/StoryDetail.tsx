@@ -1,9 +1,9 @@
 // Story detail page.
 import { useNavigate, useParams } from "@wabou/router";
-import { Button, Text } from "@wabou/primitives";
-import ArrowLeft from "lucide-solid/icons/arrow-left";
-import Bookmark from "lucide-solid/icons/bookmark";
-import ExternalLink from "lucide-solid/icons/external-link";
+import { Button, Icon, Text } from "@wabou/primitives";
+import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
+import bookmark from "lucide-static/icons/bookmark.svg?raw";
+import externalLink from "lucide-static/icons/external-link.svg?raw";
 import { createMemo, type JSX, Show } from "solid-js";
 import { useTheme } from "../contexts/ThemeContext";
 import {
@@ -47,7 +47,7 @@ export function StoryDetail(): JSX.Element {
           })}
           onClick={goBack}
         >
-          <ArrowLeft size={14} />
+          <Icon source={arrowLeft} size={14} />
           Back
         </Button>
       </header>
@@ -89,7 +89,7 @@ export function StoryDetail(): JSX.Element {
                     }}
                     href={current().url}
                   >
-                    Open article <ExternalLink size={14} />
+                    Open article <Icon source={externalLink} size={14} />
                   </a>
                 </Show>
                 <span
@@ -118,7 +118,8 @@ export function StoryDetail(): JSX.Element {
                   })}
                   onClick={() => toggleSaved(current())}
                 >
-                  <Bookmark
+                  <Icon
+                    source={bookmark}
                     size={14}
                     fill={isSaved(current().id) ? "currentColor" : "none"}
                   />

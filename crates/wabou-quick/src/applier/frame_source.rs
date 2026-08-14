@@ -240,6 +240,37 @@ impl FrameSource for Applier {
         self.js.take_async_wake();
         self.js.poll_async_runtime();
 
+        while let Ok(loaded) = self.image_result_rx.try_recv() {
+            self.pending_images.remove(&loaded.source);
+            if let Err(error) = &loaded.result {
+                tracing::warn!(source = %loaded.source, %error, "failed to load image");
+            } else {
+                tracing::debug!(source = %loaded.source, "network image loaded");
+            }
+            self.asset_cache
+                .insert_raster(loaded.source.to_string(), loaded.result);
+            let image_nodes = self
+                .node_store
+                .declared
+                .iter()
+                .filter_map(|(node, declared)| {
+                    declared
+                        .attrs
+                        .iter()
+                        .any(|(name, value)| {
+                            self.atoms.borrow().resolve(*name) == Some("image-source")
+                                && remote_image_url(value).is_some_and(|url| {
+                                    self.asset_cache.raster(url.as_str()).is_some()
+                                })
+                        })
+                        .then_some(*node)
+                })
+                .collect::<Vec<_>>();
+            for node in image_nodes {
+                self.recompute_node(node);
+            }
+        }
+
         self.drain_pending_fonts(tcx);
 
         self.drain_pending_stylesheet();

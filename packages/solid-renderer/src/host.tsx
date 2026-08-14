@@ -7,7 +7,12 @@ import type {
 } from "./generated/native-host";
 import type { HostCapabilities } from "./index";
 
-export type { FrameStats, LayoutNodeMetrics, LayoutRect, LayoutSnapshot } from "./generated/native-host";
+export type {
+  FrameStats,
+  LayoutNodeMetrics,
+  LayoutRect,
+  LayoutSnapshot,
+} from "./generated/native-host";
 
 declare function __wabou_open_url(url: string): boolean;
 declare function __wabou_load_font(path: string): boolean;
@@ -51,7 +56,9 @@ const nativeHost: NativeHostApi = {
   loadFont: (path) => __wabou_load_font(path),
   frameStats: () => JSON.parse(__wabou_frame_stats()) as FrameStats | null,
   layoutSnapshot: (ids) =>
-    JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids))) as LayoutSnapshot,
+    JSON.parse(
+      __wabou_layout_snapshot(Uint32Array.from(ids)),
+    ) as LayoutSnapshot,
 };
 
 const builtinHost: BuiltinHost = {

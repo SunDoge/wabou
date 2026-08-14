@@ -1,4 +1,4 @@
-import { Center, Image, Text, View } from "@wabou/primitives";
+import { Center, NetworkImage, Text, View } from "@wabou/primitives";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
 const join = (...values: Array<string | undefined | false>) =>
@@ -29,7 +29,12 @@ export function Avatar(props: AvatarProps) {
       )}
     >
       {props.src ? (
-        <Image src={props.src} class="w-full h-full" />
+        <NetworkImage
+          url={props.src}
+          format="png"
+          cache="memory"
+          class="w-full h-full"
+        />
       ) : (
         <Text class="font-medium text-secondary">{props.fallback}</Text>
       )}

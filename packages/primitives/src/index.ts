@@ -112,10 +112,18 @@ export {
 } from "./tabs";
 export {
   type Affine2D,
+  Icon,
+  type IconProps,
   Image,
   type ImageProps,
+  type ImageSource,
+  type NetworkImageSource,
+  NetworkImage,
+  type NetworkImageProps,
   PasswordInput,
   type PasswordInputProps,
+  Svg,
+  type SvgProps,
   Text,
   TextArea,
   type TextAreaProps,

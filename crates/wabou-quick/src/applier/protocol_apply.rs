@@ -217,6 +217,11 @@ impl Applier {
             }
             declared.attrs.insert(name, Arc::from(value));
         }
+        if self.atoms.borrow().resolve(name) == Some("image-source") {
+            if let Some(url) = remote_image_url(value) {
+                self.load_image_source(&url);
+            }
+        }
         if !is_class
             && let Some(widget) = self.widget_manager.widgets.get_mut(&node)
             && let Some(name) = self.atoms.borrow().resolve(name)
@@ -224,6 +229,72 @@ impl Applier {
             widget.attribute_changed(name, value);
         }
         self.recompute_node(node);
+    }
+
+    fn load_image_source(&mut self, value: &str) {
+        let source: Arc<str> = Arc::from(value);
+        if self.asset_cache.raster(source.as_ref()).is_some()
+            || !self.pending_images.insert(source.clone())
+        {
+            return;
+        }
+        let Ok(url) = url::Url::parse(value) else {
+            self.pending_images.remove(&source);
+            self.asset_cache.insert_raster(
+                source.to_string(),
+                Err(Arc::from("network image URL must use HTTP(S)")),
+            );
+            return;
+        };
+        if !matches!(url.scheme(), "http" | "https") {
+            self.pending_images.remove(&source);
+            self.asset_cache.insert_raster(
+                source.to_string(),
+                Err(Arc::from("network image URL must use HTTP(S)")),
+            );
+            return;
+        }
+        let tx = self.image_result_tx.clone();
+        let wake = self.wake_callback.clone();
+        let asset_cache = self.asset_cache.clone();
+        tracing::debug!(source = %source, "loading network image");
+        let load = async move {
+            const MAX_IMAGE_BYTES: usize = 1024 * 1024;
+            let result = async {
+                let bytes = if let Some(bytes) = asset_cache.encoded(source.as_ref()).await {
+                    bytes
+                } else {
+                    let response = reqwest::get(url)
+                        .await
+                        .map_err(|error| error.to_string())?
+                        .error_for_status()
+                        .map_err(|error| error.to_string())?;
+                    if response
+                        .content_length()
+                        .is_some_and(|size| size > MAX_IMAGE_BYTES as u64)
+                    {
+                        return Err("image response exceeds 1 MiB".to_string());
+                    }
+                    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+                    if bytes.len() > MAX_IMAGE_BYTES {
+                        return Err("image response exceeds 1 MiB".to_string());
+                    }
+                    let bytes = bytes.to_vec();
+                    asset_cache.insert_encoded(source.to_string(), bytes.clone());
+                    bytes
+                };
+                wabou_shell::image::RasterImage::decode_png(&bytes)
+                    .map(Arc::new)
+                    .map_err(|error| error.to_string())
+            }
+            .await
+            .map_err(Arc::<str>::from);
+            let _ = tx.send(ImageLoadResult { source, result });
+            if let Some(wake) = wake {
+                wake();
+            }
+        };
+        self.asset_cache.spawn(load);
     }
 
     fn remove_attribute(&mut self, id: u32, name: Atom) {

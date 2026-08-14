@@ -20,7 +20,7 @@
     "@wabou/interactions": "workspace:*",
     "@wabou/primitives": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
-    "lucide-solid": "^1.24.0",
+    "lucide-static": "1.31.0",
     "solid-js": "1.9.14",
     "ts-pattern": "^5.9.0"
   }
