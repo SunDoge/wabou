@@ -22,6 +22,7 @@ pub(crate) const SPACING: &[(&str, f32)] = &[
     ("16", 64.0),
     ("18", 72.0),
     ("20", 80.0),
+    ("22", 88.0),
     ("24", 96.0),
     ("28", 112.0),
     ("32", 128.0),
@@ -735,6 +736,18 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         (
             "max-w-4xl",
             vec![length("max-width", Length::Px { value: 896.0 })],
+        ),
+        (
+            "max-w-5xl",
+            vec![length("max-width", Length::Px { value: 1024.0 })],
+        ),
+        (
+            "max-w-6xl",
+            vec![length("max-width", Length::Px { value: 1152.0 })],
+        ),
+        (
+            "max-w-7xl",
+            vec![length("max-width", Length::Px { value: 1280.0 })],
         ),
     ])
 }

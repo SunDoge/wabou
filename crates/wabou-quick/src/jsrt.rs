@@ -18,7 +18,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context as TaskContext, Poll, Wake, Waker};
 
-use rquickjs::{AsyncContext, AsyncRuntime, CatchResultExt, Ctx, Function, Object, TypedArray};
+use rquickjs::{
+    AsyncContext, AsyncRuntime, CatchResultExt, Ctx, Function, Object, TypedArray,
+    context::EvalOptions,
+};
 pub(crate) use wabou_host_api::LayoutRect;
 use wabou_host_api::{FrameStats as HostFrameStats, LayoutNodeMetrics, LayoutSnapshot};
 type JsResult<T> = rquickjs::Result<T>;
@@ -43,6 +46,11 @@ use crate::style_ir::{ColorThemes, StylesheetUpdate};
 use wabou_shell::FrameStats;
 
 const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
+// Solid 2's universal renderer mounts nested JSX synchronously. A realistic
+// desktop page can consume more than QuickJS's previous 2 MiB C-stack budget
+// without containing a reactive cycle. Keep this below the usual 8 MiB native
+// main-thread stack so QuickJS still raises a catchable RangeError first.
+const QUICKJS_STACK_SIZE: usize = 6 * 1024 * 1024;
 
 #[derive(serde::Deserialize, Default)]
 struct FetchInit {
@@ -93,6 +101,7 @@ pub struct JsRuntime {
     out: Rc<RefCell<Vec<u8>>>,
     /// True once the app's initial render has been evaluated.
     booted: bool,
+    source_map: Rc<RefCell<Option<crate::source_map::StackSourceMap>>>,
     /// Stylesheet pushed through `__wabou_set_stylesheet` (JSON parsed by host
     /// into the atomic-CSS dict). Drained by the Applier in build_frame.
     pending_css: Rc<RefCell<Option<StylesheetUpdate>>>,
@@ -139,7 +148,7 @@ impl JsRuntime {
     pub fn new_with_clock(clock: Arc<dyn crate::Clock>) -> JsResult<Self> {
         let rt = AsyncRuntime::new()?;
         futures_lite::future::block_on(async {
-            rt.set_max_stack_size(2048 * 1024).await;
+            rt.set_max_stack_size(QUICKJS_STACK_SIZE).await;
         });
         Self::build_inner(rt, clock)
     }
@@ -158,6 +167,7 @@ impl JsRuntime {
             pending: AtomicBool::new(false),
         });
         let resize_targets = Rc::new(RefCell::new(HashMap::new()));
+        let source_map = Rc::new(RefCell::new(None));
         futures_lite::future::block_on(ctx.with(|ctx| -> JsResult<()> {
             let globals = ctx.globals();
             globals.set("__wabou_capabilities", Object::new(ctx.clone())?)?;
@@ -182,6 +192,7 @@ impl JsRuntime {
             ctx,
             out,
             booted: false,
+            source_map,
             pending_css: Rc::new(RefCell::new(None)),
             pending_color_theme: Rc::new(RefCell::new(None)),
             color_themes: Rc::new(RefCell::new(None)),
@@ -216,9 +227,16 @@ impl JsRuntime {
     pub fn register_core_host_fns(&self) -> JsResult<()> {
         self.with(|ctx| -> JsResult<()> {
             let globals = ctx.globals();
+            let source_map = self.source_map.clone();
             globals.set(
                 "__wabou_log",
-                rquickjs::Function::new(ctx.clone(), crate::host_ffi::host_log)?
+                rquickjs::Function::new(ctx.clone(), move |tag: String, msg: String| {
+                    let mapped = source_map
+                        .borrow()
+                        .as_ref()
+                        .map_or_else(|| msg.clone(), |map| map.map_stack(&msg));
+                    crate::host_ffi::host_log(tag, mapped);
+                })?
                     .with_name("__wabou_log")?,
             )?;
             globals.set(
@@ -625,12 +643,25 @@ impl JsRuntime {
     /// initial render (emitting ops into the writer, flushed on first tick).
     /// Call once before ticking.
     pub fn boot(&mut self, source: &str) -> JsResult<()> {
+        self.boot_with_source_map(source, None)
+    }
+
+    pub(crate) fn boot_with_source_map(
+        &mut self,
+        source: &str,
+        source_map: Option<&[u8]>,
+    ) -> JsResult<()> {
         if self.booted {
             return Ok(());
         }
+        *self.source_map.borrow_mut() =
+            source_map.and_then(crate::source_map::StackSourceMap::parse);
         let src = source.to_string();
+        let mapped_source_map = self.source_map.clone();
         self.with(|ctx| -> JsResult<()> {
-            ctx.eval::<(), _>(src.as_str())
+            let mut options = EvalOptions::default();
+            options.filename = Some("bundle.js".to_owned());
+            ctx.eval_with_options::<(), _>(src.as_str(), options)
                 .catch(&ctx)
                 .map_err(|caught| {
                     match caught {
@@ -647,6 +678,10 @@ impl JsRuntime {
                                 eprintln!("  Message: {msg}");
                             }
                             if let Some(stack) = e.stack() {
+                                let stack = mapped_source_map
+                                    .borrow()
+                                    .as_ref()
+                                    .map_or_else(|| stack.clone(), |map| map.map_stack(&stack));
                                 eprintln!("  Stack: {stack}");
                             }
                         }

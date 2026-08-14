@@ -49,6 +49,9 @@ fn named_container_widths_are_scoped_to_max_width() {
         ("max-w-2xl", 672.0),
         ("max-w-3xl", 768.0),
         ("max-w-4xl", 896.0),
+        ("max-w-5xl", 1024.0),
+        ("max-w-6xl", 1152.0),
+        ("max-w-7xl", 1280.0),
     ] {
         assert_eq!(
             parse_utility(candidate).unwrap().declarations[0].value,
@@ -63,6 +66,16 @@ fn named_container_widths_are_scoped_to_max_width() {
             "{candidate} must be rejected"
         );
     }
+}
+
+#[test]
+fn spacing_scale_includes_eighty_eight_pixels() {
+    assert_eq!(
+        parse_utility("min-h-22").unwrap().declarations[0].value,
+        Value::Length {
+            value: Length::Px { value: 88.0 }
+        }
+    );
 }
 
 #[test]

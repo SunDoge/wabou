@@ -954,6 +954,14 @@ impl Applier {
         self.js.boot(source)
     }
 
+    pub(crate) fn boot_with_source_map(
+        &mut self,
+        source: &str,
+        source_map: Option<&[u8]>,
+    ) -> rquickjs::Result<()> {
+        self.js.boot_with_source_map(source, source_map)
+    }
+
     pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
         self.js.eval_script(source)
     }

@@ -1,8 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import type { Plugin, UserConfig } from "vite";
+import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 import { defineWabouConfig, wabouPlugins } from "./index";
 
 describe("@wabou/vite", () => {
+  async function resolveConfig(
+    exported: UserConfigExport,
+    command: ConfigEnv["command"] = "build",
+  ): Promise<UserConfig> {
+    if (typeof exported !== "function") return await exported;
+    return await exported({
+      command,
+      mode: command === "serve" ? "development" : "production",
+      isSsrBuild: false,
+      isPreview: false,
+    });
+  }
+
   test("composes the required Wabou plugins in stable order", () => {
     expect(wabouPlugins("/app").map((plugin: Plugin) => plugin.name)).toEqual([
       "wabou-style-compiler",
@@ -12,12 +25,13 @@ describe("@wabou/vite", () => {
     ]);
   });
 
-  test("defines conventional entry and bundle output", () => {
-    const config = defineWabouConfig({
+  test("defines conventional entry and bundle output", async () => {
+    const config = await resolveConfig(defineWabouConfig({
       outDir: "/dist/demo/resources",
-    }) as UserConfig;
+    }));
     expect(config.build?.outDir).toBe("/dist/demo/resources");
     expect(config.build?.cssCodeSplit).toBe(false);
+    expect(config.build?.sourcemap).toBe(true);
     expect(config.build?.lib).toMatchObject({
       entry: "ui/index.tsx",
       formats: ["iife"],
@@ -31,16 +45,26 @@ describe("@wabou/vite", () => {
     );
   });
 
-  test("merges app-specific Vite overrides", () => {
+  test("merges app-specific Vite overrides", async () => {
     const extra: Plugin = { name: "app-plugin" };
-    const config = defineWabouConfig({
+    const config = await resolveConfig(defineWabouConfig({
       outDir: "dist",
       globalName: "Inspector",
       vite: { plugins: [extra], build: { sourcemap: true } },
-    }) as UserConfig;
+    }));
     expect(config.build?.sourcemap).toBe(true);
     expect(config.build?.lib).toMatchObject({ name: "Inspector" });
     expect(config.plugins).toContain(extra);
+  });
+
+  test("uses Solid development diagnostics while serving", async () => {
+    const config = await resolveConfig(
+      defineWabouConfig({ outDir: "dist" }),
+      "serve",
+    );
+    expect(config.define?.["process.env.NODE_ENV"]).toBe(
+      JSON.stringify(process.env.NODE_ENV ?? "development"),
+    );
   });
 
   test("selects an entry from the Vite mode", async () => {

@@ -4,6 +4,13 @@ import "../host";
 
 const runtime = globalThis as Record<string, any>;
 
+// QuickJS defaults to ten captured frames. Reactive feedback loops easily
+// consume those inside Solid before the application component is reached,
+// leaving even a valid source map with no business-code location to report.
+if (typeof runtime.Error === "function") {
+  runtime.Error.stackTraceLimit = 100;
+}
+
 class HostTextEncoder {
   readonly encoding = "utf-8";
 

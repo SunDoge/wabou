@@ -72,20 +72,26 @@ export function defineWabouConfig(
 ): UserConfigExport {
   if (typeof options === "function") {
     return defineConfig((environment) =>
-      resolveWabouConfig(options(environment)),
+      resolveWabouConfig(options(environment), environment),
     );
   }
-  return defineConfig(resolveWabouConfig(options));
+  return defineConfig((environment) =>
+    resolveWabouConfig(options, environment),
+  );
 }
 
-function resolveWabouConfig(options: WabouViteOptions): UserConfig {
+function resolveWabouConfig(
+  options: WabouViteOptions,
+  environment: ConfigEnv,
+): UserConfig {
   const root = options.root ?? process.cwd();
   const outDir = options.outDir ?? manifestOutDir(root);
   const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
   const defaults: UserConfig = {
     define: {
       "process.env.NODE_ENV": JSON.stringify(
-        process.env.NODE_ENV ?? "production",
+        process.env.NODE_ENV ??
+          (environment.command === "serve" ? "development" : "production"),
       ),
     },
     plugins: wabouPlugins(root, options.theme, options.ignoreClasses),
@@ -96,6 +102,9 @@ function resolveWabouConfig(options: WabouViteOptions): UserConfig {
       },
     },
     build: {
+      // The native QuickJS host consumes this map to report TS/TSX locations
+      // instead of opaque generated bundle offsets.
+      sourcemap: true,
       lib: {
         entry: options.entry ?? "ui/index.tsx",
         formats: ["iife"],

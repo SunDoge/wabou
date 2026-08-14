@@ -21,6 +21,7 @@ pub mod host_message;
 pub mod inline_context;
 pub mod jsrt;
 pub mod protocol;
+mod source_map;
 mod style_ir;
 mod test_driver;
 

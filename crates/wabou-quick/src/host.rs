@@ -364,6 +364,14 @@ impl HostBuilder {
         let bundle = load_bundle()?;
         #[cfg(feature = "vite")]
         let bundle = vite.is_none().then(load_bundle).transpose()?;
+        #[cfg(not(feature = "vite"))]
+        let bundle_source_map = load_bundle_source_map()?;
+        #[cfg(feature = "vite")]
+        let bundle_source_map = if vite.is_none() {
+            load_bundle_source_map()?
+        } else {
+            None
+        };
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();
         let mut sources = Vec::with_capacity(windows.len());
@@ -413,15 +421,15 @@ impl HostBuilder {
                         operation: "boot Vite entry module",
                     })?;
             } else {
-                applier.boot(bundle.as_deref().unwrap()).context(
-                    crate::error::JavaScriptSnafu {
+                applier
+                    .boot_with_source_map(bundle.as_deref().unwrap(), bundle_source_map.as_deref())
+                    .context(crate::error::JavaScriptSnafu {
                         operation: "boot JavaScript bundle",
-                    },
-                )?;
+                    })?;
             }
             #[cfg(not(feature = "vite"))]
             applier
-                .boot(&bundle)
+                .boot_with_source_map(&bundle, bundle_source_map.as_deref())
                 .context(crate::error::JavaScriptSnafu {
                     operation: "boot JavaScript bundle",
                 })?;
@@ -676,6 +684,19 @@ fn load_bundle() -> crate::Result<String> {
         kind: "JavaScript bundle",
         path,
     })
+}
+
+fn load_bundle_source_map() -> crate::Result<Option<Vec<u8>>> {
+    let path = bundle_path()?.with_extension("js.map");
+    if !path.is_file() {
+        return Ok(None);
+    }
+    std::fs::read(&path)
+        .map(Some)
+        .context(crate::error::ReadFileSnafu {
+            kind: "JavaScript source map",
+            path,
+        })
 }
 
 fn bundle_path() -> crate::Result<PathBuf> {

@@ -16,6 +16,15 @@ impl crate::Clock for TestClock {
 }
 
 #[test]
+fn core_prelude_keeps_application_frames_in_deep_error_stacks() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let limit = runtime
+        .with(|ctx| ctx.eval::<u32, _>("Error.stackTraceLimit"))
+        .expect("read stack trace limit");
+    assert_eq!(limit, 100);
+}
+
+#[test]
 fn animation_frame_uses_the_injected_clock_timestamp() {
     const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
     let clock = Arc::new(TestClock::default());

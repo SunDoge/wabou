@@ -29,6 +29,7 @@ rquickjs = {
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 snafu = { workspace = true }
+sourcemap = "9.2.2"
 taffy = { workspace = true, features = ["content_size", "parse"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }

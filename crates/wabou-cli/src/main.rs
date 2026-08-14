@@ -580,6 +580,10 @@ fn stage_application(
         package_root.join("resources/bundle.js"),
         resources.join("bundle.js"),
     )?;
+    let source_map = package_root.join("resources/bundle.js.map");
+    if source_map.is_file() {
+        fs::copy(source_map, resources.join("bundle.js.map"))?;
+    }
 
     let app_root = app.root.canonicalize()?;
     for relative in &config.resources {
