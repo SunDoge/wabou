@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createRoot, createSignal } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { createControllableState } from "./state";
 
 test("controllable state updates local state and reports changes", () =>
@@ -12,6 +12,7 @@ test("controllable state updates local state and reports changes", () =>
     });
     expect(state.value()).toBe(false);
     expect(state.set(true)).toBe(true);
+    flush();
     expect(state.value()).toBe(true);
     expect(state.set(true)).toBe(false);
     expect(changes).toEqual([true]);
@@ -31,6 +32,7 @@ test("controlled state requests changes without mutating its source", () =>
     expect(state.value()).toBe("account");
     expect(changes).toEqual(["security"]);
     setExternal("security");
+    flush();
     expect(state.value()).toBe("security");
     dispose();
   }));

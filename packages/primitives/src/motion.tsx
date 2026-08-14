@@ -18,13 +18,19 @@ function bindPlayback(
   controls: AnimationControls,
   props: Pick<PlaybackProps, "paused" | "speed">,
 ) {
-  createEffect(() => {
-    controls.speed = props.speed ?? 1;
-  });
-  createEffect(() => {
-    if (props.paused) controls.pause();
+  createEffect(
+    () => props.speed ?? 1,
+    (speed) => {
+      controls.speed = speed;
+    },
+  );
+  createEffect(
+    () => props.paused,
+    (paused) => {
+    if (paused) controls.pause();
     else controls.play();
-  });
+    },
+  );
 }
 
 export interface SpinProps extends Omit<ViewProps, "transform">, PlaybackProps {

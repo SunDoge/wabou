@@ -1,7 +1,6 @@
-# Solid 2 experiment
+# Solid 2 runtime
 
-This branch evaluates Solid 2 as Wabou's renderer-neutral reactive runtime.
-It is intentionally not a production migration yet.
+Wabou uses Solid 2 as its renderer-neutral reactive runtime.
 
 ## Transaction boundary
 
@@ -22,27 +21,24 @@ frames while retaining Wabou's existing writer and render scheduling.
 ## Verify
 
 ```sh
-mise exec -- bun run check:solid2
-mise exec -- bun run test:solid2
+mise exec -- bun run check
+mise exec -- bun run test
 mise exec -- bun run --cwd apps/stress build
 mise exec -- bun run wabou render apps/stress \
   --out /tmp/wabou-solid2-stress.png --width 1100 --height 776
 ```
 
-The focused checks use Bun's `browser` condition. Without it Bun resolves the
+The tests use Bun's `browser` condition. Without it Bun resolves the
 server Solid runtime, whose effects are intentionally inert.
 
-## Deliberately excluded
+## Ecosystem boundary
 
-`apps/hackernews` is excluded by `tsconfig.solid2.json` because the current
-`lucide-solid` release declares a Solid 1 peer dependency and installs a
-second Solid 1 runtime. It should be restored only after the icon package has
-native Solid 2 support. `bun run check:all` deliberately retains the
-unfiltered check so this exception remains visible.
+Icons use `lucide-static` SVG sources instead of a framework-specific wrapper,
+so no Solid 1 runtime is installed. Wabou's router, interactions, primitives,
+and components are tested directly against Solid 2.
 
-The Solid 2 Vite plugin currently declares Vite 6-8 support. Wabou's focused
-Vite 5 production build succeeds, but this unsupported combination is another
-reason not to merge the experiment before the surrounding ecosystem settles.
+The Solid Vite plugin owns component refresh through `solid-js/refresh`.
+The obsolete standalone `solid-refresh` package is intentionally not used.
 
 ## Renderer ABI changes found
 

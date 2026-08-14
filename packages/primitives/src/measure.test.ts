@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Handle } from "@wabou/solid-renderer";
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import { createMeasuredSize } from "./measure";
 
 test("measured size follows ResizeObserver and disconnects with its owner", () => {
@@ -36,6 +36,7 @@ test("measured size follows ResizeObserver and disconnects with its owner", () =
         ],
         {} as ResizeObserver,
       );
+      flush();
       expect(size.measured()).toBe(true);
       expect(size.width()).toBe(120);
       expect(size.height()).toBe(48);

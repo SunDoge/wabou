@@ -6,6 +6,7 @@ describe("@wabou/vite", () => {
   test("composes the required Wabou plugins in stable order", () => {
     expect(wabouPlugins("/app").map((plugin: Plugin) => plugin.name)).toEqual([
       "wabou-style-compiler",
+      "solid:boundary-modules",
       "solid",
       "wabou-disable-solid-deps-optimizer",
     ]);

@@ -97,8 +97,8 @@ export function Popover(props: PopoverProps): JSX.Element {
     schedulePosition();
   };
 
-  createEffect(() => {
-    if (!open()) {
+  createEffect(open, (isOpen) => {
+    if (!isOpen) {
       positionRequest++;
       setPositioned(false);
       observer?.disconnect();

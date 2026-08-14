@@ -2,10 +2,10 @@ import {
   children,
   createComponent,
   createContext,
+  getOwner,
   createMemo,
   createSignal,
   onCleanup,
-  Show,
   type Component,
   type JSX,
   useContext,
@@ -81,7 +81,15 @@ interface RouterContextValue {
 const RouterContext = createContext<RouterContextValue>();
 
 function requireRouter(): RouterContextValue {
-  const router = useContext(RouterContext);
+  if (!getOwner()) {
+    throw new Error("Wabou router hooks must be used inside <MemoryRouter>");
+  }
+  let router: RouterContextValue;
+  try {
+    router = useContext(RouterContext);
+  } catch {
+    throw new Error("Wabou router hooks must be used inside <MemoryRouter>");
+  }
   if (!router)
     throw new Error("Wabou router hooks must be used inside <MemoryRouter>");
   return router;
@@ -241,20 +249,17 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
   };
   const context: RouterContextValue = { history, location, navigate, params };
   const routed = () => {
-    const outlet = createComponent(Show, {
-      get when() {
-        return branch();
-      },
-      children: ((current: () => readonly RouteDefinition[]) =>
-        renderDefinitions(current())) as never,
-    });
+    const outlet = () => {
+      const current = branch();
+      return current ? renderDefinitions(current) : null;
+    };
     return props.root
       ? createComponent(props.root, {
           get children() {
-            return outlet;
+            return outlet as unknown as JSX.Element;
           },
         })
-      : outlet;
+      : (outlet as unknown as JSX.Element);
   };
 
   return createComponent(RouterContext, {

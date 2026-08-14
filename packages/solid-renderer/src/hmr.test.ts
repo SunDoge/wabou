@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createSignal, DEV, type JSX } from "solid-js";
+import { createSignal, DEV, flush, type JSX } from "solid-js";
 import { $$component, $$refresh, $$registry } from "solid-refresh";
 import {
   createComponent,
@@ -11,8 +11,6 @@ import {
   writer,
 } from "./index";
 
-// solid-refresh publishes DOM-oriented component types, while its runtime is
-// renderer-agnostic. Keep the casts at this compatibility boundary only.
 const refresh = $$refresh as (...args: unknown[]) => void;
 const refreshComponent = $$component as unknown as <Props>(
   registry: ReturnType<typeof $$registry>,
@@ -69,9 +67,6 @@ function rootHandle(): Handle {
   };
 }
 
-// Bun's ordinary test condition selects Solid's Node/server build. The root
-// `test:solid-refresh` script adds both browser + development conditions and
-// therefore runs this against Solid's real dev runtime.
 test.skipIf(!DEV)(
   "solid-refresh replaces a component without remounting its parent",
   () => {
@@ -97,6 +92,7 @@ test.skipIf(!DEV)(
     }, root);
     writer.flush();
     writeParentState?.(7);
+    flush();
 
     expect(root.firstChild?.tag).toBe("old-child");
     expect(parentRuns).toBe(1);
@@ -109,6 +105,7 @@ test.skipIf(!DEV)(
     refresh("vite", newHot, newRegistry);
 
     for (const accept of oldHot.accepted) accept({});
+    flush();
     runSweep();
     writer.flush();
 

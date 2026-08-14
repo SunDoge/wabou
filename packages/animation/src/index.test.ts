@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createRoot, createSignal } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import {
   createLoop,
   createPulse,
@@ -44,8 +44,10 @@ describe("Solid animation primitives", () => {
       });
       expect(transition.value()).toBe(2);
       setTarget(8);
+      flush();
       expect(transition.value()).toBe(8);
       transition.jump(3);
+      flush();
       expect(transition.value()).toBe(3);
       expect(completed).toEqual([8, 3]);
       dispose();

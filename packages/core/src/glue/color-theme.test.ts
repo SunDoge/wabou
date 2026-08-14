@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
+import { flush } from "solid-js";
 import { colorTheme } from "./color-theme";
 
 const originalSetColorTheme = globalThis.__wabou_set_color_theme;
@@ -30,6 +31,7 @@ test("selects a native window color theme explicitly", () => {
   globalThis.__wabou_set_color_theme = (name) => selected.push(name);
 
   colorTheme.set("light");
+  flush();
 
   expect(selected).toEqual(["light"]);
   expect(colorTheme.current()).toBe("light");
@@ -47,6 +49,7 @@ test("animates a complete palette in JavaScript and commits the named theme", as
   installPalettes();
   globalThis.__wabou_set_color_theme = () => {};
   colorTheme.set("dark");
+  flush();
   const frames: Uint32Array[] = [];
   const selected: string[] = [];
   const callbacks: FrameRequestCallback[] = [];
@@ -68,6 +71,7 @@ test("animates a complete palette in JavaScript and commits the named theme", as
   callbacks.shift()?.(50);
   callbacks.shift()?.(100);
   await animation.finished;
+  flush();
 
   expect(frames).toHaveLength(3);
   expect(frames[1][0]).toBe(0x808080ff);

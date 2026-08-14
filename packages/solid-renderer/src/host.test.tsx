@@ -18,19 +18,23 @@ const fakeBuiltinHost: BuiltinHost = {
   },
 };
 const fakeHost = fakeBuiltinHost as Host;
+const resolve = (value: unknown): unknown =>
+  typeof value === "function" ? resolve(value()) : value;
 
 describe("host context", () => {
   test("binds a host to a Solid subtree", () => {
     let received: Host | undefined;
 
     createRoot((dispose) => {
-      createComponent(HostProvider, {
-        value: fakeHost,
-        get children() {
-          received = useHost();
-          return null;
-        },
-      });
+      resolve(
+        createComponent(HostProvider, {
+          value: fakeHost,
+          get children() {
+            received = useHost();
+            return null;
+          },
+        }),
+      );
       dispose();
     });
 

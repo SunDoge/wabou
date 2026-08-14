@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createRoot, createSignal } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { isServer } from "@solidjs/web";
 import { createScrollReset } from "./scroll-reset";
 
@@ -30,6 +30,7 @@ describe("createScrollReset", () => {
     });
     await Promise.resolve();
     setPath("/components/card");
+    flush();
     await Promise.resolve();
     expect(calls).toHaveLength(isServer ? 1 : 2);
     other.scrollTo({ top: 20 });

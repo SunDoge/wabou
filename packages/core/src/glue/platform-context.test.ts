@@ -6,6 +6,9 @@ import { type Notification, useNotification } from "./notification";
 import { PlatformProvider } from "./platform-context";
 import { useWindow, type WindowState } from "./window-metrics";
 
+const resolve = (value: unknown): unknown =>
+  typeof value === "function" ? resolve(value()) : value;
+
 test("PlatformProvider injects window-scoped services into useXxx hooks", () => {
   const fakeClipboard = {
     readText: async () => "injected",
@@ -46,7 +49,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
   let receivedWindow: WindowState | undefined;
 
   createRoot((dispose) => {
-    createComponent(PlatformProvider, {
+    resolve(createComponent(PlatformProvider, {
       value: {
         clipboard: fakeClipboard,
         dialog: fakeDialog,
@@ -60,7 +63,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
         receivedWindow = useWindow();
         return null;
       },
-    });
+    }));
     dispose();
   });
 
@@ -105,7 +108,7 @@ test("nested partial providers inherit services they do not override", () => {
   let receivedWindow: WindowState | undefined;
 
   createRoot((dispose) => {
-    createComponent(PlatformProvider, {
+    resolve(createComponent(PlatformProvider, {
       value: { clipboard: parentClipboard, window: parentWindow },
       get children() {
         return createComponent(PlatformProvider, {
@@ -117,7 +120,7 @@ test("nested partial providers inherit services they do not override", () => {
           },
         });
       },
-    });
+    }));
     dispose();
   });
 

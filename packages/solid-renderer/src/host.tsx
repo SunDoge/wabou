@@ -1,4 +1,10 @@
-import { createComponent, createContext, type JSX, useContext } from "solid-js";
+import {
+  createComponent,
+  createContext,
+  getOwner,
+  type JSX,
+  useContext,
+} from "solid-js";
 import type {
   FrameStats,
   LayoutRect,
@@ -110,5 +116,5 @@ export function HostProvider(props: HostProviderProps): JSX.Element {
 
 /** Return the host associated with the current Solid owner/window. */
 export function useHost<T extends Host = Host>(): T {
-  return useContext(HostContext) as T;
+  return (getOwner() ? useContext(HostContext) : defaultHost) as T;
 }

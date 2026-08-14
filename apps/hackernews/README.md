@@ -26,7 +26,7 @@ the same HMR transaction.
 
 ### HMR behaviour
 
-- **Accepted updates** — solid-refresh swaps the component; Style IR is pushed
+- **Accepted updates** — Solid's refresh runtime swaps the component; Style IR is pushed
   through `virtual:wabou-stylesheet` → `__wabou_set_stylesheet` in the same frame.
 - **Declined / missing hot context / import error** — the host clears the scene
   tree and re-imports the Vite entry (in-process full reload). Check logs with

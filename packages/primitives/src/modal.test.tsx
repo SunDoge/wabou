@@ -7,7 +7,7 @@ import {
   type Handle,
   mount,
 } from "@wabou/solid-renderer";
-import { createRoot, createSignal } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { Modal, type ModalControls, type ModalTriggerProps } from "./modal";
 import { View } from "./view";
 
@@ -46,6 +46,7 @@ test("Modal mounts on the native modal plane and closes from Escape", () => {
 
     expect(triggerProps?.["aria-expanded"]).toBe(false);
     triggerProps?.onClick(event());
+    flush();
     expect(triggerProps?.["aria-expanded"]).toBe(true);
 
     const modalPlane = root.lastChild;
@@ -63,6 +64,7 @@ test("Modal mounts on the native modal plane and closes from Escape", () => {
       EVENT_CODE.keydown,
       JSON.stringify({ key: "Escape" }),
     );
+    flush();
     expect(prevented).toBe(true);
     expect(root.lastChild).toBeNull();
     expect(triggerProps?.["aria-expanded"]).toBe(false);
@@ -74,7 +76,9 @@ test("Modal mounts on the native modal plane and closes from Escape", () => {
     expect(triggerHandle).toBeDefined();
 
     triggerProps?.onClick(event());
+    flush();
     modalControls?.close();
+    flush();
     expect(changes.at(-1)).toEqual([false, "programmatic"]);
     expect(restoredFocus).toBe(2);
 
@@ -96,6 +100,7 @@ test("Modal can keep backdrop and Escape dismissal disabled", () => {
       closeOnEscape: false,
       children: View({}),
     });
+    flush();
     const modalPlane = root.lastChild;
     const backdrop = modalPlane?.firstChild;
 
@@ -140,6 +145,7 @@ test("controlled Modal restores focus only after open actually becomes false", (
       },
       children: View({}),
     });
+    flush();
     const modalPlane = root.lastChild;
     const backdrop = modalPlane?.firstChild;
 
@@ -149,6 +155,7 @@ test("controlled Modal restores focus only after open actually becomes false", (
     expect(restoredFocus).toBe(0);
 
     setOpen(false);
+    flush();
     expect(root.lastChild).toBeNull();
     expect(restoredFocus).toBe(1);
     dispose();

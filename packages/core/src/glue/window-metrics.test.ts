@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
 import { useWindow } from "./window-metrics";
 
@@ -17,6 +18,7 @@ test("window metrics expose one reactive logical coordinate space", () => {
       focused: true,
     }),
   );
+  flush();
 
   expect(window.width()).toBe(800);
   expect(window.id).toBe(7);

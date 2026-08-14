@@ -1,6 +1,7 @@
 import {
   createComponent,
   createContext,
+  getOwner,
   type JSX,
   type ParentProps,
   useContext,
@@ -33,5 +34,5 @@ export function ComponentsProvider(
 }
 
 export function useComponentsTheme(): () => ComponentsTheme {
-  return useContext(ThemeContext).theme;
+  return (getOwner() ? useContext(ThemeContext) : defaultTheme).theme;
 }

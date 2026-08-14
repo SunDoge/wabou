@@ -4,9 +4,8 @@
   "scripts": {
     "wabou": "cargo run -p wabou-cli --",
     "format": "biome format --write .",
-    "check": "bun x tsc --noEmit -p tsconfig.solid2.json",
+    "check": "bun x tsc --noEmit",
     "check:all": "bun x tsc --noEmit",
-    "check:solid2": "bun x tsc --noEmit -p tsconfig.solid2.json",
     "test:solid2": "bun --conditions=browser test packages/solid-renderer/src/events.test.ts packages/core/src/glue/host-frame.test.ts",
     "test": "bun test --conditions=browser packages apps/*/ui",
     "ci:local": "bash scripts/run-act.sh",

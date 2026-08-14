@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mount } from "@wabou/solid-renderer";
-import { createComponent, createEffect, type JSX } from "solid-js";
+import { createComponent, createEffect, flush, type JSX } from "solid-js";
 import { isServer } from "@solidjs/web";
 import {
   createMemoryHistory,
@@ -26,7 +26,12 @@ test.skipIf(isServer)(
       const params = useParams<{ id: string }>();
       navigate = useNavigate();
       expect(useHistory()).toBe(history);
-      createEffect(() => seen.push(`${location.pathname}:${params.id}`));
+      createEffect(
+        () => `${location.pathname}:${params.id}`,
+        (value) => {
+          seen.push(value);
+        },
+      );
       return null;
     }
 
@@ -41,8 +46,8 @@ test.skipIf(isServer)(
         },
       }),
     );
-    navigate?.("/story/2", { state: { selected: true } });
-    history.back();
+    flush(() => navigate?.("/story/2", { state: { selected: true } }));
+    flush(() => history.back());
     dispose();
 
     expect(seen).toEqual(["/story/1:1", "/story/2:2", "/story/1:1"]);
@@ -91,8 +96,8 @@ test.skipIf(isServer)(
         },
       }),
     );
-    navigate?.("/story/7");
-    navigate?.(-1);
+    flush(() => navigate?.("/story/7"));
+    flush(() => navigate?.(-1));
     dispose();
 
     expect(rendered).toEqual(["home", "story", "home"]);

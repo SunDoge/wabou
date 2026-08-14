@@ -6,7 +6,7 @@ import {
   getMountRoot,
   mount,
 } from "@wabou/solid-renderer";
-import { createRoot, type JSX } from "solid-js";
+import { createRoot, flush, type JSX } from "solid-js";
 import {
   createNotifications,
   type NotificationDismissReason,
@@ -26,8 +26,11 @@ test("notification queue enforces its limit and reports dismissal reasons", () =
       });
 
     const first = show("First");
+    flush();
     const second = show("Second");
+    flush();
     const third = show("Third");
+    flush();
     expect(notifications.items().map((item) => item.id)).toEqual([
       second,
       third,
@@ -35,7 +38,9 @@ test("notification queue enforces its limit and reports dismissal reasons", () =
     expect(dismissed).toEqual([["First", "overflow"]]);
     expect(notifications.dismiss(first)).toBe(false);
     expect(notifications.dismiss(second, "dismiss")).toBe(true);
+    flush();
     notifications.clear();
+    flush();
     expect(notifications.items()).toEqual([]);
     expect(dismissed).toEqual([
       ["First", "overflow"],
@@ -54,6 +59,7 @@ test("notification timeout pauses and resumes", async () => {
         "aria-label": "Saved",
         content: () => createElement("view") as unknown as JSX.Element,
       });
+      flush();
       notifications.pause(id);
       notifications.pause(id);
       setTimeout(() => {
@@ -94,6 +100,7 @@ test("NotificationRegion mounts non-blocking items on the floating plane", () =>
       "aria-label": "Dismiss me",
       content: ({ dismiss }) => View({ onClick: dismiss }),
     });
+    flush();
     NotificationRegion({ notifications });
     return { dispose, notifications };
   });
@@ -105,6 +112,7 @@ test("NotificationRegion mounts non-blocking items on the floating plane", () =>
   expect(item).not.toBeNull();
 
   dispatchEvent(dismissTarget?.id ?? 0, EVENT_CODE.click, "");
+  flush();
   expect(state.notifications.items()).toEqual([]);
   expect(region?.firstChild).toBeNull();
 

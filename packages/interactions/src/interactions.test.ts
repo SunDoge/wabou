@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import { match } from "ts-pattern";
 import {
   createCollection,
@@ -39,6 +39,7 @@ describe("machine", () => {
         execute: (command) => commands.push(command),
       });
       expect(machine.send({ type: "OPEN" })).toBe(true);
+      flush();
       expect(machine.state()).toEqual({ value: "open" });
       expect(commands).toEqual([{ type: "FOCUS" }]);
       dispose();

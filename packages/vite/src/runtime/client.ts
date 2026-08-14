@@ -94,7 +94,7 @@ export function removeStyle(id: string): void {
 
 /**
  * Apply one Vite JS HMR update. Returns:
- * - `true` — solid-refresh (or other accept handler) took the update
+ * - `true` — Solid refresh (or another accept handler) took the update
  * - `false` — no hot context / declined / invalidate / import error → host
  *   should full-reload the entry rather than leave a half-applied tree
  */

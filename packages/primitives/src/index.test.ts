@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createRoot } from "solid-js";
+import { createRoot, flush } from "solid-js";
 import {
   createButton,
   createFocus,
@@ -23,6 +23,7 @@ describe("interaction primitives", () => {
       button.bindings.onPointerEnter();
       button.bindings.onPointerDown();
       button.bindings.onFocus();
+      flush();
       expect(button.state()).toMatchObject({
         hovered: true,
         pressed: true,
@@ -50,6 +51,7 @@ describe("interaction primitives", () => {
       hover.bindings.onPointerEnter();
       focus.bindings.onFocus();
       within.bindings.onFocusIn();
+      flush();
       expect([hover.hovered(), focus.focused(), within.focusWithin()]).toEqual([
         true,
         true,
@@ -58,6 +60,7 @@ describe("interaction primitives", () => {
       hover.bindings.onPointerLeave();
       focus.bindings.onBlur();
       within.bindings.onFocusOut();
+      flush();
       expect([hover.hovered(), focus.focused(), within.focusWithin()]).toEqual([
         false,
         false,
@@ -71,9 +74,11 @@ describe("interaction primitives", () => {
       let presses = 0;
       const press = createPress({ onPress: () => presses++ });
       press.bindings.onPointerDown();
+      flush();
       expect(press.pressed()).toBe(true);
       press.bindings.onPointerUp();
       press.bindings.onClick({});
+      flush();
       expect(press.pressed()).toBe(false);
       expect(presses).toBe(1);
       dispose();
@@ -190,8 +195,10 @@ describe("tabs primitive", () => {
       expect(
         tabs.add({ id: "three", title: "Three" }, { activate: false }),
       ).toBe(true);
+      flush();
       expect(tabs.activeKey()).toBe("two");
       expect(tabs.move("two", 0)).toBe(true);
+      flush();
       expect(tabs.tabs().map((tab) => tab.id)).toEqual(["two", "one", "three"]);
       expect(tabs.activeKey()).toBe("two");
       expect(changes).toEqual([]);
@@ -207,10 +214,13 @@ describe("tabs primitive", () => {
       });
 
       expect(tabs.close("two")).toBe(true);
+      flush();
       expect(tabs.activeKey()).toBe("three");
       expect(tabs.close("three")).toBe(true);
+      flush();
       expect(tabs.activeKey()).toBe("one");
       expect(tabs.close("one")).toBe(true);
+      flush();
       expect(tabs.activeKey()).toBeUndefined();
       dispose();
     }));
@@ -220,12 +230,16 @@ describe("tabs primitive", () => {
       const tabs = createTabs({ initialTabs: [1, 2, 3], key: (tab) => tab });
 
       tabs.selectPrevious();
+      flush();
       expect(tabs.activeKey()).toBe(3);
       tabs.selectNext();
+      flush();
       expect(tabs.activeKey()).toBe(1);
       tabs.selectLast();
+      flush();
       expect(tabs.activeKey()).toBe(3);
       tabs.selectFirst();
+      flush();
       expect(tabs.activeKey()).toBe(1);
       expect(tabs.add(1)).toBe(false);
       expect(tabs.tabs()).toEqual([1, 2, 3]);
@@ -258,10 +272,12 @@ describe("tabs primitive", () => {
           preventDefault: () => prevented++,
         }),
       ).toBe(true);
+      flush();
       expect(tabs.activeKey()).toBe("three");
       expect(focused).toEqual(["three"]);
 
       expect(tabs.handleKeyDown("three", { key: "Home" })).toBe(true);
+      flush();
       expect(tabs.activeKey()).toBe("one");
       expect(focused).toEqual(["three", "one"]);
       expect(tabs.handleKeyDown("one", { key: "Enter" })).toBe(false);
@@ -279,6 +295,7 @@ describe("tabs primitive", () => {
 
       expect(tabs.handleKeyDown(1, { key: "ArrowRight" })).toBe(false);
       expect(tabs.handleKeyDown(1, { key: "ArrowDown" })).toBe(true);
+      flush();
       expect(tabs.activeKey()).toBe(2);
       dispose();
     }));

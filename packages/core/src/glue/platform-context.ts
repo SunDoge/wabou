@@ -1,4 +1,10 @@
-import { createComponent, createContext, type JSX, useContext } from "solid-js";
+import {
+  createComponent,
+  createContext,
+  getOwner,
+  type JSX,
+  useContext,
+} from "solid-js";
 import type { Clipboard } from "./clipboard";
 import type { Dialog } from "./dialog";
 import type { Notification } from "./notification";
@@ -11,7 +17,7 @@ export interface PlatformServices {
   window: WindowState;
 }
 
-const PlatformContext = createContext<Partial<PlatformServices>>();
+const PlatformContext = createContext<Partial<PlatformServices>>({});
 
 export interface PlatformProviderProps {
   value: Partial<PlatformServices>;
@@ -44,5 +50,5 @@ export function PlatformProvider(props: PlatformProviderProps): JSX.Element {
 }
 
 export function usePlatformServices(): Partial<PlatformServices> {
-  return useContext(PlatformContext) ?? {};
+  return getOwner() ? useContext(PlatformContext) : {};
 }

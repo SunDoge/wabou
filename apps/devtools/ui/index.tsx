@@ -180,8 +180,7 @@ function App() {
 
   let queryTimer: ReturnType<typeof setTimeout> | undefined;
   let polling = false;
-  createEffect(() => {
-    query();
+  createEffect(query, () => {
     clearTimeout(queryTimer);
     queryTimer = setTimeout(() => void refreshNodes(), 180);
   });

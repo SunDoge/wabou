@@ -60,11 +60,14 @@ export function CollapsiblePresence(
       },
     },
   );
-  createEffect(() => {
-    if (open() && measured.measured() && measured.height() === 0) {
+  createEffect(
+    () => [open(), measured.measured(), measured.height()] as const,
+    ([isOpen, isMeasured, height]) => {
+    if (isOpen && isMeasured && height === 0) {
       presence.finishEnter();
     }
-  });
+    },
+  );
 
   const style = (): WabouStyle => ({
     ...props.style,

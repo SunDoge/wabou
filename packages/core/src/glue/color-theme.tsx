@@ -238,15 +238,17 @@ export function ColorThemeProvider(props: {
   children: JSX.Element;
 }): JSX.Element {
   let initialized = false;
-  createEffect(() => {
-    const theme = props.theme;
+  createEffect(
+    () => [props.theme, props.transition] as const,
+    ([theme, transition]) => {
     const animation =
-      initialized && props.transition
-        ? colorTheme.animateTo(theme, props.transition)
+      initialized && transition
+        ? colorTheme.animateTo(theme, transition)
         : (colorTheme.set(theme), undefined);
     initialized = true;
-    if (animation) onCleanup(() => animation.cancel());
-  });
+      return animation ? () => animation.cancel() : undefined;
+    },
+  );
   return createComponent(ColorThemeContext, {
     value: colorTheme,
     get children() {

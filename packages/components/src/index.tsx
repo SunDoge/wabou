@@ -428,8 +428,8 @@ export function Switch(props: SwitchProps): JSX.Element {
   const checked = () => props.checked ?? local();
   const [thumbX, setThumbX] = createSignal(checked() ? 20 : 0);
   let movement: AnimationControls | undefined;
-  createEffect(() => {
-    const target = checked() ? 20 : 0;
+  createEffect(checked, (isChecked) => {
+    const target = isChecked ? 20 : 0;
     const from = untrack(thumbX);
     if (from === target) return;
     movement?.stop();
