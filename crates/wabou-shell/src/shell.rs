@@ -44,6 +44,7 @@ impl Shell {
             .with_title(options.title.clone())
             .with_visible(false)
             .with_resizable(options.resizable)
+            .with_decorations(options.decorations)
             .with_transparent(options.transparent)
             .with_surface_size(winit::dpi::LogicalSize::new(
                 options.initial_inner_size.0,

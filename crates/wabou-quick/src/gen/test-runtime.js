@@ -5328,6 +5328,8 @@
     windowClose: { capability: 2, method: 2 },
     windowSetMaximized: { capability: 2, method: 3 },
     windowSetTitle: { capability: 2, method: 4 },
+    windowMinimize: { capability: 2, method: 5 },
+    windowStartDragging: { capability: 2, method: 6 },
     contextMenuShow: { capability: 3, method: 1 },
     appDirsResolve: { capability: 4, method: 1 },
     dialogOpen: { capability: 5, method: 1 },
@@ -5392,11 +5394,13 @@
     return Object.freeze({
       id,
       close: () => dispatchFireAndForget(effectOps.windowClose, { windowId: id }),
+      minimize: () => dispatchFireAndForget(effectOps.windowMinimize, { windowId: id }),
       setMaximized: (value) => dispatchFireAndForget(effectOps.windowSetMaximized, {
         windowId: id,
         value
       }),
-      setTitle: (title) => dispatchFireAndForget(effectOps.windowSetTitle, { windowId: id, title })
+      setTitle: (title) => dispatchFireAndForget(effectOps.windowSetTitle, { windowId: id, title }),
+      startDragging: () => dispatchFireAndForget(effectOps.windowStartDragging, { windowId: id })
     });
   }
   function createWindow(options = {}) {
@@ -5435,8 +5439,10 @@
       return metrics().windowId;
     },
     close: () => currentWindow().close(),
+    minimize: () => currentWindow().minimize(),
     setMaximized: (value) => currentWindow().setMaximized(value),
     setTitle: (title) => currentWindow().setTitle(title),
+    startDragging: () => currentWindow().startDragging(),
     metrics,
     width: () => metrics().logicalWidth,
     height: () => metrics().logicalHeight,

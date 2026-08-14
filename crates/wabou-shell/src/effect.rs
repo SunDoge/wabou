@@ -58,6 +58,8 @@ pub mod builtin {
     pub const WINDOW_CLOSE: EffectOp = EffectOp::new(2, 2);
     pub const WINDOW_SET_MAXIMIZED: EffectOp = EffectOp::new(2, 3);
     pub const WINDOW_SET_TITLE: EffectOp = EffectOp::new(2, 4);
+    pub const WINDOW_MINIMIZE: EffectOp = EffectOp::new(2, 5);
+    pub const WINDOW_START_DRAGGING: EffectOp = EffectOp::new(2, 6);
     pub const CONTEXT_MENU_SHOW: EffectOp = EffectOp::new(3, 1);
     pub const APP_DIRS_RESOLVE: EffectOp = EffectOp::new(4, 1);
     pub const DIALOG_OPEN: EffectOp = EffectOp::new(5, 1);
@@ -319,6 +321,14 @@ impl EffectPayload {
                 command: WindowCommand::SetTitle(_),
                 ..
             } => builtin::WINDOW_SET_TITLE,
+            Self::WindowControl {
+                command: WindowCommand::Minimize,
+                ..
+            } => builtin::WINDOW_MINIMIZE,
+            Self::WindowControl {
+                command: WindowCommand::StartDragging,
+                ..
+            } => builtin::WINDOW_START_DRAGGING,
             Self::ContextMenuShow(_) => builtin::CONTEXT_MENU_SHOW,
             Self::AppDirsResolve(_) => builtin::APP_DIRS_RESOLVE,
             Self::DialogOpen(_) => builtin::DIALOG_OPEN,
@@ -487,6 +497,8 @@ mod tests {
     #[test]
     fn builtin_operation_ids_are_stable() {
         assert_eq!(builtin::CLIPBOARD_READ, EffectOp::new(1, 1));
+        assert_eq!(builtin::WINDOW_MINIMIZE, EffectOp::new(2, 5));
+        assert_eq!(builtin::WINDOW_START_DRAGGING, EffectOp::new(2, 6));
         assert_eq!(builtin::CONTEXT_MENU_SHOW, EffectOp::new(3, 1));
         assert_eq!(builtin::APP_DIRS_RESOLVE, EffectOp::new(4, 1));
         assert_eq!(builtin::DIALOG_OPEN, EffectOp::new(5, 1));

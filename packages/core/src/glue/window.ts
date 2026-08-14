@@ -11,6 +11,8 @@ export interface CreateWindowOptions {
   minWidth?: number;
   minHeight?: number;
   resizable?: boolean;
+  /** Show native window-manager borders and title bar. */
+  decorations?: boolean;
   /** Preserve rendered alpha when the platform compositor supports it. */
   transparent?: boolean;
 }
@@ -18,14 +20,19 @@ export interface CreateWindowOptions {
 export interface WindowHandle {
   readonly id: number;
   close(): void;
+  minimize(): void;
   setMaximized(value: boolean): void;
   setTitle(title: string): void;
+  /** Begin a compositor-managed move operation for a custom title bar. */
+  startDragging(): void;
 }
 
 function handle(id: number): WindowHandle {
   return Object.freeze({
     id,
     close: () => dispatchFireAndForget(effectOps.windowClose, { windowId: id }),
+    minimize: () =>
+      dispatchFireAndForget(effectOps.windowMinimize, { windowId: id }),
     setMaximized: (value: boolean) =>
       dispatchFireAndForget(effectOps.windowSetMaximized, {
         windowId: id,
@@ -33,6 +40,8 @@ function handle(id: number): WindowHandle {
       }),
     setTitle: (title: string) =>
       dispatchFireAndForget(effectOps.windowSetTitle, { windowId: id, title }),
+    startDragging: () =>
+      dispatchFireAndForget(effectOps.windowStartDragging, { windowId: id }),
   });
 }
 

@@ -148,10 +148,12 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
                 r#"
             globalThis.created = __wabou_test_host_api.createWindow({
               title: "Child", width: 640, height: 480,
-              resizable: false, transparent: true
+              resizable: false, decorations: false, transparent: true
             });
             created.setTitle("Renamed");
+            created.minimize();
             created.setMaximized(true);
+            created.startDragging();
             created.close();
             globalThis.currentWindowId = __wabou_test_host_api.currentWindow().id;
             "#,
@@ -173,6 +175,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
             assert_eq!(options.title, "Child");
             assert_eq!(options.initial_inner_size, (640, 480));
             assert!(!options.resizable);
+            assert!(!options.decorations);
             assert!(options.transparent);
             window_id
         }
@@ -180,7 +183,9 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     };
     for command in [
         wabou_shell::WindowCommand::SetTitle("Renamed".into()),
+        wabou_shell::WindowCommand::Minimize,
         wabou_shell::WindowCommand::SetMaximized(true),
+        wabou_shell::WindowCommand::StartDragging,
         wabou_shell::WindowCommand::Close,
     ] {
         assert_eq!(

@@ -28,8 +28,51 @@ function App() {
 ```
 
 `createWindow(options)` creates a new runtime and returns a `WindowHandle`.
-The handle can close, maximize, or retitle that specific window. `useWindow()`
+The handle can close, minimize, maximize, retitle, or begin dragging that
+specific window. `useWindow()`
 returns the current runtime's reactive metrics plus the same controls.
+
+## Custom title bars
+
+Disable native decorations when the window is created, then explicitly start
+the compositor-managed drag operation from the non-interactive part of your
+title bar. Do not start dragging from title-bar buttons.
+
+```rust
+HostBuilder::new()
+    .window(WindowOptions::new().title("Wabou").decorations(false))
+    .run()?;
+```
+
+```tsx
+import { useWindow } from "@wabou/core";
+import {
+  Button,
+  Text,
+  TitleBar,
+  TitleBarDragRegion,
+} from "@wabou/components";
+
+function TitleBar() {
+  const window = useWindow();
+  return (
+    <TitleBar>
+      <TitleBarDragRegion class="justify-center px-3">
+        <Text>Wabou</Text>
+      </TitleBarDragRegion>
+      <Button variant="ghost" size="icon" onPress={() => window.minimize()}>
+        <Text>_</Text>
+      </Button>
+      <Button variant="ghost" size="icon" onPress={() => window.close()}>
+        <Text>X</Text>
+      </Button>
+    </TitleBar>
+  );
+}
+```
+
+`startDragging()` delegates movement to the OS compositor, so it works across
+Wayland, X11, Windows, and macOS without manually updating window coordinates.
 
 Rust applications may also create initial windows before the event loop starts:
 

@@ -30,6 +30,7 @@ pub struct WindowOptions {
     pub initial_inner_size: (u32, u32),
     pub min_inner_size: Option<(u32, u32)>,
     pub resizable: bool,
+    pub decorations: bool,
     pub transparent: bool,
 }
 
@@ -40,6 +41,7 @@ impl Default for WindowOptions {
             initial_inner_size: (800, 600),
             min_inner_size: None,
             resizable: true,
+            decorations: true,
             transparent: false,
         }
     }
@@ -63,6 +65,11 @@ impl WindowOptions {
     }
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
+        self
+    }
+    /// Enable or disable native window-manager decorations.
+    pub fn decorations(mut self, decorations: bool) -> Self {
+        self.decorations = decorations;
         self
     }
     /// Request a native window whose background preserves rendered alpha.
@@ -91,8 +98,10 @@ pub struct WindowMetrics {
 #[serde(rename_all = "camelCase")]
 pub enum WindowCommand {
     Close,
+    Minimize,
     SetMaximized(bool),
     SetTitle(String),
+    StartDragging,
 }
 
 /// Wabou's renderer-independent input model. Web-style events are an adapter
@@ -485,11 +494,13 @@ mod tests {
             .initial_inner_size(1440, 900)
             .min_inner_size(960, 600)
             .resizable(false)
+            .decorations(false)
             .transparent(true);
         assert_eq!(options.title, "Inspector");
         assert_eq!(options.initial_inner_size, (1440, 900));
         assert_eq!(options.min_inner_size, Some((960, 600)));
         assert!(!options.resizable);
+        assert!(!options.decorations);
         assert!(options.transparent);
     }
 

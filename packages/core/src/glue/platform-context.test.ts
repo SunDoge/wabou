@@ -27,8 +27,10 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
   const fakeWindow: WindowState = {
     id: 99,
     close: () => {},
+    minimize: () => {},
     setMaximized: () => {},
     setTitle: () => {},
+    startDragging: () => {},
     metrics,
     width: () => metrics().logicalWidth,
     height: () => metrics().logicalHeight,
@@ -95,8 +97,10 @@ test("nested partial providers inherit services they do not override", () => {
   const parentWindow: WindowState = {
     id: 42,
     close: () => {},
+    minimize: () => {},
     setMaximized: () => {},
     setTitle: () => {},
+    startDragging: () => {},
     metrics,
     width: () => 1,
     height: () => 1,

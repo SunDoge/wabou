@@ -49,8 +49,10 @@ const state: WindowState = {
     return metrics().windowId;
   },
   close: () => currentWindow().close(),
+  minimize: () => currentWindow().minimize(),
   setMaximized: (value) => currentWindow().setMaximized(value),
   setTitle: (title) => currentWindow().setTitle(title),
+  startDragging: () => currentWindow().startDragging(),
   metrics,
   width: () => metrics().logicalWidth,
   height: () => metrics().logicalHeight,

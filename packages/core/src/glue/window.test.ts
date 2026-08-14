@@ -21,18 +21,23 @@ test("createWindow returns a handle that targets the created window", async () =
     title: "Inspector",
     width: 640,
     height: 480,
+    decorations: false,
     transparent: true,
   });
   expect(child.id).toBe(42);
   child.setTitle("Details");
+  child.minimize();
   child.setMaximized(true);
+  child.startDragging();
   child.close();
   currentWindow().close();
 
   expect(calls).toEqual([
-    [2, 1, { title: "Inspector", width: 640, height: 480, transparent: true }],
+    [2, 1, { title: "Inspector", width: 640, height: 480, decorations: false, transparent: true }],
     [2, 4, { windowId: 42, title: "Details" }],
+    [2, 5, { windowId: 42 }],
     [2, 3, { windowId: 42, value: true }],
+    [2, 6, { windowId: 42 }],
     [2, 2, { windowId: 42 }],
     [2, 2, { windowId: 3 }],
   ]);

@@ -12,6 +12,8 @@ export const effectOps = Object.freeze({
   windowClose: { capability: 2, method: 2 },
   windowSetMaximized: { capability: 2, method: 3 },
   windowSetTitle: { capability: 2, method: 4 },
+  windowMinimize: { capability: 2, method: 5 },
+  windowStartDragging: { capability: 2, method: 6 },
   contextMenuShow: { capability: 3, method: 1 },
   appDirsResolve: { capability: 4, method: 1 },
   dialogOpen: { capability: 5, method: 1 },

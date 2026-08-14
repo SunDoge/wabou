@@ -1281,6 +1281,11 @@ fn find_window_by_logical_id<'a>(
 fn apply_window_command(app: &mut App, command: WindowCommand) {
     match command {
         WindowCommand::Close => app.close_requested = true,
+        WindowCommand::Minimize => {
+            if let Some(shell) = app.state.as_ref() {
+                shell.window().set_minimized(true);
+            }
+        }
         WindowCommand::SetMaximized(maximized) => {
             if let Some(shell) = app.state.as_ref() {
                 shell.window().set_maximized(maximized);
@@ -1289,6 +1294,11 @@ fn apply_window_command(app: &mut App, command: WindowCommand) {
         WindowCommand::SetTitle(title) => {
             if let Some(shell) = app.state.as_ref() {
                 shell.window().set_title(&title);
+            }
+        }
+        WindowCommand::StartDragging => {
+            if let Some(shell) = app.state.as_ref() {
+                let _ = shell.window().drag_window();
             }
         }
     }

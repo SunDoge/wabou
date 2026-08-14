@@ -572,6 +572,9 @@ fn decode_effect_payload(
             if let Some(resizable) = value.get("resizable").and_then(|value| value.as_bool()) {
                 options = options.resizable(resizable);
             }
+            if let Some(decorations) = value.get("decorations").and_then(|value| value.as_bool()) {
+                options = options.decorations(decorations);
+            }
             if let Some(transparent) = value.get("transparent").and_then(|value| value.as_bool()) {
                 options = options.transparent(transparent);
             }
@@ -588,7 +591,9 @@ fn decode_effect_payload(
         }
         wabou_shell::effect::builtin::WINDOW_CLOSE
         | wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED
-        | wabou_shell::effect::builtin::WINDOW_SET_TITLE => {
+        | wabou_shell::effect::builtin::WINDOW_SET_TITLE
+        | wabou_shell::effect::builtin::WINDOW_MINIMIZE
+        | wabou_shell::effect::builtin::WINDOW_START_DRAGGING => {
             let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
             let target = value
                 .get("windowId")
@@ -596,6 +601,10 @@ fn decode_effect_payload(
                 .unwrap_or(window_id);
             let command = if op == wabou_shell::effect::builtin::WINDOW_CLOSE {
                 wabou_shell::WindowCommand::Close
+            } else if op == wabou_shell::effect::builtin::WINDOW_MINIMIZE {
+                wabou_shell::WindowCommand::Minimize
+            } else if op == wabou_shell::effect::builtin::WINDOW_START_DRAGGING {
+                wabou_shell::WindowCommand::StartDragging
             } else if op == wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED {
                 wabou_shell::WindowCommand::SetMaximized(
                     value

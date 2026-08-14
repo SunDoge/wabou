@@ -26,6 +26,8 @@ import {
   TabsList,
   TabsTrigger,
   TextArea,
+  TitleBar,
+  TitleBarDragRegion,
   Toggle,
   ToggleGroup,
   ToggleGroupItem,
@@ -569,6 +571,7 @@ function PlatformPage() {
                 height: 420,
                 minWidth: 360,
                 minHeight: 240,
+                decorations: false,
               })
             }
           >
@@ -583,24 +586,34 @@ function PlatformPage() {
 function ChildWindowPage() {
   const window = useWindow();
   return (
-    <View class="w-full h-full flex flex-col items-center justify-center gap-4 bg-slate-900 text-white">
-      <Text class="text-2xl font-semibold">Independent native window</Text>
-      <Text class="text-sm text-slate-400">
-        Window #{window.id} · {window.width()} × {window.height()}
-      </Text>
-      <View class="flex gap-2">
-        <Button onClick={() => window.setMaximized(!window.maximized())}>
-          Toggle maximize
+    <View class="w-full h-full flex flex-col bg-slate-900 text-white">
+      <TitleBar class="border-slate-700 bg-slate-950">
+        <TitleBarDragRegion class="px-3">
+          <Text class="text-sm font-medium">Custom title bar</Text>
+        </TitleBarDragRegion>
+        <Button variant="ghost" size="sm" onClick={() => window.minimize()}>
+          Minimize
         </Button>
-        <Button
-          variant="ghost"
-          onClick={() => window.setTitle("Renamed child")}
-        >
-          Rename
-        </Button>
-        <Button variant="ghost" onClick={() => window.close()}>
+        <Button variant="ghost" size="sm" onClick={() => window.close()}>
           Close
         </Button>
+      </TitleBar>
+      <View class="flex-1 flex flex-col items-center justify-center gap-4">
+        <Text class="text-2xl font-semibold">Independent native window</Text>
+        <Text class="text-sm text-slate-400">
+          Window #{window.id} · {window.width()} × {window.height()}
+        </Text>
+        <View class="flex gap-2">
+          <Button onClick={() => window.setMaximized(!window.maximized())}>
+            Toggle maximize
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => window.setTitle("Renamed child")}
+          >
+            Rename
+          </Button>
+        </View>
       </View>
     </View>
   );
