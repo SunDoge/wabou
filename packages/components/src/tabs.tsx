@@ -70,7 +70,7 @@ export function Tabs(props: TabsProps): JSX.Element {
     },
     move: roving.move,
   };
-  return createComponent(TabsContext.Provider, {
+  return createComponent(TabsContext, {
     value: context,
     get children() {
       return (

@@ -6,7 +6,7 @@ import type {
 } from "motion-dom";
 import { animateValue } from "motion-dom";
 import {
-  createComputed,
+  createEffect,
   createSignal,
   onCleanup,
   type Accessor,
@@ -223,41 +223,42 @@ export function createTransition(
     options.onComplete?.(next);
   };
 
-  createComputed(() => {
-    const next = target();
-    const reduced = read(options.reducedMotion, false);
-    const current = untrack(value);
-    if (Object.is(next, current)) return;
-    if (reduced || options.type === false || options.duration === 0) {
-      jump(next);
-      return;
-    }
+  createEffect(
+    () =>
+      [target(), read(options.reducedMotion, false), untrack(value)] as const,
+    ([next, reduced, current]) => {
+      if (Object.is(next, current)) return;
+      if (reduced || options.type === false || options.duration === 0) {
+        jump(next);
+        return;
+      }
 
-    const run = ++generation;
-    controls?.stop();
-    setState("running");
-    const {
-      reducedMotion: _reducedMotion,
-      onUpdate,
-      onComplete,
-      ...animationOptions
-    } = options;
-    controls = animate(current, next, {
-      ...animationOptions,
-      onUpdate(current) {
-        if (run !== generation) return;
-        setValue(current);
-        onUpdate?.(current);
-      },
-      onComplete() {
-        if (run !== generation) return;
-        controls = undefined;
-        setValue(next);
-        setState("finished");
-        onComplete?.(next);
-      },
-    });
-  });
+      const run = ++generation;
+      controls?.stop();
+      setState("running");
+      const {
+        reducedMotion: _reducedMotion,
+        onUpdate,
+        onComplete,
+        ...animationOptions
+      } = options;
+      controls = animate(current, next, {
+        ...animationOptions,
+        onUpdate(current) {
+          if (run !== generation) return;
+          setValue(current);
+          onUpdate?.(current);
+        },
+        onComplete() {
+          if (run !== generation) return;
+          controls = undefined;
+          setValue(next);
+          setState("finished");
+          onComplete?.(next);
+        },
+      });
+    },
+  );
 
   onCleanup(stop);
   return { value, state, jump, stop };

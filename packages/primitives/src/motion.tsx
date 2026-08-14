@@ -3,7 +3,7 @@ import {
   createRotation,
   type AnimationControls,
 } from "@wabou/animation";
-import { createEffect, splitProps, type JSX } from "solid-js";
+import { createEffect, omit, type JSX } from "solid-js";
 import { View, type ViewProps, type WabouStyle } from "./view";
 
 interface PlaybackProps {
@@ -33,7 +33,8 @@ export interface SpinProps extends Omit<ViewProps, "transform">, PlaybackProps {
 
 /** A single native View whose contents rotate around its border-box center. */
 export function Spin(props: SpinProps): JSX.Element {
-  const [motion, view] = splitProps(props, ["duration", "speed", "paused"]);
+  const motion = props;
+  const view = omit(props, "duration", "speed", "paused");
   const rotation = createRotation({
     autoplay: !motion.paused,
     duration: motion.duration ?? 1,
@@ -49,14 +50,16 @@ export interface PulseProps extends ViewProps, PlaybackProps {
 
 /** A single native View with a repeating opacity pulse. */
 export function Pulse(props: PulseProps): JSX.Element {
-  const [motion, view] = splitProps(props, [
+  const motion = props;
+  const view = omit(
+    props,
     "duration",
     "speed",
     "paused",
     "from",
     "to",
     "style",
-  ]);
+  );
   const pulse = createPulse({
     autoplay: !motion.paused,
     duration: motion.duration ?? 1,

@@ -35,7 +35,7 @@ export function PlatformProvider(props: PlatformProviderProps): JSX.Element {
       return props.value.window ?? parent.window;
     },
   };
-  return createComponent(PlatformContext.Provider, {
+  return createComponent(PlatformContext, {
     value,
     get children() {
       return props.children;

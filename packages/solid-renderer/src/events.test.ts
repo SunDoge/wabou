@@ -23,6 +23,14 @@ test("mount manages the host root lifecycle", () => {
   writer.flush();
 });
 
+test("Solid 2 static createElement props are emitted immediately", () => {
+  writer.flush();
+  createElement("div", { class: "flex flex-row" });
+  const frame = writer.flush();
+  expect(frame).not.toBeNull();
+  expect(Array.from(frame!)).toContain(OP.SetClassName);
+});
+
 test("input listeners receive a DOM-like currentTarget", () => {
   const input = createElement("input");
   let currentTarget: { id: number; value: string } | undefined;

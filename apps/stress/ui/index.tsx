@@ -16,14 +16,7 @@ import {
   createFps,
   useHost,
 } from "@wabou/core";
-import {
-  createEffect,
-  createSignal,
-  For,
-  Index,
-  onCleanup,
-  Show,
-} from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 
 const PRESETS = [100, 1_000, 5_000, 10_000, 25_000];
 const JS_WORK = [0, 50_000, 500_000, 5_000_000];
@@ -111,18 +104,18 @@ function moveBody(b: Body, w: number, h: number): void {
 function App() {
   const host = useHost();
   const [n, setN] = createSignal(1_000);
-  const [jsWork, setJsWork] = createSignal(0);
+  const [jsWork, setJsWork] = createSignal<number>(0, {});
   const [driver, setDriver] = createSignal<Driver>("raf");
   const [stats, setStats] = createSignal<Stats>(null);
-  const [statsError, setStatsError] = createSignal<string | null>(null);
+  const [statsError, setStatsError] = createSignal<string | null>(null, {});
   const [bodies, setBodies] = createSignal<Body[]>(makeBodies(1_000));
   let movingBodies = bodies();
   const handles: Array<Handle | undefined> = [];
   const fps = createFps();
 
   // Re-seed only when N changes (not every frame).
-  createEffect(() => {
-    movingBodies = makeBodies(n());
+  createEffect(n, (count) => {
+    movingBodies = makeBodies(count);
     // `<Index>` retains handles for existing slots. Replacing this array when
     // the initial effect runs would discard refs without remounting the nodes,
     // leaving the first render frozen until N changes.
@@ -153,8 +146,7 @@ function App() {
       setStatsError(error instanceof Error ? error.message : String(error));
     }
   };
-  createEffect(() => {
-    const activeDriver = driver();
+  createEffect(driver, (activeDriver) => {
     let raf = 0;
     let motion: AnimationControls | undefined;
     if (activeDriver === "motion") {
@@ -171,10 +163,10 @@ function App() {
       };
       raf = requestAnimationFrame(loop);
     }
-    onCleanup(() => {
+    return () => {
       if (raf) cancelAnimationFrame(raf);
       motion?.stop();
-    });
+    };
   });
 
   return (
@@ -256,7 +248,7 @@ function App() {
       </div>
 
       <div class="flex-1 min-h-0 overflow-hidden relative">
-        <Index each={bodies()}>
+        <For each={bodies()} keyed={false}>
           {(body, index) => (
             <div
               class="text-[28px] pointer-events-none"
@@ -273,7 +265,7 @@ function App() {
               {body().char}
             </div>
           )}
-        </Index>
+        </For>
       </div>
     </div>
   );

@@ -245,9 +245,8 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
       get when() {
         return branch();
       },
-      keyed: true,
-      children: (current: object) =>
-        renderDefinitions(current as readonly RouteDefinition[]),
+      children: ((current: () => readonly RouteDefinition[]) =>
+        renderDefinitions(current())) as never,
     });
     return props.root
       ? createComponent(props.root, {
@@ -258,7 +257,7 @@ export function MemoryRouter(props: MemoryRouterProps): JSX.Element {
       : outlet;
   };
 
-  return createComponent(RouterContext.Provider, {
+  return createComponent(RouterContext, {
     value: context,
     get children() {
       return routed();

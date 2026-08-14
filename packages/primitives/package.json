@@ -19,6 +19,6 @@
     "@wabou/animation": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style": "workspace:*",
-    "solid-js": "1.9.14"
+    "solid-js": "2.0.0-rc.0"
   }
 }

@@ -19,13 +19,13 @@ import {
   isTypedStyleValue,
   type Shadow,
 } from "@wabou/style";
-import { createMemo, splitProps, untrack } from "solid-js";
+import { createMemo, omit, untrack } from "solid-js";
 export const isServer = false;
 export const getRequestEvent = () => undefined;
 export const delegateEvents = () => {};
 
-import type { JSX } from "solid-js";
-import { createRenderer as solidCreateRenderer } from "solid-js/universal";
+import type { JSX } from "./jsx";
+import { createRenderer as solidCreateRenderer } from "@solidjs/universal";
 
 /**
  * Application and widget-package additions to the native Host API.
@@ -65,12 +65,6 @@ export interface WabouNodeEvent<T extends object = Record<string, unknown>> {
   stopPropagation(): void;
   stopImmediatePropagation(): void;
   readonly payload: T;
-}
-
-declare module "solid-js" {
-  namespace JSX {
-    interface IntrinsicElements extends WabouIntrinsicElements {}
-  }
 }
 
 export interface NativeScrollbarStyle {
@@ -449,9 +443,14 @@ function applyProperty(
 const writer = new Writer();
 
 const renderer = solidCreateRenderer<Handle>({
-  createElement(tag) {
+  createElement(tag, staticProps) {
     const h = makeHandle(tag);
     writer.createElement(h.id, tag);
+    if (staticProps) {
+      for (const [name, value] of Object.entries(staticProps)) {
+        applyProperty(writer, h, name, value, undefined);
+      }
+    }
     return h;
   },
   createTextNode(value) {
@@ -524,10 +523,12 @@ export const effect = renderer.effect;
 export const memo = renderer.memo;
 export const spread = renderer.spread;
 export const mergeProps = renderer.mergeProps;
-export const use = renderer.use;
+export const applyRef = renderer.applyRef;
+export const ref = renderer.ref;
 
 export function Dynamic(props: any) {
-  const [local, others] = splitProps(props, ["component"]);
+  const local = props;
+  const others = omit(props, "component");
   const cached = createMemo(() => local.component);
 
   return createMemo(() => {

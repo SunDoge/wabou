@@ -15,7 +15,7 @@ export interface ControllableState<T> {
 export function createControllableState<T>(
   options: ControllableStateOptions<T>,
 ): ControllableState<T> {
-  const [local, setLocal] = createSignal<T>(options.defaultValue);
+  const [local, setLocal] = createSignal<T>(() => options.defaultValue);
   const value = () => options.value() ?? local();
   return {
     value,

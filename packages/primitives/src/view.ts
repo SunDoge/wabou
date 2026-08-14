@@ -5,7 +5,7 @@ import {
   spread,
 } from "@wabou/solid-renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
-import { splitProps, type JSX } from "solid-js";
+import { omit, type JSX } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/style";
 export { rotate2d, translate2d } from "@wabou/style";
@@ -124,31 +124,31 @@ export function Svg(props: SvgProps): JSX.Element {
 
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 export function Icon(props: IconProps): JSX.Element {
-  const [icon, rest] = splitProps(props, ["source", "size", "fill", "label"]);
+  const rest = omit(props, "source", "size", "fill", "label");
   const node = createElement("svg");
   spread(node, rest, false);
   spread(
     node,
     {
       get source() {
-        return icon.fill && icon.fill !== "none"
-          ? icon.source.replace('fill="none"', `fill="${icon.fill}"`)
-          : icon.source;
+        return props.fill && props.fill !== "none"
+          ? props.source.replace('fill="none"', `fill="${props.fill}"`)
+          : props.source;
       },
       get width() {
-        return String(icon.size ?? 24);
+        return String(props.size ?? 24);
       },
       get height() {
-        return String(icon.size ?? 24);
+        return String(props.size ?? 24);
       },
       get role() {
-        return icon.label ? "img" : undefined;
+        return props.label ? "img" : undefined;
       },
       get "aria-label"() {
-        return icon.label;
+        return props.label;
       },
       get "aria-hidden"() {
-        return icon.label ? undefined : "true";
+        return props.label ? undefined : "true";
       },
     },
     false,
@@ -163,7 +163,7 @@ export function Image(props: ImageProps): JSX.Element {
 
 /** An explicit network-backed image with bounded decoding and host caching. */
 export function NetworkImage(props: NetworkImageProps): JSX.Element {
-  const [network, rest] = splitProps(props, ["url", "format", "cache"]);
+  const rest = omit(props, "url", "format", "cache");
   const node = createElement("img");
   spread(node, rest, false);
   spread(
@@ -172,9 +172,9 @@ export function NetworkImage(props: NetworkImageProps): JSX.Element {
       get source(): NetworkImageSource {
         return {
           kind: "network",
-          url: network.url,
-          format: network.format,
-          cache: network.cache,
+          url: props.url,
+          format: props.format,
+          cache: props.cache,
         };
       },
     },

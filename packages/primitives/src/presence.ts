@@ -1,4 +1,4 @@
-import { createComputed, createSignal, type Accessor } from "solid-js";
+import { createEffect, createSignal, type Accessor } from "solid-js";
 
 export type PresencePhase = "unmounted" | "entering" | "present" | "exiting";
 
@@ -15,8 +15,8 @@ export function createPresence(open: Accessor<boolean>): Presence {
     open() ? "present" : "unmounted",
   );
 
-  createComputed(() => {
-    if (open()) {
+  createEffect(open, (isOpen) => {
+    if (isOpen) {
       if (phase() === "unmounted" || phase() === "exiting") {
         setPhase("entering");
       }

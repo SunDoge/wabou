@@ -1,7 +1,7 @@
 import { type Handle, Portal } from "@wabou/solid-renderer";
 import {
   createComponent,
-  createComputed,
+  createEffect,
   createSignal,
   type JSX,
   onCleanup,
@@ -86,8 +86,7 @@ export function Modal(props: ModalProps): JSX.Element {
     close("escape");
   };
 
-  createComputed(() => {
-    const isOpen = open();
+  createEffect(open, (isOpen) => {
     if (isOpen && !wasOpen && props.initialFocus) {
       cancelAnimationFrame(focusFrame);
       focusFrame = requestAnimationFrame(() => {

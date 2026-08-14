@@ -1,6 +1,6 @@
 import { Virtualizer, type VirtualizerOptions } from "@tanstack/virtual-core";
 import {
-  Index,
+  For,
   Show,
   createMemo,
   createSignal,
@@ -115,7 +115,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
           width: "100%",
         }}
       >
-        <Index each={virtualItems()}>
+        <For each={virtualItems()} keyed={false}>
           {(virtualItem) => (
             <div
               style={{
@@ -133,7 +133,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
               </Show>
             </div>
           )}
-        </Index>
+        </For>
       </div>
     </div>
   );

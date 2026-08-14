@@ -11,7 +11,7 @@ import {
   View,
 } from "@wabou/primitives";
 import type { Handle } from "@wabou/solid-renderer";
-import { createUniqueId, Index, type JSX } from "solid-js";
+import { createUniqueId, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 
@@ -189,7 +189,7 @@ export function Select(props: SelectProps): JSX.Element {
           class="min-w-0 flex flex-col gap-1"
           onKeyDown={handleKeyDown}
         >
-          <Index each={props.options}>
+          <For each={props.options} keyed={false}>
             {(option) => {
               const selected = () => interaction.value() === option().value;
               const highlighted = () =>
@@ -228,7 +228,7 @@ export function Select(props: SelectProps): JSX.Element {
                 </View>
               );
             }}
-          </Index>
+          </For>
         </View>
       </ScrollArea>
     </Popover>

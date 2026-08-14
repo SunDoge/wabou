@@ -55,9 +55,9 @@ export function Collapsible(props: CollapsibleProps) {
     reducedMotion: () => props.reducedMotion ?? false,
   };
   return (
-    <CollapsibleContext.Provider value={context}>
+    <CollapsibleContext value={context}>
       <View class={join("flex flex-col", props.class)}>{props.children}</View>
-    </CollapsibleContext.Provider>
+    </CollapsibleContext>
   );
 }
 export function CollapsibleTrigger(props: {
@@ -163,9 +163,9 @@ export function Accordion(props: AccordionProps) {
     reducedMotion: () => props.reducedMotion ?? false,
   };
   return (
-    <AccordionContext.Provider value={context}>
+    <AccordionContext value={context}>
       <View class={join("flex flex-col", props.class)}>{props.children}</View>
-    </AccordionContext.Provider>
+    </AccordionContext>
   );
 }
 export function AccordionItem(props: {
@@ -175,13 +175,13 @@ export function AccordionItem(props: {
   class?: string;
 }) {
   return (
-    <AccordionItemContext.Provider
+    <AccordionItemContext
       value={{ value: props.value, disabled: () => props.disabled ?? false }}
     >
       <View class={join("flex flex-col border-b border-subtle", props.class)}>
         {props.children}
       </View>
-    </AccordionItemContext.Provider>
+    </AccordionItemContext>
   );
 }
 export function AccordionTrigger(props: {

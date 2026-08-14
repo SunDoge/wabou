@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { mount } from "@wabou/solid-renderer";
 import { createComponent, createEffect, type JSX } from "solid-js";
-import { isServer } from "solid-js/web";
+import { isServer } from "@solidjs/web";
 import {
   createMemoryHistory,
   MemoryRouter,

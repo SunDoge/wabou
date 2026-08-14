@@ -11,12 +11,13 @@ import {
   type WabouStyle,
 } from "@wabou/primitives";
 import { createFps } from "@wabou/solid-renderer";
+import type { JSX as WebJSX } from "@solidjs/web";
 import {
   createEffect,
   createSignal,
   type JSX,
   onCleanup,
-  splitProps,
+  omit,
   untrack,
 } from "solid-js";
 import { match, P } from "ts-pattern";
@@ -133,12 +134,8 @@ function buttonSize(size: ButtonSize): string {
 }
 
 export function Button(props: ButtonProps): JSX.Element {
-  const [local, forwarded] = splitProps(props, [
-    "variant",
-    "size",
-    "class",
-    "style",
-  ]);
+  const local = props;
+  const forwarded = omit(props, "variant", "size", "class", "style");
   const variant = () => local.variant ?? "default";
   const size = () => local.size ?? "default";
   return (
@@ -371,9 +368,9 @@ export interface InputProps {
   placeholder?: string;
   disabled?: boolean;
   class?: string;
-  ref?: JSX.InputHTMLAttributes<HTMLInputElement>["ref"];
+  ref?: WebJSX.InputHTMLAttributes<HTMLInputElement>["ref"];
   onInput?: (event: { currentTarget: { value: string } }) => void;
-  onKeyDown?: JSX.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
+  onKeyDown?: WebJSX.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
 }
 export function Input(props: InputProps): JSX.Element {
   return (

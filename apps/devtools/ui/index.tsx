@@ -8,10 +8,9 @@ import {
   createMemo,
   createSignal,
   For,
-  Index,
   type JSX,
   onCleanup,
-  onMount,
+  onSettled,
   Show,
 } from "solid-js";
 import {
@@ -187,7 +186,7 @@ function App() {
     queryTimer = setTimeout(() => void refreshNodes(), 180);
   });
 
-  onMount(() => {
+  onSettled(() => {
     void refreshAll();
     const timer = setInterval(() => {
       if (polling) return;
@@ -387,7 +386,7 @@ function App() {
               Protocol frames
             </div>
             <div class="flex-1 min-h-0 overflow-y-scroll px-2">
-              <Index each={frames()}>
+              <For each={frames()} keyed={false}>
                 {(frame) => (
                   <div class="h-8 flex items-center gap-3 border-b border-slate-800 text-xs font-mono">
                     <span
@@ -410,7 +409,7 @@ function App() {
                     <span class="text-slate-500">{frame().byteLen} bytes</span>
                   </div>
                 )}
-              </Index>
+              </For>
             </div>
           </div>
         </section>

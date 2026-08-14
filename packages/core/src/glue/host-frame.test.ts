@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { HOST_FRAME, HOST_RECORD_KIND } from "@wabou/protocol";
+import { createEffect, createRoot, createSignal, flush } from "solid-js";
 import { decodeAndDispatchHostFrame } from "./host-frame";
 import { subscribeAll } from "./host-messages";
 
@@ -41,6 +42,35 @@ test("unified HostEventFrame dispatches application records", () => {
     expect(received).toEqual([["status", "ready"]]);
   } finally {
     unsubscribe();
+  }
+});
+
+test("a complete host frame is one Solid reactive flush boundary", () => {
+  let setValue!: (value: string) => string;
+  let dispose!: () => void;
+  let applied = "";
+  createRoot((rootDispose) => {
+    dispose = rootDispose;
+    const [value, write] = createSignal("idle");
+    setValue = write;
+    createEffect(value, (next) => {
+      applied = next;
+    });
+  });
+  flush();
+  expect(applied).toBe("idle");
+
+  const unsubscribe = subscribeAll((_topic, payload) => {
+    setValue(String(payload));
+    // Solid 2 keeps the previous applied state until the frame-level flush.
+    expect(applied).toBe("idle");
+  });
+  try {
+    decodeAndDispatchHostFrame(applicationFrame("status", "ready"));
+    expect(applied).toBe("ready");
+  } finally {
+    unsubscribe();
+    dispose();
   }
 });
 

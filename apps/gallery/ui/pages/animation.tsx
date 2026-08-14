@@ -5,7 +5,7 @@ import {
 } from "@wabou/animation";
 import { Button } from "@wabou/components";
 import { Text, translate2d, View } from "@wabou/primitives";
-import { createSignal, onCleanup, onMount } from "solid-js";
+import { createSignal, onCleanup, onSettled } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { Preview } from "../preview";
@@ -106,7 +106,7 @@ function AnimationPage() {
     setSpeed(next);
   };
 
-  onMount(restart);
+  onSettled(restart);
   onCleanup(stop);
 
   return (

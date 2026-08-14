@@ -63,7 +63,7 @@ export function createTabs<T, K extends TabKey>(
         : options.key(initialTabs[0]);
   const [tabs, setTabs] = createSignal<readonly T[]>(initialTabs);
   const [activeKey, setActiveKey] = createSignal<K | undefined>(
-    initialActiveKey,
+    () => initialActiveKey,
   );
   const focusTargets = new Map<K, FocusTarget>();
 

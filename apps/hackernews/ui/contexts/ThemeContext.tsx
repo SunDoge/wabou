@@ -78,7 +78,7 @@ export function ThemeProvider(props: { children: JSX.Element }): JSX.Element {
   };
 
   return (
-    <ThemeContext.Provider value={value}>
+    <ThemeContext value={value}>
       <div
         class="w-full h-full"
         style={{
@@ -88,7 +88,7 @@ export function ThemeProvider(props: { children: JSX.Element }): JSX.Element {
       >
         {props.children}
       </div>
-    </ThemeContext.Provider>
+    </ThemeContext>
   );
 }
 

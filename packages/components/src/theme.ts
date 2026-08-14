@@ -24,7 +24,7 @@ export type ComponentsProviderProps = ParentProps<{
 export function ComponentsProvider(
   props: ComponentsProviderProps,
 ): JSX.Element {
-  return createComponent(ThemeContext.Provider, {
+  return createComponent(ThemeContext, {
     value: { theme: () => props.theme ?? "dark" },
     get children() {
       return props.children;

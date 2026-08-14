@@ -15,7 +15,7 @@ import moon from "lucide-static/icons/moon.svg?raw";
 import newspaper from "lucide-static/icons/newspaper.svg?raw";
 import refreshCw from "lucide-static/icons/refresh-cw.svg?raw";
 import sun from "lucide-static/icons/sun.svg?raw";
-import { type JSX, onMount } from "solid-js";
+import { type JSX, onSettled } from "solid-js";
 import { useTheme } from "../contexts/ThemeContext";
 import {
   activeView,
@@ -31,7 +31,7 @@ export function Sidebar(): JSX.Element {
   const navigate = useNavigate();
   const { theme, palette, toggleTheme } = useTheme();
 
-  onMount(() => {
+  onSettled(() => {
     if (stories().length === 0) void loadStories("top");
   });
 

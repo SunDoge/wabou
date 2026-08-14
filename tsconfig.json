@@ -5,7 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+    "jsxImportSource": "@wabou/solid-renderer",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

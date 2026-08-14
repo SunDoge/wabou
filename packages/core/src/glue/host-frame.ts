@@ -4,6 +4,7 @@ import {
   HOST_RECORD_KIND,
 } from "@wabou/protocol";
 import { dispatchEvent } from "@wabou/solid-renderer";
+import { flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
 import { dispatchResizeObservation } from "./resize-observer";
 
@@ -225,6 +226,11 @@ export function decodeAndDispatchHostFrame(
       needsTick = true;
     }
   }
+
+  // Solid 2 batches writes by default. The native frame is Wabou's explicit
+  // transaction boundary: make every reactive consequence visible together,
+  // while leaving binary writer delivery to the regular host tick.
+  if (needsTick) flush();
 
   return {
     preventedEventIds:

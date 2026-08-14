@@ -1,4 +1,4 @@
-import { batch, createSignal, type Accessor } from "solid-js";
+import { createSignal, type Accessor } from "solid-js";
 
 export interface UpdateResult<State, Command = never> {
   state: State;
@@ -26,15 +26,13 @@ export interface Machine<State, Event> {
 export function createMachine<State, Event, Command = never>(
   options: MachineOptions<State, Event, Command>,
 ): Machine<State, Event> {
-  const [state, setState] = createSignal(options.initialState);
+  const [state, setState] = createSignal<State>(() => options.initialState);
   const send = (event: Event) => {
     const previous = state();
     const result = options.update(previous, event);
     const changed = !Object.is(previous, result.state);
-    batch(() => {
-      if (changed) setState(() => result.state);
-      options.onTransition?.(result, event);
-    });
+    if (changed) setState(() => result.state);
+    options.onTransition?.(result, event);
     for (const command of result.commands) options.execute?.(command, send);
     return changed;
   };

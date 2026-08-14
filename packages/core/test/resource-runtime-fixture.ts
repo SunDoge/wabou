@@ -3,10 +3,10 @@ import "@wabou/core";
 import { createElement, mount, spread, useHost } from "@wabou/solid-renderer";
 import {
   createComponent,
-  createResource,
-  ErrorBoundary,
+  createMemo,
+  Errored,
   type JSX,
-  Suspense,
+  Loading,
 } from "solid-js";
 
 declare module "@wabou/solid-renderer" {
@@ -32,10 +32,10 @@ const Text = (props: { children?: JSX.Element }) => host("text", props);
 
 function ResourceFixture() {
   const native = useHost();
-  const [resolved] = createResource(() => native.promiseTest.resolve());
-  const [rejected] = createResource(() => native.promiseTest.reject());
+  const resolved = createMemo(() => native.promiseTest.resolve());
+  const rejected = createMemo(() => native.promiseTest.reject());
 
-  const success = createComponent(Suspense, {
+  const success = createComponent(Loading, {
     fallback: createComponent(Text, { children: "success pending" }),
     get children() {
       return createComponent(Text, {
@@ -45,11 +45,13 @@ function ResourceFixture() {
       });
     },
   });
-  const failure = createComponent(ErrorBoundary, {
-    fallback: (error: Error) =>
-      createComponent(Text, { children: `caught ${error.message}` }),
+  const failure = createComponent(Errored, {
+    fallback: (error) =>
+      createComponent(Text, {
+        children: `caught ${(error() as Error).message}`,
+      }),
     get children() {
-      return createComponent(Suspense, {
+      return createComponent(Loading, {
         fallback: createComponent(Text, { children: "failure pending" }),
         get children() {
           return createComponent(Text, {

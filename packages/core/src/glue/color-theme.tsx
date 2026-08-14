@@ -247,7 +247,7 @@ export function ColorThemeProvider(props: {
     initialized = true;
     if (animation) onCleanup(() => animation.cancel());
   });
-  return createComponent(ColorThemeContext.Provider, {
+  return createComponent(ColorThemeContext, {
     value: colorTheme,
     get children() {
       return props.children;

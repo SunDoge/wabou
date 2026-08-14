@@ -59,7 +59,7 @@ export function wabouPlugins(
 ): Plugin[] {
   return [
     wabouStylePlugin({ root, colorThemes: theme, ignoreClasses }),
-    solid({
+    ...solid({
       solid: { generate: "universal", moduleName: "@wabou/solid-renderer" },
     }),
     disableSolidDependencyOptimizer(),

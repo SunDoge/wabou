@@ -98,7 +98,7 @@ export interface HostProviderProps {
 
 /** Bind host capabilities to a Solid subtree (normally one window). */
 export function HostProvider(props: HostProviderProps): JSX.Element {
-  return createComponent(HostContext.Provider, {
+  return createComponent(HostContext, {
     get value() {
       return props.value;
     },

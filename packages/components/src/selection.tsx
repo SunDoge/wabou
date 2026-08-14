@@ -134,7 +134,7 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
     orientation: () => "vertical",
     onMove: select,
   });
-  return createComponent(RadioContext.Provider, {
+  return createComponent(RadioContext, {
     value: {
       value,
       select,

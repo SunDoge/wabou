@@ -1,4 +1,4 @@
-import { type Accessor, createEffect, on } from "solid-js";
+import { type Accessor, createEffect } from "solid-js";
 
 export interface ScrollResetTarget {
   scrollTo(options: { left?: number; top?: number }): void;
@@ -23,6 +23,6 @@ export function createScrollReset<K>(
       top: options.top ?? 0,
     });
   };
-  createEffect(on(options.key, reset, { defer: true }));
+  createEffect(options.key, reset, { defer: true });
   return reset;
 }

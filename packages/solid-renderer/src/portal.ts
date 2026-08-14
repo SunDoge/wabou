@@ -1,4 +1,4 @@
-import { onCleanup, splitProps, type JSX } from "solid-js";
+import { omit, onCleanup, type JSX } from "solid-js";
 import {
   createElement,
   acquireOverlayRoot,
@@ -19,7 +19,8 @@ export interface PortalProps {
 
 /** Render a native host subtree under its shared synthetic overlay root. */
 export function Portal(props: PortalProps): JSX.Element {
-  const [local, containerProps] = splitProps(props, ["children", "plane"]);
+  const local = props;
+  const containerProps = omit(props, "children", "plane");
   const plane = local.plane ?? "floating";
   const root = acquireOverlayRoot(plane);
   const container = createElement("view") as Handle;
