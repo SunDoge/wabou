@@ -16,8 +16,11 @@ use std::time::Instant;
 use crate::style::{Paint, TextAlign};
 use crate::text::TextContext;
 use crate::{ClipboardRequest, HostAction, HostActionResult, UiEvent, WakeCallback};
-use vello::Scene;
-use vello::peniko::Color;
+use vello::{
+    Scene,
+    kurbo::{Affine, Rect},
+    peniko::{Color, Fill},
+};
 
 /// Per-frame painting state passed to a native widget.
 ///
@@ -31,6 +34,7 @@ pub struct PaintContext<'a> {
     device_scale: f64,
     text: &'a mut TextContext,
     scene: Scene,
+    owns_clip: bool,
 }
 
 impl<'a> PaintContext<'a> {
@@ -41,7 +45,29 @@ impl<'a> PaintContext<'a> {
             device_scale: device_scale.max(f64::EPSILON),
             text,
             scene: Scene::new(),
+            owns_clip: false,
         }
+    }
+
+    /// Create a context whose complete widget fragment is clipped in local
+    /// coordinates. The clip is encoded before widget-owned drawing and scene
+    /// appends, avoiding backend-dependent clipping at the parent append site.
+    pub fn new_clipped(
+        width: f32,
+        height: f32,
+        radius: f64,
+        device_scale: f64,
+        text: &'a mut TextContext,
+    ) -> Self {
+        let mut context = Self::new(width, height, device_scale, text);
+        context.scene.push_clip_layer(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            &Rect::new(0.0, 0.0, f64::from(width), f64::from(height))
+                .to_rounded_rect(radius.max(0.0)),
+        );
+        context.owns_clip = true;
+        context
     }
 
     pub fn width(&self) -> f32 {
@@ -69,7 +95,10 @@ impl<'a> PaintContext<'a> {
         &mut self.scene
     }
 
-    pub fn finish(self) -> Scene {
+    pub fn finish(mut self) -> Scene {
+        if self.owns_clip {
+            self.scene.pop_layer();
+        }
         self.scene
     }
 }

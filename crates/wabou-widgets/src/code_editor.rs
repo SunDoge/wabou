@@ -35,7 +35,7 @@ pub struct CodeEditor {
     cached_value: String,
     scroll_row: usize,
     viewport: [f32; 2],
-    position: [f32; 2],
+    window_to_local: [f64; 6],
     focused: bool,
     selecting: bool,
     disabled: bool,
@@ -59,7 +59,7 @@ impl CodeEditor {
             cached_value: text.to_owned(),
             scroll_row: 0,
             viewport: [0.0, 0.0],
-            position: [0.0, 0.0],
+            window_to_local: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             focused: false,
             selecting: false,
             disabled: false,
@@ -120,6 +120,11 @@ impl CodeEditor {
         self.state
             .visual_position_to_logical(row, x_cells)
             .unwrap_or_else(|| self.state.editor().cursor_position())
+    }
+
+    fn local_point(&self, x: f64, y: f64) -> (f32, f32) {
+        let [a, b, c, d, e, f] = self.window_to_local;
+        ((a * x + c * y + e) as f32, (b * x + d * y + f) as f32)
     }
 
     fn select_all(&mut self) -> bool {
@@ -492,12 +497,8 @@ impl Widget for CodeEditor {
                 if event.button != Some(wabou_shell::PointerButton::Primary) {
                     return WidgetEventResult::IGNORED;
                 }
-                let position = self.position_from_pointer(
-                    event.position.x as f32 - self.position[0],
-                    event.position.y as f32 - self.position[1],
-                );
-                let local_x = event.position.x as f32 - self.position[0];
-                let local_y = event.position.y as f32 - self.position[1];
+                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                let position = self.position_from_pointer(local_x, local_y);
                 let now = Instant::now();
                 let click_count = self.last_click.map_or(1, |(at, x, y, count)| {
                     if now.duration_since(at) <= Duration::from_millis(400)
@@ -528,28 +529,24 @@ impl Widget for CodeEditor {
                 WidgetEventResult::HANDLED
             }
             UiEvent::Pointer(event) if event.phase == PointerPhase::Move && self.selecting => {
-                let local_y = event.position.y as f32 - self.position[1];
+                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
                 if local_y < 0.0 {
                     self.scroll_row = self.scroll_row.saturating_sub(1);
                 } else if local_y > self.viewport[1] {
                     self.scroll_row = (self.scroll_row + 1)
                         .min(self.state.total_visual_lines().saturating_sub(1));
                 }
-                let position = self.position_from_pointer(
-                    event.position.x as f32 - self.position[0],
-                    local_y.clamp(0.0, self.viewport[1].max(0.0)),
-                );
+                let position = self
+                    .position_from_pointer(local_x, local_y.clamp(0.0, self.viewport[1].max(0.0)));
                 self.execute(Command::Cursor(CursorCommand::ExtendSelection {
                     to: position,
                 }));
                 WidgetEventResult::HANDLED
             }
             UiEvent::Pointer(event) if event.phase == PointerPhase::Up && self.selecting => {
-                let position = self.position_from_pointer(
-                    event.position.x as f32 - self.position[0],
-                    (event.position.y as f32 - self.position[1])
-                        .clamp(0.0, self.viewport[1].max(0.0)),
-                );
+                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                let position = self
+                    .position_from_pointer(local_x, local_y.clamp(0.0, self.viewport[1].max(0.0)));
                 self.execute(Command::Cursor(CursorCommand::ExtendSelection {
                     to: position,
                 }));
@@ -621,7 +618,7 @@ impl Widget for CodeEditor {
             "value" if value != self.cached_value => {
                 let mut replacement = Self::from_text(value);
                 replacement.viewport = self.viewport;
-                replacement.position = self.position;
+                replacement.window_to_local = self.window_to_local;
                 replacement.focused = self.focused;
                 replacement.disabled = self.disabled;
                 replacement.read_only = self.read_only;
@@ -667,8 +664,8 @@ impl Widget for CodeEditor {
         self.focused = focused;
     }
 
-    fn set_position(&mut self, x: f32, y: f32) {
-        self.position = [x, y];
+    fn set_window_to_local(&mut self, transform: [f64; 6]) {
+        self.window_to_local = transform;
     }
 
     fn ime_cursor_area(&self) -> Option<[f32; 4]> {
@@ -800,6 +797,21 @@ mod tests {
 
         assert_eq!(editor.selected_offsets(), Some((0, 4)));
         assert!(!editor.selecting);
+    }
+
+    #[test]
+    fn pointer_coordinates_follow_content_box_affine_geometry() {
+        let mut editor = CodeEditor::from_text("abcdef");
+        editor.viewport = [640.0, 88.0];
+        editor.set_window_to_local([0.5, 0.0, 0.0, 0.5, -50.0, -10.0]);
+        let local_x = GUTTER_WIDTH + TEXT_INSET + CELL_WIDTH * 3.0;
+        editor.handle_event(&pointer(
+            PointerPhase::Down,
+            f64::from((local_x + 50.0) * 2.0),
+            30.0,
+            1,
+        ));
+        assert_eq!(editor.state.editor().cursor_position(), Position::new(0, 3));
     }
 
     #[test]

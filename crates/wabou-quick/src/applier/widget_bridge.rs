@@ -203,8 +203,16 @@ impl Applier {
                 w.set_window_to_local(window_to_local.as_coeffs());
                 let [width, height] = n.content_size;
                 if width > 0.0 && height > 0.0 {
-                    let mut paint =
-                        wabou_shell::PaintContext::new(width, height, self.device_scale, tcx);
+                    let border_inset = n.border_widths.into_iter().fold(0.0_f32, f32::max);
+                    let inner_radius =
+                        (f64::from(n.paint.border_radius) - f64::from(border_inset)).max(0.0);
+                    let mut paint = wabou_shell::PaintContext::new_clipped(
+                        width,
+                        height,
+                        inner_radius,
+                        self.device_scale,
+                        tcx,
+                    );
                     w.paint(&mut paint);
                     n.paint.widget = Some(std::sync::Arc::new(paint.finish()));
                 }

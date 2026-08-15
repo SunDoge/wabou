@@ -526,12 +526,27 @@ mod tests {
 
     #[test]
     fn rounded_native_widget_is_clipped_without_overflow_hidden() {
-        let node = placed_node(Paint {
+        let mut widget = Scene::new();
+        widget.fill(
+            Fill::NonZero,
+            Affine::IDENTITY,
+            Color::from_rgba8(255, 0, 0, 255),
+            None,
+            &Rect::new(0.0, 0.0, 80.0, 80.0),
+        );
+        let mut node = placed_node(Paint {
             border_radius: 12.0,
+            widget: Some(std::sync::Arc::new(widget)),
             ..Paint::default()
         });
+        node.rect = [10.0, 10.0, 90.0, 90.0];
+        node.content_origin = [10.0, 10.0];
+        node.content_size = [80.0, 80.0];
 
-        assert_eq!(widget_clip(&node), Some(([10.0, 20.0, 110.0, 120.0], 12.0)));
+        assert_eq!(widget_clip(&node), Some(([10.0, 10.0, 90.0, 90.0], 12.0)));
+        let image = render_nodes(&[node], "rounded-native-widget");
+        assert_eq!(image.get_pixel(10, 10).0, [0, 0, 0, 255]);
+        assert_eq!(image.get_pixel(20, 20).0, [255, 0, 0, 255]);
     }
 
     #[test]
