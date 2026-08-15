@@ -730,7 +730,14 @@ function bubble(nodeId: number, code: number, ev: any): void {
       try {
         fn(ev);
       } catch (e) {
-        __wabou_log("error", String(e));
+        const detail =
+          e && typeof e === "object" && "stack" in e
+            ? String((e as { stack?: unknown }).stack ?? e)
+            : String(e);
+        __wabou_log(
+          "error",
+          `[wabou-event] ${eventName(code)} handler failed at node ${cur} (target ${nodeId})\n${detail}`,
+        );
       }
     }
     if (ev.propagationStopped) return;

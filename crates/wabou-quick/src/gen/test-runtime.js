@@ -790,7 +790,7 @@
     throw new TypeError(`invalid inline style value for ${property}`);
   }
 
-  // ../clashie/node_modules/.bun/@solidjs+signals@2.0.0-rc.0/node_modules/@solidjs/signals/dist/dev.js
+  // node_modules/.bun/@solidjs+signals@2.0.0-rc.0/node_modules/@solidjs/signals/dist/dev.js
   class NotReadyError extends Error {
     source;
     constructor(source) {
@@ -4031,7 +4031,7 @@
     return needsUnwrap;
   }
 
-  // ../clashie/node_modules/.bun/solid-js@2.0.0-rc.0/node_modules/solid-js/dist/dev.js
+  // node_modules/.bun/solid-js@2.0.0-rc.0/node_modules/solid-js/dist/dev.js
   var $DEVCOMP = Symbol("COMPONENT_DEV");
   function createContext(defaultValue, options) {
     const id = Symbol(options && options.name || "");
@@ -4107,7 +4107,7 @@
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
 
-  // ../clashie/node_modules/.bun/@solidjs+universal@2.0.0-rc.0+6b48b9f3356e564b/node_modules/@solidjs/universal/dist/dev.js
+  // node_modules/.bun/@solidjs+universal@2.0.0-rc.0+6b48b9f3356e564b/node_modules/@solidjs/universal/dist/dev.js
   var transparentOptions = {
     transparent: true,
     sync: true
@@ -4944,7 +4944,9 @@
         try {
           fn(ev);
         } catch (e) {
-          __wabou_log("error", String(e));
+          const detail = e && typeof e === "object" && "stack" in e ? String(e.stack ?? e) : String(e);
+          __wabou_log("error", `[wabou-event] ${eventName(code)} handler failed at node ${cur} (target ${nodeId})
+${detail}`);
         }
       }
       if (ev.propagationStopped)
@@ -4974,13 +4976,15 @@
   function __wabou_tick(frameTime) {
     const entries = Array.from(rafQueue.entries());
     rafQueue.clear();
-    for (const [_, cb] of entries) {
-      try {
-        cb(frameTime);
-      } catch (e) {
-        __wabou_log("error", e.stack ? String(e.stack) : String(e));
+    flush(() => {
+      for (const [_, cb] of entries) {
+        try {
+          cb(frameTime);
+        } catch (e) {
+          __wabou_log("error", e.stack ? String(e.stack) : String(e));
+        }
       }
-    }
+    });
     runSweep();
     const bytes = writer.flush();
     if (bytes)

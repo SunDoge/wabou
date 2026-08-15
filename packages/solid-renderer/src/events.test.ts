@@ -64,6 +64,32 @@ test("host click is dispatched exactly once after pointerup", () => {
   expect(clicks).toBe(1);
 });
 
+test("event handler failures retain the event context and JavaScript stack", () => {
+  const button = createElement("button");
+  const messages: string[] = [];
+  const original = globalThis.__wabou_log;
+  globalThis.__wabou_log = (_level, message) => messages.push(message);
+  try {
+    setProp(
+      button,
+      "onClick",
+      () => {
+        throw new Error("navigation exploded");
+      },
+      undefined,
+    );
+    dispatchEvent(button.id, EVENT_CODE.click, "");
+  } finally {
+    globalThis.__wabou_log = original;
+  }
+
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("[wabou-event] click handler failed");
+  expect(messages[0]).toContain(`target ${button.id}`);
+  expect(messages[0]).toContain("Error: navigation exploded");
+  expect(messages[0]).toContain("events.test.ts");
+});
+
 test("dispatch reports preventDefault to the Host", () => {
   const anchor = createElement("a");
   setProp(anchor, "href", "https://example.com/story", undefined);

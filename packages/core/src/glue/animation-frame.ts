@@ -5,6 +5,7 @@
 // redrawing.
 
 import { runSweep, writer } from "@wabou/solid-renderer";
+import { flush } from "solid-js";
 
 const rafQueue = new Map<number, (t: number) => void>();
 let nextRafId = 1;
@@ -22,13 +23,18 @@ function cancelAnimationFrameImpl(id: number): void {
 function __wabou_tick(frameTime: number): boolean {
   const entries = Array.from(rafQueue.entries());
   rafQueue.clear();
-  for (const [_, cb] of entries) {
-    try {
-      cb(frameTime);
-    } catch (e: any) {
-      __wabou_log("error", e.stack ? String(e.stack) : String(e));
+  // A native frame is the transaction boundary for every rAF callback.
+  // Commit Solid's queued render effects before serializing the writer, so
+  // rAF-driven changes cannot sit in the writer until an unrelated next frame.
+  flush(() => {
+    for (const [_, cb] of entries) {
+      try {
+        cb(frameTime);
+      } catch (e: any) {
+        __wabou_log("error", e.stack ? String(e.stack) : String(e));
+      }
     }
-  }
+  });
   runSweep();
   const bytes = writer.flush();
   if (bytes) __wabou_flush(bytes);
