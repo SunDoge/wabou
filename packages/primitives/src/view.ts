@@ -17,7 +17,7 @@ export interface TextSelectionChangeEvent {
   kind: "simple" | "word" | "line" | null;
 }
 
-interface PrimitiveProps {
+export interface PrimitiveProps {
   class?: string;
   /** Explicit reactive classes; use this for primitive interaction state. */
   classList?: WabouClassList;
@@ -97,8 +97,25 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
   onKeyDown?: (event: { key: string; preventDefault(): void }) => void;
 }
 
+export interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
+  value?: string;
+  /** The initial experimental adapter supports JSON highlighting. */
+  language?: "json";
+  disabled?: boolean;
+  readOnly?: boolean;
+  "aria-label": string;
+  onInput?: (event: { currentTarget: { value: string } }) => void;
+}
+
 function primitive(
-  tag: "view" | "text" | "svg" | "img" | "textarea" | "password-input",
+  tag:
+    | "view"
+    | "text"
+    | "svg"
+    | "img"
+    | "textarea"
+    | "password-input"
+    | "code-editor",
   props: PrimitiveProps,
 ) {
   const node = createElement(tag);
@@ -195,4 +212,9 @@ export function TextArea(props: TextAreaProps): JSX.Element {
 /** Native password editor whose value remains in a Rust SecretStore. */
 export function PasswordInput(props: PasswordInputProps): JSX.Element {
   return primitive("password-input", props);
+}
+
+/** Experimental native editor for config and script-sized documents. */
+export function CodeEditor(props: CodeEditorProps): JSX.Element {
+  return primitive("code-editor", props);
 }

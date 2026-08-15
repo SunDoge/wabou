@@ -25,8 +25,8 @@ use crate::shell::Shell;
 use crate::source::{
     ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
     ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
-    PointerPhase, SemanticRole, UiEvent, WakeCallback, WheelEvent, WindowCommand, WindowMetrics,
-    WindowOptions,
+    PointerPhase, SemanticAction, SemanticRole, UiEvent, WakeCallback, WheelEvent, WindowCommand,
+    WindowMetrics, WindowOptions,
 };
 use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle};
 
@@ -1019,6 +1019,7 @@ struct MultiWindowApp {
     wake: WakeCallback,
     extensions: Vec<Box<dyn ShellExtension>>,
     extensions_initialized: bool,
+    extensions_shutdown: bool,
     extension_error: Arc<Mutex<Option<crate::Error>>>,
 }
 
@@ -1034,6 +1035,45 @@ pub struct ExtensionContext<'a> {
 }
 
 impl ExtensionContext<'_> {
+    /// Return an enabled semantic node from the latest retained snapshot.
+    pub fn semantic_node_by_role(
+        &mut self,
+        logical_window_id: u64,
+        role: &str,
+        label: &str,
+    ) -> Option<crate::SemanticNode> {
+        let app = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)?;
+        let snapshot = app.source.semantic_snapshot()?;
+        snapshot
+            .nodes
+            .iter()
+            .find(|node| {
+                semantic_role_matches(role, node.role)
+                    && node.label.as_deref() == Some(label)
+                    && !node.disabled
+            })
+            .cloned()
+    }
+
+    /// Deliver synthetic input through the same frame-source path as winit.
+    pub fn dispatch_event(&mut self, logical_window_id: u64, event: UiEvent) -> bool {
+        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+        else {
+            return false;
+        };
+        app.source.handle_event(event);
+        true
+    }
+
+    pub fn focus_semantic_node(&mut self, logical_window_id: u64, node_id: u64) -> bool {
+        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+        else {
+            return false;
+        };
+        app.source
+            .handle_semantic_action(SemanticAction::Focus { target: node_id })
+    }
+
     /// Find an enabled semantic node and activate it through the normal pointer
     /// hit-test and event-dispatch path.
     pub fn click_by_role(&mut self, logical_window_id: u64, role: &str, label: &str) -> bool {
@@ -1044,18 +1084,10 @@ impl ExtensionContext<'_> {
         let Some(snapshot) = app.source.semantic_snapshot() else {
             return false;
         };
-        let role_matches = |candidate: SemanticRole| {
-            matches!(
-                (role, candidate),
-                ("button", SemanticRole::Button)
-                    | ("textbox", SemanticRole::TextInput)
-                    | ("link", SemanticRole::Link)
-                    | ("dialog", SemanticRole::Dialog)
-                    | ("label", SemanticRole::Label)
-            )
-        };
         let Some(node) = snapshot.nodes.iter().find(|node| {
-            role_matches(node.role) && node.label.as_deref() == Some(label) && !node.disabled
+            semantic_role_matches(role, node.role)
+                && node.label.as_deref() == Some(label)
+                && !node.disabled
         }) else {
             return false;
         };
@@ -1225,6 +1257,25 @@ impl ExtensionContext<'_> {
     }
 }
 
+fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
+    matches!(
+        (role, candidate),
+        ("button", SemanticRole::Button)
+            | ("textbox", SemanticRole::TextInput)
+            | ("link", SemanticRole::Link)
+            | ("dialog", SemanticRole::Dialog)
+            | ("alert", SemanticRole::Alert)
+            | ("status", SemanticRole::Status)
+            | ("checkbox", SemanticRole::CheckBox)
+            | ("radio", SemanticRole::RadioButton)
+            | ("switch", SemanticRole::Switch)
+            | ("combobox", SemanticRole::ComboBox)
+            | ("listbox", SemanticRole::ListBox)
+            | ("option", SemanticRole::Option)
+            | ("label", SemanticRole::Label)
+    )
+}
+
 /// Optional native integration hosted by Wabou's event loop.
 ///
 /// Implementations create platform resources in `initialize`, enqueue events
@@ -1232,6 +1283,11 @@ impl ExtensionContext<'_> {
 pub trait ShellExtension {
     fn initialize(&mut self, wake: WakeCallback) -> Result<(), String>;
     fn poll(&mut self, context: &mut ExtensionContext<'_>);
+
+    /// Release native resources and stop background work before the event loop
+    /// and frame sources are dropped. Called at most once for extensions whose
+    /// initialization was attempted.
+    fn shutdown(&mut self, _context: &mut ExtensionContext<'_>) {}
 
     /// Return true after handling a native close request (for example by
     /// hiding the window while a tray icon keeps the process alive).
@@ -1321,6 +1377,7 @@ impl MultiWindowApp {
             wake,
             extensions,
             extensions_initialized: false,
+            extensions_shutdown: false,
             extension_error: Arc::new(Mutex::new(None)),
         }
     }
@@ -1428,7 +1485,20 @@ impl MultiWindowApp {
             self.windows.remove(&id);
         }
         if self.windows.is_empty() && self.hidden_windows.is_empty() {
+            self.shutdown_extensions(event_loop);
             event_loop.exit();
+        }
+    }
+
+    fn shutdown_extensions(&mut self, event_loop: &dyn ActiveEventLoop) {
+        if !self.extensions_initialized || self.extensions_shutdown {
+            return;
+        }
+        self.extensions_shutdown = true;
+        let mut context =
+            Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
+        for extension in self.extensions.iter_mut().rev() {
+            extension.shutdown(&mut context);
         }
     }
 }
@@ -1451,6 +1521,7 @@ impl ApplicationHandler for MultiWindowApp {
                         .lock()
                         .expect("extension error mutex poisoned") =
                         Some(crate::Error::Extension { message });
+                    self.shutdown_extensions(event_loop);
                     event_loop.exit();
                     return;
                 }
@@ -1462,6 +1533,7 @@ impl ApplicationHandler for MultiWindowApp {
         self.apply_window_requests(event_loop);
         self.apply_extension_effects(event_loop);
         if self.windows.is_empty() && self.hidden_windows.is_empty() {
+            self.shutdown_extensions(event_loop);
             event_loop.exit();
         }
     }
@@ -1509,6 +1581,7 @@ impl ApplicationHandler for MultiWindowApp {
             }
             self.windows.remove(&window_id);
             if self.windows.is_empty() && self.hidden_windows.is_empty() {
+                self.shutdown_extensions(event_loop);
                 event_loop.exit();
             }
             return;

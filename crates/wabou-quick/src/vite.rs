@@ -7,7 +7,11 @@
 //! [`crate::ReloadHandle`].
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+use std::time::Duration;
 
 use rquickjs::loader::{ImportAttributes, Loader, Resolver};
 use rquickjs::{Ctx, Error, Function, Module, Result};
@@ -245,7 +249,11 @@ fn vite_http_agent() -> ureq::Agent {
     // Vite is an application-local transport. Inheriting HTTP_PROXY here can
     // route loopback module requests through a corporate or development proxy,
     // which commonly rejects CONNECT requests to 127.0.0.1.
-    ureq::Agent::config_builder().proxy(None).build().into()
+    ureq::Agent::config_builder()
+        .proxy(None)
+        .timeout_global(Some(Duration::from_secs(5)))
+        .build()
+        .into()
 }
 
 impl Loader for ViteLoader {
@@ -370,10 +378,24 @@ enum ViteMessage {
 /// Start a Vite HMR client on a background thread. Connects to the Vite dev
 /// server's WebSocket, fetches updated module/stylesheet sources via blocking
 /// HTTP, and forwards them to the Applier through `reload`.
+pub struct HmrClient {
+    stop: Arc<AtomicBool>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for HmrClient {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
 pub fn start_hmr_client(
     server_url: &str,
     reload: crate::ReloadHandle,
-) -> std::result::Result<std::thread::JoinHandle<()>, ViteError> {
+) -> std::result::Result<HmrClient, ViteError> {
     let mut websocket_url = url::Url::parse(server_url).context(InvalidUrlSnafu)?;
     websocket_url
         .set_scheme(if websocket_url.scheme() == "https" {
@@ -391,12 +413,32 @@ pub fn start_hmr_client(
         "vite-hmr".parse().context(HeaderSnafu)?,
     );
     let (mut socket, _) = tungstenite::connect(request).context(WebSocketSnafu)?;
+    if let tungstenite::stream::MaybeTlsStream::Plain(stream) = socket.get_mut() {
+        stream
+            .set_read_timeout(Some(Duration::from_millis(200)))
+            .map_err(tungstenite::Error::Io)
+            .context(WebSocketSnafu)?;
+    }
     let client = vite_http_agent();
     let server_url = url::Url::parse(server_url).context(InvalidUrlSnafu)?;
+    let stop = Arc::new(AtomicBool::new(false));
+    let thread_stop = stop.clone();
 
-    Ok(std::thread::spawn(move || {
+    let thread = std::thread::spawn(move || {
         tracing::info!(url = %websocket_url, "Vite HMR client connected");
-        while let Ok(message) = socket.read() {
+        while !thread_stop.load(Ordering::Acquire) {
+            let message = match socket.read() {
+                Ok(message) => message,
+                Err(tungstenite::Error::Io(error))
+                    if matches!(
+                        error.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) =>
+                {
+                    continue;
+                }
+                Err(_) => break,
+            };
             let Ok(text) = message.to_text() else {
                 continue;
             };
@@ -449,8 +491,14 @@ pub fn start_hmr_client(
                 }
             }
         }
-        tracing::warn!("Vite HMR client disconnected");
-    }))
+        if !thread_stop.load(Ordering::Acquire) {
+            tracing::warn!("Vite HMR client disconnected");
+        }
+    });
+    Ok(HmrClient {
+        stop,
+        thread: Some(thread),
+    })
 }
 
 fn fetch_module(

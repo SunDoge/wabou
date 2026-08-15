@@ -39,6 +39,24 @@ type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
 type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
 
+struct ResourceCacheShutdownGuard {
+    cache: Arc<ResourceCache>,
+}
+
+impl ResourceCacheShutdownGuard {
+    fn new(cache: Arc<ResourceCache>) -> Self {
+        Self { cache }
+    }
+}
+
+impl Drop for ResourceCacheShutdownGuard {
+    fn drop(&mut self) {
+        if let Err(error) = self.cache.shutdown() {
+            tracing::warn!(%error, "failed to gracefully close persistent asset cache");
+        }
+    }
+}
+
 #[cfg(feature = "profiling")]
 fn init_tracing() -> Option<tracing_chrome::FlushGuard> {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -341,6 +359,9 @@ impl HostBuilder {
         } else {
             ResourceCache::memory_only()
         });
+        // Declared immediately after the cache so it runs on successful exit
+        // and on every later `?` path, before the cache-owned runtime is dropped.
+        let _asset_cache_shutdown = ResourceCacheShutdownGuard::new(asset_cache.clone());
 
         #[cfg(feature = "vite")]
         let vite = std::env::var("WABOU_VITE_URL").ok().map(|url| {

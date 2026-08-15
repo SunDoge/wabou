@@ -12,7 +12,9 @@ fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<
 fn semantic_role(tag: &str, declared: &Declared, atoms: &AtomPool) -> SemanticRole {
     match attribute(declared, atoms, "role").as_deref().unwrap_or(tag) {
         "button" => SemanticRole::Button,
-        "textbox" | "input" | "textarea" | "password-input" => SemanticRole::TextInput,
+        "textbox" | "input" | "textarea" | "password-input" | "code-editor" => {
+            SemanticRole::TextInput
+        }
         "img" | "image" => SemanticRole::Image,
         "link" | "a" => SemanticRole::Link,
         "dialog" | "alertdialog" => SemanticRole::Dialog,

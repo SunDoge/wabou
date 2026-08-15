@@ -61,4 +61,4 @@ pub use widget::{
 };
 
 #[cfg(feature = "vite")]
-pub use vite::{ViteError, start_hmr_client, vite_url_from_env};
+pub use vite::{HmrClient, ViteError, start_hmr_client, vite_url_from_env};

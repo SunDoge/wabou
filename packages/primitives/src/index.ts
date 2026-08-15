@@ -38,6 +38,14 @@ export {
   type ModalProps,
   type ModalTriggerProps,
 } from "./modal";
+export {
+  createOverlayLayer,
+  type DismissEvent,
+  type DismissKeyEvent,
+  type OverlayDismissReason,
+  type OverlayLayer,
+  type OverlayLayerOptions,
+} from "./overlay-layer";
 export { Pulse, type PulseProps, Spin, type SpinProps } from "./motion";
 export {
   createPresence,
@@ -112,6 +120,8 @@ export {
 } from "./tabs";
 export {
   type Affine2D,
+  CodeEditor,
+  type CodeEditorProps,
   Icon,
   type IconProps,
   Image,
@@ -121,6 +131,7 @@ export {
   NetworkImage,
   type NetworkImageProps,
   PasswordInput,
+  type PrimitiveProps,
   type PasswordInputProps,
   Svg,
   type SvgProps,

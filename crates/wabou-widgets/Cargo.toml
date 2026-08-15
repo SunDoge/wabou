@@ -6,6 +6,8 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+editor-core = "0.5.0"
+editor-core-highlight-simple = "0.5.0"
 image = {
   workspace = true,
   features = ["bmp", "gif", "jpeg", "png", "webp"]

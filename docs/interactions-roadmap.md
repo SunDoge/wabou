@@ -16,8 +16,8 @@ Wabou host capabilities.
 - [x] roving focus with orientation and looping
 - [x] disclosure behavior
 - [ ] stable element IDs and semantic relationships
-- [ ] dismissable layer backed by Wabou overlay hit testing
-- [ ] focus scope and focus restoration
+- [x] dismissable layer backed by Wabou overlay hit testing
+- [x] modal focus scope and shared nested-overlay focus restoration
 
 ## P1 — component behaviors
 

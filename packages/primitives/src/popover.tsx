@@ -15,11 +15,16 @@ import {
   shift,
 } from "./positioner";
 import { View, type WabouStyle } from "./view";
+import { createOverlayLayer, type OverlayDismissReason } from "./overlay-layer";
 
 export interface PopoverTriggerProps {
   ref: (node: Handle) => void;
   onClick: (event: { stopPropagation(): void }) => void;
-  onKeyDown: (event: { key: string; preventDefault(): void }) => void;
+  onKeyDown: (event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation(): void;
+  }) => void;
   "aria-haspopup": "dialog";
   "aria-expanded": boolean;
 }
@@ -29,7 +34,7 @@ export interface PopoverProps {
   children?: JSX.Element;
   open?: boolean;
   defaultOpen?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  onOpenChange?: (open: boolean, reason?: OverlayDismissReason | "trigger") => void;
   placement?: Placement;
   offset?: number;
   contentClass?: string;
@@ -53,12 +58,20 @@ export function Popover(props: PopoverProps): JSX.Element {
   let positionRequest = 0;
   let observer: ResizeObserver | undefined;
 
-  const setOpen = (next: boolean) => {
+  const setOpen = (
+    next: boolean,
+    reason?: OverlayDismissReason | "trigger",
+  ) => {
     if (props.open === undefined) setUncontrolledOpen(next);
-    props.onOpenChange?.(next);
-    if (!next && (props.restoreFocus ?? true)) anchor?.focus();
+    props.onOpenChange?.(next, reason);
   };
-  const close = () => setOpen(false);
+  const layer = createOverlayLayer({
+    open,
+    onDismiss: (reason) => setOpen(false, reason),
+    closeOnEscape: () => props.closeOnEscape ?? true,
+    returnFocus: () => anchor,
+    restoreFocus: () => props.restoreFocus ?? true,
+  });
 
   const updatePosition = async () => {
     if (!open() || !anchor || !content) return;
@@ -119,11 +132,11 @@ export function Popover(props: PopoverProps): JSX.Element {
     observer?.disconnect();
   });
 
-  const handleEscape = (event: { key: string; preventDefault(): void }) => {
-    if (event.key !== "Escape" || props.closeOnEscape === false) return;
-    event.preventDefault();
-    close();
-  };
+  const handleEscape = (event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation(): void;
+  }) => layer.onEscape(event);
 
   return (
     <>
@@ -134,7 +147,7 @@ export function Popover(props: PopoverProps): JSX.Element {
         },
         onClick: (event) => {
           event.stopPropagation();
-          setOpen(!open());
+          setOpen(!open(), "trigger");
         },
         onKeyDown: handleEscape,
         "aria-haspopup": "dialog",
@@ -153,7 +166,7 @@ export function Popover(props: PopoverProps): JSX.Element {
             width: "100%",
             height: "100%",
           }}
-          onClick={close}
+          onClick={layer.onOutside}
           onKeyDown={handleEscape}
           onWheel={schedulePosition}
         >

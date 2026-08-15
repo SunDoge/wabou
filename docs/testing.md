@@ -19,6 +19,20 @@ the semantic node's completed layout bounds, then sends primary pointer down
 and up events through native hit-testing and Solid event dispatch. It never
 invokes a JSX handler directly.
 
+Locators also drive captured pointer drags, physical key pairs, committed text,
+paste, the full IME preedit/commit lifecycle, and wheel routing through that
+same native path:
+
+```ts
+const editor = page.getByRole("textbox", { name: "Config" });
+await editor.waitFor(); // waits for asynchronously-created semantic content
+await editor.type("port: ");
+await editor.ime("你好");
+await editor.press("a", { control: true });
+await editor.dragBy(120, 24);
+await editor.wheel(80);
+```
+
 Run a scenario with the deterministic backend:
 
 ```bash

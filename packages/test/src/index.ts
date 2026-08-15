@@ -10,6 +10,12 @@ interface NativeTestCapability {
   showWindow(windowId: number): Promise<boolean>;
   windowState(windowId: number): string;
   clickByRole(windowId: number, role: string, label: string): Promise<boolean>;
+  inputByRole(
+    windowId: number,
+    role: string,
+    label: string,
+    input: string,
+  ): Promise<boolean>;
   finish(report: string): boolean;
 }
 
@@ -33,11 +39,43 @@ export interface TestContext {
   };
 }
 
-export type SemanticRole = "button" | "textbox" | "link" | "dialog" | "label";
+export type SemanticRole =
+  | "button"
+  | "textbox"
+  | "link"
+  | "dialog"
+  | "alert"
+  | "status"
+  | "checkbox"
+  | "radio"
+  | "switch"
+  | "combobox"
+  | "listbox"
+  | "option"
+  | "label";
 
 export interface Locator {
   click(): Promise<void>;
+  dragBy(deltaX: number, deltaY: number): Promise<void>;
+  press(
+    key: string,
+    modifiers?: { shift?: boolean; control?: boolean; alt?: boolean; meta?: boolean },
+  ): Promise<void>;
+  type(text: string): Promise<void>;
+  paste(text: string): Promise<void>;
+  ime(text: string): Promise<void>;
+  wheel(deltaY: number, deltaX?: number): Promise<void>;
+  waitFor(): Promise<void>;
 }
+
+export type TestInput =
+  | { type: "probe" }
+  | { type: "drag"; deltaX: number; deltaY: number }
+  | { type: "key"; key: string; modifiers: number }
+  | { type: "text"; text: string }
+  | { type: "paste"; text: string }
+  | { type: "ime"; text: string }
+  | { type: "wheel"; deltaX: number; deltaY: number };
 
 export interface TestReport {
   passed: boolean;
@@ -57,6 +95,13 @@ export type TestAction =
       windowId: number;
       role: SemanticRole;
       label: string;
+    }
+  | {
+      action: "inputByRole";
+      windowId: number;
+      role: SemanticRole;
+      label: string;
+      input: TestInput;
     };
 
 type TestBody = (context: TestContext) => void | Promise<void>;
@@ -72,6 +117,27 @@ function capability(): NativeTestCapability {
 const context: TestContext = {
   page: {
     getByRole(role, options) {
+      const input = async (value: TestInput): Promise<void> => {
+        trace.push({
+          action: "inputByRole",
+          windowId: 1,
+          role,
+          label: options.name,
+          input: value,
+        });
+        if (
+          !(await capability().inputByRole(
+            1,
+            role,
+            options.name,
+            JSON.stringify(value),
+          ))
+        ) {
+          throw new Error(
+            `no enabled ${role} named ${JSON.stringify(options.name)}`,
+          );
+        }
+      };
       return {
         async click() {
           trace.push({
@@ -85,6 +151,32 @@ const context: TestContext = {
               `no enabled ${role} named ${JSON.stringify(options.name)}`,
             );
           }
+        },
+        dragBy(deltaX, deltaY) {
+          return input({ type: "drag", deltaX, deltaY });
+        },
+        press(key, modifiers = {}) {
+          const bits =
+            (modifiers.shift ? 1 : 0) |
+            (modifiers.control ? 2 : 0) |
+            (modifiers.alt ? 4 : 0) |
+            (modifiers.meta ? 8 : 0);
+          return input({ type: "key", key, modifiers: bits });
+        },
+        type(text) {
+          return input({ type: "text", text });
+        },
+        paste(text) {
+          return input({ type: "paste", text });
+        },
+        ime(text) {
+          return input({ type: "ime", text });
+        },
+        wheel(deltaY, deltaX = 0) {
+          return input({ type: "wheel", deltaX, deltaY });
+        },
+        waitFor() {
+          return input({ type: "probe" });
         },
       };
     },
@@ -124,10 +216,29 @@ export function replay(actions: readonly TestAction[]): void {
         await window.nativeClose(action.windowId, action.platform);
       } else if (action.action === "showWindow") {
         await window.show(action.windowId);
-      } else {
+      } else if (action.action === "clickByRole") {
         await context.page
           .getByRole(action.role, { name: action.label })
           .click();
+      } else {
+        const locator = context.page.getByRole(action.role, {
+          name: action.label,
+        });
+        const input = action.input;
+        if (input.type === "probe") await locator.waitFor();
+        else if (input.type === "drag")
+          await locator.dragBy(input.deltaX, input.deltaY);
+        else if (input.type === "key")
+          await capability().inputByRole(
+            action.windowId,
+            action.role,
+            action.label,
+            JSON.stringify(input),
+          );
+        else if (input.type === "text") await locator.type(input.text);
+        else if (input.type === "paste") await locator.paste(input.text);
+        else if (input.type === "ime") await locator.ime(input.text);
+        else await locator.wheel(input.deltaY, input.deltaX);
       }
     }
   });

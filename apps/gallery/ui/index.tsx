@@ -301,6 +301,7 @@ function App() {
                       {(item) => (
                         <PrimitiveButton
                           unstyled
+                          aria-label={item.name}
                           selected={selected() === item.id}
                           class="w-full h-9 px-3 rounded-md text-sm"
                           style={(state) => ({

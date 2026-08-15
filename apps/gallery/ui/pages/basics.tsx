@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  ConfigEditor,
   Fps,
   Input,
   Kbd,
@@ -129,6 +130,8 @@ function CardPage() {
 
 function InputPage() {
   const [value, setValue] = createSignal("");
+  const [config, setConfig] = createSignal("{\n  \"enabled\": true\n}");
+  const [configEdited, setConfigEdited] = createSignal(false);
   return (
     <View class="flex flex-col gap-5">
       <Preview title="Default">
@@ -140,6 +143,7 @@ function InputPage() {
             Workspace name
           </ThemeText>
           <Input
+            aria-label="Workspace name"
             placeholder="my-terminal"
             value={value()}
             onInput={(event) => setValue(event.currentTarget.value)}
@@ -150,6 +154,22 @@ function InputPage() {
           >
             Value: {value() || "—"}
           </ThemeText>
+        </View>
+      </Preview>
+      <Preview title="Configuration editor">
+        <View class="w-full flex flex-col gap-2">
+          <ConfigEditor
+            aria-label="JSON configuration"
+            value={config()}
+            onInput={(event) => {
+              setConfig(event.currentTarget.value);
+              setConfigEdited(true);
+            }}
+          />
+          <Text class="text-xs text-muted">Config: {config()}</Text>
+          <Text class="text-xs text-muted">
+            {configEdited() ? "Config edited" : "Config unchanged"}
+          </Text>
         </View>
       </Preview>
       <Preview title="States">

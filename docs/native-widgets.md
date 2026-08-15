@@ -6,7 +6,7 @@ implementations:
 ```text
 wabou-shell       public Widget trait and host-facing data types
       ↑
-wabou-widgets     canvas, image, text input, textarea, password input
+    wabou-widgets     canvas, image, inputs, textarea, code editor
       ↑
 wabou-quick       registry and JavaScript protocol adapter
       ↑
@@ -57,3 +57,10 @@ owned by the framework around the widget's content scene.
 
 If this contract eventually needs its own crate, its intended name is
 `wabou-widget-trait`; `wabou-widgets` remains the plural implementation crate.
+
+`@wabou/components` also exposes an experimental `ConfigEditor`. It is backed
+by the native `code-editor` widget and editor-core, supports Unicode-aware
+editing, selection and pointer dragging, undo/redo, IME, soft wrapping,
+scrolling, and JSON highlighting. Its public API intentionally exposes only
+Wabou concepts (`value`, `readOnly`, `disabled`, `language`, and input events),
+so the Rust editor engine can evolve without leaking into application code.

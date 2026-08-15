@@ -5,9 +5,13 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use rquickjs::{Function, prelude::Async};
+use serde::Deserialize;
 use tokio::sync::oneshot;
 use wabou_shell::window_lifecycle::{WindowCapabilities, WindowLifecycle, WindowPresence};
-use wabou_shell::{ExtensionContext, ShellExtension, WakeCallback};
+use wabou_shell::{
+    ExtensionContext, ImeEvent, KeyEvent, KeyLocation, KeyPhase, ShellExtension, WakeCallback,
+    WheelEvent,
+};
 use wabou_shell::{
     FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
     SemanticSnapshot, UiEvent,
@@ -27,6 +31,28 @@ enum TestActionKind {
         role: String,
         label: String,
     },
+    InputByRole {
+        window_id: u64,
+        role: String,
+        label: String,
+        input: TestInput,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+enum TestInput {
+    Probe,
+    Drag { delta_x: f64, delta_y: f64 },
+    Key { key: String, modifiers: u8 },
+    Text { text: String },
+    Paste { text: String },
+    Ime { text: String },
+    Wheel { delta_x: f64, delta_y: f64 },
 }
 
 #[derive(Debug)]
@@ -66,7 +92,7 @@ impl TestController {
                 deadline: Instant::now() + Duration::from_secs(2),
             };
             if state.headless {
-                if matches!(action.kind, TestActionKind::ClickByRole { .. }) {
+                if action_requires_semantics(&action.kind) {
                     state.actions.push_back(action);
                 } else {
                     apply_headless_action(&mut state, action);
@@ -136,6 +162,33 @@ impl TestController {
                 )?,
             )?;
 
+            let input = controller.clone();
+            capability.set(
+                "inputByRole",
+                Function::new(
+                    ctx.clone(),
+                    Async(
+                        move |window_id: u64, role: String, label: String, raw: String| {
+                            let receiver =
+                                serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
+                                    input.request(TestActionKind::InputByRole {
+                                        window_id,
+                                        role,
+                                        label,
+                                        input: action,
+                                    })
+                                });
+                            async move {
+                                match receiver {
+                                    Some(receiver) => receiver.await.unwrap_or(false),
+                                    None => false,
+                                }
+                            }
+                        },
+                    ),
+                )?,
+            )?;
+
             let finish = controller.clone();
             capability.set(
                 "finish",
@@ -199,15 +252,13 @@ impl TestController {
         let action = self.0.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
                 matches!(
-                    &action.kind,
-                    TestActionKind::ClickByRole { window_id: target, .. } if *target == window_id
+                    action_window_id(&action.kind),
+                    Some(target) if target == window_id && action_requires_semantics(&action.kind)
                 )
             })?;
             let action = state.actions.get(index)?;
             let ready = match (&action.kind, snapshot.as_deref()) {
-                (TestActionKind::ClickByRole { role, label, .. }, Some(snapshot)) => {
-                    semantic_target(snapshot, role, label).is_some()
-                }
+                (kind, Some(snapshot)) => action_semantic_target(kind, snapshot).is_some(),
                 _ => false,
             };
             (ready || Instant::now() >= action.deadline)
@@ -221,6 +272,12 @@ impl TestController {
             (TestActionKind::ClickByRole { role, label, .. }, Some(snapshot)) => {
                 click_semantic_target(source, snapshot, role, label)
             }
+            (
+                TestActionKind::InputByRole {
+                    role, label, input, ..
+                },
+                Some(snapshot),
+            ) => input_semantic_target(source, snapshot, role, label, input),
             _ => false,
         };
         let _ = action.completion.send(handled);
@@ -262,8 +319,35 @@ fn apply_headless_action(state: &mut TestState, action: TestAction) {
             })
         }
         TestActionKind::ClickByRole { .. } => false,
+        TestActionKind::InputByRole { .. } => false,
     };
     let _ = action.completion.send(handled);
+}
+
+fn action_requires_semantics(kind: &TestActionKind) -> bool {
+    matches!(
+        kind,
+        TestActionKind::ClickByRole { .. } | TestActionKind::InputByRole { .. }
+    )
+}
+
+fn action_window_id(kind: &TestActionKind) -> Option<u64> {
+    match kind {
+        TestActionKind::ClickByRole { window_id, .. }
+        | TestActionKind::InputByRole { window_id, .. } => Some(*window_id),
+        _ => None,
+    }
+}
+
+fn action_semantic_target<'a>(
+    kind: &TestActionKind,
+    snapshot: &'a SemanticSnapshot,
+) -> Option<&'a wabou_shell::SemanticNode> {
+    match kind {
+        TestActionKind::ClickByRole { role, label, .. }
+        | TestActionKind::InputByRole { role, label, .. } => semantic_target(snapshot, role, label),
+        _ => None,
+    }
 }
 
 fn click_semantic_target(
@@ -293,6 +377,38 @@ fn click_semantic_target(
         buttons: 0,
         modifiers: Modifiers::default(),
     }));
+    true
+}
+
+fn input_semantic_target(
+    source: &mut dyn FrameSource,
+    snapshot: &SemanticSnapshot,
+    role: &str,
+    label: &str,
+    input: &TestInput,
+) -> bool {
+    let Some(node) = semantic_target(snapshot, role, label) else {
+        return false;
+    };
+    dispatch_test_input(source, node, input)
+}
+
+fn dispatch_test_input(
+    source: &mut dyn FrameSource,
+    node: &wabou_shell::SemanticNode,
+    input: &TestInput,
+) -> bool {
+    if matches!(
+        input,
+        TestInput::Text { .. } | TestInput::Paste { .. } | TestInput::Ime { .. }
+    ) {
+        // Focusing an already-focused node is a valid no-op and may report
+        // `false`; the semantic lookup already proved the target is usable.
+        source.handle_semantic_action(wabou_shell::SemanticAction::Focus { target: node.id });
+    }
+    for event in test_input_events(node, input) {
+        source.handle_event(event);
+    }
     true
 }
 
@@ -386,6 +502,29 @@ impl ShellExtension for TestDriver {
                     role,
                     label,
                 } => context.click_by_role(window_id, &role, &label),
+                TestActionKind::InputByRole {
+                    window_id,
+                    role,
+                    label,
+                    input,
+                } => {
+                    let Some(node) = context.semantic_node_by_role(window_id, &role, &label) else {
+                        let _ = action.completion.send(false);
+                        continue;
+                    };
+                    match &input {
+                        TestInput::Text { .. }
+                        | TestInput::Paste { .. }
+                        | TestInput::Ime { .. } => {
+                            context.focus_semantic_node(window_id, node.id);
+                        }
+                        _ => {}
+                    }
+                    let events = test_input_events(&node, &input);
+                    events
+                        .into_iter()
+                        .all(|event| context.dispatch_event(window_id, event))
+                }
             };
             let _ = action.completion.send(handled);
         }
@@ -397,5 +536,139 @@ impl ShellExtension for TestDriver {
         {
             context.exit();
         }
+    }
+}
+
+fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec<UiEvent> {
+    let center = Point {
+        x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
+        y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
+    };
+    match input {
+        TestInput::Probe => Vec::new(),
+        TestInput::Drag { delta_x, delta_y } => {
+            let end = Point {
+                x: center.x + delta_x,
+                y: center.y + delta_y,
+            };
+            vec![
+                UiEvent::Pointer(PointerEvent {
+                    phase: PointerPhase::Down,
+                    position: center,
+                    button: Some(PointerButton::Primary),
+                    buttons: 1,
+                    modifiers: Modifiers::default(),
+                }),
+                UiEvent::Pointer(PointerEvent {
+                    phase: PointerPhase::Move,
+                    position: end,
+                    button: Some(PointerButton::Primary),
+                    buttons: 1,
+                    modifiers: Modifiers::default(),
+                }),
+                UiEvent::Pointer(PointerEvent {
+                    phase: PointerPhase::Up,
+                    position: end,
+                    button: Some(PointerButton::Primary),
+                    buttons: 0,
+                    modifiers: Modifiers::default(),
+                }),
+            ]
+        }
+        TestInput::Key { key, modifiers } => [KeyPhase::Down, KeyPhase::Up]
+            .into_iter()
+            .map(|phase| {
+                UiEvent::Key(KeyEvent {
+                    phase,
+                    key: key.clone(),
+                    key_without_modifiers: key.clone(),
+                    code: key.clone(),
+                    text: None,
+                    text_with_all_modifiers: None,
+                    location: KeyLocation::Standard,
+                    modifiers: Modifiers::from_bits_truncate(*modifiers),
+                    repeat: false,
+                })
+            })
+            .collect(),
+        TestInput::Text { text } => vec![UiEvent::TextInput(text.clone())],
+        TestInput::Paste { text } => vec![UiEvent::Paste(text.clone())],
+        TestInput::Ime { text } => vec![
+            UiEvent::Ime(ImeEvent::Enabled),
+            UiEvent::Ime(ImeEvent::Preedit {
+                text: text.clone(),
+                cursor: Some((text.len(), text.len())),
+            }),
+            UiEvent::Ime(ImeEvent::Commit(text.clone())),
+            UiEvent::Ime(ImeEvent::Disabled),
+        ],
+        TestInput::Wheel { delta_x, delta_y } => vec![UiEvent::Wheel(WheelEvent {
+            position: center,
+            delta_x: *delta_x,
+            delta_y: *delta_y,
+            modifiers: Modifiers::default(),
+        })],
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn node() -> wabou_shell::SemanticNode {
+        wabou_shell::SemanticNode {
+            id: 7,
+            role: SemanticRole::TextInput,
+            label: Some("Editor".into()),
+            bounds: [10.0, 20.0, 110.0, 60.0],
+            children: Vec::new(),
+            disabled: false,
+        }
+    }
+
+    #[test]
+    fn drag_is_a_captured_pointer_sequence_from_semantic_center() {
+        let events = test_input_events(
+            &node(),
+            &TestInput::Drag {
+                delta_x: 25.0,
+                delta_y: -5.0,
+            },
+        );
+        assert_eq!(events.len(), 3);
+        let UiEvent::Pointer(down) = &events[0] else {
+            panic!()
+        };
+        let UiEvent::Pointer(moved) = &events[1] else {
+            panic!()
+        };
+        let UiEvent::Pointer(up) = &events[2] else {
+            panic!()
+        };
+        assert_eq!(
+            (down.phase, down.position.x, down.position.y, down.buttons),
+            (PointerPhase::Down, 60.0, 40.0, 1)
+        );
+        assert_eq!(
+            (
+                moved.phase,
+                moved.position.x,
+                moved.position.y,
+                moved.buttons
+            ),
+            (PointerPhase::Move, 85.0, 35.0, 1)
+        );
+        assert_eq!((up.phase, up.buttons), (PointerPhase::Up, 0));
+    }
+
+    #[test]
+    fn ime_action_preserves_the_full_native_lifecycle() {
+        let events = test_input_events(&node(), &TestInput::Ime { text: "你".into() });
+        assert!(matches!(events.as_slice(), [
+            UiEvent::Ime(ImeEvent::Enabled),
+            UiEvent::Ime(ImeEvent::Preedit { cursor: Some((3, 3)), .. }),
+            UiEvent::Ime(ImeEvent::Commit(text)),
+            UiEvent::Ime(ImeEvent::Disabled),
+        ] if text == "你"));
     }
 }

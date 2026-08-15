@@ -350,6 +350,20 @@ impl ResourceCache {
         }
     }
 
+    /// Close persistent storage while its dedicated runtime is still alive.
+    ///
+    /// Foyer also initiates a close from `Drop`, but that close is asynchronous.
+    /// Waiting here prevents the runtime from cancelling storage flusher and
+    /// reclaim tasks during application teardown.
+    pub(crate) fn shutdown(&self) -> Result<(), String> {
+        let (RawResourceCache::Hybrid(cache), Some(runtime)) = (&self.raw, &self.runtime) else {
+            return Ok(());
+        };
+        runtime
+            .block_on(cache.close())
+            .map_err(|error| error.to_string())
+    }
+
     #[cfg(test)]
     pub fn decoded_svg_entries(&self) -> usize {
         self.decoded_svgs.usage()
@@ -406,6 +420,10 @@ mod tests {
         ));
         assert_eq!(bytes.as_deref(), Some([1, 2, 3, 4].as_slice()));
         assert!(directory.path().join("wabou-resources-v2").is_dir());
+        cache.shutdown().unwrap();
+        // Closing is idempotent, which lets teardown guards cover every exit
+        // path without coordinating with callers that already shut down.
+        cache.shutdown().unwrap();
     }
 
     #[test]

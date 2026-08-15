@@ -8,6 +8,7 @@ import {
   Show,
 } from "solid-js";
 import type { WabouStyle } from "./view";
+import { createOverlayLayer } from "./overlay-layer";
 import { View } from "./view";
 
 export interface ModalEvent {
@@ -68,7 +69,7 @@ export function Modal(props: ModalProps): JSX.Element {
   const open = () => props.open ?? uncontrolledOpen();
   let trigger: Handle | undefined;
   let focusFrame = 0;
-  let wasOpen = false;
+  let wasOpenForInitialFocus = false;
 
   const setOpen = (next: boolean, reason: ModalOpenChangeReason) => {
     if (props.open === undefined) setUncontrolledOpen(next);
@@ -79,26 +80,28 @@ export function Modal(props: ModalProps): JSX.Element {
   const controls: ModalControls = {
     close: () => close("programmatic"),
   };
-  const handleEscape = (event: ModalKeyEvent) => {
-    if (!open() || event.key !== "Escape" || props.closeOnEscape === false)
-      return;
-    event.preventDefault();
-    close("escape");
-  };
+  const layer = createOverlayLayer({
+    open,
+    onDismiss: (reason) => close(reason === "outside" ? "backdrop" : "escape"),
+    closeOnEscape: () => props.closeOnEscape ?? true,
+    closeOnOutside: () => props.closeOnBackdrop ?? true,
+    restoreFocus: () => props.restoreFocus ?? true,
+    returnFocus: () => trigger,
+  });
+  const handleEscape = (event: ModalKeyEvent) => layer.onEscape(event);
 
   createEffect(open, (isOpen) => {
-    if (isOpen && !wasOpen && props.initialFocus) {
+    if (isOpen && !wasOpenForInitialFocus && props.initialFocus) {
       cancelAnimationFrame(focusFrame);
       focusFrame = requestAnimationFrame(() => {
         focusFrame = 0;
         props.initialFocus?.()?.focus();
       });
-    } else if (!isOpen && wasOpen) {
+    } else if (!isOpen) {
       if (focusFrame) cancelAnimationFrame(focusFrame);
       focusFrame = 0;
-      if (props.restoreFocus ?? true) trigger?.focus();
     }
-    wasOpen = isOpen;
+    wasOpenForInitialFocus = isOpen;
   });
   onCleanup(() => {
     if (focusFrame) cancelAnimationFrame(focusFrame);
@@ -148,9 +151,7 @@ export function Modal(props: ModalProps): JSX.Element {
               ...props.backdropStyle,
             };
           },
-          onClick: () => {
-            if (props.closeOnBackdrop ?? true) close("backdrop");
-          },
+          onClick: layer.onOutside,
           onKeyDown: handleEscape,
           get children() {
             return createComponent(View, {

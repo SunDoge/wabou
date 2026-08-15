@@ -1756,6 +1756,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
+name = "editor-core"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb7b824041aa407e5420d4d868bf0a283abe86184b2b776cd7e05d486f6c424f"
+dependencies = [
+ "editor-core-lang",
+ "regex",
+ "ropey",
+ "unicode-segmentation",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "editor-core-highlight-simple"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8dc3ca91ea7d784001e14a982fc8d7ef0f8690ee2ade30065cc695da6c95cc2c"
+dependencies = [
+ "editor-core",
+ "regex",
+]
+
+[[package]]
+name = "editor-core-lang"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68bba6e40319e8b48c1ba0f63a134c5fb1ea44ef5e0782ab7615bc693d356ac"
+
+[[package]]
 name = "either"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5671,6 +5700,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ropey"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93411e420bcd1a75ddd1dc3caf18c23155eda2c090631a85af21ba19e97093b5"
+dependencies = [
+ "smallvec",
+ "str_indices",
+]
+
+[[package]]
 name = "roxmltree"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6405,6 +6444,12 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "str_indices"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d08889ec5408683408db66ad89e0e1f93dff55c73a4ccc71c427d5b277ee47e6"
 
 [[package]]
 name = "stress"
@@ -7885,6 +7930,8 @@ dependencies = [
 name = "wabou-widgets"
 version = "0.1.0"
 dependencies = [
+ "editor-core",
+ "editor-core-highlight-simple",
  "image",
  "parley",
  "tracing",
