@@ -65,7 +65,9 @@
     SetStyleValue: 22,
     SetShadows: 23,
     SetOverlayPlane: 24,
-    SetScrollbarStyle: 25
+    SetScrollbarStyle: 25,
+    SetWidgetConfig: 26,
+    RemoveWidgetConfig: 27
   };
   var EVENT_CODE = {
     click: 1,
@@ -312,6 +314,15 @@
       this.emit(OP.RemoveAttribute);
       this.u32(id);
       this.atom(name);
+    }
+    setWidgetConfig(id, json) {
+      this.emit(OP.SetWidgetConfig);
+      this.u32(id);
+      this.str(json);
+    }
+    removeWidgetConfig(id) {
+      this.emit(OP.RemoveWidgetConfig);
+      this.u32(id);
     }
     setStyle(id, prop, value) {
       this.emit(OP.SetStyle);
@@ -4708,6 +4719,17 @@
       }
       return;
     }
+    if (name === "widgetConfig") {
+      if (value == null || value === false) {
+        writer.removeWidgetConfig(node.id);
+        return;
+      }
+      if (!isStructuredConfigValue(value)) {
+        throw new TypeError("widgetConfig must be a plain object or array");
+      }
+      writer.setWidgetConfig(node.id, stringifyWidgetConfig(value));
+      return;
+    }
     if (value == null || value === false) {
       if (name.startsWith("on") && name.length > 2) {
         const t = EVENT_CODE[name.slice(2).toLowerCase()] ?? null;
@@ -4766,7 +4788,50 @@
       m.set(t, value);
       return;
     }
+    if (isStructuredConfigValue(value)) {
+      throw new TypeError(`object prop \`${name}\` is unsupported; use \`widgetConfig\` for native widget configuration`);
+    }
     writer.setAttribute(node.id, name, String(value));
+  }
+  var MAX_WIDGET_CONFIG_DEPTH = 32;
+  function isStructuredConfigValue(value) {
+    if (Array.isArray(value))
+      return true;
+    if (value === null || typeof value !== "object")
+      return false;
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+  }
+  function stringifyWidgetConfig(value) {
+    const ancestors = new Set;
+    const visit = (current, depth) => {
+      if (depth > MAX_WIDGET_CONFIG_DEPTH) {
+        throw new TypeError(`widgetConfig exceeds ${MAX_WIDGET_CONFIG_DEPTH} levels`);
+      }
+      if (current === null || typeof current === "string" || typeof current === "boolean")
+        return;
+      if (typeof current === "number") {
+        if (!Number.isFinite(current))
+          throw new TypeError("widgetConfig contains a non-finite number");
+        return;
+      }
+      if (typeof current !== "object" || !isStructuredConfigValue(current)) {
+        throw new TypeError("widgetConfig contains a non-JSON value");
+      }
+      if (ancestors.has(current))
+        throw new TypeError("widgetConfig contains a cycle");
+      ancestors.add(current);
+      if (Array.isArray(current)) {
+        for (const item of current)
+          visit(item, depth + 1);
+      } else {
+        for (const item of Object.values(current))
+          visit(item, depth + 1);
+      }
+      ancestors.delete(current);
+    };
+    visit(value, 0);
+    return JSON.stringify(value);
   }
   var writer = new Writer;
   var renderer = createRenderer({

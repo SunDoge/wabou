@@ -32,6 +32,8 @@ export const OP = {
   SetShadows: 0x17,
   SetOverlayPlane: 0x18,
   SetScrollbarStyle: 0x19,
+  SetWidgetConfig: 0x1a,
+  RemoveWidgetConfig: 0x1b,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -330,6 +332,15 @@ export class Writer {
     this.emit(OP.RemoveAttribute);
     this.u32(id);
     this.atom(name);
+  }
+  setWidgetConfig(id: number, json: string): void {
+    this.emit(OP.SetWidgetConfig);
+    this.u32(id);
+    this.str(json);
+  }
+  removeWidgetConfig(id: number): void {
+    this.emit(OP.RemoveWidgetConfig);
+    this.u32(id);
   }
   setStyle(id: number, prop: string, value: string): void {
     this.emit(OP.SetStyle);

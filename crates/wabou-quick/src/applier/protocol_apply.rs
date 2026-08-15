@@ -234,6 +234,28 @@ impl Applier {
         self.recompute_node(node);
     }
 
+    fn set_widget_config(&mut self, id: u32, json: &str) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
+            && let Err(error) = widget.config_changed(json)
+        {
+            tracing::warn!(solid_id = id, %error, "widget rejected widgetConfig");
+        }
+        self.invalidation.insert(InvalidationFlags::LAYOUT);
+    }
+
+    fn remove_widget_config(&mut self, id: u32) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
+            widget.config_removed();
+            self.invalidation.insert(InvalidationFlags::LAYOUT);
+        }
+    }
+
     fn load_image_source(&mut self, node: NodeId, value: &str) {
         let source: Arc<str> = Arc::from(value);
         self.clear_image_source(node);
@@ -432,6 +454,12 @@ impl Applier {
                     }
                     self.recompute_node(n);
                 }
+            }
+            Op::SetWidgetConfig { id, json } => {
+                self.set_widget_config(*id, json);
+            }
+            Op::RemoveWidgetConfig { id } => {
+                self.remove_widget_config(*id);
             }
             Op::SetStyle { id, prop, value } => {
                 self.set_inline_ir(*id, *prop, style::parse_ir_value(value));

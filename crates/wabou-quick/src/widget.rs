@@ -6,7 +6,7 @@
 
 pub use wabou_shell::{
     PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetNodeEvent,
-    WidgetStyle,
+    WidgetStyle, decode_widget_config,
 };
 pub use wabou_widgets::{
     Canvas, ImageWidget, PasswordInput, SecretStore, TextInput, builtin_factories,

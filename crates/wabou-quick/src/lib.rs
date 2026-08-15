@@ -57,7 +57,7 @@ pub use wabou_shell::{
 pub use widget::WidgetFactory;
 pub use widget::{
     Canvas, PaintContext, PasswordInput, SecretStore, TextInput, Widget, WidgetNodeEvent,
-    WidgetStyle,
+    WidgetStyle, decode_widget_config,
 };
 
 #[cfg(feature = "vite")]

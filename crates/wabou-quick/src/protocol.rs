@@ -86,6 +86,13 @@ pub enum Op<'a> {
         id: u32,
         name: Atom,
     },
+    SetWidgetConfig {
+        id: u32,
+        json: &'a str,
+    },
+    RemoveWidgetConfig {
+        id: u32,
+    },
     SetStyle {
         id: u32,
         prop: Atom,
@@ -340,6 +347,15 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             let name = Atom::from_raw(r.u32()?);
             Op::RemoveAttribute { id, name }
         }
+        op::SET_WIDGET_CONFIG => {
+            let id = r.u32()?;
+            let json = r.str()?;
+            Op::SetWidgetConfig { id, json }
+        }
+        op::REMOVE_WIDGET_CONFIG => {
+            let id = r.u32()?;
+            Op::RemoveWidgetConfig { id }
+        }
         op::SET_STYLE => {
             let id = r.u32()?;
             let prop = Atom::from_raw(r.u32()?);
@@ -583,6 +599,27 @@ mod tests {
                 min_thumb_length: 40.0,
                 radius: 5.0,
                 colors: [0x11182788, 0x38bdf8ff, 0x7dd3fcff, 0x0284c7ff],
+            }
+        ));
+    }
+
+    #[test]
+    fn decodes_widget_config_json() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 1);
+        bytes.push(op::SET_WIDGET_CONFIG);
+        push_u32(&mut bytes, 42);
+        let json = br##"{"caret":"#fff"}"##;
+        bytes.extend_from_slice(&(json.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(json);
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetWidgetConfig {
+                id: 42,
+                json: r##"{"caret":"#fff"}"##
             }
         ));
     }

@@ -260,6 +260,11 @@ impl WidgetEventResult {
 /// Ported from blitz's `Widget` trait
 /// (`packages/blitz-dom/src/node/custom_widget.rs`), adapted to wabou's
 /// protocol-based model.
+/// Deserialize a `widgetConfig` payload into a widget-specific derived type.
+pub fn decode_widget_config<T: serde::de::DeserializeOwned>(json: &str) -> Result<T, String> {
+    serde_json::from_str(json).map_err(|error| error.to_string())
+}
+
 pub trait Widget {
     /// Measure content before layout. The default supports widgets whose
     /// intrinsic size is already known; text-backed widgets can update font
@@ -285,6 +290,16 @@ pub trait Widget {
 
     /// An attribute was removed (via `RemoveAttribute`). Default: ignore.
     fn attribute_removed(&mut self, _name: &str) {}
+
+    /// The complete `widgetConfig` object changed. Implementations should
+    /// deserialize it into a widget-specific type, normally with
+    /// [`decode_widget_config`].
+    fn config_changed(&mut self, _json: &str) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// `widgetConfig` was removed. Default: ignore.
+    fn config_removed(&mut self) {}
 
     /// Release host-owned side effects before the node is removed.
     ///
@@ -362,6 +377,26 @@ pub trait Widget {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    #[serde(rename_all = "camelCase", deny_unknown_fields)]
+    struct TestConfig {
+        read_only: bool,
+        tab_width: u8,
+    }
+
+    #[test]
+    fn widget_config_deserializes_into_a_derived_type() {
+        let config: TestConfig = decode_widget_config(r#"{"readOnly":true,"tabWidth":4}"#).unwrap();
+        assert_eq!(
+            config,
+            TestConfig {
+                read_only: true,
+                tab_width: 4,
+            }
+        );
+        assert!(decode_widget_config::<TestConfig>(r#"{"unknown":true}"#).is_err());
+    }
 
     #[test]
     fn paint_context_carries_frame_geometry_and_normalizes_scale() {

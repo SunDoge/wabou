@@ -7879,6 +7879,7 @@ dependencies = [
  "pollster",
  "rfd",
  "serde",
+ "serde_json",
  "snafu",
  "taffy",
  "tracing",

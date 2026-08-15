@@ -140,4 +140,18 @@ describe("Writer limits", () => {
     expect(view.getUint32(9, true)).toBe(42);
     expect(frame[13]).toBe(2);
   });
+
+  test("encodes one structured widget config without a dynamic property name", () => {
+    const writer = new Writer(() => 17);
+    writer.setWidgetConfig(42, '{"caret":"#fff"}');
+    writer.removeWidgetConfig(42);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame[8]).toBe(OP.SetWidgetConfig);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(view.getUint16(13, true)).toBe(16);
+    expect(frame[31]).toBe(OP.RemoveWidgetConfig);
+    expect(view.getUint32(32, true)).toBe(42);
+  });
 });

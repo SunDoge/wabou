@@ -373,6 +373,17 @@ function applyProperty(
     }
     return;
   }
+  if (name === "widgetConfig") {
+    if (value == null || value === false) {
+      writer.removeWidgetConfig(node.id);
+      return;
+    }
+    if (!isStructuredConfigValue(value)) {
+      throw new TypeError("widgetConfig must be a plain object or array");
+    }
+    writer.setWidgetConfig(node.id, stringifyWidgetConfig(value));
+    return;
+  }
   if (value == null || value === false) {
     // Event handlers are stored under listenersByNode (keyed by event code),
     // not as DOM attributes — so an on* prop going null/false must remove the
@@ -432,7 +443,57 @@ function applyProperty(
     m.set(t, value as (e: unknown) => void);
     return;
   }
+  if (isStructuredConfigValue(value)) {
+    throw new TypeError(
+      `object prop \`${name}\` is unsupported; use \`widgetConfig\` for native widget configuration`,
+    );
+  }
   writer.setAttribute(node.id, name, String(value));
+}
+
+const MAX_WIDGET_CONFIG_DEPTH = 32;
+
+function isStructuredConfigValue(value: unknown): value is object {
+  if (Array.isArray(value)) return true;
+  if (value === null || typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function stringifyWidgetConfig(value: object): string {
+  const ancestors = new Set<object>();
+  const visit = (current: unknown, depth: number): void => {
+    if (depth > MAX_WIDGET_CONFIG_DEPTH) {
+      throw new TypeError(
+        `widgetConfig exceeds ${MAX_WIDGET_CONFIG_DEPTH} levels`,
+      );
+    }
+    if (
+      current === null ||
+      typeof current === "string" ||
+      typeof current === "boolean"
+    )
+      return;
+    if (typeof current === "number") {
+      if (!Number.isFinite(current))
+        throw new TypeError("widgetConfig contains a non-finite number");
+      return;
+    }
+    if (typeof current !== "object" || !isStructuredConfigValue(current)) {
+      throw new TypeError("widgetConfig contains a non-JSON value");
+    }
+    if (ancestors.has(current))
+      throw new TypeError("widgetConfig contains a cycle");
+    ancestors.add(current);
+    if (Array.isArray(current)) {
+      for (const item of current) visit(item, depth + 1);
+    } else {
+      for (const item of Object.values(current)) visit(item, depth + 1);
+    }
+    ancestors.delete(current);
+  };
+  visit(value, 0);
+  return JSON.stringify(value);
 }
 
 // ---------------------------------------------------------------------------
