@@ -90,7 +90,7 @@ ${rows}
 
 const outputs = [
   [resolve(root, "packages/core/src/generated/host-abi.ts"), typescript],
-  [resolve(root, "crates/wabou-quick/src/gen/host_abi.rs"), rust],
+  [resolve(root, "crates/wabou-runtime/src/gen/host_abi.rs"), rust],
   [resolve(root, "docs/host-abi.md"), docs],
 ] as const;
 for (const [path, contents] of outputs) {

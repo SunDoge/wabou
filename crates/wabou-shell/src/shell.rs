@@ -1,7 +1,7 @@
 //! Reusable window + GPU surface + vello renderer + scene + text context.
 //!
 //! Extracted from the app so multiple hosts (the static-JSON `wabou` bin, the
-//! SolidJS-driven `wabou-quick` crate) share one windowing setup. A host
+//! SolidJS-driven `wabou-runtime` crate) share one windowing setup. A host
 //! provides a [`crate::source::FrameSource`] that fills the scene each frame;
 //! [`Shell`] handles presentation + vsync + resize.
 

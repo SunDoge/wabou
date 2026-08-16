@@ -2,7 +2,7 @@
 //
 //  1. Host-provided (JS calls Rust): private `__wabou_*` functions Rust injects
 //     before the app boots. Applications use `useHost()` instead.
-//     Registered in wabou-quick/src/jsrt.rs (`register_core_host_fns` +
+//     Registered in wabou-runtime/src/jsrt.rs (`register_core_host_fns` +
 //     `register_fetch`/`register_sleep`/the `vite` feature gates).
 //
 //  2. Guest-provided (Rust calls JS): callbacks the JS side installs so Rust

@@ -5,12 +5,12 @@ edition = "2024"
 license.workspace = true
 
 [features]
-bindings = ["dep:specta", "dep:wabou-bindings"]
+bindings = ["dep:specta", "dep:wabou-bindgen"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 specta = { workspace = true, optional = true }
-wabou-bindings = { workspace = true, optional = true }
+wabou-bindgen = { workspace = true, optional = true }
 
 [[example]]
 name = "native-host-bindings"

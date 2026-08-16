@@ -6,7 +6,7 @@
 //! Run with `wabou dev stress` or package with `wabou build stress`.
 
 use snafu::{ResultExt, Whatever};
-use wabou_quick::{HostBuilder, WindowOptions};
+use wabou_runtime::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {

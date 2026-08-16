@@ -2,7 +2,7 @@
 // provide natively. Importing this package for side effects is enough: each
 // module below self-installs onto globalThis. The host fn contract lives in
 // `./host` (ambient `declare global`); runtime host fns are injected by
-// crates/wabou-quick/src/jsrt.rs before the app boots.
+// crates/wabou-runtime/src/jsrt.rs before the app boots.
 //
 // Load order matters only where a later module relies on an earlier one's
 // global (e.g. the lazy TextEncoder in @wabou/protocol, resolved on

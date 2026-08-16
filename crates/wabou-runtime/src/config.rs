@@ -1,4 +1,4 @@
-//! App configuration for the wabou-quick host.
+//! App configuration for the wabou-runtime host.
 
 use vello::peniko::Color;
 

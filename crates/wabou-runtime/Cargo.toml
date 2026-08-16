@@ -1,12 +1,12 @@
 [package]
-name = "wabou-quick"
+name = "wabou-runtime"
 version = "0.1.0"
 edition = "2024"
 
 license.workspace = true
 
 [lib]
-name = "wabou_quick"
+name = "wabou_runtime"
 path = "src/lib.rs"
 
 [dependencies]

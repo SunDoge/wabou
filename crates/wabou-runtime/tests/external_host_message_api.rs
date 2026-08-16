@@ -1,4 +1,4 @@
-use wabou_quick::{
+use wabou_runtime::{
     HostBuilder, HostMessage, HostMessageContext, HostMessageError, HostMessagePayload,
 };
 

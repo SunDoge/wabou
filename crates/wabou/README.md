@@ -2,7 +2,7 @@
 
 `wabou` is the public Rust application API for the Wabou native SolidJS
 runtime. It is a facade over Wabou's implementation crates so applications do
-not need to depend directly on `wabou-quick`, `wabou-shell`, or
+not need to depend directly on `wabou-runtime`, `wabou-shell`, or
 `wabou-widgets`.
 
 During the developer preview, depend on a tagged Git revision:

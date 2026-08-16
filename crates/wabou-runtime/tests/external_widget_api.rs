@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::time::Instant;
 
-use wabou_quick::widget_api::*;
+use wabou_runtime::widget_api::*;
 
 struct ExternalWidget {
     wake: Option<WakeCallback>,

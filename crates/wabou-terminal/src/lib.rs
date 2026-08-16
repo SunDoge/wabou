@@ -30,8 +30,8 @@ use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
 use vello::Scene;
 use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
-use wabou_quick::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};
-use wabou_quick::{WidgetEventResult, event};
+use wabou_runtime::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};
+use wabou_runtime::{WidgetEventResult, event};
 #[cfg(test)]
 use wabou_shell::style::Paint;
 use wabou_shell::text::{TextContext, layout_text_styled};

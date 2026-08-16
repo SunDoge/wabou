@@ -1,4 +1,4 @@
-//! wabou-quick: QuickJS + SolidJS host driving wabou-shell's renderer.
+//! wabou-runtime: QuickJS + SolidJS host driving wabou-shell's renderer.
 //!
 //! SolidJS (via `solid-js/universal`) emits binary DOM-mutation ops into a
 //! `Writer`; one `requestAnimationFrame` tick per frame flushes them to Rust;

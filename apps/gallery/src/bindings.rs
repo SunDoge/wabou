@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use wabou_bindings::{Bindings, Capability};
+use wabou_bindgen::{Bindings, Capability};
 
 /// Capability containing the gallery's binding demonstration.
 pub const CAPABILITY: &str = "bindingsDemo";

@@ -2,7 +2,7 @@
 //!
 //! The shell is a reusable host: a [`source::FrameSource`] produces a flattened
 //! layout list each frame; [`shell::Shell`] owns the window + wgpu surface +
-//! vello renderer and presents at vsync. The `wabou-quick` crate provides the
+//! vello renderer and presents at vsync. The `wabou-runtime` crate provides the
 //! SolidJS-driven (op-protocol) source.
 
 #![warn(missing_docs)]

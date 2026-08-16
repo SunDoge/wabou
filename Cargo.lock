@@ -2362,7 +2362,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wabou",
- "wabou-bindings",
+ "wabou-bindgen",
 ]
 
 [[package]]
@@ -2765,7 +2765,7 @@ dependencies = [
  "snafu",
  "tracing",
  "tracing-subscriber",
- "wabou-quick",
+ "wabou-runtime",
 ]
 
 [[package]]
@@ -6458,7 +6458,7 @@ dependencies = [
  "snafu",
  "tracing",
  "tracing-subscriber",
- "wabou-quick",
+ "wabou-runtime",
 ]
 
 [[package]]
@@ -6693,7 +6693,7 @@ name = "terminal-demo"
 version = "0.1.0"
 dependencies = [
  "snafu",
- "wabou-quick",
+ "wabou-runtime",
  "wabou-terminal",
 ]
 
@@ -7730,7 +7730,7 @@ dependencies = [
  "snafu",
  "tracing",
  "tracing-subscriber",
- "wabou-quick",
+ "wabou-runtime",
 ]
 
 [[package]]
@@ -7743,7 +7743,7 @@ checksum = "5c3082ca00d5a5ef149bb8b555a72ae84c9c59f7250f013ac822ac2e49b19c64"
 name = "wabou"
 version = "0.1.0"
 dependencies = [
- "wabou-quick",
+ "wabou-runtime",
 ]
 
 [[package]]
@@ -7757,7 +7757,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "wabou-bindings"
+name = "wabou-bindgen"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -7778,7 +7778,7 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "vello",
  "wabou-devtools",
- "wabou-quick",
+ "wabou-runtime",
  "wabou-shell",
  "wabou-widgets",
 ]
@@ -7815,9 +7815,9 @@ dependencies = [
  "snafu",
  "specta",
  "tokio",
- "wabou-bindings",
+ "wabou-bindgen",
  "wabou-devtools",
- "wabou-quick",
+ "wabou-runtime",
 ]
 
 [[package]]
@@ -7826,11 +7826,11 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "specta",
- "wabou-bindings",
+ "wabou-bindgen",
 ]
 
 [[package]]
-name = "wabou-quick"
+name = "wabou-runtime"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.13.1",
@@ -7915,7 +7915,7 @@ dependencies = [
  "teletypewriter",
  "tracing",
  "vello",
- "wabou-quick",
+ "wabou-runtime",
  "wabou-shell",
 ]
 

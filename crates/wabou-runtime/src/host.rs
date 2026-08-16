@@ -5,7 +5,7 @@
 //! (Canvas) are pre-registered; users override or add their own.
 //!
 //! ```ignore
-//! use wabou_quick::{HostBuilder, Widget};
+//! use wabou_runtime::{HostBuilder, Widget};
 //!
 //! HostBuilder::new()
 //!     .widget("chart", || Box::new(MyChart::new()))

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "bindings")]
 use specta::Type;
 #[cfg(feature = "bindings")]
-use wabou_bindings::FunctionModule;
+use wabou_bindgen::FunctionModule;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "bindings", derive(Type))]

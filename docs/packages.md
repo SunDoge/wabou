@@ -47,6 +47,6 @@ behavior, `@wabou/primitives` connects it to the native host, and
 On the Rust side, applications use the `wabou` facade from a pinned Git tag.
 The facade is deliberately not on crates.io for the first preview, allowing
 internal crates to be merged or renamed without reserving permanent public
-crate names. `wabou-quick`, `wabou-shell`, `wabou-widgets`, and the remaining
+crate names. `wabou-runtime`, `wabou-shell`, `wabou-widgets`, and the remaining
 workspace crates are implementation details; the preview tag and the facade
 are the supported Rust boundary.

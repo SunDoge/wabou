@@ -34,7 +34,7 @@ runtime APIs exist inside QuickJS.
 For a platform-independent library:
 
 1. Bundle a minimal application with the same Vite/Bun target used by Wabou.
-2. Boot the bundle in `wabou_quick::JsRuntime`, without adding undeclared
+2. Boot the bundle in `wabou_runtime::JsRuntime`, without adding undeclared
    globals.
 3. Exercise a valid result, an invalid/error result, and any asynchronous path
    the application will use.

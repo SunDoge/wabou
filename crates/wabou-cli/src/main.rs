@@ -22,7 +22,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use vello::Scene;
 use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
-use wabou_quick::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
+use wabou_runtime::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
 use wabou_shell::layout::PlacedNode;
 use wabou_shell::renderer::render_to_png;
 use wabou_shell::scene as scene_builder;
@@ -755,7 +755,7 @@ fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
         "--manifest-path",
         &manifest,
         "--example",
-        "wabou-bindings",
+        "wabou-bindgen",
         "--",
         mode,
     ]);
@@ -1150,17 +1150,14 @@ fn app_vite_feature(workspace: &Path, app: &App) -> Result<String> {
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
     vite_feature(&metadata, &manifest_path)
         .map(str::to_owned)
-        .ok_or_else(|| {
-            "application must depend on `wabou` or the legacy `wabou-quick` crate".into()
-        })
+        .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
 }
 
 fn app_profiling_feature(workspace: &Path, app: &App) -> Result<String> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    framework_feature(&metadata, &manifest_path, "profiling").ok_or_else(|| {
-        "application must depend on `wabou` or the legacy `wabou-quick` crate".into()
-    })
+    framework_feature(&metadata, &manifest_path, "profiling")
+        .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
 }
 
 fn framework_feature(metadata: &Value, manifest_path: &Path, feature: &str) -> Option<String> {
@@ -1172,9 +1169,9 @@ fn framework_feature(metadata: &Value, manifest_path: &Path, feature: &str) -> O
         Some(format!("wabou/{feature}"))
     } else if dependencies
         .iter()
-        .any(|dependency| dependency["name"] == "wabou-quick")
+        .any(|dependency| dependency["name"] == "wabou-runtime")
     {
-        Some(format!("wabou-quick/{feature}"))
+        Some(format!("wabou-runtime/{feature}"))
     } else {
         None
     }
@@ -1189,9 +1186,9 @@ fn vite_feature<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a str
         Some("wabou/vite")
     } else if dependencies
         .iter()
-        .any(|dependency| dependency["name"] == "wabou-quick")
+        .any(|dependency| dependency["name"] == "wabou-runtime")
     {
-        Some("wabou-quick/vite")
+        Some("wabou-runtime/vite")
     } else {
         None
     }
@@ -1721,16 +1718,16 @@ out-dir = "dist/resources"
     }
 
     #[test]
-    fn keeps_the_legacy_quick_vite_feature_compatible() {
+    fn selects_the_direct_runtime_vite_feature() {
         let metadata = serde_json::json!({
             "packages": [{
-                "manifest_path": "/workspace/apps/legacy/Cargo.toml",
-                "dependencies": [{"name": "wabou-quick"}]
+                "manifest_path": "/workspace/apps/runtime/Cargo.toml",
+                "dependencies": [{"name": "wabou-runtime"}]
             }]
         });
         assert_eq!(
-            vite_feature(&metadata, Path::new("/workspace/apps/legacy/Cargo.toml")),
-            Some("wabou-quick/vite")
+            vite_feature(&metadata, Path::new("/workspace/apps/runtime/Cargo.toml")),
+            Some("wabou-runtime/vite")
         );
     }
 

@@ -2,7 +2,7 @@
 //
 // OP and EVENT_CODE here are the SOT. Rust constants are generated from them
 // by `bun run gen` (scripts/gen-rust-op.ts →
-// crates/wabou-quick/src/gen/op.rs, include!d by
+// crates/wabou-runtime/src/gen/op.rs, include!d by
 // src/protocol.rs). A drift-guard test in protocol.rs asserts every opcode
 // decodes, so a stale regen surfaces as a test failure.
 

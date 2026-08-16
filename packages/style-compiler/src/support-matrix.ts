@@ -5,7 +5,7 @@
  * - **unsupported**: compile-time error (never emit IR).
  *
  * Source of truth: `../css-support-matrix.json` (also `include_str!`'d by
- * wabou-quick tests so Rust cannot drift).
+ * wabou-runtime tests so Rust cannot drift).
  */
 
 import matrixJson from "../css-support-matrix.json" with { type: "json" };

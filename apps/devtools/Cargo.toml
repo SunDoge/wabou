@@ -13,6 +13,6 @@ snafu = { workspace = true }
 serde_json = { workspace = true }
 specta = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
-wabou-bindings = { workspace = true }
+wabou-bindgen = { workspace = true }
 wabou-devtools = { workspace = true, features = ["bindings"] }
-wabou-quick = { workspace = true }
+wabou-runtime = { workspace = true }

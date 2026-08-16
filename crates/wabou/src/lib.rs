@@ -14,7 +14,7 @@
 //! # }
 //! ```
 
-pub use wabou_quick::*;
+pub use wabou_runtime::*;
 
 #[cfg(test)]
 mod tests {

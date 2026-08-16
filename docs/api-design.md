@@ -107,7 +107,7 @@ declare module "@wabou/solid-renderer" {
 
 Rust remains the source of truth for serialized request, response, event DTOs
 and exported function signatures. Wabou uses Specta to reflect explicitly
-annotated Rust DTOs and functions. `wabou-bindings` adds the capability
+annotated Rust DTOs and functions. `wabou-bindgen` adds the capability
 namespace and Wabou wire policy, then generates the `HostCapabilities`
 augmentation and typed client. Primitive arguments remain native QuickJS
 arguments; structured values are JSON encoded; sync and Promise-like native

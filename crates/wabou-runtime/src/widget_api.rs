@@ -1,4 +1,4 @@
-//! Public SDK surface for implementing native widgets outside `wabou-quick`.
+//! Public SDK surface for implementing native widgets outside `wabou-runtime`.
 //!
 //! Importing this module is enough to implement [`Widget`] and register it on
 //! a [`HostBuilder`], without depending directly on `wabou-shell` or matching

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use wabou_bindings::{Bindings, Capability};
+use wabou_bindgen::{Bindings, Capability};
 use wabou_devtools::{DebugFrame, DebugNode, DebugOverlay, DebugStatus};
 
 /// Host capability containing the DevTools example endpoints.

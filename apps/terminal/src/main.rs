@@ -1,7 +1,7 @@
 //! Native host executable for the terminal example.
 
 use snafu::{ResultExt, Whatever};
-use wabou_quick::{HostBuilder, WindowOptions};
+use wabou_runtime::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {

@@ -100,7 +100,7 @@ impl ViteState {
             serde_json::to_string(&entry_url).map_err(|_| rquickjs::Error::Unknown)?;
         let result = Module::evaluate(
             ctx.clone(),
-            "wabou-quick:vite-entry",
+            "wabou-runtime:vite-entry",
             format!("import {entry_literal};"),
         )
         .and_then(|promise| promise.finish::<()>());
@@ -189,7 +189,7 @@ impl ViteState {
         let entry_literal = serde_json::to_string(&busted).map_err(|_| rquickjs::Error::Unknown)?;
         let result = Module::evaluate(
             ctx.clone(),
-            "wabou-quick:vite-full-reload",
+            "wabou-runtime:vite-full-reload",
             format!("import {entry_literal};"),
         )
         .and_then(|promise| promise.finish::<()>());

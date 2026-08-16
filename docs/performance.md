@@ -28,7 +28,7 @@ WABOU_PROFILE_TRACE=/tmp/wabou-trace.json \
 ```
 
 Applications still using the legacy entry crate use
-`--features wabou-quick/profiling` instead.
+`--features wabou-runtime/profiling` instead.
 
 Profiling changes timing and should not be used to report absolute production
 overhead. Use it to identify stage proportions and unexpected work, then verify

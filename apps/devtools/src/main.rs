@@ -7,8 +7,8 @@ use serde_json::{Value, json};
 use snafu::{ResultExt, Whatever};
 use wabou_devtools::{call, discover_socket, empty_params, request};
 use wabou_devtools_app::bindings::CAPABILITY;
-use wabou_quick::rquickjs::{Function, prelude::Async};
-use wabou_quick::{HostBuilder, WindowOptions};
+use wabou_runtime::rquickjs::{Function, prelude::Async};
+use wabou_runtime::{HostBuilder, WindowOptions};
 
 type Target = Arc<Mutex<Option<PathBuf>>>;
 

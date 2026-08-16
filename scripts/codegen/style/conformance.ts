@@ -36,7 +36,7 @@ const stylesheet = {
   rules: compileWabouUtilities(candidates),
 };
 await writeFile(
-  resolve(root, "crates/wabou-quick/src/gen/style-conformance.json"),
+  resolve(root, "crates/wabou-runtime/src/gen/style-conformance.json"),
   `${JSON.stringify(stylesheet, null, 2)}\n`,
 );
 console.log(`generated ${stylesheet.rules.length} style conformance rules`);

@@ -42,7 +42,7 @@ bun run wabou dev apps/hackernews --devtools
 ```
 
 Development starts Vite and compiles the Rust host with `wabou/vite`. Apps that
-still depend directly on the legacy `wabou-quick` entry point remain supported.
+depend directly on the lower-level `wabou-runtime` entry point are also supported.
 QuickJS imports the live Vite graph and receives HMR updates. No JavaScript
 production build is required before Rust compilation. Ctrl-C terminates Vite,
 the host, and the optional inspector.
@@ -133,7 +133,7 @@ guide](testing.md) for semantic locators, artifacts and trace replay.
 ## Rust-owned TypeScript bindings
 
 An application can expose a conventional Cargo example named
-`wabou-bindings`. The example builds a `wabou_bindings::Bindings` manifest and
+`wabou-bindgen`. The example builds a `wabou_bindgen::Bindings` manifest and
 writes its generated module beneath `ui/`:
 
 ```bash

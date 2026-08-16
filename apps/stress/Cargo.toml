@@ -11,4 +11,4 @@ path = "src/main.rs"
 snafu = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
-wabou-quick = { workspace = true }
+wabou-runtime = { workspace = true }

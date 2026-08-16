@@ -182,7 +182,7 @@ impl Applier {
                             target: "hmr",
                             %entry,
                             error = ?e,
-                            "full reload re-import failed — restart wabou-quick"
+                            "full reload re-import failed — restart wabou-runtime"
                         );
                     }
                 }
@@ -193,7 +193,7 @@ impl Applier {
         tracing::error!(
             target: "hmr",
             %reason,
-            "full reload requested but no vite entry is configured — restart wabou-quick"
+            "full reload requested but no vite entry is configured — restart wabou-runtime"
         );
     }
 
