@@ -1,6 +1,6 @@
 [package]
 name = "wabou-cli"
-version = "0.1.0"
+version.workspace = true
 edition = "2024"
 description = "Command-line development and packaging tools for Wabou applications"
 license.workspace = true

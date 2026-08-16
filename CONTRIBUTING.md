@@ -43,7 +43,7 @@ Common types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `build`, `ci
 Prefer one of these scopes when it fits:
 
 ```text
-shell quick render layout style protocol cli devtools terminal
+shell runtime render layout style protocol cli devtools terminal
 components primitives gallery hackernews docs ci deps
 ```
 

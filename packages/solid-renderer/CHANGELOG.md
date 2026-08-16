@@ -1,6 +1,6 @@
 # @wabou/solid-renderer
 
-## 0.1.0
+## 0.1.0-alpha.1
 
 ### Minor Changes
 
@@ -12,5 +12,5 @@
 - Updated dependencies [a733c86]
 - Updated dependencies [2ef790a]
 - Updated dependencies [ca4b28b]
-  - @wabou/style@0.1.0
-  - @wabou/protocol@0.1.0
+  - @wabou/style@0.1.0-alpha.1
+  - @wabou/protocol@0.1.0-alpha.1

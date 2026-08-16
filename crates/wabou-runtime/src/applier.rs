@@ -1009,6 +1009,9 @@ impl Applier {
     }
 
     #[cfg(feature = "vite")]
+    /// Boots an application entry module through the Vite development loader.
+    ///
+    /// Host bridges must already be installed, just as for [`Self::boot`].
     pub fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
         self.js.boot_vite(entry)
     }

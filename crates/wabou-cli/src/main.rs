@@ -468,7 +468,13 @@ fn frontend(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
     if !args.is_empty() {
         command.arg("--").args(args);
     }
-    Ok(command.status()?)
+    command.status().map_err(|error| {
+        format!(
+            "failed to run `bun run {script}` in {}: {error}; install Bun or run Wabou through `mise exec --`",
+            app.frontend.display()
+        )
+        .into()
+    })
 }
 
 fn build(workspace: &Path, app: &App, release: bool) -> Result<()> {

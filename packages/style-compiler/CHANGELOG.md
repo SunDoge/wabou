@@ -1,6 +1,6 @@
 # @wabou/style-compiler
 
-## 0.1.0
+## 0.1.0-alpha.1
 
 ### Minor Changes
 
@@ -13,4 +13,4 @@
   non-utility metadata classes by default.
 - Updated dependencies [a733c86]
 - Updated dependencies [2ef790a]
-  - @wabou/unocss-preset@0.1.0
+  - @wabou/unocss-preset@0.1.0-alpha.1

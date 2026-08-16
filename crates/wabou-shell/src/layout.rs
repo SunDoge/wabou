@@ -130,8 +130,7 @@ pub fn compute_and_walk_with_scroll(
     compute_and_walk_with_scroll_and_widgets(
         tree,
         root,
-        width,
-        height,
+        [width, height],
         tcx,
         1.0,
         |_node, _cx| None,
@@ -146,16 +145,15 @@ pub fn compute_and_walk_with_scroll(
 pub fn compute_and_walk_with_scroll_and_widgets(
     tree: &mut TaffyTree<Paint>,
     root: NodeId,
-    width: f32,
-    height: f32,
+    viewport: [f32; 2],
     tcx: &mut TextContext,
     device_scale: f64,
     mut measure_widget: impl FnMut(NodeId, &mut crate::widget::MeasureContext<'_>) -> Option<[f32; 2]>,
     scroll_offsets: &HashMap<NodeId, [f32; 2]>,
 ) -> Vec<PlacedNode> {
     let available = Size {
-        width: AvailableSpace::Definite(width),
-        height: AvailableSpace::Definite(height),
+        width: AvailableSpace::Definite(viewport[0]),
+        height: AvailableSpace::Definite(viewport[1]),
     };
     // Measure text leaves through parley (system fonts + shaping). The closure
     // takes ownership of the `&mut TextContext` reborrow for the duration of
@@ -476,8 +474,7 @@ mod tests {
         let placed = compute_and_walk_with_scroll_and_widgets(
             &mut tree,
             root,
-            200.0,
-            100.0,
+            [200.0, 100.0],
             &mut text,
             2.0,
             |node, cx| {

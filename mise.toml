@@ -1,5 +1,5 @@
 [tools]
 act = "latest"
-bun = "latest"
+bun = "1.3.14"
 cocogitto = "latest"
 just = "latest"

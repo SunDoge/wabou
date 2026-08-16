@@ -310,24 +310,46 @@ use snafu::{ResultExt, Snafu};
 use tungstenite::client::IntoClientRequest;
 
 #[derive(Debug, Snafu)]
+/// Failure while connecting to or loading updates from a Vite development server.
 pub enum ViteError {
+    /// The configured Vite server URL could not be parsed.
     #[snafu(display("invalid Vite server URL: {source}"))]
-    InvalidUrl { source: url::ParseError },
+    InvalidUrl {
+        /// URL parser failure.
+        source: url::ParseError,
+    },
 
+    /// The Vite URL could not be converted to a WebSocket URL.
     #[snafu(display("invalid Vite WebSocket scheme"))]
     InvalidScheme,
 
+    /// The HMR WebSocket could not be created or used.
     #[snafu(display("WebSocket connection failed: {source}"))]
-    WebSocket { source: tungstenite::Error },
+    WebSocket {
+        /// Underlying WebSocket failure.
+        source: tungstenite::Error,
+    },
 
+    /// A development module or stylesheet could not be fetched.
     #[snafu(display("HTTP request to Vite server failed: {source}"))]
-    Http { source: ureq::Error },
+    Http {
+        /// Underlying HTTP failure.
+        source: ureq::Error,
+    },
 
+    /// Vite returned a resource with a content type that does not match its use.
     #[snafu(display("Vite returned unexpected content-type: expected {expected}, got {actual}"))]
-    ContentType { expected: String, actual: String },
+    ContentType {
+        /// Content type required by the loader.
+        expected: String,
+        /// Content type returned by Vite.
+        actual: String,
+    },
 
+    /// The HMR protocol header could not be encoded.
     #[snafu(display("invalid header value: {source}"))]
     Header {
+        /// Header validation failure.
         source: tungstenite::http::header::InvalidHeaderValue,
     },
 }
@@ -392,6 +414,10 @@ impl Drop for HmrClient {
     }
 }
 
+/// Connects to a Vite server and forwards HMR updates to `reload`.
+///
+/// The returned handle owns the background client; dropping it requests
+/// shutdown and joins the client thread.
 pub fn start_hmr_client(
     server_url: &str,
     reload: crate::ReloadHandle,

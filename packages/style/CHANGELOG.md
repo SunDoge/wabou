@@ -1,6 +1,6 @@
 # @wabou/style
 
-## 0.1.0
+## 0.1.0-alpha.1
 
 ### Minor Changes
 

@@ -1,6 +1,6 @@
 # @wabou/components
 
-## 0.1.0
+## 0.1.0-alpha.1
 
 ### Minor Changes
 
@@ -45,8 +45,8 @@
 - Updated dependencies [c118fe4]
 - Updated dependencies [ca4b28b]
 - Updated dependencies [84e447c]
-  - @wabou/solid-renderer@0.1.0
-  - @wabou/primitives@0.1.0
-  - @wabou/animation@0.1.0
-  - @wabou/interactions@0.1.0
-  - @wabou/core@0.1.0
+  - @wabou/solid-renderer@0.1.0-alpha.1
+  - @wabou/primitives@0.1.0-alpha.1
+  - @wabou/animation@0.1.0-alpha.1
+  - @wabou/interactions@0.1.0-alpha.1
+  - @wabou/core@0.1.0-alpha.1

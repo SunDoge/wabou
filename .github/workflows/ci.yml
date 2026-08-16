@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main, master]
+    tags: ["v*"]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -101,8 +102,8 @@ jobs:
 
       - name: Build application frontends
         run: |
-          bun --cwd apps/gallery run build
-          bun --cwd apps/hackernews run build
+          bun run --cwd apps/gallery build
+          bun run --cwd apps/hackernews build
 
       - name: Check generated artifacts
         run: |

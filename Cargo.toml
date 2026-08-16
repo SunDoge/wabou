@@ -4,6 +4,7 @@ members = ["apps/*", "crates/*"]
 exclude = ["vendor/bitwarden-sdk"]
 
 [workspace.package]
+version = "0.1.0-alpha.1"
 license = "Apache-2.0"
 
 [workspace.dependencies]

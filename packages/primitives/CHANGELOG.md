@@ -1,6 +1,6 @@
 # @wabou/primitives
 
-## 0.1.0
+## 0.1.0-alpha.1
 
 ### Minor Changes
 
@@ -32,6 +32,6 @@
 - Updated dependencies [74f054c]
 - Updated dependencies [2ef790a]
 - Updated dependencies [ca4b28b]
-  - @wabou/solid-renderer@0.1.0
-  - @wabou/animation@0.1.0
-  - @wabou/style@0.1.0
+  - @wabou/solid-renderer@0.1.0-alpha.1
+  - @wabou/animation@0.1.0-alpha.1
+  - @wabou/style@0.1.0-alpha.1

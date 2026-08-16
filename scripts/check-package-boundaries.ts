@@ -44,6 +44,23 @@ if (versions.size !== 1) {
     `@wabou packages must share one version; found ${[...versions]}`,
   );
 }
+const packageVersion = [...versions][0];
+const cargoManifest = await Bun.file(join(root, "Cargo.toml")).text();
+const cargoVersion = cargoManifest.match(
+  /^version\s*=\s*"([^"]+)"\s*$/m,
+)?.[1];
+if (!cargoVersion) {
+  throw new Error("Cargo.toml must declare workspace.package.version");
+}
+if (cargoVersion !== packageVersion) {
+  throw new Error(
+    `Rust and JavaScript release versions differ: ${cargoVersion} != ${packageVersion}`,
+  );
+}
+const changelog = await Bun.file(join(root, "CHANGELOG.md")).text();
+if (!changelog.includes(`## ${packageVersion} -`)) {
+  throw new Error(`CHANGELOG.md has no ${packageVersion} release heading`);
+}
 for (const entry of packages) {
   if (entry.private)
     throw new Error(`${entry.name} cannot be published while private`);
@@ -101,5 +118,5 @@ for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
 }
 
 console.log(
-  `verified ${packages.length} aligned packages at ${[...versions][0]} and ${appDirs.length} app manifests`,
+  `verified ${packages.length} aligned packages and Rust workspace at ${packageVersion}, plus ${appDirs.length} app manifests`,
 );

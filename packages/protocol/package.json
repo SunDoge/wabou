@@ -1,6 +1,6 @@
 {
   "name": "@wabou/protocol",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "Binary host protocol definitions for Wabou.",
   "license": "Apache-2.0",
   "repository": {

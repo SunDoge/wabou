@@ -170,6 +170,7 @@ small examples that stress a real application pattern, and improvements that
 make the public API smaller and more predictable.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and commit conventions.
+Preview maintainers should also follow the [Git release checklist](docs/releasing.md).
 If you are evaluating Wabou for an application, open an issue describing the
 use case and the missing capability; real constraints are more valuable than a
 generic feature wishlist.

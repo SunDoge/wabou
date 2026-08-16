@@ -1,6 +1,6 @@
 # @wabou/vite
 
-## 0.1.0
+## 0.1.0-alpha.1
 
 ### Minor Changes
 
@@ -14,6 +14,6 @@
 - Updated dependencies [2ef790a]
 - Updated dependencies [adf4271]
 - Updated dependencies [14a6081]
-  - @wabou/solid-renderer@0.1.0
-  - @wabou/unocss-preset@0.1.0
-  - @wabou/style-compiler@0.1.0
+  - @wabou/solid-renderer@0.1.0-alpha.1
+  - @wabou/unocss-preset@0.1.0-alpha.1
+  - @wabou/style-compiler@0.1.0-alpha.1

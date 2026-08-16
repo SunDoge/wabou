@@ -1,6 +1,6 @@
 {
   "name": "@wabou/style",
-  "version": "0.1.0",
+  "version": "0.1.0-alpha.1",
   "description": "Typed runtime style values for Wabou.",
   "license": "Apache-2.0",
   "repository": {

@@ -320,8 +320,7 @@ impl FrameSource for Applier {
                 layout::compute_and_walk_with_scroll_and_widgets(
                     &mut self.node_store.tree,
                     self.node_store.root,
-                    width as f32,
-                    height as f32,
+                    [width as f32, height as f32],
                     tcx,
                     self.device_scale,
                     |node, cx| {
