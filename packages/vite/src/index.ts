@@ -21,7 +21,6 @@ export interface WabouViteOptions {
   root?: string;
   /** Solid entry module. */
   entry?: string;
-  /** Directory for bundle.js and its assets. */
   /** Directory for bundle.js and its assets. Defaults to build.out-dir in wabou.toml. */
   outDir?: string;
   /** IIFE global used by Rollup. */

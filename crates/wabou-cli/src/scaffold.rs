@@ -9,6 +9,45 @@ type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 pub(crate) const DEFAULT_REVISION: &str = concat!("v", env!("CARGO_PKG_VERSION"));
 
+const TEMPLATE_FILES: &[(&str, &str)] = &[
+    (
+        ".gitignore",
+        include_str!("../../../templates/basic/.gitignore"),
+    ),
+    (
+        "Cargo.toml",
+        include_str!("../../../templates/basic/Cargo.toml"),
+    ),
+    (
+        "README.md",
+        include_str!("../../../templates/basic/README.md"),
+    ),
+    (
+        "package.json",
+        include_str!("../../../templates/basic/package.json"),
+    ),
+    (
+        "src/main.rs",
+        include_str!("../../../templates/basic/src/main.rs"),
+    ),
+    (
+        "tsconfig.json",
+        include_str!("../../../templates/basic/tsconfig.json"),
+    ),
+    (
+        "ui/index.tsx",
+        include_str!("../../../templates/basic/ui/index.tsx"),
+    ),
+    (
+        "vite.config.ts",
+        include_str!("../../../templates/basic/vite.config.ts"),
+    ),
+    (
+        "wabou.toml",
+        include_str!("../../../templates/basic/wabou.toml"),
+    ),
+];
+
 pub(crate) fn create(destination: &Path, repository: &str, revision: &str) -> Result<()> {
     if destination.exists() {
         return Err(format!(
@@ -93,130 +132,16 @@ fn run_git(current_dir: &Path, args: &[&str]) -> Result<()> {
 }
 
 fn write_project(root: &Path, name: &str) -> Result<()> {
-    fs::create_dir_all(root.join("src"))?;
-    fs::create_dir_all(root.join("ui"))?;
-    fs::write(
-        root.join("Cargo.toml"),
-        format!(
-            r#"[package]
-name = "{name}"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-wabou = {{ path = "vendor/wabou/crates/wabou", features = ["vite"] }}
-"#,
-        ),
-    )?;
-    fs::write(
-        root.join("src/main.rs"),
-        format!(
-            r#"use wabou::{{HostBuilder, WindowOptions}};
-
-fn main() -> wabou::Result<()> {{
-    HostBuilder::new()
-        .window(WindowOptions::new().title("{name}"))
-        .run()
-}}
-"#,
-        ),
-    )?;
-    fs::write(
-        root.join("package.json"),
-        format!(
-            r#"{{
-  "name": "{name}",
-  "private": true,
-  "type": "module",
-  "workspaces": ["vendor/wabou/packages/*"],
-  "scripts": {{
-    "wabou": "wabou",
-    "dev": "wabou dev",
-    "build": "vite build",
-    "check": "tsc --noEmit"
-  }},
-  "dependencies": {{
-    "@solidjs/web": "2.0.0-rc.0",
-    "@wabou/core": "workspace:*",
-    "@wabou/primitives": "workspace:*",
-    "@wabou/solid-renderer": "workspace:*",
-    "solid-js": "2.0.0-rc.0"
-  }},
-  "devDependencies": {{
-    "@types/bun": "^1.3.14",
-    "@wabou/vite": "workspace:*",
-    "typescript": "^5.9.0",
-    "vite": "^5.4.0"
-  }}
-}}
-"#,
-        ),
-    )?;
-    fs::write(
-        root.join("tsconfig.json"),
-        r#"{
-  "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "jsx": "preserve",
-    "jsxImportSource": "@wabou/solid-renderer",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "types": ["bun"]
-  },
-  "include": ["ui/**/*.ts", "ui/**/*.tsx"]
-}
-"#,
-    )?;
-    fs::write(
-        root.join("vite.config.ts"),
-        r#"import { defineWabouConfig } from "@wabou/vite";
-
-export default defineWabouConfig({
-  outDir: "dist/resources",
-});
-"#,
-    )?;
-    fs::write(
-        root.join("ui/index.tsx"),
-        format!(
-            r#"import {{ mount }} from "@wabou/core";
-import {{ Column, Text }} from "@wabou/primitives";
-import "virtual:wabou-stylesheet";
-
-mount(() => (
-  <Column class="h-full items-center justify-center gap-3 bg-background">
-    <Text class="text-2xl font-semibold text-foreground">{name}</Text>
-    <Text class="text-muted">Your Wabou application is ready.</Text>
-  </Column>
-));
-"#,
-        ),
-    )?;
-    fs::write(root.join(".gitignore"), "/node_modules\n/dist\n/target\n")?;
-    fs::write(
-        root.join("README.md"),
-        format!(
-            r#"# {name}
-
-A native desktop application built with [Wabou](https://github.com/SunDoge/wabou).
-
-```bash
-git submodule update --init
-bun install
-bun run dev
-```
-
-The `vendor/wabou` submodule pins the Rust host and JavaScript packages to one
-compatible revision. Install the CLI from that same tag. Use
-`bun run wabou --help` to list development, testing, rendering, and packaging
-commands.
-"#,
-        ),
-    )?;
+    for (relative, template) in TEMPLATE_FILES {
+        let destination = root.join(relative);
+        if let Some(parent) = destination.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(
+            destination,
+            template.replace("__WABOU_PROJECT_NAME__", name),
+        )?;
+    }
     Ok(())
 }
 
@@ -237,6 +162,10 @@ mod tests {
         assert!(cargo.contains("vendor/wabou/crates/wabou"));
         assert!(package.contains("vendor/wabou/packages/*"));
         assert!(root.join("ui/index.tsx").is_file());
+        for (relative, _) in TEMPLATE_FILES {
+            let rendered = fs::read_to_string(root.join(relative)).unwrap();
+            assert!(!rendered.contains("__WABOU_PROJECT_NAME__"));
+        }
         fs::remove_dir_all(root).unwrap();
     }
 

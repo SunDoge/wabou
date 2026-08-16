@@ -1,0 +1,7 @@
+[package]
+name = "__WABOU_PROJECT_NAME__"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wabou = { path = "vendor/wabou/crates/wabou", features = ["vite"] }
