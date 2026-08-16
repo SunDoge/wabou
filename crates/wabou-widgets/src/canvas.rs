@@ -9,6 +9,7 @@ use vello::peniko::{Color, Fill};
 use wabou_shell::UiEvent;
 use wabou_shell::{PaintContext, Widget, WidgetEventResult};
 
+/// Stateless demonstration widget that paints directly into a Vello scene.
 pub struct Canvas;
 
 impl Widget for Canvas {

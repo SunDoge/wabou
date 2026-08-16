@@ -14,6 +14,7 @@ const RENDER_SIZE: u32 = 480;
 const MAX_ITER: u32 = 160;
 const VIEW: f64 = 1.5;
 
+/// Interactive Julia set rendered by an application-defined native widget.
 pub struct JuliaWidget {
     cx: f64,
     cy: f64,
@@ -28,6 +29,7 @@ impl Default for JuliaWidget {
 }
 
 impl JuliaWidget {
+    /// Creates the widget with its initial Julia-set parameters.
     pub fn new() -> Self {
         Self {
             cx: 0.7885,

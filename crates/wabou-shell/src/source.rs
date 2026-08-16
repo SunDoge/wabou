@@ -5,6 +5,8 @@
 //! reactive source (e.g. the SolidJS applier) returns true while rAF callbacks
 //! are queued; a static source returns false so the loop idles until a resize.
 
+#![warn(missing_docs)]
+
 use vello::peniko::Color;
 
 pub use wabou_accessibility::{SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot};
@@ -25,12 +27,22 @@ pub const WHEEL_LINE_DELTA: f64 = 40.0;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// Requested properties used when creating a native window.
+///
+/// These are initial requests rather than live state; use [`WindowMetrics`]
+/// for the values the platform actually applied.
 pub struct WindowOptions {
+    /// Initial native window title.
     pub title: String,
+    /// Requested logical client-area size.
     pub initial_inner_size: (u32, u32),
+    /// Optional minimum logical client-area size.
     pub min_inner_size: Option<(u32, u32)>,
+    /// Whether the user may resize the window.
     pub resizable: bool,
+    /// Whether the OS draws its standard title bar and border.
     pub decorations: bool,
+    /// Whether the native surface preserves alpha.
     pub transparent: bool,
 }
 
@@ -48,21 +60,26 @@ impl Default for WindowOptions {
 }
 
 impl WindowOptions {
+    /// Construct options with platform-friendly defaults.
     pub fn new() -> Self {
         Self::default()
     }
+    /// Set the initial native window title.
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = title.into();
         self
     }
+    /// Set the requested logical client-area size, clamped to at least 1×1.
     pub fn initial_inner_size(mut self, width: u32, height: u32) -> Self {
         self.initial_inner_size = (width.max(1), height.max(1));
         self
     }
+    /// Set the minimum logical client-area size, clamped to at least 1×1.
     pub fn min_inner_size(mut self, width: u32, height: u32) -> Self {
         self.min_inner_size = Some((width.max(1), height.max(1)));
         self
     }
+    /// Control whether the user may resize the window.
     pub fn resizable(mut self, resizable: bool) -> Self {
         self.resizable = resizable;
         self
@@ -83,24 +100,39 @@ impl WindowOptions {
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
+/// Current native window state delivered to a [`FrameSource`].
 pub struct WindowMetrics {
+    /// Stable Wabou window identifier, independent of platform handles.
     pub window_id: u64,
+    /// Logical client-area width.
     pub logical_width: u32,
+    /// Logical client-area height.
     pub logical_height: u32,
+    /// Physical surface width.
     pub physical_width: u32,
+    /// Physical surface height.
     pub physical_height: u32,
+    /// Physical pixels per logical pixel.
     pub scale_factor: f64,
+    /// Whether the native window is maximized.
     pub maximized: bool,
+    /// Whether the native window owns keyboard focus.
     pub focused: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+/// Command addressed to a Wabou-managed native window.
 pub enum WindowCommand {
+    /// Request that the window close.
     Close,
+    /// Minimize the window.
     Minimize,
+    /// Set or clear the maximized state.
     SetMaximized(bool),
+    /// Replace the native window title.
     SetTitle(String),
+    /// Begin an OS-managed window drag from the current pointer gesture.
     StartDragging,
 }
 
@@ -108,7 +140,9 @@ pub enum WindowCommand {
 /// concern of individual frame sources, not part of the shell contract.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Point {
+    /// Horizontal logical coordinate.
     pub x: f64,
+    /// Vertical logical coordinate.
     pub y: f64,
 }
 
@@ -116,26 +150,34 @@ bitflags::bitflags! {
     /// Keyboard modifiers active for an input event.
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
     pub struct Modifiers: u8 {
+        /// Shift is held.
         const SHIFT = 1 << 0;
+        /// Control is held.
         const CONTROL = 1 << 1;
+        /// Alt/Option is held.
         const ALT = 1 << 2;
+        /// Meta/Command/Windows is held.
         const META = 1 << 3;
     }
 }
 
 impl Modifiers {
+    /// Whether Shift is held.
     pub const fn shift(self) -> bool {
         self.contains(Self::SHIFT)
     }
 
+    /// Whether Control is held.
     pub const fn control(self) -> bool {
         self.contains(Self::CONTROL)
     }
 
+    /// Whether Alt/Option is held.
     pub const fn alt(self) -> bool {
         self.contains(Self::ALT)
     }
 
+    /// Whether Meta/Command/Windows is held.
     pub const fn meta(self) -> bool {
         self.contains(Self::META)
     }
@@ -154,37 +196,57 @@ impl Modifiers {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Pointer button independent of winit and DOM numbering.
 pub enum PointerButton {
+    /// Main activation button, normally left.
     Primary,
+    /// Auxiliary button, normally middle.
     Auxiliary,
+    /// Context-menu button, normally right.
     Secondary,
+    /// Platform button not covered by the standard variants.
     Other(u16),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Lifecycle phase of a pointer interaction.
 pub enum PointerPhase {
+    /// Pointer moved without changing button state.
     Move,
+    /// A button was pressed.
     Down,
+    /// A button was released.
     Up,
+    /// The platform cancelled the active pointer sequence.
     Cancel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Pointer event in logical window or widget-local coordinates.
 pub struct PointerEvent {
+    /// Interaction phase.
     pub phase: PointerPhase,
+    /// Pointer position in the receiver's documented coordinate space.
     pub position: Point,
+    /// Button changed by this event, if any.
     pub button: Option<PointerButton>,
     /// DOM-compatible bit layout is deliberately not required here. This is a
     /// native set owned by the shell; adapters translate it at their boundary.
     pub buttons: u32,
+    /// Keyboard modifiers active for the event.
     pub modifiers: Modifiers,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Pixel-normalized wheel or trackpad event.
 pub struct WheelEvent {
+    /// Pointer position in the receiver's documented coordinate space.
     pub position: Point,
+    /// Horizontal logical-pixel delta.
     pub delta_x: f64,
+    /// Vertical logical-pixel delta.
     pub delta_y: f64,
+    /// Keyboard modifiers active for the event.
     pub modifiers: Modifiers,
 }
 
@@ -192,35 +254,53 @@ pub struct WheelEvent {
 /// Cursor offsets and delete ranges are UTF-8 byte offsets.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImeEvent {
+    /// Platform text input was enabled for the focused control.
     Enabled,
+    /// Replace the active preedit text without committing it.
     Preedit {
+        /// Current preedit string.
         text: String,
+        /// Selected byte range within `text`, if supplied by the IME.
         cursor: Option<(usize, usize)>,
     },
+    /// Commit text and finish the active composition.
     Commit(String),
+    /// Delete UTF-8 bytes around the insertion point before the next update.
     DeleteSurrounding {
+        /// Bytes immediately before the insertion point.
         before_bytes: usize,
+        /// Bytes immediately after the insertion point.
         after_bytes: usize,
     },
+    /// Platform text input was disabled for the control.
     Disabled,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Physical key transition phase.
 pub enum KeyPhase {
+    /// Key was pressed or auto-repeated.
     Down,
+    /// Key was released.
     Up,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Physical location of a key with duplicated legends.
 pub enum KeyLocation {
     #[default]
+    /// Main section or a key without a meaningful side.
     Standard,
+    /// Left-hand instance of a modifier key.
     Left,
+    /// Right-hand instance of a modifier key.
     Right,
+    /// Numeric keypad.
     Numpad,
 }
 
 impl KeyLocation {
+    /// Return the DOM-compatible numeric `location` value.
     pub const fn dom_code(self) -> u8 {
         match self {
             Self::Standard => 0,
@@ -232,33 +312,55 @@ impl KeyLocation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Keyboard event retaining both logical and physical-key information.
 pub struct KeyEvent {
+    /// Press/release phase.
     pub phase: KeyPhase,
+    /// Logical key after applying active modifiers.
     pub key: String,
+    /// Logical key with shortcut modifiers removed.
     pub key_without_modifiers: String,
+    /// Physical-key code suitable for shortcut identity.
     pub code: String,
+    /// Text the key would commit under normal text-input handling.
     pub text: Option<String>,
+    /// Text produced when all modifiers are included.
     pub text_with_all_modifiers: Option<String>,
+    /// Physical section containing the key.
     pub location: KeyLocation,
+    /// Active keyboard modifiers.
     pub modifiers: Modifiers,
+    /// Whether this is an automatic repeat rather than the initial press.
     pub repeat: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Input and window-state events delivered to a [`FrameSource`] or widget.
 pub enum UiEvent {
+    /// Pointer movement or button transition.
     Pointer(PointerEvent),
+    /// Wheel or trackpad scrolling.
     Wheel(WheelEvent),
+    /// Physical/logical keyboard transition.
     Key(KeyEvent),
+    /// Text committed outside an IME composition.
     TextInput(String),
+    /// Input-method lifecycle event.
     Ime(ImeEvent),
+    /// Text returned by an asynchronous clipboard read.
     Paste(String),
+    /// Element-level focus transition.
     Focus(bool),
+    /// Native window size, scale, or focus state changed.
     WindowMetrics(WindowMetrics),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// Synchronous effects requested while handling a [`UiEvent`].
 pub struct EventResponse {
+    /// Whether the source consumed the event.
     pub handled: bool,
+    /// Whether the next frame may differ and should be scheduled.
     pub request_redraw: bool,
     /// Suppress the committed text paired with the current physical key.
     /// This is intentionally independent from `handled`: JS key listeners
@@ -267,12 +369,16 @@ pub struct EventResponse {
     /// `Some(true)` enables platform text input/IME; `Some(false)` disables it.
     /// `None` leaves the current window setting unchanged.
     pub text_input: Option<bool>,
+    /// Clipboard operation to execute after event dispatch.
     pub clipboard: Option<ClipboardRequest>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Clipboard operation requested synchronously by event handling.
 pub enum ClipboardRequest {
+    /// Replace clipboard text.
     Write(String),
+    /// Read text and later deliver it as [`UiEvent::Paste`].
     Read,
 }
 
@@ -281,23 +387,36 @@ pub enum ClipboardRequest {
 pub enum HostAction {
     /// Open a URL with the platform's registered handler.
     OpenUrl(String),
+    /// Replace clipboard text without requiring an acknowledgement.
     SetClipboard(String),
+    /// Replace clipboard text and route completion to its producer.
     WriteClipboard {
+        /// Producer-local request identifier.
         request_id: u64,
+        /// Text to write.
         text: String,
     },
+    /// Read clipboard text and route completion to its producer.
     ReadClipboard {
+        /// Producer-local request identifier.
         request_id: u64,
     },
     /// `None` restores the host's default title.
     SetWindowTitle(Option<String>),
+    /// Ask the window manager to draw the user's attention.
     RequestAttention,
+    /// Create an additional native window.
     CreateWindow {
+        /// Application-assigned stable window identifier.
         window_id: u64,
+        /// Initial native window options.
         options: WindowOptions,
     },
+    /// Apply a command to an existing native window.
     ControlWindow {
+        /// Target Wabou window identifier.
         window_id: u64,
+        /// Operation to perform.
         command: WindowCommand,
     },
 }
@@ -305,12 +424,18 @@ pub enum HostAction {
 /// Completion for a [`HostAction`] which requires data from the native host.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostActionResult {
+    /// Completion of [`HostAction::ReadClipboard`].
     Clipboard {
+        /// Original producer-local request identifier.
         request_id: u64,
+        /// Clipboard text, or `None` when unavailable or unsupported.
         text: Option<String>,
     },
+    /// Completion of [`HostAction::WriteClipboard`].
     ClipboardWrite {
+        /// Original producer-local request identifier.
         request_id: u64,
+        /// Whether the platform accepted the write.
         success: bool,
     },
 }
@@ -325,12 +450,19 @@ pub type WakeCallback = Arc<dyn Fn() + Send + Sync>;
 /// (`useHost().diagnostics.frameStats()`). All timing is captured at the app/shell seam.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct FrameStats {
+    /// Total frame-source construction time in milliseconds.
     pub build_frame_ms: f64,
+    /// Guest JavaScript frame callback time in milliseconds.
     pub js_tick_ms: f64,
+    /// Vello scene assembly time in milliseconds.
     pub scene_ms: f64,
+    /// Renderer submission and presentation time in milliseconds.
     pub present_ms: f64,
+    /// Number of retained nodes in the frame.
     pub node_count: usize,
+    /// Logical viewport width.
     pub viewport_w: u32,
+    /// Logical viewport height.
     pub viewport_h: u32,
 }
 
@@ -354,6 +486,7 @@ impl FrameStats {
 }
 
 impl EventResponse {
+    /// Response for an event the source did not consume.
     pub const IGNORED: Self = Self {
         handled: false,
         request_redraw: false,
@@ -362,6 +495,7 @@ impl EventResponse {
         clipboard: None,
     };
 
+    /// Consume an event and request a new frame.
     pub const fn handled() -> Self {
         Self {
             handled: true,
@@ -373,6 +507,11 @@ impl EventResponse {
     }
 }
 
+/// Retained UI producer consumed by the native shell.
+///
+/// All methods run on the UI thread. Background work communicates through
+/// [`WakeCallback`] plus the polling/drain methods; it must never call into
+/// layout, widgets, or Vello directly.
 pub trait FrameSource {
     /// Inform the source of the physical-pixels-per-logical-pixel ratio before
     /// it builds widget scene fragments for this frame.
@@ -382,16 +521,19 @@ pub trait FrameSource {
     /// Borrowed `tcx` is used for text measurement (parley).
     fn build_frame(&mut self, tcx: &mut TextContext, width: u32, height: u32) -> Vec<PlacedNode>;
 
-    /// Latest retained accessibility snapshot, in logical window coordinates.
     /// Enable semantic snapshot production while a platform accessibility
     /// client is active. Sources should avoid accessibility tree work when
     /// this is false.
     fn set_semantics_enabled(&mut self, _enabled: bool) {}
 
+    /// Return the latest immutable accessibility snapshot.
+    ///
+    /// Bounds are expressed in logical window coordinates.
     fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
         None
     }
 
+    /// Route a platform accessibility action back into retained UI state.
     fn handle_semantic_action(&mut self, _action: SemanticAction) -> bool {
         false
     }
@@ -445,6 +587,7 @@ pub trait FrameSource {
         None
     }
 
+    /// Deliver the completion of a host action to its original producer.
     fn complete_host_action(&mut self, _result: HostActionResult) {}
 
     /// Drain one typed desktop effect. Unlike render ops, effects represent
@@ -453,6 +596,7 @@ pub trait FrameSource {
         None
     }
 
+    /// Deliver completion of a typed desktop effect at a frame boundary.
     fn complete_effect(&mut self, _completion: crate::EffectCompletion) {}
 
     /// Deliver a native Wabou event to the source.
@@ -470,6 +614,7 @@ pub trait FrameSource {
         None
     }
 
+    /// Report completion of the last screenshot request.
     fn complete_screenshot(&mut self, _result: Result<PathBuf, String>) {}
 }
 

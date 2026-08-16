@@ -1,13 +1,19 @@
 //! Platform-aware shortcut matching layered over raw keyboard input.
 
+#![warn(missing_docs)]
+
 use crate::{KeyEvent, KeyPhase};
 
 /// Editing shortcuts whose physical bindings follow platform conventions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StandardShortcut {
+    /// Copy the current selection.
     Copy,
+    /// Cut the current selection.
     Cut,
+    /// Paste clipboard contents.
     Paste,
+    /// Select all editable/selectable content.
     SelectAll,
 }
 

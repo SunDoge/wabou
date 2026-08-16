@@ -1,3 +1,5 @@
+//! Native host executable for the terminal example.
+
 use snafu::{ResultExt, Whatever};
 use wabou_quick::{HostBuilder, WindowOptions};
 

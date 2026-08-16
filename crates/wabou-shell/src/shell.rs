@@ -5,6 +5,8 @@
 //! provides a [`crate::source::FrameSource`] that fills the scene each frame;
 //! [`Shell`] handles presentation + vsync + resize.
 
+#![warn(missing_docs)]
+
 use snafu::ResultExt;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -22,20 +24,25 @@ use crate::accessibility::AccessibilityState;
 use crate::source::WindowOptions;
 use crate::text::TextContext;
 
+/// Native rendering resources owned by one live window.
 pub struct Shell {
+    /// Platform window handle.
     pub window: Arc<dyn Window>,
+    /// WGPU surface and device selected for the window.
     pub surface: SurfaceRenderer<'static>,
+    /// Vello renderer bound to [`Self::surface`]'s device.
     pub renderer: VelloRenderer,
+    /// Reused application scene for the current frame.
     pub scene: Scene,
+    /// Shared text shaping and retained glyph resources.
     pub tcx: TextContext,
+    /// Platform accessibility adapter for the window.
     pub accessibility: AccessibilityState,
 }
 
 impl Shell {
     /// Create the window + wgpu surface + vello renderer + a fresh
-    /// `TextContext`. `width`/`height` are the initial surface size. Prints to
-    /// stderr and returns `None` if any GPU init step fails (the host can then
-    /// decide whether to retry or exit).
+    /// [`TextContext`]. Returns a typed error when any window/GPU step fails.
     pub fn create(
         event_loop: &dyn ActiveEventLoop,
         options: &WindowOptions,
@@ -125,6 +132,7 @@ impl Shell {
         (self.surface.config.width, self.surface.config.height)
     }
 
+    /// Resize the physical render surface; zero-sized requests are ignored.
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
             // A texture acquired for the old swapchain must not survive a
@@ -135,11 +143,13 @@ impl Shell {
         }
     }
 
+    /// Current physical-pixels-per-logical-pixel scale reported by the window.
     pub fn scale_factor(&self) -> f64 {
         self.window.scale_factor().max(f64::EPSILON)
     }
 
     /// CSS/layout viewport in logical pixels; the surface remains physical.
+    /// Current logical client-area size, clamped to at least 1×1.
     pub fn logical_size(&self) -> (u32, u32) {
         let (width, height) = self.size();
         let scale = self.scale_factor();
@@ -151,6 +161,7 @@ impl Shell {
 
     /// Encode `self.scene` and blit+present to the surface (vsync-blocks on
     /// `PresentMode::AutoVsync`).
+    /// Render and present [`Self::scene`], returning whether presentation succeeded.
     pub fn present(&mut self, base_color: Color) -> bool {
         self.accessibility.publish_root(self.window.as_ref());
         let (w, h) = self.size();
@@ -189,12 +200,15 @@ impl Shell {
         true
     }
 
+    /// Borrow the platform window.
     pub fn window(&self) -> &Arc<dyn Window> {
         &self.window
     }
+    /// Mutably borrow shared text shaping resources.
     pub fn tcx_mut(&mut self) -> &mut TextContext {
         &mut self.tcx
     }
+    /// Mutably borrow the frame's Vello scene.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
     }

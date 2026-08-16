@@ -9,45 +9,69 @@ use std::time::Duration;
 use crate::host_message::{HostMessage, HostMessagePayload};
 use crate::protocol::{host_frame, host_node_payload, host_record};
 
+/// Maximum encoded bytes accepted for one atomic host frame.
 pub const MAX_HOST_FRAME_BYTES: usize = 4 * 1024 * 1024;
+/// Maximum records delivered to JavaScript in one host frame.
 pub const MAX_HOST_FRAME_RECORDS: usize = 512;
-pub const RECORD_HEADER_LEN: usize = 8;
+/// Node-event header flag indicating JavaScript may cancel the event.
 pub const FLAG_CANCELLABLE: u8 = 1;
 
 #[derive(Debug, Clone, PartialEq)]
+/// Payload representation for an unsolicited event targeting one Solid node.
 pub enum NodeEventPayload {
+    /// Event carries only its header fields.
     None,
+    /// Fixed-width numeric event-data slots defined by the generated ABI.
     Numeric([f64; crate::protocol::event_data::LEN]),
+    /// Event-specific JSON object.
     Json(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Unsolicited event addressed to one retained Solid node.
 pub struct HostNodeEvent {
+    /// Solid node identifier.
     pub target: u32,
+    /// Generated event discriminator.
     pub event_code: u8,
+    /// Per-runtime identifier used for cancellation routing.
     pub event_id: u32,
+    /// Whether JavaScript may cancel the host's default action.
     pub cancellable: bool,
+    /// Event-specific payload.
     pub payload: NodeEventPayload,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Content-box size observation for one retained Solid node.
 pub struct ResizeObservation {
+    /// Solid node identifier.
     pub target: u32,
+    /// Content-box width in logical pixels.
     pub width: f32,
+    /// Content-box height in logical pixels.
     pub height: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Record that can be batched into one Rust-to-JavaScript host frame.
 pub enum HostEvent {
+    /// Event addressed to one retained node.
     Node(HostNodeEvent),
+    /// ResizeObserver-compatible content-box observation.
     Resize(ResizeObservation),
+    /// Application topic message from a Rust producer.
     Application(HostMessage),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Boundary validation failure while encoding an atomic host frame.
 pub enum HostFrameError {
+    /// Record count exceeds the host-frame record limit.
     TooManyRecords,
+    /// Complete frame or a record exceeds the binary ABI limit.
     TooLarge,
+    /// A short-string field exceeds its 16-bit length representation.
     StringTooLarge,
 }
 

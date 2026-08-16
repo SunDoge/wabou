@@ -186,6 +186,7 @@ pub struct AccessibilityState {
 }
 
 impl AccessibilityState {
+    /// Attach an AccessKit adapter to `window` without publishing a tree yet.
     pub fn new(window: Arc<dyn Window>, title: String) -> Self {
         let events = Arc::new(Mutex::new(Vec::new()));
         let handler = Arc::new(Handler {
@@ -210,6 +211,7 @@ impl AccessibilityState {
         }
     }
 
+    /// Forward window focus, movement, and resize changes to AccessKit.
     pub fn process_window_event(&mut self, window: &dyn Window, event: &WindowEvent) {
         match event {
             WindowEvent::Focused(focused) => self.adapter.set_focus(*focused),
@@ -220,6 +222,7 @@ impl AccessibilityState {
         }
     }
 
+    /// Replace the immutable semantic projection used by the next publication.
     pub fn set_snapshot(&mut self, snapshot: Option<Arc<SemanticSnapshot>>) {
         self.snapshot = snapshot;
     }
@@ -247,6 +250,7 @@ impl AccessibilityState {
         self.active
     }
 
+    /// Drain supported platform actions for routing back to the frame source.
     pub fn take_actions(&mut self) -> Vec<SemanticAction> {
         self.events
             .lock()
@@ -271,6 +275,7 @@ impl AccessibilityState {
             .unwrap_or_default()
     }
 
+    /// Publish the current semantic tree when activation or its revision requires it.
     pub fn publish_root(&mut self, window: &dyn Window) {
         self.update_window_bounds(window);
         if !self.active {

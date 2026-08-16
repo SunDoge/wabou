@@ -1,11 +1,11 @@
 //! Binary bridge wire protocol (JS SolidJS reconciler → Rust).
 //!
 //! Frame layout (all little-endian):
-//!   [seq: u32][count: u32][op...]
-//! Each op: [op: u8][operands...]. Strings are either `[len: u16][utf8]` or
+//!   `[seq: u32][count: u32][op...]`
+//! Each op is `[op: u8][operands...]`. Strings are either `[len: u16][utf8]` or
 //! `[0xffff][frame-local string index: u16]`. Inline strings of at least four
 //! bytes enter the frame-local table; the table is discarded after decoding.
-//! Structural strings are runtime-scoped [`crate::Atom`] IDs (`u32`); dynamic
+//! Structural strings are runtime-scoped atom IDs (`u32`); dynamic
 //! values and text use inline UTF-8 plus frame-local references.
 //! Node ids are u32; 0 is the "none / append" sentinel.
 //!
@@ -16,7 +16,7 @@
 
 include!("gen/op.rs");
 
-use crate::Atom;
+use crate::atom::Atom;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StyleValue {

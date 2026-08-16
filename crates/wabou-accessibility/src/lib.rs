@@ -4,6 +4,8 @@
 //! roles, labels, bounds and focus, then route click/focus actions back to the
 //! frame source. It is not yet a complete accessibility implementation.
 
+#![warn(missing_docs)]
+
 mod model;
 mod xplat;
 

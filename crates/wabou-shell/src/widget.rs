@@ -10,6 +10,8 @@
 //! The node's standard bg+border+clip (from classes/inline styles) still
 //! render; the widget paints its **content** on top, inside the content box.
 
+#![warn(missing_docs)]
+
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -29,21 +31,31 @@ use vello::{
 /// already expressed in this content-local coordinate space.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WidgetGeometry {
+    /// Width and height of the CSS content box in logical pixels.
     pub content_size: [f32; 2],
+    /// Physical pixels per logical pixel for the widget's window.
     pub device_scale: f64,
+    /// Affine transform from content-local coordinates to window coordinates.
     pub local_to_window: [f64; 6],
+    /// Inverse of [`Self::local_to_window`], used for event localization.
     pub window_to_local: [f64; 6],
 }
 
 /// Space offered by the layout engine for one measured axis.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum WidgetAvailableSpace {
+    /// The containing layout constrains this axis to the supplied size.
     Definite(f32),
+    /// Measure the smallest size that avoids optional overflow.
     MinContent,
+    /// Measure the preferred size without optional wrapping.
     MaxContent,
 }
 
 /// Measurement state supplied from Taffy's active layout pass.
+///
+/// This context is valid only during [`Widget::measure`]. The text context
+/// must not be retained by the widget.
 pub struct MeasureContext<'a> {
     known_size: [Option<f32>; 2],
     available_space: [WidgetAvailableSpace; 2],
@@ -52,6 +64,7 @@ pub struct MeasureContext<'a> {
 }
 
 impl<'a> MeasureContext<'a> {
+    /// Construct a context for one Taffy measurement callback.
     pub fn new(
         known_size: [Option<f32>; 2],
         available_space: [WidgetAvailableSpace; 2],
@@ -66,22 +79,27 @@ impl<'a> MeasureContext<'a> {
         }
     }
 
+    /// Dimensions already resolved by CSS, or `None` for intrinsic axes.
     pub fn known_size(&self) -> [Option<f32>; 2] {
         self.known_size
     }
 
+    /// Constraints offered by the containing layout for width and height.
     pub fn available_space(&self) -> [WidgetAvailableSpace; 2] {
         self.available_space
     }
 
+    /// Return the normalized physical-pixels-per-logical-pixel scale.
     pub fn device_scale(&self) -> f64 {
         self.device_scale
     }
 
+    /// Borrow Wabou's shared font and shaping resources.
     pub fn text(&mut self) -> &mut TextContext {
         self.text
     }
 
+    /// Keep CSS-resolved axes and fill intrinsic axes from `measured`.
     pub fn resolve_size(&self, measured: [f32; 2]) -> [f32; 2] {
         [
             self.known_size[0].unwrap_or(measured[0]),
@@ -117,6 +135,7 @@ pub struct PaintContext<'a> {
 }
 
 impl<'a> PaintContext<'a> {
+    /// Create an unclipped content-local scene fragment.
     pub fn new(width: f32, height: f32, device_scale: f64, text: &'a mut TextContext) -> Self {
         Self {
             width,
@@ -149,22 +168,27 @@ impl<'a> PaintContext<'a> {
         context
     }
 
+    /// Content-box width in logical pixels.
     pub fn width(&self) -> f32 {
         self.width
     }
 
+    /// Content-box height in logical pixels.
     pub fn height(&self) -> f32 {
         self.height
     }
 
+    /// Physical pixels per logical pixel for the target window.
     pub fn device_scale(&self) -> f64 {
         self.device_scale
     }
 
+    /// Content-box `[width, height]` in logical pixels.
     pub fn size(&self) -> [f32; 2] {
         [self.width, self.height]
     }
 
+    /// Borrow Wabou's shared font and shaping resources for this frame.
     pub fn text(&mut self) -> &mut TextContext {
         self.text
     }
@@ -174,6 +198,7 @@ impl<'a> PaintContext<'a> {
         &mut self.scene
     }
 
+    /// Finish the fragment, balancing a context-owned clip if present.
     pub fn finish(mut self) -> Scene {
         if self.owns_clip {
             self.scene.pop_layer();
@@ -189,12 +214,19 @@ impl<'a> PaintContext<'a> {
 /// for content whose metrics or colors depend on CSS.
 #[derive(Clone, Debug, PartialEq)]
 pub struct WidgetStyle {
+    /// Resolved background color, when one is present.
     pub background: Option<Color>,
+    /// Resolved foreground/text color.
     pub color: Color,
+    /// Font size in logical pixels.
     pub font_size: f32,
+    /// Numeric CSS font weight.
     pub font_weight: f32,
+    /// Resolved line height and whether it was explicitly specified.
     pub line_height: Option<(f32, bool)>,
+    /// Horizontal text alignment.
     pub text_align: TextAlign,
+    /// Preferred family, or the platform default when absent.
     pub font_family: Option<Arc<str>>,
 }
 
@@ -202,9 +234,13 @@ pub struct WidgetStyle {
 /// Explicit JS/ARIA attributes remain authoritative when both are present.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WidgetAccessibility {
+    /// Native role used when the host element does not declare one.
     pub role: Option<SemanticRole>,
+    /// Accessible name used when the host element does not declare one.
     pub label: Option<String>,
+    /// Current textual value exposed to assistive technology.
     pub value: Option<String>,
+    /// Disabled state when it cannot be inferred from the host element.
     pub disabled: Option<bool>,
 }
 
@@ -228,11 +264,14 @@ impl From<&Paint> for WidgetStyle {
 /// the small event object received by JSX listeners.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WidgetNodeEvent {
+    /// Event discriminator from the shared generated bridge protocol.
     pub event_code: u8,
+    /// Serialized JSON object merged into the JS listener event.
     pub json: String,
 }
 
 impl WidgetNodeEvent {
+    /// Construct an event with an already serialized JSON-object payload.
     pub fn json(event_code: u8, json: impl Into<String>) -> Self {
         Self {
             event_code,
@@ -241,21 +280,34 @@ impl WidgetNodeEvent {
     }
 }
 
+/// Factory stored by the host to construct one widget per matching node.
 pub type WidgetFactory = Arc<dyn Fn() -> Box<dyn Widget>>;
 
 bitflags::bitflags! {
+    /// Framework work invalidated by a widget callback.
+    ///
+    /// Precise flags avoid performing layout when a change only requires
+    /// repainting or accessibility publication.
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct WidgetChanges: u8 {
+        /// The widget consumed the input event.
         const HANDLED = 1 << 0;
+        /// [`Widget::current_value`] changed and must be synchronized to JS.
         const VALUE = 1 << 1;
+        /// The widget scene fragment must be painted again.
         const REDRAW = 1 << 2;
+        /// Suppress the text event normally emitted after this key event.
         const CONSUME_KEY_TEXT = 1 << 3;
+        /// Intrinsic measurement may have changed.
         const MEASURE = 1 << 4;
+        /// Layout geometry must be recomputed.
         const LAYOUT = 1 << 5;
+        /// Accessibility semantics must be republished.
         const SEMANTICS = 1 << 6;
     }
 }
 
+/// Result of dispatching one [`UiEvent`] to a native widget.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WidgetEventResult {
     changes: WidgetChanges,
@@ -263,16 +315,19 @@ pub struct WidgetEventResult {
 }
 
 impl WidgetEventResult {
+    /// The widget ignored the event and requests no follow-up work.
     pub const IGNORED: Self = Self {
         changes: WidgetChanges::empty(),
         clipboard: None,
     };
 
+    /// The widget consumed the event and needs repainting.
     pub const HANDLED: Self = Self {
         changes: WidgetChanges::HANDLED.union(WidgetChanges::REDRAW),
         clipboard: None,
     };
 
+    /// The widget consumed the event, changed value, and needs repainting.
     pub const VALUE_CHANGED: Self = Self {
         changes: WidgetChanges::HANDLED
             .union(WidgetChanges::VALUE)
@@ -280,22 +335,27 @@ impl WidgetEventResult {
         clipboard: None,
     };
 
+    /// Whether event propagation should stop at this widget.
     pub const fn is_handled(&self) -> bool {
         self.changes.contains(WidgetChanges::HANDLED)
     }
 
+    /// Whether the host must synchronize [`Widget::current_value`] to JS.
     pub const fn value_changed(&self) -> bool {
         self.changes.contains(WidgetChanges::VALUE)
     }
 
+    /// Whether the widget scene fragment needs repainting.
     pub const fn requests_redraw(&self) -> bool {
         self.changes.contains(WidgetChanges::REDRAW)
     }
 
+    /// Whether the host should suppress the key's following text event.
     pub const fn consumes_key_text(&self) -> bool {
         self.changes.contains(WidgetChanges::CONSUME_KEY_TEXT)
     }
 
+    /// Consume a key event and suppress its following text event.
     pub const fn handled_consuming_key_text() -> Self {
         Self {
             changes: WidgetChanges::HANDLED
@@ -305,6 +365,7 @@ impl WidgetEventResult {
         }
     }
 
+    /// Report a value change while suppressing the following text event.
     pub const fn value_changed_consuming_key_text() -> Self {
         Self {
             changes: WidgetChanges::HANDLED
@@ -315,6 +376,7 @@ impl WidgetEventResult {
         }
     }
 
+    /// Return the complete set of requested invalidations.
     pub const fn changes(&self) -> WidgetChanges {
         self.changes
     }
@@ -329,6 +391,7 @@ impl WidgetEventResult {
         }
     }
 
+    /// Request that the host write `text` to the system clipboard.
     pub fn copy(text: String) -> Self {
         Self {
             changes: WidgetChanges::HANDLED,
@@ -336,6 +399,7 @@ impl WidgetEventResult {
         }
     }
 
+    /// Write `text` to the clipboard and synchronize a changed value.
     pub fn copy_with_value_change(text: String) -> Self {
         Self {
             changes: WidgetChanges::HANDLED
@@ -345,6 +409,7 @@ impl WidgetEventResult {
         }
     }
 
+    /// Request clipboard text; the host returns it as a later paste event.
     pub fn paste() -> Self {
         Self {
             changes: WidgetChanges::HANDLED,
@@ -352,21 +417,26 @@ impl WidgetEventResult {
         }
     }
 
+    /// Return the clipboard operation attached to this result, if any.
     pub fn clipboard_request(&self) -> Option<&ClipboardRequest> {
         self.clipboard.as_ref()
     }
 }
 
-/// A Rust-side widget that paints custom content through a [`PaintContext`].
-///
-/// Ported from blitz's `Widget` trait
-/// (`packages/blitz-dom/src/node/custom_widget.rs`), adapted to wabou's
-/// protocol-based model.
 /// Deserialize a `widgetConfig` payload into a widget-specific derived type.
+///
+/// Prefer a concrete type with `#[serde(deny_unknown_fields)]`: configuration
+/// errors then stay at the JS/Rust boundary instead of becoming latent bugs.
 pub fn decode_widget_config<T: serde::de::DeserializeOwned>(json: &str) -> Result<T, String> {
     serde_json::from_str(json).map_err(|error| error.to_string())
 }
 
+/// A Rust-side widget that measures, paints, and handles native interaction.
+///
+/// The host owns box layout, transforms, clipping, focus routing, and scene
+/// composition. Implementations own content-local rendering and state. The
+/// returned [`WidgetChanges`] flags form the invalidation contract between the
+/// widget and those host-owned projections.
 pub trait Widget {
     /// Measure content before layout. The default supports widgets whose
     /// intrinsic size is already known; text-backed widgets can update font
@@ -437,9 +507,11 @@ pub trait Widget {
         WidgetChanges::empty()
     }
 
-    /// Return the widget's current value (for syncing to JS). Called by the
-    /// applier after `handle_event` returns `true` on a text-edit event.
-    /// The applier dispatches an `INPUT` event with `{"value": ...}` to JS.
+    /// Return the widget's current value for synchronization to JS.
+    ///
+    /// The applier reads this after a callback returns [`WidgetChanges::VALUE`]
+    /// and dispatches an input event with `{"value": ...}`. Returning `None`
+    /// opts out even when the value flag was set.
     fn current_value(&self) -> Option<&str> {
         None
     }
@@ -494,6 +566,7 @@ pub trait Widget {
         None
     }
 
+    /// Complete the oldest host action routed back to this widget.
     fn complete_host_action(&mut self, _result: HostActionResult) {}
 }
 
@@ -505,6 +578,7 @@ pub struct WidgetHarness<W> {
 }
 
 impl<W: Widget> WidgetHarness<W> {
+    /// Wrap a widget with deterministic geometry and text resources.
     pub fn new(widget: W) -> Self {
         Self {
             widget,
@@ -513,35 +587,43 @@ impl<W: Widget> WidgetHarness<W> {
         }
     }
 
+    /// Borrow the widget under test.
     pub fn widget(&self) -> &W {
         &self.widget
     }
 
+    /// Mutably borrow the widget for setup or state assertions.
     pub fn widget_mut(&mut self) -> &mut W {
         &mut self.widget
     }
 
+    /// Deliver the mount lifecycle callback.
     pub fn mount(&mut self) -> WidgetChanges {
         self.widget.mounted()
     }
 
+    /// Set an attribute directly on the widget.
     pub fn set_attribute(&mut self, name: &str, value: &str) -> WidgetChanges {
         self.widget.attribute_changed(name, value)
     }
 
+    /// Remove an attribute directly from the widget.
     pub fn remove_attribute(&mut self, name: &str) -> WidgetChanges {
         self.widget.attribute_removed(name)
     }
 
+    /// Deliver a visibility transition.
     pub fn set_visible(&mut self, visible: bool) -> WidgetChanges {
         self.widget.visibility_changed(visible)
     }
 
+    /// Store and deliver new content-local geometry.
     pub fn layout(&mut self, geometry: WidgetGeometry) {
         self.geometry = geometry;
         self.widget.layout_changed(geometry);
     }
 
+    /// Run intrinsic measurement with explicit Taffy-compatible constraints.
     pub fn measure(
         &mut self,
         known_size: [Option<f32>; 2],
@@ -552,10 +634,12 @@ impl<W: Widget> WidgetHarness<W> {
         self.widget.measure(&mut cx)
     }
 
+    /// Dispatch one already-localized UI event.
     pub fn event(&mut self, event: &UiEvent) -> WidgetEventResult {
         self.widget.handle_event(event)
     }
 
+    /// Paint using the most recently supplied geometry.
     pub fn paint(&mut self) -> Scene {
         let [width, height] = self.geometry.content_size;
         let mut cx = PaintContext::new(width, height, self.geometry.device_scale, &mut self.text);

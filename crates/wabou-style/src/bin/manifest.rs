@@ -1,3 +1,5 @@
+//! Print Wabou's versioned style capability manifest as JSON.
+
 fn main() {
     let mut theme = wabou_style::Theme::default();
     let mut args = std::env::args().skip(1);

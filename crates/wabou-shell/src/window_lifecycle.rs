@@ -5,43 +5,62 @@
 //! without a compositor while platform smoke tests only need to verify the
 //! thin effect executor.
 
+#![warn(missing_docs)]
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Platform abilities that affect window lifecycle strategy.
 pub struct WindowCapabilities {
     /// An existing native window can be hidden and shown again.
     pub mutable_visibility: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Resource state of one logical Wabou window.
 pub enum WindowPresence {
     #[default]
+    /// Native window and render surface are visible.
     Visible,
+    /// Native window exists but is hidden.
     Hidden,
+    /// Logical window exists but its platform surface was released.
     SurfaceReleased,
+    /// Logical and native window are permanently closed.
     Closed,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Application request applied to a logical window.
 pub enum WindowIntent {
+    /// Hide while preserving the logical window for tray restoration.
     Hide,
+    /// Make a hidden/released logical window visible.
     Show,
+    /// Permanently close the logical window.
     Close,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Minimal platform operation selected by a lifecycle transition.
 pub enum WindowEffect {
+    /// Toggle visibility without recreating the surface.
     SetVisible(bool),
+    /// Drop a surface on platforms where hiding is unreliable.
     ReleaseSurface,
+    /// Create a replacement surface for a retained logical window.
     RecreateSurface,
+    /// Permanently destroy the native window.
     Close,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Deterministic state machine for close-to-tray and native surface lifetime.
 pub struct WindowLifecycle {
     presence: WindowPresence,
     surface_generation: u64,
 }
 
 impl WindowLifecycle {
+    /// Construct a visible lifecycle with its first surface generation.
     pub fn visible() -> Self {
         Self {
             presence: WindowPresence::Visible,
@@ -49,14 +68,19 @@ impl WindowLifecycle {
         }
     }
 
+    /// Return the current native-resource presence.
     pub fn presence(self) -> WindowPresence {
         self.presence
     }
 
+    /// Monotonic generation incremented whenever a surface is recreated.
     pub fn surface_generation(self) -> u64 {
         self.surface_generation
     }
 
+    /// Apply an intent and return the platform operation required, if any.
+    ///
+    /// Repeated or impossible transitions are idempotent and return `None`.
     pub fn transition(
         &mut self,
         intent: WindowIntent,

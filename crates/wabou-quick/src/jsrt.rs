@@ -95,8 +95,13 @@ impl Wake for RuntimeWake {
     }
 }
 
+/// Single-threaded QuickJS runtime configured with Wabou's host ABI.
+///
+/// The runtime may be created directly for bundle compatibility tests. Normal
+/// applications should use [`crate::HostBuilder`] and let [`crate::Applier`]
+/// own its frame/event lifecycle.
 pub struct JsRuntime {
-    clock: Arc<dyn crate::Clock>,
+    clock: Arc<dyn crate::clock::Clock>,
     /// Bytes flushed by the most recent `__wabou_flush` call.
     out: Rc<RefCell<Vec<u8>>>,
     /// True once the app's initial render has been evaluated.
@@ -141,11 +146,12 @@ pub struct JsRuntime {
 }
 
 impl JsRuntime {
+    /// Create an empty runtime with the system monotonic clock.
     pub fn new() -> JsResult<Self> {
-        Self::new_with_clock(Arc::new(crate::SystemClock::new()))
+        Self::new_with_clock(Arc::new(crate::clock::SystemClock::new()))
     }
 
-    pub fn new_with_clock(clock: Arc<dyn crate::Clock>) -> JsResult<Self> {
+    pub(crate) fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
         let rt = AsyncRuntime::new()?;
         futures_lite::future::block_on(async {
             rt.set_max_stack_size(QUICKJS_STACK_SIZE).await;
@@ -153,7 +159,7 @@ impl JsRuntime {
         Self::build_inner(rt, clock)
     }
 
-    fn build_inner(rt: AsyncRuntime, clock: Arc<dyn crate::Clock>) -> JsResult<Self> {
+    fn build_inner(rt: AsyncRuntime, clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
         let tokio_rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
@@ -516,7 +522,7 @@ impl JsRuntime {
         self.resize_targets.clone()
     }
 
-    pub fn set_wake_callback(&self, callback: wabou_shell::WakeCallback) {
+    pub(crate) fn set_wake_callback(&self, callback: wabou_shell::WakeCallback) {
         if let Ok(mut wake) = self.runtime_wake.callback.lock() {
             *wake = Some(callback);
         }
@@ -554,11 +560,11 @@ impl JsRuntime {
         true
     }
 
-    pub fn take_async_wake(&self) -> bool {
+    pub(crate) fn take_async_wake(&self) -> bool {
         self.runtime_wake.pending.swap(false, Ordering::AcqRel)
     }
 
-    pub fn has_async_wake(&self) -> bool {
+    pub(crate) fn has_async_wake(&self) -> bool {
         self.runtime_wake.pending.load(Ordering::Acquire)
     }
 
@@ -592,7 +598,7 @@ impl JsRuntime {
         self.layout_metrics.clone()
     }
 
-    pub fn atom_pool_handle(&self) -> Rc<RefCell<AtomPool>> {
+    pub(crate) fn atom_pool_handle(&self) -> Rc<RefCell<AtomPool>> {
         self.atoms.clone()
     }
 
@@ -600,7 +606,7 @@ impl JsRuntime {
         self._tokio.handle().clone()
     }
 
-    pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
+    pub(crate) fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
         self.debug_state = Some(state);
     }
 
@@ -805,7 +811,7 @@ impl JsRuntime {
         let vite = crate::vite::ViteState::new(origin);
         vite.install_loader(&rt)?;
 
-        let mut this = Self::build_inner(rt, Arc::new(crate::SystemClock::new()))?;
+        let mut this = Self::build_inner(rt, Arc::new(crate::clock::SystemClock::new()))?;
         this.with(|ctx| -> JsResult<()> {
             let g = ctx.globals();
             g.set(

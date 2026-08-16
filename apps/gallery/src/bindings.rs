@@ -2,28 +2,40 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use wabou_bindings::{Bindings, Capability};
 
+/// Capability containing the gallery's binding demonstration.
 pub const CAPABILITY: &str = "bindingsDemo";
+/// Wire name of the palette-description endpoint.
 pub const DESCRIBE_PALETTE: &str = "describePalette";
 
+/// Input accepted by the palette-description example.
 #[derive(Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct DescribePaletteRequest {
+    /// Base palette name.
     pub name: String,
+    /// Requested number of example swatches.
     pub swatch_count: u32,
 }
 
+/// Result returned by the palette-description example.
 #[derive(Serialize, Type)]
 #[serde(tag = "status", rename_all = "camelCase")]
 pub enum DescribePaletteResponse {
+    /// A generated palette description.
     Palette {
+        /// Human-readable palette title.
         title: String,
+        /// Generated swatch token names.
         swatches: Vec<String>,
     },
+    /// A rejected palette request.
     Error {
+        /// Human-readable error description.
         message: String,
     },
 }
 
+/// Builds the gallery's typed binding manifest.
 pub fn manifest() -> Bindings {
     Bindings::new().capability(Capability::from_specta(
         CAPABILITY,
@@ -32,6 +44,7 @@ pub fn manifest() -> Bindings {
 }
 
 #[specta::specta]
+/// Generates a small palette description for the binding demonstration.
 pub async fn describe_palette(
     request: DescribePaletteRequest,
 ) -> Result<DescribePaletteResponse, String> {
@@ -43,6 +56,7 @@ pub async fn describe_palette(
     })
 }
 
+/// Decodes a raw request and encodes the binding envelope returned to JS.
 pub async fn invoke_describe_palette(raw: &str) -> String {
     let result = match serde_json::from_str::<DescribePaletteRequest>(raw) {
         Ok(request) => describe_palette(request).await,

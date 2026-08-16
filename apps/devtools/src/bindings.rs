@@ -3,10 +3,13 @@ use specta::Type;
 use wabou_bindings::{Bindings, Capability};
 use wabou_devtools::{DebugFrame, DebugNode, DebugOverlay, DebugStatus};
 
+/// Host capability containing the DevTools example endpoints.
 pub const CAPABILITY: &str = "devtools";
 
+/// Filesystem path returned by socket and screenshot operations.
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
 pub struct PathResult {
+    /// Native path encoded as a platform string.
     pub path: String,
 }
 
@@ -43,6 +46,7 @@ mod contract {
     ) -> DebugOverlay);
 }
 
+/// Builds the binding manifest consumed by TypeScript code generation.
 pub fn manifest() -> Bindings {
     Bindings::new().capability(Capability::from_specta(
         CAPABILITY,

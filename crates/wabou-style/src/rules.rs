@@ -12,14 +12,22 @@ use crate::model::{Color, Declaration, Length, ParsedUtility, Theme, Value};
 use crate::theme::default_theme;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Diagnostic returned when a utility candidate is unsupported or malformed.
 pub enum ParseError {
+    /// No static or dynamic rule recognizes the candidate.
     UnknownUtility(String),
+    /// A recognized rule received a value outside its accepted grammar.
     InvalidValue {
+        /// Original utility candidate.
         utility: String,
+        /// Human-readable description of accepted values.
         expected: &'static str,
     },
+    /// The candidate itself violates Wabou's utility syntax.
     InvalidCandidate {
+        /// Original utility candidate.
         utility: String,
+        /// Human-readable rejection reason.
         reason: &'static str,
     },
 }
@@ -451,10 +459,12 @@ fn parse_transform_utility(utility: &str, class_name: &str, theme: &Theme) -> Op
     )
 }
 
+/// Parse one utility candidate using Wabou's default theme.
 pub fn parse_utility(class_name: &str) -> Result<ParsedUtility, ParseError> {
     parse_utility_with_theme(class_name, default_theme())
 }
 
+/// Parse one utility candidate using application-supplied design tokens.
 pub fn parse_utility_with_theme(
     class_name: &str,
     theme: &Theme,

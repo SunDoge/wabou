@@ -3,6 +3,8 @@
 //! The Rust parser is authoritative. [`manifest`] exports the same scales,
 //! colors and dynamic rule families for editor/build tooling.
 
+#![warn(missing_docs)]
+
 mod manifest;
 mod model;
 mod rules;

@@ -60,6 +60,7 @@ mod style_resolution;
 mod text_selection;
 mod widget_bridge;
 mod widget_manager;
+use crate::atom::{Atom, AtomPool};
 use crate::host_message::{
     DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageHandle, HostMessageInbox, host_message_channel,
 };
@@ -70,7 +71,6 @@ use crate::jsrt::{JsRuntime, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, Re
 use crate::protocol::{Frame, Op, decode_frame};
 use crate::protocol::{event, event_data};
 use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
-use crate::{Atom, AtomPool};
 #[cfg(test)]
 use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
@@ -209,33 +209,44 @@ struct Declared {
 /// A Vite HMR signal forwarded from the background HMR client to the applier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReloadMsg {
+    /// Updated Vite module accepted by an HMR boundary.
     HmrUpdate {
+        /// Module path reported by Vite.
         path: String,
+        /// Boundary module that accepted the update.
         accepted_path: String,
+        /// Vite update timestamp.
         timestamp: u64,
+        /// Updated JavaScript module source.
         source: String,
     },
     /// Native Vite CSS channel. Wabou styles flow through
     /// `virtual:wabou-stylesheet` → `__wabou_set_stylesheet` (Style IR) instead;
     /// these messages are acknowledged and logged, not applied as CSSOM.
     CssUpdate {
+        /// CSS module path reported by Vite.
         path: String,
+        /// CSS source retained only for diagnostics.
         source: String,
     },
+    /// Vite requested a complete entry re-import.
     FullReload,
 }
 
 /// Result of draining the HMR queue for one frame (for tests / diagnostics).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HmrDrainResult {
+    /// No queued update changed the runtime.
     Idle,
     /// One or more JS modules were accepted; Style IR may also have updated
     /// via `pending_css` in the same frame.
     Applied {
+        /// Number of JavaScript modules applied in arrival order.
         js_updates: usize,
     },
     /// Entry was (or should be) fully re-imported.
     FullReload {
+        /// Diagnostic explaining why partial HMR was not possible.
         reason: String,
     },
 }
@@ -298,28 +309,51 @@ fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBatch {
 /// pixel comparison. Native scene/widget handles are deliberately excluded.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComputedNodeSnapshot {
+    /// Solid-side retained node identifier.
     pub solid_id: u32,
+    /// Resolved class names in authored order.
     pub classes: Vec<String>,
+    /// Final Taffy layout style.
     pub layout: taffy::Style,
+    /// Resolved background fill.
     pub background: Option<Color>,
+    /// Resolved opacity.
     pub opacity: f32,
+    /// Resolved static transforms.
     pub transforms: Vec<PaintTransform>,
+    /// Resolved outer shadows.
     pub shadows: Vec<wabou_shell::style::Shadow>,
+    /// Uniform border radius in logical pixels.
     pub border_radius: f32,
+    /// Uniform border width and color.
     pub border: Option<(f32, Color)>,
+    /// Resolved text color.
     pub text_color: Color,
+    /// Resolved font size in logical pixels.
     pub font_size: f32,
+    /// Resolved numeric font weight.
     pub font_weight: f32,
+    /// Resolved line height and whether it is font-relative.
     pub line_height: Option<(f32, bool)>,
+    /// Whether normal inline wrapping is enabled.
     pub wrap_text: bool,
+    /// Whether overflowing single-line text uses an ellipsis.
     pub text_ellipsis: bool,
+    /// Whether pointer selection is enabled.
     pub text_selectable: bool,
+    /// Whether one selection gesture selects all text.
     pub text_select_all: bool,
+    /// Resolved text alignment.
     pub text_align: TextAlign,
+    /// Whether the node itself participates in pointer hit testing.
     pub pointer_events: bool,
+    /// Sibling-relative paint and hit-test order.
     pub z_index: i32,
+    /// Resolved preferred font family.
     pub font_family: Option<Arc<str>>,
+    /// Host-provided intrinsic content size.
     pub intrinsic_size: Option<[f32; 2]>,
+    /// Host-driven transform composed after static transforms.
     pub runtime_transform: Option<[f32; 6]>,
 }
 
@@ -380,6 +414,7 @@ bitflags::bitflags! {
 }
 
 impl ReloadHandle {
+    /// Enqueue an HMR signal and wake an otherwise idle render loop.
     pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
         self.tx.send(message)?;
         // Wake the render loop: the applier's `has_anim` ORs this flag so
@@ -404,6 +439,11 @@ const INHERITED_PROPERTIES: &[&str] = &[
     "user-select",
 ];
 
+/// Retained Solid/QuickJS frame source consumed by `wabou-shell`.
+///
+/// The applier owns the JavaScript runtime, decoded node tree, style cascade,
+/// widget instances, input routing, and host projections for one logical
+/// window. Mutation ops are applied only at frame boundaries.
 pub struct Applier {
     js: JsRuntime,
     node_store: NodeStore,
@@ -818,6 +858,7 @@ impl Applier {
         Self::from_runtime_with_factories_and_window(js, widget_factories, base_color, 1)
     }
 
+    /// Build an applier with explicit widget factories and logical window id.
     pub fn from_runtime_with_factories_and_window(
         js: JsRuntime,
         widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
@@ -962,6 +1003,7 @@ impl Applier {
         self.js.boot_with_source_map(source, source_map)
     }
 
+    /// Evaluate an additional script in the booted application realm.
     pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
         self.js.eval_script(source)
     }
@@ -975,6 +1017,7 @@ impl Applier {
         *self.effect_trace.borrow_mut() = Some(trace);
     }
 
+    /// Publish resolved application-private directories to native effects.
     pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
         *self.app_directories.borrow_mut() = Some(directories);
     }
@@ -983,6 +1026,7 @@ impl Applier {
         self.asset_cache = cache;
     }
 
+    /// Attach the immutable snapshot store published through DevTools.
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
         self.js.set_debug_state(state.clone());
         self.projections.debug_state = Some(state);

@@ -111,6 +111,7 @@ enum EffectTraceConfig {
     Replay { path: PathBuf },
 }
 
+/// Application-facing builder for windows, widgets, capabilities, and tooling.
 pub struct HostBuilder {
     base_color: Color,
     window: WindowOptions,
@@ -207,6 +208,7 @@ impl HostBuilder {
         self
     }
 
+    /// Configure the primary native window.
     pub fn window(mut self, options: WindowOptions) -> Self {
         self.window = options;
         self
@@ -219,6 +221,7 @@ impl HostBuilder {
         self
     }
 
+    /// Set the viewport clear color behind the retained root.
     pub fn base_color(mut self, color: Color) -> Self {
         self.base_color = color;
         self
@@ -238,6 +241,7 @@ impl HostBuilder {
         ))
     }
 
+    /// Set an already constructed stable application directory identity.
     pub fn app_directory_config(mut self, config: wabou_shell::AppDirectoryConfig) -> Self {
         self.app_directory_config = Some(config);
         self

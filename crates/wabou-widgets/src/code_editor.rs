@@ -80,6 +80,10 @@ impl EditorGeometry {
     }
 }
 
+/// Native multiline code editor backed by `editor-core`.
+///
+/// The current implementation provides JSON highlighting, Unicode-aware
+/// selection/editing, IME, clipboard copy/paste, undo/redo, and soft wrapping.
 pub struct CodeEditor {
     state: EditorStateManager,
     highlighter: RegexHighlightProcessor,
@@ -98,6 +102,7 @@ pub struct CodeEditor {
 }
 
 impl CodeEditor {
+    /// Construct an empty editable JSON-oriented editor.
     pub fn new() -> Self {
         Self::from_text("")
     }
@@ -279,9 +284,7 @@ impl CodeEditor {
                 "End" => Some(Command::Cursor(CursorCommand::MoveToVisualLineEnd)),
                 "Backspace" => Some(Command::Edit(EditCommand::DeleteGraphemeBack)),
                 "Delete" => Some(Command::Edit(EditCommand::DeleteGraphemeForward)),
-                "Enter" => Some(Command::Edit(EditCommand::InsertText {
-                    text: "\n".into(),
-                })),
+                "Enter" => Some(Command::Edit(EditCommand::InsertText { text: "\n".into() })),
                 _ => None,
             }
         };

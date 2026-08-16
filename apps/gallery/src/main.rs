@@ -1,3 +1,5 @@
+//! Native host executable for the Wabou component gallery.
+
 use snafu::{ResultExt, Whatever};
 use wabou::rquickjs::{Function, prelude::Async};
 use wabou::{HostBuilder, WindowOptions};

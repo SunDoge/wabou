@@ -4,6 +4,8 @@
 //! Generated clients normalize both forms to an asynchronous typed API and
 //! own JSON serialization so application code only sees typed DTOs.
 
+#![warn(missing_docs)]
+
 use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
@@ -58,6 +60,7 @@ impl Argument {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// One generated capability method and its DTO declarations.
 pub struct Method {
     name: String,
     arguments: Vec<Argument>,
@@ -67,12 +70,14 @@ pub struct Method {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Named group of native functions exposed as one TypeScript client.
 pub struct Capability {
     name: String,
     methods: Vec<Method>,
 }
 
 impl Capability {
+    /// Construct an empty capability with a valid TypeScript identifier.
     pub fn new(name: impl Into<String>) -> Self {
         let name = name.into();
         assert_identifier(&name, "capability");
@@ -140,7 +145,9 @@ impl Capability {
     }
 }
 
+/// Accepted Specta function-collection outputs used by binding builders.
 pub trait IntoSpectaFunctions {
+    /// Normalize a collected contract into function metadata and type definitions.
     fn into_specta_functions(
         self,
     ) -> Result<(Vec<FunctionDataType>, TypeDefs), specta::ExportError>;
@@ -163,6 +170,7 @@ impl IntoSpectaFunctions for Result<(Vec<FunctionDataType>, TypeDefs), specta::E
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+/// Deterministic collection of generated capability clients.
 pub struct Bindings {
     capabilities: Vec<Capability>,
 }
@@ -177,6 +185,7 @@ pub struct FunctionModule {
 }
 
 impl FunctionModule {
+    /// Construct a flat native module from functions annotated for Specta.
     pub fn from_specta(name: impl Into<String>, contract: impl IntoSpectaFunctions) -> Self {
         let name = name.into();
         assert_identifier(&name, "interface");
@@ -190,6 +199,7 @@ impl FunctionModule {
         }
     }
 
+    /// Render deterministic TypeScript declarations for the native interface.
     pub fn render(&self) -> String {
         let config = specta_config();
         let mut output = String::from(HEADER);
@@ -230,20 +240,24 @@ impl FunctionModule {
         output
     }
 
+    /// Render and write the generated module, creating parent directories.
     pub fn write(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
         write_generated(path.as_ref(), self.render())
     }
 
+    /// Verify that an existing generated module exactly matches current output.
     pub fn check(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
         check_generated(path.as_ref(), self.render())
     }
 }
 
 impl Bindings {
+    /// Construct an empty capability collection.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Add a uniquely named capability.
     pub fn capability(mut self, capability: Capability) -> Self {
         assert!(
             self.capabilities
@@ -345,10 +359,12 @@ impl Bindings {
         output
     }
 
+    /// Render and write all clients, creating parent directories.
     pub fn write(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
         write_generated(path.as_ref(), self.render())
     }
 
+    /// Verify that existing generated clients exactly match current output.
     pub fn check(&self, path: impl AsRef<Path>) -> Result<(), BindingsError> {
         check_generated(path.as_ref(), self.render())
     }
@@ -400,11 +416,16 @@ fn check_generated(path: &Path, expected: String) -> Result<(), BindingsError> {
 }
 
 #[derive(Debug)]
+/// Failure while writing or checking deterministic generated bindings.
 pub enum BindingsError {
+    /// Generated file or parent directory could not be accessed.
     Io {
+        /// Path involved in the failed operation.
         path: PathBuf,
+        /// Underlying filesystem error.
         source: std::io::Error,
     },
+    /// Existing generated output differs from the current contract.
     Drift(PathBuf),
 }
 

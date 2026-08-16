@@ -1,11 +1,17 @@
 use super::*;
 
 #[derive(Clone, Debug, PartialEq)]
+/// One affine transform operation in authored order.
 pub enum PaintTransform {
+    /// Translate by horizontal and vertical lengths.
     Translate(IrLength, IrLength),
+    /// Scale horizontally and vertically around the transform origin.
     Scale(f32, f32),
+    /// Rotate by radians.
     Rotate(f32),
+    /// Skew horizontally and vertically by radians.
     Skew(f32, f32),
+    /// Explicit `[a, b, c, d, e, f]` affine coefficients.
     Matrix([f32; 6]),
 }
 
@@ -50,12 +56,19 @@ impl PaintTransform {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Resolved outer box shadow rendered behind a node.
 pub struct Shadow {
+    /// Horizontal offset in logical pixels.
     pub offset_x: f32,
+    /// Vertical offset in logical pixels.
     pub offset_y: f32,
+    /// Expansion before blur in logical pixels.
     pub spread: f32,
+    /// Gaussian blur standard deviation.
     pub std_dev: f32,
+    /// Shadow color including opacity.
     pub color: Color,
+    /// Optional corner radius override.
     pub radius: Option<f32>,
 }
 
@@ -85,14 +98,23 @@ impl Shadow {
 /// root with CSS initial values.
 #[derive(Clone, Debug)]
 pub struct InheritedPaint {
+    /// Resolved foreground/text color.
     pub text_color: Color,
+    /// Resolved font size in logical pixels.
     pub font_size: f32,
+    /// Resolved numeric CSS font weight.
     pub font_weight: f32,
+    /// Resolved line height and whether it is font-relative.
     pub line_height: Option<(f32, bool)>,
+    /// Whether normal inline wrapping is allowed.
     pub wrap_text: bool,
+    /// Whether pointer text selection is allowed.
     pub text_selectable: bool,
+    /// Whether one selection gesture selects the complete text node.
     pub text_select_all: bool,
+    /// Resolved horizontal alignment.
     pub text_align: TextAlign,
+    /// Resolved preferred font family.
     pub font_family: Option<Arc<str>>,
 }
 
@@ -121,16 +143,23 @@ impl Default for InheritedPaint {
 /// `Paint` (e.g. `wrap_text` + `wrap_text_declared`).
 #[derive(Clone, Debug)]
 pub struct DeclaredPaint {
+    /// Authored background fill.
     pub background: Option<Color>,
+    /// Node opacity before ancestor composition.
     pub opacity: f32,
+    /// Static transform list in authored order.
     pub transform: Vec<PaintTransform>,
+    /// Outer shadows rendered behind the border box.
     pub shadows: Vec<Shadow>,
     /// Uniform corner radius in px.
     pub border_radius: f32,
     /// Uniform border (width px, color).
     pub border: Option<(f32, Color)>,
+    /// Authored foreground color, or inheritance when absent.
     pub text_color: Option<Color>,
+    /// Authored font size, or inheritance when absent.
     pub font_size: Option<f32>,
+    /// Authored numeric font weight, or inheritance when absent.
     pub font_weight: Option<f32>,
     /// `(value, relative)` where relative means a font-size multiplier.
     pub line_height: Option<(f32, bool)>,
@@ -140,10 +169,15 @@ pub struct DeclaredPaint {
     pub text_ellipsis: bool,
     /// Own `user-select` mapping. `None` = inherit.
     pub text_selectable: Option<bool>,
+    /// Own `user-select: all` mapping, or inheritance when absent.
     pub text_select_all: Option<bool>,
+    /// Own text alignment, or inheritance when absent.
     pub text_align: Option<TextAlign>,
+    /// Whether the node itself participates in pointer hit testing.
     pub pointer_events: bool,
+    /// Sibling-relative paint/hit order inside its overlay plane.
     pub z_index: i32,
+    /// Own preferred font family, or inheritance when absent.
     pub font_family: Option<Arc<str>>,
 }
 
@@ -236,35 +270,54 @@ impl DeclaredPaint {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OverlayPlane {
     #[default]
+    /// Ordinary application content.
     Content,
+    /// Popovers, menus, and other non-modal floating content.
     Floating,
+    /// Active modal surfaces and their backdrops.
     Modal,
+    /// Host/system UI that must remain above application modals.
     System,
+    /// Development overlays rendered above every product surface.
     Debug,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Visibility policy for host-owned overlay scrollbars.
 pub enum ScrollbarVisibility {
     #[default]
+    /// Show during scrolling/interaction, then fade out.
     Auto,
+    /// Keep visible whenever the corresponding axis is scrollable.
     Always,
+    /// Never paint or hit-test a native scrollbar.
     Hidden,
 }
 
 /// Host-owned appearance for native overlay scrollbars.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ScrollbarStyle {
+    /// Visibility and auto-hide policy.
     pub visibility: ScrollbarVisibility,
+    /// Idle delay before an automatic scrollbar begins fading.
     pub hide_delay: std::time::Duration,
+    /// Fade duration after [`Self::hide_delay`].
     pub fade_duration: std::time::Duration,
+    /// Track/thumb thickness in logical pixels.
     pub thickness: f32,
+    /// Inset from the scroll port edge.
     pub margin: f32,
+    /// Minimum draggable thumb length.
     pub min_thumb_length: f32,
     /// Negative means half the thumb thickness.
     pub radius: f32,
+    /// Track fill.
     pub track_color: Color,
+    /// Resting thumb fill.
     pub thumb_color: Color,
+    /// Hovered thumb fill.
     pub hover_color: Color,
+    /// Actively dragged thumb fill.
     pub active_color: Color,
 }
 
@@ -289,15 +342,25 @@ impl Default for ScrollbarStyle {
 /// Host-owned paint content that is not part of the CSS cascade.
 #[derive(Clone, Default)]
 pub struct HostPaint {
+    /// Plain text content owned by the host node.
     pub text: Option<Arc<str>>,
+    /// Styled byte ranges within [`Self::text`].
     pub text_runs: Arc<[crate::text::TextRun]>,
+    /// Selection highlights in text-layout-local coordinates.
     pub selection_rects: Arc<[[f32; 4]]>,
+    /// Parsed SVG retained by an SVG root node.
     pub svg: Option<Arc<crate::svg::SvgImage>>,
+    /// Decoded raster image retained by a replaced image node.
     pub image: Option<Arc<crate::image::RasterImage>>,
+    /// Scene fragment painted by a Rust widget.
     pub widget: Option<Arc<vello::Scene>>,
+    /// Intrinsic content size used for automatic layout axes.
     pub intrinsic_size: Option<[f32; 2]>,
+    /// Host-driven affine coefficients composed after static transforms.
     pub runtime_transform: Option<[f32; 6]>,
+    /// Host-owned stacking plane.
     pub overlay_plane: OverlayPlane,
+    /// Host-owned overlay-scrollbar appearance.
     pub scrollbar: ScrollbarStyle,
 }
 
@@ -308,25 +371,35 @@ pub struct HostPaint {
 /// [`DeclaredPaint`].
 #[derive(Clone)]
 pub struct Paint {
+    /// Resolved background fill.
     pub background: Option<Color>,
+    /// Node opacity before ancestor composition.
     pub opacity: f32,
+    /// Resolved static transform list.
     pub transform: Vec<PaintTransform>,
     /// Host-driven state, composed after the static CSS transform.
     pub runtime_transform: Option<[f32; 6]>,
     /// Explicit host stacking plane, ordered before sibling `z-index`.
     pub overlay_plane: OverlayPlane,
+    /// Host-owned overlay-scrollbar appearance.
     pub scrollbar: ScrollbarStyle,
+    /// Resolved outer shadows.
     pub shadows: Vec<Shadow>,
     /// Uniform corner radius in px.
     pub border_radius: f32,
     /// Uniform border (width px, color).
     pub border: Option<(f32, Color)>,
+    /// Host-owned plain text content.
     pub text: Option<Arc<str>>,
+    /// Styled byte ranges within [`Self::text`].
     pub text_runs: Arc<[crate::text::TextRun]>,
     /// Selection highlight rectangles in text-layout-local coordinates.
     pub selection_rects: Arc<[[f32; 4]]>,
+    /// Resolved foreground/text color.
     pub text_color: Color,
+    /// Resolved font size in logical pixels.
     pub font_size: f32,
+    /// Resolved numeric CSS font weight.
     pub font_weight: f32,
     /// `(value, relative)` where relative means a font-size multiplier.
     /// `None` means CSS `normal` (engine default metrics).
@@ -335,8 +408,11 @@ pub struct Paint {
     pub wrap_text: bool,
     /// Whether a constrained single line is shortened with an ellipsis.
     pub text_ellipsis: bool,
+    /// Whether pointer text selection is allowed.
     pub text_selectable: bool,
+    /// Whether one selection gesture selects the complete text node.
     pub text_select_all: bool,
+    /// Resolved horizontal text alignment.
     pub text_align: TextAlign,
     /// Whether this node is a hit target. `false` (CSS `pointer-events: none`)
     /// makes the node transparent to hit testing — descendants may still hit.
@@ -364,14 +440,18 @@ pub struct Paint {
 /// Cascaded (pre-inherit) style: layout + declared paint.
 #[derive(Clone, Default)]
 pub struct CascadedStyle {
+    /// Cascaded Taffy layout properties.
     pub layout: taffy::Style,
+    /// Cascaded paint declarations before inheritance.
     pub paint: DeclaredPaint,
 }
 
 /// Fully resolved style for a node: taffy layout style + computed paint.
 #[derive(Clone, Default)]
 pub struct ComputedStyle {
+    /// Final Taffy layout properties.
     pub layout: taffy::Style,
+    /// Final inherited and host-enriched paint state.
     pub paint: Paint,
 }
 

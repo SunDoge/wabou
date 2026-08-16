@@ -1,3 +1,5 @@
+//! Command-line entry point for developing, building, and testing Wabou apps.
+
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -864,7 +866,7 @@ fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     // Install host globals before evaluating the bundle. Hooks such as
     // useWindow() read the logical id during module initialization, so booting
     // first would permanently expose the fallback window id 0 in screenshots.
-    let mut factories = wabou_quick::widget::builtin_factories();
+    let mut factories = wabou_widgets::builtin_factories();
     factories.insert(
         "password-input".into(),
         Arc::new(|| Box::new(PasswordInput::new(SecretStore::default()))),

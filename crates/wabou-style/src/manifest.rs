@@ -2,12 +2,15 @@ use crate::model::{DynamicPrefix, DynamicRule, Manifest, Theme};
 use crate::rules::{parse_utility_with_theme, static_utilities};
 use crate::theme::default_theme;
 
+/// Current JSON manifest schema version.
 pub const MANIFEST_VERSION: u16 = 5;
 
+/// Build a capability manifest using Wabou's default theme.
 pub fn manifest() -> Manifest {
     manifest_with_theme(default_theme())
 }
 
+/// Build a capability manifest using application-supplied design tokens.
 pub fn manifest_with_theme(theme: &Theme) -> Manifest {
     Manifest {
         version: MANIFEST_VERSION,

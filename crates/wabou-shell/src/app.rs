@@ -1,5 +1,7 @@
 //! Window mode: a winit event loop driving a [`Shell`] from a [`FrameSource`].
 
+#![warn(missing_docs)]
+
 use snafu::ResultExt;
 use std::collections::HashMap;
 use std::future::Future;
@@ -144,10 +146,12 @@ impl App {
         self.dispatch_event(UiEvent::Focus(focused));
     }
 
+    /// Construct a single-window application using default window options.
     pub fn new(source: Box<dyn FrameSource>) -> Self {
         Self::with_options(source, WindowOptions::default())
     }
 
+    /// Construct a single-window application with an initial logical size.
     pub fn with_size(source: Box<dyn FrameSource>, width: u32, height: u32) -> Self {
         Self::with_options(
             source,
@@ -155,6 +159,7 @@ impl App {
         )
     }
 
+    /// Construct a single-window application with explicit native options.
     pub fn with_options(source: Box<dyn FrameSource>, window_options: WindowOptions) -> Self {
         let (effect_completion_tx, effect_completion_rx) = std::sync::mpsc::channel();
         Self {
@@ -1065,6 +1070,7 @@ impl ExtensionContext<'_> {
         true
     }
 
+    /// Route semantic focus to a node in a visible logical window.
     pub fn focus_semantic_node(&mut self, logical_window_id: u64, node_id: u64) -> bool {
         let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
         else {
@@ -1112,6 +1118,7 @@ impl ExtensionContext<'_> {
         true
     }
 
+    /// Route an asynchronous effect completion to a visible window's source.
     pub fn complete_effect(
         &mut self,
         logical_window_id: u64,
@@ -1125,6 +1132,7 @@ impl ExtensionContext<'_> {
         true
     }
 
+    /// Return a visible window's raw handle for a platform extension.
     pub fn window_handle(&self, logical_window_id: u64) -> Option<RawWindowHandle> {
         self.windows
             .values()
@@ -1137,6 +1145,7 @@ impl ExtensionContext<'_> {
             .map(|handle| handle.as_raw())
     }
 
+    /// Return a visible window's physical-pixels-per-logical-pixel scale.
     pub fn window_scale_factor(&self, logical_window_id: u64) -> Option<f64> {
         self.windows
             .values()
@@ -1146,6 +1155,7 @@ impl ExtensionContext<'_> {
             .map(|shell| shell.scale_factor())
     }
 
+    /// Return lifecycle state for a visible or surface-released window.
     pub fn window_lifecycle(&self, logical_window_id: u64) -> Option<WindowLifecycle> {
         self.windows
             .values()
@@ -1154,6 +1164,7 @@ impl ExtensionContext<'_> {
             .map(|app| app.lifecycle)
     }
 
+    /// Show a hidden window or recreate a previously released surface.
     pub fn show_window(&mut self, logical_window_id: u64) -> bool {
         if let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id) {
             let Some(shell) = app.state.as_ref() else {
@@ -1197,6 +1208,7 @@ impl ExtensionContext<'_> {
         true
     }
 
+    /// Hide a logical window using capabilities derived from its native handle.
     pub fn hide_window(&mut self, logical_window_id: u64) -> bool {
         self.hide_window_with_capabilities(logical_window_id, None)
     }
@@ -1252,6 +1264,7 @@ impl ExtensionContext<'_> {
         }
     }
 
+    /// Request orderly termination of the shared native event loop.
     pub fn exit(&self) {
         self.event_loop.exit();
     }
@@ -1281,7 +1294,9 @@ fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
 /// Implementations create platform resources in `initialize`, enqueue events
 /// from native callbacks, and drain them in `poll` on the event-loop thread.
 pub trait ShellExtension {
+    /// Create native resources and retain `wake` for callback-to-loop delivery.
     fn initialize(&mut self, wake: WakeCallback) -> Result<(), String>;
+    /// Drain native callbacks and interact with windows on the event-loop thread.
     fn poll(&mut self, context: &mut ExtensionContext<'_>);
 
     /// Release native resources and stop background work before the event loop
@@ -1322,6 +1337,7 @@ pub trait ShellExtension {
     }
 }
 
+/// Factory used to create a frame source for dynamically requested windows.
 pub type FrameSourceFactory =
     Arc<dyn Fn(u64, &WindowOptions) -> Result<Box<dyn FrameSource>, String>>;
 
@@ -1641,10 +1657,12 @@ impl ApplicationHandler for MultiWindowApp {
     }
 }
 
+/// Run one frame source in an 800×600 logical native window.
 pub fn run_window(source: Box<dyn FrameSource>) -> crate::Result<()> {
     run_window_with_size(source, 800, 600)
 }
 
+/// Run one frame source with an explicit initial logical size.
 pub fn run_window_with_size(
     source: Box<dyn FrameSource>,
     width: u32,
@@ -1656,6 +1674,7 @@ pub fn run_window_with_size(
     )
 }
 
+/// Run one frame source with explicit native window options.
 pub fn run_window_with_options(
     source: Box<dyn FrameSource>,
     options: WindowOptions,
@@ -1685,6 +1704,7 @@ pub fn run_windows(windows: Vec<(Box<dyn FrameSource>, WindowOptions)>) -> crate
     run_windows_with_factory(windows, None)
 }
 
+/// Run initial windows and optionally allow effects to create additional sources.
 pub fn run_windows_with_factory(
     windows: Vec<(Box<dyn FrameSource>, WindowOptions)>,
     factory: Option<FrameSourceFactory>,
@@ -1692,6 +1712,10 @@ pub fn run_windows_with_factory(
     run_windows_with_factory_and_extensions(windows, factory, Vec::new())
 }
 
+/// Run windows, a dynamic source factory, and native event-loop extensions.
+///
+/// Every source and extension shares one winit event loop while retaining
+/// independent window, renderer, input, and lifecycle state.
 pub fn run_windows_with_factory_and_extensions(
     mut windows: Vec<(Box<dyn FrameSource>, WindowOptions)>,
     factory: Option<FrameSourceFactory>,

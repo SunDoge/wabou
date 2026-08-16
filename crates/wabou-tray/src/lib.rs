@@ -7,6 +7,8 @@
 //! runtime. Wabou hosts the GTK loop on a dedicated thread so it can coexist
 //! with winit on both Wayland and X11.
 
+#![warn(missing_docs)]
+
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 
@@ -48,6 +50,7 @@ pub struct TrayImage {
 }
 
 impl TrayImage {
+    /// Validate and retain a tightly packed, non-empty RGBA8 image.
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, String> {
         let expected = width
             .checked_mul(height)
@@ -95,6 +98,7 @@ pub struct SystemTray {
 }
 
 impl SystemTray {
+    /// Construct a tray extension with no tooltip or menu items.
     pub fn new(icon: TrayImage) -> Self {
         Self {
             tooltip: None,
@@ -116,11 +120,13 @@ impl SystemTray {
         }
     }
 
+    /// Set the native tray tooltip.
     pub fn tooltip(mut self, tooltip: impl Into<String>) -> Self {
         self.tooltip = Some(tooltip.into());
         self
     }
 
+    /// Add an activatable item to the tray's primary menu.
     pub fn item(
         mut self,
         id: impl Into<String>,
@@ -135,6 +141,7 @@ impl SystemTray {
         self
     }
 
+    /// Add a separator after the primary items currently registered.
     pub fn separator(mut self) -> Self {
         self.separators.push(self.items.len());
         self
@@ -155,6 +162,7 @@ impl SystemTray {
         self
     }
 
+    /// Add a separator after the context items currently registered.
     pub fn context_separator(mut self) -> Self {
         self.context_separators.push(self.context_items.len());
         self

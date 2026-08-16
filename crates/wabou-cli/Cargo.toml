@@ -22,4 +22,5 @@ toml = "0.9"
 wabou-devtools = { workspace = true }
 wabou-quick = { workspace = true }
 wabou-shell = { workspace = true }
+wabou-widgets = { workspace = true }
 vello = { workspace = true }

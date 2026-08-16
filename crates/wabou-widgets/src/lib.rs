@@ -1,6 +1,8 @@
 //! Built-in native widgets implemented exclusively through `wabou-shell`'s
 //! public [`wabou_shell::Widget`] contract.
 
+#![warn(missing_docs)]
+
 use std::collections::HashMap;
 use std::sync::Arc;
 

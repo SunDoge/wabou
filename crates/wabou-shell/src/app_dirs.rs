@@ -1,3 +1,7 @@
+//! Resolution of application-private paths using platform conventions.
+
+#![warn(missing_docs)]
+
 use std::path::{Path, PathBuf};
 
 use directories::ProjectDirs;
@@ -12,6 +16,10 @@ pub struct AppDirectoryConfig {
 }
 
 impl AppDirectoryConfig {
+    /// Define the stable reverse-domain-style identity used by the OS.
+    ///
+    /// Changing these values after release changes the resolved directories
+    /// and therefore appears to users as lost application data.
     pub fn new(
         qualifier: impl Into<String>,
         organization: impl Into<String>,
@@ -29,16 +37,26 @@ impl AppDirectoryConfig {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppDirectories {
+    /// User-editable configuration directory.
     pub config_dir: PathBuf,
+    /// Roaming or user-level durable data directory.
     pub data_dir: PathBuf,
+    /// Machine-local durable data directory.
     pub local_data_dir: PathBuf,
+    /// Reconstructible cache directory.
     pub cache_dir: PathBuf,
+    /// Default directory for application logs.
     pub log_dir: PathBuf,
+    /// Read-only resources shipped beside the application.
     pub resource_dir: PathBuf,
+    /// Application-namespaced temporary directory.
     pub temp_dir: PathBuf,
 }
 
 impl AppDirectories {
+    /// Resolve platform paths, returning `None` when no home directory exists.
+    ///
+    /// This function only computes paths; it does not create directories.
     pub fn resolve(config: &AppDirectoryConfig, resource: impl AsRef<Path>) -> Option<Self> {
         let project =
             ProjectDirs::from(&config.qualifier, &config.organization, &config.application)?;

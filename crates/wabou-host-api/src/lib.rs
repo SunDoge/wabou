@@ -1,5 +1,7 @@
 //! Rust-owned schema for the low-frequency synchronous QuickJS host API.
 
+#![warn(missing_docs)]
+
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "bindings")]
 use specta::Type;
@@ -8,38 +10,59 @@ use wabou_bindings::FunctionModule;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "bindings", derive(Type))]
+/// Timing and scene-size metrics for the most recently presented frame.
 pub struct FrameStats {
+    /// Total Rust frame construction time in milliseconds.
     pub build_frame_ms: f64,
+    /// QuickJS animation-frame callback time in milliseconds.
     pub js_tick_ms: f64,
+    /// Vello scene construction time in milliseconds.
     pub scene_ms: f64,
+    /// Surface rendering and presentation time in milliseconds.
     pub present_ms: f64,
+    /// Number of retained nodes in the frame.
     pub node_count: usize,
+    /// Logical viewport width.
     pub viewport_w: u32,
+    /// Logical viewport height.
     pub viewport_h: u32,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "bindings", derive(Type))]
+/// Axis-aligned rectangle in logical window coordinates.
 pub struct LayoutRect {
+    /// Left edge.
     pub x: f32,
+    /// Top edge.
     pub y: f32,
+    /// Non-negative width.
     pub width: f32,
+    /// Non-negative height.
     pub height: f32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "bindings", derive(Type))]
+/// Layout and effective clipping geometry for one Solid node.
 pub struct LayoutNodeMetrics {
+    /// Solid-side node identifier.
     pub id: u32,
+    /// Border box in logical window coordinates.
     pub rect: LayoutRect,
+    /// Effective ancestor clip in logical window coordinates.
     pub clip: LayoutRect,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[cfg_attr(feature = "bindings", derive(Type))]
+/// Immutable layout projection returned by the synchronous host API.
 pub struct LayoutSnapshot {
+    /// Monotonic layout revision used to detect stale snapshots.
     pub revision: u64,
+    /// Current logical viewport.
     pub viewport: LayoutRect,
+    /// Metrics for the requested node identifiers that still exist.
     pub nodes: Vec<LayoutNodeMetrics>,
 }
 
@@ -70,6 +93,7 @@ mod contract {
 }
 
 #[cfg(feature = "bindings")]
+/// Generate the TypeScript contract for the synchronous native host API.
 pub fn bindings() -> FunctionModule {
     FunctionModule::from_specta(
         "NativeHostApi",

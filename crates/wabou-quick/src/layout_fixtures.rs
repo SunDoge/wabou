@@ -25,7 +25,7 @@ use wabou_shell::layout::PlacedNode;
 use wabou_shell::{FrameSource, TextContext};
 
 use super::{Applier, ComputedNodeSnapshot, InvalidationFlags};
-use crate::Atom;
+use crate::atom::Atom;
 use crate::jsrt::JsRuntime;
 use crate::protocol::{Frame, Op};
 use crate::style_ir::fixture::{

@@ -1,5 +1,7 @@
 //! Decoded, reusable raster images for retained scene painting.
 
+#![warn(missing_docs)]
+
 use std::sync::Arc;
 
 use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
@@ -90,14 +92,17 @@ impl RasterImage {
         }
     }
 
+    /// Borrow the retained Vello image brush.
     pub fn brush(&self) -> &ImageBrush {
         &self.brush
     }
 
+    /// Decoded `[width, height]` after safety downscaling.
     pub fn size(&self) -> [f32; 2] {
         self.size
     }
 
+    /// Number of decoded RGBA bytes retained by this image.
     pub fn byte_len(&self) -> usize {
         self.byte_len
     }

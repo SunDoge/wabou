@@ -9,7 +9,7 @@ impl TestClock {
     }
 }
 
-impl crate::Clock for TestClock {
+impl crate::clock::Clock for TestClock {
     fn now_ms(&self) -> f64 {
         self.0.load(Ordering::Relaxed) as f64
     }
@@ -56,8 +56,14 @@ fn javascript_and_rust_share_runtime_atom_ids() {
     assert_ne!(ids[0], ids[2]);
     let atoms = runtime.atom_pool_handle();
     let atoms = atoms.borrow();
-    assert_eq!(atoms.resolve(crate::Atom::from_raw(ids[0])), Some("width"));
-    assert_eq!(atoms.resolve(crate::Atom::from_raw(ids[2])), Some("height"));
+    assert_eq!(
+        atoms.resolve(crate::atom::Atom::from_raw(ids[0])),
+        Some("width")
+    );
+    assert_eq!(
+        atoms.resolve(crate::atom::Atom::from_raw(ids[2])),
+        Some("height")
+    );
 }
 
 #[test]

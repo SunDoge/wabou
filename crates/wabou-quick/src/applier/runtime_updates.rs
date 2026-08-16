@@ -40,7 +40,7 @@ impl Applier {
     }
 
     /// Take a [`ReloadHandle`] the HMR client uses to push updates; the applier
-    /// drains them in [`build_frame`] before the next tick.
+    /// drains them in `FrameSource::build_frame` before the next tick.
     pub fn reload_handle(&mut self) -> ReloadHandle {
         let (tx, rx) = mpsc::channel();
         self.reload_rx = Some(rx);

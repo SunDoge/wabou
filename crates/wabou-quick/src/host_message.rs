@@ -29,35 +29,34 @@ pub const MAX_STR_PAYLOAD_BYTES: usize = 0xffff;
 /// Max binary payload length.
 pub const MAX_BYTES_PAYLOAD: usize = 1024 * 1024;
 
-/// Payload kinds in an application HostEventFrame record.
-pub mod kind {
-    pub const NULL: u8 = 0;
-    pub const BOOL: u8 = 1;
-    pub const I32: u8 = 2;
-    pub const F64: u8 = 3;
-    pub const STR: u8 = 4;
-    pub const BYTES: u8 = 5;
-}
-
 /// Typed payload — no JSON on the hot path.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HostMessagePayload {
+    /// No payload value.
     Null,
+    /// Boolean payload.
     Bool(bool),
+    /// Signed 32-bit integer payload.
     I32(i32),
+    /// IEEE-754 double payload.
     F64(f64),
+    /// UTF-8 string payload.
     Str(String),
+    /// Opaque binary payload.
     Bytes(Vec<u8>),
 }
 
 /// One application-level notification from Rust to JS.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HostMessage {
+    /// Application-defined routing topic.
     pub topic: String,
+    /// Typed payload encoded without JSON.
     pub payload: HostMessagePayload,
 }
 
 impl HostMessage {
+    /// Construct a topic-only message.
     pub fn null(topic: impl Into<String>) -> Self {
         Self {
             topic: topic.into(),
@@ -65,6 +64,7 @@ impl HostMessage {
         }
     }
 
+    /// Construct a Boolean message.
     pub fn bool(topic: impl Into<String>, value: bool) -> Self {
         Self {
             topic: topic.into(),
@@ -72,6 +72,7 @@ impl HostMessage {
         }
     }
 
+    /// Construct a signed 32-bit integer message.
     pub fn i32(topic: impl Into<String>, value: i32) -> Self {
         Self {
             topic: topic.into(),
@@ -79,6 +80,7 @@ impl HostMessage {
         }
     }
 
+    /// Construct a double-precision floating-point message.
     pub fn f64(topic: impl Into<String>, value: f64) -> Self {
         Self {
             topic: topic.into(),
@@ -86,6 +88,7 @@ impl HostMessage {
         }
     }
 
+    /// Construct a UTF-8 string message.
     pub fn str(topic: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
             topic: topic.into(),
@@ -93,6 +96,7 @@ impl HostMessage {
         }
     }
 
+    /// Construct an opaque binary message.
     pub fn bytes(topic: impl Into<String>, value: impl Into<Vec<u8>>) -> Self {
         Self {
             topic: topic.into(),
@@ -102,8 +106,11 @@ impl HostMessage {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Non-blocking host-message enqueue failure.
 pub enum HostMessageError {
+    /// Bounded queue has no remaining capacity.
     Full,
+    /// Owning JavaScript runtime and receiver were dropped.
     Disconnected,
     /// Topic or string payload exceeds length limits.
     TooLarge,
@@ -145,18 +152,22 @@ impl HostMessageContext {
         }
     }
 
+    /// Stable logical identifier of the owning native window.
     pub fn window_id(&self) -> u64 {
         self.window_id
     }
 
+    /// Borrow the thread-safe producer handle.
     pub fn messages(&self) -> &HostMessageHandle {
         &self.messages
     }
 
+    /// Whether the owning window/runtime has been dropped.
     pub fn is_cancelled(&self) -> bool {
         self.cancellation.is_cancelled()
     }
 
+    /// Wait until the owning window/runtime is dropped.
     pub async fn cancelled(&self) {
         self.cancellation.cancelled().await;
     }
@@ -203,22 +214,27 @@ impl HostMessageHandle {
         }
     }
 
+    /// Enqueue a topic-only message.
     pub fn emit_null(&self, topic: impl Into<String>) -> Result<(), HostMessageError> {
         self.send(HostMessage::null(topic))
     }
 
+    /// Enqueue a Boolean message.
     pub fn emit_bool(&self, topic: impl Into<String>, value: bool) -> Result<(), HostMessageError> {
         self.send(HostMessage::bool(topic, value))
     }
 
+    /// Enqueue a signed 32-bit integer message.
     pub fn emit_i32(&self, topic: impl Into<String>, value: i32) -> Result<(), HostMessageError> {
         self.send(HostMessage::i32(topic, value))
     }
 
+    /// Enqueue a double-precision floating-point message.
     pub fn emit_f64(&self, topic: impl Into<String>, value: f64) -> Result<(), HostMessageError> {
         self.send(HostMessage::f64(topic, value))
     }
 
+    /// Enqueue a UTF-8 string message.
     pub fn emit_str(
         &self,
         topic: impl Into<String>,
@@ -227,6 +243,7 @@ impl HostMessageHandle {
         self.send(HostMessage::str(topic, value))
     }
 
+    /// Enqueue an opaque binary message.
     pub fn emit_bytes(
         &self,
         topic: impl Into<String>,

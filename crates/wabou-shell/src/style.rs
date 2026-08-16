@@ -1,6 +1,8 @@
 //! Style IR types, the single [`apply_ir`] application backend, and the
 //! runtime string→`IrValue` parser [`parse_ir_value`] used for inline styles.
 
+#![warn(missing_docs)]
+
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -10,39 +12,92 @@ use taffy::style::{GridTemplateArea, GridTemplateAreas, GridTemplateRepetition};
 use vello::peniko::Color;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+/// Resolved horizontal alignment for shaped text.
 pub enum TextAlign {
     #[default]
+    /// Start edge determined by writing direction.
     Start,
+    /// Center each line in its available width.
     Center,
+    /// End edge determined by writing direction.
     End,
+    /// Expand inter-word spacing to fill each eligible line.
     Justify,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, PartialEq)]
 #[serde(tag = "unit", rename_all = "kebab-case")]
+/// Length representation accepted by the runtime Style IR.
 pub enum IrLength {
-    Px { value: f32 },
-    Percent { value: f32 },
+    /// Logical-pixel length.
+    Px {
+        /// Logical-pixel magnitude.
+        value: f32,
+    },
+    /// Parent-relative ratio in Taffy's `0.0..=1.0` representation.
+    Percent {
+        /// Parent-relative ratio.
+        value: f32,
+    },
+    /// Automatic value resolved by layout.
     Auto,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
+/// Color representation accepted by the runtime Style IR.
 pub enum IrColor {
-    Literal { rgba: u32 },
-    Token { name: String },
+    /// Packed RGBA channels in network byte order (`0xRRGGBBAA`).
+    Literal {
+        /// Packed channel value.
+        rgba: u32,
+    },
+    /// Theme token resolved before paint application.
+    Token {
+        /// Theme color name.
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, serde::Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "kebab-case")]
+/// Typed value transported from the style compiler to the Rust backend.
 pub enum IrValue {
-    Keyword { value: String },
-    Boolean { value: bool },
-    Number { value: f32 },
-    Length { value: IrLength },
-    Color { value: IrColor },
-    List { values: Vec<IrValue> },
-    Record { fields: HashMap<String, IrValue> },
+    /// Property-specific closed-vocabulary keyword.
+    Keyword {
+        /// Canonical keyword spelling.
+        value: String,
+    },
+    /// Boolean value.
+    Boolean {
+        /// Boolean payload.
+        value: bool,
+    },
+    /// Finite unitless number.
+    Number {
+        /// Numeric payload.
+        value: f32,
+    },
+    /// Typed layout length.
+    Length {
+        /// Length payload.
+        value: IrLength,
+    },
+    /// Typed color.
+    Color {
+        /// Color payload.
+        value: IrColor,
+    },
+    /// Ordered composite value.
+    List {
+        /// Child values.
+        values: Vec<IrValue>,
+    },
+    /// Named composite value.
+    Record {
+        /// Child values keyed by schema field name.
+        fields: HashMap<String, IrValue>,
+    },
 }
 
 impl IrValue {

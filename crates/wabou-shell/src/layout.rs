@@ -1,6 +1,8 @@
 //! Run taffy layout on a retained tree and flatten the result into an ordered
 //! list of absolutely-positioned boxes for the renderer.
 
+#![warn(missing_docs)]
+
 use std::collections::HashMap;
 
 use taffy::geometry::Size;
@@ -15,7 +17,9 @@ pub struct PlacedNode {
     /// The taffy NodeId — lets the host associate Rust-side widgets with
     /// placed nodes (e.g. to call `Widget::paint` after layout).
     pub node_id: taffy::NodeId,
+    /// Parent node in the flattened layout, or `None` for the root.
     pub parent_node_id: Option<taffy::NodeId>,
+    /// Zero-based depth in the retained tree.
     pub depth: usize,
     /// Absolute border-box: (x0, y0, x1, y1).
     pub rect: [f32; 4],
@@ -32,10 +36,13 @@ pub struct PlacedNode {
     /// This node's own overflow clip, used for replaced/native widget content.
     /// Descendants receive the same geometry through `clip` on their entries.
     pub own_clip: Option<[f32; 4]>,
+    /// Corner radius applied to [`Self::own_clip`].
     pub own_clip_radius: f32,
     /// Resolved physical border widths: top, right, bottom, left.
     pub border_widths: [f32; 4],
+    /// Scroll geometry and overlay-scrollbar state for this node.
     pub scroll: ScrollMetrics,
+    /// Resolved visual properties and optional native-widget fragment.
     pub paint: Paint,
 }
 
@@ -43,9 +50,13 @@ pub struct PlacedNode {
 /// are intentionally separate because their unconstrained edges may be infinite.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ScrollMetrics {
+    /// Scroll port `(x0, y0, x1, y1)` in logical window coordinates.
     pub port: [f32; 4],
+    /// Whether the horizontal and vertical axes can scroll.
     pub scrollable: [bool; 2],
+    /// Maximum horizontal and vertical offsets.
     pub range: [f32; 2],
+    /// Current clamped horizontal and vertical offsets.
     pub offset: [f32; 2],
     /// Host-owned overlay visibility. Zero also disables native hit testing.
     pub opacity: f32,
@@ -64,16 +75,20 @@ struct ClipState {
 /// `Exit` is the reusable paint/hit boundary for owner-local overlays.
 #[derive(Clone, Copy)]
 pub enum SubtreeEvent<'a> {
+    /// Traversal entered a node before visiting its descendants.
     Enter(&'a PlacedNode),
+    /// Traversal left a node after visiting all descendants.
     Exit(&'a PlacedNode),
 }
 
+/// Iterator that reconstructs enter/exit events from depth-first flat nodes.
 pub struct SubtreeEvents<'a> {
     nodes: &'a [PlacedNode],
     index: usize,
     open: Vec<&'a PlacedNode>,
 }
 
+/// Traverse a flattened depth-first layout with balanced enter/exit events.
 pub fn subtree_events(nodes: &[PlacedNode]) -> SubtreeEvents<'_> {
     SubtreeEvents {
         nodes,
@@ -103,6 +118,7 @@ impl<'a> Iterator for SubtreeEvents<'a> {
     }
 }
 
+/// Compute layout and flatten it without native-widget intrinsic measurement.
 pub fn compute_and_walk_with_scroll(
     tree: &mut TaffyTree<Paint>,
     root: NodeId,
@@ -123,6 +139,10 @@ pub fn compute_and_walk_with_scroll(
     )
 }
 
+/// Compute layout with native-widget measurement and flatten the result.
+///
+/// `measure_widget` runs inside Taffy's measurement pass. It must not mutate
+/// the tree or retain the supplied [`crate::widget::MeasureContext`].
 pub fn compute_and_walk_with_scroll_and_widgets(
     tree: &mut TaffyTree<Paint>,
     root: NodeId,

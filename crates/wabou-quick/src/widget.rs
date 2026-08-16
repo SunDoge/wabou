@@ -9,6 +9,4 @@ pub use wabou_shell::{
     WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetNodeEvent, WidgetStyle,
     decode_widget_config,
 };
-pub use wabou_widgets::{
-    Canvas, ImageWidget, PasswordInput, SecretStore, TextInput, builtin_factories,
-};
+pub use wabou_widgets::{Canvas, PasswordInput, SecretStore, TextInput};

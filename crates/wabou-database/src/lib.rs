@@ -4,6 +4,8 @@
 //! their tables and expose domain-specific repositories instead of treating
 //! preferences and other structured data as an untyped key-value store.
 
+#![warn(missing_docs)]
+
 use std::error::Error as StdError;
 use std::fmt;
 use std::ops::Deref;
@@ -15,21 +17,33 @@ pub use turso::{Connection, Row, Rows, Value, params};
 /// A schema change from version `version - 1` to `version`.
 #[derive(Clone, Copy, Debug)]
 pub struct Migration {
+    /// Target schema version after applying this migration.
     pub version: u32,
+    /// SQL batch applied atomically before updating `PRAGMA user_version`.
     pub sql: &'static str,
 }
 
 impl Migration {
+    /// Declare a migration from `version - 1` to `version`.
     pub const fn new(version: u32, sql: &'static str) -> Self {
         Self { version, sql }
     }
 }
 
 #[derive(Debug)]
+/// Database opening, migration, or query error.
 pub enum Error {
+    /// Error returned by the embedded Turso engine.
     Turso(turso::Error),
+    /// Migration sequence is non-contiguous, empty, or otherwise invalid.
     InvalidMigrations(String),
-    NewerSchema { found: u32, supported: u32 },
+    /// On-disk schema is newer than this application understands.
+    NewerSchema {
+        /// Version stored in the database.
+        found: u32,
+        /// Highest version supplied by this application.
+        supported: u32,
+    },
 }
 
 impl fmt::Display for Error {
@@ -60,6 +74,7 @@ impl From<turso::Error> for Error {
     }
 }
 
+/// Result type returned by database operations.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// An opened local database whose schema is at the requested version.
@@ -140,6 +155,7 @@ impl Database {
         })
     }
 
+    /// Highest migration version supported by this database instance.
     pub const fn version(&self) -> u32 {
         self.version
     }

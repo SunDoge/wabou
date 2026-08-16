@@ -6,6 +6,8 @@
 //! (positioned glyph runs). Layouts are cached by width constraint so
 //! measurement and painting use identical line breaks.
 
+#![warn(missing_docs)]
+
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -23,16 +25,23 @@ use vello::peniko::Fill;
 use crate::style::TextAlign;
 use vello::peniko::Color;
 
+/// Convert a Vello color into Parley's RGBA brush representation.
 pub fn brush_for_color(color: Color) -> [u8; 4] {
     color.to_rgba8().to_u8_array()
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// Styled UTF-8 byte range layered over a text node's base style.
 pub struct TextRun {
+    /// UTF-8 byte range in the owning text string.
     pub range: std::ops::Range<usize>,
+    /// Font size in logical pixels.
     pub font_size: f32,
+    /// Numeric CSS font weight.
     pub font_weight: f32,
+    /// Line height and whether it is relative to font size.
     pub line_height: Option<(f32, bool)>,
+    /// RGBA text brush.
     pub color: [u8; 4],
 }
 
@@ -61,7 +70,9 @@ struct TextLayoutKey {
 
 /// The lifetime of a returned [`Layout`] is tied to a borrow of this context.
 pub struct TextContext {
+    /// Font discovery and fallback database shared by layouts.
     pub font_cx: FontContext,
+    /// Scratch state used by Parley while constructing layouts.
     pub layout_cx: LayoutContext,
     cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
     ellipsis_cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
@@ -239,6 +250,7 @@ fn text_layout_key(
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Shape and cache styled text with an optional logical width constraint.
 pub fn layout_text_styled(
     tcx: &mut TextContext,
     text: Arc<str>,

@@ -19,9 +19,14 @@ const PLACEHOLDER: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
 const DEFAULT_SLOT: &str = "default";
 
 #[derive(Clone, Default)]
+/// Rust-only secret slots shared by password widgets and their application.
+///
+/// Slot contents are zeroized when removed and are never returned through
+/// [`Widget::current_value`].
 pub struct SecretStore(Arc<Mutex<HashMap<String, Zeroizing<String>>>>);
 
 impl SecretStore {
+    /// Remove and return a slot, leaving no retained copy in the store.
     pub fn take(&self, slot: &str) -> Zeroizing<String> {
         self.0
             .lock()
@@ -30,6 +35,7 @@ impl SecretStore {
             .unwrap_or_default()
     }
 
+    /// Remove and explicitly zeroize a slot if it exists.
     pub fn clear(&self, slot: &str) {
         if let Ok(mut secrets) = self.0.lock()
             && let Some(mut secret) = secrets.remove(slot)
@@ -55,6 +61,7 @@ impl SecretStore {
     }
 }
 
+/// Native password editor that exposes only masked length to JavaScript.
 pub struct PasswordInput {
     secrets: SecretStore,
     slot: String,
@@ -69,6 +76,7 @@ pub struct PasswordInput {
 }
 
 impl PasswordInput {
+    /// Construct an input backed by a shared Rust-only secret store.
     pub fn new(secrets: SecretStore) -> Self {
         Self {
             secrets,

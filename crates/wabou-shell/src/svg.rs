@@ -1,5 +1,7 @@
 //! Parsed, reusable SVG scene fragments.
 
+#![warn(missing_docs)]
+
 use std::fmt;
 use std::sync::Arc;
 
@@ -16,6 +18,7 @@ pub struct SvgImage {
 }
 
 impl SvgImage {
+    /// Parse SVG XML and encode its normalized usvg tree into a Vello scene.
     pub fn parse(source: &str) -> Result<Self, usvg::Error> {
         let tree = usvg::Tree::from_str(source, &usvg::Options::default())?;
         let size = tree.size();
@@ -25,10 +28,12 @@ impl SvgImage {
         })
     }
 
+    /// Borrow the retained content-local Vello scene.
     pub fn scene(&self) -> &Scene {
         &self.scene
     }
 
+    /// Intrinsic SVG `[width, height]` in logical pixels.
     pub fn size(&self) -> [f32; 2] {
         self.size
     }

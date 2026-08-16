@@ -1,31 +1,46 @@
 //! Overlay scrollbar geometry shared by Vello painting and native hit testing.
 
+#![warn(missing_docs)]
+
 use vello::kurbo::{Point, Rect};
 
 use crate::layout::PlacedNode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Scroll axis addressed by overlay-scrollbar interaction.
 pub enum ScrollAxis {
+    /// Left-to-right axis.
     Horizontal,
+    /// Top-to-bottom axis.
     Vertical,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Hit region within one overlay scrollbar.
 pub enum ScrollbarPart {
+    /// Draggable thumb.
     Thumb,
+    /// Track before the thumb, normally interpreted as page backward.
     TrackBefore,
+    /// Track after the thumb, normally interpreted as page forward.
     TrackAfter,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Scrollbar axis and part selected by hit testing.
 pub struct ScrollbarTarget {
+    /// Selected scroll axis.
     pub axis: ScrollAxis,
+    /// Selected track/thumb region.
     pub part: ScrollbarPart,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+/// Shared resolved geometry consumed by painting and interaction.
 pub struct ResolvedScrollbarGeometry {
+    /// Complete track rectangle in logical window coordinates.
     pub track: Rect,
+    /// Draggable thumb rectangle in logical window coordinates.
     pub thumb: Rect,
 }
 
@@ -91,14 +106,17 @@ pub fn resolve(node: &PlacedNode, axis: ScrollAxis) -> Option<ResolvedScrollbarG
     Some(ResolvedScrollbarGeometry { track, thumb })
 }
 
+/// Resolve the track rectangle for a scrollable axis.
 pub fn track(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
     resolve(node, axis).map(|geometry| geometry.track)
 }
 
+/// Resolve the thumb rectangle for a scrollable axis.
 pub fn thumb(node: &PlacedNode, axis: ScrollAxis) -> Option<Rect> {
     resolve(node, axis).map(|geometry| geometry.thumb)
 }
 
+/// Hit-test visible scrollbar parts, preferring vertical at an overlap corner.
 pub fn hit(node: &PlacedNode, point: Point) -> Option<ScrollbarTarget> {
     for axis in [ScrollAxis::Vertical, ScrollAxis::Horizontal] {
         let Some(thumb) = thumb(node, axis) else {
@@ -128,6 +146,9 @@ pub fn hit(node: &PlacedNode, point: Point) -> Option<ScrollbarTarget> {
     None
 }
 
+/// Convert logical thumb movement into content offset movement.
+///
+/// Returns zero when no draggable track remains.
 pub fn drag_ratio(node: &PlacedNode, axis: ScrollAxis) -> f64 {
     let Some(thumb) = thumb(node, axis) else {
         return 0.0;

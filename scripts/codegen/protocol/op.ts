@@ -64,6 +64,10 @@ function emit(
     "",
   ];
   for (const { label, items, rustType = "u8" } of entries) {
+    // Numeric ABI constants are generated from the named TypeScript source of
+    // truth. Repeating each identifier as prose would add no durable contract,
+    // so keep the generated modules out of the handwritten-doc lint.
+    parts.push("#[allow(missing_docs)]");
     parts.push(`pub mod ${label} {`);
     if (label === "event_data") {
       parts.push(`    pub const LEN: usize = ${items.length};`);

@@ -4,6 +4,8 @@
 //! newline-delimited JSON socket serves those snapshots to the CLI and MCP
 //! adapter without ever touching UI state from a background thread.
 
+#![warn(missing_docs)]
+
 use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -15,8 +17,11 @@ use std::thread;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+/// Current newline-delimited JSON protocol version.
 pub const PROTOCOL_VERSION: u16 = 1;
+/// Default number of recent host frames retained in memory.
 pub const DEFAULT_TRACE_CAPACITY: usize = 128;
+/// Maximum accepted JSON request line size.
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
 fn identity_transform() -> [f64; 6] {
@@ -26,10 +31,15 @@ fn identity_transform() -> [f64; 6] {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// Axis-aligned rectangle in logical window coordinates.
 pub struct Rect {
+    /// Left edge.
     pub x: f32,
+    /// Top edge.
     pub y: f32,
+    /// Non-negative width.
     pub width: f32,
+    /// Non-negative height.
     pub height: f32,
 }
 
@@ -72,12 +82,19 @@ impl DebugClip {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// One rounded clip and its coordinate transform.
 pub struct DebugClip {
+    /// Node establishing the clip.
     pub node_id: u32,
+    /// Clip origin such as overflow or native widget.
     pub kind: String,
+    /// Coordinate space in which [`Self::rect`] is expressed.
     pub coordinate_space: String,
+    /// Clip rectangle.
     pub rect: Rect,
+    /// Uniform corner radius.
     pub radius: f32,
+    /// Affine coefficients mapping the clip into window coordinates.
     #[serde(default = "identity_transform")]
     pub transform: [f64; 6],
 }
@@ -86,34 +103,58 @@ pub struct DebugClip {
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 #[serde(default)]
+/// Complete clipping and transform diagnostics for one retained node.
 pub struct DebugClipInfo {
+    /// Content-local clip applied inside a native widget fragment.
     pub widget_local: Option<DebugClip>,
+    /// Ordered ancestor clip chain.
     pub chain: Vec<DebugClip>,
+    /// Final intersected clip used for hit testing.
     pub effective: Option<DebugClip>,
+    /// Authored CSS transform.
     pub static_transform: [f64; 6],
+    /// Host-driven transform composed after static CSS.
     pub runtime_transform: Option<[f64; 6]>,
+    /// Transform from border-local to logical window coordinates.
     pub border_transform: [f64; 6],
+    /// Transform used when appending content to the final scene.
     pub scene_transform: [f64; 6],
+    /// Physical pixels per logical pixel.
     pub device_scale: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// Compact, serializable view of a node's resolved style.
 pub struct DebugComputedStyle {
+    /// Resolved display mode.
     pub display: Option<String>,
+    /// Resolved positioning mode.
     pub position: Option<String>,
+    /// Horizontal overflow mode.
     pub overflow_x: Option<String>,
+    /// Vertical overflow mode.
     pub overflow_y: Option<String>,
+    /// Font size in logical pixels.
     pub font_size: f32,
+    /// Numeric font weight.
     pub font_weight: f32,
+    /// Whether normal inline wrapping is enabled.
     pub wrap_text: bool,
+    /// Resolved opacity.
     pub opacity: f32,
+    /// Whether the node itself participates in hit testing.
     pub pointer_events: bool,
+    /// Sibling-relative paint order.
     pub z_index: i32,
+    /// Host-owned stacking plane.
     pub overlay_plane: String,
+    /// Current host-owned scrollbar opacity.
     pub scrollbar_opacity: f32,
+    /// Resolved text color in diagnostic notation.
     pub text_color: String,
+    /// Resolved background color in diagnostic notation.
     pub background: Option<String>,
 }
 
@@ -141,38 +182,63 @@ impl Default for DebugComputedStyle {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// Retained node projection published by the UI thread.
 pub struct DebugNode {
+    /// Solid-side node identifier.
     pub id: u32,
+    /// Logical parent identifier.
     pub parent_id: Option<u32>,
+    /// Intrinsic/JSX tag name.
     pub tag: String,
+    /// Plain text content when present.
     pub text: Option<String>,
+    /// Authored class names.
     pub classes: Vec<String>,
+    /// Stylesheet selectors that contributed declarations.
     pub matched_rules: Vec<String>,
+    /// Rejected utilities or invalid declarations associated with the node.
     #[serde(default)]
     pub style_diagnostics: Vec<String>,
+    /// Retained string attributes.
     pub attrs: Vec<(String, String)>,
+    /// Border box in logical window coordinates.
     pub rect: Rect,
+    /// Content box in logical window coordinates.
     pub content_rect: Rect,
+    /// Generated event codes registered on the node.
     pub listeners: Vec<u8>,
+    /// Native widget kind, if attached.
     pub widget: Option<String>,
+    /// Clip and transform diagnostics.
     #[serde(default)]
     pub clip: DebugClipInfo,
+    /// Resolved style projection.
     pub computed: DebugComputedStyle,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// Runtime/window status returned by the DevTools `status` command.
 pub struct DebugStatus {
+    /// Wire protocol version.
     pub protocol_version: u16,
+    /// Inspected native process identifier.
     pub pid: u32,
+    /// Monotonic retained-tree revision.
     pub revision: u64,
+    /// Logical viewport width.
     pub viewport_width: u32,
+    /// Logical viewport height.
     pub viewport_height: u32,
+    /// Physical pixels per logical pixel.
     #[serde(default = "default_device_scale")]
     pub device_scale: f64,
+    /// Number of retained nodes.
     pub node_count: usize,
+    /// Focused Solid node identifier.
     pub focused_node: Option<u32>,
+    /// Hovered Solid node identifier.
     pub hovered_node: Option<u32>,
 }
 
@@ -183,52 +249,78 @@ fn default_device_scale() -> f64 {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// Metadata for one recent binary bridge frame.
 pub struct DebugFrame {
+    /// `jsToHost` or `hostToJs` direction.
     pub direction: String,
+    /// Direction-local monotonic sequence.
     pub sequence: u64,
+    /// Encoded frame length.
     pub byte_len: usize,
+    /// Number of records in the frame.
     pub record_count: usize,
+    /// Optional raw bytes when explicitly enabled for diagnostics.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bytes_hex: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+/// Immutable retained-tree snapshot published by one application frame.
 pub struct DebugSnapshot {
+    /// Runtime/window status at publication time.
     pub status: DebugStatus,
+    /// Retained nodes in paint/source order.
     pub nodes: Vec<DebugNode>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+/// Hit-test result and ancestry at one logical window point.
 pub struct DebugPointInspection {
+    /// Queried horizontal coordinate.
     pub x: f32,
+    /// Queried vertical coordinate.
     pub y: f32,
+    /// Topmost hit-testable node.
     pub node: Option<DebugNode>,
+    /// Root-to-parent ancestry of [`Self::node`].
     pub ancestors: Vec<DebugNode>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+/// Atomic diagnostic bundle combining pixels and retained state.
 pub struct DebugCaptureCase {
+    /// Secure temporary PNG path.
     pub screenshot_path: PathBuf,
+    /// Snapshot corresponding to the capture request.
     pub snapshot: DebugSnapshot,
+    /// Recent bridge frames retained with the case.
     pub frames: Vec<DebugFrame>,
+    /// Optional point inspection requested with the capture.
     pub point: Option<DebugPointInspection>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+/// Parameters for a command that accepts no arguments.
 pub struct EmptyParams {}
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+/// Logical point supplied to `inspectAtPoint`.
 pub struct InspectPointParams {
+    /// Horizontal logical coordinate.
     pub x: f32,
+    /// Vertical logical coordinate.
     pub y: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+/// Optional logical point bundled with a capture case.
 pub struct CaptureCaseParams {
+    /// Horizontal coordinate; must be paired with [`Self::y`].
     pub x: Option<f32>,
+    /// Vertical coordinate; must be paired with [`Self::x`].
     pub y: Option<f32>,
 }
 
@@ -243,9 +335,12 @@ impl CaptureCaseParams {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+/// Text query and bounded result count for `queryNodes`.
 pub struct QueryNodesParams {
+    /// Case-insensitive tag, text, or class substring.
     #[serde(default)]
     pub query: String,
+    /// Maximum returned nodes, clamped by the server.
     #[serde(default = "default_query_limit")]
     pub limit: usize,
 }
@@ -255,12 +350,16 @@ fn default_query_limit() -> usize {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+/// Solid node identifier supplied to node-specific commands.
 pub struct NodeIdParams {
+    /// Solid-side node identifier.
     pub id: u32,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+/// Bounded count supplied to `recentFrames`.
 pub struct RecentFramesParams {
+    /// Maximum returned frames.
     #[serde(default = "default_frame_limit")]
     pub limit: usize,
 }
@@ -271,21 +370,30 @@ fn default_frame_limit() -> usize {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params")]
+/// One request method supported by the local DevTools protocol.
 pub enum DebugCommand {
+    /// Return runtime/window status.
     #[serde(rename = "status")]
     Status(EmptyParams),
+    /// Search retained nodes.
     #[serde(rename = "queryNodes")]
     QueryNodes(QueryNodesParams),
+    /// Inspect one retained node.
     #[serde(rename = "inspectNode")]
     InspectNode(NodeIdParams),
+    /// Hit-test and inspect one logical point.
     #[serde(rename = "inspectAtPoint")]
     InspectAtPoint(InspectPointParams),
+    /// Return recent bridge-frame metadata.
     #[serde(rename = "recentFrames")]
     RecentFrames(RecentFramesParams),
+    /// Change the native debug overlay.
     #[serde(rename = "setOverlay")]
     SetOverlay(DebugOverlay),
+    /// Request a secure offscreen screenshot.
     #[serde(rename = "captureScreenshot")]
     CaptureScreenshot(EmptyParams),
+    /// Capture pixels, snapshot, frames, and optional point inspection atomically.
     #[serde(rename = "captureCase")]
     CaptureCase(CaptureCaseParams),
 }
@@ -295,18 +403,24 @@ pub enum DebugCommand {
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct DebugOverlay {
+    /// Draw node layout bounds.
     pub layout: bool,
+    /// Draw effective and owner-local clips.
     pub clips: bool,
+    /// Draw the current hit target.
     pub hit_target: bool,
+    /// Draw and retain one selected node identifier.
     pub selected_node: Option<u32>,
 }
 
 impl DebugOverlay {
+    /// Whether any overlay layer is active.
     pub fn is_enabled(self) -> bool {
         self.layout || self.clips || self.hit_target || self.selected_node.is_some()
     }
 }
 
+/// UI-thread-owned snapshots and asynchronous DevTools handshake state.
 pub struct DebugState {
     snapshot: DebugSnapshot,
     frames: VecDeque<DebugFrame>,
@@ -322,8 +436,10 @@ pub struct DebugState {
     overlay_changed: bool,
 }
 
+/// Thread-safe handle shared with the read-only socket server.
 pub type SharedDebugState = Arc<RwLock<DebugState>>;
 
+/// RAII handle that stops the local server and removes its socket on drop.
 pub struct ServerHandle {
     running: Arc<AtomicBool>,
     path: PathBuf,
@@ -364,14 +480,17 @@ impl Default for DebugState {
 }
 
 impl DebugState {
+    /// Construct a default state behind an `Arc<RwLock<_>>`.
     pub fn shared() -> SharedDebugState {
         Arc::new(RwLock::new(Self::default()))
     }
 
+    /// Replace the immutable snapshot visible to readers.
     pub fn publish(&mut self, snapshot: DebugSnapshot) {
         self.snapshot = snapshot;
     }
 
+    /// Append frame metadata, evicting the oldest entry at capacity.
     pub fn push_frame(&mut self, mut frame: DebugFrame) {
         if !self.raw_frames {
             frame.bytes_hex = None;
@@ -382,14 +501,17 @@ impl DebugState {
         self.frames.push_back(frame);
     }
 
+    /// Borrow the most recently published retained snapshot.
     pub fn snapshot(&self) -> &DebugSnapshot {
         &self.snapshot
     }
 
+    /// Return the currently requested native overlay layers.
     pub fn overlay(&self) -> DebugOverlay {
         self.overlay
     }
 
+    /// Replace overlay configuration and wake the UI loop.
     pub fn set_overlay(&mut self, overlay: DebugOverlay) {
         self.overlay = overlay;
         self.overlay_changed = true;
@@ -398,18 +520,22 @@ impl DebugState {
         }
     }
 
+    /// Consume the flag indicating overlay paint state changed.
     pub fn take_overlay_change(&mut self) -> bool {
         std::mem::take(&mut self.overlay_changed)
     }
 
+    /// Borrow retained bridge-frame metadata from oldest to newest.
     pub fn frames(&self) -> &VecDeque<DebugFrame> {
         &self.frames
     }
 
+    /// Install the callback used to wake the UI loop for async requests.
     pub fn set_wake(&mut self, wake: Arc<dyn Fn() + Send + Sync>) {
         self.wake = Some(wake);
     }
 
+    /// Request a screenshot and return its preallocated secure temporary path.
     pub fn request_screenshot(&mut self) -> PathBuf {
         let path = std::env::temp_dir().join(format!(
             "wabou-screenshot-{}-{}.png",
@@ -424,6 +550,7 @@ impl DebugState {
         path
     }
 
+    /// Request an atomic diagnostic case with an optional inspected point.
     pub fn request_capture_case(&mut self, point: Option<(f32, f32)>) -> PathBuf {
         let path = self.request_screenshot();
         self.capture_case_requested = true;
@@ -432,14 +559,17 @@ impl DebugState {
         path
     }
 
+    /// Drain the screenshot path the renderer should fulfill.
     pub fn take_screenshot_request(&mut self) -> Option<PathBuf> {
         self.screenshot_request.take()
     }
 
+    /// Whether a renderer screenshot request is waiting.
     pub fn has_screenshot_request(&self) -> bool {
         self.screenshot_request.is_some()
     }
 
+    /// Publish renderer completion and finalize a pending capture case.
     pub fn complete_screenshot(&mut self, result: Result<PathBuf, String>) {
         if self.capture_case_requested {
             self.capture_case_requested = false;
@@ -459,10 +589,12 @@ impl DebugState {
         self.screenshot_result = Some(result);
     }
 
+    /// Borrow the most recent screenshot completion.
     pub fn screenshot_result(&self) -> Option<&Result<PathBuf, String>> {
         self.screenshot_result.as_ref()
     }
 
+    /// Borrow the most recent atomic capture-case completion.
     pub fn capture_case_result(&self) -> Option<&Result<DebugCaptureCase, String>> {
         self.capture_case_result.as_ref()
     }
@@ -558,17 +690,24 @@ impl DebugState {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+/// Newline-delimited JSON request envelope.
 pub struct Request {
+    /// Client-assigned correlation identifier.
     pub id: u64,
+    /// Requested method and typed parameters.
     #[serde(flatten)]
     pub command: DebugCommand,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+/// Newline-delimited JSON response envelope.
 pub struct Response {
+    /// Correlation identifier copied from [`Request::id`].
     pub id: u64,
+    /// Successful JSON result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    /// Human-readable failure diagnostic.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -581,6 +720,7 @@ fn runtime_dir() -> PathBuf {
     std::env::var_os("XDG_RUNTIME_DIR").map_or_else(std::env::temp_dir, PathBuf::from)
 }
 
+/// Return this process's configured or default local socket path.
 pub fn socket_path() -> PathBuf {
     if let Some(path) = configured_socket_path() {
         return path;
@@ -741,6 +881,10 @@ fn serve_stream(state: &SharedDebugState, mut stream: std::os::unix::net::UnixSt
 }
 
 #[cfg(unix)]
+/// Starts the local DevTools server on the Unix socket at `path`.
+///
+/// The socket is created with owner-only permissions. An existing live socket
+/// or a non-socket filesystem entry is never replaced.
 pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHandle> {
     use std::os::unix::fs::FileTypeExt;
     use std::os::unix::fs::PermissionsExt;
@@ -786,6 +930,7 @@ pub fn serve(state: SharedDebugState, path: PathBuf) -> std::io::Result<ServerHa
 }
 
 #[cfg(not(unix))]
+/// Reports that the DevTools transport is not implemented on this platform.
 pub fn serve(_state: SharedDebugState, _path: PathBuf) -> std::io::Result<ServerHandle> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
@@ -794,6 +939,7 @@ pub fn serve(_state: SharedDebugState, _path: PathBuf) -> std::io::Result<Server
 }
 
 #[cfg(unix)]
+/// Sends one DevTools request to `path` and waits for its response.
 pub fn call(path: &Path, request: &Request) -> Result<Response, String> {
     use std::os::unix::net::UnixStream;
     let mut stream = UnixStream::connect(path).map_err(|e| e.to_string())?;
@@ -807,10 +953,12 @@ pub fn call(path: &Path, request: &Request) -> Result<Response, String> {
 }
 
 #[cfg(not(unix))]
+/// Reports that the DevTools transport is not implemented on this platform.
 pub fn call(_path: &Path, _request: &Request) -> Result<Response, String> {
     Err("named pipes are not implemented yet".into())
 }
 
+/// Encodes at most `max` bytes as lowercase hexadecimal text.
 pub fn bytes_hex(bytes: &[u8], max: usize) -> String {
     use std::fmt::Write as _;
     let mut output = String::with_capacity(bytes.len().min(max) * 2);
@@ -820,6 +968,11 @@ pub fn bytes_hex(bytes: &[u8], max: usize) -> String {
     output
 }
 
+/// Constructs a typed DevTools request from a method name and JSON parameters.
+///
+/// # Panics
+///
+/// Panics when `method` and `params` do not match a known DevTools command.
 pub fn request(id: u64, method: impl Into<String>, params: Value) -> Request {
     serde_json::from_value(json!({
         "id": id,
@@ -829,6 +982,7 @@ pub fn request(id: u64, method: impl Into<String>, params: Value) -> Request {
     .expect("known Wabou DevTools method and valid params")
 }
 
+/// Returns the empty JSON object used by parameterless DevTools commands.
 pub fn empty_params() -> Value {
     json!({})
 }

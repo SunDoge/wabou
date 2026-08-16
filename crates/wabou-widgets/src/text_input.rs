@@ -58,6 +58,7 @@ enum PendingEdit {
     SelectAll,
 }
 
+/// Native single- or multiline plain-text editor backed by Parley.
 pub struct TextInput {
     editor: PlainEditor<[u8; 4]>,
     placeholder: String,
@@ -90,10 +91,12 @@ impl Default for TextInput {
 }
 
 impl TextInput {
+    /// Construct an empty single-line text input.
     pub fn new() -> Self {
         Self::with_multiline(false)
     }
 
+    /// Construct an empty multiline textarea.
     pub fn multiline() -> Self {
         Self::with_multiline(true)
     }

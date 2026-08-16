@@ -1,3 +1,5 @@
+//! Native host executable for the Wabou DevTools example.
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 

@@ -23,37 +23,80 @@ through `widget_api`:
 
 ```rust
 use wabou::widget_api::{
-    HostBuilder, TextContext, UiEvent, Widget, WidgetEventResult, vello,
+    HostBuilder, PaintContext, UiEvent, Widget, WidgetChanges,
+    WidgetEventResult,
 };
 
 struct Meter;
 
 impl Widget for Meter {
-    fn paint(
-        &mut self,
-        width: f32,
-        height: f32,
-        text: &mut TextContext,
-    ) -> vello::Scene {
-        let _ = (width, height, text);
-        vello::Scene::new()
+    fn paint(&mut self, cx: &mut PaintContext<'_>) {
+        // Paint in content-local logical pixels. `scene_mut()` exposes Vello
+        // directly while Wabou's higher-level painting API is still small.
+        let _ = (cx.size(), cx.device_scale(), cx.scene_mut());
     }
 
     fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
         WidgetEventResult::HANDLED
     }
+
+    fn attribute_changed(&mut self, name: &str, _value: &str) -> WidgetChanges {
+        if name == "value" {
+            WidgetChanges::REDRAW
+        } else {
+            WidgetChanges::empty()
+        }
+    }
 }
 
+# fn run() -> wabou::Result<()> {
 HostBuilder::new()
     .widget("meter", || Box::new(Meter))
-    .run()?;
+    .run()
+# }
 ```
 
-The trait also exposes measurement, resolved content styles, focus and IME
-state, window-to-local transforms, animation deadlines, asynchronous wakeups,
-native host actions, and events sent back to the owning Solid element. Standard
-layout, clipping, transforms, pointer hit-testing and semantic attributes stay
-owned by the framework around the widget's content scene.
+## Ownership and coordinates
+
+The host owns the CSS box model, layout, transforms, rounded clipping, focus
+routing, hit testing, and scene composition. A widget measures and paints only
+its content box. Pointer and wheel events are localized before
+`Widget::handle_event`; `(0, 0)` is the content-box origin even when ancestors
+are translated, scaled, or scrolled. `Widget::layout_changed` supplies both
+directions of the affine transform for APIs such as IME placement that need
+window coordinates.
+
+Painting uses logical pixels. `PaintContext::device_scale` is metadata for
+scale-sensitive resources; the host applies the window scale during final
+composition. Widgets must not apply that scale to the whole scene themselves.
+
+## State and invalidation
+
+Attribute strings are suitable for primitive HTML-like properties. Structured
+configuration uses the single `widgetConfig` object and
+`decode_widget_config`; a derived Serde type with `deny_unknown_fields` keeps
+the boundary typed without teaching the style system widget-specific nested
+properties.
+
+Every mutating callback returns `WidgetChanges`. These flags are part of the
+widget contract, not hints:
+
+- `REDRAW` rebuilds only the widget scene fragment;
+- `MEASURE` reruns intrinsic measurement and therefore layout;
+- `LAYOUT` recomputes geometry without claiming intrinsic metrics changed;
+- `VALUE` synchronizes `current_value()` and dispatches an input event to JS;
+- `SEMANTICS` republishes accessibility state;
+- `CONSUME_KEY_TEXT` prevents a handled key from also arriving as text input.
+
+Lifecycle callbacks run in host order: mount, initial attributes/config and
+style synchronization, measurement, layout notification, visibility, then
+paint. `unmount` runs while host-action routing still exists; use it to enqueue
+cleanup that needs the host, and use `Drop` for resource-only cleanup.
+
+The trait additionally exposes focus and IME state, animation deadlines,
+asynchronous wakeups, native host actions, and semantic events sent back to the
+owning Solid element. `WidgetHarness` exercises these contracts without a
+window; protocol tests are still needed when JS routing itself matters.
 
 If this contract eventually needs its own crate, its intended name is
 `wabou-widget-trait`; `wabou-widgets` remains the plural implementation crate.

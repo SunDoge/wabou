@@ -12,6 +12,10 @@ use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 use wabou_shell::UiEvent;
 use wabou_shell::{PaintContext, Widget, WidgetEventResult};
 
+/// Legacy local-file raster image widget used for the intrinsic `img` tag.
+///
+/// Network/resource-cache loading is owned by the QuickJS frame source; this
+/// widget only decodes a path explicitly delivered through `src`.
 pub struct ImageWidget {
     src: Option<String>,
     image: Option<ImageBrush>,
@@ -27,6 +31,7 @@ impl Default for ImageWidget {
 }
 
 impl ImageWidget {
+    /// Construct an image widget without a source.
     pub fn new() -> Self {
         Self {
             src: None,

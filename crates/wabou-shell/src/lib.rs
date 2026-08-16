@@ -5,6 +5,8 @@
 //! vello renderer and presents at vsync. The `wabou-quick` crate provides the
 //! SolidJS-driven (op-protocol) source.
 
+#![warn(missing_docs)]
+
 pub use wabou_accessibility as accessibility;
 pub mod app;
 pub mod app_dirs;

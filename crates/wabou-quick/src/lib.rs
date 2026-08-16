@@ -5,22 +5,24 @@
 //! [`Applier`] decodes + applies them to a retained taffy tree; wabou-shell
 //! lays out + rasterises at vsync. Modeled on blitz-js.
 
-pub mod applier;
+#![warn(missing_docs)]
+
+mod applier;
 mod asset_cache;
-pub mod atom;
-pub mod clock;
-pub mod config;
+mod atom;
+mod clock;
+mod config;
 mod effect_trace;
-pub mod error;
-pub mod host;
+mod error;
+mod host;
 #[cfg(test)]
 pub(crate) mod host_abi;
-pub mod host_ffi;
-pub mod host_frame;
-pub mod host_message;
-pub mod inline_context;
-pub mod jsrt;
-pub mod protocol;
+mod host_ffi;
+mod host_frame;
+mod host_message;
+mod inline_context;
+mod jsrt;
+mod protocol;
 mod source_map;
 mod style_ir;
 mod test_driver;
@@ -29,12 +31,10 @@ mod test_driver;
 mod css_support_matrix_test;
 #[cfg(feature = "vite")]
 pub mod vite;
-pub mod widget;
+mod widget;
 pub mod widget_api;
 
 pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
-pub use atom::{Atom, AtomPool};
-pub use clock::{Clock, SystemClock};
 pub use config::AppConfig;
 pub use error::{Error, Result};
 pub use host::HostBuilder;
@@ -46,6 +46,8 @@ pub use host_message::{
     HostMessageHandle, HostMessagePayload, MAX_HOST_MESSAGES_PER_FRAME,
 };
 pub use jsrt::JsRuntime;
+/// Generated event codes shared with native widget adapters.
+pub use protocol::event;
 pub use rquickjs;
 pub use vello;
 pub use wabou_shell::{

@@ -7780,6 +7780,7 @@ dependencies = [
  "wabou-devtools",
  "wabou-quick",
  "wabou-shell",
+ "wabou-widgets",
 ]
 
 [[package]]
