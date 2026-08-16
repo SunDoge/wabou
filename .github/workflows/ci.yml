@@ -63,6 +63,9 @@ jobs:
       - name: Test workspace
         run: cargo test --workspace --all-targets
 
+      - name: Test gallery behavior
+        run: cargo run -p wabou-cli -- test apps/gallery/tests/behavior.ts
+
       - name: Test standalone project scaffold
         run: |
           scaffold_root="$(mktemp -d)/hello-wabou"
