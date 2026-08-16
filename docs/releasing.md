@@ -27,8 +27,9 @@ detecting incomplete manifests and workspace dependency drift.
    ```
 
 5. Build both example frontends and inspect Gallery renders at 1× and 2×.
-6. Test a fresh Cargo project whose only Wabou dependency uses the candidate
-   Git revision.
+6. Run `wabou new` against the candidate Git revision, then verify `bun
+   install`, `bun run check`, `bun run build`, and `cargo check` in the generated
+   standalone project.
 
 ## Tag
 

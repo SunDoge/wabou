@@ -32,6 +32,7 @@ use wabou_shell::{
 };
 
 mod packaging;
+mod scaffold;
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -44,6 +45,17 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Create a standalone Wabou application pinned to a Git revision.
+    New {
+        #[arg(value_name = "PATH")]
+        path: PathBuf,
+        /// Git repository used for the embedded Wabou submodule.
+        #[arg(long, default_value = "https://github.com/SunDoge/wabou.git")]
+        wabou_repository: String,
+        /// Tag or commit used for the embedded Wabou submodule.
+        #[arg(long, default_value = scaffold::DEFAULT_REVISION)]
+        wabou_ref: String,
+    },
     /// Start Vite, the Rust host, and live HMR.
     Dev {
         #[arg(value_name = "APP")]
@@ -297,6 +309,11 @@ fn main() -> Result<()> {
         Ok::<_, Box<dyn Error>>((workspace, app))
     };
     match cli.command {
+        Commands::New {
+            path,
+            wabou_repository,
+            wabou_ref,
+        } => scaffold::create(&cwd.join(path), &wabou_repository, &wabou_ref),
         Commands::Dev {
             app,
             port,
@@ -1360,6 +1377,47 @@ fn ensure(status: ExitStatus, label: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_new_project_git_source() {
+        let Cli {
+            command:
+                Commands::New {
+                    path,
+                    wabou_repository,
+                    wabou_ref,
+                },
+        } = Cli::try_parse_from([
+            "wabou",
+            "new",
+            "hello-wabou",
+            "--wabou-repository",
+            "/tmp/wabou",
+            "--wabou-ref",
+            "abc123",
+        ])
+        .unwrap()
+        else {
+            panic!("expected new command");
+        };
+        assert_eq!(path, Path::new("hello-wabou"));
+        assert_eq!(wabou_repository, "/tmp/wabou");
+        assert_eq!(wabou_ref, "abc123");
+
+        let Cli {
+            command:
+                Commands::New {
+                    wabou_repository,
+                    wabou_ref,
+                    ..
+                },
+        } = Cli::try_parse_from(["wabou", "new", "hello-wabou"]).unwrap()
+        else {
+            panic!("expected new command");
+        };
+        assert_eq!(wabou_repository, "https://github.com/SunDoge/wabou.git");
+        assert_eq!(wabou_ref, "v0.1.0-alpha.1");
+    }
 
     #[cfg(unix)]
     #[test]

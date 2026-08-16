@@ -39,6 +39,25 @@ Wabou explores a narrower combination:
 - Rust for windows, input, text, native widgets, and platform integration;
 - Vite HMR and an inspector for a short development loop.
 
+## Create an application
+
+During the Git-preview phase, install the CLI from the release tag:
+
+```bash
+cargo install --git https://github.com/SunDoge/wabou.git \
+  --tag v0.1.0-alpha.1 --locked wabou-cli
+wabou new hello-wabou
+cd hello-wabou
+bun install
+bun run dev
+```
+
+The generated project pins Wabou as a Git submodule, so its Rust and JavaScript
+halves always come from the same revision. After cloning such an application,
+initialize it with `git submodule update --init` before installing packages.
+This temporary source-based layout will be replaced by crates.io and npm
+dependencies once the public packages stabilize.
+
 ## Why SolidJS?
 
 Solid fits an embedded runtime particularly well because its reactivity is

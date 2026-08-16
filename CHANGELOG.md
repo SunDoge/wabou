@@ -18,6 +18,8 @@ First developer preview.
   terminal widget.
 - Vite development workflow, HMR, source-mapped QuickJS errors, DevTools,
   headless rendering, and behavior-test infrastructure.
+- `wabou new` scaffolding with a single Git revision shared by Rust and
+  JavaScript dependencies.
 - Component gallery and example applications.
 
 ### Preview constraints

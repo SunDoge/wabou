@@ -63,6 +63,19 @@ jobs:
       - name: Test workspace
         run: cargo test --workspace --all-targets
 
+      - name: Test standalone project scaffold
+        run: |
+          scaffold_root="$(mktemp -d)/hello-wabou"
+          cargo run -p wabou-cli -- new "$scaffold_root" \
+            --wabou-repository "$GITHUB_WORKSPACE" \
+            --wabou-ref "$GITHUB_SHA"
+          bun install --cwd "$scaffold_root"
+          bun run --cwd "$scaffold_root" check
+          bun run --cwd "$scaffold_root" build
+          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" \
+            cargo check --manifest-path "$scaffold_root/Cargo.toml"
+          test "$(git -C "$scaffold_root/vendor/wabou" rev-parse HEAD)" = "$GITHUB_SHA"
+
       - name: Render gallery at 1x and 2x
         run: |
           cargo run -p wabou-cli -- render apps/gallery --out target/gallery-1x.png --width 800 --height 600 --scale-factor 1
