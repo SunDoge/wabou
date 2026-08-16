@@ -455,7 +455,8 @@ impl FrameSource for Applier {
         let target = match action {
             SemanticAction::Click { target }
             | SemanticAction::Focus { target }
-            | SemanticAction::Blur { target } => u32::try_from(target).ok(),
+            | SemanticAction::Blur { target }
+            | SemanticAction::ScrollIntoView { target } => u32::try_from(target).ok(),
         };
         let Some(target) =
             target.filter(|target| self.node_store.solid_to_node.contains_key(target))
@@ -503,6 +504,7 @@ impl FrameSource for Applier {
                 }
                 changed
             }
+            SemanticAction::ScrollIntoView { .. } => self.scroll_into_view(target),
         }
     }
 

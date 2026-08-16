@@ -108,6 +108,9 @@ enum Commands {
         /// Directory for the JSON report and replayable action trace.
         #[arg(long, value_name = "DIR")]
         artifacts: Option<PathBuf>,
+        /// Vite mode used to select an application-owned test fixture.
+        #[arg(long)]
+        mode: Option<String>,
         /// Render a PNG after failure; requires an available wgpu backend.
         #[arg(long)]
         failure_screenshot: bool,
@@ -302,6 +305,15 @@ struct RenderOptions {
     keys: Vec<String>,
 }
 
+struct TestOptions {
+    scenario: Option<PathBuf>,
+    replay: Option<PathBuf>,
+    artifacts: Option<PathBuf>,
+    mode: Option<String>,
+    failure_screenshot: bool,
+    native: bool,
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let cwd = env::current_dir()?;
@@ -347,19 +359,20 @@ fn main() -> Result<()> {
             app,
             replay,
             artifacts,
+            mode,
             failure_screenshot,
             native,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            test_scenario(
-                &workspace,
-                &app,
-                scenario.as_deref().map(|path| cwd.join(path)).as_deref(),
-                replay.as_deref().map(|path| cwd.join(path)).as_deref(),
-                artifacts.as_deref(),
+            let options = TestOptions {
+                scenario: scenario.map(|path| cwd.join(path)),
+                replay: replay.map(|path| cwd.join(path)),
+                artifacts,
+                mode,
                 failure_screenshot,
                 native,
-            )
+            };
+            test_scenario(&workspace, &app, &options)
         }
         Commands::Bindings { command } => {
             let app_path = match &command {
@@ -701,21 +714,17 @@ fn run(workspace: &Path, app: &App, release: bool, profile_trace: Option<&Path>)
     ensure(cargo.status()?, "Rust host")
 }
 
-fn test_scenario(
-    workspace: &Path,
-    app: &App,
-    scenario: Option<&Path>,
-    replay: Option<&Path>,
-    artifacts: Option<&Path>,
-    failure_screenshot: bool,
-    native: bool,
-) -> Result<()> {
-    ensure(frontend(app, "build", &[])?, "Vite build")?;
+fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<()> {
+    let mode_args = options.mode.as_deref().map(|mode| ["--mode", mode]);
+    ensure(
+        frontend(app, "build", mode_args.as_ref().map_or(&[], |args| args))?,
+        "Vite build",
+    )?;
 
     let test_dir = workspace.join("target/wabou-test").join(&app.name);
     fs::create_dir_all(&test_dir)?;
     let generated_replay = test_dir.join("replay.ts");
-    let scenario = if let Some(trace) = replay {
+    let scenario = if let Some(trace) = options.replay.as_deref() {
         let actions = fs::read_to_string(trace)
             .map_err(|error| format!("cannot read trace {}: {error}", trace.display()))?;
         let parsed: Value = serde_json::from_str(&actions)
@@ -737,7 +746,10 @@ fn test_scenario(
         )?;
         generated_replay.as_path()
     } else {
-        scenario.ok_or("a scenario or --replay trace is required")?
+        options
+            .scenario
+            .as_deref()
+            .ok_or("a scenario or --replay trace is required")?
     };
     if !scenario.is_file() {
         return Err(format!("test scenario {} does not exist", scenario.display()).into());
@@ -753,8 +765,9 @@ fn test_scenario(
     ]);
     ensure(bun.status()?, "test scenario build")?;
 
-    let artifact_dir = artifacts
-        .map(Path::to_path_buf)
+    let artifact_dir = options
+        .artifacts
+        .clone()
         .unwrap_or_else(|| test_dir.join("artifacts"));
     fs::create_dir_all(&artifact_dir)?;
     let stale_failure = artifact_dir.join("failure.png");
@@ -777,10 +790,10 @@ fn test_scenario(
         .env("XDG_CONFIG_HOME", test_data.path().join("xdg-config"))
         .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
         .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
-    if !native {
+    if !options.native {
         cargo.env("WABOU_TEST_HEADLESS", "1");
     }
-    if failure_screenshot {
+    if options.failure_screenshot {
         cargo.env("WABOU_TEST_FAILURE_SCREENSHOT", "1");
     }
     ensure(cargo.status()?, "Wabou behavior test")
@@ -1594,6 +1607,7 @@ mod tests {
                     app,
                     replay,
                     artifacts,
+                    mode,
                     failure_screenshot,
                     native,
                 },
@@ -1605,6 +1619,8 @@ mod tests {
             "tests/close-to-tray.test.ts",
             "--artifacts",
             "artifacts",
+            "--mode",
+            "ui-test",
             "--failure-screenshot",
             "--native",
         ])
@@ -1619,6 +1635,7 @@ mod tests {
         );
         assert!(replay.is_none());
         assert_eq!(artifacts.as_deref(), Some(Path::new("artifacts")));
+        assert_eq!(mode.as_deref(), Some("ui-test"));
         assert!(failure_screenshot);
         assert!(native);
 

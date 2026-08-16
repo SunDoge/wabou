@@ -95,6 +95,10 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         applier.node_store.root,
         &applier.scroll_offsets,
     );
+    applier.placed_rects = placed
+        .iter()
+        .map(|placed| (placed.node_id, placed.rect))
+        .collect();
     applier.rebuild_hit_geometry(&placed);
 
     let container = applier.node_store.solid_to_node[&2];
@@ -130,6 +134,9 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         &applier.scroll_offsets,
     );
     applier.rebuild_hit_geometry(&placed);
+    assert!(applier.scroll_into_view(3));
+    assert_eq!(applier.scroll_offsets[&container], [0.0, 100.0]);
+    applier.scroll_offsets.insert(container, [0.0, 0.0]);
     let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
         position: Point { x: 10.0, y: 10.0 },
         delta_x: 0.0,

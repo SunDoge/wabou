@@ -87,4 +87,9 @@ pub enum SemanticAction {
         /// Target semantic node identifier.
         target: u64,
     },
+    /// Reveal a node inside its nearest scroll containers.
+    ScrollIntoView {
+        /// Target semantic node identifier.
+        target: u64,
+    },
 }

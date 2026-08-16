@@ -234,6 +234,7 @@ impl Applier {
         self.scroll_offsets.clear();
         self.pending_scroll_events.clear();
         self.scrollbar_hits.clear();
+        self.scroll_metrics.clear();
         self.scrollbar_drag = None;
         self.hovered_scrollbar = None;
         self.scrollbar_activity.clear();

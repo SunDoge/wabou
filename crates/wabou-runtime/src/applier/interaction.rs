@@ -266,6 +266,7 @@ impl Applier {
     pub(super) fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {
         self.input.hit_items.clear();
         self.scrollbar_hits.clear();
+        self.scroll_metrics.clear();
         let atoms = self.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut transforms = HashMap::with_capacity(placed.len());
@@ -273,6 +274,9 @@ impl Applier {
         let mut content_hits = HashMap::new();
         let mut scrollbar_hits = HashMap::new();
         for node in placed {
+            if node.scroll.range.iter().any(|range| *range > 0.5) {
+                self.scroll_metrics.insert(node.node_id, node.scroll);
+            }
             let is_non_interactive_leaf = !node.paint.pointer_events
                 && self
                     .node_store
@@ -348,6 +352,55 @@ impl Applier {
                 }
             }
         }
+    }
+
+    pub(super) fn scroll_into_view(&mut self, target: u32) -> bool {
+        let Some(mut node) = self.node_store.solid_to_node.get(&target).copied() else {
+            return false;
+        };
+        let Some(mut rect) = self.placed_rects.get(&node).copied() else {
+            return false;
+        };
+        let mut changed = false;
+        while let Some(parent) = self.node_store.tree.parent(node) {
+            if let Some(metrics) = self.scroll_metrics.get(&parent).copied() {
+                let offset = self.scroll_offsets.entry(parent).or_insert(metrics.offset);
+                let mut parent_changed = false;
+                for axis in 0..2 {
+                    if !metrics.scrollable[axis] {
+                        continue;
+                    }
+                    let start = rect[axis];
+                    let end = rect[axis + 2];
+                    let port_start = metrics.port[axis];
+                    let port_end = metrics.port[axis + 2];
+                    let delta = if end - start >= port_end - port_start {
+                        (start + end - port_start - port_end) * 0.5
+                    } else if start < port_start {
+                        start - port_start
+                    } else if end > port_end {
+                        end - port_end
+                    } else {
+                        0.0
+                    };
+                    let previous = offset[axis];
+                    offset[axis] = (previous + delta).clamp(0.0, metrics.range[axis]);
+                    let applied = offset[axis] - previous;
+                    if applied != 0.0 {
+                        rect[axis] -= applied;
+                        rect[axis + 2] -= applied;
+                        changed = true;
+                        parent_changed = true;
+                    }
+                }
+                if parent_changed {
+                    self.queue_scroll_event(parent);
+                }
+            }
+            node = parent;
+        }
+        self.projections.semantics_dirty |= changed;
+        changed
     }
 
     pub(super) fn update_scrollbar_visuals(&mut self, placed: &mut [PlacedNode]) {

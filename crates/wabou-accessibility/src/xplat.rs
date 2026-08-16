@@ -89,6 +89,7 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
     if semantic.disabled {
         node.set_disabled();
     }
+    node.add_action(Action::ScrollIntoView);
     match semantic.role {
         SemanticRole::Button
         | SemanticRole::Link
@@ -265,6 +266,7 @@ impl AccessibilityState {
                         Action::Click => Some(SemanticAction::Click { target }),
                         Action::Focus => Some(SemanticAction::Focus { target }),
                         Action::Blur => Some(SemanticAction::Blur { target }),
+                        Action::ScrollIntoView => Some(SemanticAction::ScrollIntoView { target }),
                         _ => None,
                     };
                     actions.extend(action);
@@ -429,6 +431,7 @@ mod tests {
         );
         assert!(update.nodes[2].1.supports_action(Action::Click));
         assert!(update.nodes[2].1.supports_action(Action::Focus));
+        assert!(update.nodes[2].1.supports_action(Action::ScrollIntoView));
     }
 
     #[test]

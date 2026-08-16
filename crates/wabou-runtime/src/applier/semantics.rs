@@ -252,7 +252,9 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let bounds = transformed_bounds(placed_node.rect, semantic_transforms.get(&solid_id));
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
-            role: if attribute(declared, &atoms, "role").is_some() {
+            role: if declared.text.is_some() {
+                SemanticRole::Label
+            } else if attribute(declared, &atoms, "role").is_some() {
                 semantic_role(tag, declared, &atoms)
             } else {
                 widget_semantics

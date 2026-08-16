@@ -249,6 +249,23 @@ impl TestController {
 
     pub(crate) fn poll_headless_source(&self, window_id: u64, source: &mut dyn FrameSource) {
         let snapshot = source.semantic_snapshot();
+        if let Some(snapshot) = snapshot.as_deref()
+            && let Some(action) = self.0.lock().ok().and_then(|state| {
+                state.actions.iter().find_map(|action| match &action.kind {
+                    TestActionKind::ClickByRole {
+                        window_id: target_window,
+                        role,
+                        label,
+                    } if *target_window == window_id => semantic_target(snapshot, role, label),
+                    _ => None,
+                })
+            })
+            && source.handle_semantic_action(wabou_shell::SemanticAction::ScrollIntoView {
+                target: action.id,
+            })
+        {
+            return;
+        }
         let action = self.0.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
                 matches!(
@@ -261,6 +278,45 @@ impl TestController {
                 (kind, Some(snapshot)) => action_semantic_target(kind, snapshot).is_some(),
                 _ => false,
             };
+            if !ready
+                && Instant::now() >= action.deadline
+                && let Some(snapshot) = snapshot.as_deref()
+            {
+                let requested_role = match &action.kind {
+                    TestActionKind::ClickByRole { role, .. }
+                    | TestActionKind::InputByRole { role, .. } => Some(role.as_str()),
+                    _ => None,
+                };
+                let candidate_count = snapshot
+                    .nodes
+                    .iter()
+                    .filter(|node| {
+                        requested_role.is_none_or(|role| semantic_role_matches(role, node.role))
+                    })
+                    .count();
+                let candidates = snapshot
+                    .nodes
+                    .iter()
+                    .filter(|node| {
+                        requested_role.is_none_or(|role| semantic_role_matches(role, node.role))
+                    })
+                    .take(24)
+                    .filter_map(|node| {
+                        node.label.as_deref().map(|label| {
+                            format!("{:?} {label:?} disabled={}", node.role, node.disabled)
+                        })
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                tracing::warn!(
+                    target: "wabou::test",
+                    action = ?action.kind,
+                    revision = snapshot.revision,
+                    candidate_count,
+                    candidates,
+                    "semantic locator timed out"
+                );
+            }
             (ready || Instant::now() >= action.deadline)
                 .then(|| state.actions.remove(index))
                 .flatten()
@@ -417,25 +473,30 @@ fn semantic_target<'a>(
     role: &str,
     label: &str,
 ) -> Option<&'a wabou_shell::SemanticNode> {
-    let role_matches = |candidate: SemanticRole| {
-        matches!(
-            (role, candidate),
-            ("button", SemanticRole::Button)
-                | ("textbox", SemanticRole::TextInput)
-                | ("link", SemanticRole::Link)
-                | ("dialog", SemanticRole::Dialog)
-                | ("checkbox", SemanticRole::CheckBox)
-                | ("radio", SemanticRole::RadioButton)
-                | ("switch", SemanticRole::Switch)
-                | ("combobox", SemanticRole::ComboBox)
-                | ("listbox", SemanticRole::ListBox)
-                | ("option", SemanticRole::Option)
-                | ("label", SemanticRole::Label)
-        )
-    };
     snapshot.nodes.iter().find(|node| {
-        role_matches(node.role) && node.label.as_deref() == Some(label) && !node.disabled
+        semantic_role_matches(role, node.role)
+            && node.label.as_deref() == Some(label)
+            && !node.disabled
     })
+}
+
+fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
+    matches!(
+        (role, candidate),
+        ("button", SemanticRole::Button)
+            | ("textbox", SemanticRole::TextInput)
+            | ("link", SemanticRole::Link)
+            | ("dialog", SemanticRole::Dialog)
+            | ("alert", SemanticRole::Alert)
+            | ("status", SemanticRole::Status)
+            | ("checkbox", SemanticRole::CheckBox)
+            | ("radio", SemanticRole::RadioButton)
+            | ("switch", SemanticRole::Switch)
+            | ("combobox", SemanticRole::ComboBox)
+            | ("listbox", SemanticRole::ListBox)
+            | ("option", SemanticRole::Option)
+            | ("label", SemanticRole::Label)
+    )
 }
 
 pub(crate) struct TestDriver {
@@ -671,5 +732,28 @@ mod tests {
             UiEvent::Ime(ImeEvent::Commit(text)),
             UiEvent::Ime(ImeEvent::Disabled),
         ] if text == "你"));
+    }
+
+    #[test]
+    fn headless_locators_support_live_region_roles() {
+        let snapshot = SemanticSnapshot {
+            nodes: vec![
+                wabou_shell::SemanticNode {
+                    role: SemanticRole::Alert,
+                    label: Some("Failed".into()),
+                    ..node()
+                },
+                wabou_shell::SemanticNode {
+                    id: 8,
+                    role: SemanticRole::Status,
+                    label: Some("Saved".into()),
+                    ..node()
+                },
+            ],
+            ..SemanticSnapshot::default()
+        };
+
+        assert!(semantic_target(&snapshot, "alert", "Failed").is_some());
+        assert!(semantic_target(&snapshot, "status", "Saved").is_some());
     }
 }
