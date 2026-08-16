@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, master]
+    branches: [dev, main, master]
     tags: ["v*"]
 
 concurrency:

@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
   push:
-    branches: [main, master]
+    branches: [dev, main, master]
 
 permissions:
   contents: read
