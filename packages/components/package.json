@@ -15,6 +15,7 @@
     ".": "./src/index.tsx"
   },
   "dependencies": {
+    "@solidjs/web": "2.0.0-rc.0",
     "@wabou/animation": "workspace:*",
     "@wabou/core": "workspace:*",
     "@wabou/interactions": "workspace:*",

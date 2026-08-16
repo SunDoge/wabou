@@ -1,5 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
+import ts from "typescript";
 
 const root = new URL("..", import.meta.url).pathname;
 const internalPackages = new Set([
@@ -21,6 +22,8 @@ interface Manifest {
   wabou?: { stability?: string };
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
 }
 
 async function manifest(path: string): Promise<Manifest> {
@@ -46,9 +49,7 @@ if (versions.size !== 1) {
 }
 const packageVersion = [...versions][0];
 const cargoManifest = await Bun.file(join(root, "Cargo.toml")).text();
-const cargoVersion = cargoManifest.match(
-  /^version\s*=\s*"([^"]+)"\s*$/m,
-)?.[1];
+const cargoVersion = cargoManifest.match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
 if (!cargoVersion) {
   throw new Error("Cargo.toml must declare workspace.package.version");
 }
@@ -86,6 +87,85 @@ for (const entry of packages) {
   }
 }
 
+function dependencyName(specifier: string): string | undefined {
+  if (
+    specifier.startsWith(".") ||
+    specifier.startsWith("/") ||
+    specifier.startsWith("#") ||
+    specifier.startsWith("node:")
+  ) {
+    return undefined;
+  }
+  const parts = specifier.split("/");
+  return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+}
+
+function importedSpecifiers(source: string, path: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    false,
+    path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const specifiers: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      specifiers.push(node.moduleSpecifier.text);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text);
+    } else if (
+      ts.isImportTypeNode(node) &&
+      ts.isLiteralTypeNode(node.argument) &&
+      ts.isStringLiteral(node.argument.literal)
+    ) {
+      specifiers.push(node.argument.literal.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return specifiers;
+}
+
+for (const manifestPath of packageManifestPaths) {
+  const entry = await manifest(manifestPath);
+  const packageRoot = join(manifestPath, "..");
+  const declared = {
+    ...entry.dependencies,
+    ...entry.optionalDependencies,
+    ...entry.peerDependencies,
+  };
+  const sourceGlob = new Bun.Glob("src/**/*.{ts,tsx,js,mjs}");
+  for await (const path of sourceGlob.scan({
+    cwd: packageRoot,
+    onlyFiles: true,
+  })) {
+    if (path.includes(".test.") || path.includes(".spec.")) continue;
+    const source = await Bun.file(join(packageRoot, path)).text();
+    for (const specifier of importedSpecifiers(source, path)) {
+      const dependency = dependencyName(specifier);
+      if (
+        dependency &&
+        dependency !== entry.name &&
+        !(dependency in declared)
+      ) {
+        throw new Error(
+          `${entry.name} imports undeclared dependency ${dependency} in ${path}`,
+        );
+      }
+    }
+  }
+}
+
 const appDirs = await readdir(join(root, "apps"), { withFileTypes: true });
 for (const directory of appDirs.filter((entry) => entry.isDirectory())) {
   const entry = await manifest(
@@ -109,7 +189,7 @@ for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
   const source = await Bun.file(join(root, path)).text();
   for (const dependency of internalPackages) {
     if (
-      source.includes(`\"${dependency}`) ||
+      source.includes(`"${dependency}`) ||
       source.includes(`'${dependency}`)
     ) {
       throw new Error(`${path} directly imports internal ${dependency}`);

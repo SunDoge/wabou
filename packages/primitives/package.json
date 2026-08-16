@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@floating-ui/core": "^1.8.0",
+    "@solidjs/web": "2.0.0-rc.0",
     "@wabou/animation": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style": "workspace:*",
