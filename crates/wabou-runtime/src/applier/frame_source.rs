@@ -177,6 +177,7 @@ impl Applier {
             };
             match decoded {
                 Ok(frame) => {
+                    self.protocol_revision = self.protocol_revision.wrapping_add(1);
                     if let Some(state) = &self.projections.debug_state
                         && let Ok(mut state) = state.write()
                     {

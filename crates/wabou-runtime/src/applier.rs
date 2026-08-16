@@ -498,6 +498,8 @@ pub struct Applier {
     input: InputRouter,
     /// Last tick's `has_raf` — gates the continuous-redraw loop.
     has_raf: bool,
+    /// Number of non-empty JS protocol frames applied by this runtime.
+    protocol_revision: u64,
     /// Receives Vite HMR signals from the background websocket client.
     reload_rx: Option<mpsc::Receiver<ReloadMsg>>,
     /// Set by [`ReloadHandle::send`] to wake the render loop for HMR drain.
@@ -842,6 +844,14 @@ impl Drop for Applier {
 }
 
 impl Applier {
+    /// Monotonically increasing count of non-empty JS-to-host protocol frames.
+    ///
+    /// Deterministic headless drivers can use this to wait for UI commits
+    /// without inspecting private retained-tree state.
+    pub fn protocol_revision(&self) -> u64 {
+        self.protocol_revision
+    }
+
     /// Build an applier over an already-booted [`JsRuntime`] (the host owns
     /// boot: `JsRuntime::new().boot(js)` for the static-bundle path, or
     /// `JsRuntime::new_vite(url).boot_vite(entry)` for dev mode).
@@ -935,6 +945,7 @@ impl Applier {
             atoms,
             input: InputRouter::new(),
             has_raf: true,
+            protocol_revision: 0,
             reload_rx: None,
             has_hmr_pending: Arc::new(AtomicBool::new(false)),
             pending_css: Some(pending_css),

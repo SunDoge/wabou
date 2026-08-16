@@ -3,6 +3,7 @@
 use std::env;
 use std::error::Error;
 use std::fs;
+use std::fs::OpenOptions;
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
@@ -18,6 +19,7 @@ use process_wrap::std::ProcessGroup;
 use process_wrap::std::{ChildWrapper, CommandWrap};
 
 use clap::{Parser, Subcommand, ValueEnum};
+use fs4::fs_std::FileExt as _;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use vello::Scene;
@@ -479,7 +481,20 @@ fn bundle_path(workspace: &Path, app: &App) -> PathBuf {
     }
 }
 
-fn frontend(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
+fn frontend_build_lock(app: &App) -> Result<fs::File> {
+    let directory = app.root.join("target/wabou");
+    fs::create_dir_all(&directory)?;
+    let file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(directory.join("frontend.lock"))?;
+    file.lock_exclusive()?;
+    Ok(file)
+}
+
+fn frontend_unlocked(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
     let mut command = Command::new("bun");
     command.current_dir(&app.frontend).args(["run", script]);
     if !args.is_empty() {
@@ -492,6 +507,11 @@ fn frontend(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
         )
         .into()
     })
+}
+
+fn frontend(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
+    let _lock = frontend_build_lock(app)?;
+    frontend_unlocked(app, script, args)
 }
 
 fn build(workspace: &Path, app: &App, release: bool) -> Result<()> {
@@ -792,8 +812,21 @@ fn settle_render_actions(
     width: u32,
     height: u32,
 ) {
-    for _ in 0..4 {
+    const MAX_SETTLE_FRAMES: usize = 32;
+    const REQUIRED_QUIET_FRAMES: usize = 2;
+
+    let mut quiet_frames = 0;
+    for _ in 0..MAX_SETTLE_FRAMES {
+        let revision = applier.protocol_revision();
         *nodes = applier.build_frame(text, width, height);
+        if applier.protocol_revision() == revision {
+            quiet_frames += 1;
+            if quiet_frames == REQUIRED_QUIET_FRAMES {
+                break;
+            }
+        } else {
+            quiet_frames = 0;
+        }
     }
 }
 
@@ -870,9 +903,13 @@ fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     if !scale_factor.is_finite() || *scale_factor <= 0.0 {
         return Err("--scale-factor must be a finite number greater than zero".into());
     }
+    // Vite replaces the shared bundle and source map while building. Keep the
+    // lock through the bundle read so concurrent renders cannot observe a
+    // partially replaced frontend artifact.
+    let frontend_lock = frontend_build_lock(app)?;
     let mode_args = mode.as_deref().map(|mode| ["--mode", mode]);
     ensure(
-        frontend(app, "build", mode_args.as_ref().map_or(&[], |args| args))?,
+        frontend_unlocked(app, "build", mode_args.as_ref().map_or(&[], |args| args))?,
         "Vite build",
     )?;
     let path = bundle_path(workspace, app);
@@ -882,6 +919,7 @@ fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
             path.display()
         )
     })?;
+    drop(frontend_lock);
     let js =
         JsRuntime::new().map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
 
@@ -1843,6 +1881,26 @@ out-dir = "dist/resources"
             bundle_path(root, &app),
             Path::new("/workspace/warden-desktop/dist/resources/bundle.js")
         );
+    }
+
+    #[test]
+    fn frontend_build_lock_excludes_a_second_process_handle() {
+        let root = tempfile::tempdir().unwrap();
+        let app = App {
+            name: "app".into(),
+            root: root.path().into(),
+            frontend: root.path().into(),
+            entry: "ui/index.tsx".into(),
+        };
+        let first = frontend_build_lock(&app).unwrap();
+        let second = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(app.root.join("target/wabou/frontend.lock"))
+            .unwrap();
+        assert!(!second.try_lock_exclusive().unwrap());
+        drop(first);
+        assert!(second.try_lock_exclusive().unwrap());
     }
 
     #[test]

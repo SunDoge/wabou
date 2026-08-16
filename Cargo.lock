@@ -7771,6 +7771,7 @@ dependencies = [
  "cargo-packager",
  "clap",
  "ctrlc",
+ "fs4",
  "process-wrap",
  "serde",
  "serde_json",
