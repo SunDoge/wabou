@@ -25,9 +25,60 @@ use wabou_shell::{
 
 const FONT_SIZE: f32 = 14.0;
 const LINE_HEIGHT: f32 = 22.0;
-const CELL_WIDTH: f32 = 8.4;
+const FALLBACK_CELL_WIDTH: f32 = 8.4;
 const GUTTER_WIDTH: f32 = 58.0;
 const TEXT_INSET: f32 = 10.0;
+
+#[derive(Clone, Copy, Debug)]
+struct EditorGeometry {
+    cell_width: f32,
+    line_height: f32,
+    gutter_width: f32,
+    text_inset: f32,
+}
+
+impl Default for EditorGeometry {
+    fn default() -> Self {
+        Self {
+            cell_width: FALLBACK_CELL_WIDTH,
+            line_height: LINE_HEIGHT,
+            gutter_width: GUTTER_WIDTH,
+            text_inset: TEXT_INSET,
+        }
+    }
+}
+
+impl EditorGeometry {
+    fn text_origin_x(self) -> f32 {
+        self.gutter_width + self.text_inset
+    }
+
+    fn x_for_cell(self, cell: usize) -> f32 {
+        self.text_origin_x() + cell as f32 * self.cell_width
+    }
+
+    fn cell_for_x(self, x: f32) -> usize {
+        ((x - self.text_origin_x()).max(0.0) / self.cell_width).round() as usize
+    }
+
+    fn row_for_y(self, y: f32) -> usize {
+        (y.max(0.0) / self.line_height).floor() as usize
+    }
+
+    fn y_for_row(self, row: usize) -> f32 {
+        row as f32 * self.line_height
+    }
+
+    fn visible_rows(self, height: f32) -> usize {
+        (height / self.line_height).floor().max(1.0) as usize
+    }
+
+    fn visible_columns(self, width: f32) -> usize {
+        ((width - self.text_origin_x()) / self.cell_width)
+            .floor()
+            .max(8.0) as usize
+    }
+}
 
 pub struct CodeEditor {
     state: EditorStateManager,
@@ -35,7 +86,7 @@ pub struct CodeEditor {
     cached_value: String,
     scroll_row: usize,
     viewport: [f32; 2],
-    window_to_local: [f64; 6],
+    geometry: EditorGeometry,
     focused: bool,
     selecting: bool,
     disabled: bool,
@@ -59,7 +110,7 @@ impl CodeEditor {
             cached_value: text.to_owned(),
             scroll_row: 0,
             viewport: [0.0, 0.0],
-            window_to_local: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            geometry: EditorGeometry::default(),
             focused: false,
             selecting: false,
             disabled: false,
@@ -94,7 +145,7 @@ impl CodeEditor {
     }
 
     fn visible_rows(&self) -> usize {
-        (self.viewport[1] / LINE_HEIGHT).floor().max(1.0) as usize
+        self.geometry.visible_rows(self.viewport[1])
     }
 
     fn reveal_cursor(&mut self) {
@@ -114,17 +165,12 @@ impl CodeEditor {
     }
 
     fn position_from_pointer(&self, x: f32, y: f32) -> Position {
-        let row = (self.scroll_row + (y.max(0.0) / LINE_HEIGHT).floor() as usize)
+        let row = (self.scroll_row + self.geometry.row_for_y(y))
             .min(self.state.total_visual_lines().saturating_sub(1));
-        let x_cells = ((x - GUTTER_WIDTH - TEXT_INSET).max(0.0) / CELL_WIDTH).round() as usize;
+        let x_cells = self.geometry.cell_for_x(x);
         self.state
             .visual_position_to_logical(row, x_cells)
             .unwrap_or_else(|| self.state.editor().cursor_position())
-    }
-
-    fn local_point(&self, x: f64, y: f64) -> (f32, f32) {
-        let [a, b, c, d, e, f] = self.window_to_local;
-        ((a * x + c * y + e) as f32, (b * x + d * y + f) as f32)
     }
 
     fn select_all(&mut self) -> bool {
@@ -195,6 +241,11 @@ impl CodeEditor {
     }
 
     fn key_down(&mut self, key: &str, shift: bool, primary: bool) -> WidgetEventResult {
+        if primary && key.eq_ignore_ascii_case("c") {
+            return self
+                .selected_text()
+                .map_or(WidgetEventResult::IGNORED, WidgetEventResult::copy);
+        }
         let command = if primary && key.eq_ignore_ascii_case("z") {
             Some(Command::Edit(if shift {
                 EditCommand::Redo
@@ -228,6 +279,9 @@ impl CodeEditor {
                 "End" => Some(Command::Cursor(CursorCommand::MoveToVisualLineEnd)),
                 "Backspace" => Some(Command::Edit(EditCommand::DeleteGraphemeBack)),
                 "Delete" => Some(Command::Edit(EditCommand::DeleteGraphemeForward)),
+                "Enter" => Some(Command::Edit(EditCommand::InsertText {
+                    text: "\n".into(),
+                })),
                 _ => None,
             }
         };
@@ -259,6 +313,17 @@ impl CodeEditor {
         let from = index.position_to_char_offset(start.line, start.column);
         let to = index.position_to_char_offset(end.line, end.column);
         (to > from).then_some((from, to))
+    }
+
+    fn selected_text(&self) -> Option<String> {
+        let (from, to) = self.selected_offsets()?;
+        Some(
+            self.cached_value
+                .chars()
+                .skip(from)
+                .take(to - from)
+                .collect(),
+        )
     }
 
     fn color_for_styles(&self, styles: &[u32]) -> Color {
@@ -304,7 +369,7 @@ impl CodeEditor {
                 range,
                 font_size: FONT_SIZE,
                 font_weight: 400.0,
-                line_height: Some((LINE_HEIGHT, false)),
+                line_height: Some((self.geometry.line_height, false)),
                 color: brush_for_color(color),
             })
             .collect();
@@ -314,7 +379,7 @@ impl CodeEditor {
             Arc::from(text),
             FONT_SIZE,
             400.0,
-            Some((LINE_HEIGHT, false)),
+            Some((self.geometry.line_height, false)),
             TextAlign::Start,
             brush_for_color(self.text_color),
             runs.into(),
@@ -326,9 +391,7 @@ impl CodeEditor {
             &glyphs,
             Some(
                 Affine::translate((
-                    f64::from(
-                        GUTTER_WIDTH + TEXT_INSET + line.segment_x_start_cells as f32 * CELL_WIDTH,
-                    ),
+                    f64::from(self.geometry.x_for_cell(line.segment_x_start_cells)),
                     y,
                 )) * Affine::scale(scale.recip()),
             ),
@@ -348,7 +411,7 @@ impl CodeEditor {
             Arc::from(format!("{number:>4}")),
             FONT_SIZE,
             400.0,
-            Some((LINE_HEIGHT, false)),
+            Some((self.geometry.line_height, false)),
             TextAlign::Start,
             brush_for_color(Color::from_rgb8(0x68, 0x6f, 0x86)),
             Arc::from([]),
@@ -379,9 +442,20 @@ fn floor_char_boundary(text: &str, mut offset: usize) -> usize {
 impl Widget for CodeEditor {
     fn paint(&mut self, paint: &mut PaintContext<'_>) {
         self.viewport = paint.size();
-        let columns = ((self.viewport[0] - GUTTER_WIDTH - TEXT_INSET) / CELL_WIDTH)
-            .floor()
-            .max(8.0) as usize;
+        let metrics = layout_text_styled(
+            paint.text(),
+            Arc::from("0"),
+            FONT_SIZE,
+            400.0,
+            Some((self.geometry.line_height, false)),
+            TextAlign::Start,
+            brush_for_color(self.text_color),
+            Arc::from([]),
+            self.font_family.as_ref(),
+            None,
+        );
+        self.geometry.cell_width = metrics.width().max(f32::EPSILON);
+        let columns = self.geometry.visible_columns(self.viewport[0]);
         let rows = self.visible_rows();
         let _ = self
             .state
@@ -413,13 +487,13 @@ impl Widget for CodeEditor {
             &Rect::new(
                 0.0,
                 0.0,
-                f64::from(GUTTER_WIDTH),
+                f64::from(self.geometry.gutter_width),
                 f64::from(self.viewport[1]),
             ),
         );
 
         for (visible_index, line) in grid.lines.iter().enumerate() {
-            let y = visible_index as f64 * f64::from(LINE_HEIGHT);
+            let y = f64::from(self.geometry.y_for_row(visible_index));
             if !line.is_wrapped_part {
                 self.paint_line_number(&mut scene, paint, line.logical_line_index + 1, y);
             }
@@ -444,16 +518,21 @@ impl Widget for CodeEditor {
                         .take(selected_cells)
                         .map(|cell| cell.width)
                         .sum();
-                    let x0 = GUTTER_WIDTH
-                        + TEXT_INSET
-                        + (line.segment_x_start_cells + x_before) as f32 * CELL_WIDTH;
-                    let x1 = x0 + selected_width as f32 * CELL_WIDTH;
+                    let x0 = self
+                        .geometry
+                        .x_for_cell(line.segment_x_start_cells + x_before);
+                    let x1 = x0 + selected_width as f32 * self.geometry.cell_width;
                     scene.fill(
                         Fill::NonZero,
                         Affine::IDENTITY,
                         Color::from_rgba8(0x45, 0x5a, 0x7a, 0xc0),
                         None,
-                        &Rect::new(f64::from(x0), y, f64::from(x1), y + f64::from(LINE_HEIGHT)),
+                        &Rect::new(
+                            f64::from(x0),
+                            y,
+                            f64::from(x1),
+                            y + f64::from(self.geometry.line_height),
+                        ),
                     );
                 }
             }
@@ -468,8 +547,8 @@ impl Widget for CodeEditor {
                 && row >= self.scroll_row
                 && row < self.scroll_row + rows
             {
-                let x = GUTTER_WIDTH + TEXT_INSET + x_cells as f32 * CELL_WIDTH;
-                let y = (row - self.scroll_row) as f32 * LINE_HEIGHT;
+                let x = self.geometry.x_for_cell(x_cells);
+                let y = self.geometry.y_for_row(row - self.scroll_row);
                 scene.fill(
                     Fill::NonZero,
                     Affine::IDENTITY,
@@ -479,7 +558,7 @@ impl Widget for CodeEditor {
                         f64::from(x),
                         f64::from(y + 3.0),
                         f64::from(x + 1.5),
-                        f64::from(y + LINE_HEIGHT - 3.0),
+                        f64::from(y + self.geometry.line_height - 3.0),
                     ),
                 );
             }
@@ -497,7 +576,7 @@ impl Widget for CodeEditor {
                 if event.button != Some(wabou_shell::PointerButton::Primary) {
                     return WidgetEventResult::IGNORED;
                 }
-                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                let (local_x, local_y) = (event.position.x as f32, event.position.y as f32);
                 let position = self.position_from_pointer(local_x, local_y);
                 let now = Instant::now();
                 let click_count = self.last_click.map_or(1, |(at, x, y, count)| {
@@ -529,7 +608,7 @@ impl Widget for CodeEditor {
                 WidgetEventResult::HANDLED
             }
             UiEvent::Pointer(event) if event.phase == PointerPhase::Move && self.selecting => {
-                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                let (local_x, local_y) = (event.position.x as f32, event.position.y as f32);
                 if local_y < 0.0 {
                     self.scroll_row = self.scroll_row.saturating_sub(1);
                 } else if local_y > self.viewport[1] {
@@ -544,7 +623,7 @@ impl Widget for CodeEditor {
                 WidgetEventResult::HANDLED
             }
             UiEvent::Pointer(event) if event.phase == PointerPhase::Up && self.selecting => {
-                let (local_x, local_y) = self.local_point(event.position.x, event.position.y);
+                let (local_x, local_y) = (event.position.x as f32, event.position.y as f32);
                 let position = self
                     .position_from_pointer(local_x, local_y.clamp(0.0, self.viewport[1].max(0.0)));
                 self.execute(Command::Cursor(CursorCommand::ExtendSelection {
@@ -559,7 +638,7 @@ impl Widget for CodeEditor {
             }
             UiEvent::Wheel(event) => {
                 let previous = self.scroll_row;
-                let lines = (event.delta_y / f64::from(LINE_HEIGHT)).round() as isize;
+                let lines = (event.delta_y / f64::from(self.geometry.line_height)).round() as isize;
                 self.scroll_row = self
                     .scroll_row
                     .saturating_add_signed(lines)
@@ -613,12 +692,12 @@ impl Widget for CodeEditor {
         }
     }
 
-    fn attribute_changed(&mut self, name: &str, value: &str) {
+    fn attribute_changed(&mut self, name: &str, value: &str) -> wabou_shell::WidgetChanges {
         match name {
             "value" if value != self.cached_value => {
                 let mut replacement = Self::from_text(value);
                 replacement.viewport = self.viewport;
-                replacement.window_to_local = self.window_to_local;
+                replacement.geometry = self.geometry;
                 replacement.focused = self.focused;
                 replacement.disabled = self.disabled;
                 replacement.read_only = self.read_only;
@@ -628,28 +707,50 @@ impl Widget for CodeEditor {
             }
             "disabled" => self.disabled = value != "false",
             "readonly" | "readOnly" | "read-only" => self.read_only = value != "false",
+            "font-family" => self.font_family = Some(Arc::from(value)),
             _ => {}
+        }
+        match name {
+            "value" | "disabled" | "readonly" | "readOnly" | "read-only" => {
+                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
+            }
+            "font-family" => wabou_shell::WidgetChanges::REDRAW,
+            _ => wabou_shell::WidgetChanges::empty(),
         }
     }
 
-    fn attribute_removed(&mut self, name: &str) {
+    fn attribute_removed(&mut self, name: &str) -> wabou_shell::WidgetChanges {
         match name {
             "disabled" => self.disabled = false,
             "readonly" | "readOnly" | "read-only" => self.read_only = false,
+            "font-family" => self.font_family = Some(Arc::from("monospace")),
             _ => {}
+        }
+        match name {
+            "disabled" | "readonly" | "readOnly" | "read-only" => {
+                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
+            }
+            "font-family" => wabou_shell::WidgetChanges::REDRAW,
+            _ => wabou_shell::WidgetChanges::empty(),
         }
     }
 
-    fn style_changed(&mut self, style: &WidgetStyle) {
+    fn style_changed(&mut self, style: &WidgetStyle) -> wabou_shell::WidgetChanges {
         self.text_color = style.color;
-        self.font_family = style
-            .font_family
-            .clone()
-            .or_else(|| Some(Arc::from("monospace")));
+        wabou_shell::WidgetChanges::REDRAW
     }
 
     fn current_value(&self) -> Option<&str> {
         Some(&self.cached_value)
+    }
+
+    fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
+        wabou_shell::WidgetAccessibility {
+            role: Some(wabou_shell::SemanticRole::TextInput),
+            value: Some(self.cached_value.clone()),
+            disabled: Some(self.disabled),
+            ..Default::default()
+        }
     }
 
     fn accepts_focus(&self) -> bool {
@@ -660,12 +761,9 @@ impl Widget for CodeEditor {
         Some([640.0, 420.0])
     }
 
-    fn focus_changed(&mut self, focused: bool) {
+    fn focus_changed(&mut self, focused: bool) -> wabou_shell::WidgetChanges {
         self.focused = focused;
-    }
-
-    fn set_window_to_local(&mut self, transform: [f64; 6]) {
-        self.window_to_local = transform;
+        wabou_shell::WidgetChanges::REDRAW
     }
 
     fn ime_cursor_area(&self) -> Option<[f32; 4]> {
@@ -674,10 +772,10 @@ impl Widget for CodeEditor {
             .state
             .logical_position_to_visual(cursor.line, cursor.column)?;
         Some([
-            GUTTER_WIDTH + TEXT_INSET + x_cells as f32 * CELL_WIDTH,
-            row.saturating_sub(self.scroll_row) as f32 * LINE_HEIGHT,
+            self.geometry.x_for_cell(x_cells),
+            self.geometry.y_for_row(row.saturating_sub(self.scroll_row)),
             2.0,
-            LINE_HEIGHT,
+            self.geometry.line_height,
         ])
     }
 }
@@ -711,6 +809,33 @@ mod tests {
     }
 
     #[test]
+    fn enter_inserts_a_newline_and_replaces_the_selection() {
+        let mut editor = CodeEditor::from_text("true");
+        editor.execute(Command::Cursor(CursorCommand::SetSelection {
+            start: Position::new(0, 1),
+            end: Position::new(0, 3),
+        }));
+
+        let result = editor.key_down("Enter", false, false);
+
+        assert_eq!(editor.cached_value, "t\ne");
+        assert!(result.is_handled());
+        assert!(result.consumes_key_text());
+        assert!(result.value_changed());
+    }
+
+    #[test]
+    fn enter_does_not_modify_a_read_only_editor() {
+        let mut editor = CodeEditor::from_text("true");
+        editor.read_only = true;
+
+        let result = editor.key_down("Enter", false, false);
+
+        assert_eq!(editor.cached_value, "true");
+        assert!(!result.is_handled());
+    }
+
+    #[test]
     fn grapheme_deletion_does_not_split_emoji_sequences() {
         let mut editor = CodeEditor::from_text("👨‍👩‍👧‍👦x");
         editor.execute(Command::Cursor(CursorCommand::MoveTo {
@@ -741,6 +866,12 @@ mod tests {
             end: Position::new(2, 2),
         }));
         assert_eq!(editor.selected_offsets(), Some((1, 9)));
+        assert_eq!(editor.selected_text().as_deref(), Some("ne\n世界\nth"));
+        let result = editor.key_down("c", false, true);
+        assert_eq!(
+            result.clipboard_request(),
+            Some(&wabou_shell::ClipboardRequest::Write("ne\n世界\nth".into()))
+        );
     }
 
     #[test]
@@ -768,6 +899,10 @@ mod tests {
         let mut paint = PaintContext::new(640.0, 88.0, 2.0, &mut text);
         editor.paint(&mut paint);
         assert_eq!(editor.viewport, [640.0, 88.0]);
+        assert!(editor.geometry.cell_width.is_finite() && editor.geometry.cell_width > 0.0);
+        let third_cell = editor.geometry.x_for_cell(3);
+        editor.handle_event(&pointer(PointerPhase::Down, f64::from(third_cell), 10.0, 1));
+        assert_eq!(editor.state.editor().cursor_position(), Position::new(0, 1));
         let _scene = paint.finish();
     }
 
@@ -778,19 +913,19 @@ mod tests {
 
         editor.handle_event(&pointer(
             PointerPhase::Down,
-            f64::from(GUTTER_WIDTH + TEXT_INSET),
+            f64::from(editor.geometry.text_origin_x()),
             10.0,
             1,
         ));
         editor.handle_event(&pointer(
             PointerPhase::Move,
-            f64::from(GUTTER_WIDTH + TEXT_INSET + CELL_WIDTH * 4.0),
+            f64::from(editor.geometry.x_for_cell(4)),
             10.0,
             1,
         ));
         editor.handle_event(&pointer(
             PointerPhase::Up,
-            f64::from(GUTTER_WIDTH + TEXT_INSET + CELL_WIDTH * 4.0),
+            f64::from(editor.geometry.x_for_cell(4)),
             10.0,
             0,
         ));
@@ -800,18 +935,45 @@ mod tests {
     }
 
     #[test]
-    fn pointer_coordinates_follow_content_box_affine_geometry() {
+    fn pointer_coordinates_are_content_box_local() {
         let mut editor = CodeEditor::from_text("abcdef");
         editor.viewport = [640.0, 88.0];
-        editor.set_window_to_local([0.5, 0.0, 0.0, 0.5, -50.0, -10.0]);
-        let local_x = GUTTER_WIDTH + TEXT_INSET + CELL_WIDTH * 3.0;
+        let local_x = editor.geometry.x_for_cell(3);
+        editor.handle_event(&pointer(PointerPhase::Down, f64::from(local_x), 10.0, 1));
+        assert_eq!(editor.state.editor().cursor_position(), Position::new(0, 3));
+    }
+
+    #[test]
+    fn pointer_insertion_uses_the_same_measured_cell_geometry_as_paint() {
+        let mut editor = CodeEditor::from_text("{\n  \"enabled\": true\n}");
+        editor.viewport = [640.0, 88.0];
+        let column = 15;
         editor.handle_event(&pointer(
             PointerPhase::Down,
-            f64::from((local_x + 50.0) * 2.0),
-            30.0,
+            f64::from(editor.geometry.x_for_cell(column)),
+            f64::from(editor.geometry.y_for_row(1) + 10.0),
             1,
         ));
-        assert_eq!(editor.state.editor().cursor_position(), Position::new(0, 3));
+        assert_eq!(
+            editor.state.editor().cursor_position(),
+            Position::new(1, column)
+        );
+        editor.handle_event(&UiEvent::TextInput(",".into()));
+        assert_eq!(editor.cached_value, "{\n  \"enabled\": tr,ue\n}");
+    }
+
+    #[test]
+    fn editor_geometry_round_trips_cells_and_rows() {
+        let geometry = EditorGeometry {
+            cell_width: 9.25,
+            ..EditorGeometry::default()
+        };
+        for cell in 0..40 {
+            assert_eq!(geometry.cell_for_x(geometry.x_for_cell(cell)), cell);
+        }
+        for row in 0..20 {
+            assert_eq!(geometry.row_for_y(geometry.y_for_row(row) + 0.5), row);
+        }
     }
 
     #[test]

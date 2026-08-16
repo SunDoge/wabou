@@ -111,6 +111,28 @@ pub fn compute_and_walk_with_scroll(
     tcx: &mut TextContext,
     scroll_offsets: &HashMap<NodeId, [f32; 2]>,
 ) -> Vec<PlacedNode> {
+    compute_and_walk_with_scroll_and_widgets(
+        tree,
+        root,
+        width,
+        height,
+        tcx,
+        1.0,
+        |_node, _cx| None,
+        scroll_offsets,
+    )
+}
+
+pub fn compute_and_walk_with_scroll_and_widgets(
+    tree: &mut TaffyTree<Paint>,
+    root: NodeId,
+    width: f32,
+    height: f32,
+    tcx: &mut TextContext,
+    device_scale: f64,
+    mut measure_widget: impl FnMut(NodeId, &mut crate::widget::MeasureContext<'_>) -> Option<[f32; 2]>,
+    scroll_offsets: &HashMap<NodeId, [f32; 2]>,
+) -> Vec<PlacedNode> {
     let available = Size {
         width: AvailableSpace::Definite(width),
         height: AvailableSpace::Definite(height),
@@ -121,7 +143,23 @@ pub fn compute_and_walk_with_scroll(
     let _ = tree.compute_layout_with_measure(
         root,
         available,
-        move |known, avail, _id, ctx: Option<&mut Paint>, _style| {
+        move |known, avail, id, ctx: Option<&mut Paint>, _style| {
+            let available_axis = |space| match space {
+                AvailableSpace::Definite(value) => {
+                    crate::widget::WidgetAvailableSpace::Definite(value)
+                }
+                AvailableSpace::MinContent => crate::widget::WidgetAvailableSpace::MinContent,
+                AvailableSpace::MaxContent => crate::widget::WidgetAvailableSpace::MaxContent,
+            };
+            let mut measure = crate::widget::MeasureContext::new(
+                [known.width, known.height],
+                [available_axis(avail.width), available_axis(avail.height)],
+                device_scale,
+                tcx,
+            );
+            if let Some([width, height]) = measure_widget(id, &mut measure) {
+                return Size { width, height };
+            }
             if let Some(paint) = ctx {
                 if let Some(text) = &paint.text {
                     let max_width = paint
@@ -134,7 +172,7 @@ pub fn compute_and_walk_with_scroll(
                         })
                         .flatten();
                     let l = crate::text::layout_text_styled(
-                        tcx,
+                        measure.text(),
                         text.clone(),
                         paint.font_size,
                         paint.font_weight,
@@ -392,6 +430,52 @@ fn walk(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn widget_measurement_runs_inside_taffys_constrained_layout_pass() {
+        let mut tree = TaffyTree::<Paint>::new();
+        let widget = tree.new_leaf(taffy::Style::default()).unwrap();
+        let root = tree
+            .new_with_children(
+                taffy::Style {
+                    size: Size {
+                        width: taffy::Dimension::length(200.0),
+                        height: taffy::Dimension::length(100.0),
+                    },
+                    align_items: Some(taffy::AlignItems::FLEX_START),
+                    ..Default::default()
+                },
+                &[widget],
+            )
+            .unwrap();
+        for node in [root, widget] {
+            tree.set_node_context(node, Some(Paint::default())).unwrap();
+        }
+        let mut observed = None;
+        let mut text = TextContext::new();
+        let placed = compute_and_walk_with_scroll_and_widgets(
+            &mut tree,
+            root,
+            200.0,
+            100.0,
+            &mut text,
+            2.0,
+            |node, cx| {
+                (node == widget).then(|| {
+                    observed = Some((cx.known_size(), cx.available_space(), cx.device_scale()));
+                    cx.resolve_size([80.0, 30.0])
+                })
+            },
+            &HashMap::new(),
+        );
+
+        assert!(observed.is_some_and(|(_, _, scale)| scale == 2.0));
+        let widget = placed
+            .iter()
+            .find(|placed| placed.node_id == widget)
+            .unwrap();
+        assert_eq!(widget.content_size, [80.0, 30.0]);
+    }
 
     #[test]
     fn scroll_offsets_children_and_propagates_overflow_clip() {

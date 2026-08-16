@@ -1,18 +1,38 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn invalidate_widget_changes(&mut self, changes: wabou_shell::WidgetChanges) {
+        if changes
+            .intersects(wabou_shell::WidgetChanges::VALUE | wabou_shell::WidgetChanges::SEMANTICS)
+        {
+            self.projections.semantics_dirty = true;
+        }
+        if changes
+            .intersects(wabou_shell::WidgetChanges::MEASURE | wabou_shell::WidgetChanges::LAYOUT)
+        {
+            self.invalidation.insert(InvalidationFlags::LAYOUT);
+        } else if changes.contains(wabou_shell::WidgetChanges::REDRAW) {
+            self.invalidation.insert(InvalidationFlags::GEOMETRY);
+        }
+    }
+
     pub(super) fn handle_widget_event(
         &mut self,
         target: u32,
         input: &UiEvent,
     ) -> Option<EventResponse> {
         let node = *self.node_store.solid_to_node.get(&target)?;
+        let input = self.widget_manager.geometries.get(&node).map_or_else(
+            || input.clone(),
+            |geometry| localize_widget_event(input, *geometry),
+        );
         let result = {
             let widget = self.widget_manager.widgets.get_mut(&node)?;
-            widget.handle_event(input)
+            widget.handle_event(&input)
         };
         self.drain_widget_host_actions(node);
         self.drain_widget_node_events(node);
+        self.invalidate_widget_changes(result.changes());
         if !result.is_handled() {
             return None;
         }
@@ -169,16 +189,18 @@ impl Applier {
 
     /// Deliver resolved content styles before widget measurement.
     pub(super) fn sync_widget_styles(&mut self) {
+        let mut changes = wabou_shell::WidgetChanges::empty();
         for (&node, widget) in &mut self.widget_manager.widgets {
             let Some(paint) = self.node_store.tree.get_node_context(node) else {
                 continue;
             };
             let style = wabou_shell::WidgetStyle::from(paint);
             if self.widget_manager.styles.get(&node) != Some(&style) {
-                widget.style_changed(&style);
+                changes |= widget.style_changed(&style);
                 self.widget_manager.styles.insert(node, style);
             }
         }
+        self.invalidate_widget_changes(changes);
     }
 
     /// After layout, call `Widget::paint` for each widget node + store the
@@ -186,6 +208,26 @@ impl Applier {
     /// `build_scene` composites it at the node's content-box origin.
     pub(super) fn paint_widgets(&mut self, placed: &mut [PlacedNode], tcx: &mut TextContext) {
         self.ime_cursor_area = None;
+        let visible = placed
+            .iter()
+            .filter(|node| node.content_size[0] > 0.0 && node.content_size[1] > 0.0)
+            .map(|node| node.node_id)
+            .collect::<HashSet<_>>();
+        let mut visibility_changes = wabou_shell::WidgetChanges::empty();
+        let mut visibility_changed_nodes = Vec::new();
+        for (&node, widget) in &mut self.widget_manager.widgets {
+            let is_visible = visible.contains(&node);
+            if self.widget_manager.visibility.get(&node) != Some(&is_visible) {
+                visibility_changes |= widget.visibility_changed(is_visible);
+                self.widget_manager.visibility.insert(node, is_visible);
+                visibility_changed_nodes.push(node);
+            }
+        }
+        self.invalidate_widget_changes(visibility_changes);
+        for node in visibility_changed_nodes {
+            self.drain_widget_host_actions(node);
+            self.drain_widget_node_events(node);
+        }
         let mut transforms = HashMap::with_capacity(placed.len());
         for n in placed.iter_mut() {
             let parent_transform = n
@@ -195,13 +237,21 @@ impl Applier {
             let transform = wabou_shell::scene::resolve_node_transform(n, parent_transform);
             transforms.insert(n.node_id, transform);
             if let Some(w) = self.widget_manager.widgets.get_mut(&n.node_id) {
-                w.set_position(n.rect[0], n.rect[1]);
                 let window_to_local = Affine::translate((
                     -f64::from(n.content_origin[0]),
                     -f64::from(n.content_origin[1]),
                 )) * transform.inverse();
-                w.set_window_to_local(window_to_local.as_coeffs());
                 let [width, height] = n.content_size;
+                let geometry = wabou_shell::WidgetGeometry {
+                    content_size: [width, height],
+                    device_scale: self.device_scale,
+                    local_to_window: window_to_local.inverse().as_coeffs(),
+                    window_to_local: window_to_local.as_coeffs(),
+                };
+                if self.widget_manager.geometries.get(&n.node_id) != Some(&geometry) {
+                    w.layout_changed(geometry);
+                    self.widget_manager.geometries.insert(n.node_id, geometry);
+                }
                 if width > 0.0 && height > 0.0 {
                     let border_inset = n.border_widths.into_iter().fold(0.0_f32, f32::max);
                     let inner_radius =
@@ -247,15 +297,35 @@ impl Applier {
                 }
             }
         }
+        let widget_nodes = self
+            .widget_manager
+            .widgets
+            .keys()
+            .copied()
+            .collect::<Vec<_>>();
+        for node in widget_nodes {
+            self.drain_widget_host_actions(node);
+            self.drain_widget_node_events(node);
+        }
     }
 
+    #[cfg(test)]
     pub(super) fn measure_widgets(&mut self, tcx: &mut TextContext) {
         let changed: Vec<_> = self
             .widget_manager
             .widgets
             .iter_mut()
             .filter_map(|(&node, widget)| {
-                let measured = widget.measure(tcx);
+                let mut cx = wabou_shell::MeasureContext::new(
+                    [None, None],
+                    [
+                        wabou_shell::WidgetAvailableSpace::MaxContent,
+                        wabou_shell::WidgetAvailableSpace::MaxContent,
+                    ],
+                    self.device_scale,
+                    tcx,
+                );
+                let measured = widget.measure(&mut cx);
                 let current = self
                     .node_store
                     .tree
@@ -271,5 +341,74 @@ impl Applier {
                 self.invalidation.insert(InvalidationFlags::LAYOUT);
             }
         }
+    }
+}
+
+fn localize_widget_event(input: &UiEvent, geometry: wabou_shell::WidgetGeometry) -> UiEvent {
+    let transform = Affine::new(geometry.window_to_local);
+    let local = |point: wabou_shell::Point| {
+        let point = transform * Point::new(point.x, point.y);
+        wabou_shell::Point {
+            x: point.x,
+            y: point.y,
+        }
+    };
+    match input {
+        UiEvent::Pointer(pointer) => UiEvent::Pointer(wabou_shell::PointerEvent {
+            position: local(pointer.position),
+            ..*pointer
+        }),
+        UiEvent::Wheel(wheel) => UiEvent::Wheel(wabou_shell::WheelEvent {
+            position: local(wheel.position),
+            ..*wheel
+        }),
+        input => input.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wabou_shell::{Modifiers, PointerButton, PointerEvent, PointerPhase, WheelEvent};
+
+    fn geometry() -> wabou_shell::WidgetGeometry {
+        wabou_shell::WidgetGeometry {
+            content_size: [200.0, 100.0],
+            device_scale: 2.0,
+            local_to_window: [2.0, 0.0, 0.0, 2.0, 100.0, 20.0],
+            window_to_local: [0.5, 0.0, 0.0, 0.5, -50.0, -10.0],
+        }
+    }
+
+    #[test]
+    fn pointer_events_are_localized_at_the_widget_boundary() {
+        let event = UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Down,
+            position: wabou_shell::Point { x: 120.0, y: 30.0 },
+            button: Some(PointerButton::Primary),
+            buttons: 1,
+            modifiers: Modifiers::default(),
+        });
+
+        let UiEvent::Pointer(local) = localize_widget_event(&event, geometry()) else {
+            panic!("expected pointer event");
+        };
+        assert_eq!(local.position, wabou_shell::Point { x: 10.0, y: 5.0 });
+    }
+
+    #[test]
+    fn wheel_position_is_localized_without_changing_the_delta() {
+        let event = UiEvent::Wheel(WheelEvent {
+            position: wabou_shell::Point { x: 120.0, y: 30.0 },
+            delta_x: 3.0,
+            delta_y: -8.0,
+            modifiers: Modifiers::default(),
+        });
+
+        let UiEvent::Wheel(local) = localize_widget_event(&event, geometry()) else {
+            panic!("expected wheel event");
+        };
+        assert_eq!(local.position, wabou_shell::Point { x: 10.0, y: 5.0 });
+        assert_eq!((local.delta_x, local.delta_y), (3.0, -8.0));
     }
 }

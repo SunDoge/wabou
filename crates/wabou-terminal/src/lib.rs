@@ -32,7 +32,7 @@ use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 use wabou_quick::protocol::event;
 use wabou_quick::widget::WidgetEventResult;
-use wabou_quick::{Widget, WidgetNodeEvent, WidgetStyle};
+use wabou_quick::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};
 #[cfg(test)]
 use wabou_shell::style::Paint;
 use wabou_shell::text::{TextContext, layout_text_styled};
@@ -296,7 +296,6 @@ pub struct TerminalWidget {
     cursor_on: bool,
     next_cursor_blink: Option<Instant>,
     spawn_error: Option<String>,
-    window_to_local: [f64; 6],
     selecting: bool,
     selection_pointer_origin: Option<(f64, f64)>,
     selection_dragged: bool,
@@ -375,7 +374,6 @@ impl TerminalWidget {
             cursor_on: true,
             next_cursor_blink: None,
             spawn_error: None,
-            window_to_local: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             selecting: false,
             selection_pointer_origin: None,
             selection_dragged: false,

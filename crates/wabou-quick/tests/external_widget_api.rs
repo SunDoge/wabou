@@ -20,13 +20,26 @@ impl ExternalWidget {
 }
 
 impl Widget for ExternalWidget {
+    fn measure(&mut self, cx: &mut MeasureContext<'_>) -> Option<[f32; 2]> {
+        Some(cx.resolve_size([80.0, 24.0]))
+    }
+
     fn paint(&mut self, _cx: &mut PaintContext<'_>) {}
 
     fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
         WidgetEventResult::HANDLED
     }
 
-    fn style_changed(&mut self, _style: &WidgetStyle) {}
+    fn style_changed(&mut self, _style: &WidgetStyle) -> WidgetChanges {
+        WidgetChanges::REDRAW
+    }
+
+    fn accessibility(&self) -> WidgetAccessibility {
+        WidgetAccessibility {
+            label: Some("External widget".into()),
+            ..Default::default()
+        }
+    }
 
     fn animation_deadline(&self) -> Option<Instant> {
         None
@@ -63,5 +76,21 @@ fn external_widget_can_use_the_complete_public_sdk() {
         options: WindowOptions::default(),
     };
     let _factory: WidgetFactory = std::sync::Arc::new(|| Box::new(ExternalWidget::new()));
+    let mut harness = WidgetHarness::new(ExternalWidget::new());
+    harness.layout(WidgetGeometry {
+        content_size: [80.0, 24.0],
+        ..WidgetGeometry::default()
+    });
+    assert_eq!(
+        harness.measure(
+            [None, None],
+            [
+                WidgetAvailableSpace::MaxContent,
+                WidgetAvailableSpace::MaxContent,
+            ],
+            1.0,
+        ),
+        Some([80.0, 24.0])
+    );
     let _host = HostBuilder::new().widget("external-widget", || Box::new(ExternalWidget::new()));
 }

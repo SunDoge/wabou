@@ -5,6 +5,8 @@ use super::*;
 pub(super) struct WidgetManager {
     pub(super) widgets: HashMap<NodeId, Box<dyn wabou_shell::Widget>>,
     pub(super) styles: HashMap<NodeId, wabou_shell::WidgetStyle>,
+    pub(super) geometries: HashMap<NodeId, wabou_shell::WidgetGeometry>,
+    pub(super) visibility: HashMap<NodeId, bool>,
     pub(super) factories: HashMap<Atom, wabou_shell::WidgetFactory>,
     pub(super) host_action_routes: HashMap<u64, (NodeId, u64)>,
     pub(super) next_host_action_id: u64,
@@ -16,6 +18,8 @@ impl WidgetManager {
         Self {
             widgets: HashMap::new(),
             styles: HashMap::new(),
+            geometries: HashMap::new(),
+            visibility: HashMap::new(),
             factories,
             host_action_routes: HashMap::new(),
             next_host_action_id: 1,

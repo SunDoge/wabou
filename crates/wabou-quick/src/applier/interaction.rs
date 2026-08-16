@@ -899,7 +899,8 @@ impl Applier {
                 && let Some(node) = self.node_store.solid_to_node.get(&old)
                 && let Some(widget) = self.widget_manager.widgets.get_mut(node)
             {
-                widget.focus_changed(false);
+                let changes = widget.focus_changed(false);
+                self.invalidate_widget_changes(changes);
             }
             changed |= self.dispatch_json(old, event::BLUR, "");
             changed |= self.dispatch_json(old, event::FOCUSOUT, "");
@@ -909,7 +910,8 @@ impl Applier {
                 && let Some(node) = self.node_store.solid_to_node.get(&new)
                 && let Some(widget) = self.widget_manager.widgets.get_mut(node)
             {
-                widget.focus_changed(true);
+                let changes = widget.focus_changed(true);
+                self.invalidate_widget_changes(changes);
             }
             changed |= self.dispatch_json(new, event::FOCUS, "");
             changed |= self.dispatch_json(new, event::FOCUSIN, "");
@@ -929,7 +931,8 @@ impl Applier {
         if let Some(node) = self.node_store.solid_to_node.get(&target)
             && let Some(widget) = self.widget_manager.widgets.get_mut(node)
         {
-            widget.focus_changed(focused);
+            let changes = widget.focus_changed(focused);
+            self.invalidate_widget_changes(changes);
             changed = true;
         }
         let (focus, focus_within) = if focused {

@@ -179,42 +179,64 @@ impl Widget for PasswordInput {
         }
     }
 
-    fn attribute_changed(&mut self, name: &str, value: &str) {
+    fn attribute_changed(&mut self, name: &str, value: &str) -> wabou_shell::WidgetChanges {
         match name {
             "placeholder" => self.placeholder = value.to_owned(),
             "secret" | "secret-slot" => self.slot = value.to_owned(),
             "disabled" => self.disabled = value != "false",
             _ => {}
         }
+        match name {
+            "placeholder" | "secret" | "secret-slot" | "disabled" => {
+                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
+            }
+            _ => wabou_shell::WidgetChanges::empty(),
+        }
     }
 
-    fn attribute_removed(&mut self, name: &str) {
+    fn attribute_removed(&mut self, name: &str) -> wabou_shell::WidgetChanges {
         match name {
             "placeholder" => self.placeholder.clear(),
             "secret" | "secret-slot" => self.slot = DEFAULT_SLOT.into(),
             "disabled" => self.disabled = false,
             _ => {}
         }
+        match name {
+            "placeholder" | "secret" | "secret-slot" | "disabled" => {
+                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
+            }
+            _ => wabou_shell::WidgetChanges::empty(),
+        }
     }
 
-    fn style_changed(&mut self, style: &WidgetStyle) {
+    fn style_changed(&mut self, style: &WidgetStyle) -> wabou_shell::WidgetChanges {
         self.font_size = style.font_size;
         self.font_weight = style.font_weight;
         self.line_height = style.line_height;
         self.font_family = style.font_family.clone();
         self.color = style.color;
+        wabou_shell::WidgetChanges::REDRAW
     }
 
     fn accepts_focus(&self) -> bool {
         !self.disabled
     }
 
+    fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
+        wabou_shell::WidgetAccessibility {
+            role: Some(wabou_shell::SemanticRole::TextInput),
+            disabled: Some(self.disabled),
+            ..Default::default()
+        }
+    }
+
     fn intrinsic_size(&self) -> Option<[f32; 2]> {
         Some([160.0, 32.0])
     }
 
-    fn focus_changed(&mut self, focused: bool) {
+    fn focus_changed(&mut self, focused: bool) -> wabou_shell::WidgetChanges {
         self.focused = focused;
+        wabou_shell::WidgetChanges::REDRAW
     }
 
     fn unmount(&mut self) {
@@ -231,6 +253,7 @@ mod tests {
         let secrets = SecretStore::default();
         let mut input = PasswordInput::new(secrets.clone());
         input.attribute_changed("secret", "master-password");
+        assert_eq!(input.accessibility().value, None);
         assert!(
             input
                 .handle_event(&UiEvent::TextInput("sëcret🔑".into()))

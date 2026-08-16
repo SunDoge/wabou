@@ -73,6 +73,9 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
     if let Some(label) = &semantic.label {
         node.set_label(label.clone());
     }
+    if let Some(value) = &semantic.value {
+        node.set_value(value.clone());
+    }
     let [x0, y0, x1, y1] = semantic.bounds.map(|value| f64::from(value) * scale);
     node.set_bounds(Rect::new(x0, y0, x1, y1));
     node.set_children(
@@ -346,6 +349,7 @@ mod tests {
                     id: 2,
                     role: SemanticRole::Status,
                     label: Some("Saved".into()),
+                    value: Some("complete".into()),
                     bounds: [0.0, 0.0, 100.0, 20.0],
                     children: vec![],
                     disabled: false,
@@ -354,6 +358,7 @@ mod tests {
                     id: 3,
                     role: SemanticRole::Alert,
                     label: Some("Connection lost".into()),
+                    value: None,
                     bounds: [0.0, 20.0, 100.0, 40.0],
                     children: vec![],
                     disabled: false,
@@ -365,6 +370,7 @@ mod tests {
         let update = root_update("Gallery".into(), 200.0, 100.0, 1.0, true, Some(&snapshot));
         assert_eq!(update.nodes[1].1.role(), Role::Status);
         assert_eq!(update.nodes[1].1.label(), Some("Saved"));
+        assert_eq!(update.nodes[1].1.value(), Some("complete"));
         assert_eq!(update.nodes[2].1.role(), Role::Alert);
         assert_eq!(update.nodes[2].1.label(), Some("Connection lost"));
     }
@@ -378,6 +384,7 @@ mod tests {
                     id: 2,
                     role: SemanticRole::Button,
                     label: Some("Background".into()),
+                    value: None,
                     bounds: [0.0, 0.0, 50.0, 20.0],
                     children: vec![],
                     disabled: false,
@@ -386,6 +393,7 @@ mod tests {
                     id: 3,
                     role: SemanticRole::Dialog,
                     label: Some("Settings".into()),
+                    value: None,
                     bounds: [10.0, 10.0, 90.0, 90.0],
                     children: vec![4],
                     disabled: false,
@@ -394,6 +402,7 @@ mod tests {
                     id: 4,
                     role: SemanticRole::Button,
                     label: Some("Save".into()),
+                    value: None,
                     bounds: [60.0, 60.0, 80.0, 75.0],
                     children: vec![],
                     disabled: false,

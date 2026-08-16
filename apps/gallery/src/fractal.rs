@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use wabou::widget_api::{
-    PaintContext, UiEvent, Widget, WidgetEventResult,
+    PaintContext, UiEvent, Widget, WidgetChanges, WidgetEventResult,
     vello::{
         kurbo::Affine,
         peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat},
@@ -81,7 +81,7 @@ impl Widget for JuliaWidget {
         }
     }
 
-    fn attribute_changed(&mut self, name: &str, value: &str) {
+    fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
         if let Ok(value) = value.trim().parse::<f64>() {
             match name {
                 "cx" => self.cx = value,
@@ -89,6 +89,7 @@ impl Widget for JuliaWidget {
                 _ => {}
             }
         }
+        WidgetChanges::REDRAW
     }
 
     fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {

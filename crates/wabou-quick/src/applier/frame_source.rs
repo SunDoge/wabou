@@ -288,7 +288,6 @@ impl FrameSource for Applier {
             #[cfg(feature = "profiling")]
             let _guard = span.enter();
             self.sync_widget_styles();
-            self.measure_widgets(tcx);
         }
         let viewport = (width, height);
         let viewport_changed = self.layout_viewport != Some(viewport);
@@ -318,12 +317,19 @@ impl FrameSource for Applier {
                 );
                 #[cfg(feature = "profiling")]
                 let _guard = span.enter();
-                layout::compute_and_walk_with_scroll(
+                layout::compute_and_walk_with_scroll_and_widgets(
                     &mut self.node_store.tree,
                     self.node_store.root,
                     width as f32,
                     height as f32,
                     tcx,
+                    self.device_scale,
+                    |node, cx| {
+                        self.widget_manager
+                            .widgets
+                            .get_mut(&node)
+                            .and_then(|widget| widget.measure(cx))
+                    },
                     &self.scroll_offsets,
                 )
             };

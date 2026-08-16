@@ -76,14 +76,24 @@ impl Widget for ImageWidget {
         }
     }
 
-    fn attribute_changed(&mut self, name: &str, value: &str) {
+    fn attribute_changed(&mut self, name: &str, value: &str) -> wabou_shell::WidgetChanges {
         if name == "src" {
             self.src = Some(value.to_string());
+            wabou_shell::WidgetChanges::MEASURE | wabou_shell::WidgetChanges::REDRAW
+        } else {
+            wabou_shell::WidgetChanges::empty()
         }
     }
 
     fn handle_event(&mut self, _event: &UiEvent) -> WidgetEventResult {
         WidgetEventResult::IGNORED
+    }
+
+    fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
+        wabou_shell::WidgetAccessibility {
+            role: Some(wabou_shell::SemanticRole::Image),
+            ..Default::default()
+        }
     }
 
     fn intrinsic_size(&self) -> Option<[f32; 2]> {

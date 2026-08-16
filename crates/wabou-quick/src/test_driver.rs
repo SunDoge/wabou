@@ -620,6 +620,7 @@ mod tests {
             id: 7,
             role: SemanticRole::TextInput,
             label: Some("Editor".into()),
+            value: None,
             bounds: [10.0, 20.0, 110.0, 60.0],
             children: Vec::new(),
             disabled: false,

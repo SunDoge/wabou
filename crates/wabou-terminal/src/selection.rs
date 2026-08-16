@@ -35,8 +35,7 @@ impl TerminalWidget {
     }
 
     pub(super) fn local_point(&self, x: f64, y: f64) -> (f32, f32) {
-        let [a, b, c, d, e, f] = self.window_to_local;
-        ((a * x + c * y + e) as f32, (b * x + d * y + f) as f32)
+        (x as f32, y as f32)
     }
 
     pub(super) fn pointer_cell(&self, x: f64, y: f64, display_offset: usize) -> (Pos, Side) {

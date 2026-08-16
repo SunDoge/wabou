@@ -227,21 +227,45 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .tag
             .and_then(|tag| atoms.resolve(tag))
             .unwrap_or("view");
+        let widget_semantics = applier
+            .widget_manager
+            .widgets
+            .get(&placed_node.node_id)
+            .map(|widget| widget.accessibility())
+            .unwrap_or_default();
         let label = attribute(declared, &atoms, "aria-label")
             .or_else(|| attribute(declared, &atoms, "alt"))
             .map(|value| value.to_string())
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
+        let is_secret = tag == "password-input"
+            || attribute(declared, &atoms, "type").as_deref() == Some("password");
+        let value = (!is_secret)
+            .then(|| {
+                attribute(declared, &atoms, "aria-valuetext")
+                    .or_else(|| attribute(declared, &atoms, "value"))
+                    .map(|value| value.to_string())
+                    .or(widget_semantics.value)
+            })
+            .flatten();
         let children =
             semantic_children(&applier.node_store, placed_node.node_id, &present, &hidden);
         let bounds = transformed_bounds(placed_node.rect, semantic_transforms.get(&solid_id));
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
-            role: semantic_role(tag, declared, &atoms),
-            label,
+            role: if attribute(declared, &atoms, "role").is_some() {
+                semantic_role(tag, declared, &atoms)
+            } else {
+                widget_semantics
+                    .role
+                    .unwrap_or_else(|| semantic_role(tag, declared, &atoms))
+            },
+            label: label.or(widget_semantics.label),
+            value,
             bounds,
             children,
             disabled: attribute(declared, &atoms, "disabled").is_some()
-                || attribute(declared, &atoms, "aria-disabled").as_deref() == Some("true"),
+                || attribute(declared, &atoms, "aria-disabled").as_deref() == Some("true")
+                || widget_semantics.disabled.unwrap_or(false),
         });
     }
     infer_descendant_labels(&mut nodes);

@@ -4,19 +4,17 @@ use super::*;
 fn pointer_drag_selects_terminal_grid_text() {
     let mut widget = TerminalWidget::headless(20, 4);
     widget.feed(b"hello world");
-    widget.set_position(10.0, 20.0);
-
-    widget.handle_event(&pointer(PointerPhase::Down, 10.1, 20.1, 1));
+    widget.handle_event(&pointer(PointerPhase::Down, 0.1, 0.1, 1));
     widget.handle_event(&pointer(
         PointerPhase::Move,
-        10.0 + f64::from(DEFAULT_CELL_WIDTH) * 4.75,
-        20.1,
+        f64::from(DEFAULT_CELL_WIDTH) * 4.75,
+        0.1,
         1,
     ));
     widget.handle_event(&pointer(
         PointerPhase::Up,
-        10.0 + f64::from(DEFAULT_CELL_WIDTH) * 4.75,
-        20.1,
+        f64::from(DEFAULT_CELL_WIDTH) * 4.75,
+        0.1,
         0,
     ));
 

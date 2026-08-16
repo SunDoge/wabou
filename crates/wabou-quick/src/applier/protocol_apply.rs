@@ -102,7 +102,11 @@ impl Applier {
             }
         }
         drop(atoms);
+        let mounted_changes = widget.mounted();
         self.widget_manager.widgets.insert(node, widget);
+        self.invalidate_widget_changes(mounted_changes);
+        self.drain_widget_host_actions(node);
+        self.drain_widget_node_events(node);
         self.recompute_node(node);
     }
 
@@ -194,6 +198,8 @@ impl Applier {
         self.drain_widget_host_actions(node);
         self.widget_manager.widgets.remove(&node);
         self.widget_manager.styles.remove(&node);
+        self.widget_manager.geometries.remove(&node);
+        self.widget_manager.visibility.remove(&node);
         self.widget_manager
             .host_action_routes
             .retain(|_, (widget_node, _)| *widget_node != node);
@@ -225,12 +231,15 @@ impl Applier {
                 self.clear_image_source(node);
             }
         }
-        if !is_class
+        let widget_changes = if !is_class
             && let Some(widget) = self.widget_manager.widgets.get_mut(&node)
             && let Some(name) = self.atoms.borrow().resolve(name)
         {
-            widget.attribute_changed(name, value);
-        }
+            widget.attribute_changed(name, value)
+        } else {
+            wabou_shell::WidgetChanges::empty()
+        };
+        self.invalidate_widget_changes(widget_changes);
         self.recompute_node(node);
     }
 
@@ -238,12 +247,14 @@ impl Applier {
         let Some(&node) = self.node_store.solid_to_node.get(&id) else {
             return;
         };
-        if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
-            && let Err(error) = widget.config_changed(json)
-        {
-            tracing::warn!(solid_id = id, %error, "widget rejected widgetConfig");
+        if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
+            match widget.config_changed(json) {
+                Ok(changes) => self.invalidate_widget_changes(changes),
+                Err(error) => {
+                    tracing::warn!(solid_id = id, %error, "widget rejected widgetConfig");
+                }
+            }
         }
-        self.invalidation.insert(InvalidationFlags::LAYOUT);
     }
 
     fn remove_widget_config(&mut self, id: u32) {
@@ -251,8 +262,8 @@ impl Applier {
             return;
         };
         if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
-            widget.config_removed();
-            self.invalidation.insert(InvalidationFlags::LAYOUT);
+            let changes = widget.config_removed();
+            self.invalidate_widget_changes(changes);
         }
     }
 
@@ -351,11 +362,14 @@ impl Applier {
         if self.atoms.borrow().resolve(name) == Some("image-source") {
             self.clear_image_source(node);
         }
-        if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
+        let widget_changes = if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
             && let Some(name) = self.atoms.borrow().resolve(name)
         {
-            widget.attribute_removed(name);
-        }
+            widget.attribute_removed(name)
+        } else {
+            wabou_shell::WidgetChanges::empty()
+        };
+        self.invalidate_widget_changes(widget_changes);
         self.recompute_node(node);
     }
 

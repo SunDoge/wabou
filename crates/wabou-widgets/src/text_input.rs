@@ -18,7 +18,7 @@ use wabou_shell::style::TextAlign;
 use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
 use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
 
-use wabou_shell::{PaintContext, Widget, WidgetEventResult, WidgetStyle};
+use wabou_shell::{PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetStyle};
 
 use crate::single_line_y_offset;
 
@@ -70,7 +70,6 @@ pub struct TextInput {
     next_blink: Option<Instant>,
     pending: Vec<PendingEdit>,
     needs_refresh: bool,
-    window_to_local: [f64; 6],
     /// Cached value string (updated in paint after edits) for current_value().
     cached_value: String,
     selecting: bool,
@@ -112,7 +111,6 @@ impl TextInput {
             next_blink: None,
             pending: Vec::new(),
             needs_refresh: false,
-            window_to_local: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             cached_value: String::new(),
             selecting: false,
             last_click: None,
@@ -137,9 +135,8 @@ impl TextInput {
     }
 
     fn local_point(&self, x: f64, y: f64) -> (f32, f32) {
-        let [a, b, c, d, e, f] = self.window_to_local;
-        let local_x = (a * x + c * y + e) as f32;
-        let mut local_y = (b * x + d * y + f) as f32;
+        let local_x = x as f32;
+        let mut local_y = y as f32;
         if self.multiline {
             local_y += self.scroll_y;
         }
@@ -617,7 +614,7 @@ impl Widget for TextInput {
         }
     }
 
-    fn attribute_changed(&mut self, name: &str, value: &str) {
+    fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
         match name {
             "value" => {
                 // Controlled Solid values commonly echo the widget's own
@@ -651,9 +648,14 @@ impl Widget for TextInput {
             "type" => self.password = !self.multiline && value.eq_ignore_ascii_case("password"),
             _ => {}
         }
+        match name {
+            "value" | "placeholder" | "font-size" | "color" | "disabled" | "readonly"
+            | "readOnly" | "read-only" | "type" => WidgetChanges::REDRAW | WidgetChanges::SEMANTICS,
+            _ => WidgetChanges::empty(),
+        }
     }
 
-    fn attribute_removed(&mut self, name: &str) {
+    fn attribute_removed(&mut self, name: &str) -> WidgetChanges {
         match name {
             "disabled" => self.disabled = false,
             "readonly" | "readOnly" | "read-only" => self.read_only = false,
@@ -661,13 +663,28 @@ impl Widget for TextInput {
             "type" => self.password = false,
             _ => {}
         }
+        match name {
+            "disabled" | "readonly" | "readOnly" | "read-only" | "placeholder" | "type" => {
+                WidgetChanges::REDRAW | WidgetChanges::SEMANTICS
+            }
+            _ => WidgetChanges::empty(),
+        }
     }
 
     fn current_value(&self) -> Option<&str> {
         Some(&self.cached_value)
     }
 
-    fn style_changed(&mut self, style: &WidgetStyle) {
+    fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
+        wabou_shell::WidgetAccessibility {
+            role: Some(wabou_shell::SemanticRole::TextInput),
+            value: (!self.password).then(|| self.cached_value.clone()),
+            disabled: Some(self.disabled),
+            ..Default::default()
+        }
+    }
+
+    fn style_changed(&mut self, style: &WidgetStyle) -> WidgetChanges {
         self.text_color = style.color;
         if self.font_size != style.font_size {
             self.font_size = style.font_size;
@@ -697,6 +714,7 @@ impl Widget for TextInput {
                 .insert(parley::StyleProperty::LineHeight(line_height));
             self.needs_refresh = true;
         }
+        WidgetChanges::REDRAW
     }
 
     fn accepts_focus(&self) -> bool {
@@ -711,10 +729,11 @@ impl Widget for TextInput {
         }
     }
 
-    fn focus_changed(&mut self, focused: bool) {
+    fn focus_changed(&mut self, focused: bool) -> WidgetChanges {
         self.focused = focused;
         self.blink_on = true;
         self.next_blink = focused.then(|| Instant::now() + Duration::from_millis(500));
+        WidgetChanges::REDRAW
     }
 
     fn animation_deadline(&self) -> Option<Instant> {
@@ -733,10 +752,6 @@ impl Widget for TextInput {
             area.x1 as f32,
             area.y1 as f32 + y_offset,
         ])
-    }
-
-    fn set_window_to_local(&mut self, transform: [f64; 6]) {
-        self.window_to_local = transform;
     }
 }
 
@@ -814,14 +829,26 @@ mod tests {
     }
 
     #[test]
-    fn pointer_coordinates_follow_widget_affine_geometry() {
+    fn pointer_coordinates_are_widget_local() {
         let mut input = TextInput::new();
-        input.set_window_to_local([0.5, 0.0, 0.0, 0.5, -50.0, 0.0]);
-        input.handle_event(&pointer(PointerPhase::Down, 120.0, 1));
+        input.handle_event(&pointer(PointerPhase::Down, 10.0, 5));
         assert!(matches!(
             input.pending.last(),
-            Some(PendingEdit::MoveToPoint(x, y)) if (*x - 10.0).abs() < f32::EPSILON && (*y - 5.0).abs() < f32::EPSILON
+            Some(PendingEdit::MoveToPoint(x, y)) if (*x - 10.0).abs() < f32::EPSILON && (*y - 10.0).abs() < f32::EPSILON
         ));
+    }
+
+    #[test]
+    fn unknown_attributes_do_not_request_framework_work() {
+        let mut input = TextInput::new();
+        assert_eq!(
+            input.attribute_changed("data-unknown", "value"),
+            WidgetChanges::empty()
+        );
+        assert_eq!(
+            input.attribute_removed("data-unknown"),
+            WidgetChanges::empty()
+        );
     }
 
     #[test]
@@ -929,6 +956,7 @@ mod tests {
         let mut input = TextInput::new();
         input.attribute_changed("value", "sëcret🔑");
         input.attribute_changed("type", "password");
+        assert_eq!(input.accessibility().value, None);
         let mut tcx = TextContext::new();
         input.paint(200.0, 32.0, &mut tcx);
 

@@ -8,7 +8,8 @@ pub use crate::HostBuilder;
 pub use crate::vello;
 pub use wabou_shell::{
     ClipboardRequest, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
-    Modifiers, PaintContext, Point, PointerButton, PointerEvent, PointerPhase, TextContext,
-    UiEvent, WakeCallback, WheelEvent, Widget, WidgetChanges, WidgetEventResult, WidgetFactory,
-    WidgetNodeEvent, WidgetStyle, WindowCommand, WindowMetrics, WindowOptions,
+    MeasureContext, Modifiers, PaintContext, Point, PointerButton, PointerEvent, PointerPhase,
+    TextContext, UiEvent, WakeCallback, WheelEvent, Widget, WidgetAccessibility,
+    WidgetAvailableSpace, WidgetChanges, WidgetEventResult, WidgetFactory, WidgetGeometry,
+    WidgetHarness, WidgetNodeEvent, WidgetStyle, WindowCommand, WindowMetrics, WindowOptions,
 };

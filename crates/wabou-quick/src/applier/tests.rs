@@ -85,6 +85,8 @@ struct UnmountActionWidget(Option<wabou_shell::HostAction>);
 
 struct LifecycleWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 
+struct VisibilityLifecycleWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
+
 struct NodeEventWidget(Option<crate::widget::WidgetNodeEvent>);
 
 struct ClipboardReadWidget {
@@ -101,21 +103,25 @@ struct MeasuringWidget([f32; 2]);
 struct StyleAwareMeasuringWidget(Arc<std::sync::Mutex<Vec<&'static str>>>);
 
 impl crate::widget::Widget for MeasuringWidget {
-    fn measure(&mut self, _tcx: &mut TextContext) -> Option<[f32; 2]> {
-        Some(self.0)
+    fn measure(&mut self, cx: &mut crate::widget::MeasureContext<'_>) -> Option<[f32; 2]> {
+        Some(cx.resolve_size(self.0))
     }
 
     fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 }
 
 impl crate::widget::Widget for StyleAwareMeasuringWidget {
-    fn style_changed(&mut self, _style: &crate::widget::WidgetStyle) {
+    fn style_changed(
+        &mut self,
+        _style: &crate::widget::WidgetStyle,
+    ) -> crate::widget::WidgetChanges {
         self.0.lock().unwrap().push("style");
+        crate::widget::WidgetChanges::REDRAW
     }
 
-    fn measure(&mut self, _tcx: &mut TextContext) -> Option<[f32; 2]> {
+    fn measure(&mut self, cx: &mut crate::widget::MeasureContext<'_>) -> Option<[f32; 2]> {
         self.0.lock().unwrap().push("measure");
-        Some([100.0, 40.0])
+        Some(cx.resolve_size([100.0, 40.0]))
     }
 
     fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
@@ -160,11 +166,12 @@ impl crate::widget::Widget for UnmountActionWidget {
 impl crate::widget::Widget for LifecycleWidget {
     fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {}
 
-    fn focus_changed(&mut self, focused: bool) {
+    fn focus_changed(&mut self, focused: bool) -> crate::widget::WidgetChanges {
         self.0
             .lock()
             .unwrap()
             .push(if focused { "focus-in" } else { "focus-out" });
+        crate::widget::WidgetChanges::REDRAW
     }
 
     fn accepts_focus(&self) -> bool {
@@ -182,6 +189,29 @@ impl crate::widget::Widget for LifecycleWidget {
 
     fn unmount(&mut self) {
         self.0.lock().unwrap().push("unmount");
+    }
+}
+
+impl crate::widget::Widget for VisibilityLifecycleWidget {
+    fn paint(&mut self, _cx: &mut wabou_shell::PaintContext<'_>) {
+        self.0.lock().unwrap().push("paint");
+    }
+
+    fn mounted(&mut self) -> crate::widget::WidgetChanges {
+        self.0.lock().unwrap().push("mount");
+        crate::widget::WidgetChanges::REDRAW
+    }
+
+    fn visibility_changed(&mut self, visible: bool) -> crate::widget::WidgetChanges {
+        self.0
+            .lock()
+            .unwrap()
+            .push(if visible { "visible" } else { "hidden" });
+        crate::widget::WidgetChanges::REDRAW
+    }
+
+    fn intrinsic_size(&self) -> Option<[f32; 2]> {
+        Some([40.0, 20.0])
     }
 }
 
@@ -354,6 +384,12 @@ fn imperative_focus_uses_the_same_host_focus_state_as_pointer_input() {
 fn widget_measurements_refresh_intrinsic_layout_before_paint() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement {
@@ -383,6 +419,45 @@ fn widget_measurements_refresh_intrinsic_layout_before_paint() {
         Some([123.0, 45.0])
     );
     assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
+}
+
+#[test]
+fn widget_mount_and_visibility_are_delivered_before_first_paint() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let widget_tag = applier.atoms.borrow_mut().intern("input");
+    let factory_calls = calls.clone();
+    applier.widget_manager.factories.insert(
+        widget_tag,
+        Arc::new(move || Box::new(VisibilityLifecycleWidget(factory_calls.clone()))),
+    );
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: widget_tag,
+        attrs: vec![],
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+
+    let mut tcx = TextContext::new();
+    let placed = applier.build_frame(&mut tcx, 200, 100);
+    assert!(
+        placed
+            .iter()
+            .any(|node| node.node_id == applier.node_store.solid_to_node[&2])
+    );
+
+    assert_eq!(*calls.lock().unwrap(), ["mount", "visible", "paint"]);
 }
 
 #[test]

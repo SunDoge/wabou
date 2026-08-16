@@ -490,8 +490,8 @@ fn scrollback_key(key: &str) -> Option<Scroll> {
 }
 
 impl Widget for TerminalWidget {
-    fn measure(&mut self, tcx: &mut TextContext) -> Option<[f32; 2]> {
-        self.update_font_metrics(tcx);
+    fn measure(&mut self, cx: &mut wabou_shell::MeasureContext<'_>) -> Option<[f32; 2]> {
+        self.update_font_metrics(cx.text());
         self.intrinsic_size()
     }
 
@@ -636,7 +636,7 @@ impl Widget for TerminalWidget {
         }
     }
 
-    fn attribute_changed(&mut self, name: &str, value: &str) {
+    fn attribute_changed(&mut self, name: &str, value: &str) -> WidgetChanges {
         match name {
             "command" if !self.launch_started || self.spawn_error.is_some() => {
                 self.launch_started = false;
@@ -725,10 +725,29 @@ impl Widget for TerminalWidget {
             }
             _ => {}
         }
+        match name {
+            "font-size" | "line-height" | "font-family" => {
+                WidgetChanges::MEASURE | WidgetChanges::REDRAW
+            }
+            "command"
+            | "args"
+            | "cwd"
+            | "selection-background"
+            | "selection-foreground"
+            | "inherit-theme" => WidgetChanges::REDRAW,
+            _ => WidgetChanges::empty(),
+        }
     }
 
     fn accepts_focus(&self) -> bool {
         true
+    }
+
+    fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
+        wabou_shell::WidgetAccessibility {
+            role: Some(wabou_shell::SemanticRole::TextInput),
+            ..Default::default()
+        }
     }
 
     fn ime_cursor_area(&self) -> Option<[f32; 4]> {
@@ -753,14 +772,15 @@ impl Widget for TerminalWidget {
         ])
     }
 
-    fn style_changed(&mut self, style: &WidgetStyle) {
+    fn style_changed(&mut self, style: &WidgetStyle) -> WidgetChanges {
         if !self.inherit_theme {
-            return;
+            return WidgetChanges::empty();
         }
         self.theme_foreground = style.color;
         self.theme_background = style
             .background
             .unwrap_or_else(|| named_color(NamedColor::Background, false));
+        WidgetChanges::REDRAW
     }
 
     fn intrinsic_size(&self) -> Option<[f32; 2]> {
@@ -770,7 +790,7 @@ impl Widget for TerminalWidget {
         ])
     }
 
-    fn focus_changed(&mut self, focused: bool) {
+    fn focus_changed(&mut self, focused: bool) -> WidgetChanges {
         if !focused {
             self.pending_hyperlink = None;
             self.last_click = None;
@@ -792,14 +812,7 @@ impl Widget for TerminalWidget {
                 b"\x1b[O".to_vec()
             });
         }
-    }
-
-    fn set_position(&mut self, x: f32, y: f32) {
-        self.window_to_local = [1.0, 0.0, 0.0, 1.0, -f64::from(x), -f64::from(y)];
-    }
-
-    fn set_window_to_local(&mut self, transform: [f64; 6]) {
-        self.window_to_local = transform;
+        WidgetChanges::REDRAW
     }
 
     fn animation_deadline(&self) -> Option<Instant> {
@@ -836,16 +849,16 @@ impl Widget for TerminalWidget {
         }
     }
 
-    fn attribute_removed(&mut self, name: &str) {
+    fn attribute_removed(&mut self, name: &str) -> WidgetChanges {
         match name {
             "command" if !self.launch_started || self.spawn_error.is_some() => {
-                self.attribute_changed("command", "");
+                let _ = self.attribute_changed("command", "");
             }
             "args" if !self.launch_started || self.spawn_error.is_some() => {
-                self.attribute_changed("args", "[]");
+                let _ = self.attribute_changed("args", "[]");
             }
             "cwd" if !self.launch_started || self.spawn_error.is_some() => {
-                self.attribute_changed("cwd", "");
+                let _ = self.attribute_changed("cwd", "");
             }
             "command" | "args" | "cwd" => {
                 tracing::warn!(
@@ -883,6 +896,18 @@ impl Widget for TerminalWidget {
                 self.metrics_dirty = true;
             }
             _ => {}
+        }
+        match name {
+            "font-size" | "line-height" | "font-family" => {
+                WidgetChanges::MEASURE | WidgetChanges::REDRAW
+            }
+            "command"
+            | "args"
+            | "cwd"
+            | "selection-background"
+            | "selection-foreground"
+            | "inherit-theme" => WidgetChanges::REDRAW,
+            _ => WidgetChanges::empty(),
         }
     }
 

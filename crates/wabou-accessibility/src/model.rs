@@ -24,6 +24,7 @@ pub struct SemanticNode {
     pub id: u64,
     pub role: SemanticRole,
     pub label: Option<String>,
+    pub value: Option<String>,
     pub bounds: [f32; 4],
     pub children: Vec<u64>,
     pub disabled: bool,
