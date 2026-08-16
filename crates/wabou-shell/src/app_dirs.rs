@@ -58,6 +58,9 @@ impl AppDirectories {
     ///
     /// This function only computes paths; it does not create directories.
     pub fn resolve(config: &AppDirectoryConfig, resource: impl AsRef<Path>) -> Option<Self> {
+        if let Some(root) = std::env::var_os("WABOU_TEST_APP_DATA_ROOT").map(PathBuf::from) {
+            return root.is_absolute().then(|| Self::isolated(root, resource));
+        }
         let project =
             ProjectDirs::from(&config.qualifier, &config.organization, &config.application)?;
         Some(Self {
@@ -69,6 +72,24 @@ impl AppDirectories {
             resource_dir: resource.as_ref().to_owned(),
             temp_dir: std::env::temp_dir().join(&config.application),
         })
+    }
+
+    /// Resolve every writable directory below one explicit private root.
+    ///
+    /// This is primarily used by Wabou's behavior-test runner so application
+    /// code that resolves its own directories cannot read or mutate real user
+    /// state. The read-only resource directory remains unchanged.
+    pub fn isolated(root: impl AsRef<Path>, resource: impl AsRef<Path>) -> Self {
+        let root = root.as_ref();
+        Self {
+            config_dir: root.join("config"),
+            data_dir: root.join("data"),
+            local_data_dir: root.join("local-data"),
+            cache_dir: root.join("cache"),
+            log_dir: root.join("logs"),
+            resource_dir: resource.as_ref().to_owned(),
+            temp_dir: root.join("temp"),
+        }
     }
 
     /// Default root for durable native stores such as KV and databases.
@@ -111,5 +132,24 @@ mod tests {
         );
         assert_eq!(dirs.storage_namespace("../other-app"), None);
         assert_eq!(dirs.storage_namespace("nested/path"), None);
+    }
+
+    #[test]
+    fn isolated_directories_keep_every_writable_path_below_the_test_root() {
+        let root = PathBuf::from("test-root");
+        let resource = PathBuf::from("app-resources");
+        let directories = AppDirectories::isolated(&root, &resource);
+
+        for path in [
+            &directories.config_dir,
+            &directories.data_dir,
+            &directories.local_data_dir,
+            &directories.cache_dir,
+            &directories.log_dir,
+            &directories.temp_dir,
+        ] {
+            assert!(path.starts_with(&root));
+        }
+        assert_eq!(directories.resource_dir, resource);
     }
 }

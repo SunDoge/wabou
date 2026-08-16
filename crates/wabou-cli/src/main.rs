@@ -763,21 +763,22 @@ fn test_scenario(
     }
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
-    let test_data = (!native)
-        .then(|| tempfile::tempdir_in(&test_dir))
-        .transpose()?;
+    let test_data = tempfile::tempdir_in(&test_dir)?;
     let mut cargo = Command::new("cargo");
     cargo
         .current_dir(workspace)
         .args(["run", "--manifest-path", &manifest, "--bin", &binary])
         .env("WABOU_BUNDLE_PATH", bundle_path(workspace, app))
         .env("WABOU_TEST_SCRIPT", scenario_bundle)
-        .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir);
+        .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir)
+        .env("WABOU_TEST_APP_DATA_ROOT", test_data.path())
+        // Also isolate libraries that use the XDG convention directly rather
+        // than resolving paths through Wabou's AppDirectories API.
+        .env("XDG_CONFIG_HOME", test_data.path().join("xdg-config"))
+        .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
+        .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
     if !native {
-        cargo.env("WABOU_TEST_HEADLESS", "1").env(
-            "XDG_DATA_HOME",
-            test_data.as_ref().expect("test data dir").path(),
-        );
+        cargo.env("WABOU_TEST_HEADLESS", "1");
     }
     if failure_screenshot {
         cargo.env("WABOU_TEST_FAILURE_SCREENSHOT", "1");
