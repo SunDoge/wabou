@@ -5282,8 +5282,8 @@ ${detail}`);
             json: ""
           });
         } else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-          requireBytes(8 * 7, end);
-          const numeric = new Float64Array(7);
+          requireBytes(8 * EVENT_DATA_LEN, end);
+          const numeric = new Float64Array(EVENT_DATA_LEN);
           for (let slot = 0;slot < numeric.length; slot++) {
             numeric[slot] = view.getFloat64(offset + slot * 8, true);
           }
@@ -5375,23 +5375,23 @@ ${detail}`);
       throw new TypeError("trailing HostEventFrame bytes");
     const prevented = [];
     let needsTick = false;
-    for (const record of records) {
-      if (record.kind === "node") {
-        const defaultPrevented = dispatchEvent(record.target, record.eventCode, record.json, record.numeric);
-        if (defaultPrevented && (record.flags & FLAG_CANCELLABLE) !== 0 && record.eventId !== 0) {
-          prevented.push(record.eventId);
+    flush(() => {
+      for (const record of records) {
+        if (record.kind === "node") {
+          const defaultPrevented = dispatchEvent(record.target, record.eventCode, record.json, record.numeric);
+          if (defaultPrevented && (record.flags & FLAG_CANCELLABLE) !== 0 && record.eventId !== 0) {
+            prevented.push(record.eventId);
+          }
+          needsTick = true;
+        } else if (record.kind === "resize") {
+          dispatchResizeObservation(record.target, record.width, record.height);
+          needsTick = true;
+        } else if (record.kind === "message") {
+          dispatchHostMessage(record.topic, record.payload);
+          needsTick = true;
         }
-        needsTick = true;
-      } else if (record.kind === "resize") {
-        dispatchResizeObservation(record.target, record.width, record.height);
-        needsTick = true;
-      } else if (record.kind === "message") {
-        dispatchHostMessage(record.topic, record.payload);
-        needsTick = true;
       }
-    }
-    if (needsTick)
-      flush();
+    });
     return {
       preventedEventIds: prevented.length > 0 ? Uint32Array.from(prevented) : undefined,
       needsTick

@@ -35,6 +35,7 @@ describe("@wabou/vite", () => {
 
   test("composes the required Wabou plugins in stable order", () => {
     expect(wabouPlugins("/app").map((plugin: Plugin) => plugin.name)).toEqual([
+      "wabou-intl-data",
       "wabou-style-compiler",
       "solid:boundary-modules",
       "solid",
@@ -51,6 +52,7 @@ describe("@wabou/vite", () => {
     expect(config.build?.outDir).toBe("/dist/demo/resources");
     expect(config.build?.cssCodeSplit).toBe(false);
     expect(config.build?.sourcemap).toBe(false);
+    expect(config.build?.minify).toBe("esbuild");
     expect(config.build?.lib).toMatchObject({
       entry: "ui/index.tsx",
       formats: ["iife"],
@@ -73,6 +75,7 @@ describe("@wabou/vite", () => {
     );
     expect(config.build?.outDir).toBe("/dist/demo/debug/resources");
     expect(config.build?.sourcemap).toBe(true);
+    expect(config.build?.minify).toBe(false);
   });
 
   test("merges app-specific Vite overrides", async () => {

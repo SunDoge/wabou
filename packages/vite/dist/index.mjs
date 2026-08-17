@@ -44,7 +44,8 @@ function resolveWabouConfig(options, environment) {
 	const root = options.root ?? process.cwd();
 	const outDir = process.env.WABOU_OUT_DIR ?? options.outDir ?? manifestOutDir(root);
 	const sourceMap = process.env.WABOU_SOURCE_MAP;
-	const sourcemap = sourceMap === "true" ? true : sourceMap === "false" ? false : manifestSourceMap(root) ?? process.env.WABOU_ENV_DEBUG === "true";
+	const debug = process.env.WABOU_ENV_DEBUG === "true" || environment.command === "serve";
+	const sourcemap = sourceMap === "true" ? true : sourceMap === "false" ? false : manifestSourceMap(root) ?? debug;
 	const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
 	const defaults = {
 		define: { "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (environment.command === "serve" ? "development" : "production")) },
@@ -68,7 +69,7 @@ function resolveWabouConfig(options, environment) {
 			cssCodeSplit: false,
 			outDir,
 			emptyOutDir: true,
-			minify: false
+			minify: debug ? false : "esbuild"
 		}
 	};
 	const config = mergeConfig(defaults, options.vite ?? {});

@@ -1,4 +1,5 @@
 import {
+  EVENT_DATA_LEN,
   HOST_FRAME,
   HOST_NODE_PAYLOAD,
   HOST_RECORD_KIND,
@@ -106,8 +107,8 @@ export function decodeAndDispatchHostFrame(
           json: "",
         });
       } else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-        requireBytes(8 * 7, end);
-        const numeric = new Float64Array(7);
+        requireBytes(8 * EVENT_DATA_LEN, end);
+        const numeric = new Float64Array(EVENT_DATA_LEN);
         for (let slot = 0; slot < numeric.length; slot++) {
           numeric[slot] = view.getFloat64(offset + slot * 8, true);
         }
@@ -202,35 +203,35 @@ export function decodeAndDispatchHostFrame(
 
   const prevented: number[] = [];
   let needsTick = false;
-  for (const record of records) {
-    if (record.kind === "node") {
-      const defaultPrevented = dispatchEvent(
-        record.target,
-        record.eventCode,
-        record.json,
-        record.numeric,
-      );
-      if (
-        defaultPrevented &&
-        (record.flags & FLAG_CANCELLABLE) !== 0 &&
-        record.eventId !== 0
-      ) {
-        prevented.push(record.eventId);
+  // Solid 2's synchronous boundary must enclose the writes, not merely drain
+  // them afterwards. This also guarantees that one host frame cannot expose
+  // partially applied node/message/resize state to an effect.
+  flush(() => {
+    for (const record of records) {
+      if (record.kind === "node") {
+        const defaultPrevented = dispatchEvent(
+          record.target,
+          record.eventCode,
+          record.json,
+          record.numeric,
+        );
+        if (
+          defaultPrevented &&
+          (record.flags & FLAG_CANCELLABLE) !== 0 &&
+          record.eventId !== 0
+        ) {
+          prevented.push(record.eventId);
+        }
+        needsTick = true;
+      } else if (record.kind === "resize") {
+        dispatchResizeObservation(record.target, record.width, record.height);
+        needsTick = true;
+      } else if (record.kind === "message") {
+        dispatchHostMessage(record.topic, record.payload);
+        needsTick = true;
       }
-      needsTick = true;
-    } else if (record.kind === "resize") {
-      dispatchResizeObservation(record.target, record.width, record.height);
-      needsTick = true;
-    } else if (record.kind === "message") {
-      dispatchHostMessage(record.topic, record.payload);
-      needsTick = true;
     }
-  }
-
-  // Solid 2 batches writes by default. The native frame is Wabou's explicit
-  // transaction boundary: make every reactive consequence visible together,
-  // while leaving binary writer delivery to the regular host tick.
-  if (needsTick) flush();
+  });
 
   return {
     preventedEventIds:

@@ -100,12 +100,14 @@ function resolveWabouConfig(
   const outDir =
     process.env.WABOU_OUT_DIR ?? options.outDir ?? manifestOutDir(root);
   const sourceMap = process.env.WABOU_SOURCE_MAP;
+  const debug =
+    process.env.WABOU_ENV_DEBUG === "true" || environment.command === "serve";
   const sourcemap =
     sourceMap === "true"
       ? true
       : sourceMap === "false"
         ? false
-        : (manifestSourceMap(root) ?? process.env.WABOU_ENV_DEBUG === "true");
+        : (manifestSourceMap(root) ?? debug);
   const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
   const defaults: UserConfig = {
     define: {
@@ -143,7 +145,11 @@ function resolveWabouConfig(
       cssCodeSplit: false,
       outDir,
       emptyOutDir: true,
-      minify: false,
+      // Keep development output readable for mapped QuickJS diagnostics, but
+      // do not ship the same multi-megabyte unminified dependency sources in
+      // release artifacts. Vite's esbuild minifier preserves the single IIFE
+      // consumed by the native runtime.
+      minify: debug ? false : "esbuild",
     },
   };
   const config = mergeConfig(defaults, options.vite ?? {});

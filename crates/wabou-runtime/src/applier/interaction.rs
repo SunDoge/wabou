@@ -233,18 +233,18 @@ impl Applier {
 
     pub(super) fn handle_wheel_event(&mut self, wheel: wabou_shell::WheelEvent) -> EventResponse {
         self.input.pointer_position = (wheel.position.x, wheel.position.y);
-        // A wheel gesture remains targeted at the element under the last
-        // pointer move. Refresh a stale cached target lazily so virtualized
-        // nodes keep scrolling without requiring another pointer move.
-        if !self
+        // Wheel events carry their own pointer position. Re-hit-test it even
+        // when the cached hover target is still alive: semantic automation,
+        // trackpads and virtualized content can move the wheel position
+        // without first delivering a pointer-move event.
+        self.input.hovered_target = self
             .input
-            .hovered_target
-            .is_some_and(|target| self.node_store.solid_to_node.contains_key(&target))
-        {
-            self.input.hovered_target = self
-                .input
-                .hit_test(self.input.pointer_position.0, self.input.pointer_position.1);
-        }
+            .hit_test(self.input.pointer_position.0, self.input.pointer_position.1)
+            .or_else(|| {
+                self.input.hovered_target.filter(|target| {
+                    self.node_store.solid_to_node.contains_key(target)
+                })
+            });
         let Some(target) = self.input.hovered_target else {
             return EventResponse::IGNORED;
         };

@@ -217,21 +217,25 @@ function VirtualList(props) {
 	}));
 	effect$1(() => {
 		return {
-			e: {
+			e: props.role,
+			t: props.accessibilityLabel,
+			a: {
 				overflow: "scroll",
 				position: "relative",
 				height: `${props.viewportHeight}px`,
 				width: "100%"
 			},
-			t: {
+			o: {
 				position: "relative",
 				height: `${totalSize()}px`,
 				width: "100%"
 			}
 		};
-	}, ({ e, t }, _p$) => {
-		e !== _p$?.e && setProp$1(_el$, "style", e, _p$?.e);
-		t !== _p$?.t && setProp$1(_el$2, "style", t, _p$?.t);
+	}, ({ e, t, a, o }, _p$) => {
+		e !== _p$?.e && setProp$1(_el$, "role", e, _p$?.e);
+		t !== _p$?.t && setProp$1(_el$, "aria-label", t, _p$?.t);
+		a !== _p$?.a && setProp$1(_el$, "style", a, _p$?.a);
+		o !== _p$?.o && setProp$1(_el$2, "style", o, _p$?.o);
 	});
 	return _el$;
 }

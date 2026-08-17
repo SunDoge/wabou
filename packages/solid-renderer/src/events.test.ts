@@ -119,7 +119,7 @@ test("native scroll observations expose authoritative offsets", () => {
     view.id,
     EVENT_CODE.scroll,
     "",
-    [0, 0, 0, 0, 0, 0, 0, 12.5, 320],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 12.5, 320],
   );
 
   expect(observed).toEqual({ scrollX: 12.5, scrollY: 320 });

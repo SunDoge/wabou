@@ -1,6 +1,14 @@
 import { expect, test } from "bun:test";
-import { HOST_FRAME, HOST_RECORD_KIND } from "@wabou/protocol";
-import { createEffect, createRoot, createSignal, flush } from "solid-js";
+import {
+  EVENT_CODE,
+  EVENT_DATA_LEN,
+  EVENT_DATA_SLOT,
+  HOST_FRAME,
+  HOST_NODE_PAYLOAD,
+  HOST_RECORD_KIND,
+} from "@wabou/protocol";
+import { createElement, setProp } from "@wabou/solid-renderer";
+import { createRenderEffect, createRoot, createSignal, flush } from "solid-js";
 import { decodeAndDispatchHostFrame } from "./host-frame";
 import { subscribeAll } from "./host-messages";
 
@@ -30,6 +38,26 @@ function applicationFrame(topic: string, value: string): Uint8Array {
   return bytes;
 }
 
+function numericScrollFrame(target: number, scrollY: number): Uint8Array {
+  const recordLen = 8 + 12 + EVENT_DATA_LEN * 8;
+  const bytes = new Uint8Array(HOST_FRAME.HeaderLen + recordLen);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, HOST_FRAME.Magic, true);
+  view.setUint16(4, HOST_FRAME.Version, true);
+  view.setUint32(24, 1, true);
+  view.setUint32(28, bytes.length, true);
+  let offset = HOST_FRAME.HeaderLen;
+  view.setUint8(offset, HOST_RECORD_KIND.NodeEvent);
+  view.setUint32(offset + 4, recordLen, true);
+  offset += 8;
+  view.setUint32(offset, target, true);
+  view.setUint8(offset + 4, EVENT_CODE.scroll);
+  view.setUint8(offset + 5, HOST_NODE_PAYLOAD.Numeric);
+  offset += 12;
+  view.setFloat64(offset + EVENT_DATA_SLOT.scrollY * 8, scrollY, true);
+  return bytes;
+}
+
 test("unified HostEventFrame dispatches application records", () => {
   const received: Array<[string, unknown]> = [];
   const unsubscribe = subscribeAll((topic, payload) =>
@@ -53,7 +81,7 @@ test("a complete host frame is one Solid reactive flush boundary", () => {
     dispose = rootDispose;
     const [value, write] = createSignal("idle");
     setValue = write;
-    createEffect(value, (next) => {
+    createRenderEffect(value, (next) => {
       applied = next;
     });
   });
@@ -72,6 +100,18 @@ test("a complete host frame is one Solid reactive flush boundary", () => {
     unsubscribe();
     dispose();
   }
+});
+
+test("numeric host frames preserve extended scroll slots", () => {
+  const node = createElement("div");
+  let observed = 0;
+  setProp(node, "onScroll", (event: { scrollY: number }) => {
+    observed = event.scrollY;
+  });
+
+  decodeAndDispatchHostFrame(numericScrollFrame(node.id, 3_200));
+
+  expect(observed).toBe(3_200);
 });
 
 test("malformed frames are rejected atomically", () => {

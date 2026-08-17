@@ -30,9 +30,13 @@ function App() {
           itemHeight={32}
           viewportHeight={540}
           overscan={6}
+          role="listbox"
+          accessibilityLabel="Virtual rows"
         >
           {(text, i) => (
             <div
+              role="option"
+              aria-label={text}
               class={`flex items-center h-full px-4 ${
                 i % 2 ? "bg-slate-900" : "bg-slate-800/60"
               }`}

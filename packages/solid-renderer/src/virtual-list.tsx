@@ -1,4 +1,5 @@
 import { Virtualizer, type VirtualizerOptions } from "@tanstack/virtual-core";
+import type { JSX as WebJSX } from "@solidjs/web";
 import {
   For,
   Show,
@@ -18,6 +19,10 @@ export interface VirtualListProps<T> {
   viewportHeight: number;
   /** Extra rows rendered above/below the viewport. Defaults to 4. */
   overscan?: number;
+  /** Explicit semantic role for the viewport, such as `listbox`. */
+  role?: WebJSX.HTMLAttributes<HTMLDivElement>["role"];
+  /** Accessible name for the native scroll viewport. */
+  accessibilityLabel?: string;
   /** Render a single row given its item and absolute index. */
   children: (item: T, index: number) => JSX.Element;
 }
@@ -82,6 +87,8 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
 
   return (
     <div
+      role={props.role}
+      aria-label={props.accessibilityLabel}
       ref={(node) => {
         // Solid's published JSX types describe DOM nodes, while the universal
         // renderer supplies Wabou handles at runtime. Keep that conversion at

@@ -1,6 +1,6 @@
 import { defaultHost, dispatchEvent, runSweep, writer } from "@wabou/solid-renderer";
 import { createComponent, createContext, createEffect, createSignal, flush, getOwner, useContext } from "solid-js";
-import { HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND } from "@wabou/protocol";
+import { EVENT_DATA_LEN, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND } from "@wabou/protocol";
 export * from "@wabou/solid-renderer";
 export * from "@wabou/style";
 //#region src/polyfills/fetch.ts
@@ -270,8 +270,8 @@ function decodeAndDispatchHostFrame(input) {
 				json: ""
 			});
 			else if (payloadKind === HOST_NODE_PAYLOAD.Numeric) {
-				requireBytes(56, end);
-				const numeric = /* @__PURE__ */ new Float64Array(7);
+				requireBytes(8 * EVENT_DATA_LEN, end);
+				const numeric = new Float64Array(EVENT_DATA_LEN);
 				for (let slot = 0; slot < numeric.length; slot++) numeric[slot] = view.getFloat64(offset + slot * 8, true);
 				offset += 8 * numeric.length;
 				records.push({
@@ -356,17 +356,18 @@ function decodeAndDispatchHostFrame(input) {
 	if (offset !== byteLen) throw new TypeError("trailing HostEventFrame bytes");
 	const prevented = [];
 	let needsTick = false;
-	for (const record of records) if (record.kind === "node") {
-		if (dispatchEvent(record.target, record.eventCode, record.json, record.numeric) && (record.flags & FLAG_CANCELLABLE) !== 0 && record.eventId !== 0) prevented.push(record.eventId);
-		needsTick = true;
-	} else if (record.kind === "resize") {
-		dispatchResizeObservation(record.target, record.width, record.height);
-		needsTick = true;
-	} else if (record.kind === "message") {
-		dispatchHostMessage(record.topic, record.payload);
-		needsTick = true;
-	}
-	if (needsTick) flush();
+	flush(() => {
+		for (const record of records) if (record.kind === "node") {
+			if (dispatchEvent(record.target, record.eventCode, record.json, record.numeric) && (record.flags & FLAG_CANCELLABLE) !== 0 && record.eventId !== 0) prevented.push(record.eventId);
+			needsTick = true;
+		} else if (record.kind === "resize") {
+			dispatchResizeObservation(record.target, record.width, record.height);
+			needsTick = true;
+		} else if (record.kind === "message") {
+			dispatchHostMessage(record.topic, record.payload);
+			needsTick = true;
+		}
+	});
 	return {
 		preventedEventIds: prevented.length > 0 ? Uint32Array.from(prevented) : void 0,
 		needsTick

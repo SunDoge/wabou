@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createElement, setProp, writer } from "@wabou/solid-renderer";
-import { createEffect, createRoot, createSignal, flush } from "solid-js";
+import { createRenderEffect, createRoot, createSignal, flush } from "solid-js";
 import "./animation-frame";
 
 test("requestAnimationFrame commits Solid effects before writer delivery", () => {
@@ -9,7 +9,7 @@ test("requestAnimationFrame commits Solid effects before writer delivery", () =>
   const dispose = createRoot((dispose) => {
     const [value, write] = createSignal("before");
     setValue = write;
-    createEffect(value, (next) => {
+    createRenderEffect(value, (next) => {
       setProp(node, "textContent", next, undefined);
     });
     return dispose;

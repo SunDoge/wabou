@@ -161,6 +161,10 @@ interface VirtualListProps<T> {
   viewportHeight: number;
   /** Extra rows rendered above/below the viewport. Defaults to 4. */
   overscan?: number;
+  /** Explicit semantic role for the viewport, such as `listbox`. */
+  role?: JSX$1.HTMLAttributes<HTMLDivElement>["role"];
+  /** Accessible name for the native scroll viewport. */
+  accessibilityLabel?: string;
   /** Render a single row given its item and absolute index. */
   children: (item: T, index: number) => JSX.Element;
 }
@@ -289,4 +293,4 @@ declare function mount(code: () => JSX$2.Element): () => void;
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { Fragment as $, removeNode as A, useFps as B, isServer as C, ref as D, mount as E, spread as F, HostProviderProps as G, PortalProps as H, writer as I, useHost as J, LayoutTarget as K, VirtualList as L, runSweep as M, setProp as N, registerRoot as O, setTransform2D as P, LayoutSnapshot as Q, VirtualListProps as R, insertNode as S, mergeProps as T, Host as U, Portal as V, HostProvider as W, LayoutNodeMetrics as X, FrameStats as Y, LayoutRect as Z, dispatchEvent as _, NativeScrollbarStyle as a, getRequestEvent as b, WabouIntrinsicElements as c, acquireOverlayRoot as d, JSX$2 as et, applyRef as f, delegateEvents as g, createTextNode as h, HostCapabilities as i, render as j, releaseOverlayRoot as k, WabouNodeEvent as l, createElement as m, EVENT_CODE as n, jsxDEV as nt, OP as o, createComponent$1 as p, defaultHost as q, Handle as r, jsxs as rt, WabouElementProps as s, Dynamic as t, jsx as tt, Writer$1 as u, effect as v, memo as w, insert as x, getMountRoot as y, createFps as z };
-//# sourceMappingURL=index-ByYOfLF7.d.mts.map
+//# sourceMappingURL=index-BAmI2o2y.d.mts.map
