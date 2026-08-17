@@ -1,4 +1,7 @@
 import { createMemoryHistory } from "@tanstack/history";
+import "../../packages/core/src/prelude/bootstrap";
+import "../../packages/core/src/polyfills/abort-controller";
+import "../../packages/core/src/polyfills/fetch";
 import "../../packages/core/src/glue/timers";
 import {
   BaseRootRoute,
@@ -15,37 +18,6 @@ import { createSignal, flush } from "solid-js";
 // global alias, so the adapter owns this one compatibility shim.
 if (!("self" in globalThis)) {
   Object.defineProperty(globalThis, "self", { value: globalThis });
-}
-
-if (!("AbortController" in globalThis)) {
-  class ExperimentAbortSignal {
-    aborted = false;
-    reason: unknown;
-    readonly listeners = new Set<() => void>();
-
-    addEventListener(type: string, listener: () => void) {
-      if (type === "abort") this.listeners.add(listener);
-    }
-
-    removeEventListener(type: string, listener: () => void) {
-      if (type === "abort") this.listeners.delete(listener);
-    }
-  }
-
-  class ExperimentAbortController {
-    readonly signal = new ExperimentAbortSignal();
-
-    abort(reason?: unknown) {
-      if (this.signal.aborted) return;
-      this.signal.aborted = true;
-      this.signal.reason = reason;
-      for (const listener of this.signal.listeners) listener();
-    }
-  }
-
-  Object.defineProperty(globalThis, "AbortController", {
-    value: ExperimentAbortController,
-  });
 }
 
 function mutableStore<T>(initial: T): RouterWritableStore<T> {
@@ -100,6 +72,19 @@ const settingsRoute = new BaseRoute({
 
 const routeTree = rootRoute.addChildren([projectRoute, settingsRoute]);
 
+async function waitForPublishedMatch(
+  router: RouterCore<typeof routeTree>,
+  predicate: (match: (typeof router.state.matches)[number]) => boolean,
+) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    flush();
+    const match = router.state.matches.at(-1);
+    if (match && predicate(match)) return match;
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }
+  throw new Error("Router Core did not publish a matching route in time");
+}
+
 export interface ExperimentResult {
   compatible: boolean;
   diagnostics: unknown;
@@ -128,18 +113,24 @@ export async function runExperiment(): Promise<ExperimentResult> {
       routeTree,
       history,
       context: {},
-      // Native Wabou owns presentation, scroll restoration and document
-      // lifecycle, so Router Core runs without its browser coordinator.
-      isServer: true,
+      isServer: false,
       origin: "wabou://app",
       defaultPendingMs: 0,
     },
     solidStores,
   );
+  router.startTransition = async (commit) => {
+    flush(commit);
+    return true;
+  };
 
   await router.load();
-  flush();
-  const initialMatch = router.state.matches.at(-1);
+  const initialMatch = await waitForPublishedMatch(
+    router,
+    (match) =>
+      (match.loaderData as { key?: string } | undefined)?.key ===
+      "project:alpha",
+  );
   const diagnostics = router.state.matches.map((match) => ({
     routeId: match.routeId,
     status: match.status,
@@ -154,7 +145,12 @@ export async function runExperiment(): Promise<ExperimentResult> {
   };
 
   await router.navigate({ to: "/settings" });
-  const navigatedMatch = router.state.matches.at(-1);
+  const navigatedMatch = await waitForPublishedMatch(
+    router,
+    (match) =>
+      (match.loaderData as { section?: string } | undefined)?.section ===
+      "general",
+  );
   const navigated = {
     pathname: router.state.location.pathname,
     loaderData: navigatedMatch?.loaderData,
@@ -162,6 +158,12 @@ export async function runExperiment(): Promise<ExperimentResult> {
 
   history.back();
   await router.load();
+  await waitForPublishedMatch(
+    router,
+    (match) =>
+      (match.loaderData as { key?: string } | undefined)?.key ===
+      "project:alpha",
+  );
   const restored = {
     pathname: router.state.location.pathname,
     canGoBack: history.canGoBack(),

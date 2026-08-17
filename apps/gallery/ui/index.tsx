@@ -14,9 +14,11 @@ import {
   View,
 } from "@wabou/primitives";
 import {
+  BaseRootRoute,
+  BaseRoute,
+  createDataRouter,
   createMemoryHistory,
-  MemoryRouter,
-  Route,
+  RouterProvider,
   useLocation,
   useNavigate,
   useParams,
@@ -239,14 +241,14 @@ function App() {
   let contentViewport: Handle | undefined;
   createScrollReset({
     target: () => contentViewport,
-    key: () => location.pathname,
+    key: () => location().pathname,
   });
   const navigate = useNavigate();
   const selected = (): ComponentId =>
     groups.some((group) =>
-      group.items.some((item) => item.id === params.component),
+      group.items.some((item) => item.id === params().component),
     )
-      ? (params.component as ComponentId)
+      ? (params().component as ComponentId)
       : "button";
   const selectedName = () =>
     groups
@@ -340,7 +342,9 @@ function App() {
                                   ? "#94a3b8"
                                   : "#475569",
                           })}
-                          onClick={() => navigate(`/components/${item.id}`)}
+                          onClick={() =>
+                            void navigate({ to: `/components/${item.id}` })
+                          }
                         >
                           {item.name}
                         </PrimitiveButton>
@@ -388,7 +392,7 @@ function App() {
                           : "#f1f5f9"
                         : "transparent",
                     })}
-                    onClick={history.back}
+                    onClick={() => history.back()}
                   >
                     ‹
                   </PrimitiveButton>
@@ -406,7 +410,7 @@ function App() {
                           : "#f1f5f9"
                         : "transparent",
                     })}
-                    onClick={history.forward}
+                    onClick={() => history.forward()}
                   >
                     ›
                   </PrimitiveButton>
@@ -568,8 +572,16 @@ function App() {
   );
 }
 
-mount(() => (
-  <MemoryRouter history={history}>
-    <Route path={["/", "/components/:component"]} component={App} />
-  </MemoryRouter>
-));
+const root = new BaseRootRoute({ component: App });
+const index = new BaseRoute({ getParentRoute: () => root, path: "/" });
+const component = new BaseRoute({
+  getParentRoute: () => root,
+  path: "components/$component",
+});
+const router = createDataRouter({
+  routeTree: root.addChildren([index, component]),
+  history,
+  context: {},
+});
+
+mount(() => <RouterProvider router={router} />);

@@ -1,48 +1,144 @@
+import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
 import { defaultHost, dispatchEvent, runSweep, writer } from "@wabou/solid-renderer";
 import { createComponent, createContext, createEffect, createSignal, flush, getOwner, useContext } from "solid-js";
 import { EVENT_DATA_LEN, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND } from "@wabou/protocol";
 export * from "@wabou/solid-renderer";
 export * from "@wabou/style";
+//#region src/polyfills/abort-controller.ts
+/** Install cancellation primitives when the embedding runtime lacks them. */
+function installAbortControllerPolyfill() {
+	if (!("AbortSignal" in globalThis)) Object.defineProperty(globalThis, "AbortSignal", {
+		configurable: true,
+		writable: true,
+		value: AbortSignal
+	});
+	if (!("AbortController" in globalThis)) Object.defineProperty(globalThis, "AbortController", {
+		configurable: true,
+		writable: true,
+		value: AbortControllerPolyfill
+	});
+}
+installAbortControllerPolyfill();
+//#endregion
 //#region src/polyfills/fetch.ts
+function normalizeHeaderName(name) {
+	return String(name).toLowerCase();
+}
+var WabouHeaders = class {
+	entriesByName = /* @__PURE__ */ new Map();
+	constructor(init) {
+		if (!init) return;
+		if (Symbol.iterator in Object(init)) {
+			for (const [name, value] of init) this.append(name, value);
+			return;
+		}
+		for (const [name, value] of Object.entries(init)) this.append(name, value);
+	}
+	append(name, value) {
+		const key = normalizeHeaderName(name);
+		const current = this.entriesByName.get(key);
+		this.entriesByName.set(key, current ? `${current}, ${String(value)}` : String(value));
+	}
+	delete(name) {
+		this.entriesByName.delete(normalizeHeaderName(name));
+	}
+	get(name) {
+		return this.entriesByName.get(normalizeHeaderName(name)) ?? null;
+	}
+	has(name) {
+		return this.entriesByName.has(normalizeHeaderName(name));
+	}
+	set(name, value) {
+		this.entriesByName.set(normalizeHeaderName(name), String(value));
+	}
+	entries() {
+		return this.entriesByName.entries();
+	}
+	keys() {
+		return this.entriesByName.keys();
+	}
+	values() {
+		return this.entriesByName.values();
+	}
+	forEach(callback, thisArg) {
+		for (const [key, value] of this.entriesByName) callback.call(thisArg, value, key, this);
+	}
+	[Symbol.iterator]() {
+		return this.entries();
+	}
+	toRecord() {
+		return Object.fromEntries(this.entriesByName);
+	}
+};
 var WabouResponse = class WabouResponse {
-	_data;
+	headers;
+	status;
+	statusText;
 	url;
-	constructor(data, url) {
-		this._data = data;
+	bodyText;
+	constructor(body = null, init = {}, url = "") {
+		this.bodyText = body ?? "";
+		this.status = init.status ?? 200;
+		this.statusText = init.statusText ?? "";
+		this.headers = new WabouHeaders(init.headers);
 		this.url = url;
 	}
-	get status() {
-		return this._data.status;
-	}
-	get statusText() {
-		return this._data.statusText;
-	}
 	get ok() {
-		return this._data.status >= 200 && this._data.status < 300;
-	}
-	get headers() {
-		return this._data.headers;
+		return this.status >= 200 && this.status < 300;
 	}
 	text() {
-		return Promise.resolve(this._data.body);
+		return Promise.resolve(this.bodyText);
 	}
 	json() {
-		return Promise.resolve(JSON.parse(this._data.body));
+		return Promise.resolve(JSON.parse(this.bodyText));
 	}
 	clone() {
-		return new WabouResponse({
-			...this._data,
-			headers: { ...this._data.headers }
+		return new WabouResponse(this.bodyText, {
+			status: this.status,
+			statusText: this.statusText,
+			headers: this.headers
 		}, this.url);
 	}
+	static json(value, init = {}) {
+		const headers = new WabouHeaders(init.headers);
+		if (!headers.has("content-type")) headers.set("content-type", "application/json");
+		return new WabouResponse(JSON.stringify(value), {
+			...init,
+			headers
+		});
+	}
 };
-globalThis.fetch = function(input, init) {
-	const url = typeof input === "string" ? input : input.url;
-	const initJson = init ? JSON.stringify(init) : "{}";
-	return globalThis.__wabou_fetch(url, initJson).then((json) => {
-		return new WabouResponse(JSON.parse(json), url);
+/** Install the host-backed Fetch API surface. Safe to call again in tests. */
+function installFetchPolyfill() {
+	if (!("Headers" in globalThis)) Object.defineProperty(globalThis, "Headers", {
+		configurable: true,
+		writable: true,
+		value: WabouHeaders
 	});
-};
+	if (!("Response" in globalThis)) Object.defineProperty(globalThis, "Response", {
+		configurable: true,
+		writable: true,
+		value: WabouResponse
+	});
+	if (!("__wabou_fetch" in globalThis)) return;
+	globalThis.fetch = ((input, init) => {
+		const url = typeof input === "string" ? input : input.url;
+		const serializedInit = init ? {
+			...init,
+			headers: init.headers instanceof WabouHeaders ? init.headers.toRecord() : init.headers
+		} : {};
+		return globalThis.__wabou_fetch(url, JSON.stringify(serializedInit)).then((json) => {
+			const data = JSON.parse(json);
+			const ResponseConstructor = globalThis.Response;
+			return new ResponseConstructor(data.body, {
+				status: data.status,
+				statusText: data.statusText,
+				headers: data.headers
+			}, url);
+		});
+	});
+}
+installFetchPolyfill();
 //#endregion
 //#region src/glue/animation-frame.ts
 const rafQueue = /* @__PURE__ */ new Map();

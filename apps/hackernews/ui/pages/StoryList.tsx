@@ -1,6 +1,7 @@
 // Story list page.
-import { useNavigate } from "@wabou/router";
+
 import { Button, createHover, Icon, Text } from "@wabou/primitives";
+import { useNavigate } from "@wabou/router";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
@@ -42,7 +43,7 @@ export function StoryList(): JSX.Element {
 
   const openStory = (story: Story) => {
     markVisited(story.id);
-    navigate(`/story/${story.id}`);
+    void navigate({ to: `/story/${story.id}` });
   };
 
   return (

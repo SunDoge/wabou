@@ -1,27 +1,41 @@
 # `@wabou/router`
 
-Solid-native in-memory routing for Wabou applications. It provides navigation
-without emulating browser history, location, links, or DOM events.
+Solid 2 routing for Wabou applications, backed by TanStack Router Core. Wabou
+owns the reactive store adapter, memory history, component rendering, and
+native navigation lifecycle; no browser history or DOM router is involved.
 
 ```tsx
-import { MemoryRouter, Route, useNavigate, useParams } from "@wabou/router";
+import {
+  BaseRootRoute,
+  BaseRoute,
+  createMemoryHistory,
+  createDataRouter,
+  RouterProvider,
+  useLoaderData,
+} from "@wabou/router";
 
-function Story() {
-  const params = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  return <Button onClick={() => navigate(-1)}>Back from {params.id}</Button>;
+const root = new BaseRootRoute();
+const project = new BaseRoute({
+  getParentRoute: () => root,
+  path: "projects/$projectId",
+  loader: ({ params }) => loadProject(params.projectId),
+  component: Project,
+});
+const router = createDataRouter({
+  routeTree: root.addChildren([project]),
+  history: createMemoryHistory({ initialEntries: ["/projects/alpha"] }),
+  context: {},
+});
+
+function Project() {
+  const project = useLoaderData<Project>();
+  return <Text>{project()?.name}</Text>;
 }
 
-mount(() => (
-  <MemoryRouter>
-    <Route path="/" component={Home} />
-    <Route path="/story/:id" component={Story} />
-  </MemoryRouter>
-));
+mount(() => <RouterProvider router={router} />);
 ```
 
-The router intentionally focuses on native application needs: a deterministic
-memory stack, reactive locations and parameters, root/nested layouts, static,
-optional and wildcard path segments, and push/replace/back/forward navigation.
-It does not implement browser history, SSR, document links, or Solid Router's
-data APIs.
+The router supports typed search and parameters, asynchronous loaders,
+preloading, caching, guards, pending/error states, redirects, blockers, and
+back/forward memory navigation. Native links, blocker presentation, and scroll
+restoration remain explicit Wabou UI concerns.

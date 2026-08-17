@@ -80,10 +80,16 @@ for (const level of ["log", "info", "warn", "error", "debug"] as const) {
     __wabou_log(level, values.map(formatConsoleValue).join(" "));
   };
 }
+runtime.console.assert ??= (condition: unknown, ...values: unknown[]) => {
+  if (!condition) {
+    runtime.console.error("Assertion failed", ...values);
+  }
+};
 
 // `window` is the global object in browsers. Keeping identity here avoids
 // libraries observing two diverging sets of globals.
 runtime.window ??= runtime;
+runtime.self ??= runtime;
 runtime.scrollX ??= 0;
 runtime.scrollY ??= 0;
 runtime.scrollTo ??= () => {};

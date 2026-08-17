@@ -43,8 +43,8 @@ export function App() {
   const params = useParams<{ task?: string }>();
   const navigate = useNavigate();
   const task = (): TaskId =>
-    tasks.some((item) => item.id === params.task)
-      ? (params.task as TaskId)
+    tasks.some((item) => item.id === params().task)
+      ? (params().task as TaskId)
       : "counter";
   const [theme, setTheme] = createSignal<"dark" | "light">("dark");
   const dark = () => theme() === "dark";
@@ -91,7 +91,7 @@ export function App() {
                             ? "#c4cfdd"
                             : "#334155",
                     })}
-                    onClick={() => navigate(`/${item.id}`)}
+                    onClick={() => void navigate({ to: `/${item.id}` })}
                   >
                     <Text class="w-7 h-7 flex-none flex items-center justify-center rounded-md bg-control font-mono text-xs">
                       {item.number}

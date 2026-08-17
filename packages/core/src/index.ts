@@ -10,6 +10,7 @@
 // any order; glue modules import from @wabou/solid-renderer directly.
 
 import "./host";
+import "./polyfills/abort-controller";
 
 // URL and URLSearchParams are installed by the host's core-prelude (platform.ts,
 // bundled with whatwg-url/@ungap via gen-core-prelude) BEFORE the app boots.

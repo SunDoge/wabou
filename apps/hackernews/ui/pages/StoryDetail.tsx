@@ -1,6 +1,7 @@
 // Story detail page.
-import { useNavigate, useParams } from "@wabou/router";
+
 import { Button, Icon, Text } from "@wabou/primitives";
+import { useParams, useRouter } from "@wabou/router";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import externalLink from "lucide-static/icons/external-link.svg?raw";
@@ -17,14 +18,14 @@ import {
 
 export function StoryDetail(): JSX.Element {
   const params = useParams();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { palette } = useTheme();
   const story = createMemo(() =>
     [...stories(), ...savedStories()].find(
-      (item) => item.id === Number(params.id),
+      (item) => item.id === Number(params().id),
     ),
   );
-  const goBack = () => navigate(-1);
+  const goBack = () => router.history.back();
 
   return (
     <section

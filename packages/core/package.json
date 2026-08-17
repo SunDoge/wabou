@@ -25,6 +25,7 @@
     "@wabou/protocol": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style": "workspace:*",
+    "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.0",
     "whatwg-url": "^17.1.0"
   }

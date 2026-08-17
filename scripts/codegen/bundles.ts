@@ -17,6 +17,7 @@ const bundles: Bundle[] = [
     name: "core prelude",
     entries: [
       "packages/core/src/prelude/bootstrap.ts",
+      "packages/core/src/polyfills/abort-controller.ts",
       "packages/core/src/prelude/platform.ts",
     ],
     output: "crates/wabou-runtime/src/gen/core-prelude.js",

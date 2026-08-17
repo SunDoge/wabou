@@ -1,6 +1,6 @@
 //! Evaluate a browser-targeted JavaScript bundle in Wabou's QuickJS runtime.
 
-use std::{env, fs, process};
+use std::{env, fs, process, thread, time};
 
 use wabou_runtime::{JsRuntime, rquickjs};
 
@@ -17,7 +17,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let runtime = JsRuntime::new()?;
     runtime.with(|ctx| ctx.eval::<(), _>(source.as_str()))?;
 
-    for _ in 0..32 {
+    let deadline = time::Instant::now() + time::Duration::from_secs(5);
+    loop {
         runtime.poll_async_runtime();
         let expression = format!(
             "typeof ({expression}) === 'undefined' ? undefined : JSON.stringify({expression})"
@@ -31,7 +32,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(None) => {}
             Err(error) => return Err(Box::new(error)),
         }
-    }
 
-    Err(Box::new(rquickjs::Error::Unknown))
+        if time::Instant::now() >= deadline {
+            return Err(Box::new(rquickjs::Error::Unknown));
+        }
+        // Native async functions wake the real window event loop. This
+        // standalone evaluator has no winit loop, so yield to Tokio and poll
+        // again instead of treating the first parked job as completion.
+        thread::sleep(time::Duration::from_millis(1));
+    }
 }

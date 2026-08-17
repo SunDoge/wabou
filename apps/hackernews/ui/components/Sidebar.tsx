@@ -1,5 +1,5 @@
 // Hacker News navigation sidebar.
-import { useNavigate } from "@wabou/router";
+
 import {
   Button,
   createActive,
@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "@wabou/primitives";
+import { useNavigate } from "@wabou/router";
 import award from "lucide-static/icons/award.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import clock from "lucide-static/icons/clock.svg?raw";
@@ -19,12 +20,12 @@ import { type JSX, onSettled } from "solid-js";
 import { useTheme } from "../contexts/ThemeContext";
 import {
   activeView,
+  type View as FeedView,
   loading,
   loadStories,
   savedStories,
   selectView,
   stories,
-  type View as FeedView,
 } from "../stories";
 
 export function Sidebar(): JSX.Element {
@@ -36,7 +37,7 @@ export function Sidebar(): JSX.Element {
   });
 
   const openView = (view: FeedView) => {
-    navigate("/");
+    void navigate({ to: "/" });
     void selectView(view);
   };
 

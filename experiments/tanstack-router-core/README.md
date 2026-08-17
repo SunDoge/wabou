@@ -29,23 +29,22 @@ mise exec -- cargo run -p wabou-runtime --example eval-bundle -- \
 - The adapter must use Solid 2's `flush` transaction and explicit literal
   signal writes. The official Solid adapter targets Solid 1 and cannot be used
   unchanged.
-- Browser-targeted Router Core expects `self` and `AbortController`. `self` is
-  a trivial adapter alias; cancellation should become a general Wabou Web API.
-- In Wabou QuickJS, `router.load()` currently resolves before the route-match
-  presentation is published. The result reports `compatible: false`: location
-  changes work, while matches and loader data remain empty. This remains true
-  with Router Core's browser coordinator disabled, so adopting the core before
-  fixing or adapting this async boundary would make navigation unreliable.
-- The minified experiment is about 81 KB versus a 19 KB Solid/timer baseline;
-  gzip is about 29 KB versus 8 KB. The measured incremental cost is therefore
-  roughly 62 KB raw or 22 KB gzip.
+- Browser-targeted Router Core expects `self`, `AbortController`, and
+  `Response`. Wabou now supplies the global alias, a cancellation polyfill, and
+  a small Fetch API object layer backed by its existing native fetch bridge.
+- The original QuickJS failure was not an async scheduler incompatibility.
+  Router Core checks loader results with `value instanceof Response`; the
+  missing global threw inside a transaction that Router Core rolled back. With
+  the Web API surface installed, the same QuickJS probe passes params, search,
+  loaders, navigation, and history restoration.
+- The complete minified experiment is about 93 KB raw or 33 KB gzip, including
+  Solid, Router Core, URL/fetch/timer compatibility, and cancellation support.
 
-Recommendation: keep the current router for now. Router Core is still a good
-candidate once a small native adapter can make its load/commit lifecycle pass
-the included QuickJS probe; then Wabou can reuse typed search, loaders, caching,
-preloading, guards, pending/error states, and blockers without importing its
-DOM-facing Solid components.
+Recommendation: use Router Core as Wabou's router engine. This lets apps reuse
+typed search, loaders, caching, preloading, guards, pending/error states, and
+blockers without importing TanStack's DOM-facing Solid components or
+maintaining a second lightweight router.
 
-The experiment is not a public router API. A production adapter would still
-need Wabou components for `RouterProvider`, `Outlet`, links, pending/error UI,
-navigation blockers, and native scroll restoration.
+The experiment informed `@wabou/router`'s native `createDataRouter`,
+`RouterProvider`, and hooks. Links, navigation-blocker UI, and native scroll
+restoration remain Wabou-owned presentation concerns.
