@@ -1,6 +1,5 @@
 //! Window-level AccessKit adapter and retained accessibility tree publication.
 
-use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use accesskit::{Action, Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate};
@@ -35,29 +34,16 @@ fn publication_key(
     }
 }
 
-fn modal_subtree(snapshot: &SemanticSnapshot) -> Option<HashSet<u64>> {
-    snapshot.modal_root.map(|modal| {
-        let by_id: HashMap<_, _> = snapshot.nodes.iter().map(|node| (node.id, node)).collect();
-        let mut allowed = HashSet::new();
-        let mut pending = vec![modal];
-        while let Some(id) = pending.pop() {
-            if allowed.insert(id)
-                && let Some(node) = by_id.get(&id)
-            {
-                pending.extend(node.children.iter().copied());
-            }
-        }
-        allowed
-    })
-}
-
 fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
     let role = match semantic.role {
         SemanticRole::Generic => Role::GenericContainer,
+        SemanticRole::Group => Role::Group,
         SemanticRole::Label => Role::Label,
+        SemanticRole::Heading => Role::Heading,
         SemanticRole::Button => Role::Button,
         SemanticRole::TextInput => Role::TextInput,
         SemanticRole::Image => Role::Image,
+        SemanticRole::RadioGroup => Role::RadioGroup,
         SemanticRole::Link => Role::Link,
         SemanticRole::Dialog => Role::Dialog,
         SemanticRole::Alert => Role::Alert,
@@ -68,12 +54,22 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
         SemanticRole::ComboBox => Role::ComboBox,
         SemanticRole::ListBox => Role::ListBox,
         SemanticRole::Option => Role::ListBoxOption,
+        SemanticRole::Menu => Role::Menu,
+        SemanticRole::MenuItem => Role::MenuItem,
+        SemanticRole::Tree => Role::Tree,
+        SemanticRole::TreeItem => Role::TreeItem,
         SemanticRole::Table => Role::Table,
         SemanticRole::Row => Role::Row,
         SemanticRole::Cell => Role::Cell,
         SemanticRole::ColumnHeader => Role::ColumnHeader,
         SemanticRole::RowHeader => Role::RowHeader,
         SemanticRole::Slider => Role::Slider,
+        SemanticRole::ProgressBar => Role::ProgressIndicator,
+        SemanticRole::TabList => Role::TabList,
+        SemanticRole::Tab => Role::Tab,
+        SemanticRole::TabPanel => Role::TabPanel,
+        SemanticRole::Grid => Role::Grid,
+        SemanticRole::GridCell => Role::GridCell,
     };
     let mut node = Node::new(role);
     if let Some(label) = &semantic.label {
@@ -81,6 +77,15 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
     }
     if let Some(value) = &semantic.value {
         node.set_value(value.clone());
+    }
+    if let Some(value) = semantic.numeric_value {
+        node.set_numeric_value(value);
+    }
+    if let Some(value) = semantic.min_numeric_value {
+        node.set_min_numeric_value(value);
+    }
+    if let Some(value) = semantic.max_numeric_value {
+        node.set_max_numeric_value(value);
     }
     let [x0, y0, x1, y1] = semantic.bounds.map(|value| f64::from(value) * scale);
     node.set_bounds(Rect::new(x0, y0, x1, y1));
@@ -117,7 +122,10 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
         | SemanticRole::Switch
         | SemanticRole::ComboBox
         | SemanticRole::Option
+        | SemanticRole::MenuItem
+        | SemanticRole::TreeItem
         | SemanticRole::Slider
+        | SemanticRole::Tab
             if !semantic.disabled =>
         {
             node.add_action(Action::Click);
@@ -144,11 +152,7 @@ fn root_update(
     root.set_bounds(Rect::new(0.0, 0.0, width, height));
     let children = snapshot
         .as_ref()
-        .map(|snapshot| {
-            snapshot
-                .modal_root
-                .map_or_else(|| snapshot.root_children.clone(), |modal| vec![modal])
-        })
+        .map(|snapshot| snapshot.exposed_root_children())
         .unwrap_or_default();
     root.set_children(children.iter().copied().map(NodeId).collect::<Vec<_>>());
     let mut tree = Tree::new(ROOT_ID);
@@ -160,16 +164,10 @@ fn root_update(
         .unwrap_or(ROOT_ID);
     let mut nodes = vec![(ROOT_ID, root)];
     if let Some(snapshot) = snapshot {
-        let allowed = modal_subtree(snapshot);
         nodes.extend(
             snapshot
-                .nodes
-                .iter()
-                .filter(|semantic| {
-                    allowed
-                        .as_ref()
-                        .is_none_or(|allowed| allowed.contains(&semantic.id))
-                })
+                .exposed_nodes()
+                .into_iter()
                 .map(|semantic| (NodeId(semantic.id), accesskit_node(semantic, scale))),
         );
     }
@@ -377,6 +375,9 @@ mod tests {
                     role: SemanticRole::Status,
                     label: Some("Saved".into()),
                     value: Some("complete".into()),
+                    numeric_value: None,
+                    min_numeric_value: None,
+                    max_numeric_value: None,
                     bounds: [0.0, 0.0, 100.0, 20.0],
                     children: vec![],
                     disabled: false,
@@ -387,6 +388,9 @@ mod tests {
                     role: SemanticRole::Alert,
                     label: Some("Connection lost".into()),
                     value: None,
+                    numeric_value: None,
+                    min_numeric_value: None,
+                    max_numeric_value: None,
                     bounds: [0.0, 20.0, 100.0, 40.0],
                     children: vec![],
                     disabled: false,
@@ -411,6 +415,9 @@ mod tests {
             role: SemanticRole::CheckBox,
             label: Some("Partial selection".into()),
             value: None,
+            numeric_value: None,
+            min_numeric_value: None,
+            max_numeric_value: None,
             bounds: [0.0, 0.0, 100.0, 20.0],
             children: vec![],
             disabled: false,
@@ -429,14 +436,52 @@ mod tests {
     }
 
     #[test]
-    fn table_roles_reach_accesskit_without_becoming_generic_containers() {
+    fn numeric_range_reaches_accesskit() {
+        let semantic = crate::SemanticNode {
+            id: 2,
+            role: SemanticRole::ProgressBar,
+            label: Some("Build progress".into()),
+            value: Some("64 percent".into()),
+            numeric_value: Some(64.0),
+            min_numeric_value: Some(0.0),
+            max_numeric_value: Some(100.0),
+            bounds: [0.0, 0.0, 100.0, 8.0],
+            children: vec![],
+            disabled: false,
+            states: crate::SemanticStates::default(),
+        };
+
+        let node = accesskit_node(&semantic, 1.0);
+        assert_eq!(node.role(), Role::ProgressIndicator);
+        assert_eq!(node.value(), Some("64 percent"));
+        assert_eq!(node.numeric_value(), Some(64.0));
+        assert_eq!(node.min_numeric_value(), Some(0.0));
+        assert_eq!(node.max_numeric_value(), Some(100.0));
+    }
+
+    #[test]
+    fn structural_roles_reach_accesskit_without_becoming_generic_containers() {
         let roles = [
+            (SemanticRole::Group, Role::Group),
+            (SemanticRole::Image, Role::Image),
+            (SemanticRole::RadioGroup, Role::RadioGroup),
+            (SemanticRole::Menu, Role::Menu),
+            (SemanticRole::MenuItem, Role::MenuItem),
+            (SemanticRole::Tree, Role::Tree),
+            (SemanticRole::TreeItem, Role::TreeItem),
             (SemanticRole::Table, Role::Table),
             (SemanticRole::Row, Role::Row),
             (SemanticRole::Cell, Role::Cell),
             (SemanticRole::ColumnHeader, Role::ColumnHeader),
             (SemanticRole::RowHeader, Role::RowHeader),
             (SemanticRole::Slider, Role::Slider),
+            (SemanticRole::ProgressBar, Role::ProgressIndicator),
+            (SemanticRole::Heading, Role::Heading),
+            (SemanticRole::TabList, Role::TabList),
+            (SemanticRole::Tab, Role::Tab),
+            (SemanticRole::TabPanel, Role::TabPanel),
+            (SemanticRole::Grid, Role::Grid),
+            (SemanticRole::GridCell, Role::GridCell),
         ];
         for (index, (semantic, _)) in roles.iter().enumerate() {
             let node = crate::SemanticNode {
@@ -444,6 +489,9 @@ mod tests {
                 role: *semantic,
                 label: Some(format!("table node {index}")),
                 value: None,
+                numeric_value: None,
+                min_numeric_value: None,
+                max_numeric_value: None,
                 bounds: [0.0, index as f32 * 20.0, 100.0, index as f32 * 20.0 + 20.0],
                 children: vec![],
                 disabled: false,
@@ -463,6 +511,9 @@ mod tests {
                     role: SemanticRole::Button,
                     label: Some("Background".into()),
                     value: None,
+                    numeric_value: None,
+                    min_numeric_value: None,
+                    max_numeric_value: None,
                     bounds: [0.0, 0.0, 50.0, 20.0],
                     children: vec![],
                     disabled: false,
@@ -473,6 +524,9 @@ mod tests {
                     role: SemanticRole::Dialog,
                     label: Some("Settings".into()),
                     value: None,
+                    numeric_value: None,
+                    min_numeric_value: None,
+                    max_numeric_value: None,
                     bounds: [10.0, 10.0, 90.0, 90.0],
                     children: vec![4],
                     disabled: false,
@@ -483,6 +537,9 @@ mod tests {
                     role: SemanticRole::Button,
                     label: Some("Save".into()),
                     value: None,
+                    numeric_value: None,
+                    min_numeric_value: None,
+                    max_numeric_value: None,
                     bounds: [60.0, 60.0, 80.0, 75.0],
                     children: vec![],
                     disabled: false,

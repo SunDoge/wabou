@@ -217,7 +217,11 @@ function SwitchPage() {
                 Notify when a background task finishes.
               </ThemeText>
             </View>
-            <Switch checked={enabled()} onCheckedChange={setEnabled} />
+            <Switch
+              checked={enabled()}
+              aria-label="Desktop notifications"
+              onCheckedChange={setEnabled}
+            />
           </View>
           <Separator />
           <Switch disabled label="Experimental renderer" />
@@ -378,12 +382,12 @@ function SpinnerPage() {
   return (
     <Preview title="Indeterminate progress">
       <View class="flex items-center gap-3">
-        <Spinner />
+        <Spinner label="Syncing workspace" />
         <Text class="text-sm text-secondary">Syncing workspace…</Text>
       </View>
       <Button disabled>
         <View class="flex items-center gap-2">
-          <Spinner class="text-on-accent" />
+          <Spinner label="Saving workspace" class="text-on-accent" />
           <Text class="text-sm text-on-accent">Saving</Text>
         </View>
       </Button>
@@ -441,7 +445,7 @@ function ProgressPage() {
             {value()}%
           </ThemeText>
         </View>
-        <Progress value={value()} />
+        <Progress label="Build progress" value={value()} />
         <View class="flex gap-2">
           <Button size="sm" onClick={() => moveTo(Math.min(100, value() + 10))}>
             Advance

@@ -33,8 +33,11 @@ use wabou_shell::{
     PointerPhase, TextContext, UiEvent, WheelEvent,
 };
 
+mod behavior_test;
 mod packaging;
 mod scaffold;
+
+use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -109,8 +112,11 @@ enum Commands {
         #[arg(long, value_name = "PATH")]
         app: Option<PathBuf>,
         /// Replay a JSON action trace produced by an earlier test run.
-        #[arg(long, value_name = "TRACE", conflicts_with = "scenario")]
+        #[arg(long, value_name = "TRACE_OR_REPORT", conflicts_with = "scenario")]
         replay: Option<PathBuf>,
+        /// Replay through the named test in a report, including prior state-building actions.
+        #[arg(long, value_name = "NAME", requires = "replay")]
+        replay_test: Option<String>,
         /// Directory for the JSON report and replayable action trace.
         #[arg(long, value_name = "DIR")]
         artifacts: Option<PathBuf>,
@@ -340,6 +346,7 @@ enum RenderAction {
 struct TestOptions {
     scenario: Option<PathBuf>,
     replay: Option<PathBuf>,
+    replay_test: Option<String>,
     artifacts: Option<PathBuf>,
     mode: Option<String>,
     failure_screenshot: bool,
@@ -403,6 +410,7 @@ fn main() -> Result<()> {
             scenario,
             app,
             replay,
+            replay_test,
             artifacts,
             mode,
             failure_screenshot,
@@ -412,6 +420,7 @@ fn main() -> Result<()> {
             let options = TestOptions {
                 scenario: scenario.map(|path| cwd.join(path)),
                 replay: replay.map(|path| cwd.join(path)),
+                replay_test,
                 artifacts,
                 mode,
                 failure_screenshot,
@@ -912,30 +921,19 @@ fn run(
 }
 
 fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<()> {
-    let mode_args = options.mode.as_deref().map(|mode| ["--mode", mode]);
-    ensure(
-        frontend(
-            workspace,
-            app,
-            "build",
-            mode_args.as_ref().map_or(&[], |args| args),
-            BuildProfile::Debug,
-            true,
-        )?,
-        "Vite build",
-    )?;
-
+    const HOST_TIMEOUT: Duration = Duration::from_secs(70);
     let test_dir = workspace.join("target/wabou-test").join(&app.name);
     fs::create_dir_all(&test_dir)?;
+    let artifact_dir = options
+        .artifacts
+        .clone()
+        .unwrap_or_else(|| default_artifact_dir(&test_dir, options.replay.is_some()));
+    prepare_artifact_dir(&artifact_dir)?;
     let generated_replay = test_dir.join("replay.ts");
     let scenario = if let Some(trace) = options.replay.as_deref() {
-        let actions = fs::read_to_string(trace)
-            .map_err(|error| format!("cannot read trace {}: {error}", trace.display()))?;
-        let parsed: Value = serde_json::from_str(&actions)
-            .map_err(|error| format!("invalid trace {}: {error}", trace.display()))?;
-        if !parsed.is_array() {
-            return Err(format!("trace {} must contain a JSON array", trace.display()).into());
-        }
+        // Validate replay artifacts before paying the cost of building either
+        // the frontend or its Rust host.
+        let parsed = replay_actions(trace, options.replay_test.as_deref())?;
         fs::write(
             &generated_replay,
             format!(
@@ -958,6 +956,20 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     if !scenario.is_file() {
         return Err(format!("test scenario {} does not exist", scenario.display()).into());
     }
+
+    let mode_args = options.mode.as_deref().map(|mode| ["--mode", mode]);
+    ensure(
+        frontend(
+            workspace,
+            app,
+            "build",
+            mode_args.as_ref().map_or(&[], |args| args),
+            BuildProfile::Debug,
+            true,
+        )?,
+        "Vite build",
+    )?;
+
     let scenario_bundle = test_dir.join("scenario.js");
     let mut bun = Command::new("bun");
     bun.current_dir(workspace).args([
@@ -969,22 +981,12 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     ]);
     ensure(bun.status()?, "test scenario build")?;
 
-    let artifact_dir = options
-        .artifacts
-        .clone()
-        .unwrap_or_else(|| test_dir.join("artifacts"));
-    fs::create_dir_all(&artifact_dir)?;
-    let stale_failure = artifact_dir.join("failure.png");
-    if stale_failure.is_file() {
-        fs::remove_file(stale_failure)?;
-    }
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
     let test_data = tempfile::tempdir_in(&test_dir)?;
-    let mut cargo = Command::new("cargo");
-    cargo
-        .current_dir(workspace)
-        .args(["run", "--manifest-path", &manifest, "--bin", &binary])
+    let executable = build_behavior_host(workspace, &manifest, &binary)?;
+    let mut host = Command::new(executable);
+    host.current_dir(workspace)
         .env(
             "WABOU_BUNDLE_PATH",
             bundle_path(workspace, app, BuildProfile::Debug),
@@ -997,13 +999,101 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
         .env("XDG_CONFIG_HOME", test_data.path().join("xdg-config"))
         .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
         .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
-    if !options.native {
-        cargo.env("WABOU_TEST_HEADLESS", "1");
-    }
+    configure_test_backend(&mut host, options.native);
     if options.failure_screenshot {
-        cargo.env("WABOU_TEST_FAILURE_SCREENSHOT", "1");
+        host.env("WABOU_TEST_FAILURE_SCREENSHOT", "1");
     }
-    ensure(cargo.status()?, "Wabou behavior test")
+    let stopped = Arc::new(AtomicBool::new(false));
+    let signal = stopped.clone();
+    ctrlc::set_handler(move || signal.store(true, Ordering::Release))?;
+    let status = wait_for_managed_child(host, HOST_TIMEOUT, &stopped)?;
+    ensure(status, "Wabou behavior test")
+}
+
+fn build_behavior_host(workspace: &Path, manifest: &str, binary: &str) -> Result<PathBuf> {
+    let output = Command::new("cargo")
+        .current_dir(workspace)
+        .args([
+            "build",
+            "--manifest-path",
+            manifest,
+            "--bin",
+            binary,
+            "--message-format=json-render-diagnostics",
+        ])
+        // Cargo progress remains visible while stdout is reserved for its
+        // machine-readable artifact stream.
+        .stderr(Stdio::inherit())
+        .output()?;
+    let executable = behavior_host_executable(&output.stdout, binary)?;
+    ensure(output.status, "Wabou behavior host build")?;
+    executable.ok_or_else(|| {
+        format!("Cargo did not report an executable artifact for binary {binary:?}").into()
+    })
+}
+
+fn behavior_host_executable(messages: &[u8], binary: &str) -> Result<Option<PathBuf>> {
+    let mut executable = None;
+    for (index, line) in messages.split(|byte| *byte == b'\n').enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        let message: Value = serde_json::from_slice(line).map_err(|error| {
+            format!("invalid Cargo JSON message on line {}: {error}", index + 1)
+        })?;
+        if message["reason"] == "compiler-message"
+            && let Some(rendered) = message["message"]["rendered"].as_str()
+        {
+            eprint!("{rendered}");
+        }
+        let is_binary = message["target"]["kind"]
+            .as_array()
+            .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"));
+        if message["reason"] == "compiler-artifact"
+            && message["target"]["name"] == binary
+            && is_binary
+            && let Some(path) = message["executable"].as_str()
+        {
+            executable = Some(PathBuf::from(path));
+        }
+    }
+    Ok(executable)
+}
+
+fn configure_test_backend(command: &mut Command, native: bool) {
+    if native {
+        // `--native` must win over an inherited shell/CI variable.
+        command.env_remove("WABOU_TEST_HEADLESS");
+    } else {
+        command.env("WABOU_TEST_HEADLESS", "1");
+    }
+}
+
+fn wait_for_managed_child(
+    command: Command,
+    timeout: Duration,
+    stopped: &AtomicBool,
+) -> Result<ExitStatus> {
+    let mut child = ManagedChild::spawn(command)?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.child.try_wait()? {
+            return Ok(status);
+        }
+        if stopped.load(Ordering::Acquire) {
+            child.terminate();
+            return Err("Wabou behavior test interrupted".into());
+        }
+        if Instant::now() >= deadline {
+            child.terminate();
+            return Err(format!(
+                "Wabou behavior test host exceeded its final {}s watchdog",
+                timeout.as_secs()
+            )
+            .into());
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
@@ -1715,6 +1805,13 @@ mod tests {
         };
         assert!(is_alive());
         managed.terminate();
+        // SIGKILL delivery and orphan reaping are asynchronous. `kill(2)`
+        // returning successfully does not guarantee that `kill -0` has
+        // stopped observing the descendant in the same scheduling turn.
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while is_alive() && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
+        }
         assert!(!is_alive());
     }
     use wabou_devtools::{DebugNode, DebugPointInspection, DebugSnapshot};
@@ -1822,6 +1919,7 @@ mod tests {
                     scenario,
                     app,
                     replay,
+                    replay_test,
                     artifacts,
                     mode,
                     failure_screenshot,
@@ -1850,6 +1948,7 @@ mod tests {
             Some(Path::new("tests/close-to-tray.test.ts"))
         );
         assert!(replay.is_none());
+        assert!(replay_test.is_none());
         assert_eq!(artifacts.as_deref(), Some(Path::new("artifacts")));
         assert_eq!(mode.as_deref(), Some("ui-test"));
         assert!(failure_screenshot);
@@ -1860,16 +1959,100 @@ mod tests {
                 Commands::Test {
                     scenario,
                     replay,
+                    replay_test,
                     native,
                     ..
                 },
-        } = Cli::try_parse_from(["wabou", "test", "--replay", "trace.json"]).unwrap()
+        } = Cli::try_parse_from([
+            "wabou",
+            "test",
+            "--replay",
+            "report.json",
+            "--replay-test",
+            "submits form",
+        ])
+        .unwrap()
         else {
             panic!("expected test replay command");
         };
         assert!(scenario.is_none());
-        assert_eq!(replay.as_deref(), Some(Path::new("trace.json")));
+        assert_eq!(replay.as_deref(), Some(Path::new("report.json")));
+        assert_eq!(replay_test.as_deref(), Some("submits form"));
         assert!(!native);
+        assert!(Cli::try_parse_from(["wabou", "test", "--replay-test", "orphan"]).is_err());
+    }
+
+    #[test]
+    fn native_test_backend_removes_an_inherited_headless_override() {
+        let mut command = Command::new("wabou-test-host");
+        command.env("WABOU_TEST_HEADLESS", "inherited");
+        configure_test_backend(&mut command, true);
+        assert_eq!(
+            command
+                .get_envs()
+                .find(|(key, _)| *key == "WABOU_TEST_HEADLESS")
+                .and_then(|(_, value)| value),
+            None
+        );
+
+        configure_test_backend(&mut command, false);
+        assert_eq!(
+            command
+                .get_envs()
+                .find(|(key, _)| *key == "WABOU_TEST_HEADLESS")
+                .and_then(|(_, value)| value),
+            Some(std::ffi::OsStr::new("1"))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn behavior_host_watchdog_terminates_the_managed_process_group() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "sleep 30"]);
+        let started = Instant::now();
+        let error =
+            wait_for_managed_child(command, Duration::from_millis(20), &AtomicBool::new(false))
+                .unwrap_err();
+
+        assert!(error.to_string().contains("final"));
+        assert!(error.to_string().contains("watchdog"));
+        assert!(started.elapsed() < Duration::from_secs(1));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn behavior_host_wait_preserves_the_child_exit_status() {
+        let mut command = Command::new("sh");
+        command.args(["-c", "exit 7"]);
+        let status =
+            wait_for_managed_child(command, Duration::from_secs(1), &AtomicBool::new(false))
+                .unwrap();
+
+        assert_eq!(status.code(), Some(7));
+    }
+
+    #[test]
+    fn behavior_host_uses_cargos_authoritative_executable_artifact() {
+        let messages = br#"{"reason":"compiler-artifact","target":{"name":"helper","kind":["bin"]},"executable":"/custom/target/debug/helper"}
+{"reason":"compiler-artifact","target":{"name":"gallery","kind":["lib"]},"executable":null}
+{"reason":"compiler-artifact","target":{"name":"gallery","kind":["bin"]},"executable":"/custom/target/aarch64-unknown-linux-gnu/debug/gallery"}
+{"reason":"build-finished","success":true}
+"#;
+
+        assert_eq!(
+            behavior_host_executable(messages, "gallery").unwrap(),
+            Some(PathBuf::from(
+                "/custom/target/aarch64-unknown-linux-gnu/debug/gallery"
+            ))
+        );
+        assert_eq!(behavior_host_executable(messages, "missing").unwrap(), None);
+        assert!(
+            behavior_host_executable(b"not json\n", "gallery")
+                .unwrap_err()
+                .to_string()
+                .contains("line 1")
+        );
     }
 
     #[test]

@@ -1,18 +1,26 @@
 //! Accessibility data exchanged between a frame source and the native host.
 
+use std::collections::{HashMap, HashSet};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Renderer-independent role understood by Wabou's accessibility bridge.
 pub enum SemanticRole {
     /// Container without a more specific semantic role.
     Generic,
+    /// Named or structural group of related controls.
+    Group,
     /// Static text label.
     Label,
+    /// Section or page heading.
+    Heading,
     /// Activatable button.
     Button,
     /// Editable text field.
     TextInput,
     /// Informative image.
     Image,
+    /// Container for mutually exclusive radio controls.
+    RadioGroup,
     /// Navigational link.
     Link,
     /// Dialog surface.
@@ -33,6 +41,14 @@ pub enum SemanticRole {
     ListBox,
     /// Selectable item in a list box.
     Option,
+    /// Container for application or context commands.
+    Menu,
+    /// One activatable command in a menu.
+    MenuItem,
+    /// Hierarchical collection of expandable items.
+    Tree,
+    /// One item in a hierarchical tree.
+    TreeItem,
     /// Tabular data container.
     Table,
     /// One row in a table.
@@ -45,6 +61,18 @@ pub enum SemanticRole {
     RowHeader,
     /// Numeric value selected along a bounded range.
     Slider,
+    /// Read-only completion value along a bounded range.
+    ProgressBar,
+    /// Container for a set of tabs.
+    TabList,
+    /// One selectable tab.
+    Tab,
+    /// Content controlled by a tab.
+    TabPanel,
+    /// Interactive tabular grid.
+    Grid,
+    /// One cell in an interactive grid.
+    GridCell,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,6 +110,12 @@ pub struct SemanticNode {
     pub label: Option<String>,
     /// Current textual value for value-bearing controls.
     pub value: Option<String>,
+    /// Current numeric value for range-based controls.
+    pub numeric_value: Option<f64>,
+    /// Lower bound for a numeric value.
+    pub min_numeric_value: Option<f64>,
+    /// Upper bound for a numeric value.
+    pub max_numeric_value: Option<f64>,
     /// Bounds `(x0, y0, x1, y1)` in logical window coordinates.
     pub bounds: [f32; 4],
     /// Ordered semantic child identifiers.
@@ -107,6 +141,44 @@ pub struct SemanticSnapshot {
     pub modal_root: Option<u64>,
 }
 
+impl SemanticSnapshot {
+    /// Return the node ids attached directly below the platform accessibility
+    /// root after modal isolation is applied.
+    pub fn exposed_root_children(&self) -> Vec<u64> {
+        self.modal_root
+            .map_or_else(|| self.root_children.clone(), |modal| vec![modal])
+    }
+
+    /// Return nodes reachable from the platform accessibility root in logical
+    /// source order. While a modal is active, background nodes remain in the
+    /// immutable snapshot for diagnostics but are not exposed here.
+    pub fn exposed_nodes(&self) -> Vec<&SemanticNode> {
+        let by_id = self
+            .nodes
+            .iter()
+            .map(|node| (node.id, node))
+            .collect::<HashMap<_, _>>();
+        let mut stack = self
+            .exposed_root_children()
+            .into_iter()
+            .rev()
+            .collect::<Vec<_>>();
+        let mut exposed = HashSet::new();
+        while let Some(id) = stack.pop() {
+            if !exposed.insert(id) {
+                continue;
+            }
+            if let Some(node) = by_id.get(&id) {
+                stack.extend(node.children.iter().rev().copied());
+            }
+        }
+        self.nodes
+            .iter()
+            .filter(|node| exposed.contains(&node.id))
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Action requested by assistive technology and routed back to the UI source.
 pub enum SemanticAction {
@@ -130,4 +202,54 @@ pub enum SemanticAction {
         /// Target semantic node identifier.
         target: u64,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn node(id: u64, children: &[u64]) -> SemanticNode {
+        SemanticNode {
+            id,
+            role: SemanticRole::Generic,
+            label: None,
+            value: None,
+            numeric_value: None,
+            min_numeric_value: None,
+            max_numeric_value: None,
+            bounds: [0.0; 4],
+            children: children.to_vec(),
+            disabled: false,
+            states: SemanticStates::default(),
+        }
+    }
+
+    #[test]
+    fn exposed_nodes_follow_reachable_source_order_and_isolate_a_modal() {
+        let mut snapshot = SemanticSnapshot {
+            nodes: vec![node(1, &[]), node(2, &[3]), node(3, &[]), node(4, &[])],
+            root_children: vec![1, 2],
+            ..SemanticSnapshot::default()
+        };
+        assert_eq!(snapshot.exposed_root_children(), [1, 2]);
+        assert_eq!(
+            snapshot
+                .exposed_nodes()
+                .into_iter()
+                .map(|node| node.id)
+                .collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
+
+        snapshot.modal_root = Some(2);
+        assert_eq!(snapshot.exposed_root_children(), [2]);
+        assert_eq!(
+            snapshot
+                .exposed_nodes()
+                .into_iter()
+                .map(|node| node.id)
+                .collect::<Vec<_>>(),
+            [2, 3]
+        );
+    }
 }

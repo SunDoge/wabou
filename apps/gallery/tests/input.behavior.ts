@@ -19,6 +19,8 @@ test("semantic locator drives keyboard, text, paste, IME, drag, and wheel input"
   await editor.paste("// edited");
   await expect(editor).toBeFocused();
   await expect(input).toBeBlurred();
+  await expect(editor).toHaveValue(
+    '{ // edited\n  "enabled": true\n}',
+  );
   await page.getByRole("label", { name: "Config edited" }).waitFor();
-  expect(true).toBe(true);
 });

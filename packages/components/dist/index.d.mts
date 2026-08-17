@@ -2,23 +2,6 @@ import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProp
 import { JSX, ParentProps } from "solid-js";
 import { CalendarDate } from "@internationalized/date";
 import { JSX as JSX$1 } from "@solidjs/web";
-//#region src/display.d.ts
-declare function Skeleton(props: {
-  class?: string;
-}): JSX.Element;
-declare function Spinner(props: {
-  label?: string;
-  class?: string;
-}): JSX.Element;
-declare function Kbd(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element;
-declare function KbdGroup(props: {
-  class?: string;
-  children?: JSX.Element;
-}): JSX.Element;
-//#endregion
 //#region src/avatar.d.ts
 type AvatarSize = "sm" | "default" | "lg";
 interface AvatarProps {
@@ -152,6 +135,23 @@ declare function AccordionContent(props: {
   class?: string;
 }): import("@wabou/solid-renderer").JSX.Element;
 //#endregion
+//#region src/display.d.ts
+declare function Skeleton(props: {
+  class?: string;
+}): JSX.Element;
+declare function Spinner(props: {
+  label?: string;
+  class?: string;
+}): JSX.Element;
+declare function Kbd(props: {
+  class?: string;
+  children?: JSX.Element;
+}): JSX.Element;
+declare function KbdGroup(props: {
+  class?: string;
+  children?: JSX.Element;
+}): JSX.Element;
+//#endregion
 //#region src/forms.d.ts
 type FieldOrientation = "vertical" | "horizontal";
 declare function Field(props: {
@@ -252,53 +252,6 @@ interface SelectProps {
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
 declare function Select(props: SelectProps): JSX.Element;
 //#endregion
-//#region src/slider.d.ts
-interface SliderProps {
-  value?: number;
-  defaultValue?: number;
-  min?: number;
-  max?: number;
-  step?: number;
-  disabled?: boolean;
-  label: string;
-  valueText?: (value: number) => string;
-  onValueChange?: (value: number) => void;
-  class?: string;
-}
-declare function Slider(props: SliderProps): JSX.Element;
-//#endregion
-//#region src/title-bar.d.ts
-declare const titleBarClass = "border-b border-subtle";
-interface TitleBarProps extends ViewProps {
-  class?: string;
-  children?: JSX.Element;
-}
-declare const titleBarLayoutStyle: {
-  readonly display: "flex";
-  readonly "flex-direction": "row";
-  readonly "align-items": "center";
-  readonly "flex-shrink": 0;
-  readonly height: "40px";
-};
-declare const titleBarDragRegionLayoutStyle: {
-  readonly display: "flex";
-  readonly "flex-direction": "row";
-  readonly "align-items": "center";
-  readonly "flex-grow": 1;
-  readonly "flex-shrink": 1;
-  readonly "flex-basis": "0%";
-  readonly height: "100%";
-};
-/** Layout shell for an application-owned title bar. */
-declare function TitleBar(props: TitleBarProps): JSX.Element;
-interface TitleBarDragRegionProps extends Omit<ViewProps, "onPointerDown" | "onDblClick"> {
-  class?: string;
-  style?: WabouStyle;
-  children?: JSX.Element;
-}
-/** Explicit non-interactive region that moves the native window. */
-declare function TitleBarDragRegion(props: TitleBarDragRegionProps): JSX.Element;
-//#endregion
 //#region src/selection.d.ts
 interface CheckboxProps {
   checked?: boolean;
@@ -360,6 +313,21 @@ interface ToggleGroupItemProps {
 }
 declare function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element;
 //#endregion
+//#region src/slider.d.ts
+interface SliderProps {
+  value?: number;
+  defaultValue?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  label: string;
+  valueText?: (value: number) => string;
+  onValueChange?: (value: number) => void;
+  class?: string;
+}
+declare function Slider(props: SliderProps): JSX.Element;
+//#endregion
 //#region src/tabs.d.ts
 interface TabsProps {
   value?: string;
@@ -396,6 +364,38 @@ type ComponentsProviderProps = ParentProps<{
 }>;
 declare function ComponentsProvider(props: ComponentsProviderProps): JSX.Element;
 declare function useComponentsTheme(): () => ComponentsTheme;
+//#endregion
+//#region src/title-bar.d.ts
+declare const titleBarClass = "border-b border-subtle";
+interface TitleBarProps extends ViewProps {
+  class?: string;
+  children?: JSX.Element;
+}
+declare const titleBarLayoutStyle: {
+  readonly display: "flex";
+  readonly "flex-direction": "row";
+  readonly "align-items": "center";
+  readonly "flex-shrink": 0;
+  readonly height: "40px";
+};
+declare const titleBarDragRegionLayoutStyle: {
+  readonly display: "flex";
+  readonly "flex-direction": "row";
+  readonly "align-items": "center";
+  readonly "flex-grow": 1;
+  readonly "flex-shrink": 1;
+  readonly "flex-basis": "0%";
+  readonly height: "100%";
+};
+/** Layout shell for an application-owned title bar. */
+declare function TitleBar(props: TitleBarProps): JSX.Element;
+interface TitleBarDragRegionProps extends Omit<ViewProps, "onPointerDown" | "onDblClick"> {
+  class?: string;
+  style?: WabouStyle;
+  children?: JSX.Element;
+}
+/** Explicit non-interactive region that moves the native window. */
+declare function TitleBarDragRegion(props: TitleBarDragRegionProps): JSX.Element;
 //#endregion
 //#region src/index.d.ts
 type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
@@ -465,6 +465,8 @@ interface InputProps {
   value?: string;
   placeholder?: string;
   disabled?: boolean;
+  readOnly?: boolean;
+  "aria-label"?: string;
   class?: string;
   ref?: JSX$1.InputHTMLAttributes<HTMLInputElement>["ref"];
   onInput?: (event: {
@@ -485,10 +487,12 @@ interface SwitchProps {
   disabled?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   label?: string;
+  "aria-label"?: string;
 }
 declare function Switch(props: SwitchProps): JSX.Element;
 declare function Progress(props: {
   value?: number;
+  label?: string;
   class?: string;
 }): JSX.Element;
 //#endregion

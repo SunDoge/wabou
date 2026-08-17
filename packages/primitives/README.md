@@ -252,6 +252,7 @@ immediate hide. `always` and `hidden` bypass the auto-hide lifecycle.
 
 ```tsx
 <Popover
+  aria-label="Formatting options"
   placement="bottom-start"
   trigger={(triggerProps) => <Button {...triggerProps}>Open</Button>}
   contentClass="w-64 p-3 rounded border"
@@ -263,3 +264,15 @@ immediate hide. `always` and `hidden` bypass the auto-hide lifecycle.
 It supports controlled or uncontrolled open state, outside-click and Escape
 dismissal, focus restoration, collision-aware positioning, and repositioning
 when its anchor, content, or viewport changes size.
+
+When a child owns the popup semantics, flatten the positioned shell explicitly:
+
+```tsx
+<Popover
+  contentRole="presentation"
+  popupRole="listbox"
+  trigger={(triggerProps) => <Button {...triggerProps}>Choose</Button>}
+>
+  <View role="listbox" aria-label="Framework">{options}</View>
+</Popover>
+```

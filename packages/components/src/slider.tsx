@@ -1,5 +1,6 @@
 import { createMeasuredSize, View } from "@wabou/primitives";
 import { createSignal, type JSX } from "solid-js";
+import { decimalPlaces, finiteOr, normalizeRange } from "./range";
 
 interface SliderPointerEvent {
   offsetX: number;
@@ -29,14 +30,16 @@ const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
 
 export function Slider(props: SliderProps): JSX.Element {
-  const min = () => props.min ?? 0;
-  const max = () => Math.max(min(), props.max ?? 100);
-  const step = () => Math.max(Number.EPSILON, props.step ?? 1);
-  const clamp = (value: number) => Math.max(min(), Math.min(max(), value));
+  const range = () => normalizeRange(props.min, props.max, props.step);
+  const min = () => range().min;
+  const max = () => range().max;
+  const step = () => range().step;
+  const clamp = (value: number) =>
+    Math.max(min(), Math.min(max(), finiteOr(value, min())));
   const snap = (value: number) => {
     const stepped =
       min() + Math.round((clamp(value) - min()) / step()) * step();
-    const precision = Math.max(0, (String(step()).split(".")[1] ?? "").length);
+    const precision = decimalPlaces(step());
     return clamp(Number(stepped.toFixed(precision)));
   };
   const [local, setLocal] = createSignal(snap(props.defaultValue ?? min()));
@@ -110,13 +113,17 @@ export function Slider(props: SliderProps): JSX.Element {
       onKeyDown={onKeyDown}
       style={{ opacity: props.disabled ? 0.45 : 1 }}
     >
-      <View class="w-full h-2 overflow-hidden rounded-full bg-control">
+      <View
+        aria-hidden="true"
+        class="w-full h-2 overflow-hidden rounded-full bg-control"
+      >
         <View
           class="h-full rounded-full bg-accent"
           style={{ width: `${ratio() * 100}%` }}
         />
       </View>
       <View
+        aria-hidden="true"
         class={join(
           "w-5 h-5 absolute rounded-full border bg-surface",
           focused() || dragging() ? "border-focus" : "border-strong",

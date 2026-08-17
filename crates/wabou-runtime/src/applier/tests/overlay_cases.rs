@@ -410,8 +410,19 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     applier.rebuild_focus_order(&placed);
     assert_eq!(applier.input.focus_order, [4]);
     assert!(!applier.input.focusable_targets.contains(&2));
-    applier.rebuild_semantic_snapshot(&placed);
+    // Semantic source order must not inherit the paint list's z/plane order.
+    // This keeps indexed locators stable when presentation order changes.
+    let semantic_placed = vec![placed[1].clone(), placed[2].clone(), placed[0].clone()];
+    applier.rebuild_semantic_snapshot(&semantic_placed);
     let snapshot = &applier.projections.semantic_snapshot;
+    assert_eq!(
+        snapshot
+            .nodes
+            .iter()
+            .map(|node| node.id)
+            .collect::<Vec<_>>(),
+        [2, 3, 4]
+    );
     assert_eq!(snapshot.root_children, vec![2, 3]);
     assert_eq!(snapshot.modal_root, Some(3));
     assert_eq!(snapshot.focus, Some(4));
@@ -482,4 +493,114 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
         "an older modal must be inert while a newer modal is topmost"
     );
     assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 6 }));
+}
+
+#[test]
+fn presentation_role_flattens_its_semantic_children_without_changing_paint() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (view, button, role, aria_label, aria_modal) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("view"),
+            atoms.intern("button"),
+            atoms.intern("role"),
+            atoms.intern("aria-label"),
+            atoms.intern("aria-modal"),
+        )
+    };
+    for (id, tag, attrs) in [
+        (2, view, vec![(role, "presentation"), (aria_modal, "true")]),
+        (
+            3,
+            view,
+            vec![
+                (role, "dialog"),
+                (aria_label, "Popover"),
+                (aria_modal, "true"),
+            ],
+        ),
+        (4, button, vec![(aria_label, "Close")]),
+    ] {
+        applier.apply_op(&Op::CreateElement { id, tag, attrs });
+    }
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 2,
+        child: 3,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 3,
+        child: 4,
+    });
+    applier.rebuild_layout_boxes();
+
+    let root = applier.node_store.root;
+    let presentation = applier.node_store.solid_to_node[&2];
+    let dialog = applier.node_store.solid_to_node[&3];
+    let close = applier.node_store.solid_to_node[&4];
+    let placed = [
+        (presentation, Some(root), 1),
+        (dialog, Some(presentation), 2),
+        (close, Some(dialog), 3),
+    ]
+    .map(|(node_id, parent_node_id, depth)| PlacedNode {
+        node_id,
+        parent_node_id,
+        depth,
+        rect: [0.0, 0.0, 100.0, 40.0],
+        content_origin: [0.0, 0.0],
+        content_size: [100.0, 40.0],
+        clip: None,
+        clip_radius: 0.0,
+        clip_depth: None,
+        own_clip: None,
+        own_clip_radius: 0.0,
+        border_widths: [0.0; 4],
+        scroll: layout::ScrollMetrics::default(),
+        paint: Paint {
+            overlay_plane: if node_id == presentation {
+                OverlayPlane::Modal
+            } else {
+                OverlayPlane::Content
+            },
+            ..Paint::default()
+        },
+    });
+
+    applier.rebuild_semantic_snapshot(&placed);
+    let snapshot = &applier.projections.semantic_snapshot;
+    assert_eq!(snapshot.root_children, [3]);
+    assert_eq!(snapshot.modal_root, Some(3));
+    assert_eq!(
+        snapshot
+            .nodes
+            .iter()
+            .map(|node| node.id)
+            .collect::<Vec<_>>(),
+        [3, 4]
+    );
+    assert_eq!(snapshot.nodes[0].children, [4]);
+    assert!(placed.iter().any(|node| node.node_id == presentation));
+
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: role,
+        value: "none",
+    });
+    applier.rebuild_semantic_snapshot(&placed);
+    let snapshot = &applier.projections.semantic_snapshot;
+    assert_eq!(snapshot.root_children, [3]);
+    assert_eq!(snapshot.modal_root, Some(3));
+    assert_eq!(
+        snapshot
+            .nodes
+            .iter()
+            .map(|node| node.id)
+            .collect::<Vec<_>>(),
+        [3, 4]
+    );
 }

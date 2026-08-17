@@ -260,6 +260,7 @@ function App() {
           Capture
         </Button>
         <Popover
+          aria-label="Help"
           placement="bottom-end"
           trigger={(triggerProps) => (
             <Button

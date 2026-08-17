@@ -216,8 +216,8 @@ import {
   AccordionPage,
   AvatarPage,
   ButtonGroupPage,
-  DialogPage,
   DatePickerPage,
+  DialogPage,
   EmptyPage,
   FieldPage,
   SelectPage,
@@ -435,6 +435,7 @@ function App() {
               <View class="w-full max-w-4xl mx-auto px-8 py-10 flex flex-col gap-7">
                 <View class="flex flex-col gap-2">
                   <Text
+                    role="heading"
                     class={
                       dark()
                         ? "text-3xl font-bold text-white"

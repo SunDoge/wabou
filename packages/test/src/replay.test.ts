@@ -7,29 +7,56 @@ test("replay preserves the logical window for every action", async () => {
   const record = (...values: unknown[]): void => {
     observed.push(values);
   };
-  const locator = (windowId: number, role: string, name: string): Locator => ({
+  const locator = (
+    windowId: number,
+    role: string,
+    name: string,
+    index?: number,
+  ): Locator => ({
     windowId,
-    click: async () => record(windowId, role, name, "click"),
-    dragBy: async (x, y) => record(windowId, role, name, "drag", x, y),
-    press: async (key, modifiers) =>
-      record(windowId, role, name, "key", key, modifiers),
-    type: async (text) => record(windowId, role, name, "text", text),
-    paste: async (text) => record(windowId, role, name, "paste", text),
-    ime: async (text) => record(windowId, role, name, "ime", text),
-    wheel: async (y, x) => record(windowId, role, name, "wheel", x, y),
-    waitFor: async () => record(windowId, role, name, "probe"),
+    role: role as Locator["role"],
+    name,
+    index,
+    click: async (wait) => record(windowId, role, name, index, "click", wait),
+    dragBy: async (x, y, wait) =>
+      record(windowId, role, name, "drag", x, y, wait),
+    press: async (key, modifiers, wait) =>
+      record(windowId, role, name, "key", key, modifiers, wait),
+    type: async (text, wait) =>
+      record(windowId, role, name, "text", text, wait),
+    paste: async (text, wait) =>
+      record(windowId, role, name, "paste", text, wait),
+    ime: async (text, wait) => record(windowId, role, name, "ime", text, wait),
+    wheel: async (y, x, wait) =>
+      record(windowId, role, name, "wheel", x, y, wait),
+    waitFor: async (wait) => record(windowId, role, name, "wait", wait),
     snapshot: async () => {
-      throw new Error("not used");
+      record(windowId, role, name, "snapshot");
+      return {
+        name,
+        value: null,
+        numericValue: null,
+        minNumericValue: null,
+        maxNumericValue: null,
+        bounds: { x: 0, y: 0, width: 100, height: 20 },
+        disabled: false,
+        checked: null,
+        pressed: null,
+        selected: null,
+        expanded: null,
+        focused: false,
+      };
     },
   });
   const page = {
     forWindow(windowId: number): TestPage {
       return {
         ...page,
-        getByRole: (role, options) => locator(windowId, role, options.name),
+        getByRole: (role, options) =>
+          locator(windowId, role, options.name, options.index),
       };
     },
-    getByRole: (role, options) => locator(1, role, options.name),
+    getByRole: (role, options) => locator(1, role, options.name, options.index),
     waitForIdle: async () => {},
   } satisfies TestPage;
   const window: TestContext["window"] = {
@@ -39,7 +66,21 @@ test("replay preserves the logical window for every action", async () => {
     state: () => null,
   };
   const actions: TestAction[] = [
-    { action: "clickByRole", windowId: 2, role: "button", label: "Save" },
+    {
+      action: "clickByRole",
+      windowId: 2,
+      role: "button",
+      label: "Save",
+      index: 1,
+      wait: { timeout: 2_000, interval: 20 },
+    },
+    {
+      action: "waitForByRole",
+      windowId: 5,
+      role: "status",
+      label: "Ready",
+      wait: { timeout: 3_000, interval: 30 },
+    },
     {
       action: "inputByRole",
       windowId: 3,
@@ -54,12 +95,36 @@ test("replay preserves the logical window for every action", async () => {
       label: "Rows",
       input: { type: "wheel", deltaX: 5, deltaY: 9 },
     },
+    {
+      action: "assertByRole",
+      windowId: 6,
+      role: "button",
+      label: "Apply",
+      assertion: { type: "disabled", expected: false },
+      wait: { timeout: 4_000, interval: 40 },
+    },
+    {
+      action: "assertWindowState",
+      windowId: 7,
+      expected: { presence: "visible", surfaceGeneration: 2 },
+      wait: { timeout: 5_000, interval: 50 },
+    },
   ];
 
-  await replayActions(actions, page, window);
+  await replayActions(
+    actions,
+    page,
+    window,
+    async (target) => {
+      await target.snapshot();
+    },
+    async (_, action) =>
+      record(action.windowId, "assertWindow", action.expected),
+  );
 
   expect(observed).toEqual([
-    [2, "button", "Save", "click"],
+    [2, "button", "Save", 1, "click", { timeout: 2_000, interval: 20 }],
+    [5, "status", "Ready", "wait", { timeout: 3_000, interval: 30 }],
     [
       3,
       "textbox",
@@ -67,7 +132,10 @@ test("replay preserves the logical window for every action", async () => {
       "key",
       "a",
       { shift: true, control: true, alt: false, meta: false },
+      undefined,
     ],
-    [4, "listbox", "Rows", "wheel", 5, 9],
+    [4, "listbox", "Rows", "wheel", 5, 9, undefined],
+    [6, "button", "Apply", "snapshot"],
+    [7, "assertWindow", { presence: "visible", surfaceGeneration: 2 }],
   ]);
 });

@@ -346,6 +346,7 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
 
   return (
     <Popover
+      aria-label={props["aria-label"]}
       open={open()}
       onOpenChange={setOpen}
       placement="bottom-start"

@@ -19,6 +19,26 @@ import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
 
+function DisclosureIndicator(props: {
+  open: () => boolean;
+  reducedMotion: () => boolean;
+}) {
+  const rotation = createTransition(() => (props.open() ? Math.PI : 0), {
+    duration: 0.2,
+    ease: "easeOut",
+    reducedMotion: props.reducedMotion,
+  });
+  return (
+    <View
+      class="w-4 h-4 flex-none"
+      transform={rotate2d(rotation.value())}
+      aria-hidden="true"
+    >
+      <Icon source={chevronDown} class="text-muted" size={16} />
+    </View>
+  );
+}
+
 interface CollapsibleContextValue {
   open: () => boolean;
   toggle: () => void;
@@ -80,7 +100,10 @@ export function CollapsibleTrigger(props: {
         )}
       >
         {props.children}
-        <Text class="flex-none text-muted">{context.open() ? "−" : "+"}</Text>
+        <DisclosureIndicator
+          open={context.open}
+          reducedMotion={context.reducedMotion}
+        />
       </View>
     </Button>
   );
@@ -191,11 +214,6 @@ export function AccordionTrigger(props: {
   const root = useAccordion();
   const item = useAccordionItem();
   const open = () => root.active(item.value);
-  const rotation = createTransition(() => (open() ? Math.PI : 0), {
-    duration: 0.2,
-    ease: "easeOut",
-    reducedMotion: root.reducedMotion,
-  });
   return (
     <Button
       unstyled
@@ -213,13 +231,7 @@ export function AccordionTrigger(props: {
         <Text class="min-w-0 whitespace-normal text-sm font-medium text-primary">
           {props.children}
         </Text>
-        <View
-          class="w-4 h-4 flex-none"
-          transform={rotate2d(rotation.value())}
-          aria-hidden="true"
-        >
-          <Icon source={chevronDown} class="text-muted" size={16} />
-        </View>
+        <DisclosureIndicator open={open} reducedMotion={root.reducedMotion} />
       </View>
     </Button>
   );

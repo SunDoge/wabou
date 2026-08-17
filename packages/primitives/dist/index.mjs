@@ -208,14 +208,10 @@ function Button(props) {
 			return props.role;
 		},
 		get ["aria-haspopup"]() {
-			return memo(() => {
-				return typeof props["aria-haspopup"] === "boolean";
-			})() ? String(props["aria-haspopup"]) : props["aria-haspopup"];
+			return props["aria-haspopup"];
 		},
 		get ["aria-expanded"]() {
-			return memo(() => {
-				return props["aria-expanded"] === void 0;
-			})() ? void 0 : String(props["aria-expanded"]);
+			return props["aria-expanded"];
 		},
 		get ["aria-controls"]() {
 			return props["aria-controls"];
@@ -224,19 +220,13 @@ function Button(props) {
 			return props["aria-label"];
 		},
 		get ["aria-checked"]() {
-			return memo(() => {
-				return props["aria-checked"] === void 0;
-			})() ? void 0 : String(props["aria-checked"]);
+			return props["aria-checked"];
 		},
 		get ["aria-selected"]() {
-			return memo(() => {
-				return props["aria-selected"] === void 0;
-			})() ? void 0 : String(props["aria-selected"]);
+			return props["aria-selected"];
 		},
 		get ["aria-pressed"]() {
-			return memo(() => {
-				return props["aria-pressed"] === void 0;
-			})() ? void 0 : String(props["aria-pressed"]);
+			return props["aria-pressed"];
 		},
 		get ["class"]() {
 			return memo(() => {
@@ -988,7 +978,7 @@ function Popover(props) {
 				setOpen(!open(), "trigger");
 			},
 			onKeyDown: handleEscape,
-			"aria-haspopup": "dialog",
+			"aria-haspopup": props.contentRole === "presentation" ? props.popupRole : "dialog",
 			"aria-expanded": open()
 		});
 	}), createComponent$1(Show, {
@@ -1019,7 +1009,12 @@ function Popover(props) {
 							content = node;
 							observe(node);
 						},
-						role: "dialog",
+						get role() {
+							return props.contentRole ?? "dialog";
+						},
+						get ["aria-label"]() {
+							return props["aria-label"];
+						},
 						get ["class"]() {
 							return props.contentClass;
 						},

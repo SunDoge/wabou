@@ -2,7 +2,6 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 
 use rquickjs::{Function, prelude::Async};
 use serde::Deserialize;
@@ -31,12 +30,20 @@ enum TestActionKind {
         window_id: u64,
         role: String,
         label: String,
+        index: Option<usize>,
     },
     InputByRole {
         window_id: u64,
         role: String,
         label: String,
         input: TestInput,
+        index: Option<usize>,
+    },
+    QueryByRole {
+        window_id: u64,
+        role: String,
+        label: String,
+        index: Option<usize>,
     },
 }
 
@@ -59,8 +66,13 @@ enum TestInput {
 #[derive(Debug)]
 struct TestAction {
     kind: TestActionKind,
-    completion: oneshot::Sender<bool>,
-    deadline: Instant,
+    completion: oneshot::Sender<TestActionResult>,
+}
+
+#[derive(Debug)]
+enum TestActionResult {
+    Handled(bool),
+    Query(Option<String>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -74,7 +86,7 @@ struct TestState {
     windows: HashMap<u64, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
-    query_result: Option<String>,
+    semantic_snapshots: HashMap<u64, Arc<SemanticSnapshot>>,
     headless: bool,
 }
 
@@ -82,17 +94,17 @@ struct TestState {
 pub(crate) struct TestController(Arc<Mutex<TestState>>);
 
 impl TestController {
-    fn request(&self, kind: TestActionKind) -> oneshot::Receiver<bool> {
+    fn request(&self, kind: TestActionKind) -> oneshot::Receiver<TestActionResult> {
         let (completion, receiver) = oneshot::channel();
         let wake = {
             let Ok(mut state) = self.0.lock() else {
                 return receiver;
             };
-            let action = TestAction {
-                kind,
-                completion,
-                deadline: Instant::now() + Duration::from_secs(2),
-            };
+            if state.report.is_some() {
+                let _ = completion.send(cancelled_result(&kind));
+                return receiver;
+            }
+            let action = TestAction { kind, completion };
             if state.headless {
                 if action_requires_source_poll(&action.kind) {
                     state.actions.push_back(action);
@@ -110,6 +122,26 @@ impl TestController {
         receiver
     }
 
+    fn finish(&self, report: String) -> bool {
+        let wake = {
+            let Ok(mut state) = self.0.lock() else {
+                return false;
+            };
+            if state.report.is_some() {
+                return false;
+            }
+            state.report = Some(report);
+            for action in state.actions.drain(..) {
+                let _ = action.completion.send(cancelled_result(&action.kind));
+            }
+            state.wake.clone()
+        };
+        if let Some(wake) = wake {
+            wake();
+        }
+        true
+    }
+
     pub(crate) fn mount(&self, js: &crate::JsRuntime) -> rquickjs::Result<()> {
         let controller = self.clone();
         js.mount_capability(CAPABILITY, move |ctx, capability| {
@@ -123,7 +155,7 @@ impl TestController {
                             window_id,
                             mutable_visibility,
                         });
-                        async move { receiver.await.unwrap_or(false) }
+                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
                     }),
                 )?,
             )?;
@@ -135,7 +167,7 @@ impl TestController {
                     ctx.clone(),
                     Async(move |window_id: u64| {
                         let receiver = show.request(TestActionKind::ShowWindow(window_id));
-                        async move { receiver.await.unwrap_or(false) }
+                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
                     }),
                 )?,
             )?;
@@ -147,7 +179,7 @@ impl TestController {
                     ctx.clone(),
                     Async(move |window_id: u64| {
                         let receiver = idle.request(TestActionKind::WaitForIdle(window_id));
-                        async move { receiver.await.unwrap_or(false) }
+                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
                     }),
                 )?,
             )?;
@@ -165,13 +197,14 @@ impl TestController {
                 "clickByRole",
                 Function::new(
                     ctx.clone(),
-                    Async(move |window_id: u64, role: String, label: String| {
+                    Async(move |window_id: u64, role: String, label: String, index: Option<usize>| {
                         let receiver = click.request(TestActionKind::ClickByRole {
                             window_id,
                             role,
                             label,
+                            index,
                         });
-                        async move { receiver.await.unwrap_or(false) }
+                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
                     }),
                 )?,
             )?;
@@ -182,7 +215,11 @@ impl TestController {
                 Function::new(
                     ctx.clone(),
                     Async(
-                        move |window_id: u64, role: String, label: String, raw: String| {
+                        move |window_id: u64,
+                              role: String,
+                              label: String,
+                              raw: String,
+                              index: Option<usize>| {
                             let receiver =
                                 serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
                                     input.request(TestActionKind::InputByRole {
@@ -190,11 +227,15 @@ impl TestController {
                                         role,
                                         label,
                                         input: action,
+                                        index,
                                     })
                                 });
                             async move {
                                 match receiver {
-                                    Some(receiver) => receiver.await.unwrap_or(false),
+                                    Some(receiver) => matches!(
+                                        receiver.await,
+                                        Ok(TestActionResult::Handled(true))
+                                    ),
                                     None => false,
                                 }
                             }
@@ -206,30 +247,31 @@ impl TestController {
             let finish = controller.clone();
             capability.set(
                 "finish",
-                Function::new(ctx.clone(), move |report: String| {
-                    if let Ok(mut state) = finish.0.lock() {
-                        state.report = Some(report);
-                        if let Some(wake) = &state.wake {
-                            wake();
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                })?,
+                Function::new(ctx.clone(), move |report: String| finish.finish(report))?,
             )?;
 
-            let query_result = controller.clone();
+            let query = controller.clone();
             capability.set(
-                "takeQueryResult",
-                Function::new(ctx.clone(), move || {
-                    query_result
-                        .0
-                        .lock()
-                        .ok()
-                        .and_then(|mut state| state.query_result.take())
-                        .unwrap_or_else(|| "null".into())
-                })?,
+                "queryByRole",
+                Function::new(
+                    ctx.clone(),
+                    Async(
+                        move |window_id: u64, role: String, label: String, index: Option<usize>| {
+                            let receiver = query.request(TestActionKind::QueryByRole {
+                                window_id,
+                                role,
+                                label,
+                                index,
+                            });
+                            async move {
+                                match receiver.await {
+                                    Ok(TestActionResult::Query(result)) => result,
+                                    _ => None,
+                                }
+                            }
+                        },
+                    ),
+                )?,
             )?;
             Ok(())
         })
@@ -276,6 +318,9 @@ impl TestController {
 
     pub(crate) fn poll_headless_source(&self, window_id: u64, source: &mut dyn FrameSource) {
         let snapshot = source.semantic_snapshot();
+        if let Some(snapshot) = snapshot.as_ref() {
+            self.record_semantic_snapshot(window_id, snapshot.clone());
+        }
         if let Some(snapshot) = snapshot.as_deref()
             && let Some(action) = self.0.lock().ok().and_then(|state| {
                 state.actions.iter().find_map(|action| match &action.kind {
@@ -283,7 +328,10 @@ impl TestController {
                         window_id: target_window,
                         role,
                         label,
-                    } if *target_window == window_id => semantic_target(snapshot, role, label),
+                        index,
+                    } if *target_window == window_id => {
+                        semantic_target(snapshot, role, label, *index)
+                    }
                     _ => None,
                 })
             })
@@ -301,84 +349,42 @@ impl TestController {
                 )
             })?;
             let action = state.actions.get(index)?;
-            let ready = match (&action.kind, snapshot.as_deref()) {
-                (TestActionKind::WaitForIdle(_), _) => true,
-                (kind, Some(snapshot)) => action_semantic_target(kind, snapshot).is_some(),
-                _ => false,
-            };
-            if !ready
-                && Instant::now() >= action.deadline
-                && let Some(snapshot) = snapshot.as_deref()
-            {
-                let requested_role = match &action.kind {
-                    TestActionKind::ClickByRole { role, .. }
-                    | TestActionKind::InputByRole { role, .. } => Some(role.as_str()),
-                    _ => None,
-                };
-                let candidate_count = snapshot
-                    .nodes
-                    .iter()
-                    .filter(|node| {
-                        requested_role.is_none_or(|role| semantic_role_matches(role, node.role))
-                    })
-                    .count();
-                let candidates = snapshot
-                    .nodes
-                    .iter()
-                    .filter(|node| {
-                        requested_role.is_none_or(|role| semantic_role_matches(role, node.role))
-                    })
-                    .take(24)
-                    .filter_map(|node| {
-                        node.label.as_deref().map(|label| {
-                            format!("{:?} {label:?} disabled={}", node.role, node.disabled)
-                        })
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                tracing::warn!(
-                    target: "wabou::test",
-                    action = ?action.kind,
-                    revision = snapshot.revision,
-                    candidate_count,
-                    candidates,
-                    "semantic locator timed out"
-                );
-            }
-            (ready || Instant::now() >= action.deadline)
-                .then(|| state.actions.remove(index))
-                .flatten()
+            let ready = action_ready(&action.kind, snapshot.as_deref());
+            ready.then(|| state.actions.remove(index)).flatten()
         });
         let Some(action) = action else {
             return;
         };
         let handled = match (&action.kind, snapshot.as_deref()) {
             (TestActionKind::WaitForIdle(_), _) => true,
-            (TestActionKind::ClickByRole { role, label, .. }, Some(snapshot)) => {
-                click_semantic_target(source, snapshot, role, label)
-            }
             (
-                TestActionKind::InputByRole {
-                    role, label, input, ..
+                TestActionKind::ClickByRole {
+                    role, label, index, ..
                 },
                 Some(snapshot),
-            ) => input_semantic_target(source, snapshot, role, label, input),
+            ) => click_semantic_target(source, snapshot, role, label, *index),
+            (
+                TestActionKind::InputByRole {
+                    role,
+                    label,
+                    input,
+                    index,
+                    ..
+                },
+                Some(snapshot),
+            ) => input_semantic_target(source, snapshot, role, label, input, *index),
             _ => false,
         };
-        if let (
-            TestActionKind::InputByRole {
-                role,
-                label,
-                input: TestInput::Probe,
-                ..
-            },
-            Some(snapshot),
-        ) = (&action.kind, snapshot.as_deref())
-            && let Some(node) = semantic_query_target(snapshot, role, label)
-        {
-            self.set_query_result(node, snapshot.focus == Some(node.id));
-        }
-        let _ = action.completion.send(handled);
+        let result = match (&action.kind, snapshot.as_deref()) {
+            (
+                TestActionKind::QueryByRole {
+                    role, label, index, ..
+                },
+                Some(snapshot),
+            ) => TestActionResult::Query(locator_query_json(snapshot, role, label, *index)),
+            _ => TestActionResult::Handled(handled),
+        };
+        let _ = action.completion.send(result);
     }
 
     pub(crate) fn has_report(&self) -> bool {
@@ -394,29 +400,181 @@ impl TestController {
             .as_bool()
     }
 
-    fn set_query_result(&self, node: &wabou_shell::SemanticNode, focused: bool) {
-        let toggle_value = |state: Option<wabou_shell::SemanticToggleState>| match state {
-            Some(wabou_shell::SemanticToggleState::Off) => serde_json::Value::Bool(false),
-            Some(wabou_shell::SemanticToggleState::On) => serde_json::Value::Bool(true),
-            Some(wabou_shell::SemanticToggleState::Mixed) => {
-                serde_json::Value::String("mixed".into())
-            }
-            None => serde_json::Value::Null,
-        };
-        let result = serde_json::json!({
+    fn record_semantic_snapshot(&self, window_id: u64, snapshot: Arc<SemanticSnapshot>) {
+        if let Ok(mut state) = self.0.lock() {
+            state.semantic_snapshots.insert(window_id, snapshot);
+        }
+    }
+
+    pub(crate) fn semantic_artifact(&self) -> serde_json::Value {
+        let snapshots = self
+            .0
+            .lock()
+            .map(|state| state.semantic_snapshots.clone())
+            .unwrap_or_default();
+        let mut windows = snapshots.into_iter().collect::<Vec<_>>();
+        windows.sort_unstable_by_key(|(window_id, _)| *window_id);
+        serde_json::json!({
+            "version": 1,
+            "windows": windows
+                .into_iter()
+                .map(|(window_id, snapshot)| semantic_snapshot_json(window_id, &snapshot))
+                .collect::<Vec<_>>(),
+        })
+    }
+}
+
+fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
+    if matches!(kind, TestActionKind::QueryByRole { .. }) {
+        TestActionResult::Query(None)
+    } else {
+        TestActionResult::Handled(false)
+    }
+}
+
+fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
+    let toggle_value = |state: Option<wabou_shell::SemanticToggleState>| match state {
+        Some(wabou_shell::SemanticToggleState::Off) => serde_json::Value::Bool(false),
+        Some(wabou_shell::SemanticToggleState::On) => serde_json::Value::Bool(true),
+        Some(wabou_shell::SemanticToggleState::Mixed) => serde_json::Value::String("mixed".into()),
+        None => serde_json::Value::Null,
+    };
+    serde_json::json!({
             "name": node.label,
             "value": node.value,
+            "numericValue": node.numeric_value,
+            "minNumericValue": node.min_numeric_value,
+            "maxNumericValue": node.max_numeric_value,
+            "bounds": {
+                "x": node.bounds[0],
+                "y": node.bounds[1],
+                "width": node.bounds[2] - node.bounds[0],
+                "height": node.bounds[3] - node.bounds[1],
+            },
             "disabled": node.disabled,
             "checked": toggle_value(node.states.checked),
             "pressed": toggle_value(node.states.pressed),
             "selected": node.states.selected,
             "expanded": node.states.expanded,
             "focused": focused,
+    })
+    .to_string()
+}
+
+fn locator_query_json(
+    snapshot: &SemanticSnapshot,
+    role: &str,
+    label: &str,
+    index: Option<usize>,
+) -> Option<String> {
+    let matches = snapshot
+        .exposed_nodes()
+        .into_iter()
+        .filter(|node| {
+            semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
         })
-        .to_string();
-        if let Ok(mut state) = self.0.lock() {
-            state.query_result = Some(result);
-        }
+        .collect::<Vec<_>>();
+    if matches.is_empty() {
+        return None;
+    }
+    let selected = match index {
+        Some(index) => matches.get(index).copied(),
+        None if matches.len() == 1 => matches.first().copied(),
+        None => matches.first().copied(),
+    };
+    let locator = selected.map(|node| {
+        serde_json::from_str::<serde_json::Value>(&locator_snapshot_json(
+            node,
+            snapshot.focus == Some(node.id),
+        ))
+        .expect("locator snapshots are generated from serializable values")
+    });
+    Some(
+        serde_json::json!({
+            "matchCount": matches.len(),
+            "snapshot": locator,
+        })
+        .to_string(),
+    )
+}
+
+fn semantic_snapshot_json(window_id: u64, snapshot: &SemanticSnapshot) -> serde_json::Value {
+    let toggle = |state: Option<wabou_shell::SemanticToggleState>| match state {
+        Some(wabou_shell::SemanticToggleState::Off) => serde_json::Value::Bool(false),
+        Some(wabou_shell::SemanticToggleState::On) => serde_json::Value::Bool(true),
+        Some(wabou_shell::SemanticToggleState::Mixed) => serde_json::Value::String("mixed".into()),
+        None => serde_json::Value::Null,
+    };
+    serde_json::json!({
+        "windowId": window_id,
+        "revision": snapshot.revision,
+        "rootChildren": snapshot.root_children,
+        "focus": snapshot.focus,
+        "modalRoot": snapshot.modal_root,
+        "nodes": snapshot.nodes.iter().map(|node| serde_json::json!({
+            "id": node.id,
+            "role": semantic_role_name(node.role),
+            // Generic containers inherit concatenated descendant text for
+            // accessibility fallback. That can be enormous and is not a role
+            // addressable by @wabou/test, so it adds noise rather than useful
+            // locator evidence here.
+            "name": if node.role == SemanticRole::Generic {
+                None
+            } else {
+                node.label.as_deref()
+            },
+            // Values can contain credentials or application data. The shape is
+            // useful for diagnostics, but the contents do not belong in an
+            // automatically-created failure artifact.
+            "hasValue": node.value.is_some(),
+            "bounds": node.bounds,
+            "children": node.children,
+            "disabled": node.disabled,
+            "checked": toggle(node.states.checked),
+            "pressed": toggle(node.states.pressed),
+            "selected": node.states.selected,
+            "expanded": node.states.expanded,
+            "focused": snapshot.focus == Some(node.id),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn semantic_role_name(role: SemanticRole) -> &'static str {
+    match role {
+        SemanticRole::Generic => "generic",
+        SemanticRole::Group => "group",
+        SemanticRole::Label => "label",
+        SemanticRole::Heading => "heading",
+        SemanticRole::Button => "button",
+        SemanticRole::TextInput => "textbox",
+        SemanticRole::Image => "img",
+        SemanticRole::RadioGroup => "radiogroup",
+        SemanticRole::Link => "link",
+        SemanticRole::Dialog => "dialog",
+        SemanticRole::Alert => "alert",
+        SemanticRole::Status => "status",
+        SemanticRole::CheckBox => "checkbox",
+        SemanticRole::RadioButton => "radio",
+        SemanticRole::Switch => "switch",
+        SemanticRole::ComboBox => "combobox",
+        SemanticRole::ListBox => "listbox",
+        SemanticRole::Option => "option",
+        SemanticRole::Menu => "menu",
+        SemanticRole::MenuItem => "menuitem",
+        SemanticRole::Tree => "tree",
+        SemanticRole::TreeItem => "treeitem",
+        SemanticRole::Table => "table",
+        SemanticRole::Row => "row",
+        SemanticRole::Cell => "cell",
+        SemanticRole::ColumnHeader => "columnheader",
+        SemanticRole::RowHeader => "rowheader",
+        SemanticRole::Slider => "slider",
+        SemanticRole::ProgressBar => "progressbar",
+        SemanticRole::TabList => "tablist",
+        SemanticRole::Tab => "tab",
+        SemanticRole::TabPanel => "tabpanel",
+        SemanticRole::Grid => "grid",
+        SemanticRole::GridCell => "gridcell",
     }
 }
 
@@ -444,14 +602,17 @@ fn apply_headless_action(state: &mut TestState, action: TestAction) {
         TestActionKind::WaitForIdle(_) => false,
         TestActionKind::ClickByRole { .. } => false,
         TestActionKind::InputByRole { .. } => false,
+        TestActionKind::QueryByRole { .. } => false,
     };
-    let _ = action.completion.send(handled);
+    let _ = action.completion.send(TestActionResult::Handled(handled));
 }
 
 fn action_requires_semantics(kind: &TestActionKind) -> bool {
     matches!(
         kind,
-        TestActionKind::ClickByRole { .. } | TestActionKind::InputByRole { .. }
+        TestActionKind::ClickByRole { .. }
+            | TestActionKind::InputByRole { .. }
+            | TestActionKind::QueryByRole { .. }
     )
 }
 
@@ -463,25 +624,17 @@ fn action_window_id(kind: &TestActionKind) -> Option<u64> {
     match kind {
         TestActionKind::WaitForIdle(window_id)
         | TestActionKind::ClickByRole { window_id, .. }
-        | TestActionKind::InputByRole { window_id, .. } => Some(*window_id),
+        | TestActionKind::InputByRole { window_id, .. }
+        | TestActionKind::QueryByRole { window_id, .. } => Some(*window_id),
         _ => None,
     }
 }
 
-fn action_semantic_target<'a>(
-    kind: &TestActionKind,
-    snapshot: &'a SemanticSnapshot,
-) -> Option<&'a wabou_shell::SemanticNode> {
-    match kind {
-        TestActionKind::InputByRole {
-            role,
-            label,
-            input: TestInput::Probe,
-            ..
-        } => semantic_query_target(snapshot, role, label),
-        TestActionKind::ClickByRole { role, label, .. }
-        | TestActionKind::InputByRole { role, label, .. } => semantic_target(snapshot, role, label),
-        _ => None,
+fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> bool {
+    match (kind, snapshot) {
+        (TestActionKind::WaitForIdle(_), _) => true,
+        (kind, Some(_)) if action_requires_semantics(kind) => true,
+        _ => false,
     }
 }
 
@@ -490,8 +643,9 @@ fn click_semantic_target(
     snapshot: &SemanticSnapshot,
     role: &str,
     label: &str,
+    index: Option<usize>,
 ) -> bool {
-    let Some(node) = semantic_target(snapshot, role, label) else {
+    let Some(node) = semantic_target(snapshot, role, label, index) else {
         return false;
     };
     let point = Point {
@@ -521,11 +675,12 @@ fn input_semantic_target(
     role: &str,
     label: &str,
     input: &TestInput,
+    index: Option<usize>,
 ) -> bool {
     let node = if matches!(input, TestInput::Probe) {
-        semantic_query_target(snapshot, role, label)
+        semantic_query_target(snapshot, role, label, index)
     } else {
-        semantic_target(snapshot, role, label)
+        semantic_target(snapshot, role, label, index)
     };
     let Some(node) = node else {
         return false;
@@ -559,23 +714,29 @@ fn semantic_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
     label: &str,
+    index: Option<usize>,
 ) -> Option<&'a wabou_shell::SemanticNode> {
-    snapshot.nodes.iter().find(|node| {
-        semantic_role_matches(role, node.role)
-            && node.label.as_deref() == Some(label)
-            && !node.disabled
-    })
+    let node = semantic_query_target(snapshot, role, label, index)?;
+    (!node.disabled).then_some(node)
 }
 
 fn semantic_query_target<'a>(
     snapshot: &'a SemanticSnapshot,
     role: &str,
     label: &str,
+    index: Option<usize>,
 ) -> Option<&'a wabou_shell::SemanticNode> {
-    snapshot
-        .nodes
-        .iter()
-        .find(|node| semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label))
+    let exposed = snapshot.exposed_nodes();
+    let mut matches = exposed.into_iter().filter(|node| {
+        semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
+    });
+    match index {
+        Some(index) => matches.nth(index),
+        None => {
+            let node = matches.next()?;
+            matches.next().is_none().then_some(node)
+        }
+    }
 }
 
 fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
@@ -593,13 +754,27 @@ fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
             | ("combobox", SemanticRole::ComboBox)
             | ("listbox", SemanticRole::ListBox)
             | ("option", SemanticRole::Option)
+            | ("menu", SemanticRole::Menu)
+            | ("menuitem", SemanticRole::MenuItem)
+            | ("tree", SemanticRole::Tree)
+            | ("treeitem", SemanticRole::TreeItem)
             | ("table", SemanticRole::Table)
             | ("row", SemanticRole::Row)
             | ("cell", SemanticRole::Cell)
             | ("columnheader", SemanticRole::ColumnHeader)
             | ("rowheader", SemanticRole::RowHeader)
             | ("slider", SemanticRole::Slider)
+            | ("progressbar", SemanticRole::ProgressBar)
+            | ("heading", SemanticRole::Heading)
             | ("label", SemanticRole::Label)
+            | ("group", SemanticRole::Group)
+            | ("img", SemanticRole::Image)
+            | ("radiogroup", SemanticRole::RadioGroup)
+            | ("tablist", SemanticRole::TabList)
+            | ("tab", SemanticRole::Tab)
+            | ("tabpanel", SemanticRole::TabPanel)
+            | ("grid", SemanticRole::Grid)
+            | ("gridcell", SemanticRole::GridCell)
     )
 }
 
@@ -645,8 +820,14 @@ impl ShellExtension for TestDriver {
             let Some(action) = action else {
                 break;
             };
-            let handled = match action.kind {
-                TestActionKind::WaitForIdle(_) => true,
+            if let Some(window_id) = action_window_id(&action.kind)
+                && let Some(snapshot) = context.semantic_snapshot(window_id)
+            {
+                self.controller
+                    .record_semantic_snapshot(window_id, snapshot);
+            }
+            let result = match action.kind {
+                TestActionKind::WaitForIdle(_) => TestActionResult::Handled(true),
                 TestActionKind::NativeClose {
                     window_id,
                     mutable_visibility,
@@ -656,30 +837,41 @@ impl ShellExtension for TestDriver {
                         Some(WindowCapabilities { mutable_visibility }),
                     );
                     self.snapshot(window_id, context);
-                    handled
+                    TestActionResult::Handled(handled)
                 }
                 TestActionKind::ShowWindow(window_id) => {
                     let handled = context.show_window(window_id);
                     self.snapshot(window_id, context);
-                    handled
+                    TestActionResult::Handled(handled)
                 }
                 TestActionKind::ClickByRole {
                     window_id,
                     role,
                     label,
-                } => context.click_by_role(window_id, &role, &label),
+                    index,
+                } => TestActionResult::Handled(match index {
+                    Some(index) => context.click_by_role_at(window_id, &role, &label, index),
+                    None => context.click_by_role(window_id, &role, &label),
+                }),
                 TestActionKind::InputByRole {
                     window_id,
                     role,
                     label,
                     input,
+                    index,
                 } => {
-                    let Some(node) = context.semantic_node_by_role(window_id, &role, &label) else {
-                        let _ = action.completion.send(false);
+                    let node = match index {
+                        Some(index) => {
+                            context.semantic_node_by_role_at(window_id, &role, &label, index)
+                        }
+                        None => context.semantic_node_by_role(window_id, &role, &label),
+                    };
+                    let Some(node) = node else {
+                        let _ = action.completion.send(TestActionResult::Handled(false));
                         continue;
                     };
                     if node.disabled && !matches!(input, TestInput::Probe) {
-                        let _ = action.completion.send(false);
+                        let _ = action.completion.send(TestActionResult::Handled(false));
                         continue;
                     }
                     match &input {
@@ -692,16 +884,24 @@ impl ShellExtension for TestDriver {
                         _ => {}
                     }
                     let events = test_input_events(&node, &input);
-                    if matches!(input, TestInput::Probe) {
-                        let focused = context.semantic_node_focused(window_id, node.id);
-                        self.controller.set_query_result(&node, focused);
-                    }
-                    events
-                        .into_iter()
-                        .all(|event| context.dispatch_event(window_id, event))
+                    TestActionResult::Handled(
+                        events
+                            .into_iter()
+                            .all(|event| context.dispatch_event(window_id, event)),
+                    )
                 }
+                TestActionKind::QueryByRole {
+                    window_id,
+                    role,
+                    label,
+                    index,
+                } => TestActionResult::Query(
+                    context
+                        .semantic_snapshot(window_id)
+                        .and_then(|snapshot| locator_query_json(&snapshot, &role, &label, index)),
+                ),
             };
-            let _ = action.completion.send(handled);
+            let _ = action.completion.send(result);
         }
         if self
             .controller
@@ -790,17 +990,92 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
 mod tests {
     use super::*;
 
+    struct SemanticSource(Arc<SemanticSnapshot>);
+
+    impl FrameSource for SemanticSource {
+        fn build_frame(
+            &mut self,
+            _tcx: &mut wabou_shell::TextContext,
+            _width: u32,
+            _height: u32,
+        ) -> Vec<wabou_shell::layout::PlacedNode> {
+            Vec::new()
+        }
+
+        fn semantic_snapshot(&self) -> Option<Arc<SemanticSnapshot>> {
+            Some(self.0.clone())
+        }
+
+        fn base_color(&self) -> vello::peniko::Color {
+            vello::peniko::Color::BLACK
+        }
+    }
+
     fn node() -> wabou_shell::SemanticNode {
         wabou_shell::SemanticNode {
             id: 7,
             role: SemanticRole::TextInput,
             label: Some("Editor".into()),
             value: None,
+            numeric_value: None,
+            min_numeric_value: None,
+            max_numeric_value: None,
             bounds: [10.0, 20.0, 110.0, 60.0],
             children: Vec::new(),
             disabled: false,
             states: wabou_shell::SemanticStates::default(),
         }
+    }
+
+    #[test]
+    fn semantic_failure_artifact_exposes_structure_without_control_values() {
+        let controller = TestController::default();
+        let mut sensitive = node();
+        sensitive.value = Some("must-not-be-persisted".into());
+        sensitive.states.checked = Some(wabou_shell::SemanticToggleState::Mixed);
+        let mut generic = node();
+        generic.id = 8;
+        generic.role = SemanticRole::Generic;
+        generic.label = Some("large concatenated descendant label".into());
+        controller.record_semantic_snapshot(
+            2,
+            Arc::new(SemanticSnapshot {
+                revision: 9,
+                nodes: vec![sensitive, generic],
+                root_children: vec![7, 8],
+                focus: Some(7),
+                modal_root: None,
+            }),
+        );
+
+        let artifact = controller.semantic_artifact();
+        assert_eq!(artifact["version"], 1);
+        assert_eq!(artifact["windows"][0]["windowId"], 2);
+        assert_eq!(artifact["windows"][0]["nodes"][0]["role"], "textbox");
+        assert_eq!(artifact["windows"][0]["nodes"][0]["hasValue"], true);
+        assert_eq!(artifact["windows"][0]["nodes"][0]["checked"], "mixed");
+        assert_eq!(artifact["windows"][0]["nodes"][0]["focused"], true);
+        assert_eq!(
+            artifact["windows"][0]["nodes"][1]["name"],
+            serde_json::Value::Null
+        );
+        assert!(!artifact.to_string().contains("must-not-be-persisted"));
+        assert!(
+            !artifact
+                .to_string()
+                .contains("large concatenated descendant label")
+        );
+    }
+
+    #[test]
+    fn locator_snapshot_exposes_logical_origin_and_size() {
+        let snapshot =
+            serde_json::from_str::<serde_json::Value>(&locator_snapshot_json(&node(), false))
+                .unwrap();
+        assert_eq!(
+            snapshot["bounds"],
+            serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
+        );
     }
 
     #[test]
@@ -865,10 +1140,204 @@ mod tests {
                     ..node()
                 },
             ],
+            root_children: vec![7, 8],
             ..SemanticSnapshot::default()
         };
 
-        assert!(semantic_target(&snapshot, "alert", "Failed").is_some());
-        assert!(semantic_target(&snapshot, "status", "Saved").is_some());
+        assert!(semantic_target(&snapshot, "alert", "Failed", None).is_some());
+        assert!(semantic_target(&snapshot, "status", "Saved", None).is_some());
+    }
+
+    #[test]
+    fn headless_locators_support_repository_component_roles() {
+        let roles = [
+            ("group", SemanticRole::Group),
+            ("img", SemanticRole::Image),
+            ("radiogroup", SemanticRole::RadioGroup),
+            ("menu", SemanticRole::Menu),
+            ("menuitem", SemanticRole::MenuItem),
+            ("tree", SemanticRole::Tree),
+            ("treeitem", SemanticRole::TreeItem),
+            ("tablist", SemanticRole::TabList),
+            ("tab", SemanticRole::Tab),
+            ("tabpanel", SemanticRole::TabPanel),
+            ("grid", SemanticRole::Grid),
+            ("gridcell", SemanticRole::GridCell),
+        ];
+        let nodes = roles
+            .iter()
+            .enumerate()
+            .map(|(index, (_, role))| wabou_shell::SemanticNode {
+                id: index as u64 + 10,
+                role: *role,
+                label: Some("Target".into()),
+                ..node()
+            })
+            .collect::<Vec<_>>();
+        let snapshot = SemanticSnapshot {
+            root_children: nodes.iter().map(|node| node.id).collect(),
+            nodes,
+            ..SemanticSnapshot::default()
+        };
+
+        for (role, _) in roles {
+            assert!(
+                semantic_target(&snapshot, role, "Target", None).is_some(),
+                "missing locator role {role}"
+            );
+        }
+    }
+
+    #[test]
+    fn headless_semantic_actions_read_each_completed_snapshot_without_native_timeout() {
+        let snapshot = SemanticSnapshot::default();
+        let probe = TestActionKind::InputByRole {
+            window_id: 1,
+            role: "button".into(),
+            label: "Appears later".into(),
+            input: TestInput::Probe,
+            index: None,
+        };
+        let click = TestActionKind::ClickByRole {
+            window_id: 1,
+            role: "button".into(),
+            label: "Appears later".into(),
+            index: None,
+        };
+
+        assert!(action_ready(&probe, Some(&snapshot)));
+        assert!(action_ready(&click, Some(&snapshot)));
+    }
+
+    #[test]
+    fn concurrent_queries_keep_results_attached_to_their_requests() {
+        let controller = TestController::default();
+        controller.initialize_headless([1, 2]);
+        let first = controller.request(TestActionKind::QueryByRole {
+            window_id: 1,
+            role: "textbox".into(),
+            label: "First".into(),
+            index: None,
+        });
+        let second = controller.request(TestActionKind::QueryByRole {
+            window_id: 2,
+            role: "textbox".into(),
+            label: "Second".into(),
+            index: None,
+        });
+        let snapshot = |label: &str, value: &str| {
+            let mut target = node();
+            target.label = Some(label.into());
+            target.value = Some(value.into());
+            Arc::new(SemanticSnapshot {
+                root_children: vec![target.id],
+                nodes: vec![target],
+                ..SemanticSnapshot::default()
+            })
+        };
+        let mut first_source = SemanticSource(snapshot("First", "one"));
+        let mut second_source = SemanticSource(snapshot("Second", "two"));
+
+        // Complete both requests before either receiver is observed. A shared
+        // query-result slot would overwrite or consume one of these values.
+        controller.poll_headless_source(1, &mut first_source);
+        controller.poll_headless_source(2, &mut second_source);
+
+        let TestActionResult::Query(Some(first)) = first.blocking_recv().unwrap() else {
+            panic!("first query did not return its snapshot")
+        };
+        let TestActionResult::Query(Some(second)) = second.blocking_recv().unwrap() else {
+            panic!("second query did not return its snapshot")
+        };
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&first).unwrap()["snapshot"]["value"],
+            "one"
+        );
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&second).unwrap()["snapshot"]["value"],
+            "two"
+        );
+    }
+
+    #[test]
+    fn locator_queries_report_ambiguous_matches_without_selecting_one() {
+        let mut duplicate = node();
+        duplicate.id = 8;
+        let snapshot = SemanticSnapshot {
+            nodes: vec![node(), duplicate],
+            root_children: vec![7, 8],
+            ..SemanticSnapshot::default()
+        };
+
+        let query = serde_json::from_str::<serde_json::Value>(
+            &locator_query_json(&snapshot, "textbox", "Editor", None).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(query["matchCount"], 2);
+        assert!(semantic_query_target(&snapshot, "textbox", "Editor", None).is_none());
+        assert!(semantic_target(&snapshot, "textbox", "Editor", None).is_none());
+        assert_eq!(
+            semantic_query_target(&snapshot, "textbox", "Editor", Some(1)).map(|node| node.id),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn locators_cannot_query_nodes_behind_an_active_modal() {
+        let mut background = node();
+        background.id = 7;
+        background.role = SemanticRole::Button;
+        background.label = Some("Background".into());
+        let mut modal = node();
+        modal.id = 8;
+        modal.role = SemanticRole::Dialog;
+        modal.label = Some("Settings".into());
+        let snapshot = SemanticSnapshot {
+            nodes: vec![background, modal],
+            root_children: vec![7, 8],
+            modal_root: Some(8),
+            ..SemanticSnapshot::default()
+        };
+
+        assert!(locator_query_json(&snapshot, "button", "Background", None).is_none());
+        assert!(semantic_target(&snapshot, "button", "Background", None).is_none());
+        assert!(semantic_target(&snapshot, "dialog", "Settings", None).is_some());
+    }
+
+    #[test]
+    fn finishing_cancels_pending_and_future_actions_without_replacing_the_report() {
+        let controller = TestController::default();
+        let pending_input = controller.request(TestActionKind::ClickByRole {
+            window_id: 1,
+            role: "button".into(),
+            label: "Late action".into(),
+            index: None,
+        });
+        let pending_query = controller.request(TestActionKind::QueryByRole {
+            window_id: 1,
+            role: "textbox".into(),
+            label: "Late query".into(),
+            index: None,
+        });
+
+        assert!(controller.finish("first report".into()));
+        assert!(!controller.finish("replacement report".into()));
+        assert!(matches!(
+            pending_input.blocking_recv(),
+            Ok(TestActionResult::Handled(false))
+        ));
+        assert!(matches!(
+            pending_query.blocking_recv(),
+            Ok(TestActionResult::Query(None))
+        ));
+
+        let future = controller.request(TestActionKind::WaitForIdle(1));
+        assert!(matches!(
+            future.blocking_recv(),
+            Ok(TestActionResult::Handled(false))
+        ));
+        let state = controller.0.lock().unwrap();
+        assert!(state.actions.is_empty());
+        assert_eq!(state.report.as_deref(), Some("first report"));
     }
 }

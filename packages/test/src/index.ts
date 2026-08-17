@@ -1,5 +1,36 @@
 import { defaultHost } from "@wabou/solid-renderer";
+import {
+  decodeLocatorQuery,
+  decodeNativeLocatorQuery,
+  LocatorAmbiguousError,
+  locatorQueryIsAbsent,
+  locatorQueryMatchCount,
+} from "./locator-query";
+import {
+  type PollOptions,
+  pollUntil,
+  type ResolvedPollOptions,
+  resolvePollOptions,
+} from "./poll";
 import { replayActions } from "./replay";
+import {
+  replayTimeout,
+  SUITE_TIMEOUT,
+  SuiteTimeoutError,
+  TestTimeoutError,
+  testTimeout,
+  withSuiteTimeout,
+  withTestTimeout,
+} from "./timeout";
+import {
+  validateInputDeltas,
+  validateKey,
+  validateLocatorCount,
+  validateSurfaceGeneration,
+  validateTolerance,
+  validateWindowId,
+  validateWindowPresence,
+} from "./validation";
 
 export interface NativeWindowState {
   presence: "visible" | "hidden" | "surface-released" | "closed";
@@ -11,14 +42,25 @@ interface NativeTestCapability {
   nativeClose(windowId: number, mutableVisibility: boolean): Promise<boolean>;
   showWindow(windowId: number): Promise<boolean>;
   windowState(windowId: number): string;
-  clickByRole(windowId: number, role: string, label: string): Promise<boolean>;
+  clickByRole(
+    windowId: number,
+    role: string,
+    label: string,
+    index: number | null,
+  ): Promise<boolean>;
   inputByRole(
     windowId: number,
     role: string,
     label: string,
     input: string,
+    index: number | null,
   ): Promise<boolean>;
-  takeQueryResult(): string;
+  queryByRole(
+    windowId: number,
+    role: string,
+    label: string,
+    index: number | null,
+  ): Promise<string | null | undefined>;
   finish(report: string): boolean;
 }
 
@@ -30,25 +72,31 @@ declare module "@wabou/solid-renderer" {
 
 export interface TestContext {
   readonly page: TestPage;
-  readonly window: {
-    nativeClose(
-      windowId: number,
-      platform: "wayland" | "mutable-visibility",
-    ): Promise<void>;
-    show(windowId: number): Promise<void>;
-    state(windowId: number): NativeWindowState | null;
-  };
+  readonly window: TestWindow;
+}
+
+export interface TestWindow {
+  nativeClose(
+    windowId: number,
+    platform: "wayland" | "mutable-visibility",
+  ): Promise<void>;
+  show(windowId: number): Promise<void>;
+  state(windowId: number): NativeWindowState | null;
 }
 
 export interface TestPage {
   /** Bind subsequent locators and frame barriers to one logical window. */
   forWindow(windowId: number): TestPage;
-  getByRole(role: SemanticRole, options: { name: string }): Locator;
+  getByRole(
+    role: SemanticRole,
+    options: { name: string; index?: number },
+  ): Locator;
   waitForIdle(): Promise<void>;
 }
 
 export type SemanticRole =
   | "button"
+  | "group"
   | "textbox"
   | "link"
   | "dialog"
@@ -60,18 +108,38 @@ export type SemanticRole =
   | "combobox"
   | "listbox"
   | "option"
+  | "menu"
+  | "menuitem"
+  | "tree"
+  | "treeitem"
   | "table"
   | "row"
   | "cell"
   | "columnheader"
   | "rowheader"
   | "slider"
-  | "label";
+  | "progressbar"
+  | "heading"
+  | "label"
+  | "img"
+  | "radiogroup"
+  | "tablist"
+  | "tab"
+  | "tabpanel"
+  | "grid"
+  | "gridcell";
 
 export interface Locator {
   readonly windowId: number;
-  click(): Promise<void>;
-  dragBy(deltaX: number, deltaY: number): Promise<void>;
+  readonly role: SemanticRole;
+  readonly name: string;
+  readonly index?: number;
+  click(options?: LocatorWaitOptions): Promise<void>;
+  dragBy(
+    deltaX: number,
+    deltaY: number,
+    options?: LocatorWaitOptions,
+  ): Promise<void>;
   press(
     key: string,
     modifiers?: {
@@ -80,18 +148,27 @@ export interface Locator {
       alt?: boolean;
       meta?: boolean;
     },
+    options?: LocatorWaitOptions,
   ): Promise<void>;
-  type(text: string): Promise<void>;
-  paste(text: string): Promise<void>;
-  ime(text: string): Promise<void>;
-  wheel(deltaY: number, deltaX?: number): Promise<void>;
-  waitFor(): Promise<void>;
+  type(text: string, options?: LocatorWaitOptions): Promise<void>;
+  paste(text: string, options?: LocatorWaitOptions): Promise<void>;
+  ime(text: string, options?: LocatorWaitOptions): Promise<void>;
+  wheel(
+    deltaY: number,
+    deltaX?: number,
+    options?: LocatorWaitOptions,
+  ): Promise<void>;
+  waitFor(options?: LocatorWaitOptions): Promise<void>;
   snapshot(): Promise<LocatorSnapshot>;
 }
 
 export interface LocatorSnapshot {
   name: string | null;
   value: string | null;
+  numericValue: number | null;
+  minNumericValue: number | null;
+  maxNumericValue: number | null;
+  bounds: LocatorBounds;
   disabled: boolean;
   checked: boolean | "mixed" | null;
   pressed: boolean | "mixed" | null;
@@ -100,10 +177,21 @@ export interface LocatorSnapshot {
   focused: boolean;
 }
 
-export interface LocatorAssertionOptions {
-  timeout?: number;
-  interval?: number;
+export interface LocatorBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
+
+export interface LocatorNumericRange {
+  value: number;
+  min: number;
+  max: number;
+}
+
+export type LocatorWaitOptions = PollOptions;
+export type LocatorAssertionOptions = LocatorWaitOptions;
 
 export type TestInput =
   | { type: "probe" }
@@ -114,10 +202,64 @@ export type TestInput =
   | { type: "ime"; text: string }
   | { type: "wheel"; deltaX: number; deltaY: number };
 
+export type LocatorAssertion =
+  | { type: "absent" }
+  | { type: "count"; expected: number }
+  | { type: "text"; expected: string }
+  | { type: "value"; expected: string }
+  | {
+      type: "numericRange";
+      expected: Partial<LocatorNumericRange>;
+      tolerance: number;
+    }
+  | { type: "disabled"; expected: boolean }
+  | { type: "checked"; expected: boolean | "mixed" }
+  | { type: "selected"; expected: boolean }
+  | { type: "expanded"; expected: boolean }
+  | { type: "pressed"; expected: boolean }
+  | { type: "focused"; expected: boolean }
+  | {
+      type: "bounds";
+      expected: Partial<LocatorBounds>;
+      tolerance: number;
+    };
+
+export interface BoundsAssertionOptions extends LocatorAssertionOptions {
+  /** Maximum absolute difference for supplied coordinates, in logical pixels. */
+  tolerance?: number;
+}
+
+export interface NumericRangeAssertionOptions extends LocatorAssertionOptions {
+  /** Maximum absolute difference; defaults to 1e-9. */
+  tolerance?: number;
+}
+
+export const TEST_ARTIFACT_VERSION = 1 as const;
+
+export interface TestEnvironment {
+  backend: "deterministic" | "native";
+  os: string;
+  arch: string;
+  wabouVersion: string;
+}
+
 export interface TestReport {
+  version: typeof TEST_ARTIFACT_VERSION;
+  /** Added by the Rust host before report.json is written. */
+  environment?: TestEnvironment;
   passed: boolean;
-  tests: Array<{ name: string; passed: boolean; error?: string }>;
+  tests: TestResult[];
   trace: TestAction[];
+}
+
+export interface TestResult {
+  name: string;
+  passed: boolean;
+  error?: string;
+  /** Half-open range into the report's action trace. */
+  traceStart: number;
+  traceEnd: number;
+  durationMs: number;
 }
 
 export type TestAction =
@@ -132,18 +274,54 @@ export type TestAction =
       windowId: number;
       role: SemanticRole;
       label: string;
+      index?: number;
+      wait?: ResolvedPollOptions;
     }
   | {
       action: "inputByRole";
       windowId: number;
       role: SemanticRole;
       label: string;
+      index?: number;
       input: TestInput;
+      wait?: ResolvedPollOptions;
+    }
+  | {
+      action: "waitForByRole";
+      windowId: number;
+      role: SemanticRole;
+      label: string;
+      index?: number;
+      wait: ResolvedPollOptions;
+    }
+  | {
+      action: "assertByRole";
+      windowId: number;
+      role: SemanticRole;
+      label: string;
+      index?: number;
+      assertion: LocatorAssertion;
+      wait: ResolvedPollOptions;
+    }
+  | {
+      action: "assertWindowState";
+      windowId: number;
+      expected: NativeWindowState;
+      wait: ResolvedPollOptions;
     };
 
 type TestBody = (context: TestContext) => void | Promise<void>;
-const tests: Array<{ name: string; body: TestBody }> = [];
+export interface TestOptions {
+  /** Per-test timeout in milliseconds. Defaults to 5 seconds. */
+  timeout?: number;
+}
+const tests: Array<{ name: string; body: TestBody; timeout: number }> = [];
+const testNames = new Set<string>();
+const registrationErrors: string[] = [];
 const trace: TestAction[] = [];
+const MAX_LOCATOR_INDEX = 0xffff_ffff;
+
+class LocatorNotFoundError extends Error {}
 
 function capability(): NativeTestCapability {
   const value = defaultHost.test;
@@ -152,9 +330,7 @@ function capability(): NativeTestCapability {
 }
 
 function createPage(windowId: number): TestPage {
-  if (!Number.isSafeInteger(windowId) || windowId <= 0) {
-    throw new RangeError(`invalid Wabou window id ${windowId}`);
-  }
+  validateWindowId(windowId);
   return {
     forWindow(nextWindowId) {
       return createPage(nextWindowId);
@@ -172,78 +348,234 @@ function createPage(windowId: number): TestPage {
       }
     },
     getByRole(role, options) {
-      const input = async (value: TestInput): Promise<void> => {
-        trace.push({
-          action: "inputByRole",
-          windowId,
-          role,
-          label: options.name,
-          input: value,
-        });
+      const index = options.index;
+      if (
+        index !== undefined &&
+        (!Number.isSafeInteger(index) || index < 0 || index > MAX_LOCATOR_INDEX)
+      ) {
+        throw new RangeError(
+          `locator index must be an integer between 0 and ${MAX_LOCATOR_INDEX}`,
+        );
+      }
+      const locatorLabel = `${role} named ${JSON.stringify(options.name)}${index === undefined ? "" : ` at index ${index}`}`;
+      const description = `${locatorLabel} in window ${windowId}`;
+      const sendInput = async (value: TestInput): Promise<boolean> => {
         if (
           !(await capability().inputByRole(
             windowId,
             role,
             options.name,
             JSON.stringify(value),
+            index ?? null,
           ))
         ) {
-          throw new Error(
-            `no enabled ${role} named ${JSON.stringify(options.name)}`,
-          );
+          return false;
+        }
+        return true;
+      };
+      const input = async (value: TestInput): Promise<void> => {
+        if (!(await sendInput(value))) {
+          throw new Error(`no enabled ${locatorLabel}`);
         }
       };
+      const probe = async (): Promise<LocatorSnapshot | null> => {
+        const result = await capability().queryByRole(
+          windowId,
+          role,
+          options.name,
+          index ?? null,
+        );
+        return decodeLocatorQuery<LocatorSnapshot>(result, description, index);
+      };
       const snapshot = async (): Promise<LocatorSnapshot> => {
-        await input({ type: "probe" });
-        const value = JSON.parse(
-          capability().takeQueryResult(),
-        ) as LocatorSnapshot | null;
-        if (!value)
-          throw new Error(
-            `no semantic snapshot for ${role} named ${JSON.stringify(options.name)}`,
-          );
+        const value = await probe();
+        if (!value) {
+          throw new LocatorNotFoundError(`no ${locatorLabel}`);
+        }
         return value;
+      };
+      const waitUntilActionable = async (
+        assertionOptions: LocatorWaitOptions = {},
+      ): Promise<void> => {
+        const wait = resolvePollOptions(assertionOptions);
+        let ambiguity: string | undefined;
+        const result = await pollUntil(
+          async () => {
+            try {
+              const value = await probe();
+              ambiguity = undefined;
+              return value;
+            } catch (error) {
+              if (!(error instanceof LocatorAmbiguousError)) throw error;
+              ambiguity = error.message;
+              return null;
+            }
+          },
+          (state) => state !== null && !state.disabled,
+          wait,
+          () => createPage(windowId).waitForIdle(),
+        );
+        if (result.matched) return;
+        throw new Error(
+          (ambiguity === undefined
+            ? undefined
+            : `${ambiguity} after ${wait.timeout}ms`) ??
+            `no enabled ${locatorLabel} after ${wait.timeout}ms`,
+        );
       };
       return {
         windowId,
-        async click() {
+        role,
+        name: options.name,
+        index,
+        async click(assertionOptions) {
+          const wait = resolvePollOptions(assertionOptions);
           trace.push({
             action: "clickByRole",
             windowId,
             role,
             label: options.name,
+            index,
+            wait,
           });
-          if (!(await capability().clickByRole(windowId, role, options.name))) {
-            throw new Error(
-              `no enabled ${role} named ${JSON.stringify(options.name)}`,
-            );
+          await waitUntilActionable(wait);
+          if (
+            !(await capability().clickByRole(
+              windowId,
+              role,
+              options.name,
+              index ?? null,
+            ))
+          ) {
+            throw new Error(`no enabled ${locatorLabel}`);
           }
         },
-        dragBy(deltaX, deltaY) {
-          return input({ type: "drag", deltaX, deltaY });
+        async dragBy(deltaX, deltaY, assertionOptions) {
+          validateInputDeltas("drag", deltaX, deltaY);
+          const wait = resolvePollOptions(assertionOptions);
+          trace.push({
+            action: "inputByRole",
+            windowId,
+            role,
+            label: options.name,
+            index,
+            input: { type: "drag", deltaX, deltaY },
+            wait,
+          });
+          await waitUntilActionable(wait);
+          await input({ type: "drag", deltaX, deltaY });
         },
-        press(key, modifiers = {}) {
+        async press(key, modifiers = {}, assertionOptions) {
+          validateKey(key);
           const bits =
             (modifiers.shift ? 1 : 0) |
             (modifiers.control ? 2 : 0) |
             (modifiers.alt ? 4 : 0) |
             (modifiers.meta ? 8 : 0);
-          return input({ type: "key", key, modifiers: bits });
+          const wait = resolvePollOptions(assertionOptions);
+          trace.push({
+            action: "inputByRole",
+            windowId,
+            role,
+            label: options.name,
+            index,
+            input: { type: "key", key, modifiers: bits },
+            wait,
+          });
+          await waitUntilActionable(wait);
+          await input({ type: "key", key, modifiers: bits });
         },
-        type(text) {
-          return input({ type: "text", text });
+        async type(text, assertionOptions) {
+          const wait = resolvePollOptions(assertionOptions);
+          trace.push({
+            action: "inputByRole",
+            windowId,
+            role,
+            label: options.name,
+            index,
+            input: { type: "text", text },
+            wait,
+          });
+          await waitUntilActionable(wait);
+          await input({ type: "text", text });
         },
-        paste(text) {
-          return input({ type: "paste", text });
+        async paste(text, assertionOptions) {
+          const wait = resolvePollOptions(assertionOptions);
+          trace.push({
+            action: "inputByRole",
+            windowId,
+            role,
+            label: options.name,
+            index,
+            input: { type: "paste", text },
+            wait,
+          });
+          await waitUntilActionable(wait);
+          await input({ type: "paste", text });
         },
-        ime(text) {
-          return input({ type: "ime", text });
+        async ime(text, assertionOptions) {
+          const wait = resolvePollOptions(assertionOptions);
+          trace.push({
+            action: "inputByRole",
+            windowId,
+            role,
+            label: options.name,
+            index,
+            input: { type: "ime", text },
+            wait,
+          });
+          await waitUntilActionable(wait);
+          await input({ type: "ime", text });
         },
-        wheel(deltaY, deltaX = 0) {
-          return input({ type: "wheel", deltaX, deltaY });
+        async wheel(deltaY, deltaX = 0, assertionOptions) {
+          validateInputDeltas("wheel", deltaX, deltaY);
+          const wait = resolvePollOptions(assertionOptions);
+          trace.push({
+            action: "inputByRole",
+            windowId,
+            role,
+            label: options.name,
+            index,
+            input: { type: "wheel", deltaX, deltaY },
+            wait,
+          });
+          await waitUntilActionable(wait);
+          await input({ type: "wheel", deltaX, deltaY });
         },
-        waitFor() {
-          return input({ type: "probe" });
+        async waitFor(assertionOptions = {}) {
+          const wait = resolvePollOptions(assertionOptions);
+          trace.push({
+            action: "waitForByRole",
+            windowId,
+            role,
+            label: options.name,
+            index,
+            wait,
+          });
+          let ambiguity: string | undefined;
+          const result = await pollUntil(
+            async () => {
+              try {
+                const value = await probe();
+                ambiguity = undefined;
+                return value;
+              } catch (error) {
+                if (!(error instanceof LocatorAmbiguousError)) throw error;
+                ambiguity = error.message;
+                return null;
+              }
+            },
+            (state) => state !== null,
+            wait,
+            () => createPage(windowId).waitForIdle(),
+          );
+          if (result.matched) return;
+          throw new Error(
+            (ambiguity === undefined
+              ? undefined
+              : `${ambiguity} after ${wait.timeout}ms`) ??
+              `no ${locatorLabel} after ${wait.timeout}ms`,
+          );
         },
         snapshot,
       };
@@ -255,6 +587,7 @@ const context: TestContext = {
   page: createPage(1),
   window: {
     async nativeClose(windowId, platform) {
+      validateWindowId(windowId);
       trace.push({ action: "nativeClose", windowId, platform });
       if (!(await capability().nativeClose(windowId, platform !== "wayland"))) {
         throw new Error(
@@ -263,12 +596,14 @@ const context: TestContext = {
       }
     },
     async show(windowId) {
+      validateWindowId(windowId);
       trace.push({ action: "showWindow", windowId });
       if (!(await capability().showWindow(windowId))) {
         throw new Error(`failed to enqueue show for window ${windowId}`);
       }
     },
     state(windowId) {
+      validateWindowId(windowId);
       return JSON.parse(
         capability().windowState(windowId),
       ) as NativeWindowState | null;
@@ -276,15 +611,256 @@ const context: TestContext = {
   },
 };
 
-export function test(name: string, body: TestBody): void {
-  tests.push({ name, body });
+export function test(
+  name: string,
+  body: TestBody,
+  options: TestOptions = {},
+): void {
+  if (name.trim() === "") {
+    registrationErrors.push("test name cannot be empty");
+    return;
+  }
+  if (testNames.has(name)) {
+    registrationErrors.push(`duplicate test name ${JSON.stringify(name)}`);
+    return;
+  }
+  let timeout: number;
+  try {
+    timeout = testTimeout(options.timeout);
+  } catch (error) {
+    registrationErrors.push(
+      `invalid options for test ${JSON.stringify(name)}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
+  testNames.add(name);
+  tests.push({ name, body, timeout });
+}
+
+function locatorAssertionDiagnostic(
+  assertion: LocatorAssertion,
+  state: LocatorSnapshot,
+): string | null {
+  if (assertion.type === "absent" || assertion.type === "count") {
+    throw new Error(
+      `${assertion.type} assertions do not accept a locator snapshot`,
+    );
+  }
+  if (assertion.type === "text") {
+    const value = state.value ?? state.name;
+    return value === assertion.expected
+      ? null
+      : `expected locator text ${JSON.stringify(value)} to be ${JSON.stringify(assertion.expected)}`;
+  }
+  if (assertion.type === "value")
+    return state.value === assertion.expected
+      ? null
+      : `expected locator value ${JSON.stringify(state.value)} to be ${JSON.stringify(assertion.expected)}`;
+  if (assertion.type === "numericRange") {
+    const actual: LocatorNumericRange = {
+      value: state.numericValue as number,
+      min: state.minNumericValue as number,
+      max: state.maxNumericValue as number,
+    };
+    for (const key of ["value", "min", "max"] as const) {
+      const expected = assertion.expected[key];
+      if (
+        expected !== undefined &&
+        (actual[key] === null ||
+          Math.abs(actual[key] - expected) > assertion.tolerance)
+      ) {
+        return `expected locator numeric range.${key} ${JSON.stringify(actual[key])} to be within ${assertion.tolerance} of ${expected}`;
+      }
+    }
+    return null;
+  }
+  if (assertion.type === "disabled")
+    return state.disabled === assertion.expected
+      ? null
+      : `expected locator to be ${assertion.expected ? "disabled" : "enabled"}`;
+  if (assertion.type === "checked")
+    return state.checked === assertion.expected
+      ? null
+      : `expected locator to be ${assertion.expected === "mixed" ? "indeterminate" : assertion.expected ? "checked" : "unchecked"}, received ${JSON.stringify(state.checked)}`;
+  if (assertion.type === "selected")
+    return state.selected === assertion.expected
+      ? null
+      : `expected locator to be ${assertion.expected ? "selected" : "deselected"}, received ${JSON.stringify(state.selected)}`;
+  if (assertion.type === "expanded")
+    return state.expanded === assertion.expected
+      ? null
+      : `expected locator to be ${assertion.expected ? "expanded" : "collapsed"}, received ${JSON.stringify(state.expanded)}`;
+  if (assertion.type === "pressed")
+    return state.pressed === assertion.expected
+      ? null
+      : `expected locator to be ${assertion.expected ? "pressed" : "unpressed"}, received ${JSON.stringify(state.pressed)}`;
+  if (assertion.type === "bounds") {
+    for (const key of ["x", "y", "width", "height"] as const) {
+      const expected = assertion.expected[key];
+      if (
+        expected !== undefined &&
+        Math.abs(state.bounds[key] - expected) > assertion.tolerance
+      ) {
+        return `expected locator bounds.${key} ${state.bounds[key]} to be within ${assertion.tolerance}px of ${expected}`;
+      }
+    }
+    return null;
+  }
+  return state.focused === assertion.expected
+    ? null
+    : `expected locator to be ${assertion.expected ? "focused" : "blurred"}`;
+}
+
+async function locatorAbsenceDiagnostic(
+  target: Locator,
+): Promise<string | null> {
+  const raw = await capability().queryByRole(
+    target.windowId,
+    target.role,
+    target.name,
+    target.index ?? null,
+  );
+  if (locatorQueryIsAbsent(raw, target.index)) {
+    return null;
+  }
+  const query = decodeNativeLocatorQuery<LocatorSnapshot>(raw);
+  if (query === null) throw new Error("unreachable absent locator query");
+  const occurrence =
+    target.index === undefined ? "" : ` at index ${target.index}`;
+  return `expected ${target.role} named ${JSON.stringify(target.name)}${occurrence} to be absent, found ${query.matchCount} matching semantic ${query.matchCount === 1 ? "node" : "nodes"}`;
+}
+
+async function locatorCountDiagnostic(
+  target: Locator,
+  expected: number,
+): Promise<string | null> {
+  if (target.index !== undefined) {
+    throw new Error("toHaveCount requires an unindexed locator");
+  }
+  const raw = await capability().queryByRole(
+    target.windowId,
+    target.role,
+    target.name,
+    null,
+  );
+  const actual = locatorQueryMatchCount(raw);
+  return actual === expected
+    ? null
+    : `expected ${target.role} named ${JSON.stringify(target.name)} to have ${expected} ${expected === 1 ? "match" : "matches"}, found ${actual}`;
+}
+
+async function assertLocatorEventually(
+  target: Locator,
+  assertion: LocatorAssertion,
+  options: LocatorAssertionOptions = {},
+): Promise<void> {
+  const wait = resolvePollOptions(options);
+  trace.push({
+    action: "assertByRole",
+    windowId: target.windowId,
+    role: target.role,
+    label: target.name,
+    index: target.index,
+    assertion,
+    wait,
+  });
+  const result = await pollUntil(
+    async () => {
+      if (assertion.type === "absent") {
+        return locatorAbsenceDiagnostic(target);
+      }
+      if (assertion.type === "count") {
+        return locatorCountDiagnostic(target, assertion.expected);
+      }
+      try {
+        return locatorAssertionDiagnostic(assertion, await target.snapshot());
+      } catch (error) {
+        if (
+          !(error instanceof LocatorNotFoundError) &&
+          !(error instanceof LocatorAmbiguousError)
+        )
+          throw error;
+        return error.message;
+      }
+    },
+    (diagnostic) => diagnostic === null,
+    wait,
+    () => createPage(target.windowId).waitForIdle(),
+  );
+  if (!result.matched)
+    throw new Error(`${result.value} after ${wait.timeout}ms`);
 }
 
 /** Register a previously recorded action trace as a behavior test. */
 export function replay(actions: readonly TestAction[]): void {
-  test("replay action trace", async ({ window }) => {
-    await replayActions(actions, context.page, window);
+  test(
+    "replay action trace",
+    async ({ window }) => {
+      await replayActions(
+        actions,
+        context.page,
+        window,
+        replayLocatorAssertion,
+        replayWindowAssertion,
+      );
+    },
+    { timeout: replayTimeout(actions) },
+  );
+}
+
+async function replayLocatorAssertion(
+  locator: Locator,
+  action: Extract<TestAction, { action: "assertByRole" }>,
+): Promise<void> {
+  await assertLocatorEventually(locator, action.assertion, action.wait);
+}
+
+async function replayWindowAssertion(
+  window: TestWindow,
+  action: Extract<TestAction, { action: "assertWindowState" }>,
+): Promise<void> {
+  await assertWindowStateEventually(
+    window,
+    action.windowId,
+    action.expected,
+    action.wait,
+  );
+}
+
+async function assertWindowStateEventually(
+  target: TestWindow,
+  windowId: number,
+  expected: NativeWindowState,
+  options: LocatorAssertionOptions = {},
+): Promise<void> {
+  validateWindowId(windowId);
+  validateWindowPresence(expected.presence);
+  validateSurfaceGeneration(expected.surfaceGeneration);
+  const wait = resolvePollOptions(options);
+  // Capture the authored expectation so later object mutation cannot rewrite a
+  // completed assertion in report.json.
+  const recorded: NativeWindowState = {
+    presence: expected.presence,
+    surfaceGeneration: expected.surfaceGeneration,
+  };
+  trace.push({
+    action: "assertWindowState",
+    windowId,
+    expected: recorded,
+    wait,
   });
+  const result = await pollUntil(
+    () => target.state(windowId),
+    (actual) =>
+      actual?.presence === recorded.presence &&
+      actual.surfaceGeneration === recorded.surfaceGeneration,
+    wait,
+  );
+  if (!result.matched) {
+    throw new Error(
+      `expected window ${windowId} state ${JSON.stringify(result.value)} to be ${JSON.stringify(recorded)} after ${wait.timeout}ms`,
+    );
+  }
 }
 
 export function expect<T>(actual: T) {
@@ -293,29 +869,6 @@ export function expect<T>(actual: T) {
       throw new Error("this assertion requires a Wabou locator");
     }
     return actual as unknown as Locator;
-  };
-  const locatorSnapshot = async (): Promise<LocatorSnapshot> => {
-    return locator().snapshot();
-  };
-  const eventually = async (
-    assertion: (state: LocatorSnapshot) => string | null,
-    options: LocatorAssertionOptions = {},
-  ): Promise<void> => {
-    const timeout = options.timeout ?? 1_000;
-    const interval = options.interval ?? 16;
-    const deadline = performance.now() + timeout;
-    let diagnostic = "locator state did not match";
-    do {
-      await createPage(locator().windowId).waitForIdle();
-      const state = await locatorSnapshot();
-      const failure = assertion(state);
-      if (failure === null) return;
-      diagnostic = failure;
-      if (performance.now() < deadline) {
-        await new Promise<void>((resolve) => setTimeout(resolve, interval));
-      }
-    } while (performance.now() < deadline);
-    throw new Error(`${diagnostic} after ${timeout}ms`);
   };
   return {
     toBe(expected: T): void {
@@ -330,131 +883,201 @@ export function expect<T>(actual: T) {
       const right = JSON.stringify(expected);
       if (left !== right) throw new Error(`expected ${left} to equal ${right}`);
     },
+    toHaveState(
+      windowId: number,
+      expected: NativeWindowState,
+      options?: LocatorAssertionOptions,
+    ): Promise<void> {
+      if (actual !== context.window) {
+        throw new Error(
+          "toHaveState requires the Wabou test window capability",
+        );
+      }
+      return assertWindowStateEventually(
+        context.window,
+        windowId,
+        expected,
+        options,
+      );
+    },
     toHaveText(
       expected: string,
       options?: LocatorAssertionOptions,
     ): Promise<void> {
-      return eventually((state) => {
-        const value = state.value ?? state.name;
-        return value === expected
-          ? null
-          : `expected locator text ${JSON.stringify(value)} to be ${JSON.stringify(expected)}`;
-      }, options);
+      return assertLocatorEventually(
+        locator(),
+        { type: "text", expected },
+        options,
+      );
+    },
+    toBeAbsent(options?: LocatorAssertionOptions): Promise<void> {
+      return assertLocatorEventually(locator(), { type: "absent" }, options);
+    },
+    toHaveCount(
+      expected: number,
+      options?: LocatorAssertionOptions,
+    ): Promise<void> {
+      validateLocatorCount(expected);
+      const target = locator();
+      if (target.index !== undefined) {
+        throw new Error("toHaveCount requires an unindexed locator");
+      }
+      return assertLocatorEventually(
+        target,
+        { type: "count", expected },
+        options,
+      );
     },
     toHaveValue(
       expected: string,
       options?: LocatorAssertionOptions,
     ): Promise<void> {
-      return eventually(
-        (state) =>
-          state.value === expected
-            ? null
-            : `expected locator value ${JSON.stringify(state.value)} to be ${JSON.stringify(expected)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "value", expected },
+        options,
+      );
+    },
+    toHaveRange(
+      expected: Partial<LocatorNumericRange>,
+      options: NumericRangeAssertionOptions = {},
+    ): Promise<void> {
+      const entries = Object.entries(expected);
+      if (entries.length === 0) {
+        throw new RangeError("expected locator numeric range cannot be empty");
+      }
+      const supported = new Set(["value", "min", "max"]);
+      if (entries.some(([key]) => !supported.has(key))) {
+        throw new RangeError(
+          "expected locator numeric range may only contain value, min, and max",
+        );
+      }
+      if (entries.some(([, value]) => !Number.isFinite(value))) {
+        throw new RangeError(
+          "expected locator numeric range must contain finite numbers",
+        );
+      }
+      const tolerance = options.tolerance ?? 1e-9;
+      validateTolerance("numeric range assertion", tolerance);
+      return assertLocatorEventually(
+        locator(),
+        { type: "numericRange", expected: { ...expected }, tolerance },
         options,
       );
     },
     toBeDisabled(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) => (state.disabled ? null : "expected locator to be disabled"),
+      return assertLocatorEventually(
+        locator(),
+        { type: "disabled", expected: true },
         options,
       );
     },
     toBeEnabled(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) => (state.disabled ? "expected locator to be enabled" : null),
+      return assertLocatorEventually(
+        locator(),
+        { type: "disabled", expected: false },
         options,
       );
     },
     toBeChecked(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.checked === true
-            ? null
-            : `expected locator to be checked, received ${JSON.stringify(state.checked)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "checked", expected: true },
         options,
       );
     },
     toBeUnchecked(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.checked === false
-            ? null
-            : `expected locator to be unchecked, received ${JSON.stringify(state.checked)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "checked", expected: false },
         options,
       );
     },
     toBeIndeterminate(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.checked === "mixed"
-            ? null
-            : `expected locator to be indeterminate, received ${JSON.stringify(state.checked)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "checked", expected: "mixed" },
         options,
       );
     },
     toBeSelected(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.selected === true
-            ? null
-            : `expected locator to be selected, received ${JSON.stringify(state.selected)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "selected", expected: true },
         options,
       );
     },
     toBeDeselected(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.selected === false
-            ? null
-            : `expected locator to be deselected, received ${JSON.stringify(state.selected)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "selected", expected: false },
         options,
       );
     },
     toBeExpanded(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.expanded === true
-            ? null
-            : `expected locator to be expanded, received ${JSON.stringify(state.expanded)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "expanded", expected: true },
         options,
       );
     },
     toBeCollapsed(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.expanded === false
-            ? null
-            : `expected locator to be collapsed, received ${JSON.stringify(state.expanded)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "expanded", expected: false },
         options,
       );
     },
     toBePressed(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.pressed === true
-            ? null
-            : `expected locator to be pressed, received ${JSON.stringify(state.pressed)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "pressed", expected: true },
         options,
       );
     },
     toBeUnpressed(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) =>
-          state.pressed === false
-            ? null
-            : `expected locator to be unpressed, received ${JSON.stringify(state.pressed)}`,
+      return assertLocatorEventually(
+        locator(),
+        { type: "pressed", expected: false },
         options,
       );
     },
     toBeFocused(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) => (state.focused ? null : "expected locator to be focused"),
+      return assertLocatorEventually(
+        locator(),
+        { type: "focused", expected: true },
         options,
       );
     },
     toBeBlurred(options?: LocatorAssertionOptions): Promise<void> {
-      return eventually(
-        (state) => (state.focused ? "expected locator to be blurred" : null),
+      return assertLocatorEventually(
+        locator(),
+        { type: "focused", expected: false },
+        options,
+      );
+    },
+    toHaveBounds(
+      expected: Partial<LocatorBounds>,
+      options: BoundsAssertionOptions = {},
+    ): Promise<void> {
+      const entries = Object.entries(expected);
+      if (entries.length === 0) {
+        throw new RangeError("expected locator bounds cannot be empty");
+      }
+      const supported = new Set(["x", "y", "width", "height"]);
+      if (entries.some(([key]) => !supported.has(key))) {
+        throw new RangeError(
+          "expected locator bounds may only contain x, y, width, and height",
+        );
+      }
+      if (entries.some(([, value]) => !Number.isFinite(value))) {
+        throw new RangeError("expected locator bounds must be finite numbers");
+      }
+      const tolerance = options.tolerance ?? 0.5;
+      validateTolerance("locator bounds", tolerance);
+      return assertLocatorEventually(
+        locator(),
+        { type: "bounds", expected: { ...expected }, tolerance },
         options,
       );
     },
@@ -462,22 +1085,19 @@ export function expect<T>(actual: T) {
 }
 
 expect.poll = function poll<T>(
-  read: () => T,
+  read: () => T | Promise<T>,
   options: { timeout?: number; interval?: number } = {},
 ) {
-  const timeout = options.timeout ?? 1_000;
-  const interval = options.interval ?? 10;
   return {
     async toBe(expected: T): Promise<void> {
-      const deadline = performance.now() + timeout;
-      let actual = read();
-      while (!Object.is(actual, expected) && performance.now() < deadline) {
-        await new Promise<void>((resolve) => setTimeout(resolve, interval));
-        actual = read();
-      }
-      if (!Object.is(actual, expected)) {
+      const result = await pollUntil(
+        read,
+        (actual) => Object.is(actual, expected),
+        { timeout: options.timeout, interval: options.interval ?? 10 },
+      );
+      if (!result.matched) {
         throw new Error(
-          `expected ${JSON.stringify(actual)} to become ${JSON.stringify(expected)}`,
+          `expected ${JSON.stringify(result.value)} to become ${JSON.stringify(expected)}`,
         );
       }
     },
@@ -486,22 +1106,85 @@ expect.poll = function poll<T>(
 
 async function run(): Promise<void> {
   const results: TestReport["tests"] = [];
-  for (const entry of tests) {
+  let activeTest:
+    | { name: string; traceStart: number; startedAt: number }
+    | undefined;
+  if (registrationErrors.length > 0) {
+    results.push({
+      name: "test suite",
+      passed: false,
+      error: registrationErrors.join("\n"),
+      traceStart: 0,
+      traceEnd: 0,
+      durationMs: 0,
+    });
+  } else if (tests.length === 0) {
+    results.push({
+      name: "test suite",
+      passed: false,
+      error: "no tests registered",
+      traceStart: 0,
+      traceEnd: 0,
+      durationMs: 0,
+    });
+  }
+  if (registrationErrors.length === 0 && tests.length > 0) {
     try {
-      await entry.body(context);
-      results.push({ name: entry.name, passed: true });
+      await withSuiteTimeout(
+        SUITE_TIMEOUT,
+        async () => {
+          for (const entry of tests) {
+            const traceStart = trace.length;
+            const startedAt = performance.now();
+            activeTest = { name: entry.name, traceStart, startedAt };
+            try {
+              await withTestTimeout(entry.name, entry.timeout, () =>
+                entry.body(context),
+              );
+              results.push({
+                name: entry.name,
+                passed: true,
+                traceStart,
+                traceEnd: trace.length,
+                durationMs: performance.now() - startedAt,
+              });
+            } catch (error) {
+              results.push({
+                name: entry.name,
+                passed: false,
+                error:
+                  error instanceof Error
+                    ? `${error.message}${error.stack ? `\n${error.stack}` : ""}`
+                    : String(error),
+                traceStart,
+                traceEnd: trace.length,
+                durationMs: performance.now() - startedAt,
+              });
+              if (error instanceof TestTimeoutError) break;
+            } finally {
+              activeTest = undefined;
+            }
+          }
+        },
+        () => activeTest?.name,
+      );
     } catch (error) {
+      if (!(error instanceof SuiteTimeoutError)) throw error;
       results.push({
-        name: entry.name,
+        name: activeTest?.name ?? "test suite",
         passed: false,
-        error:
-          error instanceof Error
-            ? `${error.message}${error.stack ? `\n${error.stack}` : ""}`
-            : String(error),
+        error: `${error.message}${error.stack ? `\n${error.stack}` : ""}`,
+        traceStart: activeTest?.traceStart ?? trace.length,
+        traceEnd: trace.length,
+        durationMs:
+          activeTest === undefined
+            ? SUITE_TIMEOUT
+            : performance.now() - activeTest.startedAt,
       });
     }
   }
   const report: TestReport = {
+    version: TEST_ARTIFACT_VERSION,
     passed: results.every((result) => result.passed),
     tests: results,
     trace,
@@ -510,5 +1193,25 @@ async function run(): Promise<void> {
 }
 
 queueMicrotask(() => {
-  void run();
+  void run().catch((error) => {
+    const report: TestReport = {
+      version: TEST_ARTIFACT_VERSION,
+      passed: false,
+      tests: [
+        {
+          name: "test runner",
+          passed: false,
+          error:
+            error instanceof Error
+              ? `${error.message}${error.stack ? `\n${error.stack}` : ""}`
+              : String(error),
+          traceStart: 0,
+          traceEnd: 0,
+          durationMs: 0,
+        },
+      ],
+      trace: [],
+    };
+    capability().finish(JSON.stringify(report));
+  });
 });

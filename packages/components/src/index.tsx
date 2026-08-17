@@ -1,3 +1,4 @@
+import type { JSX as WebJSX } from "@solidjs/web";
 import { type AnimationControls, animate } from "@wabou/animation";
 import {
   type ButtonState,
@@ -11,28 +12,26 @@ import {
   type WabouStyle,
 } from "@wabou/primitives";
 import { createFps } from "@wabou/solid-renderer";
-import type { JSX as WebJSX } from "@solidjs/web";
 import {
   createEffect,
   createSignal,
   type JSX,
-  onCleanup,
   omit,
+  onCleanup,
   untrack,
 } from "solid-js";
 import { match, P } from "ts-pattern";
+import { normalizePercentage } from "./range";
 
-export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
 export * from "./avatar";
 export * from "./config-editor";
 export * from "./date-picker";
 export * from "./dialog";
 export * from "./disclosure";
+export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
 export * from "./forms";
 export * from "./layout";
 export * from "./select";
-export * from "./slider";
-export * from "./title-bar";
 export {
   Checkbox,
   type CheckboxProps,
@@ -47,6 +46,7 @@ export {
   type ToggleGroupProps,
   type ToggleProps,
 } from "./selection";
+export * from "./slider";
 export {
   Tabs,
   TabsContent,
@@ -61,6 +61,7 @@ export {
   type ComponentsTheme,
   useComponentsTheme,
 } from "./theme";
+export * from "./title-bar";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -329,7 +330,10 @@ export function Separator(props: {
       .with("vertical", () => "w-px h-full")
       .exhaustive();
   return (
-    <View class={join("flex-none", "bg-subtle", dimensions(), props.class)} />
+    <View
+      aria-hidden="true"
+      class={join("flex-none", "bg-subtle", dimensions(), props.class)}
+    />
   );
 }
 
@@ -354,6 +358,8 @@ export function Alert(props: {
       .exhaustive();
   return (
     <View
+      role="alert"
+      aria-label={props.title}
       class={join(
         "flex flex-col gap-1 rounded-lg border p-4",
         colors().container,
@@ -377,6 +383,8 @@ export interface InputProps {
   value?: string;
   placeholder?: string;
   disabled?: boolean;
+  readOnly?: boolean;
+  "aria-label"?: string;
   class?: string;
   ref?: WebJSX.InputHTMLAttributes<HTMLInputElement>["ref"];
   onInput?: (event: { currentTarget: { value: string } }) => void;
@@ -420,6 +428,7 @@ export interface SwitchProps {
   disabled?: boolean;
   onCheckedChange?: (checked: boolean) => void;
   label?: string;
+  "aria-label"?: string;
 }
 
 function switchColors(checked: boolean, state: ButtonState): string {
@@ -462,6 +471,7 @@ export function Switch(props: SwitchProps): JSX.Element {
         unstyled
         role="switch"
         disabled={props.disabled}
+        aria-label={props["aria-label"] ?? props.label}
         aria-checked={checked()}
         class={(state) =>
           join(
@@ -476,6 +486,7 @@ export function Switch(props: SwitchProps): JSX.Element {
         onClick={toggle}
       >
         <View
+          aria-hidden="true"
           class="w-5 h-5 rounded-full bg-on-accent"
           transform={translate2d(thumbX(), 0)}
         />
@@ -487,11 +498,18 @@ export function Switch(props: SwitchProps): JSX.Element {
 
 export function Progress(props: {
   value?: number;
+  label?: string;
   class?: string;
 }): JSX.Element {
-  const value = () => Math.max(0, Math.min(100, props.value ?? 0));
+  const value = () => normalizePercentage(props.value);
   return (
     <View
+      role="progressbar"
+      aria-label={props.label ?? "Progress"}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value()}
+      aria-valuetext={`${value()} percent`}
       class={join(
         "w-full h-2 overflow-hidden rounded-full",
         "bg-control",
@@ -499,6 +517,7 @@ export function Progress(props: {
       )}
     >
       <View
+        aria-hidden="true"
         class="h-full bg-accent rounded-full"
         style={{ width: `${value()}%` }}
       />

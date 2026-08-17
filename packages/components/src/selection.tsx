@@ -2,6 +2,7 @@ import {
   type ButtonState,
   Button as HeadlessButton,
   Center,
+  Icon,
   Text,
   View,
 } from "@wabou/primitives";
@@ -18,6 +19,8 @@ import {
   useContext,
 } from "solid-js";
 import { match } from "ts-pattern";
+import check from "lucide-static/icons/check.svg?raw";
+import minus from "lucide-static/icons/minus.svg?raw";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -60,9 +63,9 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       .otherwise(({ checked }) => checked);
   const indicator = () =>
     match({ checked: checked(), indeterminate: !!props.indeterminate })
-      .with({ indeterminate: true }, () => "−")
-      .with({ checked: true }, () => "✓")
-      .otherwise(() => "");
+      .with({ indeterminate: true }, () => minus)
+      .with({ checked: true }, () => check)
+      .otherwise(() => undefined);
 
   return (
     <HeadlessButton
@@ -86,13 +89,16 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       onClick={toggle}
     >
       <Center
+        aria-hidden="true"
         class={join(
           SELECTION_INDICATOR_CLASS,
           "rounded text-xs font-bold",
           boxColors(),
         )}
       >
-        <Text class="text-xs font-bold text-on-accent">{indicator()}</Text>
+        {indicator() && (
+          <Icon source={indicator() as string} size={14} class="text-on-accent" />
+        )}
       </Center>
       {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
     </HeadlessButton>
@@ -200,6 +206,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
       }}
     >
       <Center
+        aria-hidden="true"
         class={join(
           SELECTION_INDICATOR_CLASS,
           "rounded-full bg-input",

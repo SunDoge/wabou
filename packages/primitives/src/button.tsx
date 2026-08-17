@@ -206,33 +206,13 @@ export function Button(props: ButtonProps): JSX.Element {
       title={props.title}
       role={props.role}
       ref={props.ref as never}
-      aria-haspopup={
-        typeof props["aria-haspopup"] === "boolean"
-          ? (String(props["aria-haspopup"]) as never)
-          : props["aria-haspopup"]
-      }
-      aria-expanded={
-        props["aria-expanded"] === undefined
-          ? undefined
-          : (String(props["aria-expanded"]) as never)
-      }
+      aria-haspopup={props["aria-haspopup"] as never}
+      aria-expanded={props["aria-expanded"] as never}
       aria-controls={props["aria-controls"]}
       aria-label={props["aria-label"]}
-      aria-checked={
-        props["aria-checked"] === undefined
-          ? undefined
-          : (String(props["aria-checked"]) as never)
-      }
-      aria-selected={
-        props["aria-selected"] === undefined
-          ? undefined
-          : (String(props["aria-selected"]) as never)
-      }
-      aria-pressed={
-        props["aria-pressed"] === undefined
-          ? undefined
-          : (String(props["aria-pressed"]) as never)
-      }
+      aria-checked={props["aria-checked"] as never}
+      aria-selected={props["aria-selected"] as never}
+      aria-pressed={props["aria-pressed"] as never}
       class={
         typeof props.class === "function" ? props.class(state()) : props.class
       }

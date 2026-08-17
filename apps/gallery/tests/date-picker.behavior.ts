@@ -5,6 +5,8 @@ test("date picker changes month and exposes the selected date", async ({
 }) => {
   await page.getByRole("button", { name: "Date picker" }).click();
   await page.getByRole("button", { name: "Deployment date" }).click();
+  const popover = page.getByRole("dialog", { name: "Deployment date" });
+  await popover.waitFor();
   await page.getByRole("button", { name: "Next month" }).click();
   await page
     .getByRole("button", { name: "Thursday, September 17, 2026" })
@@ -13,6 +15,7 @@ test("date picker changes month and exposes the selected date", async ({
   await expect(page.getByRole("status", { name: "Selected date" })).toHaveText(
     "2026-09-17",
   );
+  await expect(popover).toBeAbsent();
 });
 
 test("date picker uses standard Intl locale week data and labels", async ({
@@ -20,14 +23,10 @@ test("date picker uses standard Intl locale week data and labels", async ({
 }) => {
   await page.getByRole("button", { name: "Date picker" }).click();
   await page.getByRole("button", { name: "本地化日期" }).click();
-  await page
-    .getByRole("button", { name: "2026年8月17日星期一" })
-    .click();
+  await page.getByRole("button", { name: "2026年8月17日星期一" }).click();
 });
 
-test("today uses the host-provided local calendar date", async ({
-  page,
-}) => {
+test("today uses the host-provided local calendar date", async ({ page }) => {
   await page.getByRole("button", { name: "Date picker" }).click();
   await page.getByRole("button", { name: "Deployment date" }).click();
   await page.getByRole("button", { name: "Select today" }).click();

@@ -1,10 +1,22 @@
-import type { TestAction, TestContext, TestPage } from "./index";
+import type { Locator, TestAction, TestContext, TestPage } from "./index";
+
+export type ReplayLocatorAssertion = (
+  locator: Locator,
+  action: Extract<TestAction, { action: "assertByRole" }>,
+) => void | Promise<void>;
+
+export type ReplayWindowAssertion = (
+  window: TestContext["window"],
+  action: Extract<TestAction, { action: "assertWindowState" }>,
+) => void | Promise<void>;
 
 /** Execute a recorded trace against explicit page and window capabilities. */
 export async function replayActions(
   actions: readonly TestAction[],
   page: TestPage,
   window: TestContext["window"],
+  assertLocator: ReplayLocatorAssertion,
+  assertWindow: ReplayWindowAssertion,
 ): Promise<void> {
   for (const action of actions) {
     if (action.action === "nativeClose") {
@@ -14,27 +26,47 @@ export async function replayActions(
     } else if (action.action === "clickByRole") {
       await page
         .forWindow(action.windowId)
-        .getByRole(action.role, { name: action.label })
-        .click();
+        .getByRole(action.role, { name: action.label, index: action.index })
+        .click(action.wait);
+    } else if (action.action === "waitForByRole") {
+      await page
+        .forWindow(action.windowId)
+        .getByRole(action.role, { name: action.label, index: action.index })
+        .waitFor(action.wait);
+    } else if (action.action === "assertByRole") {
+      await assertLocator(
+        page
+          .forWindow(action.windowId)
+          .getByRole(action.role, { name: action.label, index: action.index }),
+        action,
+      );
+    } else if (action.action === "assertWindowState") {
+      await assertWindow(window, action);
     } else {
       const locator = page
         .forWindow(action.windowId)
-        .getByRole(action.role, { name: action.label });
+        .getByRole(action.role, { name: action.label, index: action.index });
       const input = action.input;
-      if (input.type === "probe") await locator.waitFor();
+      if (input.type === "probe") await locator.waitFor(action.wait);
       else if (input.type === "drag")
-        await locator.dragBy(input.deltaX, input.deltaY);
+        await locator.dragBy(input.deltaX, input.deltaY, action.wait);
       else if (input.type === "key")
-        await locator.press(input.key, {
-          shift: (input.modifiers & 1) !== 0,
-          control: (input.modifiers & 2) !== 0,
-          alt: (input.modifiers & 4) !== 0,
-          meta: (input.modifiers & 8) !== 0,
-        });
-      else if (input.type === "text") await locator.type(input.text);
-      else if (input.type === "paste") await locator.paste(input.text);
-      else if (input.type === "ime") await locator.ime(input.text);
-      else await locator.wheel(input.deltaY, input.deltaX);
+        await locator.press(
+          input.key,
+          {
+            shift: (input.modifiers & 1) !== 0,
+            control: (input.modifiers & 2) !== 0,
+            alt: (input.modifiers & 4) !== 0,
+            meta: (input.modifiers & 8) !== 0,
+          },
+          action.wait,
+        );
+      else if (input.type === "text")
+        await locator.type(input.text, action.wait);
+      else if (input.type === "paste")
+        await locator.paste(input.text, action.wait);
+      else if (input.type === "ime") await locator.ime(input.text, action.wait);
+      else await locator.wheel(input.deltaY, input.deltaX, action.wait);
     }
   }
 }

@@ -4740,6 +4740,10 @@
       writer.setWidgetConfig(node.id, stringifyWidgetConfig(value));
       return;
     }
+    if (name.startsWith("aria-") && typeof value === "boolean") {
+      writer.setAttribute(node.id, name, String(value));
+      return;
+    }
     if (value == null || value === false) {
       if (name.startsWith("on") && name.length > 2) {
         const t = EVENT_CODE[name.slice(2).toLowerCase()] ?? null;

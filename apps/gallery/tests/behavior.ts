@@ -1,7 +1,16 @@
+import "./window.behavior";
+import "./locator.behavior";
 import "./input.behavior";
 import "./modal.behavior";
 import "./router.behavior";
 import "./slider.behavior";
+import "./progress.behavior";
+import "./accordion.behavior";
+import "./alert.behavior";
+import "./spinner.behavior";
+import "./overlay.behavior";
+import "./select.behavior";
 import "./date-picker.behavior";
 import "./table.behavior";
 import "./selection.behavior";
+import "./semantic-roles.behavior";

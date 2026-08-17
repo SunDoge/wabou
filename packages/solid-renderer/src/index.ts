@@ -384,6 +384,13 @@ function applyProperty(
     writer.setWidgetConfig(node.id, stringifyWidgetConfig(value));
     return;
   }
+  // ARIA boolean values are enumerated strings, not HTML boolean
+  // attributes. `false` must cross the bridge instead of removing the
+  // attribute, otherwise accessibility cannot distinguish false from unknown.
+  if (name.startsWith("aria-") && typeof value === "boolean") {
+    writer.setAttribute(node.id, name, String(value));
+    return;
+  }
   if (value == null || value === false) {
     // Event handlers are stored under listenersByNode (keyed by event code),
     // not as DOM attributes — so an on* prop going null/false must remove the

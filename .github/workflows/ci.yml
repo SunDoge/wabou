@@ -74,8 +74,21 @@ jobs:
       - name: Test native application behavior
         run: |
           cargo run -p wabou-cli -- test apps/gallery/tests/behavior.ts --app apps/gallery
+          cargo run -p wabou-cli -- test \
+            --replay target/wabou-test/gallery/artifacts/trace.json \
+            --app apps/gallery
           cargo run -p wabou-cli -- test apps/7guis/tests/behavior.ts --app apps/7guis
           cargo run -p wabou-cli -- test apps/vlist/tests/behavior.ts --app apps/vlist
+
+      - name: Upload behavior-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: behavior-test-diagnostics
+          path: |
+            target/wabou-test/*/artifacts/
+            target/wabou-test/*/replay-artifacts/
+          if-no-files-found: ignore
 
       - name: Test standalone project scaffold
         run: |

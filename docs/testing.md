@@ -19,6 +19,14 @@ the semantic node's completed layout bounds, then sends primary pointer down
 and up events through native hit-testing and Solid event dispatch. It never
 invokes a JSX handler directly.
 
+The locator role vocabulary covers the semantic roles used by Wabou's shipped
+components, including tabs, radio groups, groups, images, grids, grid cells,
+menus, trees, sliders, and progress bars. These retain their native AccessKit roles
+instead of degrading to a generic container. `role="presentation"` and its
+ARIA alias `role="none"` remain paint and hit-test nodes but are flattened out
+of the semantic tree, with their accessible descendants attached to the
+nearest semantic ancestor.
+
 Locators also drive captured pointer drags, physical key pairs, committed text,
 paste, the full IME preedit/commit lifecycle, and wheel routing through that
 same native path:
@@ -33,6 +41,11 @@ await editor.dragBy(120, 24);
 await editor.wheel(80);
 
 await expect(editor).toHaveValue("port: 你好");
+await expect(page.getByRole("progressbar", { name: "Build" })).toHaveRange({
+  value: 64,
+  min: 0,
+  max: 100,
+});
 await expect(page.getByRole("status", { name: "Save state" })).toHaveText(
   "Saved",
 );
@@ -40,6 +53,16 @@ await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
 await expect(page.getByRole("checkbox", { name: "Sync" })).toBeChecked();
 await expect(page.getByRole("checkbox", { name: "Partial sync" })).toBeIndeterminate();
 await expect(editor).toBeFocused();
+```
+
+Use `toBeAbsent()` when closing an overlay or navigating away. It succeeds only
+after the locator has no matching node in a completed semantic frame; it does
+not treat a disabled, transparent, or merely unfocused node as absent. For an
+indexed locator, absence means that occurrence no longer exists:
+
+```ts
+await page.getByRole("button", { name: "Close" }).click();
+await expect(page.getByRole("dialog", { name: "Settings" })).toBeAbsent();
 ```
 
 Locators are bound to logical window 1 by default. Bind explicitly when an
@@ -51,6 +74,11 @@ const child = page.forWindow(2);
 await child.getByRole("button", { name: "Close" }).click();
 ```
 
+Locators traverse only nodes reachable from the current accessibility root.
+While an `aria-modal` dialog is active, background nodes remain available in
+failure diagnostics but cannot be queried or clicked by a behavior scenario.
+This matches AccessKit exposure and native modal input isolation.
+
 Locator state assertions read the completed native semantic snapshot, not
 application signals. This makes them useful for catching failures between
 Solid reconciliation, Wabou's protocol, layout, and accessibility projection.
@@ -58,6 +86,102 @@ They automatically cross a native frame barrier and retry until the expected
 state is visible. Use `page.waitForIdle()` directly only when a test must wait
 for native layout/semantics without making an assertion; it is not implemented
 as an arbitrary sleep or a fixed number of JavaScript animation frames.
+`locator.waitFor()` uses the same native-aware retry behavior and accepts
+`timeout` and `interval` options. A semantic probe reads one completed snapshot
+immediately; the JavaScript runner owns retries, so there is no separate hidden
+native timeout. Internal assertion probes are not added to action traces.
+Locators are strict: both no match and a temporarily ambiguous match continue
+polling across completed frames, but an ambiguity that survives the authored
+timeout fails with its match count. Wabou never silently clicks whichever
+matching node happens to appear first; give repeated controls distinct
+accessible names before driving them by role.
+When repetition is intentional, select a zero-based occurrence explicitly:
+
+```ts
+await expect(page.getByRole("button", { name: "Default" })).toHaveCount(2);
+await page.getByRole("button", { name: "Default", index: 1 }).click();
+```
+
+`toHaveCount` polls the full unindexed role/name query and is replayable. It
+accepts a non-negative safe integer, including zero. Indexed locators reject
+count assertions because an occurrence represents at most one node.
+
+The index follows depth-first logical source order rather than paint, overlay,
+or z-index order. It is range-checked to an unsigned 32-bit value for
+cross-platform hosts and recorded in the action trace. Presentation-only
+reordering therefore does not retarget replay. An
+out-of-range index waits for a dynamically inserted match until the locator
+timeout; omitting the index continues to require exactly one match.
+Click, keyboard, text, drag, paste, IME, and wheel actions likewise wait for an
+enabled semantic target before dispatching exactly once. They accept the same
+optional `timeout` and `interval` settings. Both deterministic and native runs
+therefore use the JavaScript runner's explicit timeout instead of backend-local
+implicit waits.
+Drag and wheel deltas must be finite, and key actions require a non-empty key;
+invalid input is rejected before it can mutate the trace or cross the native
+bridge. Window ids and surface generations must also be non-negative safe
+integers, and unknown key-modifier bits are rejected. The CLI applies the same
+validation to imported replay artifacts.
+`expect.poll` accepts synchronous or asynchronous readers and shares the same
+validated timing policy. A zero timeout still performs exactly one read;
+negative, infinite, and `NaN` timing values are rejected rather than producing
+environment-dependent loops.
+
+Locator snapshots also expose the logical-pixel `x`, `y`, `width`, and `height`
+from the completed native semantic frame. Use `toHaveBounds` for layout
+contracts that should not require GPU pixel comparison:
+
+```ts
+await expect(page.getByRole("slider", { name: "Volume" })).toHaveBounds(
+  { width: 384, height: 28 },
+  { tolerance: 0.5 },
+);
+```
+
+The expected object may contain any non-empty subset of the four fields. Values
+and tolerance must be finite; tolerance defaults to half a logical pixel. Bounds
+assertions retry across native frame barriers and are preserved in replay
+traces. They prove native layout geometry, not glyph rasterization, clipping
+pixels, GPU output, or another platform's HiDPI behavior. Use a failure
+screenshot or `wabou render` when the geometry is correct but pixels are not.
+
+Range-bearing controls expose their numeric value independently from their
+localized `aria-valuetext`. Use `toHaveRange` with any non-empty subset of
+`value`, `min`, and `max` to verify the numeric contract delivered to
+AccessKit:
+
+```ts
+const volume = page.getByRole("slider", { name: "Volume" });
+await expect(volume).toHaveValue("100 percent");
+await expect(volume).toHaveRange({ value: 100, min: 0, max: 100 });
+```
+
+Range values must be finite. Numeric comparison uses an absolute tolerance of
+`1e-9` by default; pass `{ tolerance: 0 }` as the second argument when exact
+identity is part of the contract. The tolerance is validated and recorded in
+the trace. The assertion polls completed semantic frames, so replay verifies
+both the human-readable value and the native numeric range.
+
+Each `test` has a five-second timeout so a lost Promise cannot hang native runs
+indefinitely. Override it for an intentionally long scenario with a third
+argument:
+
+```ts
+test("loads a large local fixture", async ({ page }) => {
+  await page.getByRole("status", { name: "Ready" }).waitFor();
+}, { timeout: 15_000 });
+```
+
+Timeouts report the test name and stop later test bodies from starting. The
+host exits after receiving that failure report; JavaScript cannot cancel an
+arbitrary Promise in place. Values must be between 1ms and 60 seconds. The
+deterministic host also has a 65-second suite watchdog as a final guard for
+failures that prevent JavaScript from reporting.
+An empty scenario, empty test name, duplicate test name, or invalid test timeout
+is a suite failure rather than a successful no-op. Registration failures stop
+the suite before application state is mutated. Unexpected runner errors are
+also converted into a `test runner` result instead of waiting for the host
+watchdog with no diagnostic.
 
 Run a scenario with the deterministic backend:
 
@@ -72,29 +196,116 @@ compositor. It also uses an isolated temporary XDG data directory so persisted
 application state cannot make scenarios order-dependent. Pass `--native` for a
 real platform smoke test.
 
-Every run writes `report.json` and `trace.json` beneath
+Every run writes versioned `report.json` and `trace.json` artifacts beneath
 `target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
 select another destination. Deterministic tests do not initialize wgpu, which
 keeps them usable in display-less CI. Pass `--failure-screenshot` to opt into a
 GPU-rendered `failure.png` when a working wgpu backend is available.
-Recorded actions are directly replayable:
+At the start of a run, Wabou removes only its known report, trace, temporary
+JSON, and failure-screenshot outputs from that directory. This prevents a
+build or replay-validation failure from leaving a previous green report behind
+while preserving unrelated user files. JSON artifacts are published by atomic
+same-directory rename so an interrupted writer cannot leave a partial report.
+Failed runs also write `semantics.json`, containing the last completed semantic
+tree observed for each exercised window. It includes roles, accessible names,
+bounds, hierarchy, focus, and control-state flags so a missing or misrouted
+locator can be diagnosed without another DevTools run. Control values are
+deliberately omitted (only `hasValue` is recorded); password values are already
+excluded from Wabou's semantic projection. Test action traces can still contain
+authored text, paste, and IME payloads, so artifact directories should be
+treated as potentially sensitive when scenarios use real credentials.
+The Rust host adds the effective backend (`deterministic` or `native`), target
+OS, architecture, and Wabou version to `report.json`. Failed-test console
+summaries include the same compact environment line, which makes platform-only
+failures identifiable without printing the full report or action payloads.
+Each test result records `durationMs` and a half-open `traceStart`/`traceEnd`
+range into the shared trace. This identifies the actions associated with a
+failure without duplicating action payloads in each test result. The console
+prints only a compact summary; the artifact files retain the complete report,
+diagnostics, and action payloads.
+Locator actions record their resolved timeout and polling interval, and an
+explicit `waitFor()` is represented as its own action rather than a one-shot
+semantic probe. Replays therefore preserve authored waiting behavior even if
+the framework's defaults change later. Older traces containing probe inputs
+remain replayable. Newly written trace files use `{ "version": 1, "actions":
+[...] }`; the CLI also accepts legacy bare action arrays, while rejecting
+unknown future versions with an explicit diagnostic.
+Before rebuilding the frontend or starting its Rust host, the CLI validates
+every replay action and its nested input, assertion, window-state, role, and
+wait fields. Corrupted or hand-edited artifacts therefore fail at the action
+index that is invalid instead of surfacing later as an unrelated QuickJS or
+native-window error. Unknown fields inside an action are rejected as likely
+typos or schema drift; additional top-level report metadata remains allowed.
+Version-one compatibility still accepts legacy bare
+arrays, `probe` inputs, and locator actions written before wait metadata became
+mandatory for newly recorded traces.
+Semantic locator assertions are trace actions too. Absence, text, textual
+value, numeric range, bounds, disabled, checked, selected, expanded, pressed,
+and focused expectations are evaluated again during replay with their original
+retry policy. A replay can therefore reproduce the failed native-state
+assertion, rather than merely repeating the inputs that preceded it. Plain
+JavaScript value assertions and `expect.poll` readers are not serializable and
+remain report-only.
+Because a replay combines actions from multiple original tests into one test,
+its timeout is derived from the recorded action wait budgets instead of using
+the ordinary five-second default. The derived value remains capped at 60
+seconds. The complete scenario also has an explicit 60-second budget; when it
+expires, the JavaScript runner records the active test name, trace range, and
+stack before finishing. The host watchdog fires five seconds later so this
+structured JavaScript failure wins over the native safety net. The CLI builds the Rust
+host first and then supervises the resulting application process separately;
+a final 70-second watchdog terminates its entire process group if synchronous
+JavaScript or a broken scheduler prevents the in-process watchdog from running.
+
+`trace.json` replays the complete action sequence:
 
 ```bash
 bun run wabou test --replay target/wabou-test/app/artifacts/trace.json \
   --app /path/to/app
 ```
 
+`--replay` also accepts `report.json`. Add `--replay-test` to stop after the
+named test's last recorded action:
+
+```bash
+bun run wabou test \
+  --replay target/wabou-test/app/artifacts/report.json \
+  --replay-test "submits form" \
+  --app /path/to/app
+```
+
+The replay includes the prefix from earlier tests because scenarios share one
+running application. This reconstructs state established earlier in the suite
+before reproducing the selected test. The CLI still validates the selected
+test's half-open `traceStart`/`traceEnd` range, so a damaged report cannot hide
+behind prefix replay semantics. Passing `report.json` without
+`--replay-test` replays its full trace. Replay runs write to `replay-artifacts`
+by default so the original failure report and trace are not overwritten; an
+explicit `--artifacts <dir>` still takes precedence.
+
 Window behavior is modeled explicitly:
 
 ```ts
 test("Wayland close-to-tray", async ({ window }) => {
   await window.nativeClose(1, "wayland");
-  expect(window.state(1)?.presence).toBe("surface-released");
+  await expect(window).toHaveState(1, {
+    presence: "surface-released",
+    surfaceGeneration: 1,
+  });
 
   await window.show(1);
-  expect(window.state(1)?.surfaceGeneration).toBe(2);
+  await expect(window).toHaveState(1, {
+    presence: "visible",
+    surfaceGeneration: 2,
+  });
 });
 ```
+
+Window-state assertions retry through the same bounded polling policy and are
+recorded as replayable trace actions. This lets a close-to-tray or surface
+recreation failure reproduce both the native transitions and the state that
+was expected afterward. `window.state(id)` remains available for diagnostics
+and custom `expect.poll` expressions.
 
 Use `expect.poll(() => value).toBe(expected)` for state that settles across
 asynchronous host turns. DevTools remains a diagnostic interface; behavior

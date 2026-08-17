@@ -477,10 +477,10 @@ interface PopoverTriggerProps {
     preventDefault(): void;
     stopPropagation(): void;
   }) => void;
-  "aria-haspopup": "dialog";
+  "aria-haspopup": "dialog" | "listbox" | "menu" | "tree" | "grid";
   "aria-expanded": boolean;
 }
-interface PopoverProps {
+interface PopoverBaseProps {
   trigger: (props: PopoverTriggerProps) => JSX.Element;
   children?: JSX.Element;
   open?: boolean;
@@ -493,6 +493,17 @@ interface PopoverProps {
   closeOnEscape?: boolean;
   restoreFocus?: boolean;
 }
+type PopoverProps = PopoverBaseProps & ({
+  /** Required until the native semantic tree resolves aria-labelledby. */
+  "aria-label": string;
+  contentRole?: "dialog";
+  popupRole?: never;
+} | {
+  /** Flatten the positioned shell when its child owns popup semantics. */
+  contentRole: "presentation";
+  popupRole: "listbox" | "menu" | "tree" | "grid";
+  "aria-label"?: never;
+});
 /** A root-layer floating panel positioned from native layout snapshots. */
 declare function Popover(props: PopoverProps): JSX.Element;
 //#endregion

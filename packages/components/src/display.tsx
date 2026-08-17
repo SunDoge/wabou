@@ -27,7 +27,12 @@ export function Spinner(props: {
       class={join("w-4 h-4 flex-none text-accent", props.class)}
       duration={0.9}
     >
-      <svg class="w-full h-full" viewBox="0 0 24 24" fill="none">
+      <svg
+        aria-hidden="true"
+        class="w-full h-full"
+        viewBox="0 0 24 24"
+        fill="none"
+      >
         <circle
           cx="12"
           cy="12"

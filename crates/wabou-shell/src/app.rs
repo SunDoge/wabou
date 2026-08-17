@@ -1040,25 +1040,56 @@ pub struct ExtensionContext<'a> {
 }
 
 impl ExtensionContext<'_> {
-    /// Return a semantic node from the latest retained snapshot.
+    /// Return the latest immutable semantic snapshot for a visible window.
+    ///
+    /// Extensions should treat values as potentially sensitive and avoid
+    /// persisting them unless their API explicitly opts into doing so.
+    pub fn semantic_snapshot(
+        &mut self,
+        logical_window_id: u64,
+    ) -> Option<Arc<crate::SemanticSnapshot>> {
+        find_window_by_logical_id(self.windows.values_mut(), logical_window_id)?
+            .source
+            .semantic_snapshot()
+    }
+
+    /// Return the unique matching semantic node from the latest retained snapshot.
     ///
     /// Callers that dispatch interaction must reject disabled nodes. Snapshot
     /// queries intentionally retain them so test assertions can inspect the
-    /// disabled state.
+    /// disabled state. Ambiguous matches return `None` rather than implicitly
+    /// selecting whichever node happens to appear first.
     pub fn semantic_node_by_role(
         &mut self,
         logical_window_id: u64,
         role: &str,
         label: &str,
     ) -> Option<crate::SemanticNode> {
-        let app = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)?;
-        let snapshot = app.source.semantic_snapshot()?;
+        let snapshot = self.semantic_snapshot(logical_window_id)?;
+        let exposed = snapshot.exposed_nodes();
+        let mut matches = exposed.into_iter().filter(|node| {
+            semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
+        });
+        let node = matches.next()?;
+        matches.next().is_none().then(|| node.clone())
+    }
+
+    /// Return one explicit zero-based occurrence in semantic source order.
+    pub fn semantic_node_by_role_at(
+        &mut self,
+        logical_window_id: u64,
+        role: &str,
+        label: &str,
+        index: usize,
+    ) -> Option<crate::SemanticNode> {
+        let snapshot = self.semantic_snapshot(logical_window_id)?;
         snapshot
-            .nodes
-            .iter()
-            .find(|node| {
+            .exposed_nodes()
+            .into_iter()
+            .filter(|node| {
                 semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
             })
+            .nth(index)
             .cloned()
     }
 
@@ -1089,9 +1120,30 @@ impl ExtensionContext<'_> {
             .handle_semantic_action(SemanticAction::Focus { target: node_id })
     }
 
-    /// Find an enabled semantic node and activate it through the normal pointer
-    /// hit-test and event-dispatch path.
+    /// Find one uniquely matching enabled semantic node and activate it through
+    /// the normal pointer hit-test and event-dispatch path.
     pub fn click_by_role(&mut self, logical_window_id: u64, role: &str, label: &str) -> bool {
+        self.click_by_role_occurrence(logical_window_id, role, label, None)
+    }
+
+    /// Activate one explicit zero-based occurrence in semantic source order.
+    pub fn click_by_role_at(
+        &mut self,
+        logical_window_id: u64,
+        role: &str,
+        label: &str,
+        index: usize,
+    ) -> bool {
+        self.click_by_role_occurrence(logical_window_id, role, label, Some(index))
+    }
+
+    fn click_by_role_occurrence(
+        &mut self,
+        logical_window_id: u64,
+        role: &str,
+        label: &str,
+        index: Option<usize>,
+    ) -> bool {
         let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
         else {
             return false;
@@ -1099,13 +1151,28 @@ impl ExtensionContext<'_> {
         let Some(snapshot) = app.source.semantic_snapshot() else {
             return false;
         };
-        let Some(node) = snapshot.nodes.iter().find(|node| {
-            semantic_role_matches(role, node.role)
-                && node.label.as_deref() == Some(label)
-                && !node.disabled
-        }) else {
+        let exposed = snapshot.exposed_nodes();
+        let mut matches = exposed.into_iter().filter(|node| {
+            semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
+        });
+        let node = match index {
+            Some(index) => matches.nth(index),
+            None => {
+                let Some(node) = matches.next() else {
+                    return false;
+                };
+                if matches.next().is_some() {
+                    return false;
+                }
+                Some(node)
+            }
+        };
+        let Some(node) = node else {
             return false;
         };
+        if node.disabled {
+            return false;
+        }
         let position = Point {
             x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
             y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
@@ -1300,7 +1367,17 @@ fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
             | ("columnheader", SemanticRole::ColumnHeader)
             | ("rowheader", SemanticRole::RowHeader)
             | ("slider", SemanticRole::Slider)
+            | ("progressbar", SemanticRole::ProgressBar)
+            | ("heading", SemanticRole::Heading)
             | ("label", SemanticRole::Label)
+            | ("group", SemanticRole::Group)
+            | ("img", SemanticRole::Image)
+            | ("radiogroup", SemanticRole::RadioGroup)
+            | ("tablist", SemanticRole::TabList)
+            | ("tab", SemanticRole::Tab)
+            | ("tabpanel", SemanticRole::TabPanel)
+            | ("grid", SemanticRole::Grid)
+            | ("gridcell", SemanticRole::GridCell)
     )
 }
 

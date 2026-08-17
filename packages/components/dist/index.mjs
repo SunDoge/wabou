@@ -10,78 +10,34 @@ import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import { createControllableState, createDisclosure, createRovingFocus, createSelectInteraction, isSelected, toggleSelection } from "@wabou/interactions";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
-//#region src/display.tsx
-const join$13 = (...values) => values.filter(Boolean).join(" ");
-function Skeleton(props) {
-	return createComponent(Pulse, {
-		"aria-hidden": "true",
-		get ["class"]() {
-			return join$13("rounded-md bg-control", props.class);
-		},
-		from: .45,
-		to: .85,
-		duration: 1.8
-	});
+import check from "lucide-static/icons/check.svg?raw";
+import minus from "lucide-static/icons/minus.svg?raw";
+//#region src/range.ts
+function finiteOr(value, fallback) {
+	return value !== void 0 && Number.isFinite(value) ? value : fallback;
 }
-function Spinner(props) {
-	return createComponent(Spin, {
-		role: "status",
-		get ["aria-label"]() {
-			return props.label ?? "Loading";
-		},
-		get ["class"]() {
-			return join$13("w-4 h-4 flex-none text-accent", props.class);
-		},
-		duration: .9,
-		get children() {
-			var _el$ = createElement("svg", {
-				class: "w-full h-full",
-				viewBox: "0 0 24 24",
-				fill: "none"
-			});
-			var _el$2 = createElement("circle", {
-				cx: "12",
-				cy: "12",
-				r: "9",
-				stroke: "currentColor",
-				"stroke-width": "3",
-				opacity: "0.25"
-			});
-			var _el$3 = createElement("path", {
-				d: "M 12 3 A 9 9 0 0 1 21 12",
-				stroke: "currentColor",
-				"stroke-width": "3",
-				"stroke-linecap": "round"
-			});
-			insertNode(_el$, _el$2);
-			insertNode(_el$, _el$3);
-			return _el$;
-		}
-	});
+function normalizePercentage(value) {
+	return Math.max(0, Math.min(100, finiteOr(value, 0)));
 }
-function Kbd(props) {
-	return createComponent(Text, {
-		get ["class"]() {
-			return join$13("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
+function normalizeRange(minValue, maxValue, stepValue) {
+	const min = finiteOr(minValue, 0);
+	const max = Math.max(min, finiteOr(maxValue, 100));
+	const candidateStep = finiteOr(stepValue, 1);
+	return {
+		min,
+		max,
+		step: candidateStep > 0 ? candidateStep : 1
+	};
 }
-function KbdGroup(props) {
-	return createComponent(View, {
-		get ["class"]() {
-			return join$13("inline-flex items-center gap-1", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
+function decimalPlaces(value) {
+	const [coefficient, exponentText] = String(value).toLowerCase().split("e");
+	const fractionLength = coefficient.split(".")[1]?.length ?? 0;
+	const exponent = exponentText === void 0 ? 0 : Number(exponentText);
+	return Math.max(0, Math.min(100, fractionLength - exponent));
 }
 //#endregion
 //#region src/avatar.tsx
-const join$12 = (...values) => values.filter(Boolean).join(" ");
+const join$13 = (...values) => values.filter(Boolean).join(" ");
 function Avatar(props) {
 	const size = () => match(props.size ?? "default").with("sm", () => "w-8 h-8 text-xs").with("default", () => "w-10 h-10 text-sm").with("lg", () => "w-12 h-12 text-base").exhaustive();
 	return createComponent(Center, {
@@ -90,12 +46,13 @@ function Avatar(props) {
 			return props.alt ?? props.fallback;
 		},
 		get ["class"]() {
-			return join$12("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
+			return join$13("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
 		},
 		get children() {
 			return memo(() => {
 				return !!props.src;
 			})() ? createComponent(NetworkImage, {
+				"aria-hidden": "true",
 				get url() {
 					return props.src;
 				},
@@ -103,6 +60,7 @@ function Avatar(props) {
 				cache: "memory",
 				class: "w-full h-full"
 			}) : createComponent(Text, {
+				"aria-hidden": "true",
 				class: "font-medium text-secondary",
 				get children() {
 					return props.fallback;
@@ -114,7 +72,7 @@ function Avatar(props) {
 function AvatarGroup(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$12("flex items-center gap-1", props.class);
+			return join$13("flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -124,7 +82,7 @@ function AvatarGroup(props) {
 function AvatarGroupCount(props) {
 	return createComponent(Center, {
 		get ["class"]() {
-			return join$12("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
+			return join$13("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
 		},
 		get children() {
 			return createComponent(Text, {
@@ -138,7 +96,7 @@ function AvatarGroupCount(props) {
 }
 //#endregion
 //#region src/config-editor.tsx
-const join$11 = (...values) => values.filter(Boolean).join(" ");
+const join$12 = (...values) => values.filter(Boolean).join(" ");
 /**
 * Experimental native configuration editor. Its Wabou-owned props deliberately
 * hide the editor-core implementation so the backend can evolve independently.
@@ -147,13 +105,13 @@ function ConfigEditor(props) {
 	return createComponent(CodeEditor, mergeProps(props, {
 		language: "json",
 		get ["class"]() {
-			return join$11("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
+			return join$12("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
 		}
 	}));
 }
 //#endregion
 //#region src/date-picker.tsx
-const join$10 = (...values) => values.filter(Boolean).join(" ");
+const join$11 = (...values) => values.filter(Boolean).join(" ");
 function dayOfWeek(value) {
 	return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
 }
@@ -371,7 +329,7 @@ function Calendar(props) {
 									get disabled() {
 										return disabled();
 									},
-									class: (state) => join$10("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
+									class: (state) => join$11("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
 									get style() {
 										return { opacity: disabled() ? .35 : 1 };
 									},
@@ -435,6 +393,9 @@ function DatePicker(props) {
 		setOpen(false);
 	};
 	return createComponent(Popover, {
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
 		get open() {
 			return open();
 		},
@@ -449,7 +410,7 @@ function DatePicker(props) {
 				return props.disabled;
 			},
 			get ["class"]() {
-				return join$10("w-72 h-9 px-3 justify-start gap-2 rounded-md border border-strong bg-input text-sm", props.class);
+				return join$11("w-72 h-9 px-3 justify-start gap-2 rounded-md border border-strong bg-input text-sm", props.class);
 			},
 			get children() {
 				return [createComponent(Icon, {
@@ -481,7 +442,7 @@ function DatePicker(props) {
 }
 //#endregion
 //#region src/dialog.tsx
-const join$9 = (...values) => values.filter(Boolean).join(" ");
+const join$10 = (...values) => values.filter(Boolean).join(" ");
 function Dialog(props) {
 	return createComponent(Modal, mergeProps(props, {
 		get backdropClass() {
@@ -494,14 +455,14 @@ function Dialog(props) {
 			};
 		},
 		get contentClass() {
-			return join$9("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-6 shadow-lg", props.contentClass);
+			return join$10("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-6 shadow-lg", props.contentClass);
 		}
 	}));
 }
 function DialogHeader(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$9("flex flex-col gap-1", props.class);
+			return join$10("flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -511,7 +472,7 @@ function DialogHeader(props) {
 function DialogFooter(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$9("flex items-center justify-end gap-2", props.class);
+			return join$10("flex items-center justify-end gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -521,7 +482,7 @@ function DialogFooter(props) {
 function DialogTitle(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$9("text-lg font-semibold text-primary", props.class);
+			return join$10("text-lg font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -531,7 +492,7 @@ function DialogTitle(props) {
 function DialogDescription(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$9("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+			return join$10("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -540,7 +501,28 @@ function DialogDescription(props) {
 }
 //#endregion
 //#region src/disclosure.tsx
-const join$8 = (...values) => values.filter(Boolean).join(" ");
+const join$9 = (...values) => values.filter(Boolean).join(" ");
+function DisclosureIndicator(props) {
+	const rotation = createTransition(() => props.open() ? Math.PI : 0, {
+		duration: .2,
+		ease: "easeOut",
+		reducedMotion: props.reducedMotion
+	});
+	return createComponent(View, {
+		class: "w-4 h-4 flex-none",
+		get transform() {
+			return rotate2d(rotation.value());
+		},
+		"aria-hidden": "true",
+		get children() {
+			return createComponent(Icon, {
+				source: chevronDown,
+				class: "text-muted",
+				size: 16
+			});
+		}
+	});
+}
 const CollapsibleContext = createContext();
 const useCollapsible = () => {
 	const value = useContext(CollapsibleContext);
@@ -565,7 +547,7 @@ function Collapsible(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$8("flex flex-col", props.class);
+					return join$9("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -591,15 +573,17 @@ function CollapsibleTrigger(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$8("w-full flex items-center justify-between gap-3", props.class);
+					return join$9("w-full flex items-center justify-between gap-3", props.class);
 				},
 				get children() {
 					return [memo(() => {
 						return props.children;
-					}), createComponent(Text, {
-						class: "flex-none text-muted",
-						get children() {
-							return context.open() ? "−" : "+";
+					}), createComponent(DisclosureIndicator, {
+						get open() {
+							return context.open;
+						},
+						get reducedMotion() {
+							return context.reducedMotion;
 						}
 					})];
 				}
@@ -659,7 +643,7 @@ function Accordion(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$8("flex flex-col", props.class);
+					return join$9("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -679,7 +663,7 @@ function AccordionItem(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$8("flex flex-col border-b border-subtle", props.class);
+					return join$9("flex flex-col border-b border-subtle", props.class);
 				},
 				get children() {
 					return props.children;
@@ -692,11 +676,6 @@ function AccordionTrigger(props) {
 	const root = useAccordion();
 	const item = useAccordionItem();
 	const open = () => root.active(item.value);
-	const rotation = createTransition(() => open() ? Math.PI : 0, {
-		duration: .2,
-		ease: "easeOut",
-		reducedMotion: root.reducedMotion
-	});
 	return createComponent(Button$1, {
 		unstyled: true,
 		get disabled() {
@@ -710,7 +689,7 @@ function AccordionTrigger(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$8("w-full py-4 flex items-center justify-between gap-4", props.class);
+					return join$9("w-full py-4 flex items-center justify-between gap-4", props.class);
 				},
 				get children() {
 					return [createComponent(Text, {
@@ -718,18 +697,10 @@ function AccordionTrigger(props) {
 						get children() {
 							return props.children;
 						}
-					}), createComponent(View, {
-						class: "w-4 h-4 flex-none",
-						get transform() {
-							return rotate2d(rotation.value());
-						},
-						"aria-hidden": "true",
-						get children() {
-							return createComponent(Icon, {
-								source: chevronDown,
-								class: "text-muted",
-								size: 16
-							});
+					}), createComponent(DisclosureIndicator, {
+						open,
+						get reducedMotion() {
+							return root.reducedMotion;
 						}
 					})];
 				}
@@ -748,7 +719,78 @@ function AccordionContent(props) {
 			return root.reducedMotion();
 		},
 		get contentClass() {
-			return join$8("pb-4", props.class);
+			return join$9("pb-4", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+//#endregion
+//#region src/display.tsx
+const join$8 = (...values) => values.filter(Boolean).join(" ");
+function Skeleton(props) {
+	return createComponent(Pulse, {
+		"aria-hidden": "true",
+		get ["class"]() {
+			return join$8("rounded-md bg-control", props.class);
+		},
+		from: .45,
+		to: .85,
+		duration: 1.8
+	});
+}
+function Spinner(props) {
+	return createComponent(Spin, {
+		role: "status",
+		get ["aria-label"]() {
+			return props.label ?? "Loading";
+		},
+		get ["class"]() {
+			return join$8("w-4 h-4 flex-none text-accent", props.class);
+		},
+		duration: .9,
+		get children() {
+			var _el$ = createElement("svg", {
+				"aria-hidden": "true",
+				class: "w-full h-full",
+				viewBox: "0 0 24 24",
+				fill: "none"
+			});
+			var _el$2 = createElement("circle", {
+				cx: "12",
+				cy: "12",
+				r: "9",
+				stroke: "currentColor",
+				"stroke-width": "3",
+				opacity: "0.25"
+			});
+			var _el$3 = createElement("path", {
+				d: "M 12 3 A 9 9 0 0 1 21 12",
+				stroke: "currentColor",
+				"stroke-width": "3",
+				"stroke-linecap": "round"
+			});
+			insertNode(_el$, _el$2);
+			insertNode(_el$, _el$3);
+			return _el$;
+		}
+	});
+}
+function Kbd(props) {
+	return createComponent(Text, {
+		get ["class"]() {
+			return join$8("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function KbdGroup(props) {
+	return createComponent(View, {
+		get ["class"]() {
+			return join$8("inline-flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -997,6 +1039,8 @@ function Select(props) {
 		if (match(event.key).with("ArrowDown", () => interaction.send({ type: "ARROW_DOWN" })).with("ArrowUp", () => interaction.send({ type: "ARROW_UP" })).with("Home", () => interaction.send({ type: "HOME" })).with("End", () => interaction.send({ type: "END" })).with("Enter", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with(" ", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with("Escape", () => interaction.send({ type: "CLOSE" })).otherwise((key) => interaction.typeahead(key))) event.preventDefault();
 	};
 	return createComponent(Popover, {
+		contentRole: "presentation",
+		popupRole: "listbox",
 		get open() {
 			return interaction.open();
 		},
@@ -1119,10 +1163,17 @@ function Select(props) {
 												get children() {
 													return option().label;
 												}
-											}), createComponent(Text, {
-												class: "w-4 flex-none text-sm text-accent",
+											}), createComponent(View, {
+												"aria-hidden": "true",
+												class: "w-4 h-4 flex-none",
 												get children() {
-													return selected() ? "✓" : "";
+													return memo(() => {
+														return !!selected();
+													})() ? createComponent(Icon, {
+														source: check,
+														class: "text-accent",
+														size: 16
+													}) : selected();
 												}
 											})];
 										}
@@ -1137,16 +1188,305 @@ function Select(props) {
 	});
 }
 //#endregion
-//#region src/slider.tsx
+//#region src/selection.tsx
 const join$4 = (...values) => values.filter(Boolean).join(" ");
+const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
+function Checkbox(props) {
+	const state = createControllableState({
+		value: () => props.checked,
+		defaultValue: props.defaultChecked ?? false,
+		disabled: () => props.disabled ?? false,
+		onChange: props.onCheckedChange
+	});
+	const checked = state.value;
+	const toggle = () => {
+		state.set(!checked());
+	};
+	const boxColors = () => match({
+		checked: checked(),
+		indeterminate: !!props.indeterminate
+	}).with({ checked: true }, () => "bg-accent border-accent text-on-accent").with({ indeterminate: true }, () => "bg-accent border-accent text-on-accent").otherwise(() => "bg-input border-strong text-primary");
+	const ariaChecked = () => match({
+		checked: checked(),
+		indeterminate: !!props.indeterminate
+	}).with({ indeterminate: true }, () => "mixed").otherwise(({ checked }) => checked);
+	const indicator = () => match({
+		checked: checked(),
+		indeterminate: !!props.indeterminate
+	}).with({ indeterminate: true }, () => minus).with({ checked: true }, () => check).otherwise(() => void 0);
+	return createComponent(Button$1, {
+		unstyled: true,
+		role: "checkbox",
+		get disabled() {
+			return props.disabled;
+		},
+		get ["aria-label"]() {
+			return props["aria-label"] ?? props.label;
+		},
+		get ["aria-checked"]() {
+			return ariaChecked();
+		},
+		get selected() {
+			return checked();
+		},
+		class: (buttonState) => join$4("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
+		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
+		onClick: toggle,
+		get children() {
+			return [createComponent(Center, {
+				"aria-hidden": "true",
+				get ["class"]() {
+					return join$4(SELECTION_INDICATOR_CLASS, "rounded text-xs font-bold", boxColors());
+				},
+				get children() {
+					return memo(() => {
+						return !!indicator();
+					})() ? createComponent(Icon, {
+						get source() {
+							return indicator();
+						},
+						size: 14,
+						class: "text-on-accent"
+					}) : indicator();
+				}
+			}), memo(() => {
+				return memo(() => {
+					return !!props.label;
+				})() ? createComponent(Text, {
+					class: "text-sm text-secondary",
+					get children() {
+						return props.label;
+					}
+				}) : props.label;
+			})];
+		}
+	});
+}
+const RadioContext = createContext();
+function RadioGroup(props) {
+	const state = createControllableState({
+		value: () => props.value,
+		defaultValue: props.defaultValue,
+		disabled: () => props.disabled ?? false,
+		onChange: (value) => value !== void 0 && props.onValueChange?.(value)
+	});
+	const value = state.value;
+	const select = (next) => {
+		state.set(next);
+	};
+	const roving = createRovingFocus({
+		orientation: () => "vertical",
+		onMove: select
+	});
+	return createComponent$1(RadioContext, {
+		value: {
+			value,
+			select,
+			disabled: () => props.disabled ?? false,
+			register: (id, target, disabled) => roving.register({
+				id,
+				target,
+				disabled
+			}),
+			move: roving.move
+		},
+		get children() {
+			return createComponent(View, {
+				role: "radiogroup",
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				get ["class"]() {
+					return join$4("flex flex-col gap-3", props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	});
+}
+function RadioGroupItem(props) {
+	const group = useContext(RadioContext);
+	if (!group) throw new Error("RadioGroupItem must be used inside RadioGroup");
+	const checked = () => group.value() === props.value;
+	const disabled = () => group.disabled() || (props.disabled ?? false);
+	let unregister;
+	onCleanup(() => unregister?.());
+	return createComponent(Button$1, {
+		unstyled: true,
+		role: "radio",
+		get disabled() {
+			return disabled();
+		},
+		get selected() {
+			return checked();
+		},
+		get ["aria-label"]() {
+			return props.label;
+		},
+		get ["aria-checked"]() {
+			return checked();
+		},
+		ref: (node) => {
+			unregister?.();
+			unregister = group.register(props.value, node, disabled);
+		},
+		class: (buttonState) => join$4("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
+		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
+		onClick: () => group.select(props.value),
+		onKeyDown: (event) => {
+			if (group.move(props.value, event.key)) event.preventDefault();
+		},
+		get children() {
+			return [createComponent(Center, {
+				"aria-hidden": "true",
+				get ["class"]() {
+					return join$4(SELECTION_INDICATOR_CLASS, "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
+				},
+				get children() {
+					return memo(() => {
+						return !!checked();
+					})() ? createComponent(View, { class: "w-2.5 h-2.5 rounded-full bg-accent" }) : checked();
+				}
+			}), memo(() => {
+				return memo(() => {
+					return !!props.label;
+				})() ? createComponent(Text, {
+					class: "text-sm text-secondary",
+					get children() {
+						return props.label;
+					}
+				}) : props.label;
+			})];
+		}
+	});
+}
+function Toggle(props) {
+	const state = createControllableState({
+		value: () => props.pressed,
+		defaultValue: props.defaultPressed ?? false,
+		disabled: () => props.disabled ?? false,
+		onChange: props.onPressedChange
+	});
+	const pressed = state.value;
+	const toggle = () => {
+		state.set(!pressed());
+	};
+	const size = () => match(props.size ?? "default").with("sm", () => "h-8 min-w-8 px-2 text-xs").with("default", () => "h-9 min-w-9 px-2.5 text-sm").with("lg", () => "h-10 min-w-10 px-3 text-sm").exhaustive();
+	const colors = (state) => match({
+		selected: pressed(),
+		hovered: state.hovered
+	}).with({ selected: true }, () => "bg-selected border-accent text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-secondary");
+	return createComponent(Button$1, {
+		unstyled: true,
+		get disabled() {
+			return props.disabled;
+		},
+		get selected() {
+			return pressed();
+		},
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get ["aria-pressed"]() {
+			return pressed();
+		},
+		class: (state) => join$4("items-center justify-center rounded-md border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focused && "border-focus", props.class),
+		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+		onClick: toggle,
+		get children() {
+			return props.children;
+		}
+	});
+}
+const ToggleGroupContext = createContext();
+/** Shadcn-style single-value toggle group with native roving focus. */
+function ToggleGroup(props) {
+	const state = createControllableState({
+		value: () => props.value,
+		defaultValue: props.defaultValue,
+		disabled: () => props.disabled ?? false,
+		onChange: (value) => value !== void 0 && props.onValueChange?.(value)
+	});
+	const roving = createRovingFocus({
+		orientation: () => "horizontal",
+		onMove: (value) => state.set(value)
+	});
+	const context = {
+		value: state.value,
+		disabled: () => props.disabled ?? false,
+		select: (value) => state.set(value),
+		register: (value, node, disabled) => roving.register({
+			id: value,
+			target: node,
+			disabled
+		}),
+		move: roving.move
+	};
+	return createComponent$1(ToggleGroupContext, {
+		value: context,
+		get children() {
+			return createComponent(View, {
+				role: "group",
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				get ["class"]() {
+					return join$4("flex flex-row items-center gap-1 rounded-lg bg-control p-1", props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	});
+}
+function ToggleGroupItem(props) {
+	const group = useContext(ToggleGroupContext);
+	if (!group) throw new Error("ToggleGroupItem must be used inside ToggleGroup");
+	const selected = () => group.value() === props.value;
+	const disabled = () => group.disabled() || (props.disabled ?? false);
+	let unregister;
+	onCleanup(() => unregister?.());
+	return createComponent(Button$1, {
+		unstyled: true,
+		get disabled() {
+			return disabled();
+		},
+		get selected() {
+			return selected();
+		},
+		get ["aria-pressed"]() {
+			return selected();
+		},
+		ref: (node) => {
+			unregister?.();
+			unregister = group.register(props.value, node, disabled);
+		},
+		class: (state) => join$4("h-8 flex-1 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", selected() ? "bg-surface text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-muted", state.focused && "border-focus", props.class),
+		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+		onClick: () => group.select(props.value),
+		onKeyDown: (event) => {
+			if (group.move(props.value, event.key)) event.preventDefault();
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+//#endregion
+//#region src/slider.tsx
+const join$3 = (...values) => values.filter(Boolean).join(" ");
 function Slider(props) {
-	const min = () => props.min ?? 0;
-	const max = () => Math.max(min(), props.max ?? 100);
-	const step = () => Math.max(Number.EPSILON, props.step ?? 1);
-	const clamp = (value) => Math.max(min(), Math.min(max(), value));
+	const range = () => normalizeRange(props.min, props.max, props.step);
+	const min = () => range().min;
+	const max = () => range().max;
+	const step = () => range().step;
+	const clamp = (value) => Math.max(min(), Math.min(max(), finiteOr(value, min())));
 	const snap = (value) => {
 		const stepped = min() + Math.round((clamp(value) - min()) / step()) * step();
-		const precision = Math.max(0, (String(step()).split(".")[1] ?? "").length);
+		const precision = decimalPlaces(step());
 		return clamp(Number(stepped.toFixed(precision)));
 	};
 	const [local, setLocal] = createSignal(snap(props.defaultValue ?? min()));
@@ -1208,7 +1548,7 @@ function Slider(props) {
 			return props.disabled ? -1 : 0;
 		},
 		get ["class"]() {
-			return join$4("h-7 relative flex items-center", props.class);
+			return join$3("h-7 relative flex items-center", props.class);
 		},
 		onFocus: () => setFocused(true),
 		onBlur: () => {
@@ -1233,6 +1573,7 @@ function Slider(props) {
 		},
 		get children() {
 			return [createComponent(View, {
+				"aria-hidden": "true",
 				class: "w-full h-2 overflow-hidden rounded-full bg-control",
 				get children() {
 					return createComponent(View, {
@@ -1243,8 +1584,9 @@ function Slider(props) {
 					});
 				}
 			}), createComponent(View, {
+				"aria-hidden": "true",
 				get ["class"]() {
-					return join$4("w-5 h-5 absolute rounded-full border bg-surface", focused() || dragging() ? "border-focus" : "border-strong");
+					return join$3("w-5 h-5 absolute rounded-full border bg-surface", focused() || dragging() ? "border-focus" : "border-strong");
 				},
 				get style() {
 					return {
@@ -1257,344 +1599,8 @@ function Slider(props) {
 	});
 }
 //#endregion
-//#region src/title-bar.tsx
-const join$3 = (...values) => values.filter(Boolean).join(" ");
-const titleBarClass = "border-b border-subtle";
-const titleBarLayoutStyle = {
-	display: "flex",
-	"flex-direction": "row",
-	"align-items": "center",
-	"flex-shrink": 0,
-	height: "40px"
-};
-const titleBarDragRegionLayoutStyle = {
-	display: "flex",
-	"flex-direction": "row",
-	"align-items": "center",
-	"flex-grow": 1,
-	"flex-shrink": 1,
-	"flex-basis": "0%",
-	height: "100%"
-};
-/** Layout shell for an application-owned title bar. */
-function TitleBar(props) {
-	return createComponent(View, mergeProps(props, {
-		get ["class"]() {
-			return join$3(titleBarClass, props.class);
-		},
-		get style() {
-			return {
-				...titleBarLayoutStyle,
-				...props.style
-			};
-		}
-	}));
-}
-/** Explicit non-interactive region that moves the native window. */
-function TitleBarDragRegion(props) {
-	const window = useWindow();
-	return createComponent(View, mergeProps(props, {
-		get ["class"]() {
-			return props.class;
-		},
-		get style() {
-			return {
-				...titleBarDragRegionLayoutStyle,
-				...props.style
-			};
-		},
-		onPointerDown: (event) => {
-			if (event.button === 0) window.startDragging();
-		},
-		onDblClick: () => window.setMaximized(!window.maximized())
-	}));
-}
-//#endregion
-//#region src/selection.tsx
-const join$2 = (...values) => values.filter(Boolean).join(" ");
-const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
-function Checkbox(props) {
-	const state = createControllableState({
-		value: () => props.checked,
-		defaultValue: props.defaultChecked ?? false,
-		disabled: () => props.disabled ?? false,
-		onChange: props.onCheckedChange
-	});
-	const checked = state.value;
-	const toggle = () => {
-		state.set(!checked());
-	};
-	const boxColors = () => match({
-		checked: checked(),
-		indeterminate: !!props.indeterminate
-	}).with({ checked: true }, () => "bg-accent border-accent text-on-accent").with({ indeterminate: true }, () => "bg-accent border-accent text-on-accent").otherwise(() => "bg-input border-strong text-primary");
-	const ariaChecked = () => match({
-		checked: checked(),
-		indeterminate: !!props.indeterminate
-	}).with({ indeterminate: true }, () => "mixed").otherwise(({ checked }) => checked);
-	const indicator = () => match({
-		checked: checked(),
-		indeterminate: !!props.indeterminate
-	}).with({ indeterminate: true }, () => "−").with({ checked: true }, () => "✓").otherwise(() => "");
-	return createComponent(Button$1, {
-		unstyled: true,
-		role: "checkbox",
-		get disabled() {
-			return props.disabled;
-		},
-		get ["aria-label"]() {
-			return props["aria-label"] ?? props.label;
-		},
-		get ["aria-checked"]() {
-			return ariaChecked();
-		},
-		get selected() {
-			return checked();
-		},
-		class: (buttonState) => join$2("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
-		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
-		onClick: toggle,
-		get children() {
-			return [createComponent(Center, {
-				get ["class"]() {
-					return join$2(SELECTION_INDICATOR_CLASS, "rounded text-xs font-bold", boxColors());
-				},
-				get children() {
-					return createComponent(Text, {
-						class: "text-xs font-bold text-on-accent",
-						get children() {
-							return indicator();
-						}
-					});
-				}
-			}), memo(() => {
-				return memo(() => {
-					return !!props.label;
-				})() ? createComponent(Text, {
-					class: "text-sm text-secondary",
-					get children() {
-						return props.label;
-					}
-				}) : props.label;
-			})];
-		}
-	});
-}
-const RadioContext = createContext();
-function RadioGroup(props) {
-	const state = createControllableState({
-		value: () => props.value,
-		defaultValue: props.defaultValue,
-		disabled: () => props.disabled ?? false,
-		onChange: (value) => value !== void 0 && props.onValueChange?.(value)
-	});
-	const value = state.value;
-	const select = (next) => {
-		state.set(next);
-	};
-	const roving = createRovingFocus({
-		orientation: () => "vertical",
-		onMove: select
-	});
-	return createComponent$1(RadioContext, {
-		value: {
-			value,
-			select,
-			disabled: () => props.disabled ?? false,
-			register: (id, target, disabled) => roving.register({
-				id,
-				target,
-				disabled
-			}),
-			move: roving.move
-		},
-		get children() {
-			return createComponent(View, {
-				role: "radiogroup",
-				get ["aria-label"]() {
-					return props["aria-label"];
-				},
-				get ["class"]() {
-					return join$2("flex flex-col gap-3", props.class);
-				},
-				get children() {
-					return props.children;
-				}
-			});
-		}
-	});
-}
-function RadioGroupItem(props) {
-	const group = useContext(RadioContext);
-	if (!group) throw new Error("RadioGroupItem must be used inside RadioGroup");
-	const checked = () => group.value() === props.value;
-	const disabled = () => group.disabled() || (props.disabled ?? false);
-	let unregister;
-	onCleanup(() => unregister?.());
-	return createComponent(Button$1, {
-		unstyled: true,
-		role: "radio",
-		get disabled() {
-			return disabled();
-		},
-		get selected() {
-			return checked();
-		},
-		get ["aria-label"]() {
-			return props.label;
-		},
-		get ["aria-checked"]() {
-			return checked();
-		},
-		ref: (node) => {
-			unregister?.();
-			unregister = group.register(props.value, node, disabled);
-		},
-		class: (buttonState) => join$2("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
-		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
-		onClick: () => group.select(props.value),
-		onKeyDown: (event) => {
-			if (group.move(props.value, event.key)) event.preventDefault();
-		},
-		get children() {
-			return [createComponent(Center, {
-				get ["class"]() {
-					return join$2(SELECTION_INDICATOR_CLASS, "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
-				},
-				get children() {
-					return memo(() => {
-						return !!checked();
-					})() ? createComponent(View, { class: "w-2.5 h-2.5 rounded-full bg-accent" }) : checked();
-				}
-			}), memo(() => {
-				return memo(() => {
-					return !!props.label;
-				})() ? createComponent(Text, {
-					class: "text-sm text-secondary",
-					get children() {
-						return props.label;
-					}
-				}) : props.label;
-			})];
-		}
-	});
-}
-function Toggle(props) {
-	const state = createControllableState({
-		value: () => props.pressed,
-		defaultValue: props.defaultPressed ?? false,
-		disabled: () => props.disabled ?? false,
-		onChange: props.onPressedChange
-	});
-	const pressed = state.value;
-	const toggle = () => {
-		state.set(!pressed());
-	};
-	const size = () => match(props.size ?? "default").with("sm", () => "h-8 min-w-8 px-2 text-xs").with("default", () => "h-9 min-w-9 px-2.5 text-sm").with("lg", () => "h-10 min-w-10 px-3 text-sm").exhaustive();
-	const colors = (state) => match({
-		selected: pressed(),
-		hovered: state.hovered
-	}).with({ selected: true }, () => "bg-selected border-accent text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-secondary");
-	return createComponent(Button$1, {
-		unstyled: true,
-		get disabled() {
-			return props.disabled;
-		},
-		get selected() {
-			return pressed();
-		},
-		get ["aria-label"]() {
-			return props["aria-label"];
-		},
-		get ["aria-pressed"]() {
-			return pressed();
-		},
-		class: (state) => join$2("items-center justify-center rounded-md border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focused && "border-focus", props.class),
-		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
-		onClick: toggle,
-		get children() {
-			return props.children;
-		}
-	});
-}
-const ToggleGroupContext = createContext();
-/** Shadcn-style single-value toggle group with native roving focus. */
-function ToggleGroup(props) {
-	const state = createControllableState({
-		value: () => props.value,
-		defaultValue: props.defaultValue,
-		disabled: () => props.disabled ?? false,
-		onChange: (value) => value !== void 0 && props.onValueChange?.(value)
-	});
-	const roving = createRovingFocus({
-		orientation: () => "horizontal",
-		onMove: (value) => state.set(value)
-	});
-	const context = {
-		value: state.value,
-		disabled: () => props.disabled ?? false,
-		select: (value) => state.set(value),
-		register: (value, node, disabled) => roving.register({
-			id: value,
-			target: node,
-			disabled
-		}),
-		move: roving.move
-	};
-	return createComponent$1(ToggleGroupContext, {
-		value: context,
-		get children() {
-			return createComponent(View, {
-				role: "group",
-				get ["aria-label"]() {
-					return props["aria-label"];
-				},
-				get ["class"]() {
-					return join$2("flex flex-row items-center gap-1 rounded-lg bg-control p-1", props.class);
-				},
-				get children() {
-					return props.children;
-				}
-			});
-		}
-	});
-}
-function ToggleGroupItem(props) {
-	const group = useContext(ToggleGroupContext);
-	if (!group) throw new Error("ToggleGroupItem must be used inside ToggleGroup");
-	const selected = () => group.value() === props.value;
-	const disabled = () => group.disabled() || (props.disabled ?? false);
-	let unregister;
-	onCleanup(() => unregister?.());
-	return createComponent(Button$1, {
-		unstyled: true,
-		get disabled() {
-			return disabled();
-		},
-		get selected() {
-			return selected();
-		},
-		get ["aria-pressed"]() {
-			return selected();
-		},
-		ref: (node) => {
-			unregister?.();
-			unregister = group.register(props.value, node, disabled);
-		},
-		class: (state) => join$2("h-8 flex-1 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", selected() ? "bg-surface text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-muted", state.focused && "border-focus", props.class),
-		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
-		onClick: () => group.select(props.value),
-		onKeyDown: (event) => {
-			if (group.move(props.value, event.key)) event.preventDefault();
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-//#endregion
 //#region src/tabs.tsx
-const join$1 = (...values) => values.filter(Boolean).join(" ");
+const join$2 = (...values) => values.filter(Boolean).join(" ");
 const orientationClass = (orientation, horizontal, vertical) => match(orientation).with("horizontal", () => horizontal).with("vertical", () => vertical).exhaustive();
 const TabsContext = createContext();
 function Tabs(props) {
@@ -1631,7 +1637,7 @@ function Tabs(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$1("flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
+					return join$2("flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
 				},
 				get children() {
 					return props.children;
@@ -1652,7 +1658,7 @@ function TabsList(props) {
 			return context.orientation();
 		},
 		get ["class"]() {
-			return join$1("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-1 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
+			return join$2("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-1 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -1681,7 +1687,7 @@ function TabsTrigger(props) {
 			unregister?.();
 			unregister = context.register(props.value, node, () => props.disabled ?? false);
 		},
-		class: (state) => join$1("h-8 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
+		class: (state) => join$2("h-8 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
 			selected: selected(),
 			hovered: state.hovered
 		}).with({ selected: true }, () => "bg-surface text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focused && "border-focus", props.class),
@@ -1706,7 +1712,7 @@ function TabsContent(props) {
 	return context.value() === props.value ? createComponent(View, {
 		role: "tabpanel",
 		get ["class"]() {
-			return join$1("flex-1", props.class);
+			return join$2("flex-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -1727,6 +1733,59 @@ function ComponentsProvider(props) {
 }
 function useComponentsTheme() {
 	return (getOwner() ? useContext(ThemeContext) : defaultTheme).theme;
+}
+//#endregion
+//#region src/title-bar.tsx
+const join$1 = (...values) => values.filter(Boolean).join(" ");
+const titleBarClass = "border-b border-subtle";
+const titleBarLayoutStyle = {
+	display: "flex",
+	"flex-direction": "row",
+	"align-items": "center",
+	"flex-shrink": 0,
+	height: "40px"
+};
+const titleBarDragRegionLayoutStyle = {
+	display: "flex",
+	"flex-direction": "row",
+	"align-items": "center",
+	"flex-grow": 1,
+	"flex-shrink": 1,
+	"flex-basis": "0%",
+	height: "100%"
+};
+/** Layout shell for an application-owned title bar. */
+function TitleBar(props) {
+	return createComponent(View, mergeProps(props, {
+		get ["class"]() {
+			return join$1(titleBarClass, props.class);
+		},
+		get style() {
+			return {
+				...titleBarLayoutStyle,
+				...props.style
+			};
+		}
+	}));
+}
+/** Explicit non-interactive region that moves the native window. */
+function TitleBarDragRegion(props) {
+	const window = useWindow();
+	return createComponent(View, mergeProps(props, {
+		get ["class"]() {
+			return props.class;
+		},
+		get style() {
+			return {
+				...titleBarDragRegionLayoutStyle,
+				...props.style
+			};
+		},
+		onPointerDown: (event) => {
+			if (event.button === 0) window.startDragging();
+		},
+		onDblClick: () => window.setMaximized(!window.maximized())
+	}));
 }
 //#endregion
 //#region src/index.tsx
@@ -1874,9 +1933,12 @@ function CardFooter(props) {
 }
 function Separator(props) {
 	const dimensions = () => match(props.orientation ?? "horizontal").with("horizontal", () => "h-px w-full").with("vertical", () => "w-px h-full").exhaustive();
-	return createComponent(View, { get ["class"]() {
-		return join("flex-none", "bg-subtle", dimensions(), props.class);
-	} });
+	return createComponent(View, {
+		"aria-hidden": "true",
+		get ["class"]() {
+			return join("flex-none", "bg-subtle", dimensions(), props.class);
+		}
+	});
 }
 function Alert(props) {
 	const colors = () => match(props.variant ?? "default").with("default", () => ({
@@ -1889,6 +1951,10 @@ function Alert(props) {
 		body: "text-danger-primary"
 	})).exhaustive();
 	return createComponent(View, {
+		role: "alert",
+		get ["aria-label"]() {
+			return props.title;
+		},
 		get ["class"]() {
 			return join("flex flex-col gap-1 rounded-lg border p-4", colors().container, props.class);
 		},
@@ -1979,6 +2045,9 @@ function Switch(props) {
 				get disabled() {
 					return props.disabled;
 				},
+				get ["aria-label"]() {
+					return props["aria-label"] ?? props.label;
+				},
 				get ["aria-checked"]() {
 					return checked();
 				},
@@ -1987,6 +2056,7 @@ function Switch(props) {
 				onClick: toggle,
 				get children() {
 					return createComponent(View, {
+						"aria-hidden": "true",
 						class: "w-5 h-5 rounded-full bg-on-accent",
 						get transform() {
 							return translate2d(thumbX(), 0);
@@ -2007,13 +2077,26 @@ function Switch(props) {
 	});
 }
 function Progress(props) {
-	const value = () => Math.max(0, Math.min(100, props.value ?? 0));
+	const value = () => normalizePercentage(props.value);
 	return createComponent(View, {
+		role: "progressbar",
+		get ["aria-label"]() {
+			return props.label ?? "Progress";
+		},
+		"aria-valuemin": 0,
+		"aria-valuemax": 100,
+		get ["aria-valuenow"]() {
+			return value();
+		},
+		get ["aria-valuetext"]() {
+			return `${value()} percent`;
+		},
 		get ["class"]() {
 			return join("w-full h-2 overflow-hidden rounded-full", "bg-control", props.class);
 		},
 		get children() {
 			return createComponent(View, {
+				"aria-hidden": "true",
 				class: "h-full bg-accent rounded-full",
 				get style() {
 					return { width: `${value()}%` };

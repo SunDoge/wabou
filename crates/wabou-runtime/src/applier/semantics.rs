@@ -29,10 +29,12 @@ fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<
 fn semantic_role(tag: &str, declared: &Declared, atoms: &AtomPool) -> SemanticRole {
     match attribute(declared, atoms, "role").as_deref().unwrap_or(tag) {
         "button" => SemanticRole::Button,
+        "group" => SemanticRole::Group,
         "textbox" | "input" | "textarea" | "password-input" | "code-editor" => {
             SemanticRole::TextInput
         }
         "img" | "image" => SemanticRole::Image,
+        "radiogroup" => SemanticRole::RadioGroup,
         "link" | "a" => SemanticRole::Link,
         "dialog" | "alertdialog" => SemanticRole::Dialog,
         "alert" => SemanticRole::Alert,
@@ -43,12 +45,23 @@ fn semantic_role(tag: &str, declared: &Declared, atoms: &AtomPool) -> SemanticRo
         "combobox" => SemanticRole::ComboBox,
         "listbox" => SemanticRole::ListBox,
         "option" => SemanticRole::Option,
+        "menu" => SemanticRole::Menu,
+        "menuitem" => SemanticRole::MenuItem,
+        "tree" => SemanticRole::Tree,
+        "treeitem" => SemanticRole::TreeItem,
         "table" => SemanticRole::Table,
         "row" => SemanticRole::Row,
-        "cell" | "gridcell" => SemanticRole::Cell,
+        "cell" => SemanticRole::Cell,
+        "gridcell" => SemanticRole::GridCell,
         "columnheader" => SemanticRole::ColumnHeader,
         "rowheader" => SemanticRole::RowHeader,
         "slider" => SemanticRole::Slider,
+        "progressbar" => SemanticRole::ProgressBar,
+        "tablist" => SemanticRole::TabList,
+        "tab" => SemanticRole::Tab,
+        "tabpanel" => SemanticRole::TabPanel,
+        "grid" => SemanticRole::Grid,
+        "heading" => SemanticRole::Heading,
         "text" | "#text" | "label" => SemanticRole::Label,
         _ => SemanticRole::Generic,
     }
@@ -113,11 +126,15 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
                         | SemanticRole::Link
                         | SemanticRole::Dialog
                         | SemanticRole::ComboBox
+                        | SemanticRole::Option
+                        | SemanticRole::MenuItem
+                        | SemanticRole::TreeItem
                         | SemanticRole::Row
                         | SemanticRole::Cell
                         | SemanticRole::ColumnHeader
                         | SemanticRole::RowHeader
                         | SemanticRole::Generic
+                        | SemanticRole::Tab
                 )
             {
                 return None;
@@ -188,7 +205,10 @@ fn semantic_focus(
                         | SemanticRole::ComboBox
                         | SemanticRole::ListBox
                         | SemanticRole::Option
+                        | SemanticRole::MenuItem
+                        | SemanticRole::TreeItem
                         | SemanticRole::Slider
+                        | SemanticRole::Tab
                 )
         })
         .map(|node| node.id)
@@ -203,20 +223,70 @@ fn semantic_children(
     node: NodeId,
     present: &HashSet<NodeId>,
     hidden: &HashSet<NodeId>,
+    presentational: &HashSet<NodeId>,
 ) -> Vec<u64> {
-    store
+    fn append(
+        store: &NodeStore,
+        parent: NodeId,
+        present: &HashSet<NodeId>,
+        hidden: &HashSet<NodeId>,
+        presentational: &HashSet<NodeId>,
+        output: &mut Vec<u64>,
+    ) {
+        for child in store.children.get(&parent).into_iter().flatten() {
+            if hidden.contains(child) {
+                continue;
+            }
+            if presentational.contains(child) {
+                append(store, *child, present, hidden, presentational, output);
+            } else if present.contains(child)
+                && let Some(solid) = store.node_to_solid.get(child)
+            {
+                output.push(u64::from(*solid));
+            }
+        }
+    }
+
+    let mut children = Vec::new();
+    append(store, node, present, hidden, presentational, &mut children);
+    children
+}
+
+fn semantic_source_order(
+    store: &NodeStore,
+    present: &HashSet<NodeId>,
+    hidden: &HashSet<NodeId>,
+    presentational: &HashSet<NodeId>,
+) -> Vec<NodeId> {
+    let mut ordered = Vec::with_capacity(present.len().saturating_sub(1));
+    let mut stack = store
         .children
-        .get(&node)
+        .get(&store.root)
         .into_iter()
         .flatten()
-        .filter(|child| present.contains(child) && !hidden.contains(child))
-        .filter_map(|child| store.node_to_solid.get(child).copied())
-        .map(u64::from)
-        .collect()
+        .rev()
+        .copied()
+        .collect::<Vec<_>>();
+    while let Some(node) = stack.pop() {
+        if hidden.contains(&node) {
+            continue;
+        }
+        if present.contains(&node) && !presentational.contains(&node) {
+            ordered.push(node);
+        }
+        if let Some(children) = store.children.get(&node) {
+            stack.extend(children.iter().rev().copied());
+        }
+    }
+    ordered
 }
 
 pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     let present: HashSet<_> = placed.iter().map(|node| node.node_id).collect();
+    let placed_by_node = placed
+        .iter()
+        .map(|placed| (placed.node_id, placed))
+        .collect::<HashMap<_, _>>();
     let atoms = applier.atoms.borrow();
     let semantic_transforms: HashMap<_, _> = applier
         .input
@@ -241,7 +311,19 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         })
         .map(|node| node.node_id)
         .collect();
-    let modal_node = placed
+    let presentational = applier
+        .node_store
+        .declared
+        .iter()
+        .filter_map(|(node, declared)| {
+            matches!(
+                attribute(declared, &atoms, "role").as_deref(),
+                Some("presentation" | "none")
+            )
+            .then_some(*node)
+        })
+        .collect::<HashSet<_>>();
+    let modal_container = placed
         .iter()
         .rev()
         .find(|node| {
@@ -256,14 +338,37 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                     })
         })
         .map(|node| node.node_id);
+    let modal_node = modal_container.and_then(|container| {
+        if !presentational.contains(&container) {
+            return Some(container);
+        }
+        placed.iter().rev().find_map(|node| {
+            if hidden.contains(&node.node_id)
+                || presentational.contains(&node.node_id)
+                || !applier
+                    .node_store
+                    .is_logical_descendant(node.node_id, container)
+            {
+                return None;
+            }
+            let declared = applier.node_store.declared.get(&node.node_id)?;
+            matches!(
+                attribute(declared, &atoms, "role").as_deref(),
+                Some("dialog" | "alertdialog")
+            )
+            .then_some(node.node_id)
+        })
+    });
     let modal_root = modal_node
         .and_then(|node| applier.node_store.solid_id_for_node(node))
         .map(u64::from);
-    let mut nodes = Vec::with_capacity(placed.len().saturating_sub(1));
-    for placed_node in placed {
-        if placed_node.node_id == applier.node_store.root || hidden.contains(&placed_node.node_id) {
+    let source_order =
+        semantic_source_order(&applier.node_store, &present, &hidden, &presentational);
+    let mut nodes = Vec::with_capacity(source_order.len());
+    for node_id in source_order {
+        let Some(placed_node) = placed_by_node.get(&node_id).copied() else {
             continue;
-        }
+        };
         let Some(&solid_id) = applier.node_store.node_to_solid.get(&placed_node.node_id) else {
             continue;
         };
@@ -301,8 +406,18 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                     })
             })
             .flatten();
-        let children =
-            semantic_children(&applier.node_store, placed_node.node_id, &present, &hidden);
+        let numeric_attribute = |name| {
+            attribute(declared, &atoms, name)
+                .and_then(|value| value.parse::<f64>().ok())
+                .filter(|value| value.is_finite())
+        };
+        let children = semantic_children(
+            &applier.node_store,
+            placed_node.node_id,
+            &present,
+            &hidden,
+            &presentational,
+        );
         let bounds = transformed_bounds(placed_node.rect, semantic_transforms.get(&solid_id));
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
@@ -317,6 +432,9 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             },
             label: label.or(widget_semantics.label),
             value,
+            numeric_value: numeric_attribute("aria-valuenow"),
+            min_numeric_value: numeric_attribute("aria-valuemin"),
+            max_numeric_value: numeric_attribute("aria-valuemax"),
             bounds,
             children,
             disabled: attribute(declared, &atoms, "disabled").is_some()
@@ -336,6 +454,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         applier.node_store.root,
         &present,
         &hidden,
+        &presentational,
     );
     let focus = semantic_focus(applier, &nodes, modal_root, modal_node);
     applier.projections.semantic_snapshot = Arc::new(SemanticSnapshot {
@@ -350,4 +469,26 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         focus,
         modal_root,
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn popup_roles_declared_by_primitives_keep_native_semantics() {
+        let mut atoms = AtomPool::default();
+        let role = atoms.intern("role");
+        for (name, expected) in [
+            ("menu", SemanticRole::Menu),
+            ("menuitem", SemanticRole::MenuItem),
+            ("tree", SemanticRole::Tree),
+            ("treeitem", SemanticRole::TreeItem),
+            ("grid", SemanticRole::Grid),
+        ] {
+            let mut declared = Declared::default();
+            declared.attrs.insert(role, Arc::from(name));
+            assert_eq!(semantic_role("view", &declared, &atoms), expected);
+        }
+    }
 }

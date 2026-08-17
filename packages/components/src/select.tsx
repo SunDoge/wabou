@@ -11,9 +11,10 @@ import {
   View,
 } from "@wabou/primitives";
 import type { Handle } from "@wabou/solid-renderer";
+import check from "lucide-static/icons/check.svg?raw";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createUniqueId, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
-import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 
 const join = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(" ");
@@ -113,6 +114,8 @@ export function Select(props: SelectProps): JSX.Element {
 
   return (
     <Popover
+      contentRole="presentation"
+      popupRole="listbox"
       open={interaction.open()}
       onOpenChange={(open) => {
         interaction.send({ type: open ? "OPEN" : "CLOSE" });
@@ -222,9 +225,11 @@ export function Select(props: SelectProps): JSX.Element {
                   <Text class="min-w-0 flex-1 text-sm whitespace-nowrap text-ellipsis">
                     {option().label}
                   </Text>
-                  <Text class="w-4 flex-none text-sm text-accent">
-                    {selected() ? "✓" : ""}
-                  </Text>
+                  <View aria-hidden="true" class="w-4 h-4 flex-none">
+                    {selected() && (
+                      <Icon source={check} class="text-accent" size={16} />
+                    )}
+                  </View>
                 </View>
               );
             }}

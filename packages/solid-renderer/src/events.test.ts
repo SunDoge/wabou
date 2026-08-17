@@ -31,6 +31,28 @@ test("Solid 2 static createElement props are emitted immediately", () => {
   expect(Array.from(frame!)).toContain(OP.SetClassName);
 });
 
+test("ARIA booleans preserve explicit false instead of removing state", () => {
+  const option = createElement("div");
+  const attributes: Array<[string, string]> = [];
+  const removed: string[] = [];
+  const setAttribute = writer.setAttribute.bind(writer);
+  const removeAttribute = writer.removeAttribute.bind(writer);
+  writer.setAttribute = (_id, name, value) => attributes.push([name, value]);
+  writer.removeAttribute = (_id, name) => removed.push(name);
+  try {
+    setProp(option, "aria-selected", false, undefined);
+    setProp(option, "aria-expanded", true, undefined);
+  } finally {
+    writer.setAttribute = setAttribute;
+    writer.removeAttribute = removeAttribute;
+  }
+  expect(attributes).toEqual([
+    ["aria-selected", "false"],
+    ["aria-expanded", "true"],
+  ]);
+  expect(removed).toEqual([]);
+});
+
 test("input listeners receive a DOM-like currentTarget", () => {
   const input = createElement("input");
   let currentTarget: { id: number; value: string } | undefined;

@@ -30,13 +30,16 @@ export function Avatar(props: AvatarProps) {
     >
       {props.src ? (
         <NetworkImage
+          aria-hidden="true"
           url={props.src}
           format="raster"
           cache="memory"
           class="w-full h-full"
         />
       ) : (
-        <Text class="font-medium text-secondary">{props.fallback}</Text>
+        <Text aria-hidden="true" class="font-medium text-secondary">
+          {props.fallback}
+        </Text>
       )}
     </Center>
   );
