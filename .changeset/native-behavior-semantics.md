@@ -13,3 +13,5 @@ components expose stable AccessKit roles and hide decorative implementation
 nodes. Normalize non-finite Slider and Progress inputs before they reach native
 layout or accessibility state. Preserve menu, menu-item, tree, and tree-item
 roles across the native accessibility and behavior-test bridges.
+Resolve `aria-controls` and `aria-activedescendant` into live AccessKit node
+relationships while respecting modal isolation.

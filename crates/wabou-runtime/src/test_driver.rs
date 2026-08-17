@@ -529,6 +529,8 @@ fn semantic_snapshot_json(window_id: u64, snapshot: &SemanticSnapshot) -> serde_
             "hasValue": node.value.is_some(),
             "bounds": node.bounds,
             "children": node.children,
+            "controls": node.controls,
+            "activeDescendant": node.active_descendant,
             "disabled": node.disabled,
             "checked": toggle(node.states.checked),
             "pressed": toggle(node.states.pressed),
@@ -1022,6 +1024,8 @@ mod tests {
             max_numeric_value: None,
             bounds: [10.0, 20.0, 110.0, 60.0],
             children: Vec::new(),
+            controls: Vec::new(),
+            active_descendant: None,
             disabled: false,
             states: wabou_shell::SemanticStates::default(),
         }
@@ -1032,6 +1036,8 @@ mod tests {
         let controller = TestController::default();
         let mut sensitive = node();
         sensitive.value = Some("must-not-be-persisted".into());
+        sensitive.controls = vec![8];
+        sensitive.active_descendant = Some(8);
         sensitive.states.checked = Some(wabou_shell::SemanticToggleState::Mixed);
         let mut generic = node();
         generic.id = 8;
@@ -1055,6 +1061,11 @@ mod tests {
         assert_eq!(artifact["windows"][0]["nodes"][0]["hasValue"], true);
         assert_eq!(artifact["windows"][0]["nodes"][0]["checked"], "mixed");
         assert_eq!(artifact["windows"][0]["nodes"][0]["focused"], true);
+        assert_eq!(
+            artifact["windows"][0]["nodes"][0]["controls"],
+            serde_json::json!([8])
+        );
+        assert_eq!(artifact["windows"][0]["nodes"][0]["activeDescendant"], 8);
         assert_eq!(
             artifact["windows"][0]["nodes"][1]["name"],
             serde_json::Value::Null

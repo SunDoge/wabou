@@ -364,6 +364,22 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .map(u64::from);
     let source_order =
         semantic_source_order(&applier.node_store, &present, &hidden, &presentational);
+    // HTML IDs are authored strings while the accessibility tree uses stable
+    // Solid node ids. Resolve only currently exposed semantic targets, and use
+    // the first source-order occurrence when invalid duplicate IDs exist.
+    let mut semantic_ids = HashMap::<Arc<str>, u64>::new();
+    for node_id in &source_order {
+        let Some(declared) = applier.node_store.declared.get(node_id) else {
+            continue;
+        };
+        let Some(id) = attribute(declared, &atoms, "id") else {
+            continue;
+        };
+        let Some(solid) = applier.node_store.node_to_solid.get(node_id) else {
+            continue;
+        };
+        semantic_ids.entry(id).or_insert_with(|| u64::from(*solid));
+    }
     let mut nodes = Vec::with_capacity(source_order.len());
     for node_id in source_order {
         let Some(placed_node) = placed_by_node.get(&node_id).copied() else {
@@ -418,6 +434,16 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             &hidden,
             &presentational,
         );
+        let controls = attribute(declared, &atoms, "aria-controls")
+            .map(|value| {
+                value
+                    .split_whitespace()
+                    .filter_map(|id| semantic_ids.get(id).copied())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let active_descendant = attribute(declared, &atoms, "aria-activedescendant")
+            .and_then(|value| semantic_ids.get(value.trim()).copied());
         let bounds = transformed_bounds(placed_node.rect, semantic_transforms.get(&solid_id));
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
@@ -437,6 +463,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             max_numeric_value: numeric_attribute("aria-valuemax"),
             bounds,
             children,
+            controls,
+            active_descendant,
             disabled: attribute(declared, &atoms, "disabled").is_some()
                 || attribute(declared, &atoms, "aria-disabled").as_deref() == Some("true")
                 || widget_semantics.disabled.unwrap_or(false),

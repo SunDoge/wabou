@@ -120,6 +120,10 @@ pub struct SemanticNode {
     pub bounds: [f32; 4],
     /// Ordered semantic child identifiers.
     pub children: Vec<u64>,
+    /// Semantic nodes controlled by this node through `aria-controls`.
+    pub controls: Vec<u64>,
+    /// Current composite-widget item referenced by `aria-activedescendant`.
+    pub active_descendant: Option<u64>,
     /// Whether assistive technology should expose the node as disabled.
     pub disabled: bool,
     /// Interaction states that are meaningful for this node.
@@ -219,6 +223,8 @@ mod tests {
             max_numeric_value: None,
             bounds: [0.0; 4],
             children: children.to_vec(),
+            controls: Vec::new(),
+            active_descendant: None,
             disabled: false,
             states: SemanticStates::default(),
         }

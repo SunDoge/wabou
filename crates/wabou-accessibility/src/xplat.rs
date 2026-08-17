@@ -34,7 +34,11 @@ fn publication_key(
     }
 }
 
-fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
+fn accesskit_node(
+    semantic: &SemanticNode,
+    scale: f64,
+    exposed: Option<&std::collections::HashSet<u64>>,
+) -> Node {
     let role = match semantic.role {
         SemanticRole::Generic => Role::GenericContainer,
         SemanticRole::Group => Role::Group,
@@ -97,6 +101,19 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
             .map(NodeId)
             .collect::<Vec<_>>(),
     );
+    let relation_is_exposed = |id: &u64| exposed.is_none_or(|ids| ids.contains(id));
+    node.set_controls(
+        semantic
+            .controls
+            .iter()
+            .filter(|id| relation_is_exposed(id))
+            .copied()
+            .map(NodeId)
+            .collect::<Vec<_>>(),
+    );
+    if let Some(active) = semantic.active_descendant.filter(relation_is_exposed) {
+        node.set_active_descendant(NodeId(active));
+    }
     if semantic.disabled {
         node.set_disabled();
     }
@@ -164,12 +181,14 @@ fn root_update(
         .unwrap_or(ROOT_ID);
     let mut nodes = vec![(ROOT_ID, root)];
     if let Some(snapshot) = snapshot {
-        nodes.extend(
-            snapshot
-                .exposed_nodes()
-                .into_iter()
-                .map(|semantic| (NodeId(semantic.id), accesskit_node(semantic, scale))),
-        );
+        let exposed = snapshot.exposed_nodes();
+        let exposed_ids = exposed.iter().map(|node| node.id).collect();
+        nodes.extend(exposed.into_iter().map(|semantic| {
+            (
+                NodeId(semantic.id),
+                accesskit_node(semantic, scale, Some(&exposed_ids)),
+            )
+        }));
     }
     TreeUpdate {
         nodes,
@@ -380,6 +399,8 @@ mod tests {
                     max_numeric_value: None,
                     bounds: [0.0, 0.0, 100.0, 20.0],
                     children: vec![],
+                    controls: vec![],
+                    active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
                 },
@@ -393,6 +414,8 @@ mod tests {
                     max_numeric_value: None,
                     bounds: [0.0, 20.0, 100.0, 40.0],
                     children: vec![],
+                    controls: vec![],
+                    active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
                 },
@@ -420,6 +443,8 @@ mod tests {
             max_numeric_value: None,
             bounds: [0.0, 0.0, 100.0, 20.0],
             children: vec![],
+            controls: vec![],
+            active_descendant: None,
             disabled: false,
             states: crate::SemanticStates {
                 checked: Some(SemanticToggleState::Mixed),
@@ -429,7 +454,7 @@ mod tests {
             },
         };
 
-        let node = accesskit_node(&semantic, 1.0);
+        let node = accesskit_node(&semantic, 1.0, None);
         assert_eq!(node.toggled(), Some(Toggled::Mixed));
         assert_eq!(node.is_selected(), Some(true));
         assert_eq!(node.is_expanded(), Some(false));
@@ -447,16 +472,46 @@ mod tests {
             max_numeric_value: Some(100.0),
             bounds: [0.0, 0.0, 100.0, 8.0],
             children: vec![],
+            controls: vec![],
+            active_descendant: None,
             disabled: false,
             states: crate::SemanticStates::default(),
         };
 
-        let node = accesskit_node(&semantic, 1.0);
+        let node = accesskit_node(&semantic, 1.0, None);
         assert_eq!(node.role(), Role::ProgressIndicator);
         assert_eq!(node.value(), Some("64 percent"));
         assert_eq!(node.numeric_value(), Some(64.0));
         assert_eq!(node.min_numeric_value(), Some(0.0));
         assert_eq!(node.max_numeric_value(), Some(100.0));
+    }
+
+    #[test]
+    fn composite_widget_relations_reach_accesskit_and_filter_hidden_targets() {
+        let semantic = crate::SemanticNode {
+            id: 2,
+            role: SemanticRole::ComboBox,
+            label: Some("Workspace".into()),
+            value: None,
+            numeric_value: None,
+            min_numeric_value: None,
+            max_numeric_value: None,
+            bounds: [0.0, 0.0, 100.0, 20.0],
+            children: vec![],
+            controls: vec![3, 9],
+            active_descendant: Some(4),
+            disabled: false,
+            states: crate::SemanticStates::default(),
+        };
+
+        let node = accesskit_node(&semantic, 1.0, None);
+        assert_eq!(node.controls(), &[NodeId(3), NodeId(9)]);
+        assert_eq!(node.active_descendant(), Some(NodeId(4)));
+
+        let exposed = [2, 3].into_iter().collect();
+        let filtered = accesskit_node(&semantic, 1.0, Some(&exposed));
+        assert_eq!(filtered.controls(), &[NodeId(3)]);
+        assert_eq!(filtered.active_descendant(), None);
     }
 
     #[test]
@@ -494,10 +549,12 @@ mod tests {
                 max_numeric_value: None,
                 bounds: [0.0, index as f32 * 20.0, 100.0, index as f32 * 20.0 + 20.0],
                 children: vec![],
+                controls: vec![],
+                active_descendant: None,
                 disabled: false,
                 states: crate::SemanticStates::default(),
             };
-            assert_eq!(accesskit_node(&node, 1.0).role(), roles[index].1);
+            assert_eq!(accesskit_node(&node, 1.0, None).role(), roles[index].1);
         }
     }
 
@@ -516,6 +573,8 @@ mod tests {
                     max_numeric_value: None,
                     bounds: [0.0, 0.0, 50.0, 20.0],
                     children: vec![],
+                    controls: vec![],
+                    active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
                 },
@@ -529,6 +588,8 @@ mod tests {
                     max_numeric_value: None,
                     bounds: [10.0, 10.0, 90.0, 90.0],
                     children: vec![4],
+                    controls: vec![],
+                    active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
                 },
@@ -542,6 +603,8 @@ mod tests {
                     max_numeric_value: None,
                     bounds: [60.0, 60.0, 80.0, 75.0],
                     children: vec![],
+                    controls: vec![],
+                    active_descendant: None,
                     disabled: false,
                     states: crate::SemanticStates::default(),
                 },

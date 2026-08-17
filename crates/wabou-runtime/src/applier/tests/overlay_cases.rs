@@ -604,3 +604,103 @@ fn presentation_role_flattens_its_semantic_children_without_changing_paint() {
         [3, 4]
     );
 }
+
+#[test]
+fn semantic_idrefs_resolve_to_live_native_nodes() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (view, role, id, aria_label, aria_controls, aria_active) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("view"),
+            atoms.intern("role"),
+            atoms.intern("id"),
+            atoms.intern("aria-label"),
+            atoms.intern("aria-controls"),
+            atoms.intern("aria-activedescendant"),
+        )
+    };
+    for (node, attrs) in [
+        (
+            2,
+            vec![
+                (role, "combobox"),
+                (aria_label, "Workspace"),
+                (aria_controls, "workspace-options missing"),
+                (aria_active, "workspace-beta"),
+            ],
+        ),
+        (
+            3,
+            vec![
+                (role, "listbox"),
+                (id, "workspace-options"),
+                (aria_label, "Workspace"),
+            ],
+        ),
+        (
+            4,
+            vec![
+                (role, "option"),
+                (id, "workspace-beta"),
+                (aria_label, "Beta"),
+            ],
+        ),
+    ] {
+        applier.apply_op(&Op::CreateElement {
+            id: node,
+            tag: view,
+            attrs,
+        });
+    }
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 3,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 3,
+        child: 4,
+    });
+    applier.rebuild_layout_boxes();
+
+    let root = applier.node_store.root;
+    let combo = applier.node_store.solid_to_node[&2];
+    let listbox = applier.node_store.solid_to_node[&3];
+    let option = applier.node_store.solid_to_node[&4];
+    let placed = [
+        (combo, Some(root), 1),
+        (listbox, Some(root), 1),
+        (option, Some(listbox), 2),
+    ]
+    .map(|(node_id, parent_node_id, depth)| PlacedNode {
+        node_id,
+        parent_node_id,
+        depth,
+        rect: [0.0, 0.0, 100.0, 40.0],
+        content_origin: [0.0, 0.0],
+        content_size: [100.0, 40.0],
+        clip: None,
+        clip_radius: 0.0,
+        clip_depth: None,
+        own_clip: None,
+        own_clip_radius: 0.0,
+        border_widths: [0.0; 4],
+        scroll: layout::ScrollMetrics::default(),
+        paint: Paint::default(),
+    });
+
+    applier.rebuild_semantic_snapshot(&placed);
+    let combo = applier
+        .projections
+        .semantic_snapshot
+        .nodes
+        .iter()
+        .find(|node| node.id == 2)
+        .expect("combobox semantic node");
+    assert_eq!(combo.controls, [3]);
+    assert_eq!(combo.active_descendant, Some(4));
+}
