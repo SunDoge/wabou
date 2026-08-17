@@ -26,6 +26,12 @@ fn semantic_role(tag: &str, declared: &Declared, atoms: &AtomPool) -> SemanticRo
         "combobox" => SemanticRole::ComboBox,
         "listbox" => SemanticRole::ListBox,
         "option" => SemanticRole::Option,
+        "table" => SemanticRole::Table,
+        "row" => SemanticRole::Row,
+        "cell" | "gridcell" => SemanticRole::Cell,
+        "columnheader" => SemanticRole::ColumnHeader,
+        "rowheader" => SemanticRole::RowHeader,
+        "slider" => SemanticRole::Slider,
         "text" | "#text" | "label" => SemanticRole::Label,
         _ => SemanticRole::Generic,
     }
@@ -90,6 +96,10 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
                         | SemanticRole::Link
                         | SemanticRole::Dialog
                         | SemanticRole::ComboBox
+                        | SemanticRole::Row
+                        | SemanticRole::Cell
+                        | SemanticRole::ColumnHeader
+                        | SemanticRole::RowHeader
                         | SemanticRole::Generic
                 )
             {
@@ -105,6 +115,25 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
     for (node, inferred) in nodes.iter_mut().zip(inferred) {
         if node.label.is_none() {
             node.label = inferred;
+        }
+    }
+
+    let status_values = nodes
+        .iter()
+        .map(|node| {
+            if node.value.is_some() || node.role != SemanticRole::Status {
+                return None;
+            }
+            let mut parts = Vec::new();
+            for child in &node.children {
+                collect(*child, nodes, &indices, &mut parts);
+            }
+            (!parts.is_empty()).then(|| parts.join(" "))
+        })
+        .collect::<Vec<_>>();
+    for (node, value) in nodes.iter_mut().zip(status_values) {
+        if node.value.is_none() {
+            node.value = value;
         }
     }
 }
@@ -142,6 +171,7 @@ fn semantic_focus(
                         | SemanticRole::ComboBox
                         | SemanticRole::ListBox
                         | SemanticRole::Option
+                        | SemanticRole::Slider
                 )
         })
         .map(|node| node.id)
@@ -239,12 +269,19 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
         let is_secret = tag == "password-input"
             || attribute(declared, &atoms, "type").as_deref() == Some("password");
+        let explicit_role = attribute(declared, &atoms, "role");
         let value = (!is_secret)
             .then(|| {
                 attribute(declared, &atoms, "aria-valuetext")
                     .or_else(|| attribute(declared, &atoms, "value"))
                     .map(|value| value.to_string())
                     .or(widget_semantics.value)
+                    .or_else(|| {
+                        explicit_role
+                            .as_deref()
+                            .filter(|role| *role != "label")
+                            .and_then(|_| placed_node.paint.text.as_deref().map(str::to_owned))
+                    })
             })
             .flatten();
         let children =
@@ -252,10 +289,10 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let bounds = transformed_bounds(placed_node.rect, semantic_transforms.get(&solid_id));
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
-            role: if declared.text.is_some() {
-                SemanticRole::Label
-            } else if attribute(declared, &atoms, "role").is_some() {
+            role: if explicit_role.is_some() {
                 semantic_role(tag, declared, &atoms)
+            } else if declared.text.is_some() {
+                SemanticRole::Label
             } else {
                 widget_semantics
                     .role

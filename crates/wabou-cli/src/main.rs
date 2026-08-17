@@ -18,7 +18,7 @@ use process_wrap::std::JobObject;
 use process_wrap::std::ProcessGroup;
 use process_wrap::std::{ChildWrapper, CommandWrap};
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 use fs4::fs_std::FileExt as _;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -167,10 +167,10 @@ enum Commands {
             action = clap::ArgAction::Append
         )]
         wheel: Vec<f64>,
-        /// Dispatch a named key press after clicks, wheels, and committed text.
+        /// Dispatch a named key press before capture, in command-line action order.
         #[arg(long, value_name = "KEY", action = clap::ArgAction::Append)]
         key: Vec<String>,
-        /// Commit text to the element focused by the final --click before capture.
+        /// Commit text before capture, in command-line action order.
         #[arg(long, requires = "click")]
         text: Option<String>,
     },
@@ -326,10 +326,15 @@ struct RenderOptions {
     scale_factor: f64,
     mode: Option<String>,
     wait_ms: u64,
-    clicks: Vec<f64>,
-    wheels: Vec<f64>,
-    text: Option<String>,
-    keys: Vec<String>,
+    actions: Vec<RenderAction>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum RenderAction {
+    Click([f64; 2]),
+    Wheel([f64; 4]),
+    Text(String),
+    Key(String),
 }
 
 struct TestOptions {
@@ -342,7 +347,9 @@ struct TestOptions {
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let matches = Cli::command().get_matches();
+    let render_actions = render_actions_from_matches(&matches);
+    let cli = Cli::from_arg_matches(&matches)?;
     let cwd = env::current_dir()?;
     let resolve_app = |app_path: Option<&Path>| {
         let workspace = find_workspace(&cwd)?;
@@ -445,16 +452,86 @@ fn main() -> Result<()> {
                     scale_factor,
                     mode,
                     wait_ms,
-                    clicks: click,
-                    wheels: wheel,
-                    text,
-                    keys: key,
+                    actions: render_actions
+                        .unwrap_or_else(|| legacy_render_actions(click, wheel, text, key)),
                 },
             )
         }
         Commands::Devtools => run_devtools(&find_workspace(&cwd).unwrap_or(cwd)),
         Commands::Inspect { socket, command } => inspect(socket, command),
     }
+}
+
+fn legacy_render_actions(
+    clicks: Vec<f64>,
+    wheels: Vec<f64>,
+    text: Option<String>,
+    keys: Vec<String>,
+) -> Vec<RenderAction> {
+    let mut actions = clicks
+        .chunks_exact(2)
+        .map(|values| RenderAction::Click([values[0], values[1]]))
+        .chain(
+            wheels
+                .chunks_exact(4)
+                .map(|values| RenderAction::Wheel([values[0], values[1], values[2], values[3]])),
+        )
+        .collect::<Vec<_>>();
+    actions.extend(text.map(RenderAction::Text));
+    actions.extend(keys.into_iter().map(RenderAction::Key));
+    actions
+}
+
+fn render_actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAction>> {
+    let (name, render) = matches.subcommand()?;
+    if name != "render" {
+        return None;
+    }
+    let mut indexed = Vec::<(usize, RenderAction)>::new();
+    if let (Some(indices), Some(values)) =
+        (render.indices_of("click"), render.get_many::<f64>("click"))
+    {
+        for (positions, values) in indices
+            .collect::<Vec<_>>()
+            .chunks_exact(2)
+            .zip(values.copied().collect::<Vec<_>>().chunks_exact(2))
+        {
+            indexed.push((positions[0], RenderAction::Click([values[0], values[1]])));
+        }
+    }
+    if let (Some(indices), Some(values)) =
+        (render.indices_of("wheel"), render.get_many::<f64>("wheel"))
+    {
+        for (positions, values) in indices
+            .collect::<Vec<_>>()
+            .chunks_exact(4)
+            .zip(values.copied().collect::<Vec<_>>().chunks_exact(4))
+        {
+            indexed.push((
+                positions[0],
+                RenderAction::Wheel([values[0], values[1], values[2], values[3]]),
+            ));
+        }
+    }
+    if let (Some(index), Some(value)) = (
+        render
+            .indices_of("text")
+            .and_then(|mut values| values.next()),
+        render.get_one::<String>("text"),
+    ) {
+        indexed.push((index, RenderAction::Text(value.clone())));
+    }
+    if let (Some(indices), Some(values)) =
+        (render.indices_of("key"), render.get_many::<String>("key"))
+    {
+        indexed.extend(
+            indices
+                .zip(values)
+                .map(|(index, value)| (index, RenderAction::Key(value.clone()))),
+        );
+    }
+    indexed.sort_by_key(|(index, _)| *index);
+    Some(indexed.into_iter().map(|(_, action)| action).collect())
 }
 
 fn find_workspace(start: &Path) -> Result<PathBuf> {
@@ -983,51 +1060,46 @@ fn apply_render_actions(
     let mut settle = |applier: &mut Applier| {
         settle_render_actions(applier, text_context, nodes, options.width, options.height);
     };
-    for position in options.clicks.chunks_exact(2) {
-        let point = Point {
-            x: position[0],
-            y: position[1],
-        };
-        for (phase, buttons) in [(PointerPhase::Down, 1), (PointerPhase::Up, 0)] {
-            applier.handle_event(UiEvent::Pointer(PointerEvent {
-                phase,
-                position: point,
-                button: Some(PointerButton::Primary),
-                buttons,
-                modifiers: Modifiers::default(),
-            }));
-        }
-        settle(applier);
-    }
-    for gesture in options.wheels.chunks_exact(4) {
-        applier.handle_event(UiEvent::Wheel(WheelEvent {
-            position: Point {
-                x: gesture[0],
-                y: gesture[1],
-            },
-            delta_x: gesture[2],
-            delta_y: gesture[3],
-            modifiers: Modifiers::default(),
-        }));
-        settle(applier);
-    }
-    if let Some(value) = &options.text {
-        applier.handle_event(UiEvent::TextInput(value.clone()));
-        settle(applier);
-    }
-    for key in &options.keys {
-        for phase in [KeyPhase::Down, KeyPhase::Up] {
-            applier.handle_event(UiEvent::Key(KeyEvent {
-                phase,
-                key: key.clone(),
-                key_without_modifiers: key.clone(),
-                code: key.clone(),
-                text: None,
-                text_with_all_modifiers: None,
-                location: KeyLocation::Standard,
-                modifiers: Modifiers::default(),
-                repeat: false,
-            }));
+    for action in &options.actions {
+        match action {
+            RenderAction::Click([x, y]) => {
+                let point = Point { x: *x, y: *y };
+                for (phase, buttons) in [(PointerPhase::Down, 1), (PointerPhase::Up, 0)] {
+                    applier.handle_event(UiEvent::Pointer(PointerEvent {
+                        phase,
+                        position: point,
+                        button: Some(PointerButton::Primary),
+                        buttons,
+                        modifiers: Modifiers::default(),
+                    }));
+                }
+            }
+            RenderAction::Wheel([x, y, delta_x, delta_y]) => {
+                applier.handle_event(UiEvent::Wheel(WheelEvent {
+                    position: Point { x: *x, y: *y },
+                    delta_x: *delta_x,
+                    delta_y: *delta_y,
+                    modifiers: Modifiers::default(),
+                }));
+            }
+            RenderAction::Text(value) => {
+                applier.handle_event(UiEvent::TextInput(value.clone()));
+            }
+            RenderAction::Key(key) => {
+                for phase in [KeyPhase::Down, KeyPhase::Up] {
+                    applier.handle_event(UiEvent::Key(KeyEvent {
+                        phase,
+                        key: key.clone(),
+                        key_without_modifiers: key.clone(),
+                        code: key.clone(),
+                        text: None,
+                        text_with_all_modifiers: None,
+                        location: KeyLocation::Standard,
+                        modifiers: Modifiers::default(),
+                        repeat: false,
+                    }));
+                }
+            }
         }
         settle(applier);
     }
@@ -2212,5 +2284,37 @@ out-dir = "dist/resources"
         assert!(root.join("selected-node.json").is_file());
         fs::remove_dir_all(root).unwrap();
         fs::remove_file(source).unwrap();
+    }
+
+    #[test]
+    fn render_actions_preserve_cross_option_command_line_order() {
+        let matches = Cli::command()
+            .try_get_matches_from([
+                "wabou",
+                "render",
+                "apps/gallery",
+                "--out",
+                "/tmp/gallery.png",
+                "--wheel",
+                "120",
+                "700",
+                "0",
+                "650",
+                "--click",
+                "75",
+                "203",
+                "--key",
+                "Enter",
+            ])
+            .unwrap();
+
+        assert_eq!(
+            render_actions_from_matches(&matches).unwrap(),
+            vec![
+                RenderAction::Wheel([120.0, 700.0, 0.0, 650.0]),
+                RenderAction::Click([75.0, 203.0]),
+                RenderAction::Key("Enter".into()),
+            ]
+        );
     }
 }

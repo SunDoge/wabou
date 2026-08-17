@@ -33,6 +33,18 @@ pub enum SemanticRole {
     ListBox,
     /// Selectable item in a list box.
     Option,
+    /// Tabular data container.
+    Table,
+    /// One row in a table.
+    Row,
+    /// One data cell in a table row.
+    Cell,
+    /// Header describing a table column.
+    ColumnHeader,
+    /// Header describing a table row.
+    RowHeader,
+    /// Numeric value selected along a bounded range.
+    Slider,
 }
 
 #[derive(Debug, Clone, PartialEq)]

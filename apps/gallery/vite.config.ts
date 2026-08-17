@@ -2,6 +2,10 @@ import { defineWabouConfig } from "@wabou/vite";
 
 export default defineWabouConfig({
   outDir: "../../dist/gallery/resources",
+  intl: {
+    locales: ["en", "zh"],
+    timeZones: "golden",
+  },
   theme: {
     default: "dark",
     themes: {

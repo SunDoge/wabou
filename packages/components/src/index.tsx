@@ -25,11 +25,13 @@ import { match, P } from "ts-pattern";
 export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
 export * from "./avatar";
 export * from "./config-editor";
+export * from "./date-picker";
 export * from "./dialog";
 export * from "./disclosure";
 export * from "./forms";
 export * from "./layout";
 export * from "./select";
+export * from "./slider";
 export * from "./title-bar";
 export {
   Checkbox,

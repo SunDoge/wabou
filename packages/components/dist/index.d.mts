@@ -1,5 +1,6 @@
 import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProps, TextAreaProps as TextAreaProps$1, ViewProps, WabouStyle } from "@wabou/primitives";
 import { JSX, ParentProps } from "solid-js";
+import { CalendarDate } from "@internationalized/date";
 import { JSX as JSX$1 } from "@solidjs/web";
 //#region src/display.d.ts
 declare function Skeleton(props: {
@@ -46,6 +47,39 @@ interface ConfigEditorProps extends CodeEditorProps {
  * hide the editor-core implementation so the backend can evolve independently.
  */
 declare function ConfigEditor(props: ConfigEditorProps): JSX.Element;
+//#endregion
+//#region src/date-picker.d.ts
+interface CalendarProps {
+  value?: CalendarDate;
+  defaultValue?: CalendarDate;
+  minValue?: CalendarDate;
+  maxValue?: CalendarDate;
+  disabled?: boolean;
+  isDateUnavailable?: (date: CalendarDate) => boolean;
+  locale?: string;
+  labels?: Partial<CalendarLabels>;
+  "aria-label"?: string;
+  onValueChange?: (value: CalendarDate) => void;
+}
+interface CalendarLabels {
+  previousMonth: string;
+  nextMonth: string;
+  today: string;
+  selectToday: string;
+}
+/** A Wabou-native calendar using @internationalized/date for date arithmetic. */
+declare function Calendar(props: CalendarProps): JSX.Element;
+interface DatePickerProps extends Omit<CalendarProps, "aria-label"> {
+  "aria-label": string;
+  placeholder?: string;
+  class?: string;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  onValueChange?: (value: CalendarDate) => void;
+}
+/** A shadcn-inspired date picker composed from Wabou Popover and Calendar. */
+declare function DatePicker(props: DatePickerProps): JSX.Element;
 //#endregion
 //#region src/dialog.d.ts
 interface DialogProps extends Omit<ModalProps, "contentClass"> {
@@ -217,6 +251,21 @@ interface SelectProps {
 }
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
 declare function Select(props: SelectProps): JSX.Element;
+//#endregion
+//#region src/slider.d.ts
+interface SliderProps {
+  value?: number;
+  defaultValue?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  label: string;
+  valueText?: (value: number) => string;
+  onValueChange?: (value: number) => void;
+  class?: string;
+}
+declare function Slider(props: SliderProps): JSX.Element;
 //#endregion
 //#region src/title-bar.d.ts
 declare const titleBarClass = "border-b border-subtle";
@@ -443,5 +492,5 @@ declare function Progress(props: {
   class?: string;
 }): JSX.Element;
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Spinner, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
+export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spinner, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
 //# sourceMappingURL=index.d.mts.map

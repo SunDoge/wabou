@@ -172,7 +172,7 @@ function isSelected(selection, item) {
 function createTypeahead(options = {}) {
 	let keys = "";
 	let timer;
-	const collator = typeof Intl === "undefined" ? void 0 : new Intl.Collator(options.locale, {
+	const collator = typeof Intl === "undefined" || typeof Intl.Collator !== "function" ? void 0 : new Intl.Collator(options.locale, {
 		usage: "search",
 		sensitivity: "base"
 	});

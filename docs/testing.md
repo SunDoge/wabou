@@ -31,7 +31,18 @@ await editor.ime("你好");
 await editor.press("a", { control: true });
 await editor.dragBy(120, 24);
 await editor.wheel(80);
+
+await page.waitForIdle(); // drains pending Solid writes through native frames
+await expect(editor).toHaveValue("port: 你好");
+await expect(page.getByRole("status", { name: "Save state" })).toHaveText(
+  "Saved",
+);
+await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
 ```
+
+Locator state assertions read the completed native semantic snapshot, not
+application signals. This makes them useful for catching failures between
+Solid reconciliation, Wabou's protocol, layout, and accessibility projection.
 
 Run a scenario with the deterministic backend:
 

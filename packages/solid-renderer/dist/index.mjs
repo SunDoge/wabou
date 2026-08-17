@@ -10,12 +10,20 @@ const nativeHost = {
 	openUrl: (url) => __wabou_open_url(url),
 	loadFont: (path) => __wabou_load_font(path),
 	frameStats: () => JSON.parse(__wabou_frame_stats()),
-	layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids)))
+	layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids))),
+	systemLocale: () => __wabou_system_locale(),
+	systemTimeZone: () => __wabou_system_time_zone(),
+	systemCalendarDate: () => JSON.parse(__wabou_system_calendar_date())
 };
 const builtinHost = {
 	system: { openUrl: nativeHost.openUrl },
 	fonts: { load: nativeHost.loadFont },
 	diagnostics: { frameStats: nativeHost.frameStats },
+	intl: {
+		locale: nativeHost.systemLocale,
+		timeZone: nativeHost.systemTimeZone,
+		today: nativeHost.systemCalendarDate
+	},
 	layout: {
 		snapshot: (targets) => nativeHost.layoutSnapshot(targets.map((target) => typeof target === "number" ? target : target.id)),
 		measure: (target) => {
@@ -702,17 +710,21 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 			if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click) {
 				data.clientX = ed[0];
 				data.clientY = ed[1];
-				data.button = ed[2];
-				data.buttons = ed[3];
-				data.mods = ed[4];
+				data.offsetX = ed[2];
+				data.offsetY = ed[3];
+				data.button = ed[4];
+				data.buttons = ed[5];
+				data.mods = ed[6];
 			} else if (eventCode === EVENT_CODE.wheel) {
 				data.clientX = ed[0];
 				data.clientY = ed[1];
-				data.deltaX = ed[5];
-				data.deltaY = ed[6];
+				data.offsetX = ed[2];
+				data.offsetY = ed[3];
+				data.deltaX = ed[7];
+				data.deltaY = ed[8];
 			} else if (eventCode === EVENT_CODE.scroll) {
-				data.scrollX = ed[7];
-				data.scrollY = ed[8];
+				data.scrollX = ed[9];
+				data.scrollY = ed[10];
 			}
 		}
 	}

@@ -68,6 +68,12 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
         SemanticRole::ComboBox => Role::ComboBox,
         SemanticRole::ListBox => Role::ListBox,
         SemanticRole::Option => Role::ListBoxOption,
+        SemanticRole::Table => Role::Table,
+        SemanticRole::Row => Role::Row,
+        SemanticRole::Cell => Role::Cell,
+        SemanticRole::ColumnHeader => Role::ColumnHeader,
+        SemanticRole::RowHeader => Role::RowHeader,
+        SemanticRole::Slider => Role::Slider,
     };
     let mut node = Node::new(role);
     if let Some(label) = &semantic.label {
@@ -98,6 +104,7 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
         | SemanticRole::Switch
         | SemanticRole::ComboBox
         | SemanticRole::Option
+        | SemanticRole::Slider
             if !semantic.disabled =>
         {
             node.add_action(Action::Click);
@@ -380,6 +387,30 @@ mod tests {
         assert_eq!(update.nodes[1].1.value(), Some("complete"));
         assert_eq!(update.nodes[2].1.role(), Role::Alert);
         assert_eq!(update.nodes[2].1.label(), Some("Connection lost"));
+    }
+
+    #[test]
+    fn table_roles_reach_accesskit_without_becoming_generic_containers() {
+        let roles = [
+            (SemanticRole::Table, Role::Table),
+            (SemanticRole::Row, Role::Row),
+            (SemanticRole::Cell, Role::Cell),
+            (SemanticRole::ColumnHeader, Role::ColumnHeader),
+            (SemanticRole::RowHeader, Role::RowHeader),
+            (SemanticRole::Slider, Role::Slider),
+        ];
+        for (index, (semantic, _)) in roles.iter().enumerate() {
+            let node = crate::SemanticNode {
+                id: index as u64 + 2,
+                role: *semantic,
+                label: Some(format!("table node {index}")),
+                value: None,
+                bounds: [0.0, index as f32 * 20.0, 100.0, index as f32 * 20.0 + 20.0],
+                children: vec![],
+                disabled: false,
+            };
+            assert_eq!(accesskit_node(&node, 1.0).role(), roles[index].1);
+        }
     }
 
     #[test]

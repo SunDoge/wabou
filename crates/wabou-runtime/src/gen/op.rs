@@ -71,16 +71,18 @@ pub mod event {
 
 #[allow(missing_docs)]
 pub mod event_data {
-    pub const LEN: usize = 9;
+    pub const LEN: usize = 11;
     pub const CLIENT_X: u8 = 0;
     pub const CLIENT_Y: u8 = 1;
-    pub const BUTTON: u8 = 2;
-    pub const BUTTONS: u8 = 3;
-    pub const MODS: u8 = 4;
-    pub const DELTA_X: u8 = 5;
-    pub const DELTA_Y: u8 = 6;
-    pub const SCROLL_X: u8 = 7;
-    pub const SCROLL_Y: u8 = 8;
+    pub const OFFSET_X: u8 = 2;
+    pub const OFFSET_Y: u8 = 3;
+    pub const BUTTON: u8 = 4;
+    pub const BUTTONS: u8 = 5;
+    pub const MODS: u8 = 6;
+    pub const DELTA_X: u8 = 7;
+    pub const DELTA_Y: u8 = 8;
+    pub const SCROLL_X: u8 = 9;
+    pub const SCROLL_Y: u8 = 10;
 }
 
 #[allow(missing_docs)]

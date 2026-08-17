@@ -8,72 +8,86 @@ function capability() {
 	return value;
 }
 const context = {
-	page: { getByRole(role, options) {
-		const input = async (value) => {
-			trace.push({
-				action: "inputByRole",
-				windowId: 1,
-				role,
-				label: options.name,
-				input: value
-			});
-			if (!await capability().inputByRole(1, role, options.name, JSON.stringify(value))) throw new Error(`no enabled ${role} named ${JSON.stringify(options.name)}`);
-		};
-		return {
-			async click() {
+	page: {
+		async waitForIdle() {
+			await Promise.resolve();
+			await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+			await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+		},
+		getByRole(role, options) {
+			const input = async (value) => {
 				trace.push({
-					action: "clickByRole",
+					action: "inputByRole",
 					windowId: 1,
 					role,
-					label: options.name
+					label: options.name,
+					input: value
 				});
-				if (!await capability().clickByRole(1, role, options.name)) throw new Error(`no enabled ${role} named ${JSON.stringify(options.name)}`);
-			},
-			dragBy(deltaX, deltaY) {
-				return input({
-					type: "drag",
-					deltaX,
-					deltaY
-				});
-			},
-			press(key, modifiers = {}) {
-				const bits = (modifiers.shift ? 1 : 0) | (modifiers.control ? 2 : 0) | (modifiers.alt ? 4 : 0) | (modifiers.meta ? 8 : 0);
-				return input({
-					type: "key",
-					key,
-					modifiers: bits
-				});
-			},
-			type(text) {
-				return input({
-					type: "text",
-					text
-				});
-			},
-			paste(text) {
-				return input({
-					type: "paste",
-					text
-				});
-			},
-			ime(text) {
-				return input({
-					type: "ime",
-					text
-				});
-			},
-			wheel(deltaY, deltaX = 0) {
-				return input({
-					type: "wheel",
-					deltaX,
-					deltaY
-				});
-			},
-			waitFor() {
-				return input({ type: "probe" });
-			}
-		};
-	} },
+				if (!await capability().inputByRole(1, role, options.name, JSON.stringify(value))) throw new Error(`no enabled ${role} named ${JSON.stringify(options.name)}`);
+			};
+			const snapshot = async () => {
+				await input({ type: "probe" });
+				const value = JSON.parse(capability().takeQueryResult());
+				if (!value) throw new Error(`no semantic snapshot for ${role} named ${JSON.stringify(options.name)}`);
+				return value;
+			};
+			return {
+				async click() {
+					trace.push({
+						action: "clickByRole",
+						windowId: 1,
+						role,
+						label: options.name
+					});
+					if (!await capability().clickByRole(1, role, options.name)) throw new Error(`no enabled ${role} named ${JSON.stringify(options.name)}`);
+				},
+				dragBy(deltaX, deltaY) {
+					return input({
+						type: "drag",
+						deltaX,
+						deltaY
+					});
+				},
+				press(key, modifiers = {}) {
+					const bits = (modifiers.shift ? 1 : 0) | (modifiers.control ? 2 : 0) | (modifiers.alt ? 4 : 0) | (modifiers.meta ? 8 : 0);
+					return input({
+						type: "key",
+						key,
+						modifiers: bits
+					});
+				},
+				type(text) {
+					return input({
+						type: "text",
+						text
+					});
+				},
+				paste(text) {
+					return input({
+						type: "paste",
+						text
+					});
+				},
+				ime(text) {
+					return input({
+						type: "ime",
+						text
+					});
+				},
+				wheel(deltaY, deltaX = 0) {
+					return input({
+						type: "wheel",
+						deltaX,
+						deltaY
+					});
+				},
+				waitFor() {
+					return input({ type: "probe" });
+				},
+				snapshot
+			};
+		}
+	},
 	window: {
 		async nativeClose(windowId, platform) {
 			trace.push({
@@ -121,6 +135,10 @@ function replay(actions) {
 	});
 }
 function expect(actual) {
+	const locatorSnapshot = async () => {
+		if (!actual || typeof actual !== "object" || !("snapshot" in actual)) throw new Error("this assertion requires a Wabou locator");
+		return actual.snapshot();
+	};
 	return {
 		toBe(expected) {
 			if (!Object.is(actual, expected)) throw new Error(`expected ${JSON.stringify(actual)} to be ${JSON.stringify(expected)}`);
@@ -129,6 +147,18 @@ function expect(actual) {
 			const left = JSON.stringify(actual);
 			const right = JSON.stringify(expected);
 			if (left !== right) throw new Error(`expected ${left} to equal ${right}`);
+		},
+		async toHaveText(expected) {
+			const state = await locatorSnapshot();
+			const value = state.value ?? state.name;
+			if (value !== expected) throw new Error(`expected locator text ${JSON.stringify(value)} to be ${JSON.stringify(expected)}`);
+		},
+		async toHaveValue(expected) {
+			const state = await locatorSnapshot();
+			if (state.value !== expected) throw new Error(`expected locator value ${JSON.stringify(state.value)} to be ${JSON.stringify(expected)}`);
+		},
+		async toBeDisabled() {
+			if (!(await locatorSnapshot()).disabled) throw new Error("expected locator to be disabled");
 		}
 	};
 }

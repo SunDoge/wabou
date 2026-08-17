@@ -174,8 +174,18 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         applier.node_store.root,
         &applier.scroll_offsets,
     );
+    applier.scrollbar_activity.clear();
     applier.update_scrollbar_visuals(&mut placed);
     applier.rebuild_hit_geometry(&placed);
+    assert_eq!(applier.scrollbar_at(95.0, 16.0), None);
+    let edge = applier.handle_event(pointer(PointerPhase::Move, 85.0, 50.0, 0));
+    assert!(
+        edge.request_redraw,
+        "the scrollbar edge hot zone must wake auto visibility"
+    );
+    applier.update_scrollbar_visuals(&mut placed);
+    applier.rebuild_hit_geometry(&placed);
+    assert!(applier.scrollbar_at(95.0, 16.0).is_some());
     let down = applier.handle_event(pointer(PointerPhase::Down, 95.0, 16.0, 1));
     assert!(
         down.handled,

@@ -138,6 +138,4 @@ jobs:
           bun run --cwd apps/hackernews build
 
       - name: Check generated artifacts
-        run: |
-          bun run gen
-          git diff --exit-code
+        run: bun run gen:check

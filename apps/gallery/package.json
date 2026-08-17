@@ -9,6 +9,7 @@
     "test:behavior": "cargo run -p wabou-cli -- test tests/behavior.ts"
   },
   "dependencies": {
+    "@tanstack/table-core": "^8.21.3",
     "@wabou/animation": "workspace:*",
     "@wabou/components": "workspace:*",
     "@wabou/core": "workspace:*",

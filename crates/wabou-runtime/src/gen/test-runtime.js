@@ -107,13 +107,15 @@
   var EVENT_DATA_SLOT = {
     clientX: 0,
     clientY: 1,
-    button: 2,
-    buttons: 3,
-    mods: 4,
-    deltaX: 5,
-    deltaY: 6,
-    scrollX: 7,
-    scrollY: 8
+    offsetX: 2,
+    offsetY: 3,
+    button: 4,
+    buttons: 5,
+    mods: 6,
+    deltaX: 7,
+    deltaY: 8,
+    scrollX: 9,
+    scrollY: 10
   };
   var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
   var HOST_FRAME = {
@@ -4477,12 +4479,20 @@
     openUrl: (url) => __wabou_open_url(url),
     loadFont: (path) => __wabou_load_font(path),
     frameStats: () => JSON.parse(__wabou_frame_stats()),
-    layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids)))
+    layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids))),
+    systemLocale: () => __wabou_system_locale(),
+    systemTimeZone: () => __wabou_system_time_zone(),
+    systemCalendarDate: () => JSON.parse(__wabou_system_calendar_date())
   };
   var builtinHost = {
     system: { openUrl: nativeHost.openUrl },
     fonts: { load: nativeHost.loadFont },
     diagnostics: { frameStats: nativeHost.frameStats },
+    intl: {
+      locale: nativeHost.systemLocale,
+      timeZone: nativeHost.systemTimeZone,
+      today: nativeHost.systemCalendarDate
+    },
     layout: {
       snapshot: (targets) => nativeHost.layoutSnapshot(targets.map((target) => typeof target === "number" ? target : target.id)),
       measure: (target) => {
@@ -4957,17 +4967,21 @@
         if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click) {
           data.clientX = ed[0];
           data.clientY = ed[1];
-          data.button = ed[2];
-          data.buttons = ed[3];
-          data.mods = ed[4];
+          data.offsetX = ed[2];
+          data.offsetY = ed[3];
+          data.button = ed[4];
+          data.buttons = ed[5];
+          data.mods = ed[6];
         } else if (eventCode === EVENT_CODE.wheel) {
           data.clientX = ed[0];
           data.clientY = ed[1];
-          data.deltaX = ed[5];
-          data.deltaY = ed[6];
+          data.offsetX = ed[2];
+          data.offsetY = ed[3];
+          data.deltaX = ed[7];
+          data.deltaY = ed[8];
         } else if (eventCode === EVENT_CODE.scroll) {
-          data.scrollX = ed[7];
-          data.scrollY = ed[8];
+          data.scrollX = ed[9];
+          data.scrollY = ed[10];
         }
       }
     }
@@ -5598,6 +5612,19 @@ ${detail}`);
       }).then(() => {
         return;
       });
+    }
+  });
+
+  // packages/core/src/glue/intl.ts
+  var intl = Object.freeze({
+    locale() {
+      return defaultHost.intl.locale();
+    },
+    timeZone() {
+      return defaultHost.intl.timeZone();
+    },
+    today() {
+      return defaultHost.intl.today();
     }
   });
   // packages/core/src/glue/color-theme.tsx

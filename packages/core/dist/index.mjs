@@ -1,4 +1,4 @@
-import { dispatchEvent, runSweep, writer } from "@wabou/solid-renderer";
+import { defaultHost, dispatchEvent, runSweep, writer } from "@wabou/solid-renderer";
 import { createComponent, createContext, createEffect, createSignal, flush, getOwner, useContext } from "solid-js";
 import { HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND } from "@wabou/protocol";
 export * from "@wabou/solid-renderer";
@@ -667,6 +667,23 @@ function useNotification() {
 	return usePlatformServices().notification ?? notification;
 }
 //#endregion
+//#region src/glue/intl.ts
+/**
+* Operating-system locale facts. Standards-compatible formatting is installed
+* separately by the FormatJS-backed Intl polyfill.
+*/
+const intl = Object.freeze({
+	locale() {
+		return defaultHost.intl.locale();
+	},
+	timeZone() {
+		return defaultHost.intl.timeZone();
+	},
+	today() {
+		return defaultHost.intl.today();
+	}
+});
+//#endregion
 //#region src/glue/color-theme.tsx
 const [current, setCurrent] = createSignal();
 let currentPalette;
@@ -841,6 +858,6 @@ function showNativeMenu(options) {
 	});
 }
 //#endregion
-export { ColorThemeProvider, EFFECT_ABI_VERSION, PlatformProvider, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, clipboard, colorTheme, createWindow, currentWindow, dialog, dispatchEffect, dispatchFireAndForget, dispatchResourceEffect, effectOps, hostMessages, notification, resolveAppDirectories, resourceDir, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, useClipboard, useColorTheme, useDialog, useNotification, useWindow };
+export { ColorThemeProvider, EFFECT_ABI_VERSION, PlatformProvider, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, clipboard, colorTheme, createWindow, currentWindow, dialog, dispatchEffect, dispatchFireAndForget, dispatchResourceEffect, effectOps, hostMessages, intl, notification, resolveAppDirectories, resourceDir, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, useClipboard, useColorTheme, useDialog, useNotification, useWindow };
 
 //# sourceMappingURL=index.mjs.map

@@ -65,6 +65,9 @@ impl Applier {
             let mut data = [0.0; event_data::LEN];
             data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
             data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
+            let local = self.input.local_position(target, x, y);
+            data[event_data::OFFSET_X as usize] = local.0;
+            data[event_data::OFFSET_Y as usize] = local.1;
             data[event_data::BUTTON as usize] = Self::web_button(button) as f64;
             data[event_data::BUTTONS as usize] =
                 Self::web_buttons(self.input.pointer_buttons) as f64;
@@ -176,7 +179,8 @@ impl Applier {
         self.input.pointer_position = (x, y);
         let hovered_scrollbar = self
             .scrollbar_at(x, y)
-            .map(|(node, target)| (node, target.axis));
+            .map(|(node, target)| (node, target.axis))
+            .or_else(|| self.scrollbar_edge_at(x, y));
         let scrollbar_hover_changed = hovered_scrollbar != self.hovered_scrollbar;
         let previous_hover = self.hovered_scrollbar;
         self.hovered_scrollbar = hovered_scrollbar;
@@ -254,6 +258,13 @@ impl Applier {
         let mut data = [0.0; event_data::LEN];
         data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
         data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
+        let local = self.input.local_position(
+            target,
+            self.input.pointer_position.0,
+            self.input.pointer_position.1,
+        );
+        data[event_data::OFFSET_X as usize] = local.0;
+        data[event_data::OFFSET_Y as usize] = local.1;
         data[event_data::MODS as usize] = wheel.modifiers.bits() as f64;
         data[event_data::DELTA_X as usize] = wheel.delta_x;
         data[event_data::DELTA_Y as usize] = wheel.delta_y;
@@ -324,7 +335,7 @@ impl Applier {
                 );
             }
             if !inert
-                && node.scroll.opacity > 0.0
+                && node.paint.scrollbar.visibility != ScrollbarVisibility::Hidden
                 && node.scroll.range.iter().any(|range| *range > 0.5)
             {
                 let hit = ScrollbarHit {
@@ -333,7 +344,9 @@ impl Applier {
                     transform,
                 };
                 self.scrollbar_hits.push(hit.clone());
-                scrollbar_hits.insert(node.node_id, hit);
+                if node.scroll.opacity > 0.0 {
+                    scrollbar_hits.insert(node.node_id, hit);
+                }
             }
             transforms.insert(node.node_id, transform);
             clip_chains.insert(node.node_id, clips);
@@ -484,6 +497,47 @@ impl Applier {
                     return None;
                 }
                 _ => {}
+            }
+        }
+        None
+    }
+
+    /// Wake an auto-hidden overlay scrollbar before the pointer reaches its
+    /// narrow painted track. The hot zone is display-only: pointer down still
+    /// uses `scrollbar_at`, so content beside an invisible track remains
+    /// clickable and dragging starts only on visible scrollbar geometry.
+    fn scrollbar_edge_at(&self, x: f64, y: f64) -> Option<(NodeId, ScrollAxis)> {
+        const EDGE_HOT_ZONE: f64 = 16.0;
+        let point = Point::new(x, y);
+        for hit in self.scrollbar_hits.iter().rev() {
+            if hit.placed.paint.scrollbar.visibility != ScrollbarVisibility::Auto {
+                continue;
+            }
+            let local = hit.transform.inverse() * point;
+            let [x0, y0, x1, y1] = hit.placed.scroll.port;
+            let x0 = f64::from(x0);
+            let y0 = f64::from(y0);
+            let x1 = f64::from(x1);
+            let y1 = f64::from(y1);
+            if local.x >= x0
+                && local.x <= x1
+                && local.y >= y0
+                && local.y <= y1
+                && hit.placed.scroll.scrollable[1]
+                && hit.placed.scroll.range[1] > 0.5
+                && x1 - local.x <= EDGE_HOT_ZONE
+            {
+                return Some((hit.node, ScrollAxis::Vertical));
+            }
+            if local.x >= x0
+                && local.x <= x1
+                && local.y >= y0
+                && local.y <= y1
+                && hit.placed.scroll.scrollable[0]
+                && hit.placed.scroll.range[0] > 0.5
+                && y1 - local.y <= EDGE_HOT_ZONE
+            {
+                return Some((hit.node, ScrollAxis::Horizontal));
             }
         }
         None
@@ -778,6 +832,13 @@ impl Applier {
         let mut data = [0.0; event_data::LEN];
         data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
         data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
+        let local = self.input.local_position(
+            target,
+            self.input.pointer_position.0,
+            self.input.pointer_position.1,
+        );
+        data[event_data::OFFSET_X as usize] = local.0;
+        data[event_data::OFFSET_Y as usize] = local.1;
         data[event_data::BUTTON as usize] = button.map_or(0, Self::web_button) as f64;
         data[event_data::BUTTONS as usize] = Self::web_buttons(self.input.pointer_buttons) as f64;
         data[event_data::MODS as usize] = modifiers.bits() as f64;

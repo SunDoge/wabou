@@ -1,18 +1,22 @@
-import { createComponent, createElement, createFps, insertNode, memo, mergeProps, spread } from "@wabou/solid-renderer";
+import { applyRef, createComponent, createElement, createFps, insertNode, memo, mergeProps, spread } from "@wabou/solid-renderer";
 import { animate, createTransition } from "@wabou/animation";
-import { Button as Button$1, Center, CodeEditor, CollapsiblePresence, Column, Icon, Modal, NetworkImage, Popover, Pulse, ScrollArea, Spin, Text, TextArea as TextArea$1, View, createFocusWithin, rotate2d, translate2d } from "@wabou/primitives";
-import { For, createComponent as createComponent$1, createContext, createEffect, createSignal, createUniqueId, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
+import { Button as Button$1, Center, CodeEditor, CollapsiblePresence, Column, Icon, Modal, NetworkImage, Popover, Pulse, ScrollArea, Spin, Text, TextArea as TextArea$1, View, createFocusWithin, createMeasuredSize, rotate2d, translate2d } from "@wabou/primitives";
+import { For, createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, createUniqueId, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { P, match } from "ts-pattern";
-import { rgba, useWindow } from "@wabou/core";
+import { CalendarDate, endOfMonth, isSameDay, startOfMonth } from "@internationalized/date";
+import { rgba, useHost, useWindow } from "@wabou/core";
+import calendarIcon from "lucide-static/icons/calendar.svg?raw";
+import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import { createControllableState, createDisclosure, createRovingFocus, createSelectInteraction, isSelected, toggleSelection } from "@wabou/interactions";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 //#region src/display.tsx
-const join$11 = (...values) => values.filter(Boolean).join(" ");
+const join$13 = (...values) => values.filter(Boolean).join(" ");
 function Skeleton(props) {
 	return createComponent(Pulse, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join$11("rounded-md bg-control", props.class);
+			return join$13("rounded-md bg-control", props.class);
 		},
 		from: .45,
 		to: .85,
@@ -26,7 +30,7 @@ function Spinner(props) {
 			return props.label ?? "Loading";
 		},
 		get ["class"]() {
-			return join$11("w-4 h-4 flex-none text-accent", props.class);
+			return join$13("w-4 h-4 flex-none text-accent", props.class);
 		},
 		duration: .9,
 		get children() {
@@ -58,7 +62,7 @@ function Spinner(props) {
 function Kbd(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$11("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
+			return join$13("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -68,7 +72,7 @@ function Kbd(props) {
 function KbdGroup(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$11("inline-flex items-center gap-1", props.class);
+			return join$13("inline-flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -77,7 +81,7 @@ function KbdGroup(props) {
 }
 //#endregion
 //#region src/avatar.tsx
-const join$10 = (...values) => values.filter(Boolean).join(" ");
+const join$12 = (...values) => values.filter(Boolean).join(" ");
 function Avatar(props) {
 	const size = () => match(props.size ?? "default").with("sm", () => "w-8 h-8 text-xs").with("default", () => "w-10 h-10 text-sm").with("lg", () => "w-12 h-12 text-base").exhaustive();
 	return createComponent(Center, {
@@ -86,7 +90,7 @@ function Avatar(props) {
 			return props.alt ?? props.fallback;
 		},
 		get ["class"]() {
-			return join$10("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
+			return join$12("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
 		},
 		get children() {
 			return memo(() => {
@@ -110,7 +114,7 @@ function Avatar(props) {
 function AvatarGroup(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$10("flex items-center gap-1", props.class);
+			return join$12("flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -120,7 +124,7 @@ function AvatarGroup(props) {
 function AvatarGroupCount(props) {
 	return createComponent(Center, {
 		get ["class"]() {
-			return join$10("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
+			return join$12("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
 		},
 		get children() {
 			return createComponent(Text, {
@@ -134,7 +138,7 @@ function AvatarGroupCount(props) {
 }
 //#endregion
 //#region src/config-editor.tsx
-const join$9 = (...values) => values.filter(Boolean).join(" ");
+const join$11 = (...values) => values.filter(Boolean).join(" ");
 /**
 * Experimental native configuration editor. Its Wabou-owned props deliberately
 * hide the editor-core implementation so the backend can evolve independently.
@@ -143,13 +147,341 @@ function ConfigEditor(props) {
 	return createComponent(CodeEditor, mergeProps(props, {
 		language: "json",
 		get ["class"]() {
-			return join$9("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
+			return join$11("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
 		}
 	}));
 }
 //#endregion
+//#region src/date-picker.tsx
+const join$10 = (...values) => values.filter(Boolean).join(" ");
+function dayOfWeek(value) {
+	return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
+}
+const DEFAULT_LABELS = {
+	previousMonth: "Previous month",
+	nextMonth: "Next month",
+	today: "Today",
+	selectToday: "Select today"
+};
+/** A Wabou-native calendar using @internationalized/date for date arithmetic. */
+function Calendar(props) {
+	const host = useHost();
+	const systemToday = () => {
+		const value = host.intl.today();
+		return new CalendarDate(value.year, value.month, value.day);
+	};
+	const locale = () => {
+		const requested = props.locale ?? host.intl.locale();
+		return Intl.DateTimeFormat.supportedLocalesOf([requested])[0] ?? "en";
+	};
+	const labels = () => ({
+		...DEFAULT_LABELS,
+		...props.labels
+	});
+	const initial = props.value ?? props.defaultValue ?? systemToday();
+	const [localValue, setLocalValue] = createSignal(initial);
+	const [visibleMonth, setVisibleMonth] = createSignal(startOfMonth(initial));
+	const [focusedDate, setFocusedDate] = createSignal(initial);
+	const value = () => props.value ?? localValue();
+	const dayRefs = /* @__PURE__ */ new Map();
+	const monthInfo = createMemo(() => {
+		const currentLocale = locale();
+		const firstWeekday = new Intl.Locale(currentLocale).getWeekInfo().firstDay % 7;
+		const weekday = new Intl.DateTimeFormat(currentLocale, {
+			weekday: "short",
+			timeZone: "UTC"
+		});
+		return {
+			first_weekday: firstWeekday,
+			month_label: new Intl.DateTimeFormat(currentLocale, {
+				year: "numeric",
+				month: "long",
+				timeZone: "UTC"
+			}).format(Date.UTC(visibleMonth().year, visibleMonth().month - 1, 1)),
+			weekday_labels: Array.from({ length: 7 }, (_, offset) => {
+				const index = (firstWeekday + offset) % 7;
+				return weekday.format(Date.UTC(2024, 0, 7 + index));
+			})
+		};
+	});
+	const dateFormatters = createMemo(() => ({
+		medium: new Intl.DateTimeFormat(locale(), {
+			dateStyle: "medium",
+			timeZone: "UTC"
+		}),
+		full: new Intl.DateTimeFormat(locale(), {
+			dateStyle: "full",
+			timeZone: "UTC"
+		})
+	}));
+	const formatDate = (date, style) => dateFormatters()[style].format(Date.UTC(date.year, date.month - 1, date.day));
+	const days = () => {
+		const first = startOfMonth(visibleMonth());
+		const offset = (dayOfWeek(first) - monthInfo().first_weekday + 7) % 7;
+		const gridStart = first.subtract({ days: offset });
+		return Array.from({ length: 42 }, (_, index) => gridStart.add({ days: index }));
+	};
+	const unavailable = (date) => props.disabled || props.minValue !== void 0 && date.compare(props.minValue) < 0 || props.maxValue !== void 0 && date.compare(props.maxValue) > 0 || props.isDateUnavailable?.(date) === true;
+	const canShowMonth = (month) => (props.minValue === void 0 || endOfMonth(month).compare(props.minValue) >= 0) && (props.maxValue === void 0 || month.compare(props.maxValue) <= 0);
+	const select = (date) => {
+		if (unavailable(date)) return;
+		if (props.value === void 0) setLocalValue(date);
+		setVisibleMonth(startOfMonth(date));
+		setFocusedDate(date);
+		props.onValueChange?.(date);
+	};
+	const focusDate = (date) => {
+		setFocusedDate(date);
+		if (date.month !== visibleMonth().month || date.year !== visibleMonth().year) setVisibleMonth(startOfMonth(date));
+		requestAnimationFrame(() => dayRefs.get(date.toString())?.focus());
+	};
+	const tabStop = () => {
+		const focused = focusedDate();
+		if (focused.year === visibleMonth().year && focused.month === visibleMonth().month && !unavailable(focused)) return focused;
+		let candidate = startOfMonth(visibleMonth());
+		while (candidate.month === visibleMonth().month) {
+			if (!unavailable(candidate)) return candidate;
+			candidate = candidate.add({ days: 1 });
+		}
+		return startOfMonth(visibleMonth());
+	};
+	const focusAvailable = (date, step) => {
+		let candidate = date;
+		for (let attempts = 0; attempts < 366; attempts++) {
+			if (!unavailable(candidate)) {
+				focusDate(candidate);
+				return;
+			}
+			candidate = candidate.add({ days: step });
+		}
+	};
+	const handleKeyDown = (event, date) => {
+		let next;
+		let step = 1;
+		if (event.key === "ArrowLeft") {
+			next = date.subtract({ days: 1 });
+			step = -1;
+		} else if (event.key === "ArrowRight") next = date.add({ days: 1 });
+		else if (event.key === "ArrowUp") {
+			next = date.subtract({ days: 7 });
+			step = -1;
+		} else if (event.key === "ArrowDown") next = date.add({ days: 7 });
+		else if (event.key === "Home") {
+			next = date.subtract({ days: (dayOfWeek(date) - monthInfo().first_weekday + 7) % 7 });
+			step = -1;
+		} else if (event.key === "End") next = date.add({ days: 6 - (dayOfWeek(date) - monthInfo().first_weekday + 7) % 7 });
+		else if (event.key === "PageUp") {
+			next = date.subtract({ months: 1 });
+			step = -1;
+		} else if (event.key === "PageDown") next = date.add({ months: 1 });
+		else if (event.key === "Enter" || event.key === " ") select(date);
+		else return;
+		event.preventDefault();
+		if (next) focusAvailable(next, step);
+	};
+	return createComponent(View, {
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Calendar";
+		},
+		class: "w-72 p-3 flex flex-col gap-3",
+		get children() {
+			return [
+				createComponent(View, {
+					class: "h-9 flex items-center justify-between",
+					get children() {
+						return [
+							createComponent(Button$1, {
+								unstyled: true,
+								get ["aria-label"]() {
+									return labels().previousMonth;
+								},
+								get disabled() {
+									return props.disabled || !canShowMonth(visibleMonth().subtract({ months: 1 }));
+								},
+								class: "w-9 h-9 rounded-md items-center justify-center",
+								onClick: () => setVisibleMonth((month) => month.subtract({ months: 1 })),
+								get children() {
+									return createComponent(Icon, {
+										source: chevronLeft,
+										size: 16
+									});
+								}
+							}),
+							createComponent(Text, {
+								class: "font-medium text-sm text-primary",
+								get children() {
+									return monthInfo().month_label;
+								}
+							}),
+							createComponent(Button$1, {
+								unstyled: true,
+								get ["aria-label"]() {
+									return labels().nextMonth;
+								},
+								get disabled() {
+									return props.disabled || !canShowMonth(visibleMonth().add({ months: 1 }));
+								},
+								class: "w-9 h-9 rounded-md items-center justify-center",
+								onClick: () => setVisibleMonth((month) => month.add({ months: 1 })),
+								get children() {
+									return createComponent(Icon, {
+										source: chevronRight,
+										size: 16
+									});
+								}
+							})
+						];
+					}
+				}),
+				createComponent(View, {
+					class: "w-64 flex flex-wrap gap-1",
+					get children() {
+						return [createComponent(For, {
+							get each() {
+								return monthInfo().weekday_labels;
+							},
+							children: (day) => createComponent(Text, {
+								class: "w-8 h-7 flex items-center justify-center text-xs text-muted",
+								children: day
+							})
+						}), createComponent(For, {
+							get each() {
+								return days();
+							},
+							keyed: false,
+							children: (date) => {
+								const selected = () => isSameDay(date(), value());
+								const outside = () => date().month !== visibleMonth().month;
+								const disabled = () => unavailable(date());
+								return createComponent(Button$1, {
+									ref: (node) => dayRefs.set(date().toString(), node),
+									unstyled: true,
+									get ["aria-label"]() {
+										return formatDate(date(), "full");
+									},
+									get ["aria-selected"]() {
+										return selected();
+									},
+									get ["aria-current"]() {
+										return isSameDay(date(), systemToday()) ? "date" : void 0;
+									},
+									get tabIndex() {
+										return isSameDay(date(), tabStop()) ? 0 : -1;
+									},
+									get disabled() {
+										return disabled();
+									},
+									class: (state) => join$10("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
+									get style() {
+										return { opacity: disabled() ? .35 : 1 };
+									},
+									onClick: () => select(date()),
+									onKeyDown: (event) => handleKeyDown(event, date()),
+									get children() {
+										return createComponent(Text, { get children() {
+											return date().day;
+										} });
+									}
+								});
+							}
+						})];
+					}
+				}),
+				createComponent(View, {
+					class: "pt-2 flex items-center border-t border-subtle",
+					get children() {
+						return createComponent(Button$1, {
+							unstyled: true,
+							get ["aria-label"]() {
+								return labels().selectToday;
+							},
+							class: "h-8 px-2 rounded-md text-sm text-accent",
+							onClick: () => select(systemToday()),
+							get children() {
+								return labels().today;
+							}
+						});
+					}
+				})
+			];
+		}
+	});
+}
+/** A shadcn-inspired date picker composed from Wabou Popover and Calendar. */
+function DatePicker(props) {
+	const host = useHost();
+	const [localValue, setLocalValue] = createSignal(props.defaultValue);
+	const [localOpen, setLocalOpen] = createSignal(props.defaultOpen ?? false);
+	const open = () => props.open ?? localOpen();
+	const setOpen = (next) => {
+		if (props.open === void 0) setLocalOpen(next);
+		props.onOpenChange?.(next);
+	};
+	const value = () => props.value ?? localValue();
+	const locale = () => {
+		const requested = props.locale ?? host.intl.locale();
+		return Intl.DateTimeFormat.supportedLocalesOf([requested])[0] ?? "en";
+	};
+	const formatted = () => {
+		const date = value();
+		return date ? new Intl.DateTimeFormat(locale(), {
+			dateStyle: "medium",
+			timeZone: "UTC"
+		}).format(Date.UTC(date.year, date.month - 1, date.day)) : props.placeholder ?? "Pick a date";
+	};
+	const select = (date) => {
+		if (props.value === void 0) setLocalValue(date);
+		props.onValueChange?.(date);
+		setOpen(false);
+	};
+	return createComponent(Popover, {
+		get open() {
+			return open();
+		},
+		onOpenChange: setOpen,
+		placement: "bottom-start",
+		contentClass: "rounded-lg border border-subtle bg-surface shadow-lg",
+		trigger: (trigger) => createComponent(Button$1, mergeProps({ unstyled: true }, trigger, {
+			get ["aria-label"]() {
+				return props["aria-label"];
+			},
+			get disabled() {
+				return props.disabled;
+			},
+			get ["class"]() {
+				return join$10("w-72 h-9 px-3 justify-start gap-2 rounded-md border border-strong bg-input text-sm", props.class);
+			},
+			get children() {
+				return [createComponent(Icon, {
+					source: calendarIcon,
+					class: "flex-none text-muted",
+					size: 16
+				}), createComponent(Text, {
+					get ["class"]() {
+						return value() ? "text-primary" : "text-muted";
+					},
+					get children() {
+						return formatted();
+					}
+				})];
+			}
+		})),
+		get children() {
+			return createComponent(Calendar, mergeProps(props, {
+				get value() {
+					return value();
+				},
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				onValueChange: select
+			}));
+		}
+	});
+}
+//#endregion
 //#region src/dialog.tsx
-const join$8 = (...values) => values.filter(Boolean).join(" ");
+const join$9 = (...values) => values.filter(Boolean).join(" ");
 function Dialog(props) {
 	return createComponent(Modal, mergeProps(props, {
 		get backdropClass() {
@@ -162,14 +494,14 @@ function Dialog(props) {
 			};
 		},
 		get contentClass() {
-			return join$8("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-6 shadow-lg", props.contentClass);
+			return join$9("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-6 shadow-lg", props.contentClass);
 		}
 	}));
 }
 function DialogHeader(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$8("flex flex-col gap-1", props.class);
+			return join$9("flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -179,7 +511,7 @@ function DialogHeader(props) {
 function DialogFooter(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$8("flex items-center justify-end gap-2", props.class);
+			return join$9("flex items-center justify-end gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -189,7 +521,7 @@ function DialogFooter(props) {
 function DialogTitle(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$8("text-lg font-semibold text-primary", props.class);
+			return join$9("text-lg font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -199,7 +531,7 @@ function DialogTitle(props) {
 function DialogDescription(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$8("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+			return join$9("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -208,7 +540,7 @@ function DialogDescription(props) {
 }
 //#endregion
 //#region src/disclosure.tsx
-const join$7 = (...values) => values.filter(Boolean).join(" ");
+const join$8 = (...values) => values.filter(Boolean).join(" ");
 const CollapsibleContext = createContext();
 const useCollapsible = () => {
 	const value = useContext(CollapsibleContext);
@@ -233,7 +565,7 @@ function Collapsible(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$7("flex flex-col", props.class);
+					return join$8("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -259,7 +591,7 @@ function CollapsibleTrigger(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$7("w-full flex items-center justify-between gap-3", props.class);
+					return join$8("w-full flex items-center justify-between gap-3", props.class);
 				},
 				get children() {
 					return [memo(() => {
@@ -327,7 +659,7 @@ function Accordion(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$7("flex flex-col", props.class);
+					return join$8("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -347,7 +679,7 @@ function AccordionItem(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$7("flex flex-col border-b border-subtle", props.class);
+					return join$8("flex flex-col border-b border-subtle", props.class);
 				},
 				get children() {
 					return props.children;
@@ -378,7 +710,7 @@ function AccordionTrigger(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$7("w-full py-4 flex items-center justify-between gap-4", props.class);
+					return join$8("w-full py-4 flex items-center justify-between gap-4", props.class);
 				},
 				get children() {
 					return [createComponent(Text, {
@@ -416,7 +748,7 @@ function AccordionContent(props) {
 			return root.reducedMotion();
 		},
 		get contentClass() {
-			return join$7("pb-4", props.class);
+			return join$8("pb-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -425,12 +757,12 @@ function AccordionContent(props) {
 }
 //#endregion
 //#region src/forms.tsx
-const join$6 = (...values) => values.filter(Boolean).join(" ");
+const join$7 = (...values) => values.filter(Boolean).join(" ");
 function Field(props) {
 	const layout = () => match(props.orientation ?? "vertical").with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive();
 	return createComponent(View, {
 		get ["class"]() {
-			return join$6("w-full flex", layout(), props.invalid && "text-danger-primary", props.class);
+			return join$7("w-full flex", layout(), props.invalid && "text-danger-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -440,7 +772,7 @@ function Field(props) {
 function FieldGroup(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$6("flex flex-col gap-5", props.class);
+			return join$7("flex flex-col gap-5", props.class);
 		},
 		get children() {
 			return props.children;
@@ -450,7 +782,7 @@ function FieldGroup(props) {
 function FieldLabel(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$6("text-sm font-medium text-primary", props.class);
+			return join$7("text-sm font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -460,7 +792,7 @@ function FieldLabel(props) {
 function FieldContent(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$6("min-w-0 flex-1 flex flex-col gap-1", props.class);
+			return join$7("min-w-0 flex-1 flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -470,7 +802,7 @@ function FieldContent(props) {
 function FieldDescription(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$6("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
+			return join$7("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -481,7 +813,7 @@ function FieldError(props) {
 	return createComponent(Text, {
 		role: "alert",
 		get ["class"]() {
-			return join$6("w-full min-w-0 whitespace-normal text-xs text-danger-primary", props.class);
+			return join$7("w-full min-w-0 whitespace-normal text-xs text-danger-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -494,7 +826,7 @@ function InputGroup(props) {
 		return focus.bindings;
 	}, {
 		get ["class"]() {
-			return join$6("w-full h-9 flex items-center rounded-md border bg-input", focus.focusWithin() ? "border-focus" : "border-strong", props.class);
+			return join$7("w-full h-9 flex items-center rounded-md border bg-input", focus.focusWithin() ? "border-focus" : "border-strong", props.class);
 		},
 		get children() {
 			return props.children;
@@ -503,13 +835,13 @@ function InputGroup(props) {
 }
 function InputGroupInput(props) {
 	return createComponent(Input, mergeProps(props, { get ["class"]() {
-		return join$6("flex-1 min-w-0 border-transparent bg-transparent", props.class);
+		return join$7("flex-1 min-w-0 border-transparent bg-transparent", props.class);
 	} }));
 }
 function InputGroupText(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$6("flex-none px-3 text-sm text-muted", props.class);
+			return join$7("flex-none px-3 text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -525,22 +857,22 @@ function InputGroupButton(props) {
 			return props.variant ?? "ghost";
 		},
 		get ["class"]() {
-			return join$6("mx-1", props.class);
+			return join$7("mx-1", props.class);
 		}
 	}));
 }
 function InputGroupTextArea(props) {
 	return createComponent(TextArea$1, mergeProps(props, { get ["class"]() {
-		return join$6("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
+		return join$7("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
 	} }));
 }
 //#endregion
 //#region src/layout.tsx
-const join$5 = (...values) => values.filter(Boolean).join(" ");
+const join$6 = (...values) => values.filter(Boolean).join(" ");
 function Empty(props) {
 	return createComponent(Column, {
 		get ["class"]() {
-			return join$5("w-full min-h-64 p-8 items-center justify-center gap-5 rounded-xl border border-subtle bg-surface", props.class);
+			return join$6("w-full min-h-64 p-8 items-center justify-center gap-5 rounded-xl border border-subtle bg-surface", props.class);
 		},
 		get children() {
 			return props.children;
@@ -550,7 +882,7 @@ function Empty(props) {
 function EmptyHeader(props) {
 	return createComponent(Column, {
 		get ["class"]() {
-			return join$5("max-w-md items-center gap-2", props.class);
+			return join$6("max-w-md items-center gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -560,7 +892,7 @@ function EmptyHeader(props) {
 function EmptyMedia(props) {
 	return createComponent(Center, {
 		get ["class"]() {
-			return join$5("w-12 h-12 flex-none rounded-lg bg-control text-secondary", props.class);
+			return join$6("w-12 h-12 flex-none rounded-lg bg-control text-secondary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -570,7 +902,7 @@ function EmptyMedia(props) {
 function EmptyTitle(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$5("text-base font-semibold text-primary", props.class);
+			return join$6("text-base font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -580,7 +912,7 @@ function EmptyTitle(props) {
 function EmptyDescription(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$5("w-full min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
+			return join$6("w-full min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -590,7 +922,7 @@ function EmptyDescription(props) {
 function EmptyContent(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$5("flex items-center gap-2", props.class);
+			return join$6("flex items-center gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -602,7 +934,7 @@ function ButtonGroup(props) {
 	return createComponent(View, {
 		role: "group",
 		get ["class"]() {
-			return join$5("flex gap-1", layout(), props.class);
+			return join$6("flex gap-1", layout(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -612,7 +944,7 @@ function ButtonGroup(props) {
 function ButtonGroupText(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$5("px-2 text-sm text-muted", props.class);
+			return join$6("px-2 text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -621,7 +953,7 @@ function ButtonGroupText(props) {
 }
 //#endregion
 //#region src/select.tsx
-const join$4 = (...values) => values.filter(Boolean).join(" ");
+const join$5 = (...values) => values.filter(Boolean).join(" ");
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
@@ -673,7 +1005,7 @@ function Select(props) {
 		},
 		placement: "bottom-start",
 		get contentClass() {
-			return join$4("w-72 p-1 rounded-lg border border-subtle bg-surface shadow-lg", props.contentClass);
+			return join$5("w-72 p-1 rounded-lg border border-subtle bg-surface shadow-lg", props.contentClass);
 		},
 		trigger: (popover) => createComponent(Button$1, {
 			unstyled: true,
@@ -693,7 +1025,7 @@ function Select(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => join$4("w-72 h-9 px-3 justify-between gap-3 rounded-md border bg-input text-sm", state.focused ? "border-focus" : "border-strong", props.class),
+			class: (state) => join$5("w-72 h-9 px-3 justify-between gap-3 rounded-md border bg-input text-sm", state.focused ? "border-focus" : "border-strong", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -705,7 +1037,7 @@ function Select(props) {
 			get children() {
 				return [createComponent(Text, {
 					get ["class"]() {
-						return join$4("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
+						return join$5("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
 					},
 					get children() {
 						return selected()?.label ?? props.placeholder ?? "Select an option";
@@ -768,7 +1100,7 @@ function Select(props) {
 											return option().disabled;
 										},
 										get ["class"]() {
-											return join$4("w-full h-9 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+											return join$5("w-full h-9 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
 										},
 										get style() {
 											return { opacity: option().disabled ? .45 : 1 };
@@ -801,6 +1133,126 @@ function Select(props) {
 					});
 				}
 			});
+		}
+	});
+}
+//#endregion
+//#region src/slider.tsx
+const join$4 = (...values) => values.filter(Boolean).join(" ");
+function Slider(props) {
+	const min = () => props.min ?? 0;
+	const max = () => Math.max(min(), props.max ?? 100);
+	const step = () => Math.max(Number.EPSILON, props.step ?? 1);
+	const clamp = (value) => Math.max(min(), Math.min(max(), value));
+	const snap = (value) => {
+		const stepped = min() + Math.round((clamp(value) - min()) / step()) * step();
+		const precision = Math.max(0, (String(step()).split(".")[1] ?? "").length);
+		return clamp(Number(stepped.toFixed(precision)));
+	};
+	const [local, setLocal] = createSignal(snap(props.defaultValue ?? min()));
+	const value = () => snap(props.value ?? local());
+	const ratio = () => max() === min() ? 0 : (value() - min()) / (max() - min());
+	const measured = createMeasuredSize();
+	const [dragging, setDragging] = createSignal(false);
+	const [focused, setFocused] = createSignal(false);
+	const update = (next) => {
+		if (props.disabled) return;
+		const normalized = snap(next);
+		const changed = normalized !== value();
+		if (props.value === void 0) setLocal(normalized);
+		if (changed) props.onValueChange?.(normalized);
+	};
+	const updateFromPointer = (event) => {
+		const width = measured.width();
+		if (width <= 0) return;
+		event.preventDefault();
+		update(min() + Math.max(0, Math.min(width, event.offsetX)) / width * (max() - min()));
+	};
+	const changeBy = (amount) => update(value() + amount);
+	const onKeyDown = (event) => {
+		if (props.disabled) return;
+		if (event.key === "ArrowLeft" || event.key === "ArrowDown") changeBy(-step());
+		else if (event.key === "ArrowRight" || event.key === "ArrowUp") changeBy(step());
+		else if (event.key === "PageDown") changeBy(-step() * 10);
+		else if (event.key === "PageUp") changeBy(step() * 10);
+		else if (event.key === "Home") update(min());
+		else if (event.key === "End") update(max());
+		else return;
+		event.preventDefault();
+	};
+	return createComponent(View, {
+		ref(r$) {
+			var _ref$ = measured.ref;
+			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : measured.ref = r$;
+		},
+		role: "slider",
+		get ["aria-label"]() {
+			return props.label;
+		},
+		get ["aria-valuemin"]() {
+			return min();
+		},
+		get ["aria-valuemax"]() {
+			return max();
+		},
+		get ["aria-valuenow"]() {
+			return value();
+		},
+		get ["aria-valuetext"]() {
+			return props.valueText?.(value()) ?? String(value());
+		},
+		get ["aria-disabled"]() {
+			return props.disabled;
+		},
+		get tabIndex() {
+			return props.disabled ? -1 : 0;
+		},
+		get ["class"]() {
+			return join$4("h-7 relative flex items-center", props.class);
+		},
+		onFocus: () => setFocused(true),
+		onBlur: () => {
+			setFocused(false);
+			setDragging(false);
+		},
+		onPointerDown: (event) => {
+			setDragging(true);
+			updateFromPointer(event);
+		},
+		onPointerMove: (event) => {
+			if (dragging() && event.buttons !== 0) updateFromPointer(event);
+		},
+		onPointerUp: (event) => {
+			if (dragging()) updateFromPointer(event);
+			setDragging(false);
+		},
+		onPointerCancel: () => setDragging(false),
+		onKeyDown,
+		get style() {
+			return { opacity: props.disabled ? .45 : 1 };
+		},
+		get children() {
+			return [createComponent(View, {
+				class: "w-full h-2 overflow-hidden rounded-full bg-control",
+				get children() {
+					return createComponent(View, {
+						class: "h-full rounded-full bg-accent",
+						get style() {
+							return { width: `${ratio() * 100}%` };
+						}
+					});
+				}
+			}), createComponent(View, {
+				get ["class"]() {
+					return join$4("w-5 h-5 absolute rounded-full border bg-surface", focused() || dragging() ? "border-focus" : "border-strong");
+				},
+				get style() {
+					return {
+						left: `${ratio() * Math.max(0, measured.width() - 20)}px`,
+						top: "4px"
+					};
+				}
+			})];
 		}
 	});
 }
@@ -1571,6 +2023,6 @@ function Progress(props) {
 	});
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, Button, ButtonGroup, ButtonGroupText, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, Collapsible, CollapsibleContent, CollapsibleTrigger, ComponentsProvider, ConfigEditor, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Progress, RadioGroup, RadioGroupItem, Select, Separator, Skeleton, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, Collapsible, CollapsibleContent, CollapsibleTrigger, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Progress, RadioGroup, RadioGroupItem, Select, Separator, Skeleton, Slider, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
 
 //# sourceMappingURL=index.mjs.map

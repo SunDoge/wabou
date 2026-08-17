@@ -28,12 +28,17 @@ import "./glue/clipboard";
 import "./glue/app-dirs";
 import "./glue/dialog";
 import "./glue/notification";
+import "./glue/intl";
 
 // The renderer and typed style surface are re-exported here so application
 // code has one stable runtime entry point. Their package names remain an
 // implementation detail used by the Vite transform and Wabou's own packages.
 export * from "@wabou/solid-renderer";
 export * from "@wabou/style";
+export {
+  type CalendarDateFields,
+  intl,
+} from "./glue/intl";
 export {
   type AppDirectories,
   appCacheDir,

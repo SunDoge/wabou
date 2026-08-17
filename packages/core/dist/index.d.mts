@@ -13,6 +13,9 @@ declare global {
   function __wabou_load_font(path: string): boolean;
   function __wabou_frame_stats(): string;
   function __wabou_layout_snapshot(ids: Uint32Array): string;
+  function __wabou_system_locale(): string;
+  function __wabou_system_time_zone(): string;
+  function __wabou_system_calendar_date(): string;
   function __wabou_flush(buf: Uint8Array): void;
   function __wabou_log(level: "debug" | "info" | "warn" | "error" | "log", message: string): void;
   function __wabou_utf8_encode(value: string): Uint8Array;
@@ -271,6 +274,22 @@ interface Notification {
 declare const notification: Notification;
 declare function useNotification(): Notification;
 //#endregion
+//#region src/glue/intl.d.ts
+interface CalendarDateFields {
+  year: number;
+  month: number;
+  day: number;
+}
+/**
+ * Operating-system locale facts. Standards-compatible formatting is installed
+ * separately by the FormatJS-backed Intl polyfill.
+ */
+declare const intl: Readonly<{
+  locale(): string;
+  timeZone(): string;
+  today(): CalendarDateFields;
+}>;
+//#endregion
 //#region src/glue/color-theme.d.ts
 type ColorThemeEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out" | ((progress: number) => number);
 interface ColorThemeAnimationOptions {
@@ -340,5 +359,5 @@ interface PlatformProviderProps {
 /** Override native services for one Solid subtree, primarily for tests and previews. */
 declare function PlatformProvider(props: PlatformProviderProps): JSX.Element;
 //#endregion
-export { type AppDirectories, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, EFFECT_ABI_VERSION, type EffectOp, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, type Notification, type NotificationOptions, type OpenDialogOptions, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, type SaveDialogOptions, type WindowHandle, type WindowMetrics, type WindowState, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, clipboard, colorTheme, createWindow, currentWindow, dialog, dispatchEffect, dispatchFireAndForget, dispatchResourceEffect, effectOps, hostMessages, notification, resolveAppDirectories, resourceDir, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, useClipboard, useColorTheme, useDialog, useNotification, useWindow };
+export { type AppDirectories, type CalendarDateFields, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, EFFECT_ABI_VERSION, type EffectOp, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, type Notification, type NotificationOptions, type OpenDialogOptions, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, type SaveDialogOptions, type WindowHandle, type WindowMetrics, type WindowState, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, clipboard, colorTheme, createWindow, currentWindow, dialog, dispatchEffect, dispatchFireAndForget, dispatchResourceEffect, effectOps, hostMessages, intl, notification, resolveAppDirectories, resourceDir, showNativeMenu, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, useClipboard, useColorTheme, useDialog, useNotification, useWindow };
 //# sourceMappingURL=index.d.mts.map

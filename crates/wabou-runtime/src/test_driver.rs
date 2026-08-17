@@ -73,6 +73,7 @@ struct TestState {
     windows: HashMap<u64, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
+    query_result: Option<String>,
     headless: bool,
 }
 
@@ -192,7 +193,7 @@ impl TestController {
             let finish = controller.clone();
             capability.set(
                 "finish",
-                Function::new(ctx, move |report: String| {
+                Function::new(ctx.clone(), move |report: String| {
                     if let Ok(mut state) = finish.0.lock() {
                         state.report = Some(report);
                         if let Some(wake) = &state.wake {
@@ -202,6 +203,19 @@ impl TestController {
                     } else {
                         false
                     }
+                })?,
+            )?;
+
+            let query_result = controller.clone();
+            capability.set(
+                "takeQueryResult",
+                Function::new(ctx.clone(), move || {
+                    query_result
+                        .0
+                        .lock()
+                        .ok()
+                        .and_then(|mut state| state.query_result.take())
+                        .unwrap_or_else(|| "null".into())
                 })?,
             )?;
             Ok(())
@@ -336,6 +350,19 @@ impl TestController {
             ) => input_semantic_target(source, snapshot, role, label, input),
             _ => false,
         };
+        if let (
+            TestActionKind::InputByRole {
+                role,
+                label,
+                input: TestInput::Probe,
+                ..
+            },
+            Some(snapshot),
+        ) = (&action.kind, snapshot.as_deref())
+            && let Some(node) = semantic_query_target(snapshot, role, label)
+        {
+            self.set_query_result(node);
+        }
         let _ = action.completion.send(handled);
     }
 
@@ -350,6 +377,18 @@ impl TestController {
             .ok()?
             .get("passed")?
             .as_bool()
+    }
+
+    fn set_query_result(&self, node: &wabou_shell::SemanticNode) {
+        let result = serde_json::json!({
+            "name": node.label,
+            "value": node.value,
+            "disabled": node.disabled,
+        })
+        .to_string();
+        if let Ok(mut state) = self.0.lock() {
+            state.query_result = Some(result);
+        }
     }
 }
 
@@ -400,6 +439,12 @@ fn action_semantic_target<'a>(
     snapshot: &'a SemanticSnapshot,
 ) -> Option<&'a wabou_shell::SemanticNode> {
     match kind {
+        TestActionKind::InputByRole {
+            role,
+            label,
+            input: TestInput::Probe,
+            ..
+        } => semantic_query_target(snapshot, role, label),
         TestActionKind::ClickByRole { role, label, .. }
         | TestActionKind::InputByRole { role, label, .. } => semantic_target(snapshot, role, label),
         _ => None,
@@ -443,7 +488,12 @@ fn input_semantic_target(
     label: &str,
     input: &TestInput,
 ) -> bool {
-    let Some(node) = semantic_target(snapshot, role, label) else {
+    let node = if matches!(input, TestInput::Probe) {
+        semantic_query_target(snapshot, role, label)
+    } else {
+        semantic_target(snapshot, role, label)
+    };
+    let Some(node) = node else {
         return false;
     };
     dispatch_test_input(source, node, input)
@@ -456,7 +506,10 @@ fn dispatch_test_input(
 ) -> bool {
     if matches!(
         input,
-        TestInput::Text { .. } | TestInput::Paste { .. } | TestInput::Ime { .. }
+        TestInput::Key { .. }
+            | TestInput::Text { .. }
+            | TestInput::Paste { .. }
+            | TestInput::Ime { .. }
     ) {
         // Focusing an already-focused node is a valid no-op and may report
         // `false`; the semantic lookup already proved the target is usable.
@@ -480,6 +533,17 @@ fn semantic_target<'a>(
     })
 }
 
+fn semantic_query_target<'a>(
+    snapshot: &'a SemanticSnapshot,
+    role: &str,
+    label: &str,
+) -> Option<&'a wabou_shell::SemanticNode> {
+    snapshot
+        .nodes
+        .iter()
+        .find(|node| semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label))
+}
+
 fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
     matches!(
         (role, candidate),
@@ -495,6 +559,12 @@ fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
             | ("combobox", SemanticRole::ComboBox)
             | ("listbox", SemanticRole::ListBox)
             | ("option", SemanticRole::Option)
+            | ("table", SemanticRole::Table)
+            | ("row", SemanticRole::Row)
+            | ("cell", SemanticRole::Cell)
+            | ("columnheader", SemanticRole::ColumnHeader)
+            | ("rowheader", SemanticRole::RowHeader)
+            | ("slider", SemanticRole::Slider)
             | ("label", SemanticRole::Label)
     )
 }
@@ -573,8 +643,13 @@ impl ShellExtension for TestDriver {
                         let _ = action.completion.send(false);
                         continue;
                     };
+                    if node.disabled && !matches!(input, TestInput::Probe) {
+                        let _ = action.completion.send(false);
+                        continue;
+                    }
                     match &input {
-                        TestInput::Text { .. }
+                        TestInput::Key { .. }
+                        | TestInput::Text { .. }
                         | TestInput::Paste { .. }
                         | TestInput::Ime { .. } => {
                             context.focus_semantic_node(window_id, node.id);
@@ -582,6 +657,9 @@ impl ShellExtension for TestDriver {
                         _ => {}
                     }
                     let events = test_input_events(&node, &input);
+                    if matches!(input, TestInput::Probe) {
+                        self.controller.set_query_result(&node);
+                    }
                     events
                         .into_iter()
                         .all(|event| context.dispatch_event(window_id, event))

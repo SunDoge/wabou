@@ -12,6 +12,9 @@ declare global {
   function __wabou_load_font(path: string): boolean;
   function __wabou_frame_stats(): string;
   function __wabou_layout_snapshot(ids: Uint32Array): string;
+  function __wabou_system_locale(): string;
+  function __wabou_system_time_zone(): string;
+  function __wabou_system_calendar_date(): string;
   function __wabou_flush(buf: Uint8Array): void;
   function __wabou_log(
     level: "debug" | "info" | "warn" | "error" | "log",

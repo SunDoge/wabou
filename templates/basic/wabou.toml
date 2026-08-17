@@ -1,2 +1,6 @@
 [build]
 out-dir = "dist/resources"
+
+[intl]
+locales = ["en"]
+time-zones = "golden"

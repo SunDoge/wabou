@@ -6,6 +6,11 @@ const fakeBuiltinHost: BuiltinHost = {
   system: { openUrl: () => true },
   fonts: { load: () => true },
   diagnostics: { frameStats: () => null },
+  intl: {
+    locale: () => "en-US",
+    timeZone: () => "UTC",
+    today: () => ({ year: 2026, month: 8, day: 17 }),
+  },
   layout: {
     snapshot: () => ({
       revision: 0,

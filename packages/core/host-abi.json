@@ -81,6 +81,30 @@
       "returns": "string"
     },
     {
+      "name": "__wabou_system_locale",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_system_time_zone",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [],
+      "returns": "string"
+    },
+    {
+      "name": "__wabou_system_calendar_date",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [],
+      "returns": "string"
+    },
+    {
       "name": "__wabou_flush",
       "direction": "host",
       "owner": "runtime",

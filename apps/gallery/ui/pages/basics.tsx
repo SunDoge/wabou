@@ -20,6 +20,7 @@ import {
   RadioGroupItem,
   Separator,
   Skeleton,
+  Slider,
   Spinner,
   Switch,
   Tabs,
@@ -130,7 +131,7 @@ function CardPage() {
 
 function InputPage() {
   const [value, setValue] = createSignal("");
-  const [config, setConfig] = createSignal("{\n  \"enabled\": true\n}");
+  const [config, setConfig] = createSignal('{\n  "enabled": true\n}');
   const [configEdited, setConfigEdited] = createSignal(false);
   return (
     <View class="flex flex-col gap-5">
@@ -480,6 +481,48 @@ function FpsPage() {
   );
 }
 
+function SliderPage() {
+  const [value, setValue] = createSignal(35);
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Controlled value">
+        <View class="w-96 flex flex-col gap-3">
+          <View class="flex items-center justify-between">
+            <Text class="text-sm text-secondary">Volume</Text>
+            <Text
+              role="status"
+              aria-label="Slider value"
+              class="font-mono text-sm text-primary"
+            >
+              {value()}%
+            </Text>
+          </View>
+          <Slider
+            label="Volume"
+            value={value()}
+            onValueChange={setValue}
+            valueText={(next) => `${next} percent`}
+          />
+        </View>
+      </Preview>
+      <Preview title="Steps and disabled state">
+        <View class="w-96 flex flex-col gap-5">
+          <Slider
+            label="Temperature"
+            min={-20}
+            max={40}
+            step={5}
+            defaultValue={15}
+          />
+          <Slider label="Unavailable range" defaultValue={60} disabled />
+        </View>
+      </Preview>
+      <PropertyRow name="keyboard" value="arrows | page up/down | home | end" />
+      <PropertyRow name="pointer" value="click | captured drag" />
+    </View>
+  );
+}
+
 function ScrollAreaPage() {
   const theme = useComponentsTheme();
   return (
@@ -777,6 +820,7 @@ export {
   ScrollAreaPage,
   SeparatorPage,
   SkeletonPage,
+  SliderPage,
   SpinnerPage,
   SwitchPage,
   TabsPage,

@@ -14,6 +14,7 @@ bitflags = { workspace = true }
 bon = { workspace = true }
 foyer = "0.22.3"
 futures-lite = "2"
+jiff = { workspace = true }
 lasso = "0.7.3"
 open = { workspace = true }
 parley = { workspace = true }
@@ -30,6 +31,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 snafu = { workspace = true }
 sourcemap = "9.2.2"
+sys-locale = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
@@ -54,6 +56,7 @@ tungstenite = {
 ureq = { version = "3.3", optional = true }
 
 [features]
+default = []
 profiling = ["dep:tracing-chrome", "wabou-shell/profiling"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]

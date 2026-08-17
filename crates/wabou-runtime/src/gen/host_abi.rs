@@ -75,6 +75,24 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
         feature: None,
     },
     HostAbiEntry {
+        name: "__wabou_system_locale",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_system_time_zone",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_system_calendar_date",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
         name: "__wabou_flush",
         direction: Direction::Host,
         owner: "runtime",

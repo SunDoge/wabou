@@ -5,6 +5,7 @@ import {
   type WabouColorThemeOptions,
   wabouStylePlugin,
 } from "@wabou/style-compiler";
+import MagicString from "magic-string";
 import { parse } from "smol-toml";
 import {
   type ConfigEnv,
@@ -31,6 +32,15 @@ export interface WabouViteOptions {
   theme?: WabouColorThemeOptions;
   /** Ignore third-party metadata classes. Supports `*` globs. */
   ignoreClasses?: string[];
+  /** ECMA-402 locale and time-zone data included in the application bundle. */
+  intl?: WabouIntlOptions;
+}
+
+export interface WabouIntlOptions {
+  /** FormatJS locale-data modules. Defaults to English and Chinese. */
+  locales?: string[];
+  /** Time-zone data set. `golden` is the compact recommended default. */
+  timeZones?: "golden" | "all";
 }
 
 export type WabouViteOptionsExport =
@@ -55,8 +65,11 @@ export function wabouPlugins(
   root = process.cwd(),
   theme?: WabouColorThemeOptions,
   ignoreClasses?: string[],
+  intl?: WabouIntlOptions,
+  entry = "ui/index.tsx",
 ): Plugin[] {
   return [
+    wabouIntlPlugin(root, entry, intl ?? manifestIntl(root)),
     wabouStylePlugin({ root, colorThemes: theme, ignoreClasses }),
     ...solid({
       solid: { generate: "universal", moduleName: "@wabou/solid-renderer" },
@@ -101,7 +114,13 @@ function resolveWabouConfig(
           (environment.command === "serve" ? "development" : "production"),
       ),
     },
-    plugins: wabouPlugins(root, options.theme, options.ignoreClasses),
+    plugins: wabouPlugins(
+      root,
+      options.theme,
+      options.ignoreClasses,
+      options.intl,
+      options.entry ?? "ui/index.tsx",
+    ),
     resolve: {
       alias: {
         "@wabou/solid-renderer": renderer,
@@ -138,6 +157,91 @@ function resolveWabouConfig(
     config.build = { ...config.build, sourcemap };
   }
   return config;
+}
+
+const INTL_DATA_ID = "virtual:wabou-intl-data";
+const RESOLVED_INTL_DATA_ID = `\0${INTL_DATA_ID}`;
+
+function wabouIntlPlugin(
+  root: string,
+  entry: string,
+  options: WabouIntlOptions,
+): Plugin {
+  const entryPath = resolve(root, entry);
+  return {
+    name: "wabou-intl-data",
+    enforce: "pre",
+    resolveId(id) {
+      return id === INTL_DATA_ID ? RESOLVED_INTL_DATA_ID : undefined;
+    },
+    load(id) {
+      if (id !== RESOLVED_INTL_DATA_ID) return undefined;
+      return intlDataModule(options);
+    },
+    transform(code, id) {
+      if (id.split("?", 1)[0] !== entryPath) return undefined;
+      const transformed = new MagicString(code);
+      transformed.prepend(`import ${JSON.stringify(INTL_DATA_ID)};\n`);
+      return {
+        code: transformed.toString(),
+        map: transformed.generateMap({ hires: true }),
+      };
+    },
+  };
+}
+
+function intlDataModule(options: WabouIntlOptions): string {
+  const locales = [...new Set(options.locales ?? ["en", "zh"])];
+  if (locales.length === 0) throw new Error("Wabou intl.locales cannot be empty");
+  for (const locale of locales) {
+    if (!/^[A-Za-z0-9-]+$/.test(locale)) {
+      throw new Error(`invalid Wabou Intl locale module ${JSON.stringify(locale)}`);
+    }
+  }
+  const imports = [
+    "@formatjs/intl-getcanonicallocales/polyfill.js",
+    "@formatjs/intl-locale/polyfill.js",
+    "@formatjs/intl-pluralrules/polyfill.js",
+    ...locales.map((locale) => `@formatjs/intl-pluralrules/locale-data/${locale}.js`),
+    "@formatjs/intl-numberformat/polyfill.js",
+    ...locales.map((locale) => `@formatjs/intl-numberformat/locale-data/${locale}.js`),
+    "@formatjs/intl-datetimeformat/polyfill.js",
+    ...locales.map((locale) => `@formatjs/intl-datetimeformat/locale-data/${locale}.js`),
+    options.timeZones === "all"
+      ? "@formatjs/intl-datetimeformat/add-all-tz.js"
+      : "@formatjs/intl-datetimeformat/add-golden-tz.js",
+  ];
+  return `${imports.map((id) => `import ${JSON.stringify(id)};`).join("\n")}
+Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());`;
+}
+
+function manifestIntl(root: string): WabouIntlOptions {
+  if (!existsSync(resolve(root, "wabou.toml"))) return {};
+  const { manifest, path } = readManifest(root);
+  const intl = (manifest as { intl?: unknown }).intl;
+  if (intl === undefined) return {};
+  if (typeof intl !== "object" || intl === null || Array.isArray(intl)) {
+    throw new Error(`${path} intl must be a table`);
+  }
+  const value = intl as { locales?: unknown; "time-zones"?: unknown };
+  if (
+    value.locales !== undefined &&
+    (!Array.isArray(value.locales) ||
+      value.locales.some((locale) => typeof locale !== "string"))
+  ) {
+    throw new Error(`${path} intl.locales must be an array of strings`);
+  }
+  if (
+    value["time-zones"] !== undefined &&
+    value["time-zones"] !== "golden" &&
+    value["time-zones"] !== "all"
+  ) {
+    throw new Error(`${path} intl.time-zones must be "golden" or "all"`);
+  }
+  return {
+    locales: value.locales as string[] | undefined,
+    timeZones: value["time-zones"] as "golden" | "all" | undefined,
+  };
 }
 
 function manifestOutDir(root: string): string {

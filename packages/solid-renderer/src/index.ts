@@ -24,8 +24,8 @@ export const isServer = false;
 export const getRequestEvent = () => undefined;
 export const delegateEvents = () => {};
 
-import type { JSX } from "./jsx";
 import { createRenderer as solidCreateRenderer } from "@solidjs/universal";
+import type { JSX } from "./jsx";
 
 /**
  * Application and widget-package additions to the native Host API.
@@ -734,17 +734,21 @@ export function dispatchEvent(
       ) {
         data.clientX = ed[0];
         data.clientY = ed[1];
-        data.button = ed[2];
-        data.buttons = ed[3];
-        data.mods = ed[4];
+        data.offsetX = ed[2];
+        data.offsetY = ed[3];
+        data.button = ed[4];
+        data.buttons = ed[5];
+        data.mods = ed[6];
       } else if (eventCode === EVENT_CODE.wheel) {
         data.clientX = ed[0];
         data.clientY = ed[1];
-        data.deltaX = ed[5];
-        data.deltaY = ed[6];
+        data.offsetX = ed[2];
+        data.offsetY = ed[3];
+        data.deltaX = ed[7];
+        data.deltaY = ed[8];
       } else if (eventCode === EVENT_CODE.scroll) {
-        data.scrollX = ed[7];
-        data.scrollY = ed[8];
+        data.scrollX = ed[9];
+        data.scrollY = ed[10];
       }
     }
   }

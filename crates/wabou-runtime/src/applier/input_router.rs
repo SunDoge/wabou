@@ -138,4 +138,41 @@ impl InputRouter {
         }
         None
     }
+
+    pub(super) fn local_position(&self, target: u32, x: f64, y: f64) -> (f64, f64) {
+        let point = Point::new(x, y);
+        self.hit_items
+            .iter()
+            .rev()
+            .find_map(|item| match item {
+                HitItem::Content(node) if node.solid_id == target => {
+                    let local = node.transform.inverse() * point;
+                    Some((
+                        local.x - f64::from(node.rect[0]),
+                        local.y - f64::from(node.rect[1]),
+                    ))
+                }
+                _ => None,
+            })
+            .unwrap_or((x, y))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_position_uses_the_target_transform_and_rect_origin() {
+        let mut router = InputRouter::new();
+        router.hit_items.push(HitItem::Content(HitNode {
+            solid_id: 7,
+            rect: [20.0, 30.0, 120.0, 130.0],
+            transform: Affine::translate((100.0, 50.0)),
+            clips: Vec::new(),
+            pointer_events: true,
+        }));
+
+        assert_eq!(router.local_position(7, 145.0, 95.0), (25.0, 15.0));
+    }
 }

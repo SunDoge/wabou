@@ -6,6 +6,7 @@ import {
   useContext,
 } from "solid-js";
 import type {
+  CalendarDateInfo,
   FrameStats,
   LayoutRect,
   LayoutSnapshot,
@@ -24,6 +25,9 @@ declare function __wabou_open_url(url: string): boolean;
 declare function __wabou_load_font(path: string): boolean;
 declare function __wabou_frame_stats(): string;
 declare function __wabou_layout_snapshot(ids: Uint32Array): string;
+declare function __wabou_system_locale(): string;
+declare function __wabou_system_time_zone(): string;
+declare function __wabou_system_calendar_date(): string;
 declare const __wabou_capabilities: Record<string, object>;
 
 export type LayoutTarget = number | { readonly id: number };
@@ -40,6 +44,14 @@ export interface BuiltinHost {
   readonly diagnostics: {
     /** Latest render timings, or null before the first completed frame. */
     frameStats(): FrameStats | null;
+  };
+  readonly intl: {
+    /** Locale reported by the operating system, falling back to en-US. */
+    locale(): string;
+    /** IANA time-zone identifier reported by the operating system. */
+    timeZone(): string;
+    /** Current Gregorian date in the operating system's local time zone. */
+    today(): CalendarDateInfo;
   };
   readonly layout: {
     /** Measure several nodes from one coherent, completed native layout. */
@@ -65,12 +77,21 @@ const nativeHost: NativeHostApi = {
     JSON.parse(
       __wabou_layout_snapshot(Uint32Array.from(ids)),
     ) as LayoutSnapshot,
+  systemLocale: () => __wabou_system_locale(),
+  systemTimeZone: () => __wabou_system_time_zone(),
+  systemCalendarDate: () =>
+    JSON.parse(__wabou_system_calendar_date()) as CalendarDateInfo,
 };
 
 const builtinHost: BuiltinHost = {
   system: { openUrl: nativeHost.openUrl },
   fonts: { load: nativeHost.loadFont },
   diagnostics: { frameStats: nativeHost.frameStats },
+  intl: {
+    locale: nativeHost.systemLocale,
+    timeZone: nativeHost.systemTimeZone,
+    today: nativeHost.systemCalendarDate,
+  },
   layout: {
     snapshot: (targets) =>
       nativeHost.layoutSnapshot(

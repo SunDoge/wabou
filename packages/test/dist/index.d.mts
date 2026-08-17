@@ -9,6 +9,7 @@ interface NativeTestCapability {
   windowState(windowId: number): string;
   clickByRole(windowId: number, role: string, label: string): Promise<boolean>;
   inputByRole(windowId: number, role: string, label: string, input: string): Promise<boolean>;
+  takeQueryResult(): string;
   finish(report: string): boolean;
 }
 declare module "@wabou/solid-renderer" {
@@ -21,6 +22,7 @@ interface TestContext {
     getByRole(role: SemanticRole, options: {
       name: string;
     }): Locator;
+    waitForIdle(): Promise<void>;
   };
   readonly window: {
     nativeClose(windowId: number, platform: "wayland" | "mutable-visibility"): Promise<void>;
@@ -28,7 +30,7 @@ interface TestContext {
     state(windowId: number): NativeWindowState | null;
   };
 }
-type SemanticRole = "button" | "textbox" | "link" | "dialog" | "alert" | "status" | "checkbox" | "radio" | "switch" | "combobox" | "listbox" | "option" | "label";
+type SemanticRole = "button" | "textbox" | "link" | "dialog" | "alert" | "status" | "checkbox" | "radio" | "switch" | "combobox" | "listbox" | "option" | "table" | "row" | "cell" | "columnheader" | "rowheader" | "slider" | "label";
 interface Locator {
   click(): Promise<void>;
   dragBy(deltaX: number, deltaY: number): Promise<void>;
@@ -43,6 +45,12 @@ interface Locator {
   ime(text: string): Promise<void>;
   wheel(deltaY: number, deltaX?: number): Promise<void>;
   waitFor(): Promise<void>;
+  snapshot(): Promise<LocatorSnapshot>;
+}
+interface LocatorSnapshot {
+  name: string | null;
+  value: string | null;
+  disabled: boolean;
 }
 type TestInput = {
   type: "probe";
@@ -103,6 +111,9 @@ declare function replay(actions: readonly TestAction[]): void;
 declare function expect<T>(actual: T): {
   toBe(expected: T): void;
   toEqual(expected: T): void;
+  toHaveText(expected: string): Promise<void>;
+  toHaveValue(expected: string): Promise<void>;
+  toBeDisabled(): Promise<void>;
 };
 declare namespace expect {
   var poll: <T>(read: () => T, options?: {
@@ -113,5 +124,5 @@ declare namespace expect {
   };
 }
 //#endregion
-export { Locator, NativeWindowState, SemanticRole, TestAction, TestContext, TestInput, TestReport, expect, replay, test };
+export { Locator, LocatorSnapshot, NativeWindowState, SemanticRole, TestAction, TestContext, TestInput, TestReport, expect, replay, test };
 //# sourceMappingURL=index.d.mts.map

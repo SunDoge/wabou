@@ -15,6 +15,9 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_load_font` | host | runtime | always |
 | `__wabou_frame_stats` | host | runtime | always |
 | `__wabou_layout_snapshot` | host | runtime | always |
+| `__wabou_system_locale` | host | runtime | always |
+| `__wabou_system_time_zone` | host | runtime | always |
+| `__wabou_system_calendar_date` | host | runtime | always |
 | `__wabou_flush` | host | runtime | always |
 | `__wabou_log` | host | runtime | always |
 | `__wabou_utf8_encode` | host | runtime | always |

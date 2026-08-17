@@ -38,6 +38,7 @@ type ComponentId =
   | "toggle"
   | "tabs"
   | "progress"
+  | "slider"
   | "fps"
   | "animation"
   | "platform"
@@ -58,7 +59,9 @@ type ComponentId =
   | "field"
   | "empty"
   | "button-group"
-  | "select";
+  | "select"
+  | "date-picker"
+  | "data-table";
 
 const groups: Array<{
   label: string;
@@ -78,6 +81,7 @@ const groups: Array<{
     items: [
       { id: "input", name: "Input" },
       { id: "select", name: "Select" },
+      { id: "date-picker", name: "Date picker" },
       { id: "checkbox", name: "Checkbox" },
       { id: "radio-group", name: "Radio group" },
       { id: "field", name: "Field & input group" },
@@ -90,9 +94,11 @@ const groups: Array<{
       { id: "card", name: "Card" },
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
+      { id: "slider", name: "Slider" },
       { id: "tabs", name: "Tabs" },
       { id: "kbd", name: "Kbd" },
       { id: "avatar", name: "Avatar" },
+      { id: "data-table", name: "Data table" },
     ],
   },
   {
@@ -144,6 +150,8 @@ const descriptions: Record<ComponentId, string> = {
   toggle: "A two-state button for formatting, filters and compact toolbars.",
   tabs: "Organizes related panels with keyboard-operable native tab semantics.",
   progress: "Shows completion for a task or a long-running operation.",
+  slider:
+    "Selects a numeric value with pointer dragging and keyboard controls.",
   fps: "Measures native host frames and highlights performance regressions.",
   animation: "Pure JavaScript value animations rendered by the native host.",
   platform: "Native windows and Rust-powered custom widgets.",
@@ -165,9 +173,13 @@ const descriptions: Record<ComponentId, string> = {
   avatar: "A compact visual identity with initials, images and grouped counts.",
   field: "Composable labels, descriptions, errors and input adornments.",
   select: "A keyboard-operable native listbox for choosing one option.",
+  "date-picker":
+    "Selects an internationalized calendar date from a native floating panel.",
   empty: "A centered placeholder for collections that do not contain data yet.",
   "button-group":
     "Groups related actions into horizontal or vertical toolbars.",
+  "data-table":
+    "A framework-agnostic TanStack Table core rendered through native Wabou primitives.",
 };
 
 const history = createMemoryHistory();
@@ -191,18 +203,21 @@ import {
   ScrollAreaPage,
   SeparatorPage,
   SkeletonPage,
+  SliderPage,
   SpinnerPage,
   SwitchPage,
   TabsPage,
   TogglePage,
   UtilitiesPage,
 } from "./pages/basics";
+import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
 import {
   AccordionPage,
   AvatarPage,
   ButtonGroupPage,
   DialogPage,
+  DatePickerPage,
   EmptyPage,
   FieldPage,
   SelectPage,
@@ -470,6 +485,9 @@ function App() {
                   <Match when={selected() === "progress"}>
                     <ProgressPage />
                   </Match>
+                  <Match when={selected() === "slider"}>
+                    <SliderPage />
+                  </Match>
                   <Match when={selected() === "fps"}>
                     <FpsPage />
                   </Match>
@@ -532,6 +550,12 @@ function App() {
                   </Match>
                   <Match when={selected() === "select"}>
                     <SelectPage />
+                  </Match>
+                  <Match when={selected() === "date-picker"}>
+                    <DatePickerPage />
+                  </Match>
+                  <Match when={selected() === "data-table"}>
+                    <DataTablePage />
                   </Match>
                 </ShowCase>
               </View>

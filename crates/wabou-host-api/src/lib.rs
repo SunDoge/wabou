@@ -66,6 +66,18 @@ pub struct LayoutSnapshot {
     pub nodes: Vec<LayoutNodeMetrics>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(feature = "bindings", derive(Type))]
+/// A Gregorian calendar date without a time or time zone.
+pub struct CalendarDateInfo {
+    /// Proleptic Gregorian year.
+    pub year: i32,
+    /// One-based month.
+    pub month: u8,
+    /// One-based day of month.
+    pub day: u8,
+}
+
 #[allow(unused_variables)]
 #[cfg(feature = "bindings")]
 mod contract {
@@ -90,6 +102,21 @@ mod contract {
     pub fn layout_snapshot(ids: Vec<u32>) -> LayoutSnapshot {
         unreachable!("binding contract functions are not invoked")
     }
+
+    #[specta::specta]
+    pub fn system_locale() -> String {
+        unreachable!("binding contract functions are not invoked")
+    }
+
+    #[specta::specta]
+    pub fn system_time_zone() -> String {
+        unreachable!("binding contract functions are not invoked")
+    }
+
+    #[specta::specta]
+    pub fn system_calendar_date() -> CalendarDateInfo {
+        unreachable!("binding contract functions are not invoked")
+    }
 }
 
 #[cfg(feature = "bindings")]
@@ -102,6 +129,9 @@ pub fn bindings() -> FunctionModule {
             contract::load_font,
             contract::frame_stats,
             contract::layout_snapshot,
+            contract::system_locale,
+            contract::system_time_zone,
+            contract::system_calendar_date,
         ],
     )
 }
@@ -116,6 +146,9 @@ mod tests {
         assert!(output.contains("openUrl(url: string): boolean"));
         assert!(output.contains("frameStats(): FrameStats | null"));
         assert!(output.contains("layoutSnapshot(ids: number[]): LayoutSnapshot"));
+        assert!(output.contains("systemLocale(): string"));
+        assert!(output.contains("systemTimeZone(): string"));
+        assert!(output.contains("systemCalendarDate(): CalendarDateInfo"));
         assert!(!output.contains("Promise<"));
     }
 }

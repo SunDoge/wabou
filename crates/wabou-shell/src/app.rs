@@ -1040,7 +1040,11 @@ pub struct ExtensionContext<'a> {
 }
 
 impl ExtensionContext<'_> {
-    /// Return an enabled semantic node from the latest retained snapshot.
+    /// Return a semantic node from the latest retained snapshot.
+    ///
+    /// Callers that dispatch interaction must reject disabled nodes. Snapshot
+    /// queries intentionally retain them so test assertions can inspect the
+    /// disabled state.
     pub fn semantic_node_by_role(
         &mut self,
         logical_window_id: u64,
@@ -1053,9 +1057,7 @@ impl ExtensionContext<'_> {
             .nodes
             .iter()
             .find(|node| {
-                semantic_role_matches(role, node.role)
-                    && node.label.as_deref() == Some(label)
-                    && !node.disabled
+                semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
             })
             .cloned()
     }
@@ -1285,6 +1287,12 @@ fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
             | ("combobox", SemanticRole::ComboBox)
             | ("listbox", SemanticRole::ListBox)
             | ("option", SemanticRole::Option)
+            | ("table", SemanticRole::Table)
+            | ("row", SemanticRole::Row)
+            | ("cell", SemanticRole::Cell)
+            | ("columnheader", SemanticRole::ColumnHeader)
+            | ("rowheader", SemanticRole::RowHeader)
+            | ("slider", SemanticRole::Slider)
             | ("label", SemanticRole::Label)
     )
 }

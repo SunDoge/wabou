@@ -73,7 +73,10 @@ async function buildEntry(bundle: Bundle, entry: string): Promise<string> {
   }
   const output = result.outputs.find((file) => file.kind === "entry-point");
   if (!output) throw new Error(`${bundle.name} produced no entry point`);
-  return output.text();
+  // Third-party template literals occasionally contain spaces immediately
+  // before a newline. They are not semantically relevant, but make generated
+  // artifacts fail `git diff --check`.
+  return (await output.text()).replace(/[\t ]+$/gm, "");
 }
 
 export async function generateRuntimeBundles(): Promise<void> {

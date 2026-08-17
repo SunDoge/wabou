@@ -16,7 +16,7 @@ export function createTypeahead<T extends CollectionItem>(
   let keys = "";
   let timer: ReturnType<typeof setTimeout> | undefined;
   const collator =
-    typeof Intl === "undefined"
+    typeof Intl === "undefined" || typeof Intl.Collator !== "function"
       ? undefined
       : new Intl.Collator(options.locale, {
           usage: "search",

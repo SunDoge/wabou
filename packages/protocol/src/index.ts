@@ -79,13 +79,15 @@ export type EventType = keyof typeof EVENT_CODE;
 export const EVENT_DATA_SLOT = {
   clientX: 0,
   clientY: 1,
-  button: 2,
-  buttons: 3,
-  mods: 4,
-  deltaX: 5,
-  deltaY: 6,
-  scrollX: 7,
-  scrollY: 8,
+  offsetX: 2,
+  offsetY: 3,
+  button: 4,
+  buttons: 5,
+  mods: 6,
+  deltaX: 7,
+  deltaY: 8,
+  scrollX: 9,
+  scrollY: 10,
 } as const;
 
 export const EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;

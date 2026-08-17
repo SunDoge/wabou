@@ -16,6 +16,7 @@ interface NativeTestCapability {
     label: string,
     input: string,
   ): Promise<boolean>;
+  takeQueryResult(): string;
   finish(report: string): boolean;
 }
 
@@ -28,6 +29,7 @@ declare module "@wabou/solid-renderer" {
 export interface TestContext {
   readonly page: {
     getByRole(role: SemanticRole, options: { name: string }): Locator;
+    waitForIdle(): Promise<void>;
   };
   readonly window: {
     nativeClose(
@@ -52,6 +54,12 @@ export type SemanticRole =
   | "combobox"
   | "listbox"
   | "option"
+  | "table"
+  | "row"
+  | "cell"
+  | "columnheader"
+  | "rowheader"
+  | "slider"
   | "label";
 
 export interface Locator {
@@ -59,13 +67,25 @@ export interface Locator {
   dragBy(deltaX: number, deltaY: number): Promise<void>;
   press(
     key: string,
-    modifiers?: { shift?: boolean; control?: boolean; alt?: boolean; meta?: boolean },
+    modifiers?: {
+      shift?: boolean;
+      control?: boolean;
+      alt?: boolean;
+      meta?: boolean;
+    },
   ): Promise<void>;
   type(text: string): Promise<void>;
   paste(text: string): Promise<void>;
   ime(text: string): Promise<void>;
   wheel(deltaY: number, deltaX?: number): Promise<void>;
   waitFor(): Promise<void>;
+  snapshot(): Promise<LocatorSnapshot>;
+}
+
+export interface LocatorSnapshot {
+  name: string | null;
+  value: string | null;
+  disabled: boolean;
 }
 
 export type TestInput =
@@ -116,6 +136,15 @@ function capability(): NativeTestCapability {
 
 const context: TestContext = {
   page: {
+    async waitForIdle() {
+      await Promise.resolve();
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+    },
     getByRole(role, options) {
       const input = async (value: TestInput): Promise<void> => {
         trace.push({
@@ -137,6 +166,17 @@ const context: TestContext = {
             `no enabled ${role} named ${JSON.stringify(options.name)}`,
           );
         }
+      };
+      const snapshot = async (): Promise<LocatorSnapshot> => {
+        await input({ type: "probe" });
+        const value = JSON.parse(
+          capability().takeQueryResult(),
+        ) as LocatorSnapshot | null;
+        if (!value)
+          throw new Error(
+            `no semantic snapshot for ${role} named ${JSON.stringify(options.name)}`,
+          );
+        return value;
       };
       return {
         async click() {
@@ -178,6 +218,7 @@ const context: TestContext = {
         waitFor() {
           return input({ type: "probe" });
         },
+        snapshot,
       };
     },
   },
@@ -245,6 +286,12 @@ export function replay(actions: readonly TestAction[]): void {
 }
 
 export function expect<T>(actual: T) {
+  const locatorSnapshot = async (): Promise<LocatorSnapshot> => {
+    if (!actual || typeof actual !== "object" || !("snapshot" in actual)) {
+      throw new Error("this assertion requires a Wabou locator");
+    }
+    return (actual as unknown as Locator).snapshot();
+  };
   return {
     toBe(expected: T): void {
       if (!Object.is(actual, expected)) {
@@ -257,6 +304,27 @@ export function expect<T>(actual: T) {
       const left = JSON.stringify(actual);
       const right = JSON.stringify(expected);
       if (left !== right) throw new Error(`expected ${left} to equal ${right}`);
+    },
+    async toHaveText(expected: string): Promise<void> {
+      const state = await locatorSnapshot();
+      const value = state.value ?? state.name;
+      if (value !== expected) {
+        throw new Error(
+          `expected locator text ${JSON.stringify(value)} to be ${JSON.stringify(expected)}`,
+        );
+      }
+    },
+    async toHaveValue(expected: string): Promise<void> {
+      const state = await locatorSnapshot();
+      if (state.value !== expected) {
+        throw new Error(
+          `expected locator value ${JSON.stringify(state.value)} to be ${JSON.stringify(expected)}`,
+        );
+      }
+    },
+    async toBeDisabled(): Promise<void> {
+      const state = await locatorSnapshot();
+      if (!state.disabled) throw new Error("expected locator to be disabled");
     },
   };
 }

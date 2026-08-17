@@ -12,6 +12,8 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
+  CalendarDate,
+  DatePicker,
   Dialog,
   DialogDescription,
   DialogFooter,
@@ -292,6 +294,56 @@ export function SelectPage() {
                 ? "Project 8 — a deliberately long label that should be truncated"
                 : `Project ${index + 1}`,
           }))}
+        />
+      </Preview>
+    </View>
+  );
+}
+
+export function DatePickerPage() {
+  const [date, setDate] = createSignal(new CalendarDate(2026, 8, 17));
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Date picker">
+        <View class="w-[440px] flex flex-col gap-2">
+          <Text class="text-sm font-medium text-primary">Deployment date</Text>
+          <DatePicker
+            aria-label="Deployment date"
+            value={date()}
+            minValue={new CalendarDate(2026, 1, 1)}
+            maxValue={new CalendarDate(2027, 12, 31)}
+            onValueChange={setDate}
+          />
+          <Text
+            role="status"
+            aria-label="Selected date"
+            class="text-xs text-muted"
+          >
+            {date().toString()}
+          </Text>
+        </View>
+      </Preview>
+      <Preview title="Unavailable dates">
+        <DatePicker
+          aria-label="Weekday appointment"
+          placeholder="Choose a weekday"
+          isDateUnavailable={(value) => {
+            const day = value.toDate("UTC").getUTCDay();
+            return day === 0 || day === 6;
+          }}
+        />
+      </Preview>
+      <Preview title="Localized calendar">
+        <DatePicker
+          aria-label="本地化日期"
+          locale="zh-CN"
+          defaultValue={new CalendarDate(2026, 8, 17)}
+          labels={{
+            previousMonth: "上个月",
+            nextMonth: "下个月",
+            today: "今天",
+            selectToday: "选择今天",
+          }}
         />
       </Preview>
     </View>

@@ -1,0 +1,131 @@
+import { createMeasuredSize, View } from "@wabou/primitives";
+import { createSignal, type JSX } from "solid-js";
+
+interface SliderPointerEvent {
+  offsetX: number;
+  buttons: number;
+  preventDefault(): void;
+}
+
+interface SliderKeyEvent {
+  key: string;
+  preventDefault(): void;
+}
+
+export interface SliderProps {
+  value?: number;
+  defaultValue?: number;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+  label: string;
+  valueText?: (value: number) => string;
+  onValueChange?: (value: number) => void;
+  class?: string;
+}
+
+const join = (...values: Array<string | undefined | false>) =>
+  values.filter(Boolean).join(" ");
+
+export function Slider(props: SliderProps): JSX.Element {
+  const min = () => props.min ?? 0;
+  const max = () => Math.max(min(), props.max ?? 100);
+  const step = () => Math.max(Number.EPSILON, props.step ?? 1);
+  const clamp = (value: number) => Math.max(min(), Math.min(max(), value));
+  const snap = (value: number) => {
+    const stepped =
+      min() + Math.round((clamp(value) - min()) / step()) * step();
+    const precision = Math.max(0, (String(step()).split(".")[1] ?? "").length);
+    return clamp(Number(stepped.toFixed(precision)));
+  };
+  const [local, setLocal] = createSignal(snap(props.defaultValue ?? min()));
+  const value = () => snap(props.value ?? local());
+  const ratio = () =>
+    max() === min() ? 0 : (value() - min()) / (max() - min());
+  const measured = createMeasuredSize();
+  const [dragging, setDragging] = createSignal(false);
+  const [focused, setFocused] = createSignal(false);
+
+  const update = (next: number) => {
+    if (props.disabled) return;
+    const normalized = snap(next);
+    const changed = normalized !== value();
+    if (props.value === undefined) setLocal(normalized);
+    if (changed) props.onValueChange?.(normalized);
+  };
+  const updateFromPointer = (event: SliderPointerEvent) => {
+    const width = measured.width();
+    if (width <= 0) return;
+    event.preventDefault();
+    update(
+      min() +
+        (Math.max(0, Math.min(width, event.offsetX)) / width) * (max() - min()),
+    );
+  };
+  const changeBy = (amount: number) => update(value() + amount);
+  const onKeyDown = (event: SliderKeyEvent) => {
+    if (props.disabled) return;
+    if (event.key === "ArrowLeft" || event.key === "ArrowDown")
+      changeBy(-step());
+    else if (event.key === "ArrowRight" || event.key === "ArrowUp")
+      changeBy(step());
+    else if (event.key === "PageDown") changeBy(-step() * 10);
+    else if (event.key === "PageUp") changeBy(step() * 10);
+    else if (event.key === "Home") update(min());
+    else if (event.key === "End") update(max());
+    else return;
+    event.preventDefault();
+  };
+
+  return (
+    <View
+      ref={measured.ref}
+      role="slider"
+      aria-label={props.label}
+      aria-valuemin={min()}
+      aria-valuemax={max()}
+      aria-valuenow={value()}
+      aria-valuetext={props.valueText?.(value()) ?? String(value())}
+      aria-disabled={props.disabled}
+      tabIndex={props.disabled ? -1 : 0}
+      class={join("h-7 relative flex items-center", props.class)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => {
+        setFocused(false);
+        setDragging(false);
+      }}
+      onPointerDown={(event: SliderPointerEvent) => {
+        setDragging(true);
+        updateFromPointer(event);
+      }}
+      onPointerMove={(event: SliderPointerEvent) => {
+        if (dragging() && event.buttons !== 0) updateFromPointer(event);
+      }}
+      onPointerUp={(event: SliderPointerEvent) => {
+        if (dragging()) updateFromPointer(event);
+        setDragging(false);
+      }}
+      onPointerCancel={() => setDragging(false)}
+      onKeyDown={onKeyDown}
+      style={{ opacity: props.disabled ? 0.45 : 1 }}
+    >
+      <View class="w-full h-2 overflow-hidden rounded-full bg-control">
+        <View
+          class="h-full rounded-full bg-accent"
+          style={{ width: `${ratio() * 100}%` }}
+        />
+      </View>
+      <View
+        class={join(
+          "w-5 h-5 absolute rounded-full border bg-surface",
+          focused() || dragging() ? "border-focus" : "border-strong",
+        )}
+        style={{
+          left: `${ratio() * Math.max(0, measured.width() - 20)}px`,
+          top: "4px",
+        }}
+      />
+    </View>
+  );
+}

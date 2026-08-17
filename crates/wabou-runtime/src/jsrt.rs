@@ -291,6 +291,8 @@ impl JsRuntime {
                 .with_name("__wabou_open_url")?,
             )?;
 
+            self.register_intl_host_fns(ctx.clone(), &globals)?;
+
             // Read a raw font file (TTF/OTF) and queue
             // it for the Applier to register into the text FontContext on the
             // next frame. Call once at boot before first paint. Returns false
@@ -335,6 +337,32 @@ impl JsRuntime {
             )?;
             Ok(())
         })
+    }
+
+    fn register_intl_host_fns<'js>(
+        &self,
+        ctx: rquickjs::Ctx<'js>,
+        globals: &rquickjs::Object<'js>,
+    ) -> JsResult<()> {
+        globals.set(
+            "__wabou_system_locale",
+            rquickjs::Function::new(ctx.clone(), crate::intl::system_locale)?
+                .with_name("__wabou_system_locale")?,
+        )?;
+        globals.set(
+            "__wabou_system_time_zone",
+            rquickjs::Function::new(ctx.clone(), crate::intl::system_time_zone)?
+                .with_name("__wabou_system_time_zone")?,
+        )?;
+        globals.set(
+            "__wabou_system_calendar_date",
+            rquickjs::Function::new(ctx.clone(), || -> String {
+                serde_json::to_string(&crate::intl::system_calendar_date())
+                    .expect("calendar date serialization is infallible")
+            })?
+            .with_name("__wabou_system_calendar_date")?,
+        )?;
+        Ok(())
     }
 
     fn register_style_host_fns<'js>(
