@@ -3,6 +3,7 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "customConditions": ["wabou-source"],
     "strict": true,
     "jsx": "preserve",
     "jsxImportSource": "@wabou/solid-renderer",
@@ -23,5 +24,5 @@
     "apps/**/*.tsx",
     "scripts/**/*.ts"
   ],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "**/dist"]
 }

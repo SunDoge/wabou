@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "jsxImportSource": "@wabou/solid-renderer",
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": ["index.tsx"]
+}

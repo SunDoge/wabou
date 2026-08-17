@@ -12,10 +12,25 @@
     "access": "public"
   },
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./runtime": "./src/runtime/client.ts",
-    "./utility-manifest": "./src/utility-manifest.ts"
+    ".": {
+      "wabou-source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./runtime": {
+      "wabou-source": "./src/runtime/client.ts",
+      "types": "./dist/runtime.d.mts",
+      "import": "./dist/runtime.mjs"
+    },
+    "./utility-manifest": {
+      "wabou-source": "./src/utility-manifest.ts",
+      "types": "./dist/utility-manifest.d.mts",
+      "import": "./dist/utility-manifest.mjs"
+    }
   },
   "scripts": {
     "test": "bun test"

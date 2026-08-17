@@ -15,7 +15,16 @@
     "stability": "internal"
   },
   "type": "module",
-  "exports": "./src/index.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "wabou-source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
   "scripts": {
     "test": "bun test"
   },

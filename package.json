@@ -1,6 +1,7 @@
 {
   "name": "wabou",
   "private": true,
+  "type": "module",
   "scripts": {
     "wabou": "cargo run -p wabou-cli --",
     "format": "biome format --write .",
@@ -13,10 +14,11 @@
     "commit:hook": "cog install-hook commit-msg",
     "test:solid-refresh": "bun --conditions=browser --conditions=development test packages/solid-renderer/src/hmr.test.ts",
     "test:router": "bun --conditions=browser test packages/router/src/index.test.tsx",
-    "packages:check": "bun run scripts/check-package-boundaries.ts",
+    "packages:build": "node node_modules/tsdown/dist/run.mjs",
+    "packages:check": "bun run scripts/check-package-boundaries.ts && tsc -p tests/package-consumer/tsconfig.json",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release-packages": "bun run packages:check && bun run scripts/publish-packages.ts",
+    "release-packages": "bun run packages:build && bun run packages:check && bun run scripts/publish-packages.ts",
     "gen": "bun run scripts/codegen/index.ts",
     "build": "bun run gen && bun run wabou build apps/gallery",
     "dev": "bun run wabou dev apps/gallery"
@@ -28,12 +30,18 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
     "@changesets/cli": "^2.29.8",
-    "@types/bun": "^1.3.14",
     "@solidjs/web": "2.0.0-rc.0",
+    "@types/bun": "^1.3.14",
+    "@wabou/components": "workspace:*",
+    "@wabou/core": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/unocss-preset": "workspace:*",
+    "@wabou/vite": "workspace:*",
     "bun-types": "^1.3.14",
+    "solid-js": "2.0.0-rc.0",
+    "tsdown": "0.22.14",
     "typescript": "^5.9.0",
-    "unocss": "^66.7.5"
+    "unocss": "^66.7.5",
+    "vite-plugin-solid": "3.0.0-next.27"
   }
 }

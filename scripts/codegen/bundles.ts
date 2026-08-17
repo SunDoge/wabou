@@ -65,6 +65,7 @@ async function buildEntry(bundle: Bundle, entry: string): Promise<string> {
     format: bundle.format,
     target: "browser",
     minify: bundle.minify,
+    conditions: ["wabou-source", "browser"],
   });
   if (!result.success) {
     for (const log of result.logs) console.error(log);

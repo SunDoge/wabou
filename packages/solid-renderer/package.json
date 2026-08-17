@@ -14,10 +14,25 @@
   "wabou": {
     "stability": "internal"
   },
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./jsx-runtime": "./src/jsx.ts",
-    "./jsx-dev-runtime": "./src/jsx.ts"
+    ".": {
+      "wabou-source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./jsx-runtime": {
+      "wabou-source": "./src/jsx.ts",
+      "types": "./dist/jsx-runtime.d.mts",
+      "import": "./dist/jsx-runtime.mjs"
+    },
+    "./jsx-dev-runtime": {
+      "wabou-source": "./src/jsx.ts",
+      "types": "./dist/jsx-runtime.d.mts",
+      "import": "./dist/jsx-runtime.mjs"
+    }
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.0",

@@ -35,8 +35,11 @@ no separate runtime package.
 
 All `@wabou/*` packages use one fixed version. Add a Changeset for a public
 change, then run `bun run version-packages` and `bun run release-packages`.
-The release command publishes with Bun so `workspace:*` dependencies are
-rewritten to the shared concrete version in the npm tarball.
+The release command first compiles package source with tsdown into ESM and
+bundled declarations, then publishes with Bun so `workspace:*` dependencies
+are rewritten to the shared concrete version in the npm tarball. Published
+packages expose `dist` artifacts; consumers do not need to compile Wabou's
+TypeScript or TSX source.
 `bun run packages:check` verifies aligned versions, publication metadata and
 that application manifests do not directly depend on internal packages.
 

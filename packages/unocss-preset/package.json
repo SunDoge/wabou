@@ -15,9 +15,20 @@
     "stability": "internal"
   },
   "type": "module",
+  "files": [
+    "dist",
+    "generated/manifest.json"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./manifest": "./generated/manifest.json"
+    ".": {
+      "wabou-source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./manifest": {
+      "wabou-source": "./generated/manifest.json",
+      "default": "./generated/manifest.json"
+    }
   },
   "dependencies": {
     "@unocss/core": "^66.7.5"

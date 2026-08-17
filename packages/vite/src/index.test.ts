@@ -26,9 +26,11 @@ describe("@wabou/vite", () => {
   });
 
   test("defines conventional entry and bundle output", async () => {
-    const config = await resolveConfig(defineWabouConfig({
-      outDir: "/dist/demo/resources",
-    }));
+    const config = await resolveConfig(
+      defineWabouConfig({
+        outDir: "/dist/demo/resources",
+      }),
+    );
     expect(config.build?.outDir).toBe("/dist/demo/resources");
     expect(config.build?.cssCodeSplit).toBe(false);
     expect(config.build?.sourcemap).toBe(true);
@@ -38,7 +40,7 @@ describe("@wabou/vite", () => {
       name: "WabouApp",
     });
     expect(config.resolve?.alias).toMatchObject({
-      "solid-js/web": expect.stringContaining("solid-renderer/src/index.ts"),
+      "solid-js/web": expect.stringContaining("solid-renderer"),
     });
     expect(config.define?.["process.env.NODE_ENV"]).toBe(
       JSON.stringify(process.env.NODE_ENV ?? "production"),
@@ -47,11 +49,13 @@ describe("@wabou/vite", () => {
 
   test("merges app-specific Vite overrides", async () => {
     const extra: Plugin = { name: "app-plugin" };
-    const config = await resolveConfig(defineWabouConfig({
-      outDir: "dist",
-      globalName: "Inspector",
-      vite: { plugins: [extra], build: { sourcemap: true } },
-    }));
+    const config = await resolveConfig(
+      defineWabouConfig({
+        outDir: "dist",
+        globalName: "Inspector",
+        vite: { plugins: [extra], build: { sourcemap: true } },
+      }),
+    );
     expect(config.build?.sourcemap).toBe(true);
     expect(config.build?.lib).toMatchObject({ name: "Inspector" });
     expect(config.plugins).toContain(extra);

@@ -20,10 +20,19 @@ interface Manifest {
   private?: boolean;
   publishConfig?: { access?: string };
   wabou?: { stability?: string };
+  files?: string[];
+  exports?: unknown;
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
+}
+
+interface ConditionalExport {
+  "wabou-source"?: string;
+  types?: string;
+  import?: string;
+  default?: string;
 }
 
 async function manifest(path: string): Promise<Manifest> {
@@ -81,9 +90,31 @@ for (const entry of packages) {
   ) {
     throw new Error(`${entry.name} must link to its repository directory`);
   }
+  if (!entry.files?.includes("dist")) {
+    throw new Error(`${entry.name} must publish its dist directory`);
+  }
   const internal = internalPackages.has(entry.name);
   if ((entry.wabou?.stability === "internal") !== internal) {
     throw new Error(`${entry.name} has incorrect Wabou stability metadata`);
+  }
+}
+
+async function verifyExportTargets(
+  packageRoot: string,
+  packageName: string,
+  value: unknown,
+): Promise<void> {
+  if (typeof value === "string") {
+    if (!(await Bun.file(join(packageRoot, value)).exists())) {
+      throw new Error(`${packageName} export target does not exist: ${value}`);
+    }
+    return;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${packageName} has an invalid exports entry`);
+  }
+  for (const target of Object.values(value as ConditionalExport)) {
+    await verifyExportTargets(packageRoot, packageName, target);
   }
 }
 
@@ -139,6 +170,7 @@ function importedSpecifiers(source: string, path: string): string[] {
 for (const manifestPath of packageManifestPaths) {
   const entry = await manifest(manifestPath);
   const packageRoot = join(manifestPath, "..");
+  await verifyExportTargets(packageRoot, entry.name, entry.exports);
   const declared = {
     ...entry.dependencies,
     ...entry.optionalDependencies,

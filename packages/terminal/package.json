@@ -11,8 +11,15 @@
   "publishConfig": {
     "access": "public"
   },
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./src/index.tsx"
+    ".": {
+      "wabou-source": "./src/index.tsx",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
   },
   "dependencies": {
     "@wabou/solid-renderer": "workspace:*",
