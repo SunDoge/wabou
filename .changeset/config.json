@@ -33,7 +33,6 @@
     "@wabou/hackernews",
     "@wabou/stress",
     "@wabou/terminal-demo",
-    "@wabou/vlist",
-    "@wabou/warden-desktop"
+    "@wabou/vlist"
   ]
 }

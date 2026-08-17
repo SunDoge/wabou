@@ -1,0 +1,27 @@
+{
+  "mode": "pre",
+  "tag": "alpha",
+  "initialVersions": {
+    "@wabou/devtools-app": "0.0.0",
+    "@wabou/gallery": "0.0.0",
+    "@wabou/hackernews": "0.0.0",
+    "@wabou/stress": "0.0.0",
+    "@wabou/terminal-demo": "0.0.0",
+    "@wabou/vlist": "0.0.0",
+    "@wabou/animation": "0.1.0-alpha.1",
+    "@wabou/components": "0.1.0-alpha.1",
+    "@wabou/core": "0.1.0-alpha.1",
+    "@wabou/interactions": "0.1.0-alpha.1",
+    "@wabou/primitives": "0.1.0-alpha.1",
+    "@wabou/protocol": "0.1.0-alpha.1",
+    "@wabou/router": "0.1.0-alpha.1",
+    "@wabou/solid-renderer": "0.1.0-alpha.1",
+    "@wabou/style": "0.1.0-alpha.1",
+    "@wabou/style-compiler": "0.1.0-alpha.1",
+    "@wabou/terminal": "0.1.0-alpha.1",
+    "@wabou/test": "0.1.0-alpha.1",
+    "@wabou/unocss-preset": "0.1.0-alpha.1",
+    "@wabou/vite": "0.1.0-alpha.1"
+  },
+  "changesets": []
+}

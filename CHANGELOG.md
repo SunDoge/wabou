@@ -17,6 +17,8 @@ tags.
   modal, and router coverage.
 - Package boundary checks now require every runtime import to be declared by
   its package manifest.
+- JavaScript packages now publish compiled ESM and declaration artifacts built
+  with tsdown instead of requiring consumers to compile Wabou's TSX source.
 - Pushes to the development branch run the same CI and commit-convention gates
   used for the release branch.
 
