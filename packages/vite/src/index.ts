@@ -1,20 +1,20 @@
-import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
-  wabouStylePlugin,
   type WabouColorThemeOptions,
+  wabouStylePlugin,
 } from "@wabou/style-compiler";
+import { parse } from "smol-toml";
 import {
+  type ConfigEnv,
   defineConfig,
   mergeConfig,
-  type ConfigEnv,
   type Plugin,
   type UserConfig,
   type UserConfigExport,
 } from "vite";
 import solid from "vite-plugin-solid";
-import { parse } from "smol-toml";
 
 export interface WabouViteOptions {
   /** Application root. Defaults to Vite's current working directory. */
@@ -84,7 +84,15 @@ function resolveWabouConfig(
   environment: ConfigEnv,
 ): UserConfig {
   const root = options.root ?? process.cwd();
-  const outDir = options.outDir ?? manifestOutDir(root);
+  const outDir =
+    process.env.WABOU_OUT_DIR ?? options.outDir ?? manifestOutDir(root);
+  const sourceMap = process.env.WABOU_SOURCE_MAP;
+  const sourcemap =
+    sourceMap === "true"
+      ? true
+      : sourceMap === "false"
+        ? false
+        : (manifestSourceMap(root) ?? process.env.WABOU_ENV_DEBUG === "true");
   const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
   const defaults: UserConfig = {
     define: {
@@ -103,7 +111,7 @@ function resolveWabouConfig(
     build: {
       // The native QuickJS host consumes this map to report TS/TSX locations
       // instead of opaque generated bundle offsets.
-      sourcemap: true,
+      sourcemap,
       lib: {
         entry: options.entry ?? "ui/index.tsx",
         formats: ["iife"],
@@ -119,17 +127,21 @@ function resolveWabouConfig(
       minify: false,
     },
   };
-  return mergeConfig(defaults, options.vite ?? {});
+  const config = mergeConfig(defaults, options.vite ?? {});
+  // The CLI owns the complete application artifact. App-level Vite overrides
+  // remain useful for direct builds, but must not redirect or change the
+  // profile selected by `wabou build`/`wabou run`.
+  if (process.env.WABOU_OUT_DIR !== undefined) {
+    config.build = { ...config.build, outDir };
+  }
+  if (process.env.WABOU_SOURCE_MAP !== undefined) {
+    config.build = { ...config.build, sourcemap };
+  }
+  return config;
 }
 
 function manifestOutDir(root: string): string {
-  const path = resolve(root, "wabou.toml");
-  let manifest: unknown;
-  try {
-    manifest = parse(readFileSync(path, "utf8"));
-  } catch (error) {
-    throw new Error(`cannot read Wabou build output from ${path}: ${error}`);
-  }
+  const { manifest, path } = readManifest(root);
   const outDir = (manifest as { build?: { "out-dir"?: unknown } }).build?.[
     "out-dir"
   ];
@@ -137,4 +149,25 @@ function manifestOutDir(root: string): string {
     throw new Error(`${path} must declare a non-empty build.out-dir`);
   }
   return outDir;
+}
+
+function manifestSourceMap(root: string): boolean | undefined {
+  if (!existsSync(resolve(root, "wabou.toml"))) return undefined;
+  const { manifest, path } = readManifest(root);
+  const sourceMap = (manifest as { build?: { "source-map"?: unknown } })
+    .build?.["source-map"];
+  if (sourceMap === undefined) return undefined;
+  if (typeof sourceMap !== "boolean") {
+    throw new Error(`${path} build.source-map must be true or false`);
+  }
+  return sourceMap;
+}
+
+function readManifest(root: string): { manifest: unknown; path: string } {
+  const path = resolve(root, "wabou.toml");
+  try {
+    return { manifest: parse(readFileSync(path, "utf8")), path };
+  } catch (error) {
+    throw new Error(`cannot read Wabou build output from ${path}: ${error}`);
+  }
 }

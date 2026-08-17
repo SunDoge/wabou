@@ -76,6 +76,9 @@ enum Commands {
         app: Option<PathBuf>,
         #[arg(long)]
         release: bool,
+        /// Generate a source map even for a release build.
+        #[arg(long, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        source_map: Option<bool>,
     },
     /// Build a release application and create native installers or bundles.
     Package {
@@ -91,6 +94,9 @@ enum Commands {
         app: Option<PathBuf>,
         #[arg(long)]
         release: bool,
+        /// Generate a source map even for a release build.
+        #[arg(long, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
+        source_map: Option<bool>,
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
         #[arg(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
@@ -231,6 +237,27 @@ struct WabouPackageFile {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct BuildConfig {
     out_dir: PathBuf,
+    #[serde(default)]
+    source_map: Option<bool>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum BuildProfile {
+    Debug,
+    Release,
+}
+
+impl BuildProfile {
+    fn from_release(release: bool) -> Self {
+        if release { Self::Release } else { Self::Debug }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Debug => "debug",
+            Self::Release => "release",
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -337,9 +364,13 @@ fn main() -> Result<()> {
             let (workspace, app) = resolve_app(app.as_deref())?;
             dev(&workspace, app, port, devtools, mode.as_deref())
         }
-        Commands::Build { app, release } => {
+        Commands::Build {
+            app,
+            release,
+            source_map,
+        } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            build(&workspace, &app, release)
+            build(&workspace, &app, release, source_map)
         }
         Commands::Package { app, format } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
@@ -348,11 +379,18 @@ fn main() -> Result<()> {
         Commands::Run {
             app,
             release,
+            source_map,
             profile_trace,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
             let profile_trace = profile_trace.map(|path| cwd.join(path));
-            run(&workspace, &app, release, profile_trace.as_deref())
+            run(
+                &workspace,
+                &app,
+                release,
+                source_map,
+                profile_trace.as_deref(),
+            )
         }
         Commands::Test {
             scenario,
@@ -479,23 +517,55 @@ fn manifest(app: &App) -> String {
     app.root.join("Cargo.toml").to_string_lossy().into_owned()
 }
 
-fn bundle_path(workspace: &Path, app: &App) -> PathBuf {
+fn configured_resource_dir(workspace: &Path, app: &App) -> PathBuf {
     if let Ok(source) = fs::read_to_string(app.root.join("wabou.toml"))
         && let Ok(file) = toml::from_str::<WabouPackageFile>(&source)
         && let Some(build) = file.build
     {
-        return app.root.join(build.out_dir).join("bundle.js");
+        return app.root.join(build.out_dir);
     }
     let dist = workspace.join("dist");
     if workspace == app.root {
-        dist.join("resources/bundle.js")
+        dist.join("resources")
     } else {
-        dist.join(&app.name).join("resources/bundle.js")
+        dist.join(&app.name).join("resources")
     }
 }
 
-fn frontend_build_lock(app: &App) -> Result<fs::File> {
-    let directory = app.root.join("target/wabou");
+fn profile_resource_dir(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
+    let configured = configured_resource_dir(workspace, app);
+    let name = configured.file_name().unwrap_or_default();
+    configured
+        .parent()
+        .unwrap_or(&configured)
+        .join(profile.as_str())
+        .join(name)
+}
+
+fn distribution_root(workspace: &Path, app: &App) -> PathBuf {
+    let resources = configured_resource_dir(workspace, app);
+    resources.parent().unwrap_or(&resources).to_path_buf()
+}
+
+fn profile_application_dir(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
+    distribution_root(workspace, app).join(profile.as_str())
+}
+
+fn bundle_path(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
+    profile_resource_dir(workspace, app, profile).join("bundle.js")
+}
+
+fn configured_source_map(app: &App, profile: BuildProfile) -> bool {
+    let setting = fs::read_to_string(app.root.join("wabou.toml"))
+        .ok()
+        .and_then(|source| toml::from_str::<WabouPackageFile>(&source).ok())
+        .and_then(|file| file.build)
+        .and_then(|build| build.source_map);
+    setting.unwrap_or(profile == BuildProfile::Debug)
+}
+
+fn frontend_build_lock(workspace: &Path, app: &App) -> Result<fs::File> {
+    let directory = workspace.join("target/wabou/frontend").join(&app.name);
     fs::create_dir_all(&directory)?;
     let file = OpenOptions::new()
         .read(true)
@@ -507,9 +577,34 @@ fn frontend_build_lock(app: &App) -> Result<fs::File> {
     Ok(file)
 }
 
-fn frontend_unlocked(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
+fn frontend_unlocked(
+    workspace: &Path,
+    app: &App,
+    script: &str,
+    args: &[&str],
+    profile: BuildProfile,
+    source_map: bool,
+) -> Result<ExitStatus> {
     let mut command = Command::new("bun");
     command.current_dir(&app.frontend).args(["run", script]);
+    command
+        .env("WABOU_BUILD_PROFILE", profile.as_str())
+        .env(
+            "WABOU_ENV_DEBUG",
+            if profile == BuildProfile::Debug {
+                "true"
+            } else {
+                "false"
+            },
+        )
+        .env(
+            "WABOU_SOURCE_MAP",
+            if source_map { "true" } else { "false" },
+        )
+        .env(
+            "WABOU_OUT_DIR",
+            profile_resource_dir(workspace, app, profile),
+        );
     if !args.is_empty() {
         command.arg("--").args(args);
     }
@@ -522,12 +617,26 @@ fn frontend_unlocked(app: &App, script: &str, args: &[&str]) -> Result<ExitStatu
     })
 }
 
-fn frontend(app: &App, script: &str, args: &[&str]) -> Result<ExitStatus> {
-    let _lock = frontend_build_lock(app)?;
-    frontend_unlocked(app, script, args)
+fn frontend(
+    workspace: &Path,
+    app: &App,
+    script: &str,
+    args: &[&str],
+    profile: BuildProfile,
+    source_map: bool,
+) -> Result<ExitStatus> {
+    let _lock = frontend_build_lock(workspace, app)?;
+    frontend_unlocked(workspace, app, script, args, profile, source_map)
 }
 
-fn build(workspace: &Path, app: &App, release: bool) -> Result<()> {
+fn build(
+    workspace: &Path,
+    app: &App,
+    release: bool,
+    source_map_override: Option<bool>,
+) -> Result<()> {
+    let profile = BuildProfile::from_release(release);
+    let source_map = source_map_override.unwrap_or_else(|| configured_source_map(app, profile));
     let manifest = manifest(app);
     let mut cargo = Command::new("cargo");
     cargo
@@ -537,13 +646,16 @@ fn build(workspace: &Path, app: &App, release: bool) -> Result<()> {
         cargo.arg("--release");
     }
     ensure(cargo.status()?, "Cargo build")?;
-    ensure(frontend(app, "build", &[])?, "Vite build")?;
+    ensure(
+        frontend(workspace, app, "build", &[], profile, source_map)?,
+        "Vite build",
+    )?;
     package_executable(workspace, app, release)
 }
 
 fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Result<()> {
     let config = load_package_config(app)?;
-    build(workspace, app, true)?;
+    build(workspace, app, true, None)?;
     let (stage, binary) = stage_application(workspace, app, &config)?;
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
@@ -559,7 +671,7 @@ fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Re
         return Err("wabou.toml must declare at least one package format".into());
     }
 
-    let package_root = workspace.join("dist").join(&app.name);
+    let package_root = distribution_root(workspace, app);
     let bundles = package_root.join("bundles");
     fs::create_dir_all(&bundles)?;
     let packager_config = package_root.join("packager.json");
@@ -625,7 +737,7 @@ fn stage_application(
     app: &App,
     config: &PackageConfig,
 ) -> Result<(PathBuf, String)> {
-    let package_root = workspace.join("dist").join(&app.name);
+    let package_root = distribution_root(workspace, app);
     let stage = package_root.join("stage");
     if stage.is_dir() {
         fs::remove_dir_all(&stage)?;
@@ -633,15 +745,12 @@ fn stage_application(
     let resources = stage.join("resources");
     fs::create_dir_all(&resources)?;
     let binary = app_binary(workspace, app)?;
-    fs::copy(package_root.join(&binary), stage.join(&binary))?;
+    let release_root = package_root.join(BuildProfile::Release.as_str());
+    fs::copy(release_root.join(&binary), stage.join(&binary))?;
     fs::copy(
-        package_root.join("resources/bundle.js"),
+        release_root.join("resources/bundle.js"),
         resources.join("bundle.js"),
     )?;
-    let source_map = package_root.join("resources/bundle.js.map");
-    if source_map.is_file() {
-        fs::copy(source_map, resources.join("bundle.js.map"))?;
-    }
 
     let app_root = app.root.canonicalize()?;
     for relative in &config.resources {
@@ -691,8 +800,19 @@ fn copy_resource(source: &Path, destination: &Path) -> Result<()> {
     Ok(())
 }
 
-fn run(workspace: &Path, app: &App, release: bool, profile_trace: Option<&Path>) -> Result<()> {
-    ensure(frontend(app, "build", &[])?, "Vite build")?;
+fn run(
+    workspace: &Path,
+    app: &App,
+    release: bool,
+    source_map_override: Option<bool>,
+    profile_trace: Option<&Path>,
+) -> Result<()> {
+    let profile = BuildProfile::from_release(release);
+    let source_map = source_map_override.unwrap_or_else(|| configured_source_map(app, profile));
+    ensure(
+        frontend(workspace, app, "build", &[], profile, source_map)?,
+        "Vite build",
+    )?;
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
     let mut cargo = Command::new("cargo");
@@ -710,14 +830,21 @@ fn run(workspace: &Path, app: &App, release: bool, profile_trace: Option<&Path>)
             .args(["--features", &app_profiling_feature(workspace, app)?])
             .env("WABOU_PROFILE_TRACE", path);
     }
-    cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app));
+    cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app, profile));
     ensure(cargo.status()?, "Rust host")
 }
 
 fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<()> {
     let mode_args = options.mode.as_deref().map(|mode| ["--mode", mode]);
     ensure(
-        frontend(app, "build", mode_args.as_ref().map_or(&[], |args| args))?,
+        frontend(
+            workspace,
+            app,
+            "build",
+            mode_args.as_ref().map_or(&[], |args| args),
+            BuildProfile::Debug,
+            true,
+        )?,
         "Vite build",
     )?;
 
@@ -781,7 +908,10 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     cargo
         .current_dir(workspace)
         .args(["run", "--manifest-path", &manifest, "--bin", &binary])
-        .env("WABOU_BUNDLE_PATH", bundle_path(workspace, app))
+        .env(
+            "WABOU_BUNDLE_PATH",
+            bundle_path(workspace, app, BuildProfile::Debug),
+        )
         .env("WABOU_TEST_SCRIPT", scenario_bundle)
         .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir)
         .env("WABOU_TEST_APP_DATA_ROOT", test_data.path())
@@ -920,13 +1050,20 @@ fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     // Vite replaces the shared bundle and source map while building. Keep the
     // lock through the bundle read so concurrent renders cannot observe a
     // partially replaced frontend artifact.
-    let frontend_lock = frontend_build_lock(app)?;
+    let frontend_lock = frontend_build_lock(workspace, app)?;
     let mode_args = mode.as_deref().map(|mode| ["--mode", mode]);
     ensure(
-        frontend_unlocked(app, "build", mode_args.as_ref().map_or(&[], |args| args))?,
+        frontend_unlocked(
+            workspace,
+            app,
+            "build",
+            mode_args.as_ref().map_or(&[], |args| args),
+            BuildProfile::Debug,
+            true,
+        )?,
         "Vite build",
     )?;
-    let path = bundle_path(workspace, app);
+    let path = bundle_path(workspace, app, BuildProfile::Debug);
     let source = fs::read_to_string(&path).map_err(|error| {
         format!(
             "failed to read JavaScript bundle {}: {error}",
@@ -1069,7 +1206,10 @@ fn devtools_command(workspace: &Path) -> Result<Command> {
     let source = workspace.join("apps/devtools");
     if source.join("Cargo.toml").is_file() && source.join("package.json").is_file() {
         let app = load_app(workspace, workspace, Some(&source))?;
-        ensure(frontend(&app, "build", &[])?, "DevTools Vite build")?;
+        ensure(
+            frontend(workspace, &app, "build", &[], BuildProfile::Debug, true)?,
+            "DevTools Vite build",
+        )?;
         let manifest = manifest(&app);
         let mut cargo = Command::new("cargo");
         cargo
@@ -1078,7 +1218,10 @@ fn devtools_command(workspace: &Path) -> Result<Command> {
         ensure(cargo.status()?, "DevTools Rust build")?;
         let executable = built_executable(workspace, &app, false)?;
         let mut command = Command::new(executable);
-        command.env("WABOU_BUNDLE_PATH", bundle_path(workspace, &app));
+        command.env(
+            "WABOU_BUNDLE_PATH",
+            bundle_path(workspace, &app, BuildProfile::Debug),
+        );
         return Ok(command);
     }
 
@@ -1197,7 +1340,8 @@ fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> 
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
     let (source, binary) = artifact_from_metadata(&metadata, &manifest_path, release)?;
-    let destination_dir = workspace.join("dist").join(&app.name);
+    let destination_dir =
+        profile_application_dir(workspace, app, BuildProfile::from_release(release));
     fs::create_dir_all(&destination_dir)?;
     let destination = destination_dir.join(&binary);
     fs::copy(&source, &destination).map_err(|error| {
@@ -1838,6 +1982,31 @@ out-dir = "dist/resources"
     }
 
     #[test]
+    fn parses_source_map_overrides() {
+        let Cli {
+            command:
+                Commands::Build {
+                    source_map,
+                    release,
+                    ..
+                },
+        } = Cli::try_parse_from(["wabou", "build", "--release", "--source-map"]).unwrap()
+        else {
+            panic!("expected build command");
+        };
+        assert!(release);
+        assert_eq!(source_map, Some(true));
+
+        let Cli {
+            command: Commands::Build { source_map, .. },
+        } = Cli::try_parse_from(["wabou", "build", "--source-map=false"]).unwrap()
+        else {
+            panic!("expected build command");
+        };
+        assert_eq!(source_map, Some(false));
+    }
+
+    #[test]
     fn selects_the_direct_runtime_vite_feature() {
         let metadata = serde_json::json!({
             "packages": [{
@@ -1881,8 +2050,12 @@ out-dir = "dist/resources"
             entry: "ui/index.tsx".into(),
         };
         assert_eq!(
-            bundle_path(workspace, &app),
-            Path::new("/workspace/dist/gallery/resources/bundle.js")
+            bundle_path(workspace, &app, BuildProfile::Debug),
+            Path::new("/workspace/dist/gallery/debug/resources/bundle.js")
+        );
+        assert_eq!(
+            bundle_path(workspace, &app, BuildProfile::Release),
+            Path::new("/workspace/dist/gallery/release/resources/bundle.js")
         );
     }
 
@@ -1896,8 +2069,8 @@ out-dir = "dist/resources"
             entry: "ui/index.tsx".into(),
         };
         assert_eq!(
-            bundle_path(root, &app),
-            Path::new("/workspace/warden-desktop/dist/resources/bundle.js")
+            bundle_path(root, &app, BuildProfile::Debug),
+            Path::new("/workspace/warden-desktop/dist/debug/resources/bundle.js")
         );
     }
 
@@ -1910,11 +2083,11 @@ out-dir = "dist/resources"
             frontend: root.path().into(),
             entry: "ui/index.tsx".into(),
         };
-        let first = frontend_build_lock(&app).unwrap();
+        let first = frontend_build_lock(root.path(), &app).unwrap();
         let second = OpenOptions::new()
             .read(true)
             .write(true)
-            .open(app.root.join("target/wabou/frontend.lock"))
+            .open(root.path().join("target/wabou/frontend/app/frontend.lock"))
             .unwrap();
         assert!(!second.try_lock_exclusive().unwrap());
         drop(first);
@@ -1937,10 +2110,35 @@ out-dir = "dist/resources"
             entry: "ui/index.tsx".into(),
         };
         assert_eq!(
-            bundle_path(&root, &app),
-            root.join("artifacts/ui/bundle.js")
+            bundle_path(&root, &app, BuildProfile::Release),
+            root.join("artifacts/release/ui/bundle.js")
         );
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn source_maps_follow_the_profile_unless_configured() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(
+            root.path().join("wabou.toml"),
+            "[package]\nproduct-name = \"App\"\nidentifier = \"dev.wabou.app\"\n\n[build]\nout-dir = \"dist/resources\"\n",
+        )
+        .unwrap();
+        let app = App {
+            name: "app".into(),
+            root: root.path().into(),
+            frontend: root.path().into(),
+            entry: "ui/index.tsx".into(),
+        };
+        assert!(configured_source_map(&app, BuildProfile::Debug));
+        assert!(!configured_source_map(&app, BuildProfile::Release));
+
+        fs::write(
+            root.path().join("wabou.toml"),
+            "[package]\nproduct-name = \"App\"\nidentifier = \"dev.wabou.app\"\n\n[build]\nout-dir = \"dist/resources\"\nsource-map = true\n",
+        )
+        .unwrap();
+        assert!(configured_source_map(&app, BuildProfile::Release));
     }
 
     #[test]

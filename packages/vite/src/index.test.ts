@@ -1,8 +1,25 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
 import { defineWabouConfig, wabouPlugins } from "./index";
 
 describe("@wabou/vite", () => {
+  const buildEnvironment = [
+    "WABOU_OUT_DIR",
+    "WABOU_SOURCE_MAP",
+    "WABOU_ENV_DEBUG",
+  ] as const;
+  const originalEnvironment = Object.fromEntries(
+    buildEnvironment.map((name) => [name, process.env[name]]),
+  );
+
+  afterEach(() => {
+    for (const name of buildEnvironment) {
+      const value = originalEnvironment[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
   async function resolveConfig(
     exported: UserConfigExport,
     command: ConfigEnv["command"] = "build",
@@ -33,7 +50,7 @@ describe("@wabou/vite", () => {
     );
     expect(config.build?.outDir).toBe("/dist/demo/resources");
     expect(config.build?.cssCodeSplit).toBe(false);
-    expect(config.build?.sourcemap).toBe(true);
+    expect(config.build?.sourcemap).toBe(false);
     expect(config.build?.lib).toMatchObject({
       entry: "ui/index.tsx",
       formats: ["iife"],
@@ -45,6 +62,17 @@ describe("@wabou/vite", () => {
     expect(config.define?.["process.env.NODE_ENV"]).toBe(
       JSON.stringify(process.env.NODE_ENV ?? "production"),
     );
+  });
+
+  test("uses the build context supplied by the Wabou CLI", async () => {
+    process.env.WABOU_OUT_DIR = "/dist/demo/debug/resources";
+    process.env.WABOU_ENV_DEBUG = "true";
+    process.env.WABOU_SOURCE_MAP = "true";
+    const config = await resolveConfig(
+      defineWabouConfig({ outDir: "/ignored" }),
+    );
+    expect(config.build?.outDir).toBe("/dist/demo/debug/resources");
+    expect(config.build?.sourcemap).toBe(true);
   });
 
   test("merges app-specific Vite overrides", async () => {

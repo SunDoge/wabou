@@ -1,10 +1,10 @@
-import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { wabouStylePlugin } from "@wabou/style-compiler";
+import { parse } from "smol-toml";
 import { defineConfig, mergeConfig } from "vite";
 import solid from "vite-plugin-solid";
-import { parse } from "smol-toml";
 //#region src/index.ts
 function disableSolidDependencyOptimizer() {
 	return {
@@ -40,7 +40,9 @@ function defineWabouConfig(options) {
 }
 function resolveWabouConfig(options, environment) {
 	const root = options.root ?? process.cwd();
-	const outDir = options.outDir ?? manifestOutDir(root);
+	const outDir = process.env.WABOU_OUT_DIR ?? options.outDir ?? manifestOutDir(root);
+	const sourceMap = process.env.WABOU_SOURCE_MAP;
+	const sourcemap = sourceMap === "true" ? true : sourceMap === "false" ? false : manifestSourceMap(root) ?? process.env.WABOU_ENV_DEBUG === "true";
 	const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
 	const defaults = {
 		define: { "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (environment.command === "serve" ? "development" : "production")) },
@@ -50,7 +52,7 @@ function resolveWabouConfig(options, environment) {
 			"solid-js/web": renderer
 		} },
 		build: {
-			sourcemap: true,
+			sourcemap,
 			lib: {
 				entry: options.entry ?? "ui/index.tsx",
 				formats: ["iife"],
@@ -67,19 +69,41 @@ function resolveWabouConfig(options, environment) {
 			minify: false
 		}
 	};
-	return mergeConfig(defaults, options.vite ?? {});
+	const config = mergeConfig(defaults, options.vite ?? {});
+	if (process.env.WABOU_OUT_DIR !== void 0) config.build = {
+		...config.build,
+		outDir
+	};
+	if (process.env.WABOU_SOURCE_MAP !== void 0) config.build = {
+		...config.build,
+		sourcemap
+	};
+	return config;
 }
 function manifestOutDir(root) {
-	const path = resolve(root, "wabou.toml");
-	let manifest;
-	try {
-		manifest = parse(readFileSync(path, "utf8"));
-	} catch (error) {
-		throw new Error(`cannot read Wabou build output from ${path}: ${error}`);
-	}
+	const { manifest, path } = readManifest(root);
 	const outDir = manifest.build?.["out-dir"];
 	if (typeof outDir !== "string" || outDir.trim() === "") throw new Error(`${path} must declare a non-empty build.out-dir`);
 	return outDir;
+}
+function manifestSourceMap(root) {
+	if (!existsSync(resolve(root, "wabou.toml"))) return void 0;
+	const { manifest, path } = readManifest(root);
+	const sourceMap = manifest.build?.["source-map"];
+	if (sourceMap === void 0) return void 0;
+	if (typeof sourceMap !== "boolean") throw new Error(`${path} build.source-map must be true or false`);
+	return sourceMap;
+}
+function readManifest(root) {
+	const path = resolve(root, "wabou.toml");
+	try {
+		return {
+			manifest: parse(readFileSync(path, "utf8")),
+			path
+		};
+	} catch (error) {
+		throw new Error(`cannot read Wabou build output from ${path}: ${error}`);
+	}
 }
 //#endregion
 export { defineWabouConfig, wabouPlugins };

@@ -49,7 +49,9 @@ export default defineWabouConfig({
 
 For a standalone app, `dist/` and Cargo's `target/` are siblings at the app
 root. Inside a Cargo workspace, both directories live at the workspace root and
-each application gets its own `dist/<app>/` directory.
+each application gets its own `dist/<app>/` directory. The CLI overrides the
+configured frontend directory with the selected `debug` or `release` artifact
+directory; the configured path remains the direct `bun run build` destination.
 
 ## Development
 
@@ -69,6 +71,7 @@ the host, and the optional inspector.
 ```bash
 bun run wabou run apps/gallery
 bun run wabou build apps/gallery --release
+bun run wabou build apps/gallery --release --source-map
 bun run wabou package apps/gallery
 bun run wabou devtools
 ```
@@ -87,15 +90,36 @@ privacy guarantees.
 `run` builds the UI and supplies its path to the Rust host through
 `WABOU_BUNDLE_PATH`; changing the bundle never recompiles Rust.
 
-`build` produces a self-contained application directory beside Cargo's
-`target/` directory:
+`build` produces a self-contained, profile-specific application directory
+beside Cargo's `target/` directory:
 
 ```text
 dist/gallery/
-├── gallery
-└── resources/
-    └── bundle.js
+├── debug/
+│   ├── gallery
+│   └── resources/
+│       ├── bundle.js
+│       └── bundle.js.map
+└── release/
+    ├── gallery
+    └── resources/
+        └── bundle.js
 ```
+
+Debug builds generate JavaScript source maps by default; release builds do not.
+Set `build.source-map` in `wabou.toml` to override that default, or pass
+`--source-map`/`--source-map=false` for one build:
+
+```toml
+[build]
+out-dir = "dist/resources"
+source-map = true
+```
+
+The CLI profile and explicit command-line override are the source of truth for
+both the Rust host and Vite. `package` always builds the release profile and
+does not copy `bundle.js.map` into the staged application, even when release
+source-map generation was explicitly enabled in configuration.
 
 The packaged executable resolves `resources/bundle.js` relative to itself, so
 it runs without the source tree or CLI. On macOS the same resource contract can
