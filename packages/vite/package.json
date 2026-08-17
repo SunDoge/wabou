@@ -46,7 +46,7 @@
     "@wabou/unocss-preset": "workspace:*",
     "magic-string": "^0.30.21",
     "smol-toml": "^1.3.1",
-    "vite": "^5.4.0",
+    "vite": "^6.0.0",
     "vite-plugin-solid": "3.0.0-next.27"
   }
 }

@@ -32,6 +32,6 @@
     "@wabou/unocss-preset": "workspace:*",
     "@unocss/core": "^66.7.5",
     "unocss": "^66.7.5",
-    "vite": "^5.4.0"
+    "vite": "^6.0.0"
   }
 }
