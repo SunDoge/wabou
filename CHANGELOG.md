@@ -4,6 +4,22 @@ All notable changes to Wabou are documented here. Until the public API reaches
 stability, preview releases may contain breaking changes between prerelease
 tags.
 
+## Unreleased
+
+### Changed
+
+- Behavior tests now resolve controls from the rendered semantic tree, scroll
+  off-screen targets into view before native pointer routing, and support
+  alert and status locators.
+- Headless renders and behavior tests isolate application data and rendering
+  state, making local and CI results deterministic across repeated runs.
+- Gallery interaction scenarios now run as part of CI, including text input,
+  modal, and router coverage.
+- Package boundary checks now require every runtime import to be declared by
+  its package manifest.
+- Pushes to the development branch run the same CI and commit-convention gates
+  used for the release branch.
+
 ## 0.1.0-alpha.1 - 2026-08-17
 
 First developer preview.
