@@ -66,6 +66,14 @@ QuickJS imports the live Vite graph and receives HMR updates. No JavaScript
 production build is required before Rust compilation. Ctrl-C terminates Vite,
 the host, and the optional inspector.
 
+When running directly from the Wabou source workspace, the CLI checks the
+runtime entrypoints declared by every `packages/*/package.json` before starting
+Vite. An interrupted `packages:build` can otherwise leave a temporarily-cleaned
+`dist/` directory and Vite reports only an opaque `externalize-deps` package
+resolution error. The preflight lists the missing files and asks for
+`bun run packages:build`; standalone applications and published packages do
+not incur this workspace-only check.
+
 ## Run and package
 
 ```bash

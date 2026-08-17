@@ -663,6 +663,81 @@ fn frontend_build_lock(workspace: &Path, app: &App) -> Result<fs::File> {
     Ok(file)
 }
 
+fn collect_dist_exports(value: &Value, output: &mut Vec<String>) {
+    match value {
+        Value::String(path) if path.starts_with("./dist/") => output.push(path[2..].to_owned()),
+        Value::Array(values) => {
+            for value in values {
+                collect_dist_exports(value, output);
+            }
+        }
+        Value::Object(values) => {
+            for (condition, value) in values {
+                if condition != "types" && condition != "wabou-source" {
+                    collect_dist_exports(value, output);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Catch interrupted workspace package builds before Vite turns a missing
+/// tracked entrypoint into an opaque `externalize-deps` resolution failure.
+fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
+    let packages = workspace.join("packages");
+    if !packages.is_dir() {
+        return Ok(());
+    }
+    let entries = fs::read_dir(&packages)?;
+    let mut missing = Vec::new();
+    for entry in entries {
+        let package = entry?.path();
+        let manifest_path = package.join("package.json");
+        if !manifest_path.is_file() {
+            continue;
+        }
+        let manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path)?).map_err(|error| {
+                format!(
+                    "invalid package manifest {}: {error}",
+                    manifest_path.display()
+                )
+            })?;
+        let mut exports = Vec::new();
+        if let Some(value) = manifest.get("exports") {
+            collect_dist_exports(value, &mut exports);
+        }
+        exports.sort();
+        exports.dedup();
+        missing.extend(
+            exports
+                .into_iter()
+                .map(|path| package.join(path))
+                .filter(|path| !path.is_file()),
+        );
+    }
+    if missing.is_empty() {
+        return Ok(());
+    }
+    missing.sort();
+    let paths = missing
+        .iter()
+        .map(|path| {
+            path.strip_prefix(workspace)
+                .unwrap_or(path)
+                .display()
+                .to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n  - ");
+    Err(format!(
+        "Wabou workspace JavaScript package artifacts are missing:\n  - {paths}\nrun `bun run packages:build` from {} and retry",
+        workspace.display()
+    )
+    .into())
+}
+
 fn frontend_unlocked(
     workspace: &Path,
     app: &App,
@@ -671,6 +746,7 @@ fn frontend_unlocked(
     profile: BuildProfile,
     source_map: bool,
 ) -> Result<ExitStatus> {
+    ensure_workspace_package_exports(workspace)?;
     let mut command = Command::new("bun");
     command.current_dir(&app.frontend).args(["run", script]);
     command
@@ -1314,6 +1390,7 @@ fn dev(
     open_devtools: bool,
     mode: Option<&str>,
 ) -> Result<()> {
+    ensure_workspace_package_exports(workspace)?;
     let port_text = port.to_string();
     let mut vite_command = Command::new("bun");
     vite_command
@@ -2347,6 +2424,43 @@ out-dir = "dist/resources"
         assert!(!second.try_lock_exclusive().unwrap());
         drop(first);
         assert!(second.try_lock_exclusive().unwrap());
+    }
+
+    #[test]
+    fn workspace_package_preflight_reports_interrupted_dist_builds() {
+        let root = tempfile::tempdir().unwrap();
+        let package = root.path().join("packages/vite");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(
+            package.join("package.json"),
+            r#"{
+                "name": "@wabou/vite",
+                "exports": {
+                    ".": {
+                        "wabou-source": "./src/index.ts",
+                        "import": "./dist/index.mjs",
+                        "types": "./dist/index.d.mts"
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let error = ensure_workspace_package_exports(root.path()).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("packages/vite/dist/index.mjs"));
+        assert!(!message.contains("packages/vite/dist/index.d.mts"));
+        assert!(message.contains("bun run packages:build"));
+
+        fs::create_dir_all(package.join("dist")).unwrap();
+        fs::write(package.join("dist/index.mjs"), []).unwrap();
+        ensure_workspace_package_exports(root.path()).unwrap();
+    }
+
+    #[test]
+    fn workspace_package_preflight_is_a_noop_for_standalone_apps() {
+        let root = tempfile::tempdir().unwrap();
+        ensure_workspace_package_exports(root.path()).unwrap();
     }
 
     #[test]
