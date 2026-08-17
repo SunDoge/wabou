@@ -36,6 +36,11 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@formatjs/intl-datetimeformat": "^7.6.0",
+    "@formatjs/intl-getcanonicallocales": "^3.2.11",
+    "@formatjs/intl-locale": "^5.3.10",
+    "@formatjs/intl-numberformat": "^9.4.0",
+    "@formatjs/intl-pluralrules": "^6.3.13",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style-compiler": "workspace:*",
     "@wabou/unocss-preset": "workspace:*",

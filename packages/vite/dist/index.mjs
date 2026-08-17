@@ -122,7 +122,7 @@ function intlDataModule(options) {
 		"@formatjs/intl-datetimeformat/polyfill.js",
 		...locales.map((locale) => `@formatjs/intl-datetimeformat/locale-data/${locale}.js`),
 		options.timeZones === "all" ? "@formatjs/intl-datetimeformat/add-all-tz.js" : "@formatjs/intl-datetimeformat/add-golden-tz.js"
-	].map((id) => `import ${JSON.stringify(id)};`).join("\n")}
+	].map((id) => fileURLToPath(import.meta.resolve(id))).map((id) => `import ${JSON.stringify(id)};`).join("\n")}
 Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());`;
 }
 function manifestIntl(root) {

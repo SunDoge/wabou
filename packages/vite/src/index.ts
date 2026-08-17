@@ -217,7 +217,14 @@ function intlDataModule(options: WabouIntlOptions): string {
       ? "@formatjs/intl-datetimeformat/add-all-tz.js"
       : "@formatjs/intl-datetimeformat/add-golden-tz.js",
   ];
-  return `${imports.map((id) => `import ${JSON.stringify(id)};`).join("\n")}
+  // A virtual module has no package location of its own, so Vite otherwise
+  // resolves these imports from the application root. Resolve them here from
+  // @wabou/vite, which owns the dependencies, so isolated workspace installs
+  // do not require applications to repeat our implementation dependencies.
+  const resolvedImports = imports.map((id) =>
+    fileURLToPath(import.meta.resolve(id)),
+  );
+  return `${resolvedImports.map((id) => `import ${JSON.stringify(id)};`).join("\n")}
 Intl.DateTimeFormat.__setDefaultTimeZone?.(__wabou_system_time_zone());`;
 }
 
