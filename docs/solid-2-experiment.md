@@ -23,6 +23,7 @@ frames while retaining Wabou's existing writer and render scheduling.
 ```sh
 mise exec -- bun run check
 mise exec -- bun run test
+mise exec -- bun run test:hmr
 mise exec -- bun run --cwd apps/stress build
 mise exec -- bun run wabou render apps/stress \
   --out /tmp/wabou-solid2-stress.png --width 1100 --height 776

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { createSignal, DEV, flush, type JSX } from "solid-js";
-import { $$component, $$refresh, $$registry } from "solid-refresh";
+import { $$component, $$refresh, $$registry } from "solid-js/refresh";
 import {
   createComponent,
   createElement,
@@ -68,7 +68,7 @@ function rootHandle(): Handle {
 }
 
 test.skipIf(!DEV)(
-  "solid-refresh replaces a component without remounting its parent",
+  "Solid refresh replaces a component without remounting its parent",
   () => {
     const root = rootHandle();
     registerRoot(root);

@@ -96,7 +96,12 @@ jobs:
           cargo run -p wabou-cli -- new "$scaffold_root" \
             --wabou-repository "$GITHUB_WORKSPACE" \
             --wabou-ref "$GITHUB_SHA"
-          bun install --cwd "$scaffold_root"
+          install_log="$(mktemp)"
+          bun install --cwd "$scaffold_root" 2>&1 | tee "$install_log"
+          if grep -Fq "warn: incorrect peer dependency" "$install_log"; then
+            echo "standalone scaffold has invalid peer dependencies" >&2
+            exit 1
+          fi
           bun run --cwd "$scaffold_root" check
           bun run --cwd "$scaffold_root" build
           CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" \
@@ -143,10 +148,10 @@ jobs:
         run: bun run scripts/publish-packages.ts --dry-run
 
       - name: Test packages
-        run: bun --conditions=browser test packages
+        run: bun run test
 
-      - name: Test reactive router integration
-        run: bun run test:router
+      - name: Test development HMR integration
+        run: bun run test:hmr
 
       - name: Build application frontends
         run: |
