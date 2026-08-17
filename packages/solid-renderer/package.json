@@ -40,7 +40,6 @@
     "@tanstack/virtual-core": "3.17.7",
     "@wabou/style": "workspace:*",
     "@wabou/protocol": "workspace:*",
-    "solid-refresh": "0.8.0-next.7",
     "solid-js": "2.0.0-rc.0",
     "ts-pattern": "^5.9.0"
   }
