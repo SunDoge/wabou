@@ -39,7 +39,9 @@ The release command first compiles package source with tsdown into ESM and
 bundled declarations, then publishes with Bun so `workspace:*` dependencies
 are rewritten to the shared concrete version in the npm tarball. Published
 packages expose `dist` artifacts; consumers do not need to compile Wabou's
-TypeScript or TSX source.
+TypeScript or TSX source. These artifacts are tracked in Git as well as npm so
+applications pinned to an immutable Wabou Git revision consume exactly the
+same package surface as registry installations.
 `bun run packages:check` verifies aligned versions, publication metadata and
 that application manifests do not directly depend on internal packages.
 

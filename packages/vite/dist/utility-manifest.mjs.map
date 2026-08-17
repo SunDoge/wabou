@@ -1,0 +1,1 @@
+{"version":3,"file":"utility-manifest.mjs","names":[],"sources":["../src/utility-manifest.ts"],"sourcesContent":["import manifest from \"@wabou/unocss-preset/manifest\";\n\n/** Build-time manifest used by tooling that presents Wabou's utility surface. */\nexport default manifest;\n"],"mappings":";;;AAGA,IAAA,2BAAe"}

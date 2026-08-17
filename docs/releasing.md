@@ -20,6 +20,7 @@ until the Rust crate boundaries stabilize.
    cargo test --workspace --all-targets
    mise exec -- bun run check
    mise exec -- bun run packages:build
+   git diff --exit-code -- packages/*/dist
    mise exec -- bun run packages:check
    mise exec -- bun run scripts/publish-packages.ts --dry-run
    mise exec -- bun --conditions=browser test packages
