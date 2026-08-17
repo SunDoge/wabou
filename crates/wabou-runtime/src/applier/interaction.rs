@@ -241,9 +241,9 @@ impl Applier {
             .input
             .hit_test(self.input.pointer_position.0, self.input.pointer_position.1)
             .or_else(|| {
-                self.input.hovered_target.filter(|target| {
-                    self.node_store.solid_to_node.contains_key(target)
-                })
+                self.input
+                    .hovered_target
+                    .filter(|target| self.node_store.solid_to_node.contains_key(target))
             });
         let Some(target) = self.input.hovered_target else {
             return EventResponse::IGNORED;

@@ -3,13 +3,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use accesskit::{Action, Node, NodeId, Rect, Role, Tree, TreeId, TreeUpdate};
+use accesskit::{Action, Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate};
 use accesskit_xplat::{Adapter, EventHandler, WindowEvent as AccessKitEvent};
 use raw_window_handle::HasWindowHandle;
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-use crate::{SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot};
+use crate::{SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, SemanticToggleState};
 
 const ROOT_ID: NodeId = NodeId(0);
 
@@ -94,6 +94,19 @@ fn accesskit_node(semantic: &SemanticNode, scale: f64) -> Node {
     );
     if semantic.disabled {
         node.set_disabled();
+    }
+    if let Some(state) = semantic.states.checked.or(semantic.states.pressed) {
+        node.set_toggled(match state {
+            SemanticToggleState::Off => Toggled::False,
+            SemanticToggleState::On => Toggled::True,
+            SemanticToggleState::Mixed => Toggled::Mixed,
+        });
+    }
+    if let Some(selected) = semantic.states.selected {
+        node.set_selected(selected);
+    }
+    if let Some(expanded) = semantic.states.expanded {
+        node.set_expanded(expanded);
     }
     node.add_action(Action::ScrollIntoView);
     match semantic.role {
@@ -367,6 +380,7 @@ mod tests {
                     bounds: [0.0, 0.0, 100.0, 20.0],
                     children: vec![],
                     disabled: false,
+                    states: crate::SemanticStates::default(),
                 },
                 crate::SemanticNode {
                     id: 3,
@@ -376,6 +390,7 @@ mod tests {
                     bounds: [0.0, 20.0, 100.0, 40.0],
                     children: vec![],
                     disabled: false,
+                    states: crate::SemanticStates::default(),
                 },
             ],
             root_children: vec![2, 3],
@@ -387,6 +402,30 @@ mod tests {
         assert_eq!(update.nodes[1].1.value(), Some("complete"));
         assert_eq!(update.nodes[2].1.role(), Role::Alert);
         assert_eq!(update.nodes[2].1.label(), Some("Connection lost"));
+    }
+
+    #[test]
+    fn interaction_states_reach_accesskit() {
+        let semantic = crate::SemanticNode {
+            id: 2,
+            role: SemanticRole::CheckBox,
+            label: Some("Partial selection".into()),
+            value: None,
+            bounds: [0.0, 0.0, 100.0, 20.0],
+            children: vec![],
+            disabled: false,
+            states: crate::SemanticStates {
+                checked: Some(SemanticToggleState::Mixed),
+                selected: Some(true),
+                expanded: Some(false),
+                ..crate::SemanticStates::default()
+            },
+        };
+
+        let node = accesskit_node(&semantic, 1.0);
+        assert_eq!(node.toggled(), Some(Toggled::Mixed));
+        assert_eq!(node.is_selected(), Some(true));
+        assert_eq!(node.is_expanded(), Some(false));
     }
 
     #[test]
@@ -408,6 +447,7 @@ mod tests {
                 bounds: [0.0, index as f32 * 20.0, 100.0, index as f32 * 20.0 + 20.0],
                 children: vec![],
                 disabled: false,
+                states: crate::SemanticStates::default(),
             };
             assert_eq!(accesskit_node(&node, 1.0).role(), roles[index].1);
         }
@@ -426,6 +466,7 @@ mod tests {
                     bounds: [0.0, 0.0, 50.0, 20.0],
                     children: vec![],
                     disabled: false,
+                    states: crate::SemanticStates::default(),
                 },
                 crate::SemanticNode {
                     id: 3,
@@ -435,6 +476,7 @@ mod tests {
                     bounds: [10.0, 10.0, 90.0, 90.0],
                     children: vec![4],
                     disabled: false,
+                    states: crate::SemanticStates::default(),
                 },
                 crate::SemanticNode {
                     id: 4,
@@ -444,6 +486,7 @@ mod tests {
                     bounds: [60.0, 60.0, 80.0, 75.0],
                     children: vec![],
                     disabled: false,
+                    states: crate::SemanticStates::default(),
                 },
             ],
             root_children: vec![2, 3],

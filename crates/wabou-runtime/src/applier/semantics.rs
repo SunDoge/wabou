@@ -2,6 +2,23 @@
 
 use super::*;
 
+fn semantic_bool(value: Option<Arc<str>>) -> Option<bool> {
+    match value.as_deref() {
+        Some("true") | Some("") => Some(true),
+        Some("false") => Some(false),
+        _ => None,
+    }
+}
+
+fn semantic_toggle(value: Option<Arc<str>>) -> Option<SemanticToggleState> {
+    match value.as_deref() {
+        Some("true") | Some("") => Some(SemanticToggleState::On),
+        Some("false") => Some(SemanticToggleState::Off),
+        Some("mixed") => Some(SemanticToggleState::Mixed),
+        _ => None,
+    }
+}
+
 fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<str>> {
     declared
         .attrs
@@ -305,6 +322,12 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             disabled: attribute(declared, &atoms, "disabled").is_some()
                 || attribute(declared, &atoms, "aria-disabled").as_deref() == Some("true")
                 || widget_semantics.disabled.unwrap_or(false),
+            states: SemanticStates {
+                checked: semantic_toggle(attribute(declared, &atoms, "aria-checked")),
+                pressed: semantic_toggle(attribute(declared, &atoms, "aria-pressed")),
+                selected: semantic_bool(attribute(declared, &atoms, "aria-selected")),
+                expanded: semantic_bool(attribute(declared, &atoms, "aria-expanded")),
+            },
         });
     }
     infer_descendant_labels(&mut nodes);

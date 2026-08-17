@@ -6,7 +6,6 @@ test("slider exposes native value state and keyboard interaction", async ({
   await page.getByRole("button", { name: "Slider" }).click();
   const slider = page.getByRole("slider", { name: "Volume" });
   await slider.press("End");
-  await page.waitForIdle();
   await expect(slider).toHaveValue("100 percent");
   await expect(page.getByRole("status", { name: "Slider value" })).toHaveText(
     "100%",

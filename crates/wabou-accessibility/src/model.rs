@@ -47,6 +47,30 @@ pub enum SemanticRole {
     Slider,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// State of a checkable or pressable semantic control.
+pub enum SemanticToggleState {
+    /// The control is unchecked or unpressed.
+    Off,
+    /// The control is checked or pressed.
+    On,
+    /// A checkbox represents a mixture of checked and unchecked values.
+    Mixed,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// Optional interaction states attached to one semantic node.
+pub struct SemanticStates {
+    /// Checkbox, radio, or switch state when applicable.
+    pub checked: Option<SemanticToggleState>,
+    /// Toggle-button state when applicable.
+    pub pressed: Option<SemanticToggleState>,
+    /// Selection state for options, tabs, rows, and similar items.
+    pub selected: Option<bool>,
+    /// Expansion state for disclosure controls and combo boxes.
+    pub expanded: Option<bool>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// One node in a window's platform-neutral semantic tree.
 pub struct SemanticNode {
@@ -64,6 +88,8 @@ pub struct SemanticNode {
     pub children: Vec<u64>,
     /// Whether assistive technology should expose the node as disabled.
     pub disabled: bool,
+    /// Interaction states that are meaningful for this node.
+    pub states: SemanticStates,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]

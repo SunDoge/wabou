@@ -71,8 +71,11 @@ jobs:
       - name: Test workspace
         run: cargo test --workspace --all-targets
 
-      - name: Test gallery behavior
-        run: cargo run -p wabou-cli -- test apps/gallery/tests/behavior.ts
+      - name: Test native application behavior
+        run: |
+          cargo run -p wabou-cli -- test apps/gallery/tests/behavior.ts --app apps/gallery
+          cargo run -p wabou-cli -- test apps/7guis/tests/behavior.ts --app apps/7guis
+          cargo run -p wabou-cli -- test apps/vlist/tests/behavior.ts --app apps/vlist
 
       - name: Test standalone project scaffold
         run: |
@@ -136,6 +139,12 @@ jobs:
         run: |
           bun run --cwd apps/gallery build
           bun run --cwd apps/hackernews build
+
+      - name: Report application bundle sizes
+        run: |
+          bun run size:report -- \
+            dist/gallery/resources/bundle.js \
+            dist/hackernews/resources/bundle.js
 
       - name: Check generated artifacts
         run: bun run gen:check

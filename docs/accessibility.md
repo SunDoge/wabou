@@ -7,10 +7,11 @@ authoritative window, focus, layout, and native-widget state.
 The current developer-preview integration publishes a retained semantic tree
 under every AccessKit `Window`. Supported roles are label, button, text input,
 image, link, dialog, alert, status, checkbox, radio button, switch, combobox,
-listbox, and option. Nodes expose labels, disabled state, completed layout
-bounds, child order, and native focus. Click, focus, and blur requests are
-routed back through the same host interaction path used by pointer and keyboard
-input.
+listbox, option, table, row, cell, column/row header, and slider. Nodes expose
+labels, textual values, disabled state, common checked/pressed/selected/expanded
+states, completed layout bounds, child order, and native focus. Click, focus,
+and blur requests are routed back through the same host interaction path used
+by pointer and keyboard input.
 
 The adapter receives native focus, move, and resize events before normal
 application event handling. It is created while the winit window is hidden, as
@@ -29,8 +30,8 @@ or semantic actions. Solid primitives declare the semantic contract; Rust
 merges it with final Taffy bounds, native focus, and widget state. Platform
 accessibility APIs never run inside QuickJS.
 
-This is intentionally proof-level accessibility for 0.1. Value/range metadata,
-rich text-editing actions, selection announcements, relationships such as
+This is intentionally proof-level accessibility for 0.1. Numeric range metadata,
+rich text-editing actions, text-selection announcements, relationships such as
 `aria-labelledby`, and broader screen-reader/platform validation remain future
 work. Components must still provide an explicit accessible label where the
 preview bridge cannot derive one.

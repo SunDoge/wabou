@@ -1062,6 +1062,13 @@ impl ExtensionContext<'_> {
             .cloned()
     }
 
+    /// Return whether the latest semantic snapshot focuses `node_id`.
+    pub fn semantic_node_focused(&mut self, logical_window_id: u64, node_id: u64) -> bool {
+        find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+            .and_then(|app| app.source.semantic_snapshot())
+            .is_some_and(|snapshot| snapshot.focus == Some(node_id))
+    }
+
     /// Deliver synthetic input through the same frame-source path as winit.
     pub fn dispatch_event(&mut self, logical_window_id: u64, event: UiEvent) -> bool {
         let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)

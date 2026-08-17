@@ -32,17 +32,32 @@ await editor.press("a", { control: true });
 await editor.dragBy(120, 24);
 await editor.wheel(80);
 
-await page.waitForIdle(); // drains pending Solid writes through native frames
 await expect(editor).toHaveValue("port: 你好");
 await expect(page.getByRole("status", { name: "Save state" })).toHaveText(
   "Saved",
 );
 await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
+await expect(page.getByRole("checkbox", { name: "Sync" })).toBeChecked();
+await expect(page.getByRole("checkbox", { name: "Partial sync" })).toBeIndeterminate();
+await expect(editor).toBeFocused();
+```
+
+Locators are bound to logical window 1 by default. Bind explicitly when an
+application opens additional native windows; recorded and replayed actions
+preserve the same window id:
+
+```ts
+const child = page.forWindow(2);
+await child.getByRole("button", { name: "Close" }).click();
 ```
 
 Locator state assertions read the completed native semantic snapshot, not
 application signals. This makes them useful for catching failures between
 Solid reconciliation, Wabou's protocol, layout, and accessibility projection.
+They automatically cross a native frame barrier and retry until the expected
+state is visible. Use `page.waitForIdle()` directly only when a test must wait
+for native layout/semantics without making an assertion; it is not implemented
+as an arbitrary sleep or a fixed number of JavaScript animation frames.
 
 Run a scenario with the deterministic backend:
 

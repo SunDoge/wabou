@@ -9,7 +9,10 @@
 
 use vello::peniko::Color;
 
-pub use wabou_accessibility::{SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot};
+pub use wabou_accessibility::{
+    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, SemanticStates,
+    SemanticToggleState,
+};
 
 use std::path::PathBuf;
 use std::sync::Arc;

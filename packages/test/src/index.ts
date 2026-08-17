@@ -1,4 +1,5 @@
 import { defaultHost } from "@wabou/solid-renderer";
+import { replayActions } from "./replay";
 
 export interface NativeWindowState {
   presence: "visible" | "hidden" | "surface-released" | "closed";
@@ -6,6 +7,7 @@ export interface NativeWindowState {
 }
 
 interface NativeTestCapability {
+  waitForIdle(windowId: number): Promise<boolean>;
   nativeClose(windowId: number, mutableVisibility: boolean): Promise<boolean>;
   showWindow(windowId: number): Promise<boolean>;
   windowState(windowId: number): string;
@@ -27,10 +29,7 @@ declare module "@wabou/solid-renderer" {
 }
 
 export interface TestContext {
-  readonly page: {
-    getByRole(role: SemanticRole, options: { name: string }): Locator;
-    waitForIdle(): Promise<void>;
-  };
+  readonly page: TestPage;
   readonly window: {
     nativeClose(
       windowId: number,
@@ -39,6 +38,13 @@ export interface TestContext {
     show(windowId: number): Promise<void>;
     state(windowId: number): NativeWindowState | null;
   };
+}
+
+export interface TestPage {
+  /** Bind subsequent locators and frame barriers to one logical window. */
+  forWindow(windowId: number): TestPage;
+  getByRole(role: SemanticRole, options: { name: string }): Locator;
+  waitForIdle(): Promise<void>;
 }
 
 export type SemanticRole =
@@ -63,6 +69,7 @@ export type SemanticRole =
   | "label";
 
 export interface Locator {
+  readonly windowId: number;
   click(): Promise<void>;
   dragBy(deltaX: number, deltaY: number): Promise<void>;
   press(
@@ -86,6 +93,16 @@ export interface LocatorSnapshot {
   name: string | null;
   value: string | null;
   disabled: boolean;
+  checked: boolean | "mixed" | null;
+  pressed: boolean | "mixed" | null;
+  selected: boolean | null;
+  expanded: boolean | null;
+  focused: boolean;
+}
+
+export interface LocatorAssertionOptions {
+  timeout?: number;
+  interval?: number;
 }
 
 export type TestInput =
@@ -134,29 +151,38 @@ function capability(): NativeTestCapability {
   return value;
 }
 
-const context: TestContext = {
-  page: {
+function createPage(windowId: number): TestPage {
+  if (!Number.isSafeInteger(windowId) || windowId <= 0) {
+    throw new RangeError(`invalid Wabou window id ${windowId}`);
+  }
+  return {
+    forWindow(nextWindowId) {
+      return createPage(nextWindowId);
+    },
     async waitForIdle() {
+      // Let queued Solid work reach the renderer, then wait for the native test
+      // driver to observe a complete frame. A pair of JS animation frames alone
+      // cannot prove that layout and semantics have caught up.
       await Promise.resolve();
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve()),
       );
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => resolve()),
-      );
+      if (!(await capability().waitForIdle(windowId))) {
+        throw new Error(`native window ${windowId} did not become idle`);
+      }
     },
     getByRole(role, options) {
       const input = async (value: TestInput): Promise<void> => {
         trace.push({
           action: "inputByRole",
-          windowId: 1,
+          windowId,
           role,
           label: options.name,
           input: value,
         });
         if (
           !(await capability().inputByRole(
-            1,
+            windowId,
             role,
             options.name,
             JSON.stringify(value),
@@ -179,14 +205,15 @@ const context: TestContext = {
         return value;
       };
       return {
+        windowId,
         async click() {
           trace.push({
             action: "clickByRole",
-            windowId: 1,
+            windowId,
             role,
             label: options.name,
           });
-          if (!(await capability().clickByRole(1, role, options.name))) {
+          if (!(await capability().clickByRole(windowId, role, options.name))) {
             throw new Error(
               `no enabled ${role} named ${JSON.stringify(options.name)}`,
             );
@@ -221,7 +248,11 @@ const context: TestContext = {
         snapshot,
       };
     },
-  },
+  };
+}
+
+const context: TestContext = {
+  page: createPage(1),
   window: {
     async nativeClose(windowId, platform) {
       trace.push({ action: "nativeClose", windowId, platform });
@@ -252,45 +283,39 @@ export function test(name: string, body: TestBody): void {
 /** Register a previously recorded action trace as a behavior test. */
 export function replay(actions: readonly TestAction[]): void {
   test("replay action trace", async ({ window }) => {
-    for (const action of actions) {
-      if (action.action === "nativeClose") {
-        await window.nativeClose(action.windowId, action.platform);
-      } else if (action.action === "showWindow") {
-        await window.show(action.windowId);
-      } else if (action.action === "clickByRole") {
-        await context.page
-          .getByRole(action.role, { name: action.label })
-          .click();
-      } else {
-        const locator = context.page.getByRole(action.role, {
-          name: action.label,
-        });
-        const input = action.input;
-        if (input.type === "probe") await locator.waitFor();
-        else if (input.type === "drag")
-          await locator.dragBy(input.deltaX, input.deltaY);
-        else if (input.type === "key")
-          await capability().inputByRole(
-            action.windowId,
-            action.role,
-            action.label,
-            JSON.stringify(input),
-          );
-        else if (input.type === "text") await locator.type(input.text);
-        else if (input.type === "paste") await locator.paste(input.text);
-        else if (input.type === "ime") await locator.ime(input.text);
-        else await locator.wheel(input.deltaY, input.deltaX);
-      }
-    }
+    await replayActions(actions, context.page, window);
   });
 }
 
 export function expect<T>(actual: T) {
-  const locatorSnapshot = async (): Promise<LocatorSnapshot> => {
+  const locator = (): Locator => {
     if (!actual || typeof actual !== "object" || !("snapshot" in actual)) {
       throw new Error("this assertion requires a Wabou locator");
     }
-    return (actual as unknown as Locator).snapshot();
+    return actual as unknown as Locator;
+  };
+  const locatorSnapshot = async (): Promise<LocatorSnapshot> => {
+    return locator().snapshot();
+  };
+  const eventually = async (
+    assertion: (state: LocatorSnapshot) => string | null,
+    options: LocatorAssertionOptions = {},
+  ): Promise<void> => {
+    const timeout = options.timeout ?? 1_000;
+    const interval = options.interval ?? 16;
+    const deadline = performance.now() + timeout;
+    let diagnostic = "locator state did not match";
+    do {
+      await createPage(locator().windowId).waitForIdle();
+      const state = await locatorSnapshot();
+      const failure = assertion(state);
+      if (failure === null) return;
+      diagnostic = failure;
+      if (performance.now() < deadline) {
+        await new Promise<void>((resolve) => setTimeout(resolve, interval));
+      }
+    } while (performance.now() < deadline);
+    throw new Error(`${diagnostic} after ${timeout}ms`);
   };
   return {
     toBe(expected: T): void {
@@ -305,26 +330,133 @@ export function expect<T>(actual: T) {
       const right = JSON.stringify(expected);
       if (left !== right) throw new Error(`expected ${left} to equal ${right}`);
     },
-    async toHaveText(expected: string): Promise<void> {
-      const state = await locatorSnapshot();
-      const value = state.value ?? state.name;
-      if (value !== expected) {
-        throw new Error(
-          `expected locator text ${JSON.stringify(value)} to be ${JSON.stringify(expected)}`,
-        );
-      }
+    toHaveText(
+      expected: string,
+      options?: LocatorAssertionOptions,
+    ): Promise<void> {
+      return eventually((state) => {
+        const value = state.value ?? state.name;
+        return value === expected
+          ? null
+          : `expected locator text ${JSON.stringify(value)} to be ${JSON.stringify(expected)}`;
+      }, options);
     },
-    async toHaveValue(expected: string): Promise<void> {
-      const state = await locatorSnapshot();
-      if (state.value !== expected) {
-        throw new Error(
-          `expected locator value ${JSON.stringify(state.value)} to be ${JSON.stringify(expected)}`,
-        );
-      }
+    toHaveValue(
+      expected: string,
+      options?: LocatorAssertionOptions,
+    ): Promise<void> {
+      return eventually(
+        (state) =>
+          state.value === expected
+            ? null
+            : `expected locator value ${JSON.stringify(state.value)} to be ${JSON.stringify(expected)}`,
+        options,
+      );
     },
-    async toBeDisabled(): Promise<void> {
-      const state = await locatorSnapshot();
-      if (!state.disabled) throw new Error("expected locator to be disabled");
+    toBeDisabled(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) => (state.disabled ? null : "expected locator to be disabled"),
+        options,
+      );
+    },
+    toBeEnabled(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) => (state.disabled ? "expected locator to be enabled" : null),
+        options,
+      );
+    },
+    toBeChecked(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.checked === true
+            ? null
+            : `expected locator to be checked, received ${JSON.stringify(state.checked)}`,
+        options,
+      );
+    },
+    toBeUnchecked(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.checked === false
+            ? null
+            : `expected locator to be unchecked, received ${JSON.stringify(state.checked)}`,
+        options,
+      );
+    },
+    toBeIndeterminate(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.checked === "mixed"
+            ? null
+            : `expected locator to be indeterminate, received ${JSON.stringify(state.checked)}`,
+        options,
+      );
+    },
+    toBeSelected(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.selected === true
+            ? null
+            : `expected locator to be selected, received ${JSON.stringify(state.selected)}`,
+        options,
+      );
+    },
+    toBeDeselected(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.selected === false
+            ? null
+            : `expected locator to be deselected, received ${JSON.stringify(state.selected)}`,
+        options,
+      );
+    },
+    toBeExpanded(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.expanded === true
+            ? null
+            : `expected locator to be expanded, received ${JSON.stringify(state.expanded)}`,
+        options,
+      );
+    },
+    toBeCollapsed(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.expanded === false
+            ? null
+            : `expected locator to be collapsed, received ${JSON.stringify(state.expanded)}`,
+        options,
+      );
+    },
+    toBePressed(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.pressed === true
+            ? null
+            : `expected locator to be pressed, received ${JSON.stringify(state.pressed)}`,
+        options,
+      );
+    },
+    toBeUnpressed(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) =>
+          state.pressed === false
+            ? null
+            : `expected locator to be unpressed, received ${JSON.stringify(state.pressed)}`,
+        options,
+      );
+    },
+    toBeFocused(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) => (state.focused ? null : "expected locator to be focused"),
+        options,
+      );
+    },
+    toBeBlurred(options?: LocatorAssertionOptions): Promise<void> {
+      return eventually(
+        (state) => (state.focused ? "expected locator to be blurred" : null),
+        options,
+      );
     },
   };
 }

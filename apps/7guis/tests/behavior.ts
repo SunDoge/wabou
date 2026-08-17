@@ -2,7 +2,6 @@ import { expect, test } from "@wabou/test";
 
 test("counter increments and resets", async ({ page }) => {
   await page.getByRole("button", { name: "Increment counter" }).click();
-  await page.waitForIdle();
   await expect(page.getByRole("status", { name: "Counter value" })).toHaveText(
     "1",
   );
@@ -17,7 +16,6 @@ test("temperature accepts native text input", async ({ page }) => {
   const celsius = page.getByRole("textbox", { name: "Celsius" });
   await celsius.press("a", { control: true });
   await celsius.type("100");
-  await page.waitForIdle();
   await expect(page.getByRole("textbox", { name: "Fahrenheit" })).toHaveValue(
     "212",
   );
@@ -36,13 +34,13 @@ test("all seven tasks are reachable", async ({ page }) => {
   expect(true).toBe(true);
 });
 
-test("flight booker uses the shared localized date picker", async ({ page }) => {
+test("flight booker uses the shared localized date picker", async ({
+  page,
+}) => {
   await page.getByRole("button", { name: "Flight Booker" }).click();
   await page.getByRole("button", { name: "Departure date" }).click();
   await page.getByRole("button", { name: "Next month" }).click();
-  await page
-    .getByRole("button", { name: "Thursday, October 1, 2026" })
-    .click();
+  await page.getByRole("button", { name: "Thursday, October 1, 2026" }).click();
   await page.getByRole("button", { name: "Book flight" }).click();
 });
 

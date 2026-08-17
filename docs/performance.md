@@ -56,3 +56,21 @@ backends. A change is a regression candidate when the median of at least three
 runs increases by 10% in any stage without reducing work in another stage.
 Do not add a batch API solely to improve `apps/stress`; first prove the same
 cost appears in a real retained UI or virtualized list.
+
+## Artifact size
+
+Application bundles are stored uncompressed because QuickJS evaluates them
+directly. Installers may compress the complete application, so track both the
+on-disk JavaScript and its gzip size instead of optimizing either number in
+isolation. After building one or more applications, report comparable sizes
+with:
+
+```bash
+bun run size:report -- dist/gallery/resources/bundle.js
+```
+
+CI records Gallery and Hacker News in the workflow summary. This is initially
+an observation rather than a hard budget: locale data and other intentional
+capabilities can cause legitimate step changes. Investigate unexpected growth
+with the Vite/Rollup bundle graph before moving broadly useful APIs behind
+Cargo features or duplicating mature JavaScript implementations in Rust.

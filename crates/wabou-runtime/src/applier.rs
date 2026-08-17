@@ -40,7 +40,8 @@ use wabou_shell::style::{
 use wabou_shell::text::{TextContext, layout_text_styled};
 use wabou_shell::{
     EventResponse, FrameSource, FrameStats, KeyPhase, Modifiers, PointerButton, PointerPhase,
-    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, UiEvent, WakeCallback,
+    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, SemanticStates,
+    SemanticToggleState, UiEvent, WakeCallback,
 };
 
 use crate::asset_cache::ResourceCache;

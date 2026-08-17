@@ -21,6 +21,7 @@ const CAPABILITY: &str = "test";
 
 #[derive(Debug)]
 enum TestActionKind {
+    WaitForIdle(u64),
     NativeClose {
         window_id: u64,
         mutable_visibility: bool,
@@ -93,7 +94,7 @@ impl TestController {
                 deadline: Instant::now() + Duration::from_secs(2),
             };
             if state.headless {
-                if action_requires_semantics(&action.kind) {
+                if action_requires_source_poll(&action.kind) {
                     state.actions.push_back(action);
                 } else {
                     apply_headless_action(&mut state, action);
@@ -134,6 +135,18 @@ impl TestController {
                     ctx.clone(),
                     Async(move |window_id: u64| {
                         let receiver = show.request(TestActionKind::ShowWindow(window_id));
+                        async move { receiver.await.unwrap_or(false) }
+                    }),
+                )?,
+            )?;
+
+            let idle = controller.clone();
+            capability.set(
+                "waitForIdle",
+                Function::new(
+                    ctx.clone(),
+                    Async(move |window_id: u64| {
+                        let receiver = idle.request(TestActionKind::WaitForIdle(window_id));
                         async move { receiver.await.unwrap_or(false) }
                     }),
                 )?,
@@ -284,11 +297,12 @@ impl TestController {
             let index = state.actions.iter().position(|action| {
                 matches!(
                     action_window_id(&action.kind),
-                    Some(target) if target == window_id && action_requires_semantics(&action.kind)
+                    Some(target) if target == window_id && action_requires_source_poll(&action.kind)
                 )
             })?;
             let action = state.actions.get(index)?;
             let ready = match (&action.kind, snapshot.as_deref()) {
+                (TestActionKind::WaitForIdle(_), _) => true,
                 (kind, Some(snapshot)) => action_semantic_target(kind, snapshot).is_some(),
                 _ => false,
             };
@@ -339,6 +353,7 @@ impl TestController {
             return;
         };
         let handled = match (&action.kind, snapshot.as_deref()) {
+            (TestActionKind::WaitForIdle(_), _) => true,
             (TestActionKind::ClickByRole { role, label, .. }, Some(snapshot)) => {
                 click_semantic_target(source, snapshot, role, label)
             }
@@ -361,7 +376,7 @@ impl TestController {
         ) = (&action.kind, snapshot.as_deref())
             && let Some(node) = semantic_query_target(snapshot, role, label)
         {
-            self.set_query_result(node);
+            self.set_query_result(node, snapshot.focus == Some(node.id));
         }
         let _ = action.completion.send(handled);
     }
@@ -379,11 +394,24 @@ impl TestController {
             .as_bool()
     }
 
-    fn set_query_result(&self, node: &wabou_shell::SemanticNode) {
+    fn set_query_result(&self, node: &wabou_shell::SemanticNode, focused: bool) {
+        let toggle_value = |state: Option<wabou_shell::SemanticToggleState>| match state {
+            Some(wabou_shell::SemanticToggleState::Off) => serde_json::Value::Bool(false),
+            Some(wabou_shell::SemanticToggleState::On) => serde_json::Value::Bool(true),
+            Some(wabou_shell::SemanticToggleState::Mixed) => {
+                serde_json::Value::String("mixed".into())
+            }
+            None => serde_json::Value::Null,
+        };
         let result = serde_json::json!({
             "name": node.label,
             "value": node.value,
             "disabled": node.disabled,
+            "checked": toggle_value(node.states.checked),
+            "pressed": toggle_value(node.states.pressed),
+            "selected": node.states.selected,
+            "expanded": node.states.expanded,
+            "focused": focused,
         })
         .to_string();
         if let Ok(mut state) = self.0.lock() {
@@ -413,6 +441,7 @@ fn apply_headless_action(state: &mut TestState, action: TestAction) {
                 true
             })
         }
+        TestActionKind::WaitForIdle(_) => false,
         TestActionKind::ClickByRole { .. } => false,
         TestActionKind::InputByRole { .. } => false,
     };
@@ -426,9 +455,14 @@ fn action_requires_semantics(kind: &TestActionKind) -> bool {
     )
 }
 
+fn action_requires_source_poll(kind: &TestActionKind) -> bool {
+    matches!(kind, TestActionKind::WaitForIdle(_)) || action_requires_semantics(kind)
+}
+
 fn action_window_id(kind: &TestActionKind) -> Option<u64> {
     match kind {
-        TestActionKind::ClickByRole { window_id, .. }
+        TestActionKind::WaitForIdle(window_id)
+        | TestActionKind::ClickByRole { window_id, .. }
         | TestActionKind::InputByRole { window_id, .. } => Some(*window_id),
         _ => None,
     }
@@ -612,6 +646,7 @@ impl ShellExtension for TestDriver {
                 break;
             };
             let handled = match action.kind {
+                TestActionKind::WaitForIdle(_) => true,
                 TestActionKind::NativeClose {
                     window_id,
                     mutable_visibility,
@@ -658,7 +693,8 @@ impl ShellExtension for TestDriver {
                     }
                     let events = test_input_events(&node, &input);
                     if matches!(input, TestInput::Probe) {
-                        self.controller.set_query_result(&node);
+                        let focused = context.semantic_node_focused(window_id, node.id);
+                        self.controller.set_query_result(&node, focused);
                     }
                     events
                         .into_iter()
@@ -763,6 +799,7 @@ mod tests {
             bounds: [10.0, 20.0, 110.0, 60.0],
             children: Vec::new(),
             disabled: false,
+            states: wabou_shell::SemanticStates::default(),
         }
     }
 
