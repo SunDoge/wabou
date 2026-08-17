@@ -685,37 +685,47 @@ fn collect_dist_exports(value: &Value, output: &mut Vec<String>) {
 /// Catch interrupted workspace package builds before Vite turns a missing
 /// tracked entrypoint into an opaque `externalize-deps` resolution failure.
 fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
-    let packages = workspace.join("packages");
-    if !packages.is_dir() {
-        return Ok(());
-    }
-    let entries = fs::read_dir(&packages)?;
     let mut missing = Vec::new();
-    for entry in entries {
-        let package = entry?.path();
-        let manifest_path = package.join("package.json");
-        if !manifest_path.is_file() {
+    for packages in [
+        workspace.join("packages"),
+        workspace.join("vendor/wabou/packages"),
+    ] {
+        if !packages.is_dir() {
             continue;
         }
-        let manifest: Value =
-            serde_json::from_str(&fs::read_to_string(&manifest_path)?).map_err(|error| {
-                format!(
-                    "invalid package manifest {}: {error}",
-                    manifest_path.display()
-                )
-            })?;
-        let mut exports = Vec::new();
-        if let Some(value) = manifest.get("exports") {
-            collect_dist_exports(value, &mut exports);
+        for entry in fs::read_dir(&packages)? {
+            let package = entry?.path();
+            let manifest_path = package.join("package.json");
+            if !manifest_path.is_file() {
+                continue;
+            }
+            let manifest: Value = serde_json::from_str(&fs::read_to_string(&manifest_path)?)
+                .map_err(|error| {
+                    format!(
+                        "invalid package manifest {}: {error}",
+                        manifest_path.display()
+                    )
+                })?;
+            if !manifest
+                .get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|name| name.starts_with("@wabou/"))
+            {
+                continue;
+            }
+            let mut exports = Vec::new();
+            if let Some(value) = manifest.get("exports") {
+                collect_dist_exports(value, &mut exports);
+            }
+            exports.sort();
+            exports.dedup();
+            missing.extend(
+                exports
+                    .into_iter()
+                    .map(|path| package.join(path))
+                    .filter(|path| !path.is_file()),
+            );
         }
-        exports.sort();
-        exports.dedup();
-        missing.extend(
-            exports
-                .into_iter()
-                .map(|path| package.join(path))
-                .filter(|path| !path.is_file()),
-        );
     }
     if missing.is_empty() {
         return Ok(());
@@ -2460,6 +2470,39 @@ out-dir = "dist/resources"
     #[test]
     fn workspace_package_preflight_is_a_noop_for_standalone_apps() {
         let root = tempfile::tempdir().unwrap();
+        ensure_workspace_package_exports(root.path()).unwrap();
+    }
+
+    #[test]
+    fn workspace_package_preflight_checks_vendored_wabou_packages() {
+        let root = tempfile::tempdir().unwrap();
+        let package = root.path().join("vendor/wabou/packages/vite");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(
+            package.join("package.json"),
+            r#"{"name":"@wabou/vite","exports":"./dist/index.mjs"}"#,
+        )
+        .unwrap();
+
+        let error = ensure_workspace_package_exports(root.path()).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("vendor/wabou/packages/vite/dist/index.mjs")
+        );
+    }
+
+    #[test]
+    fn workspace_package_preflight_ignores_unrelated_packages() {
+        let root = tempfile::tempdir().unwrap();
+        let package = root.path().join("packages/application-library");
+        fs::create_dir_all(&package).unwrap();
+        fs::write(
+            package.join("package.json"),
+            r#"{"name":"@application/library","exports":"./dist/index.mjs"}"#,
+        )
+        .unwrap();
+
         ensure_workspace_package_exports(root.path()).unwrap();
     }
 
