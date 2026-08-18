@@ -499,6 +499,12 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     });
 }
 
+impl Applier {
+    pub(super) fn rebuild_semantic_snapshot(&mut self, placed: &[PlacedNode]) {
+        rebuild(self, placed);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

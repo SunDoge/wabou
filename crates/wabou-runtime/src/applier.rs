@@ -60,6 +60,7 @@ mod protocol_apply;
 mod reload;
 mod resources;
 mod runtime_updates;
+mod scroll;
 mod semantics;
 mod style_resolution;
 mod text_selection;
