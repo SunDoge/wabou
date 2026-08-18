@@ -647,13 +647,14 @@ impl Widget for TextInput {
                 }
             }
             "disabled" => self.disabled = value != "false",
-            "readonly" | "readOnly" | "read-only" => self.read_only = value != "false",
-            "type" => self.password = !self.multiline && value.eq_ignore_ascii_case("password"),
+            "readOnly" => self.read_only = value != "false",
+            "type" => self.password = !self.multiline && value == "password",
             _ => {}
         }
         match name {
-            "value" | "placeholder" | "font-size" | "color" | "disabled" | "readonly"
-            | "readOnly" | "read-only" | "type" => WidgetChanges::REDRAW | WidgetChanges::SEMANTICS,
+            "value" | "placeholder" | "font-size" | "color" | "disabled" | "readOnly" | "type" => {
+                WidgetChanges::REDRAW | WidgetChanges::SEMANTICS
+            }
             _ => WidgetChanges::empty(),
         }
     }
@@ -661,13 +662,13 @@ impl Widget for TextInput {
     fn attribute_removed(&mut self, name: &str) -> WidgetChanges {
         match name {
             "disabled" => self.disabled = false,
-            "readonly" | "readOnly" | "read-only" => self.read_only = false,
+            "readOnly" => self.read_only = false,
             "placeholder" => self.placeholder.clear(),
             "type" => self.password = false,
             _ => {}
         }
         match name {
-            "disabled" | "readonly" | "readOnly" | "read-only" | "placeholder" | "type" => {
+            "disabled" | "readOnly" | "placeholder" | "type" => {
                 WidgetChanges::REDRAW | WidgetChanges::SEMANTICS
             }
             _ => WidgetChanges::empty(),
@@ -941,6 +942,21 @@ mod tests {
         );
         area.paint(160.0, 64.0, &mut tcx);
         assert_eq!(area.current_value(), Some("locked"));
+    }
+
+    #[test]
+    fn text_input_accepts_only_canonical_control_attributes() {
+        let mut input = TextInput::new();
+
+        assert!(input.attribute_changed("readonly", "true").is_empty());
+        assert!(!input.read_only);
+        input.attribute_changed("readOnly", "true");
+        assert!(input.read_only);
+
+        input.attribute_changed("type", "PASSWORD");
+        assert!(!input.password);
+        input.attribute_changed("type", "password");
+        assert!(input.password);
     }
 
     #[test]

@@ -709,12 +709,12 @@ impl Widget for CodeEditor {
                 *self = replacement;
             }
             "disabled" => self.disabled = value != "false",
-            "readonly" | "readOnly" | "read-only" => self.read_only = value != "false",
+            "readOnly" => self.read_only = value != "false",
             "font-family" => self.font_family = Some(Arc::from(value)),
             _ => {}
         }
         match name {
-            "value" | "disabled" | "readonly" | "readOnly" | "read-only" => {
+            "value" | "disabled" | "readOnly" => {
                 wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
             }
             "font-family" => wabou_shell::WidgetChanges::REDRAW,
@@ -725,12 +725,12 @@ impl Widget for CodeEditor {
     fn attribute_removed(&mut self, name: &str) -> wabou_shell::WidgetChanges {
         match name {
             "disabled" => self.disabled = false,
-            "readonly" | "readOnly" | "read-only" => self.read_only = false,
+            "readOnly" => self.read_only = false,
             "font-family" => self.font_family = Some(Arc::from("monospace")),
             _ => {}
         }
         match name {
-            "disabled" | "readonly" | "readOnly" | "read-only" => {
+            "disabled" | "readOnly" => {
                 wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
             }
             "font-family" => wabou_shell::WidgetChanges::REDRAW,
@@ -840,6 +840,16 @@ mod tests {
 
         assert_eq!(editor.cached_value, "true");
         assert!(!result.is_handled());
+    }
+
+    #[test]
+    fn editor_accepts_only_the_canonical_read_only_attribute() {
+        let mut editor = CodeEditor::from_text("true");
+
+        assert!(editor.attribute_changed("readonly", "true").is_empty());
+        assert!(!editor.read_only);
+        assert!(!editor.attribute_changed("readOnly", "true").is_empty());
+        assert!(editor.read_only);
     }
 
     #[test]
