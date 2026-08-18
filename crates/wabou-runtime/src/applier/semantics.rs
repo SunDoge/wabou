@@ -42,13 +42,6 @@ fn semantic_popup(value: Option<Arc<str>>) -> Option<SemanticPopup> {
     }
 }
 
-fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<str>> {
-    declared
-        .attrs
-        .iter()
-        .find_map(|(name, value)| (atoms.resolve(*name) == Some(wanted)).then(|| value.clone()))
-}
-
 fn transformed_bounds(rect: [f32; 4], transform: Option<&Affine>) -> [f32; 4] {
     let Some(transform) = transform else {
         return rect;
@@ -275,7 +268,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .iter()
         .filter_map(|(node, declared)| {
             matches!(
-                attribute(declared, &atoms, "role").as_deref(),
+                declared.attribute(&atoms, "role").as_deref(),
                 Some("presentation" | "none")
             )
             .then_some(*node)
@@ -292,7 +285,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                     .declared
                     .get(&node.node_id)
                     .is_some_and(|declared| {
-                        attribute(declared, &atoms, "aria-modal").as_deref() == Some("true")
+                        declared.attribute(&atoms, "aria-modal").as_deref() == Some("true")
                     })
         })
         .map(|node| node.node_id);
@@ -311,7 +304,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             }
             let declared = applier.node_store.declared.get(&node.node_id)?;
             matches!(
-                attribute(declared, &atoms, "role").as_deref(),
+                declared.attribute(&atoms, "role").as_deref(),
                 Some("dialog")
             )
             .then_some(node.node_id)
@@ -330,7 +323,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let Some(declared) = applier.node_store.declared.get(node_id) else {
             continue;
         };
-        let Some(id) = attribute(declared, &atoms, "id") else {
+        let Some(id) = declared.attribute(&atoms, "id") else {
             continue;
         };
         let Some(solid) = applier.node_store.node_to_solid.get(node_id) else {
@@ -355,19 +348,22 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .get(&placed_node.node_id)
             .map(|widget| widget.accessibility())
             .unwrap_or_default();
-        let label = attribute(declared, &atoms, "aria-label")
+        let label = declared
+            .attribute(&atoms, "aria-label")
             .map(|value| value.to_string())
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
-        let explicit_role = attribute(declared, &atoms, "role");
+        let explicit_role = declared.attribute(&atoms, "role");
         let value = (!widget_semantics.value_is_sensitive)
             .then(|| {
-                attribute(declared, &atoms, "aria-valuetext")
+                declared
+                    .attribute(&atoms, "aria-valuetext")
                     .map(|value| value.to_string())
                     .or(widget_semantics.value)
             })
             .flatten();
         let numeric_attribute = |name| {
-            attribute(declared, &atoms, name)
+            declared
+                .attribute(&atoms, name)
                 .and_then(|value| value.parse::<f64>().ok())
                 .filter(|value| value.is_finite())
         };
@@ -378,7 +374,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             &hidden,
             &presentational,
         );
-        let controls = attribute(declared, &atoms, "aria-controls")
+        let controls = declared
+            .attribute(&atoms, "aria-controls")
             .map(|value| {
                 value
                     .split_whitespace()
@@ -386,7 +383,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
-        let active_descendant = attribute(declared, &atoms, "aria-activedescendant")
+        let active_descendant = declared
+            .attribute(&atoms, "aria-activedescendant")
             .and_then(|value| semantic_ids.get(value.trim()).copied());
         let bounds = transformed_bounds(placed_node.rect, semantic_transforms.get(&solid_id));
         nodes.push(SemanticNode {
@@ -406,16 +404,16 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             children,
             controls,
             active_descendant,
-            disabled: attribute(declared, &atoms, "aria-disabled").as_deref() == Some("true")
+            disabled: declared.attribute(&atoms, "aria-disabled").as_deref() == Some("true")
                 || widget_semantics.disabled.unwrap_or(false),
             states: SemanticStates {
-                checked: semantic_toggle(attribute(declared, &atoms, "aria-checked")),
-                pressed: semantic_toggle(attribute(declared, &atoms, "aria-pressed")),
-                selected: semantic_bool(attribute(declared, &atoms, "aria-selected")),
-                expanded: semantic_bool(attribute(declared, &atoms, "aria-expanded")),
-                current: semantic_current(attribute(declared, &atoms, "aria-current")),
-                popup: semantic_popup(attribute(declared, &atoms, "aria-haspopup")),
-                modal: semantic_bool(attribute(declared, &atoms, "aria-modal")),
+                checked: semantic_toggle(declared.attribute(&atoms, "aria-checked")),
+                pressed: semantic_toggle(declared.attribute(&atoms, "aria-pressed")),
+                selected: semantic_bool(declared.attribute(&atoms, "aria-selected")),
+                expanded: semantic_bool(declared.attribute(&atoms, "aria-expanded")),
+                current: semantic_current(declared.attribute(&atoms, "aria-current")),
+                popup: semantic_popup(declared.attribute(&atoms, "aria-haspopup")),
+                modal: semantic_bool(declared.attribute(&atoms, "aria-modal")),
             },
         });
     }

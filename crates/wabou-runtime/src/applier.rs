@@ -206,6 +206,15 @@ struct Declared {
     display_explicit: bool,
 }
 
+impl Declared {
+    fn attribute(&self, atoms: &AtomPool, wanted: &str) -> Option<Arc<str>> {
+        atoms
+            .get(wanted)
+            .and_then(|name| self.attrs.get(&name))
+            .cloned()
+    }
+}
+
 /// Immutable view of a node's resolved layout and paint state.
 ///
 /// This is intended for semantic renderer tests: assertions can stop at the

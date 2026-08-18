@@ -173,15 +173,10 @@ impl Applier {
 
     pub(super) fn rebuild_focus_order(&mut self, placed: &[PlacedNode]) {
         let atoms = self.atoms.borrow();
-        let attribute = |declared: &Declared, wanted: &str| {
-            declared.attrs.iter().find_map(|(name, value)| {
-                (atoms.resolve(*name) == Some(wanted)).then(|| value.to_string())
-            })
-        };
         let modal = placed.iter().enumerate().rev().find_map(|(index, placed)| {
             let declared = self.node_store.declared.get(&placed.node_id)?;
             (placed.paint.overlay_plane == OverlayPlane::Modal
-                && attribute(declared, "focusScope").as_deref() == Some("contain"))
+                && declared.attribute(&atoms, "focusScope").as_deref() == Some("contain"))
             .then_some((index, placed.node_id))
         });
         // A portal opened from inside a modal is a physical sibling under the
@@ -218,8 +213,9 @@ impl Applier {
             // `tabIndex` is the normalized Wabou focus contract. Whether a
             // disabled component participates is decided by its JS primitive,
             // rather than inferred here from browser attribute conventions.
-            let explicit_tab_index =
-                attribute(declared, "tabIndex").and_then(|value| value.parse::<i32>().ok());
+            let explicit_tab_index = declared
+                .attribute(&atoms, "tabIndex")
+                .and_then(|value| value.parse::<i32>().ok());
             if explicit_tab_index.is_none() {
                 continue;
             }

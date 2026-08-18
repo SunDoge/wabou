@@ -28,10 +28,6 @@ impl EventMask {
         Self::bit(code).is_some_and(|bit| self.0 & bit != 0)
     }
 
-    pub(super) fn is_empty(self) -> bool {
-        self.0 == 0
-    }
-
     pub(super) fn codes(self) -> impl Iterator<Item = u8> {
         (1..=u64::BITS as u8).filter(move |&code| self.contains(code))
     }

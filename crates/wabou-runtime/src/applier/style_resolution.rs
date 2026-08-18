@@ -139,15 +139,11 @@ impl Applier {
             .unwrap_or(taffy::Display::DEFAULT);
         let is_svg = tag.as_deref() == Some("svg");
         let replaced = is_svg || self.widget_manager.widgets.contains_key(&node);
-        let declared_attribute = |wanted: &str| {
-            decl.and_then(|declared| {
-                declared.attrs.iter().find_map(|(name, value)| {
-                    (atoms.resolve(*name) == Some(wanted)).then(|| value.clone())
-                })
-            })
-        };
         NodeFacts {
-            text_container: declared_attribute("textFlow").as_deref() == Some("container"),
+            text_container: decl
+                .and_then(|declared| declared.attribute(&atoms, "textFlow"))
+                .as_deref()
+                == Some("container"),
             text: tag.is_none().then_some(text).flatten(),
             display,
             display_explicit: decl.is_some_and(|d| d.display_explicit),
@@ -718,18 +714,13 @@ impl Applier {
             let mut paint = DeclaredPaint::default();
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
-            let host_contract = |wanted: &str| {
-                decl.attrs.iter().find_map(|(name, value)| {
-                    (atoms.resolve(*name) == Some(wanted)).then(|| value.as_ref())
-                })
-            };
-            let layout_default = host_contract("layoutDefault");
-            if layout_default == Some("block") {
+            let layout_default = decl.attribute(&atoms, "layoutDefault");
+            if layout_default.as_deref() == Some("block") {
                 layout.display = taffy::Display::Block;
             }
             // JS primitives author host defaults. Authored class and inline
             // declarations below may still opt into wrapping and shrinking.
-            if host_contract("textLayout") == Some("singleLine") {
+            if decl.attribute(&atoms, "textLayout").as_deref() == Some("singleLine") {
                 layout.flex_shrink = 0.0;
                 paint.wrap_text = Some(false);
             }
