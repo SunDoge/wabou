@@ -2,77 +2,105 @@
 
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Renderer-independent role understood by Wabou's accessibility bridge.
-pub enum SemanticRole {
+macro_rules! semantic_roles {
+    ($( $(#[$doc:meta])* $variant:ident => $name:literal ),+ $(,)?) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        /// Renderer-independent role understood by Wabou's accessibility bridge.
+        pub enum SemanticRole {
+            $( $(#[$doc])* $variant, )+
+        }
+
+        impl SemanticRole {
+            /// Every role supported by the native semantic contract.
+            pub const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            /// Parse the canonical role name used by the JS semantic contract.
+            pub fn from_name(name: &str) -> Option<Self> {
+                match name {
+                    $( $name => Some(Self::$variant), )+
+                    _ => None,
+                }
+            }
+
+            /// Canonical role name exposed to JS tests and diagnostics.
+            pub const fn as_str(self) -> &'static str {
+                match self {
+                    $( Self::$variant => $name, )+
+                }
+            }
+        }
+    };
+}
+
+semantic_roles! {
     /// Container without a more specific semantic role.
-    Generic,
+    Generic => "generic",
     /// Named or structural group of related controls.
-    Group,
+    Group => "group",
     /// Static text label.
-    Label,
+    Label => "label",
     /// Section or page heading.
-    Heading,
+    Heading => "heading",
     /// Activatable button.
-    Button,
+    Button => "button",
     /// Editable text field.
-    TextInput,
+    TextInput => "textbox",
     /// Informative image.
-    Image,
+    Image => "img",
     /// Container for mutually exclusive radio controls.
-    RadioGroup,
+    RadioGroup => "radiogroup",
     /// Navigational link.
-    Link,
+    Link => "link",
     /// Dialog surface.
-    Dialog,
+    Dialog => "dialog",
     /// Assertive alert message.
-    Alert,
+    Alert => "alert",
     /// Non-assertive status message.
-    Status,
+    Status => "status",
     /// Boolean checkbox.
-    CheckBox,
+    CheckBox => "checkbox",
     /// Mutually exclusive radio item.
-    RadioButton,
+    RadioButton => "radio",
     /// On/off switch.
-    Switch,
+    Switch => "switch",
     /// Control that opens a list of choices.
-    ComboBox,
+    ComboBox => "combobox",
     /// List of selectable options.
-    ListBox,
+    ListBox => "listbox",
     /// Selectable item in a list box.
-    Option,
+    Option => "option",
     /// Container for application or context commands.
-    Menu,
+    Menu => "menu",
     /// One activatable command in a menu.
-    MenuItem,
+    MenuItem => "menuitem",
     /// Hierarchical collection of expandable items.
-    Tree,
+    Tree => "tree",
     /// One item in a hierarchical tree.
-    TreeItem,
+    TreeItem => "treeitem",
     /// Tabular data container.
-    Table,
+    Table => "table",
     /// One row in a table.
-    Row,
+    Row => "row",
     /// One data cell in a table row.
-    Cell,
+    Cell => "cell",
     /// Header describing a table column.
-    ColumnHeader,
+    ColumnHeader => "columnheader",
     /// Header describing a table row.
-    RowHeader,
+    RowHeader => "rowheader",
     /// Numeric value selected along a bounded range.
-    Slider,
+    Slider => "slider",
     /// Read-only completion value along a bounded range.
-    ProgressBar,
+    ProgressBar => "progressbar",
     /// Container for a set of tabs.
-    TabList,
+    TabList => "tablist",
     /// One selectable tab.
-    Tab,
+    Tab => "tab",
     /// Content controlled by a tab.
-    TabPanel,
+    TabPanel => "tabpanel",
     /// Interactive tabular grid.
-    Grid,
+    Grid => "grid",
     /// One cell in an interactive grid.
-    GridCell,
+    GridCell => "gridcell",
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -266,6 +294,14 @@ mod tests {
             disabled: false,
             states: SemanticStates::default(),
         }
+    }
+
+    #[test]
+    fn semantic_role_names_round_trip_through_one_contract() {
+        for role in SemanticRole::ALL {
+            assert_eq!(SemanticRole::from_name(role.as_str()), Some(*role));
+        }
+        assert_eq!(SemanticRole::from_name("alertdialog"), None);
     }
 
     #[test]

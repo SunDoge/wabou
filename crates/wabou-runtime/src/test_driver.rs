@@ -513,7 +513,7 @@ fn semantic_snapshot_json(window_id: u64, snapshot: &SemanticSnapshot) -> serde_
         "modalRoot": snapshot.modal_root,
         "nodes": snapshot.nodes.iter().map(|node| serde_json::json!({
             "id": node.id,
-            "role": semantic_role_name(node.role),
+            "role": node.role.as_str(),
             // Generic containers inherit concatenated descendant text for
             // accessibility fallback. That can be enormous and is not a role
             // addressable by @wabou/test, so it adds noise rather than useful
@@ -539,45 +539,6 @@ fn semantic_snapshot_json(window_id: u64, snapshot: &SemanticSnapshot) -> serde_
             "focused": snapshot.focus == Some(node.id),
         })).collect::<Vec<_>>(),
     })
-}
-
-fn semantic_role_name(role: SemanticRole) -> &'static str {
-    match role {
-        SemanticRole::Generic => "generic",
-        SemanticRole::Group => "group",
-        SemanticRole::Label => "label",
-        SemanticRole::Heading => "heading",
-        SemanticRole::Button => "button",
-        SemanticRole::TextInput => "textbox",
-        SemanticRole::Image => "img",
-        SemanticRole::RadioGroup => "radiogroup",
-        SemanticRole::Link => "link",
-        SemanticRole::Dialog => "dialog",
-        SemanticRole::Alert => "alert",
-        SemanticRole::Status => "status",
-        SemanticRole::CheckBox => "checkbox",
-        SemanticRole::RadioButton => "radio",
-        SemanticRole::Switch => "switch",
-        SemanticRole::ComboBox => "combobox",
-        SemanticRole::ListBox => "listbox",
-        SemanticRole::Option => "option",
-        SemanticRole::Menu => "menu",
-        SemanticRole::MenuItem => "menuitem",
-        SemanticRole::Tree => "tree",
-        SemanticRole::TreeItem => "treeitem",
-        SemanticRole::Table => "table",
-        SemanticRole::Row => "row",
-        SemanticRole::Cell => "cell",
-        SemanticRole::ColumnHeader => "columnheader",
-        SemanticRole::RowHeader => "rowheader",
-        SemanticRole::Slider => "slider",
-        SemanticRole::ProgressBar => "progressbar",
-        SemanticRole::TabList => "tablist",
-        SemanticRole::Tab => "tab",
-        SemanticRole::TabPanel => "tabpanel",
-        SemanticRole::Grid => "grid",
-        SemanticRole::GridCell => "gridcell",
-    }
 }
 
 fn apply_headless_action(state: &mut TestState, action: TestAction) {
@@ -742,42 +703,7 @@ fn semantic_query_target<'a>(
 }
 
 fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
-    matches!(
-        (role, candidate),
-        ("button", SemanticRole::Button)
-            | ("textbox", SemanticRole::TextInput)
-            | ("link", SemanticRole::Link)
-            | ("dialog", SemanticRole::Dialog)
-            | ("alert", SemanticRole::Alert)
-            | ("status", SemanticRole::Status)
-            | ("checkbox", SemanticRole::CheckBox)
-            | ("radio", SemanticRole::RadioButton)
-            | ("switch", SemanticRole::Switch)
-            | ("combobox", SemanticRole::ComboBox)
-            | ("listbox", SemanticRole::ListBox)
-            | ("option", SemanticRole::Option)
-            | ("menu", SemanticRole::Menu)
-            | ("menuitem", SemanticRole::MenuItem)
-            | ("tree", SemanticRole::Tree)
-            | ("treeitem", SemanticRole::TreeItem)
-            | ("table", SemanticRole::Table)
-            | ("row", SemanticRole::Row)
-            | ("cell", SemanticRole::Cell)
-            | ("columnheader", SemanticRole::ColumnHeader)
-            | ("rowheader", SemanticRole::RowHeader)
-            | ("slider", SemanticRole::Slider)
-            | ("progressbar", SemanticRole::ProgressBar)
-            | ("heading", SemanticRole::Heading)
-            | ("label", SemanticRole::Label)
-            | ("group", SemanticRole::Group)
-            | ("img", SemanticRole::Image)
-            | ("radiogroup", SemanticRole::RadioGroup)
-            | ("tablist", SemanticRole::TabList)
-            | ("tab", SemanticRole::Tab)
-            | ("tabpanel", SemanticRole::TabPanel)
-            | ("grid", SemanticRole::Grid)
-            | ("gridcell", SemanticRole::GridCell)
-    )
+    SemanticRole::from_name(role) == Some(candidate)
 }
 
 pub(crate) struct TestDriver {

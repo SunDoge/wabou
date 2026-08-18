@@ -49,45 +49,6 @@ fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<
         .find_map(|(name, value)| (atoms.resolve(*name) == Some(wanted)).then(|| value.clone()))
 }
 
-fn semantic_role(role: &str) -> SemanticRole {
-    match role {
-        "button" => SemanticRole::Button,
-        "group" => SemanticRole::Group,
-        "textbox" => SemanticRole::TextInput,
-        "img" => SemanticRole::Image,
-        "radiogroup" => SemanticRole::RadioGroup,
-        "link" => SemanticRole::Link,
-        "dialog" => SemanticRole::Dialog,
-        "alert" => SemanticRole::Alert,
-        "status" => SemanticRole::Status,
-        "checkbox" => SemanticRole::CheckBox,
-        "radio" => SemanticRole::RadioButton,
-        "switch" => SemanticRole::Switch,
-        "combobox" => SemanticRole::ComboBox,
-        "listbox" => SemanticRole::ListBox,
-        "option" => SemanticRole::Option,
-        "menu" => SemanticRole::Menu,
-        "menuitem" => SemanticRole::MenuItem,
-        "tree" => SemanticRole::Tree,
-        "treeitem" => SemanticRole::TreeItem,
-        "table" => SemanticRole::Table,
-        "row" => SemanticRole::Row,
-        "cell" => SemanticRole::Cell,
-        "gridcell" => SemanticRole::GridCell,
-        "columnheader" => SemanticRole::ColumnHeader,
-        "rowheader" => SemanticRole::RowHeader,
-        "slider" => SemanticRole::Slider,
-        "progressbar" => SemanticRole::ProgressBar,
-        "tablist" => SemanticRole::TabList,
-        "tab" => SemanticRole::Tab,
-        "tabpanel" => SemanticRole::TabPanel,
-        "grid" => SemanticRole::Grid,
-        "heading" => SemanticRole::Heading,
-        "label" => SemanticRole::Label,
-        _ => SemanticRole::Generic,
-    }
-}
-
 fn transformed_bounds(rect: [f32; 4], transform: Option<&Affine>) -> [f32; 4] {
     let Some(transform) = transform else {
         return rect;
@@ -462,7 +423,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
             role: if explicit_role.is_some() {
-                semantic_role(explicit_role.as_deref().unwrap_or_default())
+                SemanticRole::from_name(explicit_role.as_deref().unwrap_or_default())
+                    .unwrap_or(SemanticRole::Generic)
             } else {
                 widget_semantics.role.unwrap_or(SemanticRole::Generic)
             },
@@ -531,10 +493,10 @@ mod tests {
             ("treeitem", SemanticRole::TreeItem),
             ("grid", SemanticRole::Grid),
         ] {
-            assert_eq!(semantic_role(name), expected);
+            assert_eq!(SemanticRole::from_name(name), Some(expected));
         }
-        assert_eq!(semantic_role("unknown"), SemanticRole::Generic);
-        assert_eq!(semantic_role("alertdialog"), SemanticRole::Generic);
+        assert_eq!(SemanticRole::from_name("unknown"), None);
+        assert_eq!(SemanticRole::from_name("alertdialog"), None);
     }
 
     #[test]

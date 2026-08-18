@@ -1,6 +1,13 @@
 use super::*;
 
 #[test]
+fn native_semantic_locators_accept_every_published_role() {
+    for role in SemanticRole::ALL {
+        assert!(semantic_role_matches(role.as_str(), *role));
+    }
+}
+
+#[test]
 fn frame_wake_unifies_animation_and_deadline_scheduling() {
     let now = Instant::now();
     let future = now + std::time::Duration::from_secs(1);

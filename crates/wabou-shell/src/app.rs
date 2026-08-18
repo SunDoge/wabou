@@ -1367,38 +1367,7 @@ impl ExtensionContext<'_> {
 }
 
 fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
-    matches!(
-        (role, candidate),
-        ("button", SemanticRole::Button)
-            | ("textbox", SemanticRole::TextInput)
-            | ("link", SemanticRole::Link)
-            | ("dialog", SemanticRole::Dialog)
-            | ("alert", SemanticRole::Alert)
-            | ("status", SemanticRole::Status)
-            | ("checkbox", SemanticRole::CheckBox)
-            | ("radio", SemanticRole::RadioButton)
-            | ("switch", SemanticRole::Switch)
-            | ("combobox", SemanticRole::ComboBox)
-            | ("listbox", SemanticRole::ListBox)
-            | ("option", SemanticRole::Option)
-            | ("table", SemanticRole::Table)
-            | ("row", SemanticRole::Row)
-            | ("cell", SemanticRole::Cell)
-            | ("columnheader", SemanticRole::ColumnHeader)
-            | ("rowheader", SemanticRole::RowHeader)
-            | ("slider", SemanticRole::Slider)
-            | ("progressbar", SemanticRole::ProgressBar)
-            | ("heading", SemanticRole::Heading)
-            | ("label", SemanticRole::Label)
-            | ("group", SemanticRole::Group)
-            | ("img", SemanticRole::Image)
-            | ("radiogroup", SemanticRole::RadioGroup)
-            | ("tablist", SemanticRole::TabList)
-            | ("tab", SemanticRole::Tab)
-            | ("tabpanel", SemanticRole::TabPanel)
-            | ("grid", SemanticRole::Grid)
-            | ("gridcell", SemanticRole::GridCell)
-    )
+    SemanticRole::from_name(role) == Some(candidate)
 }
 
 /// Optional native integration hosted by Wabou's event loop.
