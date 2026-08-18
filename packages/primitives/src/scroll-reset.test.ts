@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { isServer } from "@wabou/solid-renderer";
 import { createRoot, createSignal, flush } from "solid-js";
-import { isServer } from "@solidjs/web";
 import { createScrollReset } from "./scroll-reset";
 
 describe("createScrollReset", () => {
