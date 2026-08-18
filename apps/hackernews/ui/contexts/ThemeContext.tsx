@@ -6,6 +6,7 @@ import {
   type Setter,
   useContext,
 } from "solid-js";
+import { View } from "@wabou/primitives";
 
 export type Theme = "light" | "dark";
 
@@ -79,7 +80,7 @@ export function ThemeProvider(props: { children: JSX.Element }): JSX.Element {
 
   return (
     <ThemeContext value={value}>
-      <div
+      <View
         class="w-full h-full"
         style={{
           "background-color": value.palette().background,
@@ -87,7 +88,7 @@ export function ThemeProvider(props: { children: JSX.Element }): JSX.Element {
         }}
       >
         {props.children}
-      </div>
+      </View>
     </ThemeContext>
   );
 }

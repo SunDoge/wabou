@@ -189,24 +189,10 @@ interface WabouIntrinsicElements {}
  * by an explicit component or registered as a custom native element.
  */
 interface WabouBuiltinIntrinsicElements {
-  article: WabouElementProps;
-  aside: WabouElementProps;
   button: WabouControlProps;
-  div: WabouElementProps;
-  footer: WabouElementProps;
-  h1: WabouElementProps;
-  header: WabouElementProps;
-  i: WabouElementProps;
   img: WabouImageProps;
   input: WabouInputProps;
-  label: WabouElementProps;
-  main: WabouElementProps;
-  nav: WabouElementProps;
-  ol: WabouElementProps;
-  p: WabouElementProps;
-  section: WabouElementProps;
-  span: WabouElementProps;
-  strong: WabouElementProps;
+  view: WabouElementProps;
   svg: WabouSvgProps;
   path: WabouSvgShapeProps;
   circle: WabouSvgShapeProps;
@@ -424,4 +410,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { spread as $, applyRef as A, insertNode as B, WabouScrollEvent as C, WabouWheelEvent as D, WabouSvgShapeProps as E, dispatchEvent as F, ref as G, memo as H, effect as I, removeNode as J, registerRoot as K, getMountRoot as L, createElement as M, createTextNode as N, Writer$1 as O, delegateEvents as P, setTransform2D as Q, getRequestEvent as R, WabouPositionedEvent as S, WabouSvgProps as T, mergeProps as U, isServer as V, mount as W, runSweep as X, render as Y, setProp as Z, WabouKeyEvent as _, Fragment as _t, HostCapabilities as a, Portal as at, WabouNodeEvent as b, jsxDEV as bt, WabouBuiltinIntrinsicElements as c, HostProvider as ct, WabouEventTarget as d, defaultHost as dt, writer as et, WabouExposedSemanticRole as f, useHost as ft, WabouIntrinsicElements as g, LayoutSnapshot as gt, WabouInputProps as h, LayoutRect as ht, Handle as i, useFps as it, createComponent$1 as j, acquireOverlayRoot as k, WabouControlProps as l, HostProviderProps as lt, WabouInputEvent as m, LayoutNodeMetrics as mt, DynamicProps as n, VirtualListProps as nt, NativeScrollbarStyle as o, PortalProps as ot, WabouImageProps as p, FrameStats as pt, releaseOverlayRoot as q, EVENT_CODE as r, createFps as rt, OP as s, Host as st, Dynamic as t, VirtualList as tt, WabouElementProps as u, LayoutTarget as ut, WabouNativeElements as v, JSX$1 as vt, WabouSemanticRole as w, WabouPointerEvent as x, jsxs as xt, WabouNativeTag as y, jsx as yt, insert as z };
-//# sourceMappingURL=index-bcZrp3OJ.d.mts.map
+//# sourceMappingURL=index-Wcel-2p9.d.mts.map

@@ -167,7 +167,7 @@ function VirtualList(props) {
 		virtualItems();
 		return virtualizer.getTotalSize();
 	});
-	var _el$ = createElement$1("div", { onScroll: (event) => {
+	var _el$ = createElement$1("view", { onScroll: (event) => {
 		lastOffset = event.scrollY ?? 0;
 		publishOffset?.(lastOffset, true);
 		if (scrollEndTimer !== void 0) clearTimeout(scrollEndTimer);
@@ -176,7 +176,7 @@ function VirtualList(props) {
 			publishOffset?.(lastOffset, false);
 		}, 150);
 	} });
-	var _el$2 = createElement$1("div");
+	var _el$2 = createElement$1("view");
 	insertNode$1(_el$, _el$2);
 	ref$1(() => {
 		return (node) => {
@@ -190,7 +190,7 @@ function VirtualList(props) {
 		},
 		keyed: false,
 		children: (virtualItem) => (() => {
-			var _el$3 = createElement$1("div");
+			var _el$3 = createElement$1("view");
 			insert$1(_el$3, createComponent$2(Show, {
 				get when() {
 					return virtualItem().index + 1;

@@ -80,7 +80,7 @@ function App() {
       class="w-full h-full flex flex-col bg-slate-950 text-slate-200"
       onKeyDown={shortcuts.bindings.onKeyDown}
     >
-      <div class="h-10 flex flex-none items-center gap-1 px-2 bg-slate-900">
+      <View class="h-10 flex flex-none items-center gap-1 px-2 bg-slate-900">
         <For each={tabs.tabs()}>
           {(tab) => {
             const hover = createHover();
@@ -157,8 +157,8 @@ function App() {
         >
           <Text>+</Text>
         </Button>
-      </div>
-      <div class="min-h-0 flex-1 p-3">
+      </View>
+      <View class="min-h-0 flex-1 p-3">
         <For each={tabs.tabs()}>
           {(tab) => (
             <Terminal
@@ -172,7 +172,7 @@ function App() {
             />
           )}
         </For>
-      </div>
+      </View>
     </View>
   );
 }

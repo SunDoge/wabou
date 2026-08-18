@@ -1,7 +1,7 @@
 // Wabou DevTools UI entry.
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
-import { Button, Popover, Text, TextInput } from "@wabou/primitives";
+import { Button, Popover, Text, TextInput, View } from "@wabou/primitives";
 import { mount, useHost } from "@wabou/core";
 import {
   createEffect,
@@ -199,11 +199,11 @@ function App() {
   onCleanup(() => clearTimeout(queryTimer));
 
   return (
-    <div class="w-full h-full flex flex-col overflow-hidden bg-slate-950 text-slate-200 font-sans">
-      <header class="flex-none h-14 px-3 flex items-center gap-3 border-b border-slate-700 bg-slate-900">
-        <strong class="text-base text-white whitespace-nowrap">
+    <View class="w-full h-full flex flex-col overflow-hidden bg-slate-950 text-slate-200 font-sans">
+      <View class="flex-none h-14 px-3 flex items-center gap-3 border-b border-slate-700 bg-slate-900">
+        <Text class="text-base text-white whitespace-nowrap">
           Wabou DevTools
-        </strong>
+        </Text>
         <TextInput
           class="flex-1 min-w-0 h-8 px-2 rounded border border-slate-600 bg-slate-950 text-sm text-slate-200"
           value={socket()}
@@ -287,41 +287,41 @@ function App() {
             Positioned from Wabou layout snapshots with Floating UI core.
           </Text>
         </Popover>
-        <span class="text-xs text-slate-400 whitespace-nowrap">
+        <Text class="text-xs text-slate-400 whitespace-nowrap">
           <Show when={status()} fallback="disconnected">
             {(current) => `pid ${current().pid} · r${current().revision}`}
           </Show>
-        </span>
-      </header>
+        </Text>
+      </View>
 
       <Show when={error()}>
-        <div class="flex-none px-3 py-2 bg-red-950 text-red-300 text-xs border-b border-red-800">
+        <View class="flex-none px-3 py-2 bg-red-950 text-red-300 text-xs border-b border-red-800">
           {error()} · last snapshot retained
-        </div>
+        </View>
       </Show>
 
       <Show when={connectedSocket()}>
         {(path) => (
-          <div class="flex-none px-3 py-1 bg-emerald-950 text-emerald-300 text-xs border-b border-emerald-800">
-            Connected to {path()}
-          </div>
+          <View class="flex-none px-3 py-1 bg-emerald-950 text-emerald-300 text-xs border-b border-emerald-800">
+            <Text>Connected to {path()}</Text>
+          </View>
         )}
       </Show>
 
-      <main class="flex-1 min-h-0 flex overflow-hidden">
-        <section class="w-80 flex-none min-h-0 flex flex-col border-r border-slate-700 bg-slate-900">
-          <div class="flex-none p-2 border-b border-slate-700">
+      <View class="flex-1 min-h-0 flex overflow-hidden">
+        <View class="w-80 flex-none min-h-0 flex flex-col border-r border-slate-700 bg-slate-900">
+          <View class="flex-none p-2 border-b border-slate-700">
             <TextInput
               class="w-full h-8 px-2 rounded border border-slate-600 bg-slate-950 text-sm text-slate-200"
               value={query()}
               placeholder="Search tag, text or class"
               onInput={(event) => setQuery(event.currentTarget.value)}
             />
-            <div class="mt-1 text-xs text-slate-500">
+            <View class="mt-1 text-xs text-slate-500">
               {nodes().length} nodes
-            </div>
-          </div>
-          <div class="flex-1 min-h-0 overflow-y-scroll">
+            </View>
+          </View>
+          <View class="flex-1 min-h-0 overflow-y-scroll">
             <For each={nodes()}>
               {(node) => (
                 <Button
@@ -338,32 +338,32 @@ function App() {
                   })}
                   onClick={() => void inspect(node.id)}
                 >
-                  <span class="w-12 flex-none text-xs text-slate-500">
+                  <Text class="w-12 flex-none text-xs text-slate-500">
                     #{node.id}
-                  </span>
-                  <span class="w-20 flex-none text-sm text-cyan-400">
+                  </Text>
+                  <Text class="w-20 flex-none text-sm text-cyan-400">
                     {node.tag}
-                  </span>
-                  <span class="flex-1 min-w-0 text-xs text-slate-300">
+                  </Text>
+                  <Text class="flex-1 min-w-0 text-xs text-slate-300">
                     {shortText(node)}
-                  </span>
+                  </Text>
                 </Button>
               )}
             </For>
-          </div>
-        </section>
+          </View>
+        </View>
 
-        <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-slate-950">
-          <div class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
+        <View class="flex-1 min-w-0 min-h-0 flex flex-col bg-slate-950">
+          <View class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
             <Show
               when={screenshot()}
               fallback={
-                <div class="text-sm text-slate-600">
-                  Capture a screenshot to inspect pixels
-                </div>
+                <View class="text-sm text-slate-600">
+                  <Text>Capture a screenshot to inspect pixels</Text>
+                </View>
               }
             >
-              <div class="relative w-full h-full">
+              <View class="relative w-full h-full">
                 <img
                   class="w-full h-full"
                   src={screenshot()}
@@ -371,25 +371,25 @@ function App() {
                 />
                 <Show when={selectedRect()}>
                   {(rect) => (
-                    <div
+                    <View
                       class="absolute border-2 border-red-500 pointer-events-none"
                       style={rect()}
                     />
                   )}
                 </Show>
-              </div>
+              </View>
             </Show>
-          </div>
+          </View>
 
-          <div class="h-52 flex-none border-t border-slate-700 bg-slate-900 flex flex-col">
-            <div class="flex-none px-3 py-2 text-xs font-semibold text-slate-400 border-b border-slate-700">
-              Protocol frames
-            </div>
-            <div class="flex-1 min-h-0 overflow-y-scroll px-2">
+          <View class="h-52 flex-none border-t border-slate-700 bg-slate-900 flex flex-col">
+            <View class="flex-none px-3 py-2 text-xs font-semibold text-slate-400 border-b border-slate-700">
+              <Text>Protocol frames</Text>
+            </View>
+            <View class="flex-1 min-h-0 overflow-y-scroll px-2">
               <For each={frames()} keyed={false}>
                 {(frame) => (
-                  <div class="h-8 flex items-center gap-3 border-b border-slate-800 text-xs font-mono">
-                    <span
+                  <View class="h-8 flex items-center gap-3 border-b border-slate-800 text-xs font-mono">
+                    <Text
                       class="w-20"
                       style={{
                         color:
@@ -401,35 +401,35 @@ function App() {
                       {frame().direction === "hostToJs"
                         ? "Host → JS"
                         : "JS → Host"}
-                    </span>
-                    <span class="w-20 text-slate-500">
+                    </Text>
+                    <Text class="w-20 text-slate-500">
                       seq {frame().sequence}
-                    </span>
-                    <span class="w-20">{frame().recordCount} records</span>
-                    <span class="text-slate-500">{frame().byteLen} bytes</span>
-                  </div>
+                    </Text>
+                    <Text class="w-20">{frame().recordCount} records</Text>
+                    <Text class="text-slate-500">{frame().byteLen} bytes</Text>
+                  </View>
                 )}
               </For>
-            </div>
-          </div>
-        </section>
+            </View>
+          </View>
+        </View>
 
-        <section class="w-96 flex-none min-h-0 overflow-y-scroll border-l border-slate-700 bg-slate-900 p-3">
+        <View class="w-96 flex-none min-h-0 overflow-y-scroll border-l border-slate-700 bg-slate-900 p-3">
           <Show
             when={selected()}
-            fallback={<div class="text-sm text-slate-500">Select a node</div>}
+            fallback={<Text class="text-sm text-slate-500">Select a node</Text>}
           >
             {(node) => (
               <>
-                <div class="flex items-center gap-2 mb-3">
-                  <strong class="text-lg text-cyan-400">{node().tag}</strong>
-                  <span class="text-sm text-slate-500">#{node().id}</span>
+                <View class="flex items-center gap-2 mb-3">
+                  <Text class="text-lg text-cyan-400">{node().tag}</Text>
+                  <Text class="text-sm text-slate-500">#{node().id}</Text>
                   <Show when={node().widget}>
-                    <span class="px-2 py-1 rounded bg-purple-900 text-purple-300 text-xs">
+                    <Text class="px-2 py-1 rounded bg-purple-900 text-purple-300 text-xs">
                       {node().widget}
-                    </span>
+                    </Text>
                   </Show>
-                </div>
+                </View>
                 <Panel title="Layout">
                   <Row
                     label="border box"
@@ -445,15 +445,15 @@ function App() {
                   />
                 </Panel>
                 <Panel title="Classes">
-                  <div class="flex flex-wrap gap-1">
+                  <View class="flex flex-wrap gap-1">
                     <For each={node().classes}>
                       {(value) => (
-                        <span class="px-2 py-1 rounded bg-slate-800 text-xs text-amber-300">
+                        <Text class="px-2 py-1 rounded bg-slate-800 text-xs text-amber-300">
                           .{value}
-                        </span>
+                        </Text>
                       )}
                     </For>
-                  </div>
+                  </View>
                 </Panel>
                 <Panel title="Clip Coordinates">
                   <Row
@@ -523,29 +523,29 @@ function App() {
               </>
             )}
           </Show>
-        </section>
-      </main>
-    </div>
+        </View>
+      </View>
+    </View>
   );
 }
 
 function Panel(props: { title: string; children?: JSX.Element }) {
   return (
-    <section class="mb-4 border border-slate-700 rounded overflow-hidden">
-      <div class="px-2 py-2 bg-slate-800 text-xs font-semibold text-slate-300">
-        {props.title}
-      </div>
-      <div class="p-2">{props.children}</div>
-    </section>
+    <View class="mb-4 border border-slate-700 rounded overflow-hidden">
+      <View class="px-2 py-2 bg-slate-800 text-xs font-semibold text-slate-300">
+        <Text>{props.title}</Text>
+      </View>
+      <View class="p-2">{props.children}</View>
+    </View>
   );
 }
 
 function Row(props: { label: string; value: string }) {
   return (
-    <div class="flex gap-2 py-1 border-b border-slate-800 text-xs">
-      <span class="w-24 flex-none text-slate-500">{props.label}</span>
-      <span class="flex-1 min-w-0 text-slate-200">{props.value}</span>
-    </div>
+    <View class="flex gap-2 py-1 border-b border-slate-800 text-xs">
+      <Text class="w-24 flex-none text-slate-500">{props.label}</Text>
+      <Text class="flex-1 min-w-0 text-slate-200">{props.value}</Text>
+    </View>
   );
 }
 

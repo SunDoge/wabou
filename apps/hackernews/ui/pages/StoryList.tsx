@@ -1,6 +1,13 @@
 // Story list page.
 
-import { Button, createHover, Icon, Text, TextInput } from "@wabou/primitives";
+import {
+  Button,
+  createHover,
+  Icon,
+  Text,
+  TextInput,
+  View,
+} from "@wabou/primitives";
 import { useNavigate } from "@wabou/router";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
@@ -47,25 +54,25 @@ export function StoryList(): JSX.Element {
   };
 
   return (
-    <section class="h-full min-h-0 flex flex-col">
-      <header
+    <View class="h-full min-h-0 flex flex-col">
+      <View
         class="h-16 flex-none px-6 flex items-center gap-5 border-b"
         style={{
           "background-color": palette().raised,
           "border-color": palette().border,
         }}
       >
-        <div class="min-w-0 flex-1">
-          <h1 class="m-0 text-xl font-semibold leading-tight">
+        <View class="min-w-0 flex-1">
+          <Text class="m-0 text-xl font-semibold leading-tight">
             {viewLabels[activeView()]}
-          </h1>
-          <p class="m-0 text-xs" style={{ color: palette().textMuted }}>
+          </Text>
+          <Text class="m-0 text-xs" style={{ color: palette().textMuted }}>
             {activeView() === "saved"
               ? "Stories saved during this session"
               : "Live from the Hacker News API"}
-          </p>
-        </div>
-        <label
+          </Text>
+        </View>
+        <View
           class="w-60 h-9 px-3 flex items-center gap-2 border rounded-md"
           style={{
             "background-color": palette().background,
@@ -85,23 +92,23 @@ export function StoryList(): JSX.Element {
           <Show when={query()}>
             <Icon source={x} size={14} onClick={() => setQuery("")} />
           </Show>
-        </label>
-      </header>
+        </View>
+      </View>
 
-      <div class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-2">
+      <View class="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-2">
         <Show
           when={!loading() || activeView() === "saved"}
           fallback={<LoadingList />}
         >
           <Show when={!loadError()} fallback={<LoadError />}>
             <Show when={visibleStories().length > 0} fallback={<EmptyState />}>
-              <ol class="m-0 p-0">
+              <View class="m-0 p-0">
                 <For each={visibleStories()}>
                   {(story, index) => {
                     const { hovered, bindings } = createHover();
                     return (
                       // biome-ignore lint/a11y/useSemanticElements: wabou currently mislays out flex button elements.
-                      <div
+                      <View
                         {...bindings}
                         class="min-h-20 px-3 py-3 flex items-center gap-3 border-b"
                         style={{
@@ -122,57 +129,57 @@ export function StoryList(): JSX.Element {
                         role="button"
                         tabIndex={0}
                       >
-                        <span
+                        <Text
                           class="w-7 flex-none text-right text-xs"
                           style={{ color: palette().textMuted }}
                         >
                           {index() + 1}
-                        </span>
-                        <div class="flex-1 min-w-0">
-                          <div class="leading-tight">
-                            <strong class="text-sm font-medium">
+                        </Text>
+                        <View class="flex-1 min-w-0">
+                          <View class="leading-tight">
+                            <Text class="text-sm font-medium">
                               {story.title}
-                            </strong>
-                          </div>
-                          <div
+                            </Text>
+                          </View>
+                          <View
                             class="mt-2 flex items-center gap-2 text-xs overflow-hidden whitespace-nowrap"
                             style={{ color: palette().textMuted }}
                           >
                             <Show when={story.url}>
-                              <span
+                              <Text
                                 class="max-w-44 overflow-hidden whitespace-nowrap"
                                 style={{ color: palette().textSecondary }}
                               >
                                 {storyHost(story.url)}
-                              </span>
-                              <span>·</span>
+                              </Text>
+                              <Text>·</Text>
                             </Show>
                             <Text>{story.score} points</Text>
-                            <span>·</span>
+                            <Text>·</Text>
                             <Text>{story.by}</Text>
-                            <span>·</span>
+                            <Text>·</Text>
                             <Text>{relativeTime(story.time)}</Text>
-                          </div>
-                        </div>
-                        <span
+                          </View>
+                        </View>
+                        <View
                           class="w-12 flex-none flex items-center justify-end gap-1 text-xs"
                           style={{ color: palette().textMuted }}
                         >
                           <Icon source={messageSquare} size={13} />
-                          {story.descendants ?? 0}
-                        </span>
+                          <Text>{story.descendants ?? 0}</Text>
+                        </View>
                         <BookmarkAction story={story} />
-                      </div>
+                      </View>
                     );
                   }}
                 </For>
-              </ol>
+              </View>
             </Show>
           </Show>
         </Show>
-      </div>
+      </View>
 
-      <footer
+      <View
         class="h-9 flex-none px-6 flex items-center border-t text-xs"
         style={{
           "background-color": palette().raised,
@@ -181,8 +188,8 @@ export function StoryList(): JSX.Element {
         }}
       >
         <Text>{visibleStories().length} stories</Text>
-      </footer>
-    </section>
+      </View>
+    </View>
   );
 }
 
@@ -220,14 +227,14 @@ function BookmarkAction(props: { story: Story }): JSX.Element {
 function LoadError(): JSX.Element {
   const { palette } = useTheme();
   return (
-    <div
+    <View
       class="min-h-80 flex flex-col items-center justify-center gap-3 text-center"
       style={{ color: palette().textMuted }}
     >
-      <strong style={{ color: palette().text }}>Could not load stories</strong>
-      <span class="text-sm" style={{ color: palette().danger }}>
+      <Text style={{ color: palette().text }}>Could not load stories</Text>
+      <Text class="text-sm" style={{ color: palette().danger }}>
         {loadError()}
-      </span>
+      </Text>
       <Button
         unstyled
         variant="ghost"
@@ -241,26 +248,26 @@ function LoadError(): JSX.Element {
       >
         Try again
       </Button>
-    </div>
+    </View>
   );
 }
 
 function EmptyState(): JSX.Element {
   const { palette } = useTheme();
   return (
-    <div
+    <View
       class="min-h-80 flex flex-col items-center justify-center gap-2 text-center"
       style={{ color: palette().textMuted }}
     >
       <Icon source={bookmark} size={22} />
-      <strong style={{ color: palette().text }}>
+      <Text style={{ color: palette().text }}>
         {activeView() === "saved" ? "No saved stories" : "No matching stories"}
-      </strong>
-      <span class="text-sm">
+      </Text>
+      <Text class="text-sm">
         {activeView() === "saved"
           ? "Use the bookmark icon to keep a story here."
           : "Try another search."}
-      </span>
-    </div>
+      </Text>
+    </View>
   );
 }

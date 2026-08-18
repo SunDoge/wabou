@@ -8,7 +8,7 @@
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
 import { type AnimationControls, animate } from "@wabou/animation";
-import { Button, Text, translate2d } from "@wabou/primitives";
+import { Button, Text, translate2d, View } from "@wabou/primitives";
 import {
   type Handle,
   mount,
@@ -170,8 +170,8 @@ function App() {
   });
 
   return (
-    <div class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
-      <div class="flex-none p-2 flex items-center gap-2 border-b border-slate-700">
+    <View class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
+      <View class="flex-none p-2 flex items-center gap-2 border-b border-slate-700">
         <Text class="text-sm font-semibold mr-1">emoji stress</Text>
         <For each={PRESETS}>
           {(p) => (
@@ -221,9 +221,9 @@ function App() {
         <Text class="ml-auto text-xs font-mono text-slate-400">
           {n().toLocaleString()}n · {driver()} · {fps()} fps
         </Text>
-      </div>
+      </View>
 
-      <div class="flex-none px-2 py-1 border-b border-slate-800 bg-slate-900 text-xs font-mono text-slate-300">
+      <View class="flex-none px-2 py-1 border-b border-slate-800 bg-slate-900 text-xs font-mono text-slate-300">
         <Show
           when={stats()}
           fallback={
@@ -245,12 +245,12 @@ function App() {
             </Text>
           )}
         </Show>
-      </div>
+      </View>
 
-      <div class="flex-1 min-h-0 overflow-hidden relative">
+      <View class="flex-1 min-h-0 overflow-hidden relative">
         <For each={bodies()} keyed={false}>
           {(body, index) => (
-            <div
+            <View
               class="text-[28px] pointer-events-none"
               ref={(handle) => {
                 handles[index] = handle as unknown as Handle;
@@ -263,11 +263,11 @@ function App() {
               }}
             >
               {body().char}
-            </div>
+            </View>
           )}
         </For>
-      </div>
-    </div>
+      </View>
+    </View>
   );
 }
 

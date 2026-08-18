@@ -85,7 +85,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   });
 
   return (
-    <div
+    <view
       role={props.role}
       aria-label={props.accessibilityLabel}
       ref={(node) => {
@@ -114,7 +114,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
         }, 150);
       }}
     >
-      <div
+      <view
         style={{
           position: "relative",
           height: `${totalSize()}px`,
@@ -123,7 +123,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
       >
         <For each={virtualItems()} keyed={false}>
           {(virtualItem) => (
-            <div
+            <view
               style={{
                 position: "absolute",
                 top: `${virtualItem().start}px`,
@@ -137,10 +137,10 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
                   return props.children(props.items()[index]!, index);
                 }}
               </Show>
-            </div>
+            </view>
           )}
         </For>
-      </div>
-    </div>
+      </view>
+    </view>
   );
 }

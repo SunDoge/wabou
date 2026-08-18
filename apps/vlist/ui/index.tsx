@@ -6,6 +6,7 @@
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
 import { createFps, mount, VirtualList } from "@wabou/core";
+import { Text, View } from "@wabou/primitives";
 
 const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
   const tag = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta"][
@@ -17,14 +18,14 @@ const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
 function App() {
   const fps = createFps();
   return (
-    <div class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
-      <div class="flex-none px-4 py-2 flex items-center justify-between border-b border-slate-700">
-        <span class="text-base font-semibold">Virtual list — 10,000 rows</span>
-        <span class="text-xs font-mono text-slate-400">
+    <View class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
+      <View class="flex-none px-4 py-2 flex items-center justify-between border-b border-slate-700">
+        <Text class="text-base font-semibold">Virtual list — 10,000 rows</Text>
+        <Text class="text-xs font-mono text-slate-400">
           {ROWS.length} items · {fps()} fps
-        </span>
-      </div>
-      <div class="flex-1 min-h-0">
+        </Text>
+      </View>
+      <View class="flex-1 min-h-0">
         <VirtualList
           items={() => ROWS}
           itemHeight={32}
@@ -34,24 +35,24 @@ function App() {
           accessibilityLabel="Virtual rows"
         >
           {(text, i) => (
-            <div
+            <View
               role="option"
               aria-label={text}
               class={`flex items-center h-full px-4 ${
                 i % 2 ? "bg-slate-900" : "bg-slate-800/60"
               }`}
             >
-              <span class="w-20 flex-none text-slate-500 font-mono text-xs">
+              <Text class="w-20 flex-none text-slate-500 font-mono text-xs">
                 {String(i).padStart(5, "0")}
-              </span>
-              <span class="overflow-hidden whitespace-nowrap text-sm">
+              </Text>
+              <Text class="overflow-hidden whitespace-nowrap text-sm">
                 {text}
-              </span>
-            </div>
+              </Text>
+            </View>
           )}
         </VirtualList>
-      </div>
-    </div>
+      </View>
+    </View>
   );
 }
 

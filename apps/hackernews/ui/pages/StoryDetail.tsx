@@ -1,6 +1,6 @@
 // Story detail page.
 
-import { Button, Icon, Link, Text } from "@wabou/primitives";
+import { Button, Icon, Link, Text, View } from "@wabou/primitives";
 import { useParams, useRouter } from "@wabou/router";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
@@ -28,11 +28,11 @@ export function StoryDetail(): JSX.Element {
   const goBack = () => router.history.back();
 
   return (
-    <section
+    <View
       class="h-full min-h-0 flex flex-col"
       style={{ "background-color": palette().background }}
     >
-      <header
+      <View
         class="h-14 flex-none px-6 flex items-center border-b"
         style={{ "border-color": palette().border }}
       >
@@ -51,36 +51,36 @@ export function StoryDetail(): JSX.Element {
           <Icon source={arrowLeft} size={14} />
           Back
         </Button>
-      </header>
+      </View>
 
       <Show when={story()} fallback={<MissingStory />}>
         {(current) => (
-          <article class="flex-1 min-h-0 overflow-y-auto px-10 py-9">
-            <div class="max-w-3xl mx-auto">
-              <p
+          <View class="flex-1 min-h-0 overflow-y-auto px-10 py-9">
+            <View class="max-w-3xl mx-auto">
+              <Text
                 class="m-0 mb-3 text-xs font-semibold"
                 style={{ color: palette().accent }}
               >
                 {storyHost(current().url)}
-              </p>
-              <h1
+              </Text>
+              <Text
                 class="m-0 text-3xl font-semibold leading-tight"
                 style={{ color: palette().text }}
               >
                 {current().title}
-              </h1>
-              <div
+              </Text>
+              <View
                 class="mt-5 flex gap-3 text-sm"
                 style={{ color: palette().textMuted }}
               >
                 <Text>{current().score} points</Text>
-                <span>·</span>
+                <Text>·</Text>
                 <Text>{current().by}</Text>
-                <span>·</span>
+                <Text>·</Text>
                 <Text>{relativeTime(current().time)}</Text>
-              </div>
+              </View>
 
-              <div class="mt-9 flex gap-3">
+              <View class="mt-9 flex gap-3">
                 <Show when={current().url}>
                   <Link
                     class="h-9 px-4 flex flex-none items-center gap-2 rounded-md text-sm font-medium whitespace-nowrap"
@@ -93,7 +93,7 @@ export function StoryDetail(): JSX.Element {
                     Open article <Icon source={externalLink} size={14} />
                   </Link>
                 </Show>
-                <span
+                <View
                   class="h-9 px-4 flex flex-none items-center rounded-md text-sm whitespace-nowrap"
                   style={{
                     "background-color": palette().surface,
@@ -101,7 +101,7 @@ export function StoryDetail(): JSX.Element {
                   }}
                 >
                   <Text>{current().descendants ?? 0} comments</Text>
-                </span>
+                </View>
                 <Button
                   unstyled
                   variant="ghost"
@@ -124,38 +124,38 @@ export function StoryDetail(): JSX.Element {
                     size={14}
                     fill={isSaved(current().id) ? "currentColor" : "none"}
                   />
-                  <span class="text-sm">
+                  <Text class="text-sm">
                     {isSaved(current().id) ? "Saved" : "Save"}
-                  </span>
+                  </Text>
                 </Button>
-              </div>
+              </View>
 
-              <div
+              <View
                 class="mt-12 pt-5 border-t text-xs"
                 style={{
                   "border-color": palette().border,
                   color: palette().textMuted,
                 }}
               >
-                Deterministic local fixture rendered with Solid
-              </div>
-            </div>
-          </article>
+                <Text>Deterministic local fixture rendered with Solid</Text>
+              </View>
+            </View>
+          </View>
         )}
       </Show>
-    </section>
+    </View>
   );
 }
 
 function MissingStory(): JSX.Element {
   const { palette } = useTheme();
   return (
-    <div
+    <View
       class="flex-1 flex flex-col items-center justify-center gap-2"
       style={{ color: palette().textMuted }}
     >
-      <strong style={{ color: palette().text }}>Story not found</strong>
-      <span class="text-sm">Return to the feed and choose another story.</span>
-    </div>
+      <Text style={{ color: palette().text }}>Story not found</Text>
+      <Text class="text-sm">Return to the feed and choose another story.</Text>
+    </View>
   );
 }

@@ -42,7 +42,7 @@ export function Sidebar(): JSX.Element {
   };
 
   return (
-    <aside
+    <View
       class="flex-none flex flex-col border-r"
       style={{
         width: "26%",
@@ -52,31 +52,31 @@ export function Sidebar(): JSX.Element {
         "border-color": palette().border,
       }}
     >
-      <div
+      <View
         class="h-16 px-5 flex items-center gap-3 border-b"
         style={{ "border-color": palette().borderSoft }}
       >
-        <div
+        <View
           class="w-8 h-8 rounded-sm flex items-center justify-center font-bold"
           style={{ "background-color": palette().accent, color: "#ffffff" }}
         >
-          Y
-        </div>
-        <strong
+          <Text>Y</Text>
+        </View>
+        <Text
           class="text-sm whitespace-nowrap"
           style={{ color: palette().text }}
         >
           Hacker News
-        </strong>
-      </div>
+        </Text>
+      </View>
 
-      <nav class="flex-1 px-3 py-4" aria-label="Story feeds">
-        <p
+      <View class="flex-1 px-3 py-4" aria-label="Story feeds">
+        <Text
           class="m-0 px-2 pb-2 text-xs font-semibold"
           style={{ color: palette().textMuted }}
         >
           Feeds
-        </p>
+        </Text>
         <SidebarNavItem
           active={activeView() === "top"}
           count={activeView() === "top" ? stories().length : undefined}
@@ -97,12 +97,12 @@ export function Sidebar(): JSX.Element {
           onActivate={() => openView("best")}
         />
 
-        <p
+        <Text
           class="m-0 mt-5 px-2 pb-2 text-xs font-semibold"
           style={{ color: palette().textMuted }}
         >
           Library
-        </p>
+        </Text>
         <SidebarNavItem
           active={activeView() === "saved"}
           count={savedStories().length || undefined}
@@ -110,9 +110,9 @@ export function Sidebar(): JSX.Element {
           label="Saved"
           onActivate={() => openView("saved")}
         />
-      </nav>
+      </View>
 
-      <div
+      <View
         class="px-3 py-3 border-t"
         style={{ "border-color": palette().border }}
       >
@@ -127,8 +127,8 @@ export function Sidebar(): JSX.Element {
           label={loading() ? "Refreshing..." : "Refresh"}
           onActivate={() => void loadStories(undefined, true)}
         />
-      </div>
-    </aside>
+      </View>
+    </View>
   );
 }
 
@@ -209,12 +209,12 @@ function SidebarItemContent(props: SidebarItemProps): JSX.Element {
   const { palette } = useTheme();
   return (
     <>
-      <span
+      <View
         class="pointer-events-none w-5 h-5 flex-none flex items-center justify-center"
         style={{ color: props.active ? palette().accent : palette().textMuted }}
       >
         {props.icon}
-      </span>
+      </View>
       <Text class="pointer-events-none flex-none whitespace-nowrap">
         {props.label}
       </Text>

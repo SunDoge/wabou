@@ -52,24 +52,10 @@ export interface WabouIntrinsicElements {}
  * by an explicit component or registered as a custom native element.
  */
 export interface WabouBuiltinIntrinsicElements {
-  article: WabouElementProps;
-  aside: WabouElementProps;
   button: WabouControlProps;
-  div: WabouElementProps;
-  footer: WabouElementProps;
-  h1: WabouElementProps;
-  header: WabouElementProps;
-  i: WabouElementProps;
   img: WabouImageProps;
   input: WabouInputProps;
-  label: WabouElementProps;
-  main: WabouElementProps;
-  nav: WabouElementProps;
-  ol: WabouElementProps;
-  p: WabouElementProps;
-  section: WabouElementProps;
-  span: WabouElementProps;
-  strong: WabouElementProps;
+  view: WabouElementProps;
   svg: WabouSvgProps;
   path: WabouSvgShapeProps;
   circle: WabouSvgShapeProps;
@@ -143,13 +129,7 @@ export interface WabouElementProps {
   "aria-controls"?: string;
   "aria-activedescendant"?: string;
   "aria-checked"?: boolean | "mixed";
-  "aria-current"?:
-    | boolean
-    | "date"
-    | "location"
-    | "page"
-    | "step"
-    | "time";
+  "aria-current"?: boolean | "date" | "location" | "page" | "step" | "time";
   "aria-selected"?: boolean;
   "aria-pressed"?: boolean | "mixed";
   "aria-valuemin"?: number;
