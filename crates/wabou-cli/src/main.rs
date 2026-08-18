@@ -4,19 +4,12 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::fs::OpenOptions;
-use std::net::{TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
-
-#[cfg(windows)]
-use process_wrap::std::JobObject;
-#[cfg(unix)]
-use process_wrap::std::ProcessGroup;
-use process_wrap::std::{ChildWrapper, CommandWrap};
 
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
 use fs4::fs_std::FileExt as _;
@@ -37,6 +30,7 @@ mod behavior_test;
 mod config;
 mod doctor;
 mod packaging;
+mod process;
 mod project;
 mod render_metrics;
 mod scaffold;
@@ -51,6 +45,9 @@ use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
     BuildProfile, PackageConfig, PackageFormat, bundle_path, configured_source_map,
     distribution_root, load_package_config, profile_application_dir, profile_resource_dir,
+};
+use process::{
+    ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
 };
 use project::{App, ensure_workspace_package_exports, find_workspace, load_app};
 #[cfg(test)]
@@ -880,42 +877,6 @@ fn behavior_host_executable(messages: &[u8], binary: &str) -> Result<Option<Path
     Ok(executable)
 }
 
-fn configure_test_backend(command: &mut Command, native: bool) {
-    if native {
-        // `--native` must win over an inherited shell/CI variable.
-        command.env_remove("WABOU_TEST_HEADLESS");
-    } else {
-        command.env("WABOU_TEST_HEADLESS", "1");
-    }
-}
-
-fn wait_for_managed_child(
-    command: Command,
-    timeout: Duration,
-    stopped: &AtomicBool,
-) -> Result<ExitStatus> {
-    let mut child = ManagedChild::spawn(command)?;
-    let deadline = Instant::now() + timeout;
-    loop {
-        if let Some(status) = child.child.try_wait()? {
-            return Ok(status);
-        }
-        if stopped.load(Ordering::Acquire) {
-            child.terminate();
-            return Err("Wabou behavior test interrupted".into());
-        }
-        if Instant::now() >= deadline {
-            child.terminate();
-            return Err(format!(
-                "Wabou behavior test host exceeded its final {}s watchdog",
-                timeout.as_secs()
-            )
-            .into());
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-}
-
 fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
     let manifest = manifest(app);
     let mode = match mode {
@@ -1334,86 +1295,6 @@ fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> 
     })?;
     println!("[wabou] packaged {}", destination.display());
     Ok(())
-}
-
-fn wait_for_vite(url: &str, child: &mut dyn ChildWrapper) -> Result<()> {
-    let authority = url.trim_start_matches("http://");
-    let address = authority
-        .to_socket_addrs()?
-        .next()
-        .ok_or("Vite address did not resolve")?;
-    let deadline = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < deadline {
-        if let Some(status) = child.try_wait()? {
-            return Err(format!("Vite exited before startup: {status}").into());
-        }
-        if TcpStream::connect_timeout(&address, Duration::from_millis(100)).is_ok() {
-            return Ok(());
-        }
-        thread::sleep(Duration::from_millis(50));
-    }
-    Err("timed out waiting for Vite".into())
-}
-
-fn supervise(
-    host: &mut ManagedChild,
-    vite: &mut ManagedChild,
-    inspector: Option<&mut ManagedChild>,
-) -> Result<()> {
-    let stopped = Arc::new(AtomicBool::new(false));
-    let signal = stopped.clone();
-    ctrlc::set_handler(move || signal.store(true, Ordering::Release))?;
-    let mut inspector = inspector;
-    let result = loop {
-        if stopped.load(Ordering::Acquire) {
-            break Ok(());
-        }
-        if let Some(status) = host.child.try_wait()? {
-            break ensure(status, "Rust host");
-        }
-        if let Some(status) = vite.child.try_wait()? {
-            break ensure(status, "Vite dev server");
-        }
-        if let Some(child) = inspector.as_mut()
-            && let Some(status) = child.child.try_wait()?
-        {
-            eprintln!("[wabou] DevTools exited: {status}");
-            inspector = None;
-        }
-        thread::sleep(Duration::from_millis(50));
-    };
-    host.terminate();
-    vite.terminate();
-    if let Some(child) = inspector {
-        child.terminate();
-    }
-    result
-}
-
-struct ManagedChild {
-    child: Box<dyn ChildWrapper>,
-}
-
-impl ManagedChild {
-    fn spawn(command: Command) -> std::io::Result<Self> {
-        let mut command = CommandWrap::from(command);
-        #[cfg(unix)]
-        command.wrap(ProcessGroup::leader());
-        #[cfg(windows)]
-        command.wrap(JobObject);
-        command.spawn().map(|child| Self { child })
-    }
-
-    fn terminate(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-impl Drop for ManagedChild {
-    fn drop(&mut self) {
-        self.terminate();
-    }
 }
 
 fn ensure(status: ExitStatus, label: &str) -> Result<()> {
