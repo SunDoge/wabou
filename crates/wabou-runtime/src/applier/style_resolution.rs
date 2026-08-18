@@ -139,44 +139,20 @@ impl Applier {
             .unwrap_or(taffy::Display::DEFAULT);
         let is_svg = tag.as_deref() == Some("svg");
         let replaced = is_svg || self.widget_manager.widgets.contains_key(&node);
-        let has_listeners = self
-            .node_store
-            .node_to_solid
-            .get(&node)
-            .and_then(|id| self.input.listeners.get(id))
-            .is_some_and(|s| !s.is_empty());
-        let independent_box = self.node_has_independent_box(node);
+        let declared_attribute = |wanted: &str| {
+            decl.and_then(|declared| {
+                declared.attrs.iter().find_map(|(name, value)| {
+                    (atoms.resolve(*name) == Some(wanted)).then(|| value.clone())
+                })
+            })
+        };
         NodeFacts {
-            tag,
-            text,
+            text_container: declared_attribute("textFlow").as_deref() == Some("container"),
+            text: tag.is_none().then_some(text).flatten(),
             display,
             display_explicit: decl.is_some_and(|d| d.display_explicit),
             replaced,
-            has_listeners,
-            independent_box,
         }
-    }
-
-    /// Principal-box signals: background, border, padding, margin, explicit size.
-    /// Inline margin/padding is not modeled — any non-zero box edge keeps the node.
-    pub(super) fn node_has_independent_box(&self, node: NodeId) -> bool {
-        if let Ok(style) = self.node_store.tree.style(node)
-            && (rect_has_nonzero_lp(&style.padding)
-                || rect_has_nonzero_lpa(&style.margin)
-                || rect_has_nonzero_lp(&style.border)
-                || size_is_explicit(&style.size))
-        {
-            return true;
-        }
-        if let Some(paint) = self.node_store.tree.get_node_context(node)
-            && (paint.background.is_some()
-                || paint.border.is_some()
-                || paint.border_radius > 0.0
-                || !paint.shadows.is_empty())
-        {
-            return true;
-        }
-        false
     }
 
     /// Project the logical tree into Taffy layout boxes via
@@ -743,7 +719,10 @@ impl Applier {
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
             let tag_name = decl.tag.and_then(|tag| atoms.resolve(tag));
-            if tag_name.is_some_and(NodeFacts::is_box_tag) {
+            let layout_default = decl.attrs.iter().find_map(|(name, value)| {
+                (atoms.resolve(*name) == Some("layoutDefault")).then(|| value.as_ref())
+            });
+            if layout_default == Some("block") {
                 layout.display = taffy::Display::Block;
             }
             // Wabou's explicit Text primitive is a single-line layout leaf by

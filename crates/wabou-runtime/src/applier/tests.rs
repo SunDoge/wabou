@@ -1,6 +1,15 @@
 use super::effect_bridge::decode_effect_payload;
 use super::*;
 
+fn renderer_attrs(applier: &Applier, text_container: bool) -> Vec<(Atom, &'static str)> {
+    let mut atoms = applier.atoms.borrow_mut();
+    let mut attrs = vec![(atoms.intern("layoutDefault"), "block")];
+    if text_container {
+        attrs.push((atoms.intern("textFlow"), "container"));
+    }
+    attrs
+}
+
 #[test]
 fn native_image_source_requires_explicit_network_raster_memory_semantics() {
     let valid = r#"{"kind":"network","url":"https://example.test/icon.png","format":"raster","cache":"memory"}"#;

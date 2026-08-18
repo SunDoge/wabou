@@ -315,10 +315,12 @@ describe("host primitives", () => {
   });
 
   test("authors primitive semantics in JavaScript", () => {
-    const roles: string[] = [];
+    const semantics: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     writer.setAttribute = (_id, name, value) => {
-      if (name === "role") roles.push(value);
+      if (name === "role" || name === "textFlow") {
+        semantics.push([name, value]);
+      }
     };
     try {
       Text({});
@@ -331,18 +333,19 @@ describe("host primitives", () => {
     } finally {
       writer.setAttribute = setAttribute;
     }
-    expect(roles).toEqual(["label", "img", "img"]);
+    expect(semantics).toEqual([
+      ["role", "label"],
+      ["textFlow", "container"],
+      ["role", "img"],
+      ["role", "img"],
+    ]);
   });
 
   test("authors native editor focus policy in JavaScript", () => {
     const attributes: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     writer.setAttribute = (_id, name, value) => {
-      if (
-        name === "role" ||
-        name === "tabIndex" ||
-        name === "aria-disabled"
-      ) {
+      if (name === "role" || name === "tabIndex" || name === "aria-disabled") {
         attributes.push([name, value]);
       }
     };

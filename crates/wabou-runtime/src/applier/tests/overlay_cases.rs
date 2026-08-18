@@ -18,7 +18,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         applier.apply_op(&Op::CreateElement {
             id,
             tag: div,
-            attrs: Vec::new(),
+            attrs: renderer_attrs(&applier, id == 3),
         });
         applier.apply_op(&Op::SetStyle {
             id,

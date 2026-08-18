@@ -174,7 +174,10 @@ export function View(props: ViewProps): JSX.Element {
  * participate in the parent layout as one item.
  */
 export function Text(props: TextProps): JSX.Element {
-  return semanticPrimitive("text", "label", props);
+  const node = createElement("text");
+  spread(node, props, false);
+  spread(node, { role: props.role ?? "label", textFlow: "container" }, false);
+  return node as unknown as JSX.Element;
 }
 
 /** A static SVG asset rendered through the native usvg/Vello pipeline. */

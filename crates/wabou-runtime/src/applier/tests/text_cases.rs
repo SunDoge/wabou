@@ -241,7 +241,7 @@ fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: div,
-        attrs: vec![],
+        attrs: renderer_attrs(&applier, true),
     });
     applier.apply_op(&Op::CreateText {
         id: 3,
@@ -304,7 +304,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: div,
-        attrs: vec![],
+        attrs: renderer_attrs(&applier, true),
     });
     applier.apply_op(&Op::CreateText {
         id: 3,
@@ -565,7 +565,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
         applier.apply_op(&Op::CreateElement {
             id: host,
             tag: div,
-            attrs: vec![],
+            attrs: renderer_attrs(&applier, true),
         });
         applier.apply_op(&Op::SetStyle {
             id: host,
@@ -762,7 +762,7 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
         applier.apply_op(&Op::CreateElement {
             id: host,
             tag: div,
-            attrs: vec![],
+            attrs: renderer_attrs(&applier, true),
         });
         applier.apply_op(&Op::SetStyle {
             id: host,
@@ -804,7 +804,7 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
 }
 
 #[test]
-fn mixed_inline_subtree_becomes_one_styled_parley_leaf() {
+fn explicit_text_flow_does_not_absorb_a_nested_element() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (div, strong, font_weight, color) = {
@@ -819,7 +819,7 @@ fn mixed_inline_subtree_becomes_one_styled_parley_leaf() {
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: div,
-        attrs: vec![],
+        attrs: renderer_attrs(&applier, true),
     });
     applier.apply_op(&Op::CreateText {
         id: 3,
@@ -828,7 +828,7 @@ fn mixed_inline_subtree_becomes_one_styled_parley_leaf() {
     applier.apply_op(&Op::CreateElement {
         id: 4,
         tag: strong,
-        attrs: vec![],
+        attrs: renderer_attrs(&applier, false),
     });
     applier.apply_op(&Op::CreateText {
         id: 5,
@@ -865,12 +865,15 @@ fn mixed_inline_subtree_becomes_one_styled_parley_leaf() {
     applier.inherit();
 
     let parent = applier.node_store.solid_to_node[&2];
-    let paint = applier.node_store.tree.get_node_context(parent).unwrap();
-    assert_eq!(applier.node_store.tree.child_count(parent), 0);
-    assert_eq!(paint.text.as_deref(), Some("Hello world"));
-    assert_eq!(paint.text_runs.len(), 2);
-    assert_eq!(paint.text_runs[0].range, 0..6);
-    assert_eq!(paint.text_runs[1].range, 6..11);
-    assert_eq!(paint.text_runs[1].font_weight, 700.0);
-    assert_eq!(paint.text_runs[1].color, [255, 0, 0, 255]);
+    assert_eq!(applier.node_store.tree.child_count(parent), 2);
+    assert!(!applier.node_store.inline_roots.contains(&parent));
+    assert!(
+        applier
+            .node_store
+            .tree
+            .get_node_context(parent)
+            .unwrap()
+            .text
+            .is_none()
+    );
 }

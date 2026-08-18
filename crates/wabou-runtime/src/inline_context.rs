@@ -13,43 +13,27 @@
 //! 1. **Flex/grid items are never absorbed into the container.** If the parent
 //!    establishes a flex or grid formatting context, each direct child keeps
 //!    its own principal box (gap, alignment, fixed sizing, per-item hit test).
-//! 2. **Block boundaries are not crossed.** A child that is block-level (HTML
-//!    block tag, or computed `display: block|flex|grid|none`) is not an IFC
-//!    participant; if any child fails, the parent does not collapse.
-//! 3. **Independent principal boxes are kept.** Background, non-zero
-//!    padding/margin/border, or explicit width/height mean the node paints or
-//!    sizes on its own and must not disappear into a parent leaf.
-//! 4. **Event targets are kept.** Nodes with listeners keep a layout box so
-//!    hit testing remains addressable (see below).
-//! 5. **Replaced subtrees stay out.** SVG roots and host widgets own their
+//! 2. **Only explicit text containers collapse.** JavaScript publishes the
+//!    `textFlow="container"` host contract. Rust never infers text behavior
+//!    from HTML-like tag names.
+//! 3. **Only direct text leaves are absorbed.** Components and nested elements
+//!    keep principal boxes; styled inline subtrees are not guessed.
+//! 4. **Replaced subtrees stay out.** SVG roots and host widgets own their
 //!    content; descendants are logical-only and never become Taffy boxes under
 //!    the replaced parent.
-//! 6. **Styled runs stay correct.** Collapse only merges geometry. Color,
+//! 5. **Styled runs stay correct.** Collapse only merges geometry. Color,
 //!    font, weight, line-height and white-space are re-applied as Parley
 //!    `TextRun`s over the logical tree after inherit (not in this module).
 //!
 //! ## All-or-nothing (current)
 //!
-//! A parent collapses **only if every** logical child is a collapsible IFC
-//! participant. Mixed block + inline keeps all children as separate boxes.
-//! Anonymous-box run splitting is future work.
-//!
-//! ## Inline margin / padding
-//!
-//! **Not supported as inline-level decoration.** Non-zero padding or margin on
-//! an otherwise-phrasing element makes [`NodeFacts::independent_box`] true, so
-//! the node refuses collapse and keeps a Taffy box. True CSS inline
-//! margin/padding (affecting line boxes without a principal block box) is out
-//! of scope.
+//! A text container collapses **only if every** logical child is a direct text
+//! leaf. Mixed content keeps all children as separate boxes.
 //!
 //! ## Hit testing after merge
 //!
-//! Collapsed logical nodes are not in the Taffy tree, so they are **not**
-//! hit-test targets. Hits land on the IFC root (the parent that absorbed
-//! them). Nodes that need their own hit region must either:
-//! - register listeners (blocks collapse), or
-//! - establish an independent box (padding/background/…), or
-//! - sit under a flex/grid parent as a direct item.
+//! Collapsed text leaves are not in the Taffy tree, so hits land on the
+//! explicit text container.
 //!
 //! ## Accessibility
 //!
@@ -62,15 +46,14 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use taffy::NodeId;
-use taffy::prelude::TaffyAuto;
 use taffy::style::Display;
 
 /// Per-node facts the IFC needs from the host (logical tree + computed style).
 #[derive(Clone, Debug)]
 pub struct NodeFacts {
-    /// Wabou host tag when this is an element; `None` for `#text`.
-    pub tag: Option<String>,
-    /// Text content when this is a text node (or element with only stored text).
+    /// JavaScript-authored permission to absorb direct text children.
+    pub text_container: bool,
+    /// Text content when this is a `#text` leaf.
     pub text: Option<Arc<str>>,
     /// Computed `display` used for flex/grid/block boundary checks.
     pub display: Display,
@@ -80,80 +63,13 @@ pub struct NodeFacts {
     pub display_explicit: bool,
     /// SVG root, host widget, or other replaced content.
     pub replaced: bool,
-    /// Solid event listeners registered on this node.
-    pub has_listeners: bool,
-    /// Own background, padding, margin, border, or explicit size — principal box.
-    pub independent_box: bool,
 }
 
 impl NodeFacts {
-    /// Published text-like host tags that may participate in one text flow
-    /// when they do not otherwise establish a principal box.
-    pub fn is_inline_text_tag(tag: &str) -> bool {
-        matches!(tag, "span" | "strong" | "i" | "label")
-    }
-
-    /// Published box-like host tags. This deliberately is not an HTML default
-    /// stylesheet: tags outside Wabou's JSX contract receive no guessed layout.
-    pub fn is_box_tag(tag: &str) -> bool {
-        matches!(
-            tag,
-            "article"
-                | "aside"
-                | "div"
-                | "footer"
-                | "h1"
-                | "header"
-                | "main"
-                | "nav"
-                | "ol"
-                | "p"
-                | "section"
-                | "button"
-                | "input"
-                | "view"
-        )
-    }
-
     /// Parent establishes flex or grid formatting context → direct children
     /// must keep layout boxes.
     pub fn establishes_item_layout(&self) -> bool {
         self.display_explicit && matches!(self.display, Display::Flex | Display::Grid)
-    }
-
-    /// Computed display is block-level for IFC purposes.
-    ///
-    /// Taffy's default `Display` is `Flex` when the flexbox feature is on, so
-    /// we **cannot** treat bare `Flex` on a phrasing tag as "user asked for
-    /// flex". Block tags and explicit grid/none always block participation.
-    /// Flex is treated as a layout context only on the **parent** side via
-    /// [`Self::establishes_item_layout`] after cascade has set `display:flex`.
-    fn is_block_level_display(&self) -> bool {
-        match self.display {
-            Display::Block | Display::FlowRoot | Display::Grid | Display::None => {
-                self.display_explicit
-            }
-            // Flex on a block tag (or after CSS) is block-level participation.
-            Display::Flex => self.display_explicit,
-        }
-    }
-
-    /// Whether this node may sit inside a collapsed IFC (as content, not root).
-    pub fn is_collapsible_participant(&self) -> bool {
-        if self.replaced || self.has_listeners || self.independent_box {
-            return false;
-        }
-        if self.text.is_some() && self.tag.is_none() {
-            // Pure #text leaf — always inline content.
-            return true;
-        }
-        let Some(tag) = self.tag.as_deref() else {
-            return false;
-        };
-        if Self::is_box_tag(tag) || self.is_block_level_display() {
-            return false;
-        }
-        Self::is_inline_text_tag(tag)
     }
 }
 
@@ -199,15 +115,18 @@ impl InlineFormattingContext {
                 continue;
             }
 
-            let can_collapse = !kids.is_empty()
+            let can_collapse = parent_facts.text_container
+                && !kids.is_empty()
                 && kids
                     .iter()
-                    .all(|&child| is_collapsible_subtree(child, logical_children, facts));
+                    .all(|&child| is_direct_text_leaf(child, logical_children, facts));
 
             if can_collapse {
                 let mut text = String::new();
                 for &child in kids {
-                    collect_plain_text(child, logical_children, facts, &mut text);
+                    if let Some(value) = facts(child).text {
+                        text.push_str(&value);
+                    }
                 }
                 ctx.roots.insert(parent);
                 ctx.collapsed_text.insert(parent, Arc::from(text));
@@ -221,77 +140,12 @@ impl InlineFormattingContext {
     }
 }
 
-fn is_collapsible_subtree(
+fn is_direct_text_leaf(
     node: NodeId,
     logical_children: &HashMap<NodeId, Vec<NodeId>>,
     facts: &impl Fn(NodeId) -> NodeFacts,
 ) -> bool {
-    let f = facts(node);
-    if !f.is_collapsible_participant() {
-        return false;
-    }
-    // Text leaf (no element tag): collapsible only when childless.
-    if f.tag.is_none() {
-        return logical_children.get(&node).is_none_or(|c| c.is_empty());
-    }
-    let kids = logical_children
-        .get(&node)
-        .map(Vec::as_slice)
-        .unwrap_or(&[]);
-    // Phrasing element must have at least one child (mirrors prior behaviour:
-    // empty spans are not collapsed as intermediate roots of content).
-    !kids.is_empty()
-        && kids
-            .iter()
-            .all(|&c| is_collapsible_subtree(c, logical_children, facts))
-}
-
-fn collect_plain_text(
-    node: NodeId,
-    logical_children: &HashMap<NodeId, Vec<NodeId>>,
-    facts: &impl Fn(NodeId) -> NodeFacts,
-    out: &mut String,
-) {
-    let f = facts(node);
-    if let Some(text) = &f.text {
-        out.push_str(text);
-        return;
-    }
-    if let Some(kids) = logical_children.get(&node) {
-        for &child in kids {
-            collect_plain_text(child, logical_children, facts, out);
-        }
-    }
-}
-
-/// Whether padding/margin rect has any non-zero length edge (px or %).
-pub fn rect_has_nonzero_lp(rect: &taffy::Rect<taffy::LengthPercentage>) -> bool {
-    [rect.top, rect.right, rect.bottom, rect.left]
-        .into_iter()
-        .any(|edge| match edge {
-            // LengthPercentage is opaque; compare against zero length/percent.
-            e if e == taffy::LengthPercentage::length(0.0) => false,
-            e if e == taffy::LengthPercentage::percent(0.0) => false,
-            _ => true,
-        })
-}
-
-pub fn rect_has_nonzero_lpa(rect: &taffy::Rect<taffy::LengthPercentageAuto>) -> bool {
-    [rect.top, rect.right, rect.bottom, rect.left]
-        .into_iter()
-        .any(|edge| {
-            if edge == taffy::LengthPercentageAuto::length(0.0)
-                || edge == taffy::LengthPercentageAuto::percent(0.0)
-                || edge == taffy::LengthPercentageAuto::AUTO
-            {
-                return false;
-            }
-            true
-        })
-}
-
-pub fn size_is_explicit(size: &taffy::Size<taffy::Dimension>) -> bool {
-    !size.width.is_auto() || !size.height.is_auto()
+    facts(node).text.is_some() && logical_children.get(&node).is_none_or(Vec::is_empty)
 }
 
 #[cfg(test)]
@@ -307,34 +161,41 @@ mod tests {
 
     fn text_facts(s: &str) -> NodeFacts {
         NodeFacts {
-            tag: None,
+            text_container: false,
             text: Some(Arc::from(s)),
             display: Display::Block,
             display_explicit: false,
             replaced: false,
-            has_listeners: false,
-            independent_box: false,
         }
     }
 
-    fn el(tag: &str, display: Display) -> NodeFacts {
+    fn element(display: Display) -> NodeFacts {
         NodeFacts {
-            tag: Some(tag.into()),
+            text_container: false,
             text: None,
             display,
             display_explicit: false,
             replaced: false,
-            has_listeners: false,
-            independent_box: false,
         }
     }
 
     #[test]
-    fn host_tag_classification_is_closed_to_published_elements() {
-        assert!(NodeFacts::is_inline_text_tag("span"));
-        assert!(NodeFacts::is_box_tag("view"));
-        assert!(!NodeFacts::is_inline_text_tag("a"));
-        assert!(!NodeFacts::is_box_tag("form"));
+    fn ordinary_container_does_not_infer_text_flow() {
+        let mut tree = TaffyTree::<()>::new();
+        let mut n = 0;
+        let parent = nid(&mut tree, &mut n);
+        let text = nid(&mut tree, &mut n);
+        let children = HashMap::from([(parent, vec![text]), (text, vec![])]);
+        let facts = |id| {
+            if id == parent {
+                element(Display::Block)
+            } else {
+                text_facts("hello")
+            }
+        };
+        let ctx = InlineFormattingContext::build(&children, &facts);
+        assert!(!ctx.roots.contains(&parent));
+        assert_eq!(ctx.layout_children[&parent], vec![text]);
     }
 
     #[test]
@@ -351,7 +212,7 @@ mod tests {
 
         let facts = |id: NodeId| {
             if id == parent {
-                let mut f = el("div", Display::Flex);
+                let mut f = element(Display::Flex);
                 f.display_explicit = true;
                 f
             } else if id == a {
@@ -382,11 +243,13 @@ mod tests {
 
         let facts = |id: NodeId| {
             if id == parent {
-                let mut f = el("view", Display::Flex);
+                let mut f = element(Display::Flex);
                 f.display_explicit = true;
                 f
             } else if id == text_host {
-                el("text", Display::Flex)
+                let mut facts = element(Display::Flex);
+                facts.text_container = true;
+                facts
             } else if id == dynamic {
                 text_facts("0")
             } else {
@@ -402,119 +265,32 @@ mod tests {
     }
 
     #[test]
-    fn pure_inline_under_block_collapses() {
+    fn explicit_text_container_rejects_nested_elements() {
         let mut tree = TaffyTree::<()>::new();
         let mut n = 0;
         let parent = nid(&mut tree, &mut n);
-        let t1 = nid(&mut tree, &mut n);
-        let strong = nid(&mut tree, &mut n);
-        let t2 = nid(&mut tree, &mut n);
+        let nested = nid(&mut tree, &mut n);
+        let text = nid(&mut tree, &mut n);
         let mut children = HashMap::new();
-        children.insert(parent, vec![t1, strong]);
-        children.insert(t1, vec![]);
-        children.insert(strong, vec![t2]);
-        children.insert(t2, vec![]);
+        children.insert(parent, vec![nested]);
+        children.insert(nested, vec![text]);
+        children.insert(text, vec![]);
 
         let facts = |id: NodeId| {
             if id == parent {
-                el("div", Display::Block)
-            } else if id == t1 {
-                text_facts("Hello ")
-            } else if id == strong {
-                el("strong", Display::Flex) // taffy default; phrasing still ok
+                let mut facts = element(Display::Block);
+                facts.text_container = true;
+                facts
+            } else if id == nested {
+                element(Display::Block)
             } else {
                 text_facts("world")
             }
         };
 
         let ctx = InlineFormattingContext::build(&children, &facts);
-        assert!(ctx.roots.contains(&parent));
-        assert!(ctx.roots.contains(&strong));
-        assert_eq!(ctx.collapsed_text[&parent].as_ref(), "Hello world");
-        assert!(ctx.layout_children[&parent].is_empty());
-    }
-
-    #[test]
-    fn independent_box_blocks_collapse() {
-        let mut tree = TaffyTree::<()>::new();
-        let mut n = 0;
-        let parent = nid(&mut tree, &mut n);
-        let badge = nid(&mut tree, &mut n);
-        let t = nid(&mut tree, &mut n);
-        let mut children = HashMap::new();
-        children.insert(parent, vec![badge]);
-        children.insert(badge, vec![t]);
-        children.insert(t, vec![]);
-
-        let facts = |id: NodeId| {
-            if id == parent {
-                el("div", Display::Block)
-            } else if id == badge {
-                let mut f = el("span", Display::Flex);
-                f.display_explicit = true;
-                f.independent_box = true;
-                f
-            } else {
-                text_facts("1 comments")
-            }
-        };
-
-        let ctx = InlineFormattingContext::build(&children, &facts);
         assert!(!ctx.roots.contains(&parent));
-        assert_eq!(ctx.layout_children[&parent], vec![badge]);
-    }
-
-    #[test]
-    fn listeners_block_collapse() {
-        let mut tree = TaffyTree::<()>::new();
-        let mut n = 0;
-        let parent = nid(&mut tree, &mut n);
-        let link = nid(&mut tree, &mut n);
-        let t = nid(&mut tree, &mut n);
-        let mut children = HashMap::new();
-        children.insert(parent, vec![link]);
-        children.insert(link, vec![t]);
-        children.insert(t, vec![]);
-
-        let facts = |id: NodeId| {
-            if id == parent {
-                el("div", Display::Block)
-            } else if id == link {
-                let mut f = el("span", Display::Flex);
-                f.has_listeners = true;
-                f
-            } else {
-                text_facts("click")
-            }
-        };
-
-        let ctx = InlineFormattingContext::build(&children, &facts);
-        assert!(!ctx.roots.contains(&parent));
-    }
-
-    #[test]
-    fn block_child_blocks_collapse() {
-        let mut tree = TaffyTree::<()>::new();
-        let mut n = 0;
-        let parent = nid(&mut tree, &mut n);
-        let child = nid(&mut tree, &mut n);
-        let t = nid(&mut tree, &mut n);
-        let mut children = HashMap::new();
-        children.insert(parent, vec![child]);
-        children.insert(child, vec![t]);
-        children.insert(t, vec![]);
-
-        let facts = |id: NodeId| {
-            if id == parent || id == child {
-                el("div", Display::Block)
-            } else {
-                text_facts("x")
-            }
-        };
-
-        let ctx = InlineFormattingContext::build(&children, &facts);
-        assert!(!ctx.roots.contains(&parent));
-        assert_eq!(ctx.layout_children[&parent], vec![child]);
+        assert_eq!(ctx.layout_children[&parent], vec![nested]);
     }
 
     #[test]
@@ -529,11 +305,11 @@ mod tests {
 
         let facts = |id: NodeId| {
             if id == parent {
-                let mut f = el("svg", Display::Block);
+                let mut f = element(Display::Block);
                 f.replaced = true;
                 f
             } else {
-                el("path", Display::Block)
+                element(Display::Block)
             }
         };
 

@@ -370,7 +370,13 @@ function View(props) {
 * participate in the parent layout as one item.
 */
 function Text(props) {
-	return semanticPrimitive("text", "label", props);
+	const node = createElement("text");
+	spread(node, props, false);
+	spread(node, {
+		role: props.role ?? "label",
+		textFlow: "container"
+	}, false);
+	return node;
 }
 /** A static SVG asset rendered through the native usvg/Vello pipeline. */
 function Svg(props) {

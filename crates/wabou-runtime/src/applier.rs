@@ -70,9 +70,7 @@ use crate::atom::{Atom, AtomPool};
 use crate::host_message::{
     DEFAULT_HOST_MESSAGE_CAPACITY, HostMessageHandle, HostMessageInbox, host_message_channel,
 };
-use crate::inline_context::{
-    InlineFormattingContext, NodeFacts, rect_has_nonzero_lp, rect_has_nonzero_lpa, size_is_explicit,
-};
+use crate::inline_context::{InlineFormattingContext, NodeFacts};
 use crate::jsrt::{JsRuntime, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, ResizeTargets};
 use crate::protocol::{Frame, Op, decode_frame};
 use crate::protocol::{event, event_data};

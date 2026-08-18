@@ -31,6 +31,18 @@ test("Solid 2 static createElement props are emitted immediately", () => {
   expect(Array.from(frame!)).toContain(OP.SetClassName);
 });
 
+test("the JS renderer publishes the primitive layout default", () => {
+  const attributes: Array<[string, string]> = [];
+  const setAttribute = writer.setAttribute.bind(writer);
+  writer.setAttribute = (_id, name, value) => attributes.push([name, value]);
+  try {
+    createElement("anything");
+  } finally {
+    writer.setAttribute = setAttribute;
+  }
+  expect(attributes).toContainEqual(["layoutDefault", "block"]);
+});
+
 test("ARIA booleans preserve explicit false instead of removing state", () => {
   const option = createElement("div");
   const attributes: Array<[string, string]> = [];
