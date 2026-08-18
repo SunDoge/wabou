@@ -932,19 +932,10 @@
       this.u8(op);
       this.count++;
     }
-    createElement(id, tag, attrs = null) {
-      if (attrs && attrs.length > 65535) {
-        throw new RangeError("element cannot contain more than 65535 attributes");
-      }
+    createElement(id, tag) {
       this.emit(OP.CreateElement);
       this.u32(id);
       this.atom(tag);
-      this.u16(attrs ? attrs.length : 0);
-      if (attrs)
-        for (const [n, v] of attrs) {
-          this.atom(n);
-          this.str(v);
-        }
     }
     createText(id, text) {
       this.emit(OP.CreateText);

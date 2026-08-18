@@ -27,14 +27,15 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
             atoms.intern("aria-valuetext"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
+    create_element_with_attrs(
+        &mut applier,
+        2,
         tag,
-        attrs: vec![
+        &[
             (secret, "master-password"),
             (aria_value_text, "must-not-leak"),
         ],
-    });
+    );
     set_focus_order(&mut applier, 2, 0);
     applier.apply_op(&Op::AppendChild {
         parent: 1,
@@ -109,11 +110,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
             atoms.intern("width"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: input,
-        attrs: vec![(value, "")],
-    });
+    create_element_with_attrs(&mut applier, 2, input, &[(value, "")]);
     set_focus_order(&mut applier, 2, 0);
     applier.apply_op(&Op::AppendChild {
         parent: 1,
@@ -237,11 +234,7 @@ fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
         id: 3,
@@ -301,11 +294,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
         id: 3,
@@ -567,11 +556,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
         (4, 5, "secret", false),
         (6, 7, "beta", true),
     ] {
-        applier.apply_op(&Op::CreateElement {
-            id: host,
-            tag: div,
-            attrs: vec![],
-        });
+        applier.apply_op(&Op::CreateElement { id: host, tag: div });
         set_text_behavior(&mut applier, host);
         applier.apply_op(&Op::SetStyle {
             id: host,
@@ -765,11 +750,7 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
         applier.apply_op(&Op::SetStyle { id: 1, prop, value });
     }
     for (host, text_node, text, size) in [(2, 3, "small", "12px"), (4, 5, "BIG", "30px")] {
-        applier.apply_op(&Op::CreateElement {
-            id: host,
-            tag: div,
-            attrs: vec![],
-        });
+        applier.apply_op(&Op::CreateElement { id: host, tag: div });
         set_text_behavior(&mut applier, host);
         applier.apply_op(&Op::SetStyle {
             id: host,
@@ -823,21 +804,13 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
             atoms.intern("color"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
         id: 3,
         text: "Hello ",
     });
-    applier.apply_op(&Op::CreateElement {
-        id: 4,
-        tag: strong,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 4, tag: strong });
     applier.apply_op(&Op::CreateText {
         id: 5,
         text: "world",

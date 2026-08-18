@@ -299,23 +299,10 @@ export class Writer {
     this.count++;
   }
 
-  createElement(
-    id: number,
-    tag: string,
-    attrs: [string, string][] | null = null,
-  ): void {
-    if (attrs && attrs.length > 0xffff) {
-      throw new RangeError("element cannot contain more than 65535 attributes");
-    }
+  createElement(id: number, tag: string): void {
     this.emit(OP.CreateElement);
     this.u32(id);
     this.atom(tag);
-    this.u16(attrs ? attrs.length : 0);
-    if (attrs)
-      for (const [n, v] of attrs) {
-        this.atom(n);
-        this.str(v);
-      }
   }
   createText(id: number, text: string): void {
     this.emit(OP.CreateText);

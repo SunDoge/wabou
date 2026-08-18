@@ -63,45 +63,20 @@ impl Applier {
         }
     }
 
-    fn create_element(&mut self, id: u32, tag: Atom, attrs: &[(Atom, &str)]) {
-        let mut declared = Declared {
+    fn create_element(&mut self, id: u32, tag: Atom) {
+        let declared = Declared {
             tag: Some(tag),
             ..Declared::default()
         };
-        let class_value = {
-            let atoms = self.atoms.borrow();
-            if atoms.resolve(tag).is_none() {
-                tracing::warn!(atom = tag.get(), "unknown tag atom");
-            }
-            attrs.iter().find_map(|(name, value)| {
-                matches!(atoms.resolve(*name), Some("class" | "className")).then_some(*value)
-            })
-        };
-        if let Some(value) = class_value {
-            // CreateElement attributes are retained for protocol compatibility;
-            // class tokens normally arrive as atoms through SetClassName.
-            let mut atoms = self.atoms.borrow_mut();
-            declared.classes = value
-                .split_whitespace()
-                .map(|value| atoms.intern(value))
-                .collect();
+        if self.atoms.borrow().resolve(tag).is_none() {
+            tracing::warn!(atom = tag.get(), "unknown tag atom");
         }
-        declared
-            .attrs
-            .extend(attrs.iter().map(|(name, value)| (*name, Arc::from(*value))));
 
         let node = self.node_store.create_leaf(id, declared);
         self.recompute_solid(id);
         let Some(mut widget) = self.widget_manager.create(tag, self.wake_callback.as_ref()) else {
             return;
         };
-        let atoms = self.atoms.borrow();
-        for (name, value) in attrs {
-            if let Some(name) = atoms.resolve(*name) {
-                widget.attribute_changed(name, value);
-            }
-        }
-        drop(atoms);
         let mounted_changes = widget.mounted();
         self.widget_manager.widgets.insert(node, widget);
         self.invalidate_widget_changes(mounted_changes);
@@ -451,8 +426,8 @@ impl Applier {
             _ => self.projections.semantics_dirty = true,
         }
         match op {
-            Op::CreateElement { id, tag, attrs } => {
-                self.create_element(*id, *tag, attrs);
+            Op::CreateElement { id, tag } => {
+                self.create_element(*id, *tag);
             }
             Op::CreateText { id, text } => {
                 let id = *id;

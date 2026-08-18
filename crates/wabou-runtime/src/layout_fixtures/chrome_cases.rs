@@ -29,7 +29,6 @@ fn shell_header_fixed_height_content_flex_1() {
         Op::CreateElement {
             id: shell,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: shell,
@@ -40,7 +39,6 @@ fn shell_header_fixed_height_content_flex_1() {
         Op::CreateElement {
             id: header,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: header,
@@ -49,7 +47,6 @@ fn shell_header_fixed_height_content_flex_1() {
         Op::CreateElement {
             id: content,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: content,
@@ -149,11 +146,7 @@ fn story_row_long_title_compresses_content_column_only() {
                       column without crushing the rank index or the action rail";
 
     h.apply(vec![
-        Op::CreateElement {
-            id: row,
-            tag: div,
-            attrs: vec![],
-        },
+        Op::CreateElement { id: row, tag: div },
         Op::SetClassName {
             id: row,
             classes: vec![row_c],
@@ -162,7 +155,6 @@ fn story_row_long_title_compresses_content_column_only() {
         Op::CreateElement {
             id: rank,
             tag: span,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: rank,
@@ -177,11 +169,7 @@ fn story_row_long_title_compresses_content_column_only() {
             child: rank_text,
         },
         // body / title
-        Op::CreateElement {
-            id: body,
-            tag: div,
-            attrs: vec![],
-        },
+        Op::CreateElement { id: body, tag: div },
         Op::SetClassName {
             id: body,
             classes: vec![body_c],
@@ -189,12 +177,10 @@ fn story_row_long_title_compresses_content_column_only() {
         Op::CreateElement {
             id: title_wrap,
             tag: div,
-            attrs: vec![],
         },
         Op::CreateElement {
             id: title,
             tag: strong,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: title,
@@ -220,7 +206,6 @@ fn story_row_long_title_compresses_content_column_only() {
         Op::CreateElement {
             id: actions,
             tag: span,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: actions,
@@ -238,7 +223,6 @@ fn story_row_long_title_compresses_content_column_only() {
         Op::CreateElement {
             id: bookmark,
             tag: span,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: bookmark,

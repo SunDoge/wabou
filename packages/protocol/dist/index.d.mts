@@ -138,7 +138,7 @@ declare class Writer {
   private str;
   private atom;
   private emit;
-  createElement(id: number, tag: string, attrs?: [string, string][] | null): void;
+  createElement(id: number, tag: string): void;
   createText(id: number, text: string): void;
   createComment(id: number, text: string): void;
   appendChild(parent: number, child: number): void;

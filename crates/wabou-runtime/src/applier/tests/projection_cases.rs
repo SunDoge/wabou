@@ -351,11 +351,7 @@ fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: Vec::new(),
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::SetShadows {
         id: 2,
         shadows: vec![crate::protocol::ShadowValue {

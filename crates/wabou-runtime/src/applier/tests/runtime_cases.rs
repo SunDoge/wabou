@@ -474,11 +474,7 @@ fn full_reload_clears_non_root_scene_nodes() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
         child: 2,
@@ -563,22 +559,19 @@ fn inline_svg_cache_follows_node_lifetime() {
             atoms.intern("d"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: svg,
-        attrs: vec![
+    create_element_with_attrs(
+        &mut applier,
+        2,
+        svg,
+        &[
             (view_box, "0 0 24 24"),
             (width, "24"),
             (height, "24"),
             (fill, "none"),
             (stroke, "currentColor"),
         ],
-    });
-    applier.apply_op(&Op::CreateElement {
-        id: 3,
-        tag: path,
-        attrs: vec![(d, "M3 12h18")],
-    });
+    );
+    create_element_with_attrs(&mut applier, 3, path, &[(d, "M3 12h18")]);
     applier.apply_op(&Op::AppendChild {
         parent: 2,
         child: 3,
@@ -622,11 +615,7 @@ fn image_resource_failure_routes_to_the_current_node_handle() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let img = applier.atoms.borrow_mut().intern("img");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: img,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: img });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
         child: 2,
@@ -668,11 +657,7 @@ fn image_completion_only_notifies_current_source_subscribers() {
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let img = applier.atoms.borrow_mut().intern("img");
     for id in [2, 3] {
-        applier.apply_op(&Op::CreateElement {
-            id,
-            tag: img,
-            attrs: vec![],
-        });
+        applier.apply_op(&Op::CreateElement { id, tag: img });
         applier.apply_op(&Op::AppendChild {
             parent: 1,
             child: id,

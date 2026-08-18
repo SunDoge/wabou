@@ -37,16 +37,19 @@ fn set_focus_contained(applier: &mut Applier, id: u32) {
     });
 }
 
+fn create_element_with_attrs(applier: &mut Applier, id: u32, tag: Atom, attrs: &[(Atom, &str)]) {
+    applier.apply_op(&Op::CreateElement { id, tag });
+    for &(name, value) in attrs {
+        applier.apply_op(&Op::SetAttribute { id, name, value });
+    }
+}
+
 #[test]
 fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let text = applier.atoms.borrow_mut().intern("text");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: text,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: text });
     let unconfigured = applier.computed_node_snapshot(2).unwrap();
     assert!(unconfigured.wrap_text);
     assert_ne!(unconfigured.layout.flex_shrink, 0.0);
@@ -62,11 +65,7 @@ fn graphic_sources_are_stored_as_typed_state() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let svg = applier.atoms.borrow_mut().intern("svg");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: svg,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: svg });
 
     applier.apply_op(&Op::SetGraphicSource {
         id: 2,
@@ -365,11 +364,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::AddEventListener {
         id: 2,
         event_type: event::KEYDOWN,
@@ -438,11 +433,7 @@ fn imperative_focus_uses_the_same_host_focus_state_as_pointer_input() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
 
     applier.apply_op(&Op::FocusNode { id: 2 });
     assert_eq!(applier.input.focused_target, Some(2));
@@ -467,11 +458,7 @@ fn widget_measurements_refresh_intrinsic_layout_before_paint() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
         child: 2,
@@ -517,7 +504,6 @@ fn widget_mount_and_visibility_are_delivered_before_first_paint() {
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: widget_tag,
-        attrs: vec![],
     });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
@@ -617,11 +603,7 @@ fn pointer_dispatch_resolves_a_listener_on_the_native_parent_chain() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: Vec::new(),
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::CreateText {
         id: 3,
         text: "option",
@@ -751,11 +733,7 @@ fn dropping_a_widget_drains_unmount_host_actions_before_routing_is_removed() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     let node = applier.node_store.solid_to_node[&2];
     applier
         .widget_manager
@@ -776,11 +754,7 @@ fn dropping_a_focused_captured_widget_releases_input_before_unmount() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     let node = applier.node_store.solid_to_node[&2];
     let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
     applier
@@ -809,11 +783,7 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     let node = applier.node_store.solid_to_node[&2];
     let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
     applier
@@ -862,11 +832,7 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     let second_node = applier.node_store.solid_to_node[&2];
     let first_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let second_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -998,11 +964,7 @@ fn interactive_applier() -> Applier {
             atoms.intern("height"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: button,
-        attrs: Vec::new(),
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: button });
     applier.apply_op(&Op::SetStyle {
         id: 2,
         prop: width,
@@ -1078,11 +1040,7 @@ fn focus_order_is_explicit_without_inferring_disabled_policy() {
         )
     };
     for id in 2..=6 {
-        applier.apply_op(&Op::CreateElement {
-            id,
-            tag: button,
-            attrs: Vec::new(),
-        });
+        applier.apply_op(&Op::CreateElement { id, tag: button });
         applier.apply_op(&Op::AppendChild {
             parent: 1,
             child: id,
@@ -1145,11 +1103,7 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
         )
     };
     for (id, tag) in [(2, view), (3, view), (4, button), (5, view)] {
-        applier.apply_op(&Op::CreateElement {
-            id,
-            tag,
-            attrs: Vec::new(),
-        });
+        applier.apply_op(&Op::CreateElement { id, tag });
         applier.apply_op(&Op::AppendChild {
             parent: 1,
             child: id,
@@ -1221,16 +1175,8 @@ fn interaction_blocking_isolates_an_entire_subtree() {
             atoms.intern("height"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: view,
-        attrs: Vec::new(),
-    });
-    applier.apply_op(&Op::CreateElement {
-        id: 3,
-        tag: button,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: view });
+    applier.apply_op(&Op::CreateElement { id: 3, tag: button });
     set_focus_order(&mut applier, 3, 0);
     for id in [2, 3] {
         applier.apply_op(&Op::SetStyle {
@@ -1340,11 +1286,7 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     let node = applier.node_store.solid_to_node[&2];
     let received = Arc::new(std::sync::Mutex::new(0));
     applier

@@ -61,7 +61,6 @@ pub enum Op<'a> {
     CreateElement {
         id: u32,
         tag: Atom,
-        attrs: Vec<(Atom, &'a str)>,
     },
     CreateText {
         id: u32,
@@ -237,6 +236,9 @@ pub enum DecodeError {
 
     #[snafu(display("invalid graphic source kind {kind}"))]
     BadGraphicSourceKind { kind: u8 },
+
+    #[snafu(display("protocol frame contains {remaining} trailing bytes"))]
+    TrailingBytes { remaining: usize },
 }
 
 struct Reader<'a> {
@@ -321,6 +323,11 @@ pub fn decode_frame(buf: &[u8]) -> Result<Frame<'_>, DecodeError> {
     for _ in 0..count {
         ops.push(decode_op(&mut r)?);
     }
+    if r.pos != buf.len() {
+        return Err(DecodeError::TrailingBytes {
+            remaining: buf.len() - r.pos,
+        });
+    }
     Ok(Frame { seq, ops })
 }
 
@@ -330,14 +337,7 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
         op::CREATE_ELEMENT => {
             let id = r.u32()?;
             let tag = Atom::from_raw(r.u32()?);
-            let n_attr = r.u16()?;
-            let mut attrs = Vec::with_capacity(n_attr as usize);
-            for _ in 0..n_attr {
-                let name = Atom::from_raw(r.u32()?);
-                let value = r.str()?;
-                attrs.push((name, value));
-            }
-            Op::CreateElement { id, tag, attrs }
+            Op::CreateElement { id, tag }
         }
         op::CREATE_TEXT => {
             let id = r.u32()?;
@@ -628,6 +628,28 @@ mod tests {
             Op::CreateText {
                 id: 2, text: "🚀"
             }
+        ));
+    }
+
+    #[test]
+    fn create_element_has_no_legacy_attribute_payload() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 1);
+        bytes.push(op::CREATE_ELEMENT);
+        push_u32(&mut bytes, 42);
+        push_u32(&mut bytes, 7);
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::CreateElement { id: 42, tag } if tag.get() == 7
+        ));
+
+        bytes.extend_from_slice(&0_u16.to_le_bytes());
+        assert!(matches!(
+            decode_frame(&bytes),
+            Err(DecodeError::TrailingBytes { remaining: 2 })
         ));
     }
 

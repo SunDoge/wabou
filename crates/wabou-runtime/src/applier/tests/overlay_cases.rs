@@ -15,11 +15,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         )
     };
     for id in [2, 3] {
-        applier.apply_op(&Op::CreateElement {
-            id,
-            tag: div,
-            attrs: vec![],
-        });
+        applier.apply_op(&Op::CreateElement { id, tag: div });
         if id == 3 {
             set_text_behavior(&mut applier, id);
         }
@@ -288,11 +284,7 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let view = applier.atoms.borrow_mut().intern("view");
     for id in [2, 3] {
-        applier.apply_op(&Op::CreateElement {
-            id,
-            tag: view,
-            attrs: vec![],
-        });
+        applier.apply_op(&Op::CreateElement { id, tag: view });
     }
     let owner = applier.node_store.solid_to_node[&2];
     let overlay = applier.node_store.solid_to_node[&3];
@@ -344,14 +336,8 @@ fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
             atoms.intern("disabled"),
         )
     };
-    for (id, tag, attrs) in [
-        (2, button, vec![]),
-        (3, view, vec![]),
-        (4, button, vec![]),
-        (5, view, vec![]),
-        (6, button, vec![]),
-    ] {
-        applier.apply_op(&Op::CreateElement { id, tag, attrs });
+    for (id, tag) in [(2, button), (3, view), (4, button), (5, view), (6, button)] {
+        applier.apply_op(&Op::CreateElement { id, tag });
     }
     set_focus_contained(&mut applier, 3);
     for (parent, child) in [(1, 2), (1, 3), (3, 4), (1, 5), (5, 6)] {
@@ -423,26 +409,19 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
             atoms.intern("aria-modal"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: button,
-        attrs: vec![(aria_label, "Background")],
-    });
-    applier.apply_op(&Op::CreateElement {
-        id: 3,
-        tag: view,
-        attrs: vec![
+    create_element_with_attrs(&mut applier, 2, button, &[(aria_label, "Background")]);
+    create_element_with_attrs(
+        &mut applier,
+        3,
+        view,
+        &[
             (role, "dialog"),
             (aria_label, "Settings"),
             (aria_modal, "true"),
         ],
-    });
+    );
     set_focus_contained(&mut applier, 3);
-    applier.apply_op(&Op::CreateElement {
-        id: 4,
-        tag: button,
-        attrs: vec![(aria_label, "Save")],
-    });
+    create_element_with_attrs(&mut applier, 4, button, &[(aria_label, "Save")]);
     set_focus_order(&mut applier, 2, 0);
     set_focus_order(&mut applier, 4, 0);
     applier.apply_op(&Op::AppendChild {
@@ -536,22 +515,19 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 4 }));
     assert_eq!(applier.input.focused_target, Some(4));
 
-    applier.apply_op(&Op::CreateElement {
-        id: 5,
-        tag: view,
-        attrs: vec![
+    create_element_with_attrs(
+        &mut applier,
+        5,
+        view,
+        &[
             // Semantic focus must use the explicit modal root rather than
             // guessing a focus target from descendant roles.
             (role, "group"),
             (aria_label, "Confirm"),
             (aria_modal, "true"),
         ],
-    });
-    applier.apply_op(&Op::CreateElement {
-        id: 6,
-        tag: button,
-        attrs: vec![(aria_label, "Continue")],
-    });
+    );
+    create_element_with_attrs(&mut applier, 6, button, &[(aria_label, "Continue")]);
     applier.apply_op(&Op::AppendChild {
         parent: 5,
         child: 6,
@@ -610,7 +586,7 @@ fn presentation_role_flattens_its_semantic_children_without_changing_paint() {
         ),
         (4, button, vec![(aria_label, "Close")]),
     ] {
-        applier.apply_op(&Op::CreateElement { id, tag, attrs });
+        create_element_with_attrs(&mut applier, id, tag, &attrs);
     }
     applier.apply_op(&Op::AppendChild {
         parent: 1,
@@ -735,11 +711,7 @@ fn semantic_idrefs_resolve_to_live_native_nodes() {
             ],
         ),
     ] {
-        applier.apply_op(&Op::CreateElement {
-            id: node,
-            tag: view,
-            attrs,
-        });
+        create_element_with_attrs(&mut applier, node, view, &attrs);
     }
     applier.apply_op(&Op::AppendChild {
         parent: 1,
@@ -808,17 +780,18 @@ fn semantic_projection_separates_explicit_roles_from_text_content() {
             atoms.intern("aria-modal"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: view,
-        attrs: vec![
+    create_element_with_attrs(
+        &mut applier,
+        2,
+        view,
+        &[
             (role, "button"),
             (value, "browser-style fallback"),
             (aria_current, "date"),
             (aria_haspopup, "listbox"),
             (aria_modal, "true"),
         ],
-    });
+    );
     applier.apply_op(&Op::CreateText {
         id: 3,
         text: "unowned text",

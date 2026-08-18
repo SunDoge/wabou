@@ -47,11 +47,7 @@ fn repeated_inline_updates_reuse_property_metadata() {
         let mut atoms = applier.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("width"))
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     for value in ["10px", "20px"] {
         applier.apply_op(&Op::SetStyle {
             id: 2,
@@ -76,11 +72,7 @@ fn class_cascade_resolves_into_computed_snapshot() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![card],
@@ -134,11 +126,7 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![surface],
@@ -222,11 +210,7 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![flex, padding, width, background, transform],
@@ -274,11 +258,7 @@ fn identical_ordered_class_lists_reuse_resolved_declarations() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: classes.clone(),
@@ -287,11 +267,7 @@ fn identical_ordered_class_lists_reuse_resolved_declarations() {
                 parent: 1,
                 child: 2,
             },
-            Op::CreateElement {
-                id: 3,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 3, tag: div },
             Op::SetClassName { id: 3, classes },
             Op::AppendChild {
                 parent: 1,
@@ -319,11 +295,7 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![brand],
@@ -369,11 +341,7 @@ fn utility_order_is_last_wins_and_transform_components_compose() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![
@@ -425,11 +393,7 @@ fn typed_inline_style_reaches_layout_without_string_parsing() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::AppendChild {
                 parent: 1,
                 child: 2,
@@ -465,11 +429,7 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![unknown],
@@ -505,11 +465,7 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![lucide],
@@ -546,11 +502,7 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![success],
@@ -612,11 +564,7 @@ fn unsupported_inline_css_never_enters_cascade_state() {
             atoms.intern("transform"),
         )
     };
-    applier.apply_op(&Op::CreateElement {
-        id: 2,
-        tag: div,
-        attrs: vec![],
-    });
+    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::SetStyle {
         id: 2,
         prop: transition,
@@ -667,11 +615,7 @@ fn replacing_class_resets_previous_declarations() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![compact],
@@ -738,11 +682,7 @@ fn inline_style_wins_over_class_for_same_property() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![card],
@@ -780,16 +720,8 @@ fn white_space_nowrap_inherits_to_text_computed_style() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
-            Op::CreateElement {
-                id: 3,
-                tag: span,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement { id: 3, tag: span },
             Op::SetClassName {
                 id: 3,
                 classes: vec![badge],
@@ -836,11 +768,7 @@ fn font_color_inherits_from_parent_class() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement {
-                id: 2,
-                tag: div,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: 2, tag: div },
             Op::SetClassName {
                 id: 2,
                 classes: vec![parent_c],

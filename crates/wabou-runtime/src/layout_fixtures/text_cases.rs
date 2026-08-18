@@ -16,7 +16,6 @@ fn hn_comments_badge_does_not_wrap() {
         Op::CreateElement {
             id: row_id,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: row_id,
@@ -25,7 +24,6 @@ fn hn_comments_badge_does_not_wrap() {
         Op::CreateElement {
             id: badge_id,
             tag: span,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: badge_id,
@@ -99,7 +97,6 @@ fn adaptive_sidebar_width_is_clamped() {
         Op::CreateElement {
             id: sidebar_id,
             tag: aside,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: sidebar_id,
@@ -144,7 +141,6 @@ fn changing_numeric_text_keeps_footer_label_on_one_line() {
         Op::CreateElement {
             id: footer_id,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: footer_id,
@@ -153,7 +149,6 @@ fn changing_numeric_text_keeps_footer_label_on_one_line() {
         Op::CreateElement {
             id: label_id,
             tag: span,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: label_id,
@@ -231,7 +226,6 @@ fn text_host_aggregates_reactive_footer_label() {
         Op::CreateElement {
             id: footer_id,
             tag: view,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: footer_id,
@@ -240,7 +234,6 @@ fn text_host_aggregates_reactive_footer_label() {
         Op::CreateElement {
             id: label_id,
             tag: text,
-            attrs: vec![],
         },
         Op::CreateText {
             id: count_id,
@@ -308,11 +301,7 @@ fn metadata_gap_2_is_exactly_8px() {
 
     let row = h.alloc_id();
     let mut ops = vec![
-        Op::CreateElement {
-            id: row,
-            tag: div,
-            attrs: vec![],
-        },
+        Op::CreateElement { id: row, tag: div },
         Op::SetClassName {
             id: row,
             classes: vec![flex, gap2],
@@ -324,11 +313,7 @@ fn metadata_gap_2_is_exactly_8px() {
         let text = h.alloc_id();
         item_ids.push(el);
         ops.extend([
-            Op::CreateElement {
-                id: el,
-                tag: span,
-                attrs: vec![],
-            },
+            Op::CreateElement { id: el, tag: span },
             Op::CreateText {
                 id: text,
                 text: value,

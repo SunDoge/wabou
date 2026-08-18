@@ -47,6 +47,18 @@ describe("Writer limits", () => {
     expect(calls).toEqual(["div", "width", "flex", "items-center"]);
   });
 
+  test("creates an element without a legacy attribute payload", () => {
+    const writer = new Writer(() => 7);
+    writer.createElement(42, "view");
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame.byteLength).toBe(17);
+    expect(frame[8]).toBe(OP.CreateElement);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(view.getUint32(13, true)).toBe(7);
+  });
+
   test("encodes a runtime affine transform as little-endian floats", () => {
     const writer = new Writer();
     writer.setTransform2D(7, [2, 0, 0, 2, 12.5, -3.25]);

@@ -15,7 +15,6 @@ fn theme_switch_preserves_all_rects() {
         Op::CreateElement {
             id: shell,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: shell,
@@ -24,7 +23,6 @@ fn theme_switch_preserves_all_rects() {
         Op::CreateElement {
             id: panel,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: panel,
@@ -105,11 +103,7 @@ fn viewport_resize_relayouts_without_remount() {
     let fill = h.intern("fill");
     let id = h.alloc_id();
     h.apply(vec![
-        Op::CreateElement {
-            id,
-            tag: div,
-            attrs: vec![],
-        },
+        Op::CreateElement { id, tag: div },
         Op::SetClassName {
             id,
             classes: vec![fill],
@@ -165,7 +159,6 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
         Op::CreateElement {
             id: shell,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: shell,
@@ -174,7 +167,6 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
         Op::CreateElement {
             id: header,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: header,
@@ -183,7 +175,6 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
         Op::CreateElement {
             id: scroller,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: scroller,
@@ -192,17 +183,12 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
         Op::CreateElement {
             id: content,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: content,
             classes: vec![content_c],
         },
-        Op::CreateElement {
-            id: tall,
-            tag: div,
-            attrs: vec![],
-        },
+        Op::CreateElement { id: tall, tag: div },
         Op::SetClassName {
             id: tall,
             classes: vec![tall_c],
@@ -210,7 +196,6 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
         Op::CreateElement {
             id: footer,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: footer,
@@ -219,7 +204,6 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
         Op::CreateElement {
             id: badge,
             tag: div,
-            attrs: vec![],
         },
         Op::SetClassName {
             id: badge,
