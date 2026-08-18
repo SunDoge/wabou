@@ -12,7 +12,6 @@ const packageDirectories = [
   "unocss-preset",
   "animation",
   "primitives",
-  "interactions",
   "components",
   "router",
   "terminal",
