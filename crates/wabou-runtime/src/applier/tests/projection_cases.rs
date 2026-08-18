@@ -128,6 +128,25 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
         name: class,
         value: "opacity-50",
     });
+    assert_eq!(applier.computed_node_snapshot(2).unwrap().opacity, 0.5);
+    assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
+    assert!(!applier.invalidation.contains(InvalidationFlags::INHERIT));
+
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: class,
+        value: "flex",
+    });
+    assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
+
+    applier
+        .invalidation
+        .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: class,
+        value: "text-xl",
+    });
     assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
     assert!(applier.invalidation.contains(InvalidationFlags::INHERIT));
 }
@@ -165,8 +184,8 @@ fn svg_descendant_attributes_still_refresh_the_svg_projection() {
         value: "M0 0L1 1",
     });
 
-    assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
     assert!(applier.invalidation.contains(InvalidationFlags::INHERIT));
+    assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
 }
 
 #[test]

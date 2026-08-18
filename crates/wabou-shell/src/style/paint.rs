@@ -120,7 +120,7 @@ impl Shadow {
 ///
 /// Used when resolving [`DeclaredPaint`] → [`Paint`]. Seeded at the document
 /// root with CSS initial values.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct InheritedPaint {
     /// Resolved platform cursor.
     pub cursor: CursorStyle,

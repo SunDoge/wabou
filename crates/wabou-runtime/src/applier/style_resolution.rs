@@ -507,8 +507,9 @@ impl Applier {
     }
 
     fn install_resolved_style(&mut self, node: NodeId, resolved: ResolvedNodeStyle) {
+        let previous_layout = self.node_store.tree.style(node).ok().cloned();
         let projection_changed =
-            self.node_store.tree.style(node).is_ok_and(|previous| {
+            previous_layout.as_ref().is_some_and(|previous| {
                 previous.display != resolved.layout.display
                     || self.node_store.declared.get(&node).is_some_and(|declared| {
                         declared.display_explicit != resolved.display_explicit
@@ -520,7 +521,10 @@ impl Applier {
             declared.paint = resolved.paint.clone();
             declared.display_explicit = resolved.display_explicit;
         }
-        let _ = self.node_store.tree.set_style(node, resolved.layout);
+        let layout_style_changed = previous_layout.as_ref() != Some(&resolved.layout);
+        if layout_style_changed {
+            let _ = self.node_store.tree.set_style(node, resolved.layout);
+        }
 
         // Resolve immediately against the parent so this node is current before
         // the next full inheritance walk updates its descendants.
@@ -531,7 +535,7 @@ impl Applier {
             .and_then(|parent| self.node_store.tree.get_node_context(parent))
             .map(inherited_paint)
             .unwrap_or_default();
-        let previous = self.node_store.tree.get_node_context(node);
+        let previous = self.node_store.tree.get_node_context(node).cloned();
         let image_url = self
             .node_store
             .declared
@@ -543,23 +547,61 @@ impl Applier {
         let host = HostPaint {
             text: resolved.host_text,
             text_runs: previous
+                .as_ref()
                 .map(|paint| paint.text_runs.clone())
                 .unwrap_or_else(|| Arc::from([])),
             selection_rects: previous
+                .as_ref()
                 .map(|paint| paint.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
-            svg: previous.and_then(|paint| paint.svg.clone()),
+            svg: previous.as_ref().and_then(|paint| paint.svg.clone()),
             image,
-            widget: previous.and_then(|paint| paint.widget.clone()),
+            widget: previous.as_ref().and_then(|paint| paint.widget.clone()),
             intrinsic_size: resolved.host_intrinsic,
             runtime_transform: self.runtime_transforms.get(&node).copied(),
             overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
             scrollbar: self.scroll.styles.get(&node).copied().unwrap_or_default(),
         };
         let paint = resolved.paint.resolve(&parent, host);
+        let inherited_changed = previous
+            .as_ref()
+            .is_none_or(|previous| inherited_paint(previous) != inherited_paint(&paint));
+        let text_layout_changed = previous.as_ref().is_none_or(|previous| {
+            previous.text != paint.text
+                || previous.text_runs != paint.text_runs
+                || previous.intrinsic_size != paint.intrinsic_size
+                || previous.font_size != paint.font_size
+                || previous.font_weight != paint.font_weight
+                || previous.line_height != paint.line_height
+                || previous.wrap_text != paint.wrap_text
+                || previous.text_ellipsis != paint.text_ellipsis
+                || previous.text_align != paint.text_align
+                || previous.font_family != paint.font_family
+        });
+        let geometry_changed = previous.as_ref().is_none_or(|previous| {
+            previous.transform != paint.transform
+                || previous.pointer_events != paint.pointer_events
+                || previous.border_radius != paint.border_radius
+                || previous.z_index != paint.z_index
+        });
+        let transform_changed = previous
+            .as_ref()
+            .is_none_or(|previous| previous.transform != paint.transform);
+        let selection_policy_changed = previous.as_ref().is_none_or(|previous| {
+            previous.text_selectable != paint.text_selectable
+                || previous.text_select_all != paint.text_select_all
+        });
         let _ = self.node_store.tree.set_node_context(node, Some(paint));
-        self.invalidation
-            .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
+        if layout_style_changed || text_layout_changed {
+            self.invalidation.insert(InvalidationFlags::LAYOUT);
+        }
+        if inherited_changed {
+            self.invalidation.insert(InvalidationFlags::INHERIT);
+        }
+        if geometry_changed {
+            self.invalidation.insert(InvalidationFlags::GEOMETRY);
+        }
+        self.projections.semantics_dirty |= transform_changed || selection_policy_changed;
     }
 
     fn resolve_class_declarations(

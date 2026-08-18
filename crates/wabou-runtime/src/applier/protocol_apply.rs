@@ -240,6 +240,9 @@ impl Applier {
         self.invalidate_widget_changes(widget_changes);
         self.projections.semantics_dirty = true;
         if affects_resolved_style {
+            if self.is_in_svg_subtree(node) {
+                self.invalidation.insert(InvalidationFlags::INHERIT);
+            }
             self.recompute_node(node);
         }
     }
@@ -422,6 +425,9 @@ impl Applier {
         self.invalidate_widget_changes(widget_changes);
         self.projections.semantics_dirty = true;
         if affects_resolved_style {
+            if self.is_in_svg_subtree(node) {
+                self.invalidation.insert(InvalidationFlags::INHERIT);
+            }
             self.recompute_node(node);
         }
     }
@@ -465,6 +471,7 @@ impl Applier {
                 self.recompute_subtree(child);
                 self.ifc_dirty = true;
                 self.projections.semantics_dirty = true;
+                self.invalidation.insert(InvalidationFlags::INHERIT);
             }
             Op::InsertBefore {
                 parent,
@@ -477,6 +484,7 @@ impl Applier {
                 self.recompute_subtree(child);
                 self.ifc_dirty = true;
                 self.projections.semantics_dirty = true;
+                self.invalidation.insert(InvalidationFlags::INHERIT);
             }
             Op::RemoveChild { parent, child } => {
                 if self.node_store.remove_child(*parent, *child) {
