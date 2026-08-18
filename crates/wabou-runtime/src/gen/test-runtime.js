@@ -698,7 +698,6 @@
   var OP = {
     CreateElement: 1,
     CreateText: 2,
-    CreateComment: 3,
     AppendChild: 4,
     InsertBefore: 5,
     RemoveChild: 6,
@@ -711,7 +710,6 @@
     AddEventListener: 13,
     RemoveEventListener: 14,
     SetClassName: 15,
-    FrameEnd: 16,
     DropNode: 17,
     SetTransform2D: 18,
     FocusNode: 19,
@@ -942,11 +940,6 @@
       this.u32(id);
       this.str(text);
     }
-    createComment(id, text) {
-      this.emit(OP.CreateComment);
-      this.u32(id);
-      this.str(text);
-    }
     appendChild(parent, child) {
       this.emit(OP.AppendChild);
       this.u32(parent);
@@ -1121,9 +1114,6 @@
       this.u16(classes.length);
       for (const className of classes)
         this.atom(className);
-    }
-    frameEnd() {
-      this.emit(OP.FrameEnd);
     }
     dropNode(id) {
       this.emit(OP.DropNode);

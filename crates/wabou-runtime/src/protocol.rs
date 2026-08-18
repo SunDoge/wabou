@@ -66,10 +66,6 @@ pub enum Op<'a> {
         id: u32,
         text: &'a str,
     },
-    CreateComment {
-        id: u32,
-        text: &'a str,
-    },
     AppendChild {
         parent: u32,
         child: u32,
@@ -156,7 +152,6 @@ pub enum Op<'a> {
         id: u32,
         classes: Vec<Atom>,
     },
-    FrameEnd,
     DropNode {
         id: u32,
     },
@@ -344,11 +339,6 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             let text = r.str()?;
             Op::CreateText { id, text }
         }
-        op::CREATE_COMMENT => {
-            let id = r.u32()?;
-            let text = r.str()?;
-            Op::CreateComment { id, text }
-        }
         op::APPEND_CHILD => {
             let parent = r.u32()?;
             let child = r.u32()?;
@@ -520,7 +510,6 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             }
             Op::SetClassName { id, classes }
         }
-        op::FRAME_END => Op::FrameEnd,
         op::DROP_NODE => {
             let id = r.u32()?;
             Op::DropNode { id }
@@ -650,6 +639,26 @@ mod tests {
         assert!(matches!(
             decode_frame(&bytes),
             Err(DecodeError::TrailingBytes { remaining: 2 })
+        ));
+    }
+
+    #[test]
+    fn rejects_removed_comment_and_frame_end_opcodes() {
+        let frame = |opcode| {
+            let mut bytes = Vec::new();
+            push_u32(&mut bytes, 1);
+            push_u32(&mut bytes, 1);
+            bytes.push(opcode);
+            bytes
+        };
+
+        assert!(matches!(
+            decode_frame(&frame(0x03)),
+            Err(DecodeError::BadOp { opcode: 0x03 })
+        ));
+        assert!(matches!(
+            decode_frame(&frame(0x10)),
+            Err(DecodeError::BadOp { opcode: 0x10 })
         ));
     }
 

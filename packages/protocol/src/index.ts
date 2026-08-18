@@ -9,7 +9,6 @@
 export const OP = {
   CreateElement: 0x01,
   CreateText: 0x02,
-  CreateComment: 0x03,
   AppendChild: 0x04,
   InsertBefore: 0x05,
   RemoveChild: 0x06,
@@ -22,7 +21,6 @@ export const OP = {
   AddEventListener: 0x0d,
   RemoveEventListener: 0x0e,
   SetClassName: 0x0f,
-  FrameEnd: 0x10,
   DropNode: 0x11,
   SetTransform2D: 0x12,
   FocusNode: 0x13,
@@ -309,11 +307,6 @@ export class Writer {
     this.u32(id);
     this.str(text);
   }
-  createComment(id: number, text: string): void {
-    this.emit(OP.CreateComment);
-    this.u32(id);
-    this.str(text);
-  }
   appendChild(parent: number, child: number): void {
     this.emit(OP.AppendChild);
     this.u32(parent);
@@ -523,9 +516,6 @@ export class Writer {
     }
     this.u16(classes.length);
     for (const className of classes) this.atom(className);
-  }
-  frameEnd(): void {
-    this.emit(OP.FrameEnd);
   }
   dropNode(id: number): void {
     this.emit(OP.DropNode);

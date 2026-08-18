@@ -81,7 +81,6 @@ fn class_cascade_resolves_into_computed_snapshot() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     queue_stylesheet(
@@ -135,7 +134,6 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     let themes = ColorThemes {
@@ -219,7 +217,6 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
 
@@ -273,7 +270,6 @@ fn identical_ordered_class_lists_reuse_resolved_declarations() {
                 parent: 1,
                 child: 3,
             },
-            Op::FrameEnd,
         ],
     });
 
@@ -304,7 +300,6 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     let mut theme = wabou_style::Theme::default();
@@ -358,7 +353,6 @@ fn utility_order_is_last_wins_and_transform_components_compose() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
 
@@ -408,7 +402,6 @@ fn typed_inline_style_reaches_layout_without_string_parsing() {
                 prop: opacity,
                 value: crate::protocol::StyleValue::Number(0.4),
             },
-            Op::FrameEnd,
         ],
     });
 
@@ -438,7 +431,6 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
 
@@ -474,7 +466,6 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
@@ -511,7 +502,6 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     let themes = ColorThemes {
@@ -624,7 +614,6 @@ fn replacing_class_resets_previous_declarations() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     let mut text = wabou_shell::TextContext::new();
@@ -641,13 +630,10 @@ fn replacing_class_resets_previous_declarations() {
 
     applier.apply_frame(&Frame {
         seq: 2,
-        ops: vec![
-            Op::SetClassName {
-                id: 2,
-                classes: vec![spacious],
-            },
-            Op::FrameEnd,
-        ],
+        ops: vec![Op::SetClassName {
+            id: 2,
+            classes: vec![spacious],
+        }],
     });
     let snap = applier.computed_node_snapshot(2).unwrap();
     assert_eq!(snap.classes, ["spacious"]);
@@ -696,7 +682,6 @@ fn inline_style_wins_over_class_for_same_property() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     let mut text = wabou_shell::TextContext::new();
@@ -742,7 +727,6 @@ fn white_space_nowrap_inherits_to_text_computed_style() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     queue_stylesheet(
@@ -785,7 +769,6 @@ fn font_color_inherits_from_parent_class() {
                 parent: 1,
                 child: 2,
             },
-            Op::FrameEnd,
         ],
     });
     queue_stylesheet(

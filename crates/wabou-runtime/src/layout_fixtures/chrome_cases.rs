@@ -66,7 +66,6 @@ fn shell_header_fixed_height_content_flex_1() {
             parent: 1,
             child: shell,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![
         rule("h-full", vec![declaration("height", percent(1.0))]),
@@ -248,7 +247,6 @@ fn story_row_long_title_compresses_content_column_only() {
             parent: 1,
             child: row,
         },
-        Op::FrameEnd,
     ]);
 
     // Mirror StoryList row utilities (gap-3 = 12px).

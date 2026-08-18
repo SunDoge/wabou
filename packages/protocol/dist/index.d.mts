@@ -2,7 +2,6 @@
 declare const OP: {
   readonly CreateElement: 1;
   readonly CreateText: 2;
-  readonly CreateComment: 3;
   readonly AppendChild: 4;
   readonly InsertBefore: 5;
   readonly RemoveChild: 6;
@@ -15,7 +14,6 @@ declare const OP: {
   readonly AddEventListener: 13;
   readonly RemoveEventListener: 14;
   readonly SetClassName: 15;
-  readonly FrameEnd: 16;
   readonly DropNode: 17;
   readonly SetTransform2D: 18;
   readonly FocusNode: 19;
@@ -140,7 +138,6 @@ declare class Writer {
   private emit;
   createElement(id: number, tag: string): void;
   createText(id: number, text: string): void;
-  createComment(id: number, text: string): void;
   appendChild(parent: number, child: number): void;
   insertBefore(parent: number, child: number, ref: number): void;
   removeChild(parent: number, child: number): void;
@@ -183,7 +180,6 @@ declare class Writer {
   addEventListener(id: number, eventCode: number): void;
   removeEventListener(id: number, eventCode: number): void;
   setClassName(id: number, value: string): void;
-  frameEnd(): void;
   dropNode(id: number): void;
   focusNode(id: number): void;
   scrollTo(id: number, x: number, y: number): void;

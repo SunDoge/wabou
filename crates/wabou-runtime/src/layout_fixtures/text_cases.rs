@@ -45,7 +45,6 @@ fn hn_comments_badge_does_not_wrap() {
             parent: 1,
             child: row_id,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![
         rule(
@@ -106,7 +105,6 @@ fn adaptive_sidebar_width_is_clamped() {
             parent: 1,
             child: sidebar_id,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![rule(
         "adaptive-sidebar",
@@ -170,7 +168,6 @@ fn changing_numeric_text_keeps_footer_label_on_one_line() {
             parent: 1,
             child: footer_id,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![
         rule(
@@ -192,13 +189,10 @@ fn changing_numeric_text_keeps_footer_label_on_one_line() {
 
     let before = h.layout(200, 100);
     let before_height = height(h.rect(&before, text_id));
-    h.apply(vec![
-        Op::SetText {
-            id: text_id,
-            text: "c = -0.788500 + -0.000000i",
-        },
-        Op::FrameEnd,
-    ]);
+    h.apply(vec![Op::SetText {
+        id: text_id,
+        text: "c = -0.788500 + -0.000000i",
+    }]);
     let after = h.layout(200, 100);
 
     assert!(!h.snapshot(text_id).wrap_text);
@@ -259,7 +253,6 @@ fn text_host_aggregates_reactive_footer_label() {
             parent: 1,
             child: footer_id,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![rule(
         "text-host-footer",
@@ -277,13 +270,10 @@ fn text_host_aggregates_reactive_footer_label() {
     assert!(before.iter().all(|item| item.node_id != count_node));
     assert!(before.iter().all(|item| item.node_id != suffix_node));
 
-    h.apply(vec![
-        Op::SetText {
-            id: count_id,
-            text: "1000",
-        },
-        Op::FrameEnd,
-    ]);
+    h.apply(vec![Op::SetText {
+        id: count_id,
+        text: "1000",
+    }]);
     let after = h.layout(240, 100);
 
     assert!(width(h.rect(&after, label_id)) > before_width);
@@ -328,13 +318,10 @@ fn metadata_gap_2_is_exactly_8px() {
             },
         ]);
     }
-    ops.extend([
-        Op::AppendChild {
-            parent: 1,
-            child: row,
-        },
-        Op::FrameEnd,
-    ]);
+    ops.extend([Op::AppendChild {
+        parent: 1,
+        child: row,
+    }]);
     h.apply(ops);
     h.queue_stylesheet(vec![
         rule("flex", vec![declaration("display", keyword("flex"))]),

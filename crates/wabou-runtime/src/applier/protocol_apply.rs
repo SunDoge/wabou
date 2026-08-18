@@ -645,7 +645,6 @@ impl Applier {
             Op::DropNode { id } => {
                 self.drop_node(*id);
             }
-            Op::CreateComment { .. } | Op::FrameEnd => {}
         }
     }
 }

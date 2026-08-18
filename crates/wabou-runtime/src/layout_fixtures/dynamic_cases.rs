@@ -36,7 +36,6 @@ fn theme_switch_preserves_all_rects() {
             parent: 1,
             child: shell,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![
         rule(
@@ -73,13 +72,10 @@ fn theme_switch_preserves_all_rects() {
     let panel_before = h.rect(&before, panel);
     let bg_before = h.snapshot(shell).background;
 
-    h.apply(vec![
-        Op::SetClassName {
-            id: shell,
-            classes: vec![dark],
-        },
-        Op::FrameEnd,
-    ]);
+    h.apply(vec![Op::SetClassName {
+        id: shell,
+        classes: vec![dark],
+    }]);
     let after = h.layout(800, 600);
     let shell_after = h.rect(&after, shell);
     let panel_after = h.rect(&after, panel);
@@ -112,7 +108,6 @@ fn viewport_resize_relayouts_without_remount() {
             parent: 1,
             child: id,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![rule(
         "fill",
@@ -237,7 +232,6 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
             parent: 1,
             child: shell,
         },
-        Op::FrameEnd,
     ]);
     h.queue_stylesheet(vec![
         rule(

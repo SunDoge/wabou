@@ -5,7 +5,6 @@
 pub mod op {
     pub const CREATE_ELEMENT: u8 = 0x01;
     pub const CREATE_TEXT: u8 = 0x02;
-    pub const CREATE_COMMENT: u8 = 0x03;
     pub const APPEND_CHILD: u8 = 0x04;
     pub const INSERT_BEFORE: u8 = 0x05;
     pub const REMOVE_CHILD: u8 = 0x06;
@@ -18,7 +17,6 @@ pub mod op {
     pub const ADD_EVENT_LISTENER: u8 = 0x0d;
     pub const REMOVE_EVENT_LISTENER: u8 = 0x0e;
     pub const SET_CLASS_NAME: u8 = 0x0f;
-    pub const FRAME_END: u8 = 0x10;
     pub const DROP_NODE: u8 = 0x11;
     pub const SET_TRANSFORM2_D: u8 = 0x12;
     pub const FOCUS_NODE: u8 = 0x13;

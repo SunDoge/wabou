@@ -379,7 +379,7 @@ pub struct Applier {
     effect_bridge: EffectBridge,
     wake_callback: Option<WakeCallback>,
     /// Protocol frames commonly create a node and then set several properties
-    /// on it. Resolve style once at FrameEnd instead of after every operation.
+    /// on it. Resolve style once at the frame boundary instead of after every operation.
     batching_styles: bool,
     dirty_styles: HashSet<NodeId>,
     /// Taffy layout and inherited paint are retained across scroll-only frames.
