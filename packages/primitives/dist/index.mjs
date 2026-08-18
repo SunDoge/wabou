@@ -337,6 +337,16 @@ function primitive(tag, props) {
 	spread(node, props, false);
 	return node;
 }
+function editorPrimitive(tag, props) {
+	return primitive(tag, mergeProps(props, {
+		get role() {
+			return props.role ?? "textbox";
+		},
+		get tabIndex() {
+			return props.disabled ? -1 : props.tabIndex ?? 0;
+		}
+	}));
+}
 function semanticPrimitive(tag, role, props) {
 	const node = createElement(tag);
 	spread(node, { role }, false);
@@ -409,15 +419,15 @@ function NetworkImage(props) {
 }
 /** A native multiline text editor with wrapping, selection, and scrolling. */
 function TextArea(props) {
-	return primitive("textarea", props);
+	return editorPrimitive("textarea", props);
 }
 /** Native password editor whose value remains in a Rust SecretStore. */
 function PasswordInput(props) {
-	return primitive("password-input", props);
+	return editorPrimitive("password-input", props);
 }
 /** Experimental native editor for config and script-sized documents. */
 function CodeEditor(props) {
-	return primitive("code-editor", props);
+	return editorPrimitive("code-editor", props);
 }
 //#endregion
 //#region src/collapsible-presence.tsx

@@ -220,20 +220,14 @@ impl Applier {
             // rather than inferred here from browser attribute conventions.
             let explicit_tab_index =
                 attribute(declared, "tabIndex").and_then(|value| value.parse::<i32>().ok());
-            let widget_focusable = self
-                .widget_manager
-                .widgets
-                .get(&placed.node_id)
-                .is_some_and(|widget| widget.accepts_focus());
-            let intrinsic_focusable = widget_focusable;
-            if explicit_tab_index.is_none() && !intrinsic_focusable {
+            if explicit_tab_index.is_none() {
                 continue;
             }
             let Some(solid_id) = self.node_store.solid_id_for_node(placed.node_id) else {
                 continue;
             };
             focusable_targets.insert(solid_id);
-            let tab_index = explicit_tab_index.unwrap_or(0);
+            let tab_index = explicit_tab_index.expect("checked above");
             if tab_index >= 0 {
                 candidates.push(FocusCandidate {
                     solid_id,

@@ -10,6 +10,7 @@ import {
   createPress,
   createShortcuts,
   createTabs,
+  CodeEditor,
   NetworkImage,
   PasswordInput,
   Svg,
@@ -330,6 +331,31 @@ describe("host primitives", () => {
       writer.setAttribute = setAttribute;
     }
     expect(roles).toEqual(["label", "img", "img"]);
+  });
+
+  test("authors native editor focus policy in JavaScript", () => {
+    const attributes: Array<[string, string]> = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    writer.setAttribute = (_id, name, value) => {
+      if (name === "role" || name === "tabIndex") {
+        attributes.push([name, value]);
+      }
+    };
+    try {
+      TextArea({});
+      PasswordInput({ secret: "test-secret", tabIndex: 4 });
+      CodeEditor({ "aria-label": "Config", disabled: true });
+    } finally {
+      writer.setAttribute = setAttribute;
+    }
+    expect(attributes).toEqual([
+      ["role", "textbox"],
+      ["tabIndex", "0"],
+      ["role", "textbox"],
+      ["tabIndex", "4"],
+      ["role", "textbox"],
+      ["tabIndex", "-1"],
+    ]);
   });
 
   test("create explicit view, text, image, and textarea host nodes", () =>

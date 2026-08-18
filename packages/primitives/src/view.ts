@@ -1,6 +1,7 @@
 import {
   createElement,
   type Handle,
+  mergeProps,
   type NativeScrollbarStyle,
   spread,
   type WabouElementProps,
@@ -123,6 +124,25 @@ function primitive(
   return node as unknown as JSX.Element;
 }
 
+function editorPrimitive(
+  tag: "textarea" | "password-input" | "code-editor",
+  props: TextAreaProps | PasswordInputProps | CodeEditorProps,
+) {
+  // Keyboard policy belongs to the JS primitive. The widget trait only says
+  // whether a native implementation can receive focus once JS requests it.
+  return primitive(
+    tag,
+    mergeProps(props, {
+      get role() {
+        return props.role ?? "textbox";
+      },
+      get tabIndex() {
+        return props.disabled ? -1 : (props.tabIndex ?? 0);
+      },
+    }) as PrimitiveProps,
+  );
+}
+
 function semanticPrimitive(
   tag: "text" | "svg" | "img",
   role: "label" | "img",
@@ -220,15 +240,15 @@ export function NetworkImage(props: NetworkImageProps): JSX.Element {
 
 /** A native multiline text editor with wrapping, selection, and scrolling. */
 export function TextArea(props: TextAreaProps): JSX.Element {
-  return primitive("textarea", props);
+  return editorPrimitive("textarea", props);
 }
 
 /** Native password editor whose value remains in a Rust SecretStore. */
 export function PasswordInput(props: PasswordInputProps): JSX.Element {
-  return primitive("password-input", props);
+  return editorPrimitive("password-input", props);
 }
 
 /** Experimental native editor for config and script-sized documents. */
 export function CodeEditor(props: CodeEditorProps): JSX.Element {
-  return primitive("code-editor", props);
+  return editorPrimitive("code-editor", props);
 }

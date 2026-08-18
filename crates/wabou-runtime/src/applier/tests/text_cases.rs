@@ -18,13 +18,14 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
         Arc::new(move || Box::new(crate::PasswordInput::new(factory_secrets.clone()))),
     );
     let mut applier = Applier::from_runtime_with_factories(js, factories, Color::BLACK);
-    let (tag, secret, value, aria_value_text) = {
+    let (tag, secret, value, aria_value_text, tab_index) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("password-input"),
             atoms.intern("secret"),
             atoms.intern("value"),
             atoms.intern("aria-valuetext"),
+            atoms.intern("tabIndex"),
         )
     };
     applier.apply_op(&Op::CreateElement {
@@ -33,6 +34,7 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
         attrs: vec![
             (secret, "master-password"),
             (aria_value_text, "must-not-leak"),
+            (tab_index, "0"),
         ],
     });
     applier.apply_op(&Op::AppendChild {
@@ -100,18 +102,19 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (input, value, width) = {
+    let (input, value, width, tab_index) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("input"),
             atoms.intern("value"),
             atoms.intern("width"),
+            atoms.intern("tabIndex"),
         )
     };
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: input,
-        attrs: vec![(value, "")],
+        attrs: vec![(value, ""), (tab_index, "0")],
     });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
