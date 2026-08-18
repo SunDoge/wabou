@@ -4,6 +4,8 @@ import {
   type ButtonState,
   Button as HeadlessButton,
   type ButtonProps as HeadlessButtonProps,
+  PasswordInput as PrimitivePasswordInput,
+  type PasswordInputProps as PrimitivePasswordInputProps,
   TextArea as PrimitiveTextArea,
   type TextAreaProps as PrimitiveTextAreaProps,
   Text,
@@ -377,7 +379,6 @@ export function Alert(props: {
 }
 
 export interface InputProps {
-  type?: "text" | "password";
   value?: string;
   placeholder?: string;
   disabled?: boolean;
@@ -388,9 +389,30 @@ export interface InputProps {
   onInput?: (event: { currentTarget: { value: string } }) => void;
   onKeyDown?: WebJSX.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
 }
+
+/** A plain-text input. Secrets must use {@link PasswordInput}. */
 export function Input(props: InputProps): JSX.Element {
   return (
     <input
+      {...props}
+      class={join(
+        "h-9 w-full px-3 rounded-md border text-sm",
+        "border-strong bg-input text-primary",
+        props.disabled && "opacity-50",
+        props.class,
+      )}
+    />
+  );
+}
+
+export interface PasswordInputProps extends PrimitivePasswordInputProps {
+  class?: string;
+}
+
+/** A native secret input whose value never crosses into JavaScript. */
+export function PasswordInput(props: PasswordInputProps): JSX.Element {
+  return (
+    <PrimitivePasswordInput
       {...props}
       class={join(
         "h-9 w-full px-3 rounded-md border text-sm",

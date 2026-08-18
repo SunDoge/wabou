@@ -1,4 +1,4 @@
-import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProps, TextAreaProps as TextAreaProps$1, ViewProps, WabouStyle } from "@wabou/primitives";
+import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProps, PasswordInputProps as PasswordInputProps$1, TextAreaProps as TextAreaProps$1, ViewProps, WabouStyle } from "@wabou/primitives";
 import { JSX, ParentProps } from "solid-js";
 import { CalendarDate } from "@internationalized/date";
 import { JSX as JSX$1 } from "@solidjs/web";
@@ -461,7 +461,6 @@ declare function Alert(props: {
   class?: string;
 }): JSX.Element;
 interface InputProps {
-  type?: "text" | "password";
   value?: string;
   placeholder?: string;
   disabled?: boolean;
@@ -476,7 +475,13 @@ interface InputProps {
   }) => void;
   onKeyDown?: JSX$1.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
 }
+/** A plain-text input. Secrets must use {@link PasswordInput}. */
 declare function Input(props: InputProps): JSX.Element;
+interface PasswordInputProps extends PasswordInputProps$1 {
+  class?: string;
+}
+/** A native secret input whose value never crosses into JavaScript. */
+declare function PasswordInput(props: PasswordInputProps): JSX.Element;
 interface TextAreaProps extends TextAreaProps$1 {
   class?: string;
 }
@@ -496,5 +501,5 @@ declare function Progress(props: {
   class?: string;
 }): JSX.Element;
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spinner, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
+export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, PasswordInput, PasswordInputProps, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spinner, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
 //# sourceMappingURL=index.d.mts.map

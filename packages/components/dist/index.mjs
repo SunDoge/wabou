@@ -1,6 +1,6 @@
 import { applyRef, createComponent, createElement, createFps, insertNode, memo, mergeProps, spread } from "@wabou/solid-renderer";
 import { animate, createTransition } from "@wabou/animation";
-import { Button as Button$1, Center, CodeEditor, CollapsiblePresence, Column, Icon, Modal, NetworkImage, Popover, Pulse, ScrollArea, Spin, Text, TextArea as TextArea$1, View, createFocusWithin, createMeasuredSize, rotate2d, translate2d } from "@wabou/primitives";
+import { Button as Button$1, Center, CodeEditor, CollapsiblePresence, Column, Icon, Modal, NetworkImage, PasswordInput as PasswordInput$1, Popover, Pulse, ScrollArea, Spin, Text, TextArea as TextArea$1, View, createFocusWithin, createMeasuredSize, rotate2d, translate2d } from "@wabou/primitives";
 import { For, createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, createUniqueId, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { P, match } from "ts-pattern";
 import { CalendarDate, endOfMonth, isSameDay, startOfMonth } from "@internationalized/date";
@@ -1968,12 +1968,19 @@ function Alert(props) {
 		}
 	});
 }
+/** A plain-text input. Secrets must use {@link PasswordInput}. */
 function Input(props) {
 	var _el$ = createElement("input");
 	spread(_el$, mergeProps(props, { get ["class"]() {
 		return join("h-9 w-full px-3 rounded-md border text-sm", "border-strong bg-input text-primary", props.disabled && "opacity-50", props.class);
 	} }), false);
 	return _el$;
+}
+/** A native secret input whose value never crosses into JavaScript. */
+function PasswordInput(props) {
+	return createComponent(PasswordInput$1, mergeProps(props, { get ["class"]() {
+		return join("h-9 w-full px-3 rounded-md border text-sm", "border-strong bg-input text-primary", props.disabled && "opacity-50", props.class);
+	} }));
 }
 function TextArea(props) {
 	return createComponent(TextArea$1, mergeProps(props, { get ["class"]() {
@@ -2097,6 +2104,6 @@ function Progress(props) {
 	});
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, Collapsible, CollapsibleContent, CollapsibleTrigger, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Progress, RadioGroup, RadioGroupItem, Select, Separator, Skeleton, Slider, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, Collapsible, CollapsibleContent, CollapsibleTrigger, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, PasswordInput, Progress, RadioGroup, RadioGroupItem, Select, Separator, Skeleton, Slider, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
 
 //# sourceMappingURL=index.mjs.map

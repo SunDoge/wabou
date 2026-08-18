@@ -82,7 +82,6 @@ pub struct TextInput {
     scroll_y: f32,
     disabled: bool,
     read_only: bool,
-    password: bool,
 }
 
 impl Default for TextInput {
@@ -124,7 +123,6 @@ impl TextInput {
             scroll_y: 0.0,
             disabled: false,
             read_only: false,
-            password: false,
         }
     }
 
@@ -448,7 +446,7 @@ impl TextInput {
                 );
             }
         }
-        if !self.cached_value.is_empty() && !self.password {
+        if !self.cached_value.is_empty() {
             for line in layout.lines() {
                 for item in line.items() {
                     let PositionedLayoutItem::GlyphRun(glyph_run) = item else {
@@ -649,7 +647,6 @@ impl Widget for TextInput {
             }
             "disabled" => self.disabled = value != "false",
             "readOnly" => self.read_only = value != "false",
-            "type" => self.password = !self.multiline && value == "password",
             _ => return WidgetChanges::empty(),
         }
         CONTENT_CHANGED
@@ -660,7 +657,6 @@ impl Widget for TextInput {
             "disabled" => self.disabled = false,
             "readOnly" => self.read_only = false,
             "placeholder" => self.placeholder.clear(),
-            "type" => self.password = false,
             _ => return WidgetChanges::empty(),
         }
         CONTENT_CHANGED
@@ -673,7 +669,7 @@ impl Widget for TextInput {
     fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
         wabou_shell::WidgetAccessibility {
             role: Some(wabou_shell::SemanticRole::TextInput),
-            value: (!self.password).then(|| self.cached_value.clone()),
+            value: Some(self.cached_value.clone()),
             disabled: Some(self.disabled),
             ..Default::default()
         }
@@ -944,10 +940,7 @@ mod tests {
         input.attribute_changed("readOnly", "true");
         assert!(input.read_only);
 
-        input.attribute_changed("type", "PASSWORD");
-        assert!(!input.password);
-        input.attribute_changed("type", "password");
-        assert!(input.password);
+        assert!(input.attribute_changed("type", "password").is_empty());
     }
 
     #[test]
@@ -963,22 +956,6 @@ mod tests {
         area.attribute_changed("value", "controlled");
         area.paint(160.0, 64.0, &mut tcx);
         assert_eq!(area.editor.selected_text(), Some("controlled"));
-    }
-
-    #[test]
-    fn password_type_masks_painting_without_changing_the_value() {
-        let mut input = TextInput::new();
-        input.attribute_changed("value", "sëcret🔑");
-        input.attribute_changed("type", "password");
-        assert_eq!(input.accessibility().value, None);
-        let mut tcx = TextContext::new();
-        input.paint(200.0, 32.0, &mut tcx);
-
-        assert!(input.password);
-        assert_eq!(input.current_value(), Some("sëcret🔑"));
-
-        input.attribute_removed("type");
-        assert!(!input.password);
     }
 
     #[test]

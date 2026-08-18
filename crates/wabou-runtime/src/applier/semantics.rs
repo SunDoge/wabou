@@ -403,8 +403,9 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .or_else(|| attribute(declared, &atoms, "alt"))
             .map(|value| value.to_string())
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
-        let is_secret = tag == "password-input"
-            || attribute(declared, &atoms, "type").as_deref() == Some("password");
+        // The dedicated password widget is the only secret-bearing input. A
+        // generic input never becomes secure through a browser-style `type`.
+        let is_secret = tag == "password-input";
         let explicit_role = attribute(declared, &atoms, "role");
         let value = (!is_secret)
             .then(|| {
