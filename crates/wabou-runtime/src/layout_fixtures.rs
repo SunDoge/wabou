@@ -27,7 +27,7 @@ use wabou_shell::{FrameSource, TextContext};
 use super::{Applier, ComputedNodeSnapshot, InvalidationFlags};
 use crate::atom::Atom;
 use crate::jsrt::JsRuntime;
-use crate::protocol::{Frame, Op};
+use crate::protocol::{Frame, Op, TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_SINGLE_LINE};
 use crate::style_ir::fixture::{
     auto, color, declaration, keyword, number, percent, px, record, rule, sheet,
 };
@@ -80,22 +80,26 @@ impl Harness {
             Some(StylesheetUpdate::Ir(sheet(rules)));
     }
 
-    fn apply(&mut self, mut ops: Vec<Op>) {
+    fn apply(&mut self, ops: Vec<Op>) {
         // Fixtures model frames emitted by the JS renderer, including its
         // explicit primitive contracts rather than relying on Rust tag rules.
-        let text_flow = self.intern("textFlow");
-        let text_layout = self.intern("textLayout");
         let text_tag = self.intern("text");
-        for op in &mut ops {
-            if let Op::CreateElement { tag, attrs, .. } = op
-                && *tag == text_tag
-            {
-                attrs.push((text_flow, "container"));
-                attrs.push((text_layout, "singleLine"));
+        let mut expanded = Vec::with_capacity(ops.len());
+        for op in ops {
+            let text_id = match &op {
+                Op::CreateElement { id, tag, .. } if *tag == text_tag => Some(*id),
+                _ => None,
+            };
+            expanded.push(op);
+            if let Some(id) = text_id {
+                expanded.push(Op::SetTextBehavior {
+                    id,
+                    flags: TEXT_BEHAVIOR_AGGREGATE_DIRECT | TEXT_BEHAVIOR_SINGLE_LINE,
+                });
             }
         }
         let seq = 1;
-        self.applier.apply_frame(&Frame { seq, ops });
+        self.applier.apply_frame(&Frame { seq, ops: expanded });
     }
 
     fn layout(&mut self, w: u32, h: u32) -> Vec<PlacedNode> {

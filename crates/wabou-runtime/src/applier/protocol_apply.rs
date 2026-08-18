@@ -485,6 +485,14 @@ impl Applier {
             Op::RemoveWidgetConfig { id } => {
                 self.remove_widget_config(*id);
             }
+            Op::SetTextBehavior { id, flags } => {
+                if let Some(&node) = self.node_store.solid_to_node.get(id) {
+                    if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                        declared.text_behavior = *flags;
+                    }
+                    self.recompute_node(node);
+                }
+            }
             Op::SetStyle { id, prop, value } => {
                 self.set_inline_ir(*id, *prop, style::parse_ir_value(value));
             }

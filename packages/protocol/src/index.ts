@@ -34,9 +34,17 @@ export const OP = {
   SetScrollbarStyle: 0x19,
   SetWidgetConfig: 0x1a,
   RemoveWidgetConfig: 0x1b,
+  SetTextBehavior: 0x1c,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
+
+export const TEXT_BEHAVIOR = {
+  AggregateDirectText: 0x01,
+  SingleLine: 0x02,
+} as const;
+const TEXT_BEHAVIOR_MASK =
+  TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
 
 export const EVENT_CODE = {
   click: 1,
@@ -339,6 +347,18 @@ export class Writer {
     this.emit(OP.SetWidgetConfig);
     this.u32(id);
     this.str(json);
+  }
+  setTextBehavior(id: number, flags: number): void {
+    if (
+      !Number.isInteger(flags) ||
+      flags < 0 ||
+      (flags & ~TEXT_BEHAVIOR_MASK) !== 0
+    ) {
+      throw new RangeError(`invalid text behavior flags ${flags}`);
+    }
+    this.emit(OP.SetTextBehavior);
+    this.u32(id);
+    this.u8(flags);
   }
   removeWidgetConfig(id: number): void {
     this.emit(OP.RemoveWidgetConfig);

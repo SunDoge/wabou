@@ -26,8 +26,14 @@ const OP = {
 	SetOverlayPlane: 24,
 	SetScrollbarStyle: 25,
 	SetWidgetConfig: 26,
-	RemoveWidgetConfig: 27
+	RemoveWidgetConfig: 27,
+	SetTextBehavior: 28
 };
+const TEXT_BEHAVIOR = {
+	AggregateDirectText: 1,
+	SingleLine: 2
+};
+const TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
 const EVENT_CODE = {
 	click: 1,
 	input: 2,
@@ -267,6 +273,12 @@ var Writer = class {
 		this.u32(id);
 		this.str(json);
 	}
+	setTextBehavior(id, flags) {
+		if (!Number.isInteger(flags) || flags < 0 || (flags & ~TEXT_BEHAVIOR_MASK) !== 0) throw new RangeError(`invalid text behavior flags ${flags}`);
+		this.emit(OP.SetTextBehavior);
+		this.u32(id);
+		this.u8(flags);
+	}
 	removeWidgetConfig(id) {
 		this.emit(OP.RemoveWidgetConfig);
 		this.u32(id);
@@ -394,6 +406,6 @@ var Writer = class {
 	}
 };
 //#endregion
-export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, OP, Writer };
+export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, OP, TEXT_BEHAVIOR, Writer };
 
 //# sourceMappingURL=index.mjs.map

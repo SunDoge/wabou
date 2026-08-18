@@ -27,8 +27,13 @@ declare const OP: {
   readonly SetScrollbarStyle: 25;
   readonly SetWidgetConfig: 26;
   readonly RemoveWidgetConfig: 27;
+  readonly SetTextBehavior: 28;
 };
 type OpCode = (typeof OP)[keyof typeof OP];
+declare const TEXT_BEHAVIOR: {
+  readonly AggregateDirectText: 1;
+  readonly SingleLine: 2;
+};
 declare const EVENT_CODE: {
   readonly click: 1;
   readonly input: 2;
@@ -132,6 +137,7 @@ declare class Writer {
   setAttribute(id: number, name: string, value: string): void;
   removeAttribute(id: number, name: string): void;
   setWidgetConfig(id: number, json: string): void;
+  setTextBehavior(id: number, flags: number): void;
   removeWidgetConfig(id: number): void;
   setStyle(id: number, prop: string, value: string): void;
   setStyleValue(id: number, prop: string, kind: number, value: number): void;
@@ -171,5 +177,5 @@ declare class Writer {
   flush(): Uint8Array | null;
 }
 //#endregion
-export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, EventDataSlot, EventType, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, OP, OpCode, Writer };
+export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, EventDataSlot, EventType, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, OP, OpCode, TEXT_BEHAVIOR, Writer };
 //# sourceMappingURL=index.d.mts.map

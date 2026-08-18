@@ -317,10 +317,14 @@ describe("host primitives", () => {
   test("authors primitive semantics in JavaScript", () => {
     const semantics: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
+    const setTextBehavior = writer.setTextBehavior.bind(writer);
     writer.setAttribute = (_id, name, value) => {
-      if (name === "role" || name === "textFlow" || name === "textLayout") {
+      if (name === "role") {
         semantics.push([name, value]);
       }
+    };
+    writer.setTextBehavior = (_id, flags) => {
+      semantics.push(["textBehavior", String(flags)]);
     };
     try {
       Text({});
@@ -332,11 +336,11 @@ describe("host primitives", () => {
       });
     } finally {
       writer.setAttribute = setAttribute;
+      writer.setTextBehavior = setTextBehavior;
     }
     expect(semantics).toEqual([
       ["role", "label"],
-      ["textFlow", "container"],
-      ["textLayout", "singleLine"],
+      ["textBehavior", "3"],
       ["role", "img"],
       ["role", "img"],
     ]);

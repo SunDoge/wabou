@@ -141,6 +141,19 @@ describe("Writer limits", () => {
     expect(frame[13]).toBe(2);
   });
 
+  test("encodes text behavior as one typed operation", () => {
+    const writer = new Writer();
+    writer.setTextBehavior(42, 0x03);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame.byteLength).toBe(14);
+    expect(frame[8]).toBe(OP.SetTextBehavior);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(frame[13]).toBe(0x03);
+    expect(() => writer.setTextBehavior(42, 0x04)).toThrow(RangeError);
+  });
+
   test("encodes one structured widget config without a dynamic property name", () => {
     const writer = new Writer(() => 17);
     writer.setWidgetConfig(42, '{"caret":"#fff"}');

@@ -1,5 +1,5 @@
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, useContext } from "solid-js";
-import { Portal, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, spread, useHost } from "@wabou/solid-renderer";
+import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, spread, useHost } from "@wabou/solid-renderer";
 import { createPulse, createRotation, createTransition } from "@wabou/animation";
 import { number, px, rotate2d, translate2d } from "@wabou/style";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
@@ -374,8 +374,7 @@ function Text(props) {
 	spread(node, props, false);
 	spread(node, {
 		role: props.role ?? "label",
-		textFlow: "container",
-		textLayout: "singleLine"
+		textBehavior: TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine
 	}, false);
 	return node;
 }

@@ -4,6 +4,7 @@ import {
   mergeProps,
   type NativeScrollbarStyle,
   spread,
+  TEXT_BEHAVIOR,
   type WabouElementProps,
 } from "@wabou/solid-renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
@@ -180,8 +181,8 @@ export function Text(props: TextProps): JSX.Element {
     node,
     {
       role: props.role ?? "label",
-      textFlow: "container",
-      textLayout: "singleLine",
+      textBehavior:
+        TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine,
     },
     false,
   );

@@ -140,10 +140,9 @@ impl Applier {
         let is_svg = tag.as_deref() == Some("svg");
         let replaced = is_svg || self.widget_manager.widgets.contains_key(&node);
         NodeFacts {
-            text_container: decl
-                .and_then(|declared| declared.attribute(&atoms, "textFlow"))
-                .as_deref()
-                == Some("container"),
+            text_container: decl.is_some_and(|declared| {
+                declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
+            }),
             text: tag.is_none().then_some(text).flatten(),
             display,
             display_explicit: decl.is_some_and(|d| d.display_explicit),
@@ -722,7 +721,7 @@ impl Applier {
             let mut diagnostics = Vec::new();
             // JS primitives author host defaults. Authored class and inline
             // declarations below may still opt into wrapping and shrinking.
-            if decl.attribute(&atoms, "textLayout").as_deref() == Some("singleLine") {
+            if decl.text_behavior & crate::protocol::TEXT_BEHAVIOR_SINGLE_LINE != 0 {
                 layout.flex_shrink = 0.0;
                 paint.wrap_text = Some(false);
             }

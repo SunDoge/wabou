@@ -18,6 +18,10 @@ include!("gen/op.rs");
 
 use crate::atom::Atom;
 
+pub const TEXT_BEHAVIOR_AGGREGATE_DIRECT: u8 = 0x01;
+pub const TEXT_BEHAVIOR_SINGLE_LINE: u8 = 0x02;
+const TEXT_BEHAVIOR_MASK: u8 = TEXT_BEHAVIOR_AGGREGATE_DIRECT | TEXT_BEHAVIOR_SINGLE_LINE;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StyleValue {
     Px(f32),
@@ -92,6 +96,10 @@ pub enum Op<'a> {
     },
     RemoveWidgetConfig {
         id: u32,
+    },
+    SetTextBehavior {
+        id: u32,
+        flags: u8,
     },
     SetStyle {
         id: u32,
@@ -192,6 +200,9 @@ pub enum DecodeError {
 
     #[snafu(display("invalid native scrollbar style"))]
     BadScrollbarStyle,
+
+    #[snafu(display("invalid text behavior flags 0x{flags:02x}"))]
+    BadTextBehavior { flags: u8 },
 }
 
 struct Reader<'a> {
@@ -355,6 +366,14 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
         op::REMOVE_WIDGET_CONFIG => {
             let id = r.u32()?;
             Op::RemoveWidgetConfig { id }
+        }
+        op::SET_TEXT_BEHAVIOR => {
+            let id = r.u32()?;
+            let flags = r.u8()?;
+            if flags & !TEXT_BEHAVIOR_MASK != 0 {
+                return Err(DecodeError::BadTextBehavior { flags });
+            }
+            Op::SetTextBehavior { id, flags }
         }
         op::SET_STYLE => {
             let id = r.u32()?;
@@ -621,6 +640,33 @@ mod tests {
                 id: 42,
                 json: r##"{"caret":"#fff"}"##
             }
+        ));
+    }
+
+    #[test]
+    fn decodes_and_validates_typed_text_behavior() {
+        let frame_bytes = |flags| {
+            let mut bytes = Vec::new();
+            push_u32(&mut bytes, 1);
+            push_u32(&mut bytes, 1);
+            bytes.push(op::SET_TEXT_BEHAVIOR);
+            push_u32(&mut bytes, 42);
+            bytes.push(flags);
+            bytes
+        };
+
+        let valid = frame_bytes(0x03);
+        let frame = decode_frame(&valid).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetTextBehavior {
+                id: 42,
+                flags: 0x03
+            }
+        ));
+        assert!(matches!(
+            decode_frame(&frame_bytes(0x04)),
+            Err(DecodeError::BadTextBehavior { flags: 0x04 })
         ));
     }
 

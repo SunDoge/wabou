@@ -241,8 +241,9 @@ fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: div,
-        attrs: renderer_attrs(&applier, true),
+        attrs: vec![],
     });
+    set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
         id: 3,
         text: "Hello ",
@@ -304,8 +305,9 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: div,
-        attrs: renderer_attrs(&applier, true),
+        attrs: vec![],
     });
+    set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
         id: 3,
         text: "selectable text",
@@ -569,8 +571,9 @@ fn text_selection_crosses_hosts_in_both_directions() {
         applier.apply_op(&Op::CreateElement {
             id: host,
             tag: div,
-            attrs: renderer_attrs(&applier, true),
+            attrs: vec![],
         });
+        set_text_behavior(&mut applier, host);
         applier.apply_op(&Op::SetStyle {
             id: host,
             prop: height,
@@ -766,8 +769,9 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
         applier.apply_op(&Op::CreateElement {
             id: host,
             tag: div,
-            attrs: renderer_attrs(&applier, true),
+            attrs: vec![],
         });
+        set_text_behavior(&mut applier, host);
         applier.apply_op(&Op::SetStyle {
             id: host,
             prop: font_size,
@@ -823,8 +827,9 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: div,
-        attrs: renderer_attrs(&applier, true),
+        attrs: vec![],
     });
+    set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
         id: 3,
         text: "Hello ",
@@ -832,7 +837,7 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
     applier.apply_op(&Op::CreateElement {
         id: 4,
         tag: strong,
-        attrs: renderer_attrs(&applier, false),
+        attrs: vec![],
     });
     applier.apply_op(&Op::CreateText {
         id: 5,

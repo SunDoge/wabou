@@ -1,4 +1,4 @@
-import { EVENT_CODE, OP, Writer } from "@wabou/protocol";
+import { EVENT_CODE, OP, TEXT_BEHAVIOR, Writer } from "@wabou/protocol";
 import { assertInlineStyleValue, isTypedStyleValue } from "@wabou/style";
 import { For, Show, createComponent as createComponent$1, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
@@ -363,6 +363,11 @@ function applyProperty(writer, node, name, value, prev) {
 	if (name === "overlayPlane") {
 		const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
 		writer.setOverlayPlane(node.id, plane);
+		return;
+	}
+	if (name === "textBehavior") {
+		const flags = value == null || value === false ? 0 : Number(value);
+		writer.setTextBehavior(node.id, flags);
 		return;
 	}
 	if (name === "scrollbar") {
@@ -790,6 +795,6 @@ function eventName(code) {
 	return "unknown";
 }
 //#endregion
-export { Dynamic, EVENT_CODE, HostProvider, OP, Portal, VirtualList, acquireOverlayRoot, applyRef, createComponent, createElement, createFps, createTextNode, defaultHost, delegateEvents, dispatchEvent, effect, getMountRoot, getRequestEvent, insert, insertNode, isServer, memo, mergeProps, mount, ref, registerRoot, releaseOverlayRoot, removeNode, render, runSweep, setProp, setTransform2D, spread, useFps, useHost, writer };
+export { Dynamic, EVENT_CODE, HostProvider, OP, Portal, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, applyRef, createComponent, createElement, createFps, createTextNode, defaultHost, delegateEvents, dispatchEvent, effect, getMountRoot, getRequestEvent, insert, insertNode, isServer, memo, mergeProps, mount, ref, registerRoot, releaseOverlayRoot, removeNode, render, runSweep, setProp, setTransform2D, spread, useFps, useHost, writer };
 
 //# sourceMappingURL=index.mjs.map

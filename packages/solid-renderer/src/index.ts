@@ -12,7 +12,14 @@
 // where moduleName is this package. So we eagerly build ONE renderer at module
 // load and re-export its methods as named exports below.
 
-import { EVENT_CODE, type EventType, OP, Writer } from "@wabou/protocol";
+import {
+  EVENT_CODE,
+  type EventType,
+  OP,
+  TEXT_BEHAVIOR,
+  Writer,
+} from "@wabou/protocol";
+export { TEXT_BEHAVIOR } from "@wabou/protocol";
 import {
   type Affine2D,
   assertInlineStyleValue,
@@ -457,6 +464,11 @@ function applyProperty(
   if (name === "overlayPlane") {
     const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
     writer.setOverlayPlane(node.id, plane);
+    return;
+  }
+  if (name === "textBehavior") {
+    const flags = value == null || value === false ? 0 : Number(value);
+    writer.setTextBehavior(node.id, flags);
     return;
   }
   if (name === "scrollbar") {

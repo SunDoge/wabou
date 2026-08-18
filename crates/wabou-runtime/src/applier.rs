@@ -204,6 +204,8 @@ struct Declared {
     paint: DeclaredPaint,
     /// Distinguishes authored `display:flex` from Taffy's flex default.
     display_explicit: bool,
+    /// Typed host behavior authored by the JS Text primitive.
+    text_behavior: u8,
 }
 
 impl Declared {

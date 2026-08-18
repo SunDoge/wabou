@@ -30,6 +30,7 @@ pub mod op {
     pub const SET_SCROLLBAR_STYLE: u8 = 0x19;
     pub const SET_WIDGET_CONFIG: u8 = 0x1a;
     pub const REMOVE_WIDGET_CONFIG: u8 = 0x1b;
+    pub const SET_TEXT_BEHAVIOR: u8 = 0x1c;
 }
 
 #[allow(missing_docs)]

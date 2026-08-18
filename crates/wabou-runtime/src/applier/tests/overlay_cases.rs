@@ -18,8 +18,11 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         applier.apply_op(&Op::CreateElement {
             id,
             tag: div,
-            attrs: renderer_attrs(&applier, id == 3),
+            attrs: vec![],
         });
+        if id == 3 {
+            set_text_behavior(&mut applier, id);
+        }
         applier.apply_op(&Op::SetStyle {
             id,
             prop: width,

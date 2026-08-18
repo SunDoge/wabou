@@ -722,8 +722,14 @@
     SetOverlayPlane: 24,
     SetScrollbarStyle: 25,
     SetWidgetConfig: 26,
-    RemoveWidgetConfig: 27
+    RemoveWidgetConfig: 27,
+    SetTextBehavior: 28
   };
+  var TEXT_BEHAVIOR = {
+    AggregateDirectText: 1,
+    SingleLine: 2
+  };
+  var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
   var EVENT_CODE = {
     click: 1,
     input: 2,
@@ -977,6 +983,14 @@
       this.u32(id);
       this.str(json);
     }
+    setTextBehavior(id, flags) {
+      if (!Number.isInteger(flags) || flags < 0 || (flags & ~TEXT_BEHAVIOR_MASK) !== 0) {
+        throw new RangeError(`invalid text behavior flags ${flags}`);
+      }
+      this.emit(OP.SetTextBehavior);
+      this.u32(id);
+      this.u8(flags);
+    }
     removeWidgetConfig(id) {
       this.emit(OP.RemoveWidgetConfig);
       this.u32(id);
@@ -1112,7 +1126,6 @@
       return out;
     }
   }
-
   // packages/style/generated/style-properties.ts
   var INLINE_STYLE_CONTRACT = {
     "align-content": {
@@ -5335,6 +5348,11 @@
     if (name === "overlayPlane") {
       const plane = value === "modal" ? 2 : value === "floating" ? 1 : 0;
       writer.setOverlayPlane(node.id, plane);
+      return;
+    }
+    if (name === "textBehavior") {
+      const flags = value == null || value === false ? 0 : Number(value);
+      writer.setTextBehavior(node.id, flags);
       return;
     }
     if (name === "scrollbar") {

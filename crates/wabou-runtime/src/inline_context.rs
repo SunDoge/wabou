@@ -14,8 +14,8 @@
 //!    establishes a flex or grid formatting context, each direct child keeps
 //!    its own principal box (gap, alignment, fixed sizing, per-item hit test).
 //! 2. **Only explicit text containers collapse.** JavaScript publishes the
-//!    `textFlow="container"` host contract. Rust never infers text behavior
-//!    from HTML-like tag names.
+//!    typed text-behavior contract. Rust never infers text behavior from
+//!    HTML-like tag names.
 //! 3. **Only direct text leaves are absorbed.** Components and nested elements
 //!    keep principal boxes; styled inline subtrees are not guessed.
 //! 4. **Replaced subtrees stay out.** SVG roots and host widgets own their
