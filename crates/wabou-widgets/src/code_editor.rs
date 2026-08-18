@@ -28,6 +28,8 @@ const LINE_HEIGHT: f32 = 22.0;
 const FALLBACK_CELL_WIDTH: f32 = 8.4;
 const GUTTER_WIDTH: f32 = 58.0;
 const TEXT_INSET: f32 = 10.0;
+const CONTENT_CHANGED: wabou_shell::WidgetChanges =
+    wabou_shell::WidgetChanges::REDRAW.union(wabou_shell::WidgetChanges::SEMANTICS);
 
 #[derive(Clone, Copy, Debug)]
 struct EditorGeometry {
@@ -707,33 +709,39 @@ impl Widget for CodeEditor {
                 replacement.text_color = self.text_color;
                 replacement.font_family = self.font_family.clone();
                 *self = replacement;
+                CONTENT_CHANGED
             }
-            "disabled" => self.disabled = value != "false",
-            "readOnly" => self.read_only = value != "false",
-            "font-family" => self.font_family = Some(Arc::from(value)),
-            _ => {}
-        }
-        match name {
-            "value" | "disabled" | "readOnly" => {
-                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
+            "value" => CONTENT_CHANGED,
+            "disabled" => {
+                self.disabled = value != "false";
+                CONTENT_CHANGED
             }
-            "font-family" => wabou_shell::WidgetChanges::REDRAW,
+            "readOnly" => {
+                self.read_only = value != "false";
+                CONTENT_CHANGED
+            }
+            "font-family" => {
+                self.font_family = Some(Arc::from(value));
+                wabou_shell::WidgetChanges::REDRAW
+            }
             _ => wabou_shell::WidgetChanges::empty(),
         }
     }
 
     fn attribute_removed(&mut self, name: &str) -> wabou_shell::WidgetChanges {
         match name {
-            "disabled" => self.disabled = false,
-            "readOnly" => self.read_only = false,
-            "font-family" => self.font_family = Some(Arc::from("monospace")),
-            _ => {}
-        }
-        match name {
-            "disabled" | "readOnly" => {
-                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
+            "disabled" => {
+                self.disabled = false;
+                CONTENT_CHANGED
             }
-            "font-family" => wabou_shell::WidgetChanges::REDRAW,
+            "readOnly" => {
+                self.read_only = false;
+                CONTENT_CHANGED
+            }
+            "font-family" => {
+                self.font_family = Some(Arc::from("monospace"));
+                wabou_shell::WidgetChanges::REDRAW
+            }
             _ => wabou_shell::WidgetChanges::empty(),
         }
     }

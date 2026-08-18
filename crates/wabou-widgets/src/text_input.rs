@@ -25,6 +25,7 @@ use crate::single_line_y_offset;
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
 const CARET_COLOR: Color = Color::from_rgb8(0xe2, 0xe8, 0xf0);
 const PLACEHOLDER_COLOR: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
+const CONTENT_CHANGED: WidgetChanges = WidgetChanges::REDRAW.union(WidgetChanges::SEMANTICS);
 
 /// A pending edit to apply on the next `paint` (when FontContext is available).
 enum PendingEdit {
@@ -649,14 +650,9 @@ impl Widget for TextInput {
             "disabled" => self.disabled = value != "false",
             "readOnly" => self.read_only = value != "false",
             "type" => self.password = !self.multiline && value == "password",
-            _ => {}
+            _ => return WidgetChanges::empty(),
         }
-        match name {
-            "value" | "placeholder" | "font-size" | "color" | "disabled" | "readOnly" | "type" => {
-                WidgetChanges::REDRAW | WidgetChanges::SEMANTICS
-            }
-            _ => WidgetChanges::empty(),
-        }
+        CONTENT_CHANGED
     }
 
     fn attribute_removed(&mut self, name: &str) -> WidgetChanges {
@@ -665,14 +661,9 @@ impl Widget for TextInput {
             "readOnly" => self.read_only = false,
             "placeholder" => self.placeholder.clear(),
             "type" => self.password = false,
-            _ => {}
+            _ => return WidgetChanges::empty(),
         }
-        match name {
-            "disabled" | "readOnly" | "placeholder" | "type" => {
-                WidgetChanges::REDRAW | WidgetChanges::SEMANTICS
-            }
-            _ => WidgetChanges::empty(),
-        }
+        CONTENT_CHANGED
     }
 
     fn current_value(&self) -> Option<&str> {

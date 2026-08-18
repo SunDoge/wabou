@@ -17,6 +17,8 @@ use crate::single_line_y_offset;
 
 const PLACEHOLDER: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
 const DEFAULT_SLOT: &str = "default";
+const CONTENT_CHANGED: wabou_shell::WidgetChanges =
+    wabou_shell::WidgetChanges::REDRAW.union(wabou_shell::WidgetChanges::SEMANTICS);
 
 #[derive(Clone, Default)]
 /// Rust-only secret slots shared by password widgets and their application.
@@ -190,31 +192,21 @@ impl Widget for PasswordInput {
     fn attribute_changed(&mut self, name: &str, value: &str) -> wabou_shell::WidgetChanges {
         match name {
             "placeholder" => self.placeholder = value.to_owned(),
-            "secret" | "secret-slot" => self.slot = value.to_owned(),
+            "secret" => self.slot = value.to_owned(),
             "disabled" => self.disabled = value != "false",
-            _ => {}
+            _ => return wabou_shell::WidgetChanges::empty(),
         }
-        match name {
-            "placeholder" | "secret" | "secret-slot" | "disabled" => {
-                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
-            }
-            _ => wabou_shell::WidgetChanges::empty(),
-        }
+        CONTENT_CHANGED
     }
 
     fn attribute_removed(&mut self, name: &str) -> wabou_shell::WidgetChanges {
         match name {
             "placeholder" => self.placeholder.clear(),
-            "secret" | "secret-slot" => self.slot = DEFAULT_SLOT.into(),
+            "secret" => self.slot = DEFAULT_SLOT.into(),
             "disabled" => self.disabled = false,
-            _ => {}
+            _ => return wabou_shell::WidgetChanges::empty(),
         }
-        match name {
-            "placeholder" | "secret" | "secret-slot" | "disabled" => {
-                wabou_shell::WidgetChanges::REDRAW | wabou_shell::WidgetChanges::SEMANTICS
-            }
-            _ => wabou_shell::WidgetChanges::empty(),
-        }
+        CONTENT_CHANGED
     }
 
     fn style_changed(&mut self, style: &WidgetStyle) -> wabou_shell::WidgetChanges {
@@ -274,6 +266,16 @@ mod tests {
         assert!(input.current_value().is_none());
         assert_eq!(secrets.take("master-password").as_str(), "sëcret🔑");
         assert!(secrets.take("master-password").is_empty());
+    }
+
+    #[test]
+    fn password_input_accepts_only_the_secret_attribute() {
+        let mut input = PasswordInput::new(SecretStore::default());
+
+        assert!(input.attribute_changed("secret-slot", "legacy").is_empty());
+        assert_eq!(input.slot, DEFAULT_SLOT);
+        assert!(!input.attribute_changed("secret", "current").is_empty());
+        assert_eq!(input.slot, "current");
     }
 
     #[test]
