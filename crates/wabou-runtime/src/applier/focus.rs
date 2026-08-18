@@ -178,19 +178,36 @@ impl Applier {
                 (atoms.resolve(*name) == Some(wanted)).then(|| value.to_string())
             })
         };
-        let modal_node = placed.iter().rev().find_map(|placed| {
+        let modal = placed.iter().enumerate().rev().find_map(|(index, placed)| {
             let declared = self.node_store.declared.get(&placed.node_id)?;
             (placed.paint.overlay_plane == OverlayPlane::Modal
                 && attribute(declared, "aria-modal").as_deref() == Some("true"))
-            .then_some(placed.node_id)
+            .then_some((index, placed.node_id))
         });
+        // A portal opened from inside a modal is a physical sibling under the
+        // shared modal plane, not a logical descendant of the dialog. Treat
+        // later modal-plane roots as part of the active modal scope so their
+        // controls remain focusable without admitting older/background modals.
+        let supplemental_modal_roots = modal.map_or_else(Vec::new, |(index, _)| {
+            placed[index + 1..]
+                .iter()
+                .filter(|node| node.paint.overlay_plane == OverlayPlane::Modal)
+                .map(|node| node.node_id)
+                .collect::<Vec<_>>()
+        });
+        let inside_active_modal = |node| {
+            modal.is_none_or(|(_, modal_node)| {
+                self.node_store.is_logical_descendant(node, modal_node)
+                    || supplemental_modal_roots
+                        .iter()
+                        .any(|root| self.node_store.is_logical_descendant(node, *root))
+            })
+        };
         let mut candidates = Vec::new();
         let mut focusable_targets = HashSet::new();
         for (document_order, placed) in placed.iter().enumerate() {
             if placed.node_id == self.node_store.root
-                || modal_node.is_some_and(|modal| {
-                    !self.node_store.is_logical_descendant(placed.node_id, modal)
-                })
+                || !inside_active_modal(placed.node_id)
                 || subtree_has_attribute(&self.node_store, &atoms, placed.node_id, "inert", None)
                 || subtree_has_attribute(
                     &self.node_store,
@@ -272,7 +289,7 @@ impl Applier {
             .focused_target
             .is_none_or(|focused| self.input.focusable_targets.contains(&focused));
         if !focused_is_valid {
-            let fallback = modal_node.and_then(|_| self.input.focus_order.first().copied());
+            let fallback = modal.and_then(|_| self.input.focus_order.first().copied());
             self.set_focused_target(fallback);
         }
     }

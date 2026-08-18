@@ -1,7 +1,7 @@
-import { For, Show, createComponent, createEffect, createMemo, createSignal, omit, onCleanup } from "solid-js";
+import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, useContext } from "solid-js";
 import { Portal, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, setProp, spread, useHost } from "@wabou/solid-renderer";
-import { number, px, rotate2d, translate2d } from "@wabou/style";
 import { createPulse, createRotation, createTransition } from "@wabou/animation";
+import { number, px, rotate2d, translate2d } from "@wabou/style";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 //#region src/animation-frame.ts
 /**
@@ -253,6 +253,58 @@ function Button(props) {
 	return _el$;
 }
 //#endregion
+//#region src/measure.ts
+/** Observe the completed native content-box size of a host node. */
+function createMeasuredSize(options = {}) {
+	const [width, setWidth] = createSignal(0);
+	const [height, setHeight] = createSignal(0);
+	const [measured, setMeasured] = createSignal(false);
+	let observer;
+	const ref = (node) => {
+		observer?.disconnect();
+		observer = new ResizeObserver(([entry]) => {
+			if (!entry) return;
+			const size = {
+				width: entry.contentRect.width,
+				height: entry.contentRect.height
+			};
+			setWidth(size.width);
+			setHeight(size.height);
+			setMeasured(true);
+			options.onChange?.(size);
+		});
+		observer.observe(node);
+	};
+	onCleanup(() => observer?.disconnect());
+	return {
+		ref,
+		width,
+		height,
+		measured
+	};
+}
+//#endregion
+//#region src/presence.ts
+/** Explicit mount lifecycle for content whose exit must finish before removal. */
+function createPresence(open) {
+	const [phase, setPhase] = createSignal(open() ? "present" : "unmounted");
+	createEffect(open, (isOpen) => {
+		if (isOpen) {
+			if (phase() === "unmounted" || phase() === "exiting") setPhase("entering");
+		} else if (phase() === "present" || phase() === "entering") setPhase("exiting");
+	});
+	return {
+		phase,
+		mounted: () => phase() !== "unmounted",
+		finishEnter() {
+			if (open() && phase() === "entering") setPhase("present");
+		},
+		finishExit() {
+			if (!open() && phase() === "exiting") setPhase("unmounted");
+		}
+	};
+}
+//#endregion
 //#region src/view.ts
 function primitive(tag, props) {
 	const node = createElement(tag);
@@ -333,79 +385,6 @@ function PasswordInput(props) {
 /** Experimental native editor for config and script-sized documents. */
 function CodeEditor(props) {
 	return primitive("code-editor", props);
-}
-//#endregion
-//#region src/layout.tsx
-const join$1 = (...values) => values.filter(Boolean).join(" ");
-/** Horizontal flex container. No wrapper node is added beyond the host View. */
-function Row(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join$1("flex flex-row", props.class);
-	} }));
-}
-/** Vertical flex container. No wrapper node is added beyond the host View. */
-function Column(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join$1("flex flex-col", props.class);
-	} }));
-}
-/** Flex container that centers children on both axes. */
-function Center(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join$1("flex items-center justify-center", props.class);
-	} }));
-}
-//#endregion
-//#region src/measure.ts
-/** Observe the completed native content-box size of a host node. */
-function createMeasuredSize(options = {}) {
-	const [width, setWidth] = createSignal(0);
-	const [height, setHeight] = createSignal(0);
-	const [measured, setMeasured] = createSignal(false);
-	let observer;
-	const ref = (node) => {
-		observer?.disconnect();
-		observer = new ResizeObserver(([entry]) => {
-			if (!entry) return;
-			const size = {
-				width: entry.contentRect.width,
-				height: entry.contentRect.height
-			};
-			setWidth(size.width);
-			setHeight(size.height);
-			setMeasured(true);
-			options.onChange?.(size);
-		});
-		observer.observe(node);
-	};
-	onCleanup(() => observer?.disconnect());
-	return {
-		ref,
-		width,
-		height,
-		measured
-	};
-}
-//#endregion
-//#region src/presence.ts
-/** Explicit mount lifecycle for content whose exit must finish before removal. */
-function createPresence(open) {
-	const [phase, setPhase] = createSignal(open() ? "present" : "unmounted");
-	createEffect(open, (isOpen) => {
-		if (isOpen) {
-			if (phase() === "unmounted" || phase() === "exiting") setPhase("entering");
-		} else if (phase() === "present" || phase() === "entering") setPhase("exiting");
-	});
-	return {
-		phase,
-		mounted: () => phase() !== "unmounted",
-		finishEnter() {
-			if (open() && phase() === "entering") setPhase("present");
-		},
-		finishExit() {
-			if (!open() && phase() === "exiting") setPhase("unmounted");
-		}
-	};
 }
 //#endregion
 //#region src/collapsible-presence.tsx
@@ -498,36 +477,101 @@ function CollapsiblePresence(props) {
 	});
 }
 //#endregion
+//#region src/layout.tsx
+const join$1 = (...values) => values.filter(Boolean).join(" ");
+/** Horizontal flex container. No wrapper node is added beyond the host View. */
+function Row(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join$1("flex flex-row", props.class);
+	} }));
+}
+/** Vertical flex container. No wrapper node is added beyond the host View. */
+function Column(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join$1("flex flex-col", props.class);
+	} }));
+}
+/** Flex container that centers children on both axes. */
+function Center(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join$1("flex items-center justify-center", props.class);
+	} }));
+}
+//#endregion
 //#region src/overlay-layer.ts
 const openLayers = [];
+let nextOrder = 1;
+const OverlayPlaneContext = createContext("floating");
+/** Make nested portals inherit the current native stacking plane. */
+function OverlayPlaneProvider(props) {
+	return createComponent(OverlayPlaneContext, {
+		get value() {
+			return props.plane;
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function useOverlayPlane() {
+	return useContext(OverlayPlaneContext);
+}
+function planeRank(plane) {
+	return plane === "modal" ? 1 : 0;
+}
 function removeLayer(token) {
-	const index = openLayers.lastIndexOf(token);
+	const index = openLayers.findIndex((layer) => layer.token === token);
 	if (index >= 0) openLayers.splice(index, 1);
+}
+function pushLayer(token, plane) {
+	removeLayer(token);
+	const order = nextOrder++;
+	openLayers.push({
+		token,
+		plane,
+		order
+	});
+	return order;
+}
+function topmostLayer() {
+	return openLayers.reduce((topmost, candidate) => {
+		if (!topmost) return candidate;
+		const rank = planeRank(candidate.plane) - planeRank(topmost.plane);
+		return rank > 0 || rank === 0 && candidate.order > topmost.order ? candidate : topmost;
+	}, void 0);
 }
 function createOverlayLayer(options) {
 	const token = Symbol("wabou-overlay-layer");
+	const plane = () => options.plane?.() ?? "floating";
 	let wasOpen = options.open();
-	if (wasOpen) openLayers.push(token);
+	let activePlane = plane();
+	const [zIndex, setZIndex] = createSignal(wasOpen ? pushLayer(token, activePlane) : 0);
 	const restoreFocus = () => {
 		if (options.restoreFocus?.() ?? true) options.returnFocus?.()?.focus();
 	};
 	createEffect(options.open, (open) => {
-		if (open && !wasOpen) {
-			removeLayer(token);
-			openLayers.push(token);
-		} else if (!open && wasOpen) {
+		const currentPlane = plane();
+		if (open && !wasOpen) setZIndex(pushLayer(token, currentPlane));
+		else if (!open && wasOpen) {
 			removeLayer(token);
 			restoreFocus();
 		}
 		wasOpen = open;
+		activePlane = currentPlane;
+	});
+	createEffect(plane, (currentPlane) => {
+		if (wasOpen && activePlane !== currentPlane) setZIndex(pushLayer(token, currentPlane));
+		activePlane = currentPlane;
 	});
 	onCleanup(() => {
 		removeLayer(token);
 		if (wasOpen) restoreFocus();
 		wasOpen = false;
 	});
-	const isTopmost = () => openLayers.at(-1) === token;
+	const isTopmost = () => topmostLayer()?.token === token;
 	return {
+		plane,
+		zIndex,
 		isTopmost,
 		onEscape(event) {
 			if (!options.open() || !isTopmost() || event.key !== "Escape" || options.closeOnEscape?.() === false) return;
@@ -563,6 +607,7 @@ function Modal(props) {
 	const controls = { close: () => close("programmatic") };
 	const layer = createOverlayLayer({
 		open,
+		plane: () => "modal",
 		onDismiss: (reason) => close(reason === "outside" ? "backdrop" : "escape"),
 		closeOnEscape: () => props.closeOnEscape ?? true,
 		closeOnOutside: () => props.closeOnBackdrop ?? true,
@@ -608,6 +653,7 @@ function Modal(props) {
 			return createComponent(Portal, {
 				plane: "modal",
 				role: "presentation",
+				"aria-modal": "true",
 				get class() {
 					return props.backdropClass;
 				},
@@ -621,7 +667,8 @@ function Modal(props) {
 						display: "flex",
 						"align-items": "center",
 						"justify-content": "center",
-						...props.backdropStyle
+						...props.backdropStyle,
+						"z-index": layer.zIndex()
 					};
 				},
 				onClick: layer.onOutside,
@@ -644,7 +691,12 @@ function Modal(props) {
 						},
 						onClick: (event) => event.stopPropagation(),
 						get children() {
-							return typeof props.children === "function" ? props.children(controls) : props.children;
+							return createComponent(OverlayPlaneProvider, {
+								plane: "modal",
+								get children() {
+									return typeof props.children === "function" ? props.children(controls) : props.children;
+								}
+							});
 						}
 					});
 				}
@@ -891,6 +943,8 @@ function computeHostFloatingPosition(reference, floating, host, options = {}) {
 /** A root-layer floating panel positioned from native layout snapshots. */
 function Popover(props) {
 	const host = useHost();
+	const inheritedPlane = useOverlayPlane();
+	const plane = () => props.plane ?? inheritedPlane;
 	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
 	const [position, setPosition] = createSignal({
 		x: 0,
@@ -909,6 +963,7 @@ function Popover(props) {
 	};
 	const layer = createOverlayLayer({
 		open,
+		plane,
 		onDismiss: (reason) => setOpen(false, reason),
 		closeOnEscape: () => props.closeOnEscape ?? true,
 		returnFocus: () => anchor,
@@ -987,16 +1042,22 @@ function Popover(props) {
 		},
 		get children() {
 			return createComponent$1(Portal, {
+				get plane() {
+					return plane();
+				},
 				ref: (node) => {
 					observe(node);
 				},
 				role: "presentation",
-				style: {
-					position: "absolute",
-					left: 0,
-					top: 0,
-					width: "100%",
-					height: "100%"
+				get style() {
+					return {
+						position: "absolute",
+						left: 0,
+						top: 0,
+						width: "100%",
+						height: "100%",
+						"z-index": layer.zIndex()
+					};
 				},
 				get onClick() {
 					return layer.onOutside;
@@ -1290,6 +1351,6 @@ function assertUniqueKeys(tabs, key) {
 	}
 }
 //#endregion
-export { Button, Center, CodeEditor, CollapsiblePresence, Column, Icon, Image, Modal, NetworkImage, NotificationRegion, PasswordInput, Popover, Pulse, Row, ScrollArea, Spin, Svg, Text, TextArea, View, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d };
+export { Button, Center, CodeEditor, CollapsiblePresence, Column, Icon, Image, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Pulse, Row, ScrollArea, Spin, Svg, Text, TextArea, View, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
 
 //# sourceMappingURL=index.mjs.map

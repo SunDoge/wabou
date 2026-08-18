@@ -7,8 +7,9 @@ import {
   type Handle,
   mount,
 } from "@wabou/solid-renderer";
-import { createRoot, createSignal, flush } from "solid-js";
+import { createComponent, createRoot, createSignal, flush } from "solid-js";
 import { Modal, type ModalControls, type ModalTriggerProps } from "./modal";
+import { useOverlayPlane } from "./overlay-layer";
 import { View } from "./view";
 
 const event = () => ({
@@ -118,6 +119,28 @@ test("Modal can keep backdrop and Escape dismissal disabled", () => {
   });
 
   expect(root.lastChild).toBeNull();
+  disposeMount();
+});
+
+test("Modal content makes nested overlays inherit the modal plane", () => {
+  const disposeMount = mount(() => null);
+  let inherited: string | undefined;
+
+  createRoot((dispose) => {
+    function Probe() {
+      inherited = useOverlayPlane();
+      return null;
+    }
+    Modal({
+      "aria-label": "Nested overlay",
+      defaultOpen: true,
+      children: () => createComponent(Probe, {}),
+    });
+    flush();
+    expect(inherited).toBe("modal");
+    dispose();
+  });
+
   disposeMount();
 });
 

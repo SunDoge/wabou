@@ -37,6 +37,31 @@ test("only the most recently opened overlay can dismiss", () => {
   });
 });
 
+test("native plane order takes precedence over open order", () => {
+  createRoot((dispose) => {
+    const dismissed: string[] = [];
+    const modal = createOverlayLayer({
+      open: () => true,
+      plane: () => "modal",
+      onDismiss: () => dismissed.push("modal"),
+    });
+    const laterFloating = createOverlayLayer({
+      open: () => true,
+      plane: () => "floating",
+      onDismiss: () => dismissed.push("floating"),
+    });
+    flush();
+
+    expect(modal.zIndex()).toBeLessThan(laterFloating.zIndex());
+
+    laterFloating.onEscape(event());
+    modal.onEscape(event());
+    expect(dismissed).toEqual(["modal"]);
+
+    dispose();
+  });
+});
+
 test("an overlay restores focus when closed or unmounted while open", () => {
   let restored = 0;
   let setOpen: ((open: boolean) => void) | undefined;
@@ -60,4 +85,3 @@ test("an overlay restores focus when closed or unmounted while open", () => {
   dispose();
   expect(restored).toBe(2);
 });
-

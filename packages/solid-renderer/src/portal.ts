@@ -1,13 +1,13 @@
-import { omit, onCleanup, type JSX } from "solid-js";
+import { type JSX, omit, onCleanup } from "solid-js";
 import {
-  createElement,
   acquireOverlayRoot,
+  createElement,
+  type Handle,
   insert,
   insertNode,
-  removeNode,
   releaseOverlayRoot,
+  removeNode,
   spread,
-  type Handle,
 } from "./index";
 
 export interface PortalProps {
@@ -25,11 +25,7 @@ export function Portal(props: PortalProps): JSX.Element {
   const root = acquireOverlayRoot(plane);
   const container = createElement("view") as Handle;
   spread(container, containerProps, false);
-  if (plane === "modal") {
-    // Mark each modal container, not only the shared plane root. The host can
-    // then expose only the last painted modal when several are mounted.
-    spread(container, { "aria-modal": "true", overlayPlane: "modal" }, false);
-  }
+  spread(container, { overlayPlane: plane }, false);
   insertNode(root, container, undefined);
   insert(container, () => local.children);
   onCleanup(() => {

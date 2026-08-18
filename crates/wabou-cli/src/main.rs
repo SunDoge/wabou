@@ -1355,6 +1355,10 @@ fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     }));
     let mut text_context = TextContext::new();
     let mut nodes = applier.build_frame(&mut text_context, *width, *height);
+    // Boot may schedule Promise/Solid work that commits on a later JS turn
+    // (for example Router Core's initial load). Settle that work before the
+    // first capture just as we do after replayed input actions.
+    settle_render_actions(&mut applier, &mut text_context, &mut nodes, *width, *height);
 
     if *wait_ms > 0 {
         let deadline = Instant::now() + Duration::from_millis(*wait_ms);

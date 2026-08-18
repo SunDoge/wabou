@@ -7,8 +7,8 @@ import {
   onCleanup,
   Show,
 } from "solid-js";
+import { createOverlayLayer, OverlayPlaneProvider } from "./overlay-layer";
 import type { WabouStyle } from "./view";
-import { createOverlayLayer } from "./overlay-layer";
 import { View } from "./view";
 
 export interface ModalEvent {
@@ -82,6 +82,7 @@ export function Modal(props: ModalProps): JSX.Element {
   };
   const layer = createOverlayLayer({
     open,
+    plane: () => "modal",
     onDismiss: (reason) => close(reason === "outside" ? "backdrop" : "escape"),
     closeOnEscape: () => props.closeOnEscape ?? true,
     closeOnOutside: () => props.closeOnBackdrop ?? true,
@@ -135,6 +136,9 @@ export function Modal(props: ModalProps): JSX.Element {
         return createComponent(Portal, {
           plane: "modal",
           role: "presentation",
+          // The modal owner marks the focus/semantic boundary. A generic
+          // modal-plane Portal may only be a nested popover and must not do so.
+          "aria-modal": "true",
           get class() {
             return props.backdropClass;
           },
@@ -149,6 +153,9 @@ export function Modal(props: ModalProps): JSX.Element {
               "align-items": "center",
               "justify-content": "center",
               ...props.backdropStyle,
+              // Portal containers share one native plane. Make open order
+              // explicit so nested overlays paint above their owning modal.
+              "z-index": layer.zIndex(),
             };
           },
           onClick: layer.onOutside,
@@ -171,9 +178,14 @@ export function Modal(props: ModalProps): JSX.Element {
               },
               onClick: (event: ModalEvent) => event.stopPropagation(),
               get children() {
-                return typeof props.children === "function"
-                  ? props.children(controls)
-                  : props.children;
+                return createComponent(OverlayPlaneProvider, {
+                  plane: "modal",
+                  get children() {
+                    return typeof props.children === "function"
+                      ? props.children(controls)
+                      : props.children;
+                  },
+                });
               },
             });
           },

@@ -326,6 +326,66 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
 }
 
 #[test]
+fn modal_focus_scope_includes_later_portals_on_the_modal_plane() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (view, button, aria_modal) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("view"),
+            atoms.intern("button"),
+            atoms.intern("aria-modal"),
+        )
+    };
+    for (id, tag, attrs) in [
+        (2, button, vec![]),
+        (3, view, vec![(aria_modal, "true")]),
+        (4, button, vec![]),
+        (5, view, vec![]),
+        (6, button, vec![]),
+    ] {
+        applier.apply_op(&Op::CreateElement { id, tag, attrs });
+    }
+    for (parent, child) in [(1, 2), (1, 3), (3, 4), (1, 5), (5, 6)] {
+        applier.apply_op(&Op::AppendChild { parent, child });
+    }
+
+    let root = applier.node_store.root;
+    let node = |solid: u32, parent_node_id, plane| PlacedNode {
+        node_id: applier.node_store.solid_to_node[&solid],
+        parent_node_id,
+        depth: 1,
+        rect: [0.0, 0.0, 100.0, 100.0],
+        content_origin: [0.0, 0.0],
+        content_size: [100.0, 100.0],
+        clip: None,
+        clip_radius: 0.0,
+        clip_depth: None,
+        own_clip: None,
+        own_clip_radius: 0.0,
+        border_widths: [0.0; 4],
+        scroll: layout::ScrollMetrics::default(),
+        paint: Paint {
+            overlay_plane: plane,
+            ..Paint::default()
+        },
+    };
+    let modal = applier.node_store.solid_to_node[&3];
+    let portal = applier.node_store.solid_to_node[&5];
+    let placed = vec![
+        node(2, Some(root), OverlayPlane::Content),
+        node(3, Some(root), OverlayPlane::Modal),
+        node(4, Some(modal), OverlayPlane::Content),
+        node(5, Some(root), OverlayPlane::Modal),
+        node(6, Some(portal), OverlayPlane::Content),
+    ];
+
+    applier.rebuild_focus_order(&placed);
+    assert_eq!(applier.input.focus_order, [4, 6]);
+    assert!(!applier.input.focusable_targets.contains(&2));
+}
+
+#[test]
 fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);

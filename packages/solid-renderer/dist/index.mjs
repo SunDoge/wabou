@@ -62,10 +62,7 @@ function Portal(props) {
 	const root = acquireOverlayRoot(plane);
 	const container = createElement("view");
 	spread(container, containerProps, false);
-	if (plane === "modal") spread(container, {
-		"aria-modal": "true",
-		overlayPlane: "modal"
-	}, false);
+	spread(container, { overlayPlane: plane }, false);
 	insertNode(root, container, void 0);
 	insert(container, () => local.children);
 	onCleanup(() => {

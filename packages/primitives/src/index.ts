@@ -13,6 +13,10 @@ export {
   createButton,
 } from "./button";
 export {
+  CollapsiblePresence,
+  type CollapsiblePresenceProps,
+} from "./collapsible-presence";
+export {
   createFocus,
   createFocusWithin,
   type FocusResult,
@@ -20,10 +24,6 @@ export {
 } from "./focus";
 export { createHover, type HoverResult } from "./hover";
 export { Center, Column, type LayoutProps, Row } from "./layout";
-export {
-  CollapsiblePresence,
-  type CollapsiblePresenceProps,
-} from "./collapsible-presence";
 export {
   createMeasuredSize,
   type MeasuredSize,
@@ -38,20 +38,7 @@ export {
   type ModalProps,
   type ModalTriggerProps,
 } from "./modal";
-export {
-  createOverlayLayer,
-  type DismissEvent,
-  type DismissKeyEvent,
-  type OverlayDismissReason,
-  type OverlayLayer,
-  type OverlayLayerOptions,
-} from "./overlay-layer";
 export { Pulse, type PulseProps, Spin, type SpinProps } from "./motion";
-export {
-  createPresence,
-  type Presence,
-  type PresencePhase,
-} from "./presence";
 export {
   createNotifications,
   type NotificationControls,
@@ -65,6 +52,18 @@ export {
   type Notifications,
   type NotificationsOptions,
 } from "./notification";
+export {
+  createOverlayLayer,
+  type DismissEvent,
+  type DismissKeyEvent,
+  type OverlayDismissReason,
+  type OverlayLayer,
+  type OverlayLayerOptions,
+  type OverlayPlane,
+  OverlayPlaneProvider,
+  type OverlayPlaneProviderProps,
+  useOverlayPlane,
+} from "./overlay-layer";
 export {
   Popover,
   type PopoverProps,
@@ -88,6 +87,11 @@ export {
   shift,
   size,
 } from "./positioner";
+export {
+  createPresence,
+  type Presence,
+  type PresencePhase,
+} from "./presence";
 export {
   type ActiveResult,
   createActive,
@@ -127,12 +131,13 @@ export {
   Image,
   type ImageProps,
   type ImageSource,
-  type NetworkImageSource,
   NetworkImage,
   type NetworkImageProps,
+  type NetworkImageSource,
   PasswordInput,
-  type PrimitiveProps,
   type PasswordInputProps,
+  type PrimitiveProps,
+  rotate2d,
   Svg,
   type SvgProps,
   Text,
@@ -140,7 +145,6 @@ export {
   type TextAreaProps,
   type TextProps,
   translate2d,
-  rotate2d,
   View,
   type ViewProps,
   type WabouClassList,

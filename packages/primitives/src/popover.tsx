@@ -7,6 +7,12 @@ import {
   Show,
 } from "solid-js";
 import {
+  createOverlayLayer,
+  type OverlayDismissReason,
+  type OverlayPlane,
+  useOverlayPlane,
+} from "./overlay-layer";
+import {
   computeHostFloatingPosition,
   flip,
   LayoutTargetUnavailableError,
@@ -15,7 +21,6 @@ import {
   shift,
 } from "./positioner";
 import { View, type WabouStyle } from "./view";
-import { createOverlayLayer, type OverlayDismissReason } from "./overlay-layer";
 
 export interface PopoverTriggerProps {
   ref: (node: Handle) => void;
@@ -34,13 +39,18 @@ interface PopoverBaseProps {
   children?: JSX.Element;
   open?: boolean;
   defaultOpen?: boolean;
-  onOpenChange?: (open: boolean, reason?: OverlayDismissReason | "trigger") => void;
+  onOpenChange?: (
+    open: boolean,
+    reason?: OverlayDismissReason | "trigger",
+  ) => void;
   placement?: Placement;
   offset?: number;
   contentClass?: string;
   contentStyle?: WabouStyle;
   closeOnEscape?: boolean;
   restoreFocus?: boolean;
+  /** Defaults to the nearest overlay plane, or `floating` at app content. */
+  plane?: OverlayPlane;
 }
 
 export type PopoverProps = PopoverBaseProps &
@@ -62,6 +72,8 @@ export type PopoverProps = PopoverBaseProps &
 /** A root-layer floating panel positioned from native layout snapshots. */
 export function Popover(props: PopoverProps): JSX.Element {
   const host = useHost();
+  const inheritedPlane = useOverlayPlane();
+  const plane = () => props.plane ?? inheritedPlane;
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(
     props.defaultOpen ?? false,
   );
@@ -83,6 +95,7 @@ export function Popover(props: PopoverProps): JSX.Element {
   };
   const layer = createOverlayLayer({
     open,
+    plane,
     onDismiss: (reason) => setOpen(false, reason),
     closeOnEscape: () => props.closeOnEscape ?? true,
     returnFocus: () => anchor,
@@ -172,6 +185,7 @@ export function Popover(props: PopoverProps): JSX.Element {
       })}
       <Show when={open()}>
         <Portal
+          plane={plane()}
           ref={(node: Handle) => {
             observe(node);
           }}
@@ -182,6 +196,7 @@ export function Popover(props: PopoverProps): JSX.Element {
             top: 0,
             width: "100%",
             height: "100%",
+            "z-index": layer.zIndex(),
           }}
           onClick={layer.onOutside}
           onKeyDown={handleEscape}

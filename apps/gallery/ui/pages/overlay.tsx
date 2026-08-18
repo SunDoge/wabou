@@ -1,4 +1,4 @@
-import { Button } from "@wabou/components";
+import { Button, Select } from "@wabou/components";
 import { rgba } from "@wabou/core";
 import {
   createNotifications,
@@ -13,6 +13,7 @@ import { Preview } from "../preview";
 
 export function OverlayPage() {
   const [open, setOpen] = createSignal(false);
+  const [placement, setPlacement] = createSignal<string>();
   const notifications = createNotifications();
   return (
     <Preview title="Modal plane and semantic isolation">
@@ -62,6 +63,16 @@ export function OverlayPage() {
                 "This subtree is painted and hit-tested above floating content. While open, AccessKit exposes only the topmost modal beneath the window."
               }
             </Text>
+            <Select
+              aria-label="Nested overlay plane"
+              value={placement()}
+              onValueChange={setPlacement}
+              placeholder="Open a nested popover"
+              options={[
+                { value: "automatic", label: "Inherited modal plane" },
+                { value: "explicit", label: "Explicit modal plane" },
+              ]}
+            />
             <View class="flex justify-end">
               <Button onClick={close}>Close</Button>
             </View>

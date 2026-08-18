@@ -1,7 +1,7 @@
 import { Accessor, JSX } from "solid-js";
 import { Handle, Host, LayoutRect as LayoutRect$1, LayoutTarget, NativeScrollbarStyle } from "@wabou/solid-renderer";
-import { Affine2D, Affine2D as Affine2D$1, Shadow, WabouStyle, WabouStyle as WabouStyle$1, rotate2d, translate2d } from "@wabou/style";
 import { Easing } from "@wabou/animation";
+import { Affine2D, Affine2D as Affine2D$1, Shadow, WabouStyle, WabouStyle as WabouStyle$1, rotate2d, translate2d } from "@wabou/style";
 import { ComputePositionReturn, ComputePositionReturn as ComputePositionReturn$1, Middleware, Middleware as Middleware$1, Placement, Placement as Placement$1, Strategy, Strategy as Strategy$1, arrow, autoPlacement, flip, offset, shift, size } from "@floating-ui/core";
 import { JSX as JSX$1 } from "@solidjs/web";
 //#region src/animation-frame.d.ts
@@ -216,6 +216,27 @@ declare function createButton(options?: CreateButtonOptions): ButtonPrimitive;
  */
 declare function Button(props: ButtonProps): JSX.Element;
 //#endregion
+//#region src/collapsible-presence.d.ts
+interface CollapsiblePresenceProps {
+  open: boolean;
+  children?: JSX.Element;
+  class?: string;
+  contentClass?: string;
+  style?: WabouStyle;
+  contentStyle?: WabouStyle;
+  duration?: number;
+  ease?: Easing;
+  reducedMotion?: boolean;
+  /** Animate an initially-open disclosure from zero height. Defaults to false. */
+  animateInitial?: boolean;
+}
+/**
+ * Measured disclosure content with explicit presence and subtree isolation.
+ * Height participates in layout while a subtree opacity layer masks glyphs
+ * crossing the moving clip edge.
+ */
+declare function CollapsiblePresence(props: CollapsiblePresenceProps): JSX.Element;
+//#endregion
 //#region src/focus.d.ts
 interface FocusResult {
   focused: () => boolean;
@@ -258,27 +279,6 @@ declare function Row(props: LayoutProps): JSX.Element;
 declare function Column(props: LayoutProps): JSX.Element;
 /** Flex container that centers children on both axes. */
 declare function Center(props: LayoutProps): JSX.Element;
-//#endregion
-//#region src/collapsible-presence.d.ts
-interface CollapsiblePresenceProps {
-  open: boolean;
-  children?: JSX.Element;
-  class?: string;
-  contentClass?: string;
-  style?: WabouStyle;
-  contentStyle?: WabouStyle;
-  duration?: number;
-  ease?: Easing;
-  reducedMotion?: boolean;
-  /** Animate an initially-open disclosure from zero height. Defaults to false. */
-  animateInitial?: boolean;
-}
-/**
- * Measured disclosure content with explicit presence and subtree isolation.
- * Height participates in layout while a subtree opacity layer masks glyphs
- * crossing the moving clip edge.
- */
-declare function CollapsiblePresence(props: CollapsiblePresenceProps): JSX.Element;
 //#endregion
 //#region src/measure.d.ts
 interface MeasuredSize {
@@ -340,32 +340,6 @@ interface ModalProps {
  */
 declare function Modal(props: ModalProps): JSX.Element;
 //#endregion
-//#region src/overlay-layer.d.ts
-interface DismissEvent {
-  preventDefault(): void;
-  stopPropagation(): void;
-}
-interface DismissKeyEvent extends DismissEvent {
-  key: string;
-}
-type OverlayDismissReason = "escape" | "outside";
-interface OverlayLayerOptions {
-  open: () => boolean;
-  onDismiss: (reason: OverlayDismissReason) => void;
-  closeOnEscape?: () => boolean;
-  closeOnOutside?: () => boolean;
-  restoreFocus?: () => boolean;
-  returnFocus?: () => {
-    focus(): void;
-  } | undefined;
-}
-interface OverlayLayer {
-  isTopmost(): boolean;
-  onEscape(event: DismissKeyEvent): void;
-  onOutside(event: DismissEvent): void;
-}
-declare function createOverlayLayer(options: OverlayLayerOptions): OverlayLayer;
-//#endregion
 //#region src/motion.d.ts
 interface PlaybackProps {
   /** Animation duration in seconds. */
@@ -385,17 +359,6 @@ interface PulseProps extends ViewProps, PlaybackProps {
 }
 /** A single native View with a repeating opacity pulse. */
 declare function Pulse(props: PulseProps): JSX.Element;
-//#endregion
-//#region src/presence.d.ts
-type PresencePhase = "unmounted" | "entering" | "present" | "exiting";
-interface Presence {
-  phase: Accessor<PresencePhase>;
-  mounted: Accessor<boolean>;
-  finishEnter(): void;
-  finishExit(): void;
-}
-/** Explicit mount lifecycle for content whose exit must finish before removal. */
-declare function createPresence(open: Accessor<boolean>): Presence;
 //#endregion
 //#region src/notification.d.ts
 type NotificationPriority = "polite" | "assertive";
@@ -440,6 +403,45 @@ interface NotificationRegionProps {
 }
 /** Render a non-blocking stack on the native floating overlay plane. */
 declare function NotificationRegion(props: NotificationRegionProps): JSX.Element;
+//#endregion
+//#region src/overlay-layer.d.ts
+type OverlayPlane = "floating" | "modal";
+interface DismissEvent {
+  preventDefault(): void;
+  stopPropagation(): void;
+}
+interface DismissKeyEvent extends DismissEvent {
+  key: string;
+}
+type OverlayDismissReason = "escape" | "outside";
+interface OverlayLayerOptions {
+  open: () => boolean;
+  /** Must match the native Portal plane so dismissal follows paint order. */
+  plane?: () => OverlayPlane;
+  onDismiss: (reason: OverlayDismissReason) => void;
+  closeOnEscape?: () => boolean;
+  closeOnOutside?: () => boolean;
+  restoreFocus?: () => boolean;
+  returnFocus?: () => {
+    focus(): void;
+  } | undefined;
+}
+interface OverlayLayer {
+  plane(): OverlayPlane;
+  /** Stable native sibling order for the current open lifetime. */
+  zIndex(): number;
+  isTopmost(): boolean;
+  onEscape(event: DismissKeyEvent): void;
+  onOutside(event: DismissEvent): void;
+}
+interface OverlayPlaneProviderProps {
+  plane: OverlayPlane;
+  children?: JSX.Element;
+}
+/** Make nested portals inherit the current native stacking plane. */
+declare function OverlayPlaneProvider(props: OverlayPlaneProviderProps): JSX.Element;
+declare function useOverlayPlane(): OverlayPlane;
+declare function createOverlayLayer(options: OverlayLayerOptions): OverlayLayer;
 //#endregion
 //#region src/positioner.d.ts
 type LayoutRect = LayoutRect$1;
@@ -492,6 +494,8 @@ interface PopoverBaseProps {
   contentStyle?: WabouStyle;
   closeOnEscape?: boolean;
   restoreFocus?: boolean;
+  /** Defaults to the nearest overlay plane, or `floating` at app content. */
+  plane?: OverlayPlane;
 }
 type PopoverProps = PopoverBaseProps & ({
   /** Required until the native semantic tree resolves aria-labelledby. */
@@ -506,6 +510,17 @@ type PopoverProps = PopoverBaseProps & ({
 });
 /** A root-layer floating panel positioned from native layout snapshots. */
 declare function Popover(props: PopoverProps): JSX.Element;
+//#endregion
+//#region src/presence.d.ts
+type PresencePhase = "unmounted" | "entering" | "present" | "exiting";
+interface Presence {
+  phase: Accessor<PresencePhase>;
+  mounted: Accessor<boolean>;
+  finishEnter(): void;
+  finishExit(): void;
+}
+/** Explicit mount lifecycle for content whose exit must finish before removal. */
+declare function createPresence(open: Accessor<boolean>): Presence;
 //#endregion
 //#region src/press.d.ts
 interface PressOptions {
@@ -660,5 +675,5 @@ interface TabKeyEvent {
  */
 declare function createTabs<T, K extends TabKey>(options: TabsOptions<T, K>): TabsResult<T, K>;
 //#endregion
-export { type ActiveResult, type AddTabOptions, type Affine2D, type AnimationFrameCallback, Button, type ButtonEvent, type ButtonKeyEvent, type ButtonPrimitive, type ButtonProps, type ButtonState, Center, CodeEditor, type CodeEditorProps, CollapsiblePresence, type CollapsiblePresenceProps, Column, type ComputeFloatingPositionOptions, type ComputeHostFloatingPositionOptions, type ComputePositionReturn, type CreateButtonOptions, type DismissEvent, type DismissKeyEvent, type FocusResult, type FocusTarget, type FocusWithinResult, type HoverResult, Icon, type IconProps, Image, type ImageProps, type ImageSource, type LayoutProps, type LayoutRect, type MeasuredSize, type MeasuredSizeOptions, type Middleware, Modal, type ModalControls, type ModalEvent, type ModalKeyEvent, type ModalOpenChangeReason, type ModalProps, type ModalTriggerProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, type NotificationControls, type NotificationDismissReason, type NotificationInput, type NotificationItem, type NotificationPlacement, type NotificationPriority, NotificationRegion, type NotificationRegionProps, type Notifications, type NotificationsOptions, type OverlayDismissReason, type OverlayLayer, type OverlayLayerOptions, PasswordInput, type PasswordInputProps, type Placement, Popover, type PopoverProps, type PopoverTriggerProps, type PositionPlatform, type Presence, type PresencePhase, type PressOptions, type PressResult, type PrimitiveProps, Pulse, type PulseProps, Row, ScrollArea, type ScrollAreaProps, type ScrollResetOptions, type ScrollResetTarget, type ShortcutDefinition, type ShortcutEvent, type ShortcutHandler, type ShortcutMap, type ShortcutsResult, Spin, type SpinProps, type Strategy, Svg, type SvgProps, type TabKey, type TabKeyEvent, type TabsOptions, type TabsResult, Text, TextArea, type TextAreaProps, type TextProps, View, type ViewProps, type WabouClassList, type WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d };
+export { type ActiveResult, type AddTabOptions, type Affine2D, type AnimationFrameCallback, Button, type ButtonEvent, type ButtonKeyEvent, type ButtonPrimitive, type ButtonProps, type ButtonState, Center, CodeEditor, type CodeEditorProps, CollapsiblePresence, type CollapsiblePresenceProps, Column, type ComputeFloatingPositionOptions, type ComputeHostFloatingPositionOptions, type ComputePositionReturn, type CreateButtonOptions, type DismissEvent, type DismissKeyEvent, type FocusResult, type FocusTarget, type FocusWithinResult, type HoverResult, Icon, type IconProps, Image, type ImageProps, type ImageSource, type LayoutProps, type LayoutRect, type MeasuredSize, type MeasuredSizeOptions, type Middleware, Modal, type ModalControls, type ModalEvent, type ModalKeyEvent, type ModalOpenChangeReason, type ModalProps, type ModalTriggerProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, type NotificationControls, type NotificationDismissReason, type NotificationInput, type NotificationItem, type NotificationPlacement, type NotificationPriority, NotificationRegion, type NotificationRegionProps, type Notifications, type NotificationsOptions, type OverlayDismissReason, type OverlayLayer, type OverlayLayerOptions, type OverlayPlane, OverlayPlaneProvider, type OverlayPlaneProviderProps, PasswordInput, type PasswordInputProps, type Placement, Popover, type PopoverProps, type PopoverTriggerProps, type PositionPlatform, type Presence, type PresencePhase, type PressOptions, type PressResult, type PrimitiveProps, Pulse, type PulseProps, Row, ScrollArea, type ScrollAreaProps, type ScrollResetOptions, type ScrollResetTarget, type ShortcutDefinition, type ShortcutEvent, type ShortcutHandler, type ShortcutMap, type ShortcutsResult, Spin, type SpinProps, type Strategy, Svg, type SvgProps, type TabKey, type TabKeyEvent, type TabsOptions, type TabsResult, Text, TextArea, type TextAreaProps, type TextProps, View, type ViewProps, type WabouClassList, type WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
 //# sourceMappingURL=index.d.mts.map
