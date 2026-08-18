@@ -36,7 +36,6 @@
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.0",
-    "@solidjs/web": "2.0.0-rc.0",
     "@tanstack/virtual-core": "3.17.7",
     "@wabou/style": "workspace:*",
     "@wabou/protocol": "workspace:*",

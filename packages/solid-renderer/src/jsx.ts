@@ -1,4 +1,4 @@
-import type { JSX as WebJSX } from "@solidjs/web";
+import type { WabouStyle } from "@wabou/style";
 import type { Element as SolidElement } from "solid-js";
 import type {
   Handle,
@@ -7,19 +7,10 @@ import type {
   WabouIntrinsicElements,
 } from "./index";
 
-declare module "@solidjs/web" {
-  namespace JSX {
-    interface CustomAttributes<T> {
-      classList?: Record<string, boolean | undefined>;
-      tabIndex?: number;
-    }
-  }
-}
-
 /** Renderer-owned JSX namespace for Solid 2's automatic JSX type lookup. */
 export namespace JSX {
   export type Element = SolidElement | Handle | readonly Element[];
-  export type CSSProperties = WebJSX.CSSProperties;
+  export type CSSProperties = WabouStyle;
 
   export type ElementClass = {};
   export type ElementAttributesProperty = {};
@@ -47,9 +38,6 @@ declare module "solid-js" {
       extends WabouBuiltinIntrinsicElements,
         WabouIntrinsicElements {}
     interface IntrinsicAttributes {}
-    type ButtonHTMLAttributes<T> = WebJSX.ButtonHTMLAttributes<T>;
-    type InputHTMLAttributes<T> = WebJSX.InputHTMLAttributes<T>;
-    type SvgSVGAttributes<T> = WebJSX.SvgSVGAttributes<T>;
   }
 }
 

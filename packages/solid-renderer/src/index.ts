@@ -18,6 +18,7 @@ import {
   assertInlineStyleValue,
   isTypedStyleValue,
   type Shadow,
+  type WabouStyle,
 } from "@wabou/style";
 import { createMemo, omit, untrack } from "solid-js";
 export const isServer = false;
@@ -119,7 +120,7 @@ export interface WabouElementProps {
   id?: string;
   class?: string;
   classList?: Record<string, boolean | undefined>;
-  style?: string | JSX.CSSProperties;
+  style?: string | WabouStyle;
   children?: JSX.Element;
   ref?: Handle | ((node: Handle) => void);
   role?: WabouSemanticRole;

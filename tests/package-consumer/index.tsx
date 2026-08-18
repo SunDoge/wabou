@@ -23,6 +23,8 @@ const insecureGenericInput = <input type="password" />;
 const unsupportedTitle = <div title="Browser tooltip" />;
 // @ts-expect-error structural host nodes do not acquire browser navigation
 const unsupportedHref = <div href="https://example.com" />;
+// @ts-expect-error inline styles expose only properties implemented by Style IR
+const unsupportedStyle = <div style={{ filter: "blur(4px)" }} />;
 void [
   structuralHostNode,
   plainTextInput,
@@ -30,6 +32,7 @@ void [
   insecureGenericInput,
   unsupportedTitle,
   unsupportedHref,
+  unsupportedStyle,
 ];
 
 createDataRouter({

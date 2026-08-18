@@ -228,12 +228,10 @@ export function Button(props: ButtonProps): JSX.Element {
           ? props.classList(state())
           : props.classList
       }
-      style={
-        {
-          ...defaultStyle(),
-          ...customStyle(),
-        } as unknown as JSX.CSSProperties
-      }
+      style={{
+        ...defaultStyle(),
+        ...customStyle(),
+      }}
       {...primitive.bindings}
     >
       {props.children}

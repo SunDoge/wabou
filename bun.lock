@@ -203,7 +203,6 @@
       "version": "0.1.0-alpha.1",
       "dependencies": {
         "@solidjs/universal": "2.0.0-rc.0",
-        "@solidjs/web": "2.0.0-rc.0",
         "@tanstack/virtual-core": "3.17.7",
         "@wabou/protocol": "workspace:*",
         "@wabou/style": "workspace:*",
@@ -214,16 +213,6 @@
     "packages/style": {
       "name": "@wabou/style",
       "version": "0.1.0-alpha.1",
-    },
-    "packages/style-compiler": {
-      "name": "@wabou/style-compiler",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@unocss/core": "^66.7.5",
-        "@wabou/unocss-preset": "workspace:*",
-        "unocss": "^66.7.5",
-        "vite": "^6.0.0",
-      },
     },
     "packages/terminal": {
       "name": "@wabou/terminal",
@@ -238,13 +227,6 @@
       "version": "0.1.0-alpha.1",
       "dependencies": {
         "@wabou/solid-renderer": "workspace:*",
-      },
-    },
-    "packages/unocss-preset": {
-      "name": "@wabou/unocss-preset",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@unocss/core": "^66.7.5",
       },
     },
     "packages/vite": {
@@ -716,15 +698,11 @@
 
     "@wabou/style": ["@wabou/style@workspace:packages/style"],
 
-    "@wabou/style-compiler": ["@wabou/style-compiler@workspace:packages/style-compiler"],
-
     "@wabou/terminal": ["@wabou/terminal@workspace:packages/terminal"],
 
     "@wabou/terminal-demo": ["@wabou/terminal-demo@workspace:apps/terminal"],
 
     "@wabou/test": ["@wabou/test@workspace:packages/test"],
-
-    "@wabou/unocss-preset": ["@wabou/unocss-preset@workspace:packages/unocss-preset"],
 
     "@wabou/vite": ["@wabou/vite@workspace:packages/vite"],
 

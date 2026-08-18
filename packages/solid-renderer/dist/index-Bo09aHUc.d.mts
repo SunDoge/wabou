@@ -1,20 +1,11 @@
 import { EVENT_CODE, OP, Writer as Writer$1 } from "@wabou/protocol";
-import { Affine2D } from "@wabou/style";
+import { Affine2D, WabouStyle } from "@wabou/style";
 import { Element as Element$1, JSX } from "solid-js";
-import { JSX as JSX$1 } from "@solidjs/web";
 //#region src/jsx.d.ts
-declare module "@solidjs/web" {
-  namespace JSX {
-    interface CustomAttributes<T> {
-      classList?: Record<string, boolean | undefined>;
-      tabIndex?: number;
-    }
-  }
-}
 /** Renderer-owned JSX namespace for Solid 2's automatic JSX type lookup. */
-declare namespace JSX$2 {
+declare namespace JSX$1 {
   type Element = Element$1 | Handle | readonly Element[];
-  type CSSProperties = JSX$1.CSSProperties;
+  type CSSProperties = WabouStyle;
   type ElementClass = {};
   type ElementAttributesProperty = {};
   interface ElementChildrenAttribute {
@@ -25,8 +16,8 @@ declare namespace JSX$2 {
 }
 declare module "solid-js" {
   namespace JSX {
-    type Element = JSX$2.Element;
-    type CSSProperties = JSX$2.CSSProperties;
+    type Element = JSX$1.Element;
+    type CSSProperties = JSX$1.CSSProperties;
     interface ElementClass {}
     interface ElementAttributesProperty {}
     interface ElementChildrenAttribute {
@@ -34,15 +25,12 @@ declare module "solid-js" {
     }
     interface IntrinsicElements extends WabouBuiltinIntrinsicElements, WabouIntrinsicElements {}
     interface IntrinsicAttributes {}
-    type ButtonHTMLAttributes<T> = JSX$1.ButtonHTMLAttributes<T>;
-    type InputHTMLAttributes<T> = JSX$1.InputHTMLAttributes<T>;
-    type SvgSVGAttributes<T> = JSX$1.SvgSVGAttributes<T>;
   }
 }
 declare function jsx(): never;
 declare const jsxs: typeof jsx;
 declare const jsxDEV: typeof jsx;
-declare const Fragment: (props: WabouElementProps) => JSX$2.Element;
+declare const Fragment: (props: WabouElementProps) => JSX$1.Element;
 //#endregion
 //#region src/generated/native-host.d.ts
 type CalendarDateInfo = {
@@ -231,8 +219,8 @@ interface WabouElementProps {
   id?: string;
   class?: string;
   classList?: Record<string, boolean | undefined>;
-  style?: string | JSX$2.CSSProperties;
-  children?: JSX$2.Element;
+  style?: string | WabouStyle;
+  children?: JSX$1.Element;
   ref?: Handle | ((node: Handle) => void);
   role?: WabouSemanticRole;
   tabIndex?: number;
@@ -384,7 +372,7 @@ declare function runSweep(): void;
 declare const writer: Writer$1;
 /** Imperative paint-only transform state for high-frequency animation. */
 declare function setTransform2D(node: Handle, matrix: Affine2D): void;
-declare const render: (code: () => JSX$2.Element, node: Handle) => () => void;
+declare const render: (code: () => JSX$1.Element, node: Handle) => () => void;
 declare const createElement: (tag: string, staticProps?: Record<string, unknown>) => Handle;
 declare const createTextNode: (value: string) => Handle;
 declare const insertNode: (parent: Handle, node: Handle, anchor?: Handle | undefined) => void;
@@ -408,7 +396,7 @@ declare function getMountRoot(): Handle;
 declare function acquireOverlayRoot(plane: PublicOverlayPlane): Handle;
 declare function releaseOverlayRoot(plane: PublicOverlayPlane): void;
 /** Mount a Solid application into the host-provided root node. */
-declare function mount(code: () => JSX$2.Element): () => void;
+declare function mount(code: () => JSX$1.Element): () => void;
 /**
  * Solid compatibility adapter for a native Wabou event. It walks the Handle
  * tree for bubbling and presents JSX handlers with a small familiar object;
@@ -416,5 +404,5 @@ declare function mount(code: () => JSX$2.Element): () => void;
  */
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { createFps as $, delegateEvents as A, mount as B, WabouWheelEvent as C, createComponent$1 as D, applyRef as E, insert as F, render as G, registerRoot as H, insertNode as I, setTransform2D as J, runSweep as K, isServer as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualListProps as Q, memo as R, WabouSvgShapeProps as S, acquireOverlayRoot as T, releaseOverlayRoot as U, ref as V, removeNode as W, writer as X, spread as Y, VirtualList as Z, WabouPointerEvent as _, jsxs as _t, NativeScrollbarStyle as a, HostProviderProps as at, WabouSemanticRole as b, WabouControlProps as c, useHost as ct, WabouImageProps as d, LayoutRect as dt, useFps as et, WabouInputEvent as f, LayoutSnapshot as ft, WabouNodeEvent as g, jsxDEV as gt, WabouKeyEvent as h, jsx as ht, HostCapabilities as i, HostProvider as it, dispatchEvent as j, createTextNode as k, WabouElementProps as l, FrameStats as lt, WabouIntrinsicElements as m, JSX$2 as mt, EVENT_CODE as n, PortalProps as nt, OP as o, LayoutTarget as ot, WabouInputProps as p, Fragment as pt, setProp as q, Handle as r, Host as rt, WabouBuiltinIntrinsicElements as s, defaultHost as st, Dynamic as t, Portal as tt, WabouEventTarget as u, LayoutNodeMetrics as ut, WabouPositionedEvent as v, Writer$1 as w, WabouSvgProps as x, WabouScrollEvent as y, mergeProps as z };
-//# sourceMappingURL=index-DCVEom0_.d.mts.map
+export { createFps as $, delegateEvents as A, mount as B, WabouWheelEvent as C, createComponent$1 as D, applyRef as E, insert as F, render as G, registerRoot as H, insertNode as I, setTransform2D as J, runSweep as K, isServer as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualListProps as Q, memo as R, WabouSvgShapeProps as S, acquireOverlayRoot as T, releaseOverlayRoot as U, ref as V, removeNode as W, writer as X, spread as Y, VirtualList as Z, WabouPointerEvent as _, jsxs as _t, NativeScrollbarStyle as a, HostProviderProps as at, WabouSemanticRole as b, WabouControlProps as c, useHost as ct, WabouImageProps as d, LayoutRect as dt, useFps as et, WabouInputEvent as f, LayoutSnapshot as ft, WabouNodeEvent as g, jsxDEV as gt, WabouKeyEvent as h, jsx as ht, HostCapabilities as i, HostProvider as it, dispatchEvent as j, createTextNode as k, WabouElementProps as l, FrameStats as lt, WabouIntrinsicElements as m, JSX$1 as mt, EVENT_CODE as n, PortalProps as nt, OP as o, LayoutTarget as ot, WabouInputProps as p, Fragment as pt, setProp as q, Handle as r, Host as rt, WabouBuiltinIntrinsicElements as s, defaultHost as st, Dynamic as t, Portal as tt, WabouEventTarget as u, LayoutNodeMetrics as ut, WabouPositionedEvent as v, Writer$1 as w, WabouSvgProps as x, WabouScrollEvent as y, mergeProps as z };
+//# sourceMappingURL=index-Bo09aHUc.d.mts.map
