@@ -465,6 +465,9 @@ impl Applier {
             paint.shadows = declared.shadows;
             paint.border_radius = declared.border_radius;
             paint.border = declared.border;
+            paint.outline_width = declared.outline_width;
+            paint.outline_offset = declared.outline_offset;
+            paint.outline_color = declared.outline_color;
             paint.text_ellipsis = declared.text_ellipsis;
             paint.pointer_events = declared.pointer_events;
             paint.z_index = declared.z_index;
@@ -831,6 +834,7 @@ impl Applier {
 
 fn inherited_paint(paint: &Paint) -> InheritedPaint {
     InheritedPaint {
+        cursor: paint.cursor,
         text_color: paint.text_color,
         font_size: paint.font_size,
         font_weight: paint.font_weight,

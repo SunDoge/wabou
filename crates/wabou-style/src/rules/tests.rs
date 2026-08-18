@@ -1,4 +1,23 @@
 use super::*;
+
+#[test]
+fn interaction_feedback_utilities_are_explicit_style_ir() {
+    let cursor = parse_utility("cursor-pointer").unwrap();
+    assert_eq!(cursor.declarations[0].property, "cursor");
+    assert_eq!(
+        cursor.declarations[0].value,
+        Value::Keyword {
+            value: "pointer".into()
+        }
+    );
+
+    let outline = parse_utility("outline-2").unwrap();
+    assert_eq!(outline.declarations[0].property, "outline-width");
+    assert_eq!(
+        parse_utility("outline-sky-500").unwrap().declarations[0].property,
+        "outline-color"
+    );
+}
 use crate::manifest;
 
 #[test]

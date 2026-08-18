@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::layout::PlacedNode;
+use crate::style::CursorStyle;
 use crate::text::TextContext;
 use vello::Scene;
 
@@ -545,6 +546,11 @@ pub trait FrameSource {
     /// expressed in window-logical coordinates.
     fn ime_cursor_area(&self) -> Option<[f64; 4]> {
         None
+    }
+
+    /// Cursor requested by the node currently under the pointer.
+    fn pointer_cursor(&self) -> CursorStyle {
+        CursorStyle::Default
     }
 
     /// Paint optional diagnostics after the application scene. Decorations are

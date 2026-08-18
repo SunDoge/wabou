@@ -1548,7 +1548,7 @@ function Slider(props) {
 			return props.disabled ? -1 : 0;
 		},
 		get ["class"]() {
-			return join$3("h-7 relative flex items-center", props.class);
+			return join$3("h-7 relative flex items-center", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
 		},
 		onFocus: () => setFocused(true),
 		onBlur: () => {

@@ -1,5 +1,29 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Platform cursor requested by the hovered retained node.
+pub enum CursorStyle {
+    /// Platform default arrow.
+    #[default]
+    Default,
+    /// Link or button pointer.
+    Pointer,
+    /// Editable text caret.
+    Text,
+    /// Precise crosshair.
+    Crosshair,
+    /// Movable content.
+    Move,
+    /// Busy cursor.
+    Wait,
+    /// Operation is unavailable.
+    NotAllowed,
+    /// Horizontal resize.
+    EwResize,
+    /// Vertical resize.
+    NsResize,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 /// One affine transform operation in authored order.
 pub enum PaintTransform {
@@ -98,6 +122,8 @@ impl Shadow {
 /// root with CSS initial values.
 #[derive(Clone, Debug)]
 pub struct InheritedPaint {
+    /// Resolved platform cursor.
+    pub cursor: CursorStyle,
     /// Resolved foreground/text color.
     pub text_color: Color,
     /// Resolved font size in logical pixels.
@@ -121,6 +147,7 @@ pub struct InheritedPaint {
 impl Default for InheritedPaint {
     fn default() -> Self {
         Self {
+            cursor: CursorStyle::Default,
             text_color: Color::BLACK,
             font_size: 16.0,
             font_weight: 400.0,
@@ -155,6 +182,14 @@ pub struct DeclaredPaint {
     pub border_radius: f32,
     /// Uniform border (width px, color).
     pub border: Option<(f32, Color)>,
+    /// Outline width in logical pixels. Unlike borders, this does not affect layout.
+    pub outline_width: f32,
+    /// Gap between the border box and outline.
+    pub outline_offset: f32,
+    /// Outline color; `None` disables outline painting.
+    pub outline_color: Option<Color>,
+    /// Authored platform cursor, or inheritance when absent.
+    pub cursor: Option<CursorStyle>,
     /// Authored foreground color, or inheritance when absent.
     pub text_color: Option<Color>,
     /// Authored font size, or inheritance when absent.
@@ -190,6 +225,10 @@ impl Default for DeclaredPaint {
             shadows: Vec::new(),
             border_radius: 0.0,
             border: None,
+            outline_width: 0.0,
+            outline_offset: 0.0,
+            outline_color: None,
+            cursor: None,
             text_color: None,
             font_size: None,
             font_weight: None,
@@ -211,6 +250,7 @@ impl DeclaredPaint {
     /// contribution to the inheritance chain (still no host content fields).
     pub fn resolve_inherited(&self, parent: &InheritedPaint) -> InheritedPaint {
         InheritedPaint {
+            cursor: self.cursor.unwrap_or(parent.cursor),
             text_color: self.text_color.unwrap_or(parent.text_color),
             font_size: self.font_size.unwrap_or(parent.font_size),
             font_weight: self.font_weight.unwrap_or(parent.font_weight),
@@ -242,6 +282,10 @@ impl DeclaredPaint {
             shadows: self.shadows.clone(),
             border_radius: self.border_radius,
             border: self.border,
+            outline_width: self.outline_width,
+            outline_offset: self.outline_offset,
+            outline_color: self.outline_color,
+            cursor: inherited.cursor,
             text: host.text,
             text_runs: host.text_runs,
             selection_rects: host.selection_rects,
@@ -389,6 +433,14 @@ pub struct Paint {
     pub border_radius: f32,
     /// Uniform border (width px, color).
     pub border: Option<(f32, Color)>,
+    /// Non-layout outline width in logical pixels.
+    pub outline_width: f32,
+    /// Gap between the border box and outline.
+    pub outline_offset: f32,
+    /// Outline color.
+    pub outline_color: Option<Color>,
+    /// Platform cursor inherited by descendants.
+    pub cursor: CursorStyle,
     /// Host-owned plain text content.
     pub text: Option<Arc<str>>,
     /// Styled byte ranges within [`Self::text`].

@@ -57,6 +57,21 @@ runs increases by 10% in any stage without reducing work in another stage.
 Do not add a batch API solely to improve `apps/stress`; first prove the same
 cost appears in a real retained UI or virtualized list.
 
+CI also records non-blocking headless medians for these workloads through
+`wabou render --metrics`. The JSON artifacts contain build and scene samples,
+node count, viewport, and scale factor. They intentionally exclude native
+surface presentation and are not an FPS claim. Summarize local captures with:
+
+```bash
+bun run wabou render apps/gallery --out /tmp/gallery.png \
+  --metrics /tmp/gallery-perf.json --samples 20
+bun run perf:report -- /tmp/gallery-perf.json
+```
+
+The reports are observational until enough CI history exists to choose stable,
+machine-aware thresholds. Real frame-rate decisions still require the release
+trace workflow above on the target renderer and display.
+
 ## Artifact size
 
 Application bundles are stored uncompressed because QuickJS evaluates them

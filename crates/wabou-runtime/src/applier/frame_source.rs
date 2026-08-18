@@ -639,6 +639,16 @@ impl FrameSource for Applier {
         }
     }
 
+    fn pointer_cursor(&self) -> wabou_shell::style::CursorStyle {
+        self.input
+            .hovered_target
+            .and_then(|solid| self.node_store.solid_to_node.get(&solid))
+            .and_then(|node| self.node_store.tree.get_node_context(*node))
+            .map_or(wabou_shell::style::CursorStyle::Default, |paint| {
+                paint.cursor
+            })
+    }
+
     fn has_anim(&self) -> bool {
         self.has_raf
             || self.has_hmr_pending.load(Ordering::Acquire)

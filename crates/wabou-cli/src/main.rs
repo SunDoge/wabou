@@ -162,6 +162,12 @@ enum Commands {
         /// Keep driving asynchronous JavaScript work before capture.
         #[arg(long, default_value_t = 0)]
         wait_ms: u64,
+        /// Write non-blocking headless build/scene timing samples as JSON.
+        #[arg(long, value_name = "JSON")]
+        metrics: Option<PathBuf>,
+        /// Number of headless frames sampled for --metrics.
+        #[arg(long, default_value_t = 20, requires = "metrics")]
+        samples: usize,
         /// Dispatch a primary click at X Y before capture.
         #[arg(
             long,
@@ -360,6 +366,8 @@ struct RenderOptions {
     scale_factor: f64,
     mode: Option<String>,
     wait_ms: u64,
+    metrics: Option<PathBuf>,
+    samples: usize,
     actions: Vec<RenderAction>,
 }
 
@@ -473,6 +481,8 @@ fn main() -> Result<()> {
             scale_factor,
             mode,
             wait_ms,
+            metrics,
+            samples,
             click,
             wheel,
             key,
@@ -490,6 +500,8 @@ fn main() -> Result<()> {
                     scale_factor,
                     mode,
                     wait_ms,
+                    metrics,
+                    samples,
                     actions: render_actions
                         .unwrap_or_else(|| legacy_render_actions(click, wheel, text, key)),
                 },
@@ -1619,6 +1631,79 @@ fn apply_render_actions(
     }
 }
 
+fn median(values: &mut [f64]) -> f64 {
+    values.sort_by(f64::total_cmp);
+    let middle = values.len() / 2;
+    if values.len() % 2 == 0 {
+        (values[middle - 1] + values[middle]) * 0.5
+    } else {
+        values[middle]
+    }
+}
+
+fn write_render_metrics(
+    path: &Path,
+    app: &App,
+    applier: &mut Applier,
+    text: &mut TextContext,
+    width: u32,
+    height: u32,
+    scale_factor: f64,
+    samples: usize,
+    base_color: vello::peniko::Color,
+) -> Result<()> {
+    if samples == 0 {
+        return Err("--samples must be greater than zero".into());
+    }
+    let mut build_ms = Vec::with_capacity(samples);
+    let mut scene_ms = Vec::with_capacity(samples);
+    let mut node_count = 0;
+    for _ in 0..samples {
+        let started = Instant::now();
+        let nodes = applier.build_frame(text, width, height);
+        build_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+        node_count = nodes.len();
+        let started = Instant::now();
+        let mut scene = Scene::new();
+        scene_builder::build_scene_scaled(
+            &mut scene,
+            &nodes,
+            text,
+            width,
+            height,
+            base_color,
+            scale_factor,
+        );
+        scene_ms.push(started.elapsed().as_secs_f64() * 1_000.0);
+    }
+    let report = json!({
+        "version": 1,
+        "kind": "headless",
+        "application": app.name,
+        "samples": samples,
+        "viewport": { "width": width, "height": height, "scaleFactor": scale_factor },
+        "nodeCount": node_count,
+        "medianMs": {
+            "build": median(&mut build_ms),
+            "scene": median(&mut scene_ms)
+        },
+        "sampleMs": { "build": build_ms, "scene": scene_ms },
+        "limitations": "Headless diagnostics exclude native surface presentation and are not an FPS claim."
+    });
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, serde_json::to_vec_pretty(&report)?)?;
+    println!(
+        "[wabou] wrote headless performance metrics {}",
+        path.display()
+    );
+    Ok(())
+}
+
 fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     let RenderOptions {
         out,
@@ -1706,6 +1791,21 @@ fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
         }
     }
     apply_render_actions(&mut applier, &mut text_context, &mut nodes, options);
+
+    if let Some(path) = &options.metrics {
+        write_render_metrics(
+            path,
+            app,
+            &mut applier,
+            &mut text_context,
+            *width,
+            *height,
+            *scale_factor,
+            options.samples,
+            base_color,
+        )?;
+        nodes = applier.build_frame(&mut text_context, *width, *height);
+    }
 
     if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
         fs::create_dir_all(parent)?;

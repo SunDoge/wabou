@@ -328,6 +328,14 @@ pub struct ComputedNodeSnapshot {
     pub border_radius: f32,
     /// Uniform border width and color.
     pub border: Option<(f32, Color)>,
+    /// Non-layout outline width.
+    pub outline_width: f32,
+    /// Gap between border box and outline.
+    pub outline_offset: f32,
+    /// Outline color.
+    pub outline_color: Option<Color>,
+    /// Resolved platform cursor.
+    pub cursor: wabou_shell::style::CursorStyle,
     /// Resolved text color.
     pub text_color: Color,
     /// Resolved font size in logical pixels.
@@ -438,6 +446,7 @@ const INHERITED_PROPERTIES: &[&str] = &[
     "text-align",
     "white-space",
     "user-select",
+    "cursor",
 ];
 
 /// Retained Solid/QuickJS frame source consumed by `wabou-shell`.
@@ -1088,6 +1097,10 @@ impl Applier {
             shadows: paint.shadows.clone(),
             border_radius: paint.border_radius,
             border: paint.border,
+            outline_width: paint.outline_width,
+            outline_offset: paint.outline_offset,
+            outline_color: paint.outline_color,
+            cursor: paint.cursor,
             text_color: paint.text_color,
             font_size: paint.font_size,
             font_weight: paint.font_weight,

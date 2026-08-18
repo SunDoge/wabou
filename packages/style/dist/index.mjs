@@ -94,6 +94,11 @@ const INLINE_STYLE_CONTRACT = {
 			3
 		]
 	},
+	cursor: {
+		string: true,
+		number: false,
+		typed: []
+	},
 	display: {
 		string: true,
 		number: false,
@@ -297,6 +302,26 @@ const INLINE_STYLE_CONTRACT = {
 		string: true,
 		number: true,
 		typed: [3]
+	},
+	"outline-color": {
+		string: true,
+		number: false,
+		typed: [5]
+	},
+	"outline-offset": {
+		string: true,
+		number: true,
+		typed: [1]
+	},
+	"outline-style": {
+		string: true,
+		number: false,
+		typed: []
+	},
+	"outline-width": {
+		string: true,
+		number: true,
+		typed: [1]
 	},
 	overflow: {
 		string: true,

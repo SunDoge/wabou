@@ -92,7 +92,11 @@ export function Slider(props: SliderProps): JSX.Element {
       aria-valuetext={props.valueText?.(value()) ?? String(value())}
       aria-disabled={props.disabled}
       tabIndex={props.disabled ? -1 : 0}
-      class={join("h-7 relative flex items-center", props.class)}
+      class={join(
+        "h-7 relative flex items-center",
+        props.disabled ? "cursor-not-allowed" : "cursor-pointer",
+        props.class,
+      )}
       onFocus={() => setFocused(true)}
       onBlur={() => {
         setFocused(false);

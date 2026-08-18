@@ -180,6 +180,25 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
             &rect.to_rounded_rect(radius),
         );
     }
+    if node.paint.outline_width > 0.0
+        && let Some(color) = node.paint.outline_color
+    {
+        let width = f64::from(node.paint.outline_width);
+        let expansion = f64::from(node.paint.outline_offset) + width * 0.5;
+        let outline = Rect::new(
+            f64::from(x0) - expansion,
+            f64::from(y0) - expansion,
+            f64::from(x1) + expansion,
+            f64::from(y1) + expansion,
+        );
+        scene.stroke(
+            &Stroke::new(width),
+            transform,
+            color,
+            None,
+            &outline.to_rounded_rect((radius + expansion).max(0.0)),
+        );
+    }
     let Some((_, border_color)) = node.paint.border else {
         return;
     };
@@ -748,5 +767,22 @@ mod tests {
 
         let image = render_nodes(&nodes, "text-followed-by-fill");
         assert_eq!(image.get_pixel(20, 35).0, [51, 65, 85, 255]);
+    }
+
+    #[test]
+    fn outline_paints_outside_the_border_box_without_changing_geometry() {
+        let mut node = placed_node(Paint {
+            background: Some(Color::WHITE),
+            outline_width: 2.0,
+            outline_offset: 2.0,
+            outline_color: Some(Color::from_rgba8(56, 189, 248, 255)),
+            ..Paint::default()
+        });
+        node.rect = [20.0, 20.0, 60.0, 60.0];
+        node.content_origin = [20.0, 20.0];
+
+        let image = render_nodes(&[node], "outline-outside-border-box");
+        assert_eq!(image.get_pixel(17, 30).0, [56, 189, 248, 255]);
+        assert_eq!(image.get_pixel(20, 30).0, [255, 255, 255, 255]);
     }
 }

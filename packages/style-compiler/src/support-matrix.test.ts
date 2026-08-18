@@ -11,7 +11,9 @@ describe("style support contract", () => {
   test("host properties are explicit and unsupported names are rejected", () => {
     expect(allHostProperties().length).toBeGreaterThan(40);
     expect(rejectUnsupportedProperty("display")).toBeUndefined();
-    expect(rejectUnsupportedProperty("cursor")).toMatch(/unsupported/);
+    expect(rejectUnsupportedProperty("cursor")).toBeUndefined();
+    expect(rejectUnsupportedProperty("outline-width")).toBeUndefined();
+    expect(rejectUnsupportedProperty("text-decoration")).toMatch(/unsupported/);
     expect(rejectUnsupportedProperty("transition")).toMatch(/unsupported/);
     expect(rejectUnsupportedProperty("filter")).toMatch(/support matrix/);
   });

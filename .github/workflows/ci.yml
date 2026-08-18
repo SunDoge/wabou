@@ -42,11 +42,6 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Install Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 26
-
       - name: Install JavaScript dependencies
         run: bun install --frozen-lockfile
 
@@ -115,6 +110,25 @@ jobs:
           test -s target/gallery-1x.png
           test -s target/gallery-2x.png
 
+      - name: Record headless performance diagnostics
+        run: |
+          cargo run -p wabou-cli -- render apps/gallery \
+            --out target/perf/gallery.png --width 1200 --height 800 \
+            --metrics target/perf/gallery.json --samples 20
+          cargo run -p wabou-cli -- render apps/vlist \
+            --out target/perf/vlist.png --width 1200 --height 800 \
+            --metrics target/perf/vlist.json --samples 20
+          cargo run -p wabou-cli -- render apps/stress \
+            --out target/perf/stress.png --width 1200 --height 800 \
+            --metrics target/perf/stress.json --samples 20
+          bun run perf:report -- target/perf/gallery.json target/perf/vlist.json target/perf/stress.json
+
+      - name: Upload performance diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: headless-performance-diagnostics
+          path: target/perf/*.json
+
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest
@@ -126,11 +140,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.14
-
-      - name: Install Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 26
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

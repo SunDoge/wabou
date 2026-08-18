@@ -55,6 +55,8 @@ add(
     "pointer-events",
     "user-select",
     "font-family",
+    "cursor",
+    "outline-style",
   ],
   { string: true, number: false },
 );
@@ -103,6 +105,8 @@ add(
     "border-bottom-width",
     "border-left-width",
     "font-size",
+    "outline-width",
+    "outline-offset",
   ],
   { string: true, number: true, typed: [PX] },
 );
@@ -121,7 +125,7 @@ add(["font-weight"], {
   number: true,
   typed: [NUMBER],
 });
-add(["background", "background-color", "color", "border-color"], {
+add(["background", "background-color", "color", "border-color", "outline-color"], {
   string: true,
   number: false,
   typed: [COLOR],

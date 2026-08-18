@@ -165,7 +165,12 @@ function Button(props) {
 		"align-items": "center",
 		"flex-shrink": 0,
 		"white-space": "nowrap",
-		"user-select": props.selectable ? "text" : "none"
+		"user-select": props.selectable ? "text" : "none",
+		cursor: disabled() ? "not-allowed" : "pointer",
+		"outline-width": state().focused ? "2px" : "0px",
+		"outline-offset": "2px",
+		"outline-color": "#38bdf8",
+		"outline-style": "solid"
 	} : {
 		display: "flex",
 		"align-items": "center",
@@ -173,6 +178,11 @@ function Button(props) {
 		"flex-shrink": 0,
 		"white-space": "nowrap",
 		"user-select": props.selectable ? "text" : "none",
+		cursor: disabled() ? "not-allowed" : "pointer",
+		"outline-width": state().focused ? "2px" : "0px",
+		"outline-offset": "2px",
+		"outline-color": "#38bdf8",
+		"outline-style": "solid",
 		"min-height": "32px",
 		padding: "6px 12px",
 		"border-radius": "6px",

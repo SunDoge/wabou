@@ -380,6 +380,57 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("grid-rows-3", vec![grid_repeat("grid-template-rows", 3)]),
         ("grid-rows-4", vec![grid_repeat("grid-template-rows", 4)]),
         ("hidden", vec![keyword("display", "none")]),
+        ("cursor-auto", vec![keyword("cursor", "auto")]),
+        ("cursor-default", vec![keyword("cursor", "default")]),
+        ("cursor-pointer", vec![keyword("cursor", "pointer")]),
+        ("cursor-text", vec![keyword("cursor", "text")]),
+        ("cursor-crosshair", vec![keyword("cursor", "crosshair")]),
+        ("cursor-move", vec![keyword("cursor", "move")]),
+        ("cursor-wait", vec![keyword("cursor", "wait")]),
+        ("cursor-not-allowed", vec![keyword("cursor", "not-allowed")]),
+        ("cursor-ew-resize", vec![keyword("cursor", "ew-resize")]),
+        ("cursor-ns-resize", vec![keyword("cursor", "ns-resize")]),
+        (
+            "outline-0",
+            vec![length("outline-width", Length::Px { value: 0.0 })],
+        ),
+        (
+            "outline",
+            vec![
+                length("outline-width", Length::Px { value: 1.0 }),
+                keyword("outline-style", "solid"),
+            ],
+        ),
+        (
+            "outline-2",
+            vec![
+                length("outline-width", Length::Px { value: 2.0 }),
+                keyword("outline-style", "solid"),
+            ],
+        ),
+        (
+            "outline-4",
+            vec![
+                length("outline-width", Length::Px { value: 4.0 }),
+                keyword("outline-style", "solid"),
+            ],
+        ),
+        (
+            "outline-offset-0",
+            vec![length("outline-offset", Length::Px { value: 0.0 })],
+        ),
+        (
+            "outline-offset-1",
+            vec![length("outline-offset", Length::Px { value: 1.0 })],
+        ),
+        (
+            "outline-offset-2",
+            vec![length("outline-offset", Length::Px { value: 2.0 })],
+        ),
+        (
+            "outline-offset-4",
+            vec![length("outline-offset", Length::Px { value: 4.0 })],
+        ),
         ("flex-row", vec![keyword("flex-direction", "row")]),
         ("flex-col", vec![keyword("flex-direction", "column")]),
         ("flex-wrap", vec![keyword("flex-wrap", "wrap")]),

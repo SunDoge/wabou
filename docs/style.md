@@ -56,8 +56,17 @@ The default color palette includes the complete `50`, `100`, `200`, `300`,
 `400`, `500`, `600`, `700`, `800`, `900`, and `950` scale for `rose`, `pink`,
 `fuchsia`, `purple`, `violet`, `indigo`, `blue`, `sky`, `cyan`, `teal`,
 `emerald`, `green`, `lime`, `yellow`, `amber`, `orange`, `red`, `gray`, `slate`,
-`zinc`, `neutral`, and `stone`. The same tokens work with `text-`, `bg-`, and
-`border-`; literal `[#rrggbb]` and `[#rrggbbaa]` colors remain available.
+`zinc`, `neutral`, and `stone`. The same tokens work with `text-`, `bg-`,
+`border-`, and `outline-`; literal `[#rrggbb]` and `[#rrggbbaa]` colors remain
+available.
+
+Desktop interaction feedback is explicit too. `cursor-pointer`, `cursor-text`,
+`cursor-not-allowed`, resize cursors, and the other documented cursor utilities
+select a platform cursor from the currently hit-tested node. `outline`,
+`outline-2`, `outline-offset-2`, and `outline-<color>` paint a focus ring outside
+the border box without changing layout. Components toggle these complete
+utilities or typed values from Solid focus state; Wabou still does not create a
+hidden `:focus` state machine.
 
 Projects should add stable brand or semantic colors to the theme instead of
 constructing utility names dynamically. Applications that need multiple

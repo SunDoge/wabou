@@ -12,6 +12,7 @@ use std::task::{Context, Poll, Wake, Waker};
 use std::time::Instant;
 use vello::peniko::Color;
 use winit::application::ApplicationHandler;
+use winit::cursor::{Cursor, CursorIcon};
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use winit::event::{ButtonSource, ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
@@ -30,6 +31,7 @@ use crate::source::{
     PointerPhase, SemanticAction, SemanticRole, UiEvent, WakeCallback, WheelEvent, WindowCommand,
     WindowMetrics, WindowOptions,
 };
+use crate::style::CursorStyle;
 use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle};
 
 fn ms(d: std::time::Duration) -> f64 {
@@ -122,6 +124,23 @@ pub struct App {
 }
 
 impl App {
+    fn sync_pointer_cursor(&self) {
+        let Some(shell) = self.state.as_ref() else {
+            return;
+        };
+        let cursor = match self.source.pointer_cursor() {
+            CursorStyle::Default => CursorIcon::Default,
+            CursorStyle::Pointer => CursorIcon::Pointer,
+            CursorStyle::Text => CursorIcon::Text,
+            CursorStyle::Crosshair => CursorIcon::Crosshair,
+            CursorStyle::Move => CursorIcon::Move,
+            CursorStyle::Wait => CursorIcon::Wait,
+            CursorStyle::NotAllowed => CursorIcon::NotAllowed,
+            CursorStyle::EwResize => CursorIcon::EwResize,
+            CursorStyle::NsResize => CursorIcon::NsResize,
+        };
+        shell.window().set_cursor(Cursor::Icon(cursor));
+    }
     fn unconsumed_key_text(text: Option<String>, response: &EventResponse) -> Option<String> {
         text.filter(|_| !response.consume_key_text)
     }
@@ -707,6 +726,7 @@ impl App {
         let (node_count, build_frame_ms, scene_ms) =
             Self::build(shell, self.source.as_mut(), base_color);
         self.update_ime_cursor_area();
+        self.sync_pointer_cursor();
         let Some(shell) = self.state.as_mut() else {
             return;
         };

@@ -222,6 +222,7 @@ fn dimension_rule<'a>(input: &mut &'a str) -> ModalResult<(&'static str, &'a str
 
 fn color_rule<'a>(input: &mut &'a str) -> ModalResult<(&'static str, &'a str), ContextError> {
     let prefix = alt((
+        "outline-".value("outline"),
         "border-".value("border"),
         "text-".value("text"),
         "bg-".value("bg"),
@@ -500,6 +501,7 @@ pub fn parse_utility_with_theme(
             match prefix {
                 "bg" => "background-color",
                 "text" => "color",
+                "outline" => "outline-color",
                 _ => "border-color",
             },
             rgba,

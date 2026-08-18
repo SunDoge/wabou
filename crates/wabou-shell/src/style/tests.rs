@@ -210,6 +210,51 @@ fn maps_vello_paint_properties() {
 }
 
 #[test]
+fn cursor_inherits_while_outline_remains_paint_only() {
+    let mut layout = taffy::Style::default();
+    let original_layout = layout.clone();
+    let mut parent = DeclaredPaint::default();
+    assert!(apply_ir(
+        &mut layout,
+        &mut parent,
+        "cursor",
+        &keyword("pointer")
+    ));
+    assert!(apply_ir(
+        &mut layout,
+        &mut parent,
+        "outline-width",
+        &px(2.0)
+    ));
+    assert!(apply_ir(
+        &mut layout,
+        &mut parent,
+        "outline-offset",
+        &px(3.0)
+    ));
+    assert!(apply_ir(
+        &mut layout,
+        &mut parent,
+        "outline-color",
+        &IrValue::Color {
+            value: IrColor::Literal { rgba: 0x38bdf8ff },
+        },
+    ));
+    assert_eq!(layout, original_layout);
+
+    let inherited = parent.resolve_inherited(&InheritedPaint::default());
+    let child = DeclaredPaint::default().resolve(&inherited, HostPaint::default());
+    assert_eq!(child.cursor, CursorStyle::Pointer);
+    assert_eq!(child.outline_width, 0.0);
+    assert_eq!(parent.outline_width, 2.0);
+    assert_eq!(parent.outline_offset, 3.0);
+    assert_eq!(
+        parent.outline_color,
+        Some(Color::from_rgba8(56, 189, 248, 255))
+    );
+}
+
+#[test]
 fn inline_percentages_are_normalized_for_taffy() {
     assert_eq!(
         parse_ir_value("100%"),

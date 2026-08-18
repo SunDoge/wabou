@@ -539,6 +539,36 @@ fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) ->
             };
         }
         "pointer-events" => paint.pointer_events = value.keyword() != Some("none"),
+        "cursor" => {
+            paint.cursor = Some(match value.keyword()? {
+                "pointer" => CursorStyle::Pointer,
+                "text" => CursorStyle::Text,
+                "crosshair" => CursorStyle::Crosshair,
+                "move" => CursorStyle::Move,
+                "wait" => CursorStyle::Wait,
+                "not-allowed" => CursorStyle::NotAllowed,
+                "ew-resize" | "col-resize" => CursorStyle::EwResize,
+                "ns-resize" | "row-resize" => CursorStyle::NsResize,
+                "auto" | "default" => CursorStyle::Default,
+                _ => return None,
+            });
+        }
+        "outline-width" => {
+            if let Some(IrLength::Px { value }) = value.length() {
+                paint.outline_width = (*value).max(0.0);
+            }
+        }
+        "outline-offset" => {
+            if let Some(IrLength::Px { value }) = value.length() {
+                paint.outline_offset = *value;
+            }
+        }
+        "outline-color" => paint.outline_color = ir_color(value).or(paint.outline_color),
+        "outline-style" => match value.keyword() {
+            Some("none") => paint.outline_width = 0.0,
+            Some("solid") => {}
+            _ => {}
+        },
         "box-shadow" => {
             if let IrValue::List { values } = value {
                 paint.shadows = values.iter().filter_map(Shadow::from_ir).collect();
