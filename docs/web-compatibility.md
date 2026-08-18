@@ -29,6 +29,10 @@ platform-independent implementation.
   explicit Solid state; CSS does not create an implicit state machine.
 - Tag names do not imply browser user-agent styles or the complete HTML
   accessibility model.
+- JSX exposes a finite native host-tag and property registry. Browser-only
+  elements and attributes such as anchors, `href`, `title`, and generic
+  `type="password"` inputs are type errors; use an explicit Wabou component or
+  native capability instead.
 - Layout measurement is a completed native-frame snapshot through `useHost()`;
   synchronous DOM layout reads are unavailable.
 - Browser storage, cookies, service workers, WebGL and browser canvas APIs are

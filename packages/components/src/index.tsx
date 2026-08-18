@@ -1,4 +1,3 @@
-import type { JSX as WebJSX } from "@solidjs/web";
 import { type AnimationControls, animate } from "@wabou/animation";
 import {
   type ButtonState,
@@ -13,7 +12,11 @@ import {
   View,
   type WabouStyle,
 } from "@wabou/primitives";
-import { createFps } from "@wabou/solid-renderer";
+import {
+  createFps,
+  type Handle,
+  type WabouKeyEvent,
+} from "@wabou/solid-renderer";
 import {
   createEffect,
   createSignal,
@@ -385,9 +388,9 @@ export interface InputProps {
   readOnly?: boolean;
   "aria-label"?: string;
   class?: string;
-  ref?: WebJSX.InputHTMLAttributes<HTMLInputElement>["ref"];
+  ref?: (node: Handle) => void;
   onInput?: (event: { currentTarget: { value: string } }) => void;
-  onKeyDown?: WebJSX.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
+  onKeyDown?: (event: WabouKeyEvent) => void;
 }
 
 /** A plain-text input. Secrets must use {@link PasswordInput}. */

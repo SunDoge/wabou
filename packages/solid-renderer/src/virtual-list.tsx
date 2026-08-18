@@ -1,14 +1,13 @@
 import { Virtualizer, type VirtualizerOptions } from "@tanstack/virtual-core";
-import type { JSX as WebJSX } from "@solidjs/web";
 import {
-  For,
-  Show,
   createMemo,
   createSignal,
-  onCleanup,
+  For,
   type JSX,
+  onCleanup,
+  Show,
 } from "solid-js";
-import type { Handle } from "./index";
+import type { Handle, WabouSemanticRole } from "./index";
 
 export interface VirtualListProps<T> {
   /** Accessor for the full backing array. Only the visible slice renders. */
@@ -20,7 +19,7 @@ export interface VirtualListProps<T> {
   /** Extra rows rendered above/below the viewport. Defaults to 4. */
   overscan?: number;
   /** Explicit semantic role for the viewport, such as `listbox`. */
-  role?: WebJSX.HTMLAttributes<HTMLDivElement>["role"];
+  role?: WabouSemanticRole;
   /** Accessible name for the native scroll viewport. */
   accessibilityLabel?: string;
   /** Render a single row given its item and absolute index. */

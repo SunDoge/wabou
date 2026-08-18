@@ -5671,8 +5671,12 @@
       target: { id: solidId, ...data },
       currentTarget: { id: solidId, ...data },
       type: eventName(eventCode),
+      payload: data,
       ...data,
       stopPropagation() {
+        stopped = true;
+      },
+      stopImmediatePropagation() {
         stopped = true;
       },
       preventDefault() {

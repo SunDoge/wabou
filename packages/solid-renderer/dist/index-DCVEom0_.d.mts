@@ -162,7 +162,7 @@ interface VirtualListProps<T> {
   /** Extra rows rendered above/below the viewport. Defaults to 4. */
   overscan?: number;
   /** Explicit semantic role for the viewport, such as `listbox`. */
-  role?: JSX$1.HTMLAttributes<HTMLDivElement>["role"];
+  role?: WabouSemanticRole;
   /** Accessible name for the native scroll viewport. */
   accessibilityLabel?: string;
   /** Render a single row given its item and absolute index. */
@@ -200,49 +200,144 @@ interface WabouIntrinsicElements {}
  * by an explicit component or registered as a custom native element.
  */
 interface WabouBuiltinIntrinsicElements {
-  article: JSX$1.HTMLAttributes<HTMLElement>;
-  aside: JSX$1.HTMLAttributes<HTMLElement>;
-  button: JSX$1.ButtonHTMLAttributes<HTMLButtonElement>;
-  div: JSX$1.HTMLAttributes<HTMLDivElement>;
-  footer: JSX$1.HTMLAttributes<HTMLElement>;
-  h1: JSX$1.HTMLAttributes<HTMLHeadingElement>;
-  header: JSX$1.HTMLAttributes<HTMLElement>;
-  i: JSX$1.HTMLAttributes<HTMLElement>;
-  img: JSX$1.ImgHTMLAttributes<HTMLImageElement>;
-  input: Omit<JSX$1.InputHTMLAttributes<HTMLInputElement>, "type"> & {
-    type?: "text";
-  };
-  label: JSX$1.LabelHTMLAttributes<HTMLLabelElement>;
-  main: JSX$1.HTMLAttributes<HTMLElement>;
-  nav: JSX$1.HTMLAttributes<HTMLElement>;
-  ol: JSX$1.OlHTMLAttributes<HTMLOListElement>;
-  p: JSX$1.HTMLAttributes<HTMLParagraphElement>;
-  section: JSX$1.HTMLAttributes<HTMLElement>;
-  span: JSX$1.HTMLAttributes<HTMLSpanElement>;
-  strong: JSX$1.HTMLAttributes<HTMLElement>;
-  svg: JSX$1.SvgSVGAttributes<SVGSVGElement>;
-  path: JSX$1.PathSVGAttributes<SVGPathElement>;
-  circle: JSX$1.CircleSVGAttributes<SVGCircleElement>;
+  article: WabouElementProps;
+  aside: WabouElementProps;
+  button: WabouControlProps;
+  div: WabouElementProps;
+  footer: WabouElementProps;
+  h1: WabouElementProps;
+  header: WabouElementProps;
+  i: WabouElementProps;
+  img: WabouImageProps;
+  input: WabouInputProps;
+  label: WabouElementProps;
+  main: WabouElementProps;
+  nav: WabouElementProps;
+  ol: WabouElementProps;
+  p: WabouElementProps;
+  section: WabouElementProps;
+  span: WabouElementProps;
+  strong: WabouElementProps;
+  svg: WabouSvgProps;
+  path: WabouSvgShapeProps;
+  circle: WabouSvgShapeProps;
 }
+type WabouSemanticRole = "alert" | "alertdialog" | "button" | "cell" | "checkbox" | "columnheader" | "combobox" | "dialog" | "grid" | "gridcell" | "group" | "heading" | "img" | "label" | "link" | "listbox" | "menu" | "menuitem" | "none" | "option" | "presentation" | "progressbar" | "radio" | "radiogroup" | "row" | "rowheader" | "slider" | "status" | "switch" | "tab" | "tablist" | "tabpanel" | "table" | "textbox" | "tree" | "treeitem";
+type EventHandler<E> = {
+  bivarianceHack(event: E): void;
+}["bivarianceHack"];
 /** Props shared by low-level native JSX elements. */
 interface WabouElementProps {
+  id?: string;
   class?: string;
   classList?: Record<string, boolean | undefined>;
   style?: string | JSX$2.CSSProperties;
   children?: JSX$2.Element;
   ref?: Handle | ((node: Handle) => void);
+  role?: WabouSemanticRole;
+  tabIndex?: number;
+  inert?: boolean | "";
+  "aria-label"?: string;
+  "aria-hidden"?: boolean | "true" | "false";
+  "aria-modal"?: boolean | "true" | "false";
+  "aria-haspopup"?: boolean | "dialog" | "grid" | "listbox" | "menu" | "tree";
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
+  "aria-activedescendant"?: string;
+  "aria-checked"?: boolean | "mixed";
+  "aria-current"?: boolean | "date" | "page" | "step" | "time";
+  "aria-selected"?: boolean;
+  "aria-pressed"?: boolean | "mixed";
+  "aria-valuemin"?: number;
+  "aria-valuemax"?: number;
+  "aria-valuenow"?: number;
+  "aria-valuetext"?: string;
+  onClick?: EventHandler<WabouPointerEvent>;
+  onContextMenu?: EventHandler<WabouPointerEvent>;
+  onPointerEnter?: EventHandler<WabouPointerEvent>;
+  onPointerLeave?: EventHandler<WabouPointerEvent>;
+  onPointerDown?: EventHandler<WabouPointerEvent>;
+  onPointerUp?: EventHandler<WabouPointerEvent>;
+  onPointerCancel?: EventHandler<WabouPointerEvent>;
+  onKeyDown?: EventHandler<WabouKeyEvent>;
+  onKeyUp?: EventHandler<WabouKeyEvent>;
+  onFocus?: EventHandler<WabouNodeEvent>;
+  onBlur?: EventHandler<WabouNodeEvent>;
+  onWheel?: EventHandler<WabouWheelEvent>;
+  onScroll?: EventHandler<WabouScrollEvent>;
+}
+interface WabouControlProps extends WabouElementProps {
+  disabled?: boolean;
+}
+interface WabouInputProps extends WabouControlProps {
+  type?: "text";
+  value?: string;
+  placeholder?: string;
+  readOnly?: boolean;
+  onInput?: EventHandler<WabouInputEvent>;
+}
+interface WabouImageProps extends WabouElementProps {
+  src?: string;
+  alt?: string;
+}
+interface WabouSvgProps extends WabouElementProps {
+  viewBox?: string;
+  fill?: string;
+}
+interface WabouSvgShapeProps extends WabouElementProps {
+  d?: string;
+  cx?: string | number;
+  cy?: string | number;
+  r?: string | number;
+  fill?: string;
+  stroke?: string;
+  "stroke-width"?: string | number;
+  "stroke-linecap"?: "butt" | "round" | "square";
+  opacity?: string | number;
 }
 /** Event shape emitted by a native Wabou node or custom widget. */
-interface WabouNodeEvent<T extends object = Record<string, unknown>> {
+interface WabouEventTarget {
+  readonly id: number;
+}
+interface WabouNodeEvent<T extends object = object> {
   readonly type: string;
-  readonly target: Handle;
-  readonly currentTarget: Handle;
+  readonly target: WabouEventTarget & Partial<T>;
+  readonly currentTarget: WabouEventTarget & Partial<T>;
   readonly defaultPrevented: boolean;
   readonly propagationStopped: boolean;
   preventDefault(): void;
   stopPropagation(): void;
   stopImmediatePropagation(): void;
   readonly payload: T;
+}
+interface WabouPositionedEvent extends WabouNodeEvent {
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
+}
+interface WabouPointerEvent extends WabouPositionedEvent {
+  readonly button: number;
+  readonly buttons: number;
+  readonly mods: number;
+}
+interface WabouKeyEvent extends WabouNodeEvent {
+  readonly key: string;
+  readonly code: string;
+  readonly repeat: boolean;
+}
+interface WabouWheelEvent extends WabouPositionedEvent {
+  readonly deltaX: number;
+  readonly deltaY: number;
+}
+interface WabouScrollEvent extends WabouNodeEvent {
+  readonly scrollX?: number;
+  readonly scrollY?: number;
+}
+interface WabouInputEvent extends WabouNodeEvent {
+  readonly currentTarget: WabouEventTarget & {
+    value: string;
+  };
 }
 interface NativeScrollbarStyle {
   visibility?: "auto" | "always" | "hidden";
@@ -321,5 +416,5 @@ declare function mount(code: () => JSX$2.Element): () => void;
  */
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { LayoutSnapshot as $, releaseOverlayRoot as A, createFps as B, insertNode as C, mount as D, mergeProps as E, setTransform2D as F, HostProvider as G, Portal as H, spread as I, defaultHost as J, HostProviderProps as K, writer as L, render as M, runSweep as N, ref as O, setProp as P, LayoutRect as Q, VirtualList as R, insert as S, memo as T, PortalProps as U, useFps as V, Host as W, FrameStats as X, useHost as Y, LayoutNodeMetrics as Z, delegateEvents as _, NativeScrollbarStyle as a, getMountRoot as b, WabouElementProps as c, Writer$1 as d, Fragment as et, acquireOverlayRoot as f, createTextNode as g, createElement as h, HostCapabilities as i, jsxs as it, removeNode as j, registerRoot as k, WabouIntrinsicElements as l, createComponent$1 as m, EVENT_CODE as n, jsx as nt, OP as o, applyRef as p, LayoutTarget as q, Handle as r, jsxDEV as rt, WabouBuiltinIntrinsicElements as s, Dynamic as t, JSX$2 as tt, WabouNodeEvent as u, dispatchEvent as v, isServer as w, getRequestEvent as x, effect as y, VirtualListProps as z };
-//# sourceMappingURL=index-BYsBCU2A.d.mts.map
+export { createFps as $, delegateEvents as A, mount as B, WabouWheelEvent as C, createComponent$1 as D, applyRef as E, insert as F, render as G, registerRoot as H, insertNode as I, setTransform2D as J, runSweep as K, isServer as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualListProps as Q, memo as R, WabouSvgShapeProps as S, acquireOverlayRoot as T, releaseOverlayRoot as U, ref as V, removeNode as W, writer as X, spread as Y, VirtualList as Z, WabouPointerEvent as _, jsxs as _t, NativeScrollbarStyle as a, HostProviderProps as at, WabouSemanticRole as b, WabouControlProps as c, useHost as ct, WabouImageProps as d, LayoutRect as dt, useFps as et, WabouInputEvent as f, LayoutSnapshot as ft, WabouNodeEvent as g, jsxDEV as gt, WabouKeyEvent as h, jsx as ht, HostCapabilities as i, HostProvider as it, dispatchEvent as j, createTextNode as k, WabouElementProps as l, FrameStats as lt, WabouIntrinsicElements as m, JSX$2 as mt, EVENT_CODE as n, PortalProps as nt, OP as o, LayoutTarget as ot, WabouInputProps as p, Fragment as pt, setProp as q, Handle as r, Host as rt, WabouBuiltinIntrinsicElements as s, defaultHost as st, Dynamic as t, Portal as tt, WabouEventTarget as u, LayoutNodeMetrics as ut, WabouPositionedEvent as v, Writer$1 as w, WabouSvgProps as x, WabouScrollEvent as y, mergeProps as z };
+//# sourceMappingURL=index-DCVEom0_.d.mts.map

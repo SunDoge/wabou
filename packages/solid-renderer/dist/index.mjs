@@ -743,8 +743,12 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 			...data
 		},
 		type: eventName(eventCode),
+		payload: data,
 		...data,
 		stopPropagation() {
+			stopped = true;
+		},
+		stopImmediatePropagation() {
 			stopped = true;
 		},
 		preventDefault() {

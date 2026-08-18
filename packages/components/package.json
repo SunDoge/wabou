@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@internationalized/date": "^3.12.3",
-    "@solidjs/web": "2.0.0-rc.0",
     "@wabou/animation": "workspace:*",
     "@wabou/core": "workspace:*",
     "@wabou/primitives": "workspace:*",

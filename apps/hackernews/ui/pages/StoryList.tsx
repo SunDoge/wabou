@@ -207,7 +207,7 @@ function BookmarkAction(props: { story: Story }): JSX.Element {
         color: isSaved(props.story.id) ? palette().accent : palette().textMuted,
       })}
       onClick={(event) => toggle(event as MouseEvent)}
-      title={isSaved(props.story.id) ? "Remove saved story" : "Save story"}
+      aria-label={isSaved(props.story.id) ? "Remove saved story" : "Save story"}
     >
       <Icon
         source={bookmark}

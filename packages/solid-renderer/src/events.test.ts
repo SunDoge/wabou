@@ -124,6 +124,33 @@ test("dispatch reports preventDefault to the Host", () => {
   expect(dispatchEvent(target.id, EVENT_CODE.click, "")).toBe(true);
 });
 
+test("native events expose their actual target and payload contract", () => {
+  const target = createElement("view");
+  let observed:
+    | {
+        target: { id: number };
+        currentTarget: { id: number };
+        payload: { value: string };
+        propagationStopped: boolean;
+        stopImmediatePropagation(): void;
+      }
+    | undefined;
+  setProp(
+    target,
+    "onInput",
+    (event: NonNullable<typeof observed>) => {
+      observed = event;
+      event.stopImmediatePropagation();
+    },
+    undefined,
+  );
+  dispatchEvent(target.id, EVENT_CODE.input, JSON.stringify({ value: "next" }));
+  expect(observed?.target.id).toBe(target.id);
+  expect(observed?.currentTarget.id).toBe(target.id);
+  expect(observed?.payload).toEqual({ value: "next" });
+  expect(observed?.propagationStopped).toBe(true);
+});
+
 test("native scroll observations expose authoritative offsets", () => {
   const view = createElement("div");
   let observed: { scrollX: number; scrollY: number } | undefined;

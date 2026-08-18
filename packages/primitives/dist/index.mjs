@@ -1,5 +1,5 @@
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, useContext } from "solid-js";
-import { Portal, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, setProp, spread, useHost } from "@wabou/solid-renderer";
+import { Portal, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, spread, useHost } from "@wabou/solid-renderer";
 import { createPulse, createRotation, createTransition } from "@wabou/animation";
 import { number, px, rotate2d, translate2d } from "@wabou/style";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
@@ -201,16 +201,12 @@ function Button(props) {
 	(typeof _ref$ === "function" || Array.isArray(_ref$)) && ref(() => {
 		return _ref$;
 	}, _el$);
-	setProp(_el$, "type", "button");
 	spread(_el$, mergeProps({
 		get disabled() {
 			return disabled();
 		},
 		get tabIndex() {
 			return disabled() ? -1 : 0;
-		},
-		get title() {
-			return props.title;
 		},
 		get role() {
 			return props.role ?? "button";

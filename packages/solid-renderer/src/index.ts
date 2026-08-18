@@ -12,7 +12,6 @@
 // where moduleName is this package. So we eagerly build ONE renderer at module
 // load and re-export its methods as named exports below.
 
-import type { JSX as WebJSX } from "@solidjs/web";
 import { EVENT_CODE, type EventType, OP, Writer } from "@wabou/protocol";
 import {
   type Affine2D,
@@ -52,51 +51,192 @@ export interface WabouIntrinsicElements {}
  * by an explicit component or registered as a custom native element.
  */
 export interface WabouBuiltinIntrinsicElements {
-  article: WebJSX.HTMLAttributes<HTMLElement>;
-  aside: WebJSX.HTMLAttributes<HTMLElement>;
-  button: WebJSX.ButtonHTMLAttributes<HTMLButtonElement>;
-  div: WebJSX.HTMLAttributes<HTMLDivElement>;
-  footer: WebJSX.HTMLAttributes<HTMLElement>;
-  h1: WebJSX.HTMLAttributes<HTMLHeadingElement>;
-  header: WebJSX.HTMLAttributes<HTMLElement>;
-  i: WebJSX.HTMLAttributes<HTMLElement>;
-  img: WebJSX.ImgHTMLAttributes<HTMLImageElement>;
-  input: Omit<WebJSX.InputHTMLAttributes<HTMLInputElement>, "type"> & {
-    type?: "text";
-  };
-  label: WebJSX.LabelHTMLAttributes<HTMLLabelElement>;
-  main: WebJSX.HTMLAttributes<HTMLElement>;
-  nav: WebJSX.HTMLAttributes<HTMLElement>;
-  ol: WebJSX.OlHTMLAttributes<HTMLOListElement>;
-  p: WebJSX.HTMLAttributes<HTMLParagraphElement>;
-  section: WebJSX.HTMLAttributes<HTMLElement>;
-  span: WebJSX.HTMLAttributes<HTMLSpanElement>;
-  strong: WebJSX.HTMLAttributes<HTMLElement>;
-  svg: WebJSX.SvgSVGAttributes<SVGSVGElement>;
-  path: WebJSX.PathSVGAttributes<SVGPathElement>;
-  circle: WebJSX.CircleSVGAttributes<SVGCircleElement>;
+  article: WabouElementProps;
+  aside: WabouElementProps;
+  button: WabouControlProps;
+  div: WabouElementProps;
+  footer: WabouElementProps;
+  h1: WabouElementProps;
+  header: WabouElementProps;
+  i: WabouElementProps;
+  img: WabouImageProps;
+  input: WabouInputProps;
+  label: WabouElementProps;
+  main: WabouElementProps;
+  nav: WabouElementProps;
+  ol: WabouElementProps;
+  p: WabouElementProps;
+  section: WabouElementProps;
+  span: WabouElementProps;
+  strong: WabouElementProps;
+  svg: WabouSvgProps;
+  path: WabouSvgShapeProps;
+  circle: WabouSvgShapeProps;
 }
+
+export type WabouSemanticRole =
+  | "alert"
+  | "alertdialog"
+  | "button"
+  | "cell"
+  | "checkbox"
+  | "columnheader"
+  | "combobox"
+  | "dialog"
+  | "grid"
+  | "gridcell"
+  | "group"
+  | "heading"
+  | "img"
+  | "label"
+  | "link"
+  | "listbox"
+  | "menu"
+  | "menuitem"
+  | "none"
+  | "option"
+  | "presentation"
+  | "progressbar"
+  | "radio"
+  | "radiogroup"
+  | "row"
+  | "rowheader"
+  | "slider"
+  | "status"
+  | "switch"
+  | "tab"
+  | "tablist"
+  | "tabpanel"
+  | "table"
+  | "textbox"
+  | "tree"
+  | "treeitem";
+
+type EventHandler<E> = { bivarianceHack(event: E): void }["bivarianceHack"];
 
 /** Props shared by low-level native JSX elements. */
 export interface WabouElementProps {
+  id?: string;
   class?: string;
   classList?: Record<string, boolean | undefined>;
   style?: string | JSX.CSSProperties;
   children?: JSX.Element;
   ref?: Handle | ((node: Handle) => void);
+  role?: WabouSemanticRole;
+  tabIndex?: number;
+  inert?: boolean | "";
+  "aria-label"?: string;
+  "aria-hidden"?: boolean | "true" | "false";
+  "aria-modal"?: boolean | "true" | "false";
+  "aria-haspopup"?: boolean | "dialog" | "grid" | "listbox" | "menu" | "tree";
+  "aria-expanded"?: boolean;
+  "aria-controls"?: string;
+  "aria-activedescendant"?: string;
+  "aria-checked"?: boolean | "mixed";
+  "aria-current"?: boolean | "date" | "page" | "step" | "time";
+  "aria-selected"?: boolean;
+  "aria-pressed"?: boolean | "mixed";
+  "aria-valuemin"?: number;
+  "aria-valuemax"?: number;
+  "aria-valuenow"?: number;
+  "aria-valuetext"?: string;
+  onClick?: EventHandler<WabouPointerEvent>;
+  onContextMenu?: EventHandler<WabouPointerEvent>;
+  onPointerEnter?: EventHandler<WabouPointerEvent>;
+  onPointerLeave?: EventHandler<WabouPointerEvent>;
+  onPointerDown?: EventHandler<WabouPointerEvent>;
+  onPointerUp?: EventHandler<WabouPointerEvent>;
+  onPointerCancel?: EventHandler<WabouPointerEvent>;
+  onKeyDown?: EventHandler<WabouKeyEvent>;
+  onKeyUp?: EventHandler<WabouKeyEvent>;
+  onFocus?: EventHandler<WabouNodeEvent>;
+  onBlur?: EventHandler<WabouNodeEvent>;
+  onWheel?: EventHandler<WabouWheelEvent>;
+  onScroll?: EventHandler<WabouScrollEvent>;
+}
+
+export interface WabouControlProps extends WabouElementProps {
+  disabled?: boolean;
+}
+
+export interface WabouInputProps extends WabouControlProps {
+  type?: "text";
+  value?: string;
+  placeholder?: string;
+  readOnly?: boolean;
+  onInput?: EventHandler<WabouInputEvent>;
+}
+
+export interface WabouImageProps extends WabouElementProps {
+  src?: string;
+  alt?: string;
+}
+
+export interface WabouSvgProps extends WabouElementProps {
+  viewBox?: string;
+  fill?: string;
+}
+
+export interface WabouSvgShapeProps extends WabouElementProps {
+  d?: string;
+  cx?: string | number;
+  cy?: string | number;
+  r?: string | number;
+  fill?: string;
+  stroke?: string;
+  "stroke-width"?: string | number;
+  "stroke-linecap"?: "butt" | "round" | "square";
+  opacity?: string | number;
 }
 
 /** Event shape emitted by a native Wabou node or custom widget. */
-export interface WabouNodeEvent<T extends object = Record<string, unknown>> {
+export interface WabouEventTarget {
+  readonly id: number;
+}
+
+export interface WabouNodeEvent<T extends object = object> {
   readonly type: string;
-  readonly target: Handle;
-  readonly currentTarget: Handle;
+  readonly target: WabouEventTarget & Partial<T>;
+  readonly currentTarget: WabouEventTarget & Partial<T>;
   readonly defaultPrevented: boolean;
   readonly propagationStopped: boolean;
   preventDefault(): void;
   stopPropagation(): void;
   stopImmediatePropagation(): void;
   readonly payload: T;
+}
+
+export interface WabouPositionedEvent extends WabouNodeEvent {
+  readonly clientX: number;
+  readonly clientY: number;
+  readonly offsetX: number;
+  readonly offsetY: number;
+}
+
+export interface WabouPointerEvent extends WabouPositionedEvent {
+  readonly button: number;
+  readonly buttons: number;
+  readonly mods: number;
+}
+
+export interface WabouKeyEvent extends WabouNodeEvent {
+  readonly key: string;
+  readonly code: string;
+  readonly repeat: boolean;
+}
+
+export interface WabouWheelEvent extends WabouPositionedEvent {
+  readonly deltaX: number;
+  readonly deltaY: number;
+}
+
+export interface WabouScrollEvent extends WabouNodeEvent {
+  readonly scrollX?: number;
+  readonly scrollY?: number;
+}
+
+export interface WabouInputEvent extends WabouNodeEvent {
+  readonly currentTarget: WabouEventTarget & { value: string };
 }
 
 export interface NativeScrollbarStyle {
@@ -795,8 +935,12 @@ export function dispatchEvent(
     target: { id: solidId, ...data },
     currentTarget: { id: solidId, ...data },
     type: eventName(eventCode),
+    payload: data,
     ...data,
     stopPropagation() {
+      stopped = true;
+    },
+    stopImmediatePropagation() {
       stopped = true;
     },
     preventDefault() {

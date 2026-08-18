@@ -1,9 +1,8 @@
 import { Accessor, JSX } from "solid-js";
-import { Handle, Host, LayoutRect as LayoutRect$1, LayoutTarget, NativeScrollbarStyle } from "@wabou/solid-renderer";
+import { Handle, Host, LayoutRect as LayoutRect$1, LayoutTarget, NativeScrollbarStyle, WabouSemanticRole } from "@wabou/solid-renderer";
 import { Easing } from "@wabou/animation";
 import { Affine2D, Affine2D as Affine2D$1, Shadow, WabouStyle, WabouStyle as WabouStyle$1, rotate2d, translate2d } from "@wabou/style";
 import { ComputePositionReturn, ComputePositionReturn as ComputePositionReturn$1, Middleware, Middleware as Middleware$1, Placement, Placement as Placement$1, Strategy, Strategy as Strategy$1, arrow, autoPlacement, flip, offset, shift, size } from "@floating-ui/core";
-import { JSX as JSX$1 } from "@solidjs/web";
 //#region src/animation-frame.d.ts
 type AnimationFrameCallback = (timestamp: number) => unknown;
 /**
@@ -156,8 +155,7 @@ interface ButtonProps {
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
-  title?: string;
-  role?: JSX$1.ButtonHTMLAttributes<HTMLButtonElement>["role"];
+  role?: WabouSemanticRole;
   ref?: (node: Handle) => void;
   "aria-haspopup"?: boolean | "false" | "true" | "menu" | "listbox" | "tree" | "grid" | "dialog";
   "aria-expanded"?: boolean;

@@ -16,14 +16,20 @@ const rootRoute = new BaseRootRoute();
 const structuralHostNode = <section class="flex" />;
 const plainTextInput = <input type="text" />;
 // @ts-expect-error links are components/capabilities, not implicit Web anchors
-const unsupportedAnchor = <a href="https://example.com" />;
+const unsupportedAnchor = <a href="https://example.com">Unsupported</a>;
 // @ts-expect-error secrets require the dedicated PasswordInput + SecretStore
 const insecureGenericInput = <input type="password" />;
+// @ts-expect-error browser tooltip attributes have no native Wabou behavior
+const unsupportedTitle = <div title="Browser tooltip" />;
+// @ts-expect-error structural host nodes do not acquire browser navigation
+const unsupportedHref = <div href="https://example.com" />;
 void [
   structuralHostNode,
   plainTextInput,
   unsupportedAnchor,
   insecureGenericInput,
+  unsupportedTitle,
+  unsupportedHref,
 ];
 
 createDataRouter({

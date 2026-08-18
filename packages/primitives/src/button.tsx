@@ -1,6 +1,5 @@
-import type { Handle } from "@wabou/solid-renderer";
+import type { Handle, WabouSemanticRole } from "@wabou/solid-renderer";
 import { useHost } from "@wabou/solid-renderer";
-import type { JSX as WebJSX } from "@solidjs/web";
 import type { Accessor, JSX } from "solid-js";
 import { createFocus } from "./focus";
 import { createHover } from "./hover";
@@ -26,8 +25,7 @@ export interface ButtonProps {
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
-  title?: string;
-  role?: WebJSX.ButtonHTMLAttributes<HTMLButtonElement>["role"];
+  role?: WabouSemanticRole;
   ref?: (node: Handle) => void;
   "aria-haspopup"?:
     | boolean
@@ -211,10 +209,8 @@ export function Button(props: ButtonProps): JSX.Element {
   return (
     // biome-ignore lint/a11y/useAriaPropsSupportedByRole: headless controls replace the default button role at runtime.
     <button
-      type="button"
       disabled={disabled()}
       tabIndex={disabled() ? -1 : 0}
-      title={props.title}
       role={props.role ?? "button"}
       ref={props.ref as never}
       aria-haspopup={props["aria-haspopup"] as never}

@@ -1,7 +1,7 @@
+import { Handle, WabouKeyEvent } from "@wabou/solid-renderer";
 import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProps, PasswordInputProps as PasswordInputProps$1, TextAreaProps as TextAreaProps$1, ViewProps, WabouStyle } from "@wabou/primitives";
 import { JSX, ParentProps } from "solid-js";
 import { CalendarDate } from "@internationalized/date";
-import { JSX as JSX$1 } from "@solidjs/web";
 //#region src/avatar.d.ts
 type AvatarSize = "sm" | "default" | "lg";
 interface AvatarProps {
@@ -467,13 +467,13 @@ interface InputProps {
   readOnly?: boolean;
   "aria-label"?: string;
   class?: string;
-  ref?: JSX$1.InputHTMLAttributes<HTMLInputElement>["ref"];
+  ref?: (node: Handle) => void;
   onInput?: (event: {
     currentTarget: {
       value: string;
     };
   }) => void;
-  onKeyDown?: JSX$1.InputHTMLAttributes<HTMLInputElement>["onKeyDown"];
+  onKeyDown?: (event: WabouKeyEvent) => void;
 }
 /** A plain-text input. Secrets must use {@link PasswordInput}. */
 declare function Input(props: InputProps): JSX.Element;
