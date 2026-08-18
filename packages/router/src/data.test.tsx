@@ -26,7 +26,13 @@ test.skipIf(isServer)(
   "data router publishes params, loader data, and navigation through Solid",
   async () => {
     const seen: string[] = [];
+    let rootMounts = 0;
     let navigate: ReturnType<typeof useNavigate> | undefined;
+
+    function Layout(props: { children?: unknown }) {
+      rootMounts++;
+      return props.children as never;
+    }
 
     function Project() {
       const location = useLocation();
@@ -54,6 +60,7 @@ test.skipIf(isServer)(
     }
 
     const root = new BaseRootRoute({
+      component: Layout,
       validateSearch: (search: Record<string, unknown>) => ({
         page: Number(search.page) || 1,
       }),
@@ -86,10 +93,12 @@ test.skipIf(isServer)(
     const dispose = mount(() => createComponent(RouterProvider, { router }));
     await settle();
     expect(seen).toContain("/projects/alpha:alpha:2");
+    expect(rootMounts).toBe(1);
 
     await navigate?.({ to: "/settings" });
     await settle();
     expect(seen).toContain("/settings");
+    expect(rootMounts).toBe(1);
     dispose();
   },
 );

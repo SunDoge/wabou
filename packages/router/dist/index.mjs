@@ -1,6 +1,6 @@
 import { createMemoryHistory, createMemoryHistory as createMemoryHistory$1 } from "@tanstack/history";
 import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanstack/router-core";
-import { createComponent, createContext, createMemo, createSignal, flush, getOwner, onCleanup, useContext } from "solid-js";
+import { Show, createComponent, createContext, createMemo, createSignal, flush, getOwner, onCleanup, useContext } from "solid-js";
 //#region src/data.tsx
 globalThis.scrollTo ??= () => {};
 function createMutableStore(initial) {
@@ -43,20 +43,48 @@ function requireDataRouter() {
 	if (!router) throw new Error("Wabou data-router hooks must be used inside <RouterProvider>");
 	return router;
 }
-function renderMatches(router, index = 0) {
+function matchView(router, index) {
 	const match = router.state.matches[index];
-	if (!match) return null;
+	if (!match) return void 0;
 	const options = router.routesById[match.routeId].options;
-	const view = match.status === "error" ? options.errorComponent : match.status === "notFound" ? options.notFoundComponent : match.status === "pending" ? options.pendingComponent : options.component;
-	const outlet = () => renderMatches(router, index + 1);
-	if (!view) return outlet();
-	return createComponent(view, {
-		get error() {
-			return match.error;
+	return match.status === "error" ? options.errorComponent : match.status === "notFound" ? options.notFoundComponent : match.status === "pending" ? options.pendingComponent : options.component;
+}
+/** Preserve a matched component while its route and selected view are stable. */
+function RouteMatch(props) {
+	const match = () => props.router.state.matches[props.index];
+	const outlet = createComponent(RouteOutlet, {
+		router: props.router,
+		index: props.index + 1
+	});
+	return createComponent(Show, {
+		get when() {
+			return matchView(props.router, props.index);
 		},
-		get children() {
-			return outlet();
-		}
+		keyed: true,
+		children: (view) => createComponent(view, {
+			get error() {
+				return match()?.error;
+			},
+			get children() {
+				return outlet;
+			}
+		})
+	});
+}
+/** Key only the route level that changed instead of rebuilding all matches. */
+function RouteOutlet(props) {
+	return createComponent(Show, {
+		get when() {
+			return props.router.state.matches[props.index]?.routeId;
+		},
+		keyed: true,
+		get fallback() {
+			return props.fallback ?? null;
+		},
+		children: (_routeId) => createComponent(RouteMatch, {
+			router: props.router,
+			index: props.index
+		})
 	});
 }
 /** Own router lifecycle and render its current native component branch. */
@@ -67,11 +95,16 @@ function RouterProvider(props) {
 	});
 	onCleanup(unsubscribe);
 	router.load().catch(console.error);
-	const content = () => router.state.matches.length > 0 ? renderMatches(router) : props.fallback ?? null;
 	return createComponent(DataRouterContext, {
 		value: router,
 		get children() {
-			return content;
+			return createComponent(RouteOutlet, {
+				router,
+				index: 0,
+				get fallback() {
+					return props.fallback;
+				}
+			});
 		}
 	});
 }

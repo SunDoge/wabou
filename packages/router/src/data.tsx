@@ -22,6 +22,7 @@ import {
   getOwner,
   type JSX,
   onCleanup,
+  Show,
   useContext,
 } from "solid-js";
 
@@ -125,9 +126,9 @@ type RouteView = Component<{
   error?: unknown;
 }>;
 
-function renderMatches(router: AnyRouter, index = 0): JSX.Element {
+function matchView(router: AnyRouter, index: number): RouteView | undefined {
   const match = router.state.matches[index];
-  if (!match) return null;
+  if (!match) return undefined;
   const route = router.routesById[match.routeId];
   const options = route.options as typeof route.options & {
     component?: RouteView;
@@ -135,24 +136,81 @@ function renderMatches(router: AnyRouter, index = 0): JSX.Element {
     errorComponent?: RouteView;
     notFoundComponent?: RouteView;
   };
-  const view =
-    match.status === "error"
-      ? options.errorComponent
-      : match.status === "notFound"
-        ? options.notFoundComponent
-        : match.status === "pending"
-          ? options.pendingComponent
-          : options.component;
-  const outlet = () => renderMatches(router, index + 1);
-  if (!view) return outlet();
-  return createComponent(view, {
-    get error() {
-      return match.error;
-    },
-    get children() {
-      return outlet();
-    },
+  return match.status === "error"
+    ? options.errorComponent
+    : match.status === "notFound"
+      ? options.notFoundComponent
+      : match.status === "pending"
+        ? options.pendingComponent
+        : options.component;
+}
+
+interface RouteMatchProps {
+  router: AnyRouter;
+  index: number;
+}
+
+/** Preserve a matched component while its route and selected view are stable. */
+function RouteMatch(props: RouteMatchProps): JSX.Element {
+  const match = () => props.router.state.matches[props.index];
+  const outlet = createComponent(RouteOutlet, {
+    router: props.router,
+    index: props.index + 1,
   });
+  return createComponent(
+    Show as unknown as (props: {
+      when: RouteView | undefined;
+      keyed: true;
+      children: (view: RouteView) => JSX.Element;
+    }) => JSX.Element,
+    {
+      get when() {
+        return matchView(props.router, props.index);
+      },
+      keyed: true,
+      children: (view: RouteView) =>
+        createComponent(view, {
+          get error() {
+            return match()?.error;
+          },
+          get children() {
+            return outlet;
+          },
+        }),
+    },
+  );
+}
+
+interface RouteOutletProps {
+  router: AnyRouter;
+  index: number;
+  fallback?: JSX.Element;
+}
+
+/** Key only the route level that changed instead of rebuilding all matches. */
+function RouteOutlet(props: RouteOutletProps): JSX.Element {
+  return createComponent(
+    Show as unknown as (props: {
+      when: string | undefined;
+      keyed: true;
+      fallback?: JSX.Element;
+      children: (routeId: string) => JSX.Element;
+    }) => JSX.Element,
+    {
+      get when() {
+        return props.router.state.matches[props.index]?.routeId;
+      },
+      keyed: true,
+      get fallback() {
+        return props.fallback ?? null;
+      },
+      children: (_routeId: string) =>
+        createComponent(RouteMatch, {
+          router: props.router,
+          index: props.index,
+        }),
+    },
+  );
 }
 
 export interface RouterProviderProps {
@@ -168,14 +226,16 @@ export function RouterProvider(props: RouterProviderProps): JSX.Element {
   });
   onCleanup(unsubscribe);
   void router.load().catch(console.error);
-  const content = () =>
-    router.state.matches.length > 0
-      ? renderMatches(router)
-      : (props.fallback ?? null);
   return createComponent(DataRouterContext, {
     value: router,
     get children() {
-      return content as unknown as JSX.Element;
+      return createComponent(RouteOutlet, {
+        router,
+        index: 0,
+        get fallback() {
+          return props.fallback;
+        },
+      });
     },
   });
 }
