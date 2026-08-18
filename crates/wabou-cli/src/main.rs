@@ -37,14 +37,14 @@ mod scaffold;
 
 use artifact::{
     app_binary, app_profiling_feature, app_vite_feature, artifact_from_metadata, built_executable,
-    cargo_metadata, package_metadata,
+    cargo_metadata,
 };
 #[cfg(test)]
 use artifact::{binary_target, framework_feature, vite_feature};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
-    BuildProfile, PackageConfig, PackageFormat, bundle_path, configured_source_map,
-    distribution_root, load_package_config, profile_application_dir, profile_resource_dir,
+    BuildProfile, PackageFormat, bundle_path, configured_source_map, load_package_config,
+    profile_application_dir, profile_resource_dir,
 };
 use process::{
     ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
@@ -583,124 +583,7 @@ fn build(
 fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Result<()> {
     let config = load_package_config(app)?;
     build(workspace, app, true, None)?;
-    let (stage, binary) = stage_application(workspace, app, &config)?;
-    let metadata = cargo_metadata(workspace, app)?;
-    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    let version = package_metadata(&metadata, &manifest_path)
-        .and_then(|package| package["version"].as_str())
-        .ok_or("Cargo metadata has no application version")?;
-    let formats = if format_override.is_empty() {
-        &config.formats
-    } else {
-        format_override
-    };
-    if formats.is_empty() {
-        return Err("wabou.toml must declare at least one package format".into());
-    }
-
-    let package_root = distribution_root(workspace, app)?;
-    let bundles = package_root.join("bundles");
-    fs::create_dir_all(&bundles)?;
-    let packager_config = package_root.join("packager.json");
-    let resources = stage.join("resources");
-    let icons = config
-        .icons
-        .iter()
-        .map(|path| app.root.join(path).to_string_lossy().into_owned())
-        .collect::<Vec<_>>();
-    let license_file = config
-        .license_file
-        .as_ref()
-        .map(|path| app.root.join(path).to_string_lossy().into_owned());
-    let generated = json!({
-        "name": app.name,
-        "productName": config.product_name,
-        "version": version,
-        "identifier": config.identifier,
-        "description": config.description,
-        "authors": config.authors,
-        "copyright": config.copyright,
-        "licenseFile": license_file,
-        "icons": icons,
-        "binaries": [{ "path": binary, "main": true }],
-        "binariesDir": stage,
-        "resources": [{ "src": resources, "target": "resources" }],
-        "formats": formats.iter().map(|format| format.as_str()).collect::<Vec<_>>(),
-        "outDir": bundles,
-    });
-    let outputs = packaging::package(&generated, &packager_config)?;
-    for output in outputs {
-        println!("[wabou] packaged {}", output.display());
-    }
-    Ok(())
-}
-
-fn stage_application(
-    workspace: &Path,
-    app: &App,
-    config: &PackageConfig,
-) -> Result<(PathBuf, String)> {
-    let package_root = distribution_root(workspace, app)?;
-    let stage = package_root.join("stage");
-    if stage.is_dir() {
-        fs::remove_dir_all(&stage)?;
-    }
-    let resources = stage.join("resources");
-    fs::create_dir_all(&resources)?;
-    let binary = app_binary(workspace, app)?;
-    let release_root = package_root.join(BuildProfile::Release.as_str());
-    fs::copy(release_root.join(&binary), stage.join(&binary))?;
-    fs::copy(
-        release_root.join("resources/bundle.js"),
-        resources.join("bundle.js"),
-    )?;
-
-    let app_root = app.root.canonicalize()?;
-    for relative in &config.resources {
-        let source = app.root.join(relative).canonicalize().map_err(|error| {
-            format!(
-                "cannot stage package resource {}: {error}",
-                relative.display()
-            )
-        })?;
-        if !source.starts_with(&app_root) {
-            return Err(format!(
-                "package resource {} escapes the application directory",
-                relative.display()
-            )
-            .into());
-        }
-        let name = source
-            .file_name()
-            .ok_or("package resource must have a file name")?;
-        copy_resource(&source, &resources.join(name))?;
-    }
-    Ok((stage, binary))
-}
-
-fn copy_resource(source: &Path, destination: &Path) -> Result<()> {
-    if fs::symlink_metadata(source)?.file_type().is_symlink() {
-        return Err(format!(
-            "package resources cannot contain symbolic links: {}",
-            source.display()
-        )
-        .into());
-    }
-    if source.is_dir() {
-        fs::create_dir_all(destination)?;
-        for entry in fs::read_dir(source)? {
-            let entry = entry?;
-            copy_resource(&entry.path(), &destination.join(entry.file_name()))?;
-        }
-    } else if source.is_file() {
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::copy(source, destination)?;
-    } else {
-        return Err(format!("unsupported package resource {}", source.display()).into());
-    }
-    Ok(())
+    packaging::package_built_application(workspace, app, &config, format_override)
 }
 
 fn run(
@@ -1692,22 +1575,6 @@ out-dir = "dist/resources"
         assert_eq!(config.product_name, "Example");
         assert_eq!(config.formats, [PackageFormat::Deb]);
         assert_eq!(config.resources, [PathBuf::from("assets")]);
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn recursively_stages_application_resources() {
-        let root =
-            env::temp_dir().join(format!("wabou-cli-package-resource-{}", std::process::id()));
-        let source = root.join("assets/nested");
-        let destination = root.join("stage/assets");
-        fs::create_dir_all(&source).unwrap();
-        fs::write(source.join("fixture.txt"), "staged").unwrap();
-        copy_resource(&root.join("assets"), &destination).unwrap();
-        assert_eq!(
-            fs::read_to_string(destination.join("nested/fixture.txt")).unwrap(),
-            "staged"
-        );
         fs::remove_dir_all(root).unwrap();
     }
 
