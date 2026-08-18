@@ -1086,12 +1086,8 @@ impl ExtensionContext<'_> {
         label: &str,
     ) -> Option<crate::SemanticNode> {
         let snapshot = self.semantic_snapshot(logical_window_id)?;
-        let exposed = snapshot.exposed_nodes();
-        let mut matches = exposed.into_iter().filter(|node| {
-            semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
-        });
-        let node = matches.next()?;
-        matches.next().is_none().then(|| node.clone())
+        let role = SemanticRole::from_name(role)?;
+        snapshot.node_by_role(role, label, None).cloned()
     }
 
     /// Return one explicit zero-based occurrence in semantic source order.
@@ -1103,14 +1099,8 @@ impl ExtensionContext<'_> {
         index: usize,
     ) -> Option<crate::SemanticNode> {
         let snapshot = self.semantic_snapshot(logical_window_id)?;
-        snapshot
-            .exposed_nodes()
-            .into_iter()
-            .filter(|node| {
-                semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
-            })
-            .nth(index)
-            .cloned()
+        let role = SemanticRole::from_name(role)?;
+        snapshot.node_by_role(role, label, Some(index)).cloned()
     }
 
     /// Return whether the latest semantic snapshot focuses `node_id`.
@@ -1171,23 +1161,9 @@ impl ExtensionContext<'_> {
         let Some(snapshot) = app.source.semantic_snapshot() else {
             return false;
         };
-        let exposed = snapshot.exposed_nodes();
-        let mut matches = exposed.into_iter().filter(|node| {
-            semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
-        });
-        let node = match index {
-            Some(index) => matches.nth(index),
-            None => {
-                let Some(node) = matches.next() else {
-                    return false;
-                };
-                if matches.next().is_some() {
-                    return false;
-                }
-                Some(node)
-            }
-        };
-        let Some(node) = node else {
+        let Some(node) = SemanticRole::from_name(role)
+            .and_then(|role| snapshot.node_by_role(role, label, index))
+        else {
             return false;
         };
         if node.disabled {
@@ -1364,10 +1340,6 @@ impl ExtensionContext<'_> {
     pub fn exit(&self) {
         self.event_loop.exit();
     }
-}
-
-fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
-    SemanticRole::from_name(role) == Some(candidate)
 }
 
 /// Optional native integration hosted by Wabou's event loop.

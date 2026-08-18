@@ -467,12 +467,11 @@ fn locator_query_json(
     label: &str,
     index: Option<usize>,
 ) -> Option<String> {
+    let role = SemanticRole::from_name(role)?;
     let matches = snapshot
         .exposed_nodes()
         .into_iter()
-        .filter(|node| {
-            semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
-        })
+        .filter(|node| node.role == role && node.label.as_deref() == Some(label))
         .collect::<Vec<_>>();
     if matches.is_empty() {
         return None;
@@ -689,21 +688,7 @@ fn semantic_query_target<'a>(
     label: &str,
     index: Option<usize>,
 ) -> Option<&'a wabou_shell::SemanticNode> {
-    let exposed = snapshot.exposed_nodes();
-    let mut matches = exposed.into_iter().filter(|node| {
-        semantic_role_matches(role, node.role) && node.label.as_deref() == Some(label)
-    });
-    match index {
-        Some(index) => matches.nth(index),
-        None => {
-            let node = matches.next()?;
-            matches.next().is_none().then_some(node)
-        }
-    }
-}
-
-fn semantic_role_matches(role: &str, candidate: SemanticRole) -> bool {
-    SemanticRole::from_name(role) == Some(candidate)
+    snapshot.node_by_role(SemanticRole::from_name(role)?, label, index)
 }
 
 pub(crate) struct TestDriver {

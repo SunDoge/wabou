@@ -251,6 +251,29 @@ impl SemanticSnapshot {
             .filter(|node| exposed.contains(&node.id))
             .collect()
     }
+
+    /// Find a named role in the currently exposed tree.
+    ///
+    /// With no occurrence this is strict and rejects ambiguous matches. An
+    /// explicit zero-based occurrence selects in semantic source order.
+    pub fn node_by_role(
+        &self,
+        role: SemanticRole,
+        label: &str,
+        occurrence: Option<usize>,
+    ) -> Option<&SemanticNode> {
+        let mut matches = self
+            .exposed_nodes()
+            .into_iter()
+            .filter(|node| node.role == role && node.label.as_deref() == Some(label));
+        match occurrence {
+            Some(index) => matches.nth(index),
+            None => {
+                let node = matches.next()?;
+                matches.next().is_none().then_some(node)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -338,6 +361,32 @@ mod tests {
                 .map(|node| node.id)
                 .collect::<Vec<_>>(),
             [2, 3]
+        );
+    }
+
+    #[test]
+    fn role_queries_are_strict_unless_an_occurrence_is_explicit() {
+        let mut first = node(1, &[]);
+        first.role = SemanticRole::Button;
+        first.label = Some("Save".into());
+        let mut second = first.clone();
+        second.id = 2;
+        let snapshot = SemanticSnapshot {
+            nodes: vec![first, second],
+            root_children: vec![1, 2],
+            ..SemanticSnapshot::default()
+        };
+
+        assert!(
+            snapshot
+                .node_by_role(SemanticRole::Button, "Save", None)
+                .is_none()
+        );
+        assert_eq!(
+            snapshot
+                .node_by_role(SemanticRole::Button, "Save", Some(1))
+                .map(|node| node.id),
+            Some(2)
         );
     }
 }

@@ -1,17 +1,6 @@
 use super::*;
 
 #[test]
-fn native_semantic_locators_accept_every_published_role() {
-    for role in SemanticRole::ALL
-        .iter()
-        .filter(|role| **role != SemanticRole::Generic)
-    {
-        assert!(semantic_role_matches(role.as_str(), *role));
-    }
-    assert!(!semantic_role_matches("generic", SemanticRole::Generic));
-}
-
-#[test]
 fn frame_wake_unifies_animation_and_deadline_scheduling() {
     let now = Instant::now();
     let future = now + std::time::Duration::from_secs(1);
