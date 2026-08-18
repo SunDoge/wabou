@@ -26,10 +26,11 @@ mod render_metrics;
 mod scaffold;
 
 use artifact::{
-    app_binary, app_profiling_feature, app_vite_feature, artifact_from_metadata, cargo_metadata,
+    app_binary, app_bindings_target, app_profiling_feature, app_vite_feature,
+    artifact_from_metadata, cargo_metadata,
 };
 #[cfg(test)]
-use artifact::{binary_target, framework_feature, vite_feature};
+use artifact::{binary_target, bindings_target, framework_feature, vite_feature};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
     BuildProfile, PackageFormat, bundle_path, configured_source_map, load_package_config,
@@ -568,6 +569,7 @@ fn behavior_host_executable(messages: &[u8], binary: &str) -> Result<Option<Path
 
 fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
     let manifest = manifest(app);
+    let target = app_bindings_target(workspace, app)?;
     let mode = match mode {
         BindingsCommand::Write { .. } => "write",
         BindingsCommand::Check { .. } => "check",
@@ -579,7 +581,7 @@ fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
         "--manifest-path",
         &manifest,
         "--example",
-        "wabou-bindgen",
+        &target,
         "--",
         mode,
     ]);
@@ -1114,6 +1116,32 @@ out-dir = "dist/resources"
         )
         .unwrap();
         assert!(release.starts_with("/workspace/target/release"));
+    }
+
+    #[test]
+    fn discovers_bindings_generator_by_source_instead_of_global_target_name() {
+        let metadata = serde_json::json!({
+            "packages": [{
+                "manifest_path": "/workspace/apps/gallery/Cargo.toml",
+                "targets": [
+                    {
+                        "name": "gallery",
+                        "kind": ["bin"],
+                        "src_path": "/workspace/apps/gallery/src/main.rs"
+                    },
+                    {
+                        "name": "gallery-bindgen",
+                        "kind": ["example"],
+                        "src_path": "/workspace/apps/gallery/examples/wabou-bindgen.rs"
+                    }
+                ]
+            }]
+        });
+        assert_eq!(
+            bindings_target(&metadata, Path::new("/workspace/apps/gallery/Cargo.toml"))
+                .and_then(|target| target["name"].as_str()),
+            Some("gallery-bindgen")
+        );
     }
 
     #[test]

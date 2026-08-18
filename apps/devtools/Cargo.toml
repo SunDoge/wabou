@@ -7,6 +7,10 @@ edition = "2024"
 name = "wabou-devtools"
 path = "src/main.rs"
 
+[[example]]
+name = "wabou-devtools-bindgen"
+path = "examples/wabou-bindgen.rs"
+
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 snafu = { workspace = true }

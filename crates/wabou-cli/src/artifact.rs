@@ -40,6 +40,17 @@ pub(super) fn app_profiling_feature(workspace: &Path, app: &App) -> Result<Strin
         .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
 }
 
+pub(super) fn app_bindings_target(workspace: &Path, app: &App) -> Result<String> {
+    let metadata = cargo_metadata(workspace, app)?;
+    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    bindings_target(&metadata, &manifest_path)
+        .and_then(|target| target["name"].as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| {
+            "application must define one example sourced from `examples/wabou-bindgen.rs`".into()
+        })
+}
+
 pub(super) fn framework_feature(
     metadata: &Value,
     manifest_path: &Path,
@@ -114,6 +125,23 @@ pub(super) fn binary_target<'a>(metadata: &'a Value, manifest_path: &Path) -> Op
         .copied()
         .find(|target| target["name"].as_str() == package_name);
     named.or_else(|| (binaries.len() == 1).then(|| binaries[0]))
+}
+
+pub(super) fn bindings_target<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Value> {
+    let package = package_metadata(metadata, manifest_path)?;
+    let targets = package["targets"].as_array()?;
+    let mut matching = targets.iter().filter(|target| {
+        let is_example = target["kind"]
+            .as_array()
+            .is_some_and(|kinds| kinds.iter().any(|kind| kind == "example"));
+        let is_bindgen_source = target["src_path"]
+            .as_str()
+            .and_then(|path| Path::new(path).file_name())
+            .is_some_and(|name| name == "wabou-bindgen.rs");
+        is_example && is_bindgen_source
+    });
+    let target = matching.next()?;
+    matching.next().is_none().then_some(target)
 }
 
 pub(super) fn package_metadata<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Value> {
