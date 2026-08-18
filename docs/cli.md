@@ -56,9 +56,15 @@ directory; the configured path remains the direct `bun run build` destination.
 ## Development
 
 ```bash
+bun run wabou doctor
 bun run wabou dev apps/gallery
 bun run wabou dev apps/hackernews --devtools
 ```
+
+`doctor` checks the required Rust and Bun tools, platform build dependencies,
+the selected application, and generated workspace package artifacts. It exits
+with a nonzero status when a required check fails, so it is also suitable for
+setup scripts and CI diagnostics.
 
 Development starts Vite and compiles the Rust host with `wabou/vite`. Apps that
 depend directly on the lower-level `wabou-runtime` entry point are also supported.
@@ -71,8 +77,9 @@ runtime entrypoints declared by every `packages/*/package.json` before starting
 Vite. An interrupted `packages:build` can otherwise leave a temporarily-cleaned
 `dist/` directory and Vite reports only an opaque `externalize-deps` package
 resolution error. The preflight lists the missing files and asks for
-`bun run packages:build`; standalone applications and published packages do
-not incur this workspace-only check.
+`bun run packages:build`. If existing artifacts no longer match their sources,
+the preflight asks for `bun run gen`; standalone applications and published
+packages do not incur this workspace-only check.
 
 ## Run and package
 

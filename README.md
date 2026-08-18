@@ -124,7 +124,7 @@ refresh rate.
 
 Wabou currently supports macOS and Linux. Install a current stable Rust
 toolchain with [rustup](https://rustup.rs/) and install
-[mise](https://mise.jdx.dev/) before continuing.
+[Bun](https://bun.sh/) before continuing.
 
 On macOS, install the Xcode command-line tools:
 
@@ -149,14 +149,17 @@ Then clone Wabou and launch the component gallery:
 ```bash
 git clone https://github.com/SunDoge/wabou.git
 cd wabou
-mise install
-mise exec -- bun install --frozen-lockfile
-mise exec -- bun run dev
+bun install --frozen-lockfile
+bun run wabou doctor
+bun run dev
 ```
 
+The repository also provides an optional [mise](https://mise.jdx.dev/)
+configuration that installs the tested tool versions with `mise install`.
+
 The first launch compiles the Rust workspace and may take several minutes.
-Later launches reuse the build cache. Run `mise exec -- bun run gen` if Wabou
-reports that checked-in JavaScript package artifacts are missing or stale.
+Later launches reuse the build cache. Run `bun run gen` if Wabou reports that
+checked-in JavaScript package artifacts are missing or stale.
 
 Until binary releases are available, the CLI can also be installed directly
 from the repository (the checkout workflow above is still recommended for
