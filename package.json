@@ -14,7 +14,7 @@
     "commit:hook": "cog install-hook commit-msg",
     "test:hmr": "bun --conditions=browser --conditions=development test packages/solid-renderer/src/hmr.test.ts",
     "test:router": "bun --conditions=browser test packages/router/src/data.test.tsx",
-    "packages:build": "node node_modules/tsdown/dist/run.mjs",
+    "packages:build": "node node_modules/tsdown/dist/run.mjs && bun run scripts/write-package-build-stamps.ts",
     "packages:check": "bun run scripts/check-package-boundaries.ts && tsc -p tests/package-consumer/tsconfig.json",
     "size:report": "bun run scripts/report-artifact-sizes.ts",
     "changeset": "changeset",
