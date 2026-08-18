@@ -792,3 +792,75 @@ fn semantic_idrefs_resolve_to_live_native_nodes() {
     assert_eq!(combo.controls, [3]);
     assert_eq!(combo.active_descendant, Some(4));
 }
+
+#[test]
+fn semantic_projection_separates_explicit_roles_from_text_content() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (view, role, value) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("view"),
+            atoms.intern("role"),
+            atoms.intern("value"),
+        )
+    };
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: view,
+        attrs: vec![(role, "button"), (value, "browser-style fallback")],
+    });
+    applier.apply_op(&Op::CreateText {
+        id: 3,
+        text: "unowned text",
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 1,
+        child: 2,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: 2,
+        child: 3,
+    });
+    applier.rebuild_layout_boxes();
+
+    let root = applier.node_store.root;
+    let input = applier.node_store.solid_to_node[&2];
+    let text = applier.node_store.solid_to_node[&3];
+    let placed = [input, text].map(|node_id| PlacedNode {
+        node_id,
+        parent_node_id: Some(if node_id == text { input } else { root }),
+        depth: if node_id == text { 2 } else { 1 },
+        rect: [0.0, 0.0, 100.0, 40.0],
+        content_origin: [0.0, 0.0],
+        content_size: [100.0, 40.0],
+        clip: None,
+        clip_radius: 0.0,
+        clip_depth: None,
+        own_clip: None,
+        own_clip_radius: 0.0,
+        border_widths: [0.0; 4],
+        scroll: layout::ScrollMetrics::default(),
+        paint: Paint {
+            text: (node_id == text).then(|| "unowned text".into()),
+            ..Paint::default()
+        },
+    });
+
+    applier.rebuild_semantic_snapshot(&placed);
+    let snapshot = &applier.projections.semantic_snapshot;
+    let input = snapshot
+        .nodes
+        .iter()
+        .find(|node| node.id == 2)
+        .expect("explicit button");
+    assert_eq!(input.role, SemanticRole::Button);
+    assert_eq!(input.value, None);
+    assert_eq!(input.label.as_deref(), Some("unowned text"));
+    let text = snapshot
+        .nodes
+        .iter()
+        .find(|node| node.id == 3)
+        .expect("unowned text node");
+    assert_eq!(text.role, SemanticRole::Generic);
+}

@@ -244,13 +244,19 @@ interface WabouElementProps {
   onContextMenu?: EventHandler<WabouPointerEvent>;
   onPointerEnter?: EventHandler<WabouPointerEvent>;
   onPointerLeave?: EventHandler<WabouPointerEvent>;
+  onPointerOver?: EventHandler<WabouPointerEvent>;
+  onPointerOut?: EventHandler<WabouPointerEvent>;
   onPointerDown?: EventHandler<WabouPointerEvent>;
+  onPointerMove?: EventHandler<WabouPointerEvent>;
   onPointerUp?: EventHandler<WabouPointerEvent>;
   onPointerCancel?: EventHandler<WabouPointerEvent>;
+  onDblClick?: EventHandler<WabouPointerEvent>;
   onKeyDown?: EventHandler<WabouKeyEvent>;
   onKeyUp?: EventHandler<WabouKeyEvent>;
   onFocus?: EventHandler<WabouNodeEvent>;
   onBlur?: EventHandler<WabouNodeEvent>;
+  onFocusIn?: EventHandler<WabouNodeEvent>;
+  onFocusOut?: EventHandler<WabouNodeEvent>;
   onWheel?: EventHandler<WabouWheelEvent>;
   onScroll?: EventHandler<WabouScrollEvent>;
 }
@@ -311,6 +317,10 @@ interface WabouPointerEvent extends WabouPositionedEvent {
 interface WabouKeyEvent extends WabouNodeEvent {
   readonly key: string;
   readonly code: string;
+  /** Physical Shift, Control, Alt, and Meta modifier bits. */
+  readonly mods: number;
+  /** Whether the physical modifiers form the platform Primary chord. */
+  readonly primary: boolean;
   readonly repeat: boolean;
 }
 interface WabouWheelEvent extends WabouPositionedEvent {
@@ -404,4 +414,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { createFps as $, delegateEvents as A, mount as B, WabouWheelEvent as C, createComponent$1 as D, applyRef as E, insert as F, render as G, registerRoot as H, insertNode as I, setTransform2D as J, runSweep as K, isServer as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualListProps as Q, memo as R, WabouSvgShapeProps as S, acquireOverlayRoot as T, releaseOverlayRoot as U, ref as V, removeNode as W, writer as X, spread as Y, VirtualList as Z, WabouPointerEvent as _, jsxs as _t, NativeScrollbarStyle as a, HostProviderProps as at, WabouSemanticRole as b, WabouControlProps as c, useHost as ct, WabouImageProps as d, LayoutRect as dt, useFps as et, WabouInputEvent as f, LayoutSnapshot as ft, WabouNodeEvent as g, jsxDEV as gt, WabouKeyEvent as h, jsx as ht, HostCapabilities as i, HostProvider as it, dispatchEvent as j, createTextNode as k, WabouElementProps as l, FrameStats as lt, WabouIntrinsicElements as m, JSX$1 as mt, EVENT_CODE as n, PortalProps as nt, OP as o, LayoutTarget as ot, WabouInputProps as p, Fragment as pt, setProp as q, Handle as r, Host as rt, WabouBuiltinIntrinsicElements as s, defaultHost as st, Dynamic as t, Portal as tt, WabouEventTarget as u, LayoutNodeMetrics as ut, WabouPositionedEvent as v, Writer$1 as w, WabouSvgProps as x, WabouScrollEvent as y, mergeProps as z };
-//# sourceMappingURL=index-CnhGQTKv.d.mts.map
+//# sourceMappingURL=index-BkNud46i.d.mts.map

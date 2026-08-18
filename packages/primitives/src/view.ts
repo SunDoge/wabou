@@ -3,6 +3,7 @@ import {
   type Handle,
   type NativeScrollbarStyle,
   spread,
+  type WabouElementProps,
 } from "@wabou/solid-renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
 import { type JSX, omit } from "solid-js";
@@ -17,8 +18,8 @@ export interface TextSelectionChangeEvent {
   kind: "simple" | "word" | "line" | null;
 }
 
-export interface PrimitiveProps {
-  class?: string;
+export interface PrimitiveProps
+  extends Omit<WabouElementProps, "children" | "ref" | "style"> {
   /** Explicit reactive classes; use this for primitive interaction state. */
   classList?: WabouClassList;
   style?: WabouStyle;
@@ -33,7 +34,6 @@ export interface PrimitiveProps {
   ref?: (node: Handle) => void;
   /** Fires once when a native text selection gesture commits or changes asynchronously. */
   onTextSelectionChange?: (event: TextSelectionChangeEvent) => void;
-  [name: string]: unknown;
 }
 
 export interface ViewProps extends PrimitiveProps {}

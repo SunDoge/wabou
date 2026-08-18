@@ -145,13 +145,19 @@ export interface WabouElementProps {
   onContextMenu?: EventHandler<WabouPointerEvent>;
   onPointerEnter?: EventHandler<WabouPointerEvent>;
   onPointerLeave?: EventHandler<WabouPointerEvent>;
+  onPointerOver?: EventHandler<WabouPointerEvent>;
+  onPointerOut?: EventHandler<WabouPointerEvent>;
   onPointerDown?: EventHandler<WabouPointerEvent>;
+  onPointerMove?: EventHandler<WabouPointerEvent>;
   onPointerUp?: EventHandler<WabouPointerEvent>;
   onPointerCancel?: EventHandler<WabouPointerEvent>;
+  onDblClick?: EventHandler<WabouPointerEvent>;
   onKeyDown?: EventHandler<WabouKeyEvent>;
   onKeyUp?: EventHandler<WabouKeyEvent>;
   onFocus?: EventHandler<WabouNodeEvent>;
   onBlur?: EventHandler<WabouNodeEvent>;
+  onFocusIn?: EventHandler<WabouNodeEvent>;
+  onFocusOut?: EventHandler<WabouNodeEvent>;
   onWheel?: EventHandler<WabouWheelEvent>;
   onScroll?: EventHandler<WabouScrollEvent>;
 }
@@ -222,6 +228,10 @@ export interface WabouPointerEvent extends WabouPositionedEvent {
 export interface WabouKeyEvent extends WabouNodeEvent {
   readonly key: string;
   readonly code: string;
+  /** Physical Shift, Control, Alt, and Meta modifier bits. */
+  readonly mods: number;
+  /** Whether the physical modifiers form the platform Primary chord. */
+  readonly primary: boolean;
   readonly repeat: boolean;
 }
 

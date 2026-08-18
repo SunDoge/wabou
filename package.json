@@ -39,6 +39,7 @@
     "@types/bun": "^1.3.14",
     "@wabou/components": "workspace:*",
     "@wabou/core": "workspace:*",
+    "@wabou/primitives": "workspace:*",
     "@wabou/router": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/vite": "workspace:*",

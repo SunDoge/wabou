@@ -367,7 +367,7 @@ function App() {
                 <img
                   class="w-full h-full"
                   src={screenshot()}
-                  alt="Captured application frame"
+                  aria-label="Captured application frame"
                 />
                 <Show when={selectedRect()}>
                   {(rect) => (

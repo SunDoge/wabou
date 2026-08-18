@@ -102,7 +102,8 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
         let Some(node) = indices.get(&id).and_then(|index| nodes.get(*index)) else {
             return;
         };
-        if matches!(node.role, SemanticRole::Label)
+        if (matches!(node.role, SemanticRole::Label)
+            || (matches!(node.role, SemanticRole::Generic) && node.children.is_empty()))
             && let Some(label) = node.label.as_deref()
             && !label.trim().is_empty()
         {
@@ -402,7 +403,6 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let value = (!widget_semantics.value_is_sensitive)
             .then(|| {
                 attribute(declared, &atoms, "aria-valuetext")
-                    .or_else(|| attribute(declared, &atoms, "value"))
                     .map(|value| value.to_string())
                     .or(widget_semantics.value)
                     .or_else(|| {
@@ -440,8 +440,6 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             id: u64::from(solid_id),
             role: if explicit_role.is_some() {
                 semantic_role(explicit_role.as_deref().unwrap_or_default())
-            } else if declared.text.is_some() {
-                SemanticRole::Label
             } else {
                 widget_semantics.role.unwrap_or(SemanticRole::Generic)
             },
