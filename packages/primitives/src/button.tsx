@@ -215,7 +215,7 @@ export function Button(props: ButtonProps): JSX.Element {
       disabled={disabled()}
       tabIndex={disabled() ? -1 : 0}
       title={props.title}
-      role={props.role}
+      role={props.role ?? "button"}
       ref={props.ref as never}
       aria-haspopup={props["aria-haspopup"] as never}
       aria-expanded={props["aria-expanded"] as never}

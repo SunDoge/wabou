@@ -26,14 +26,12 @@ fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<
         .find_map(|(name, value)| (atoms.resolve(*name) == Some(wanted)).then(|| value.clone()))
 }
 
-fn semantic_role(tag: &str, declared: &Declared, atoms: &AtomPool) -> SemanticRole {
-    match attribute(declared, atoms, "role").as_deref().unwrap_or(tag) {
+fn semantic_role(role: &str) -> SemanticRole {
+    match role {
         "button" => SemanticRole::Button,
         "group" => SemanticRole::Group,
-        "textbox" | "input" | "textarea" | "password-input" | "code-editor" => {
-            SemanticRole::TextInput
-        }
-        "img" | "image" => SemanticRole::Image,
+        "textbox" => SemanticRole::TextInput,
+        "img" => SemanticRole::Image,
         "radiogroup" => SemanticRole::RadioGroup,
         "link" => SemanticRole::Link,
         "dialog" | "alertdialog" => SemanticRole::Dialog,
@@ -62,7 +60,15 @@ fn semantic_role(tag: &str, declared: &Declared, atoms: &AtomPool) -> SemanticRo
         "tabpanel" => SemanticRole::TabPanel,
         "grid" => SemanticRole::Grid,
         "heading" => SemanticRole::Heading,
-        "text" | "#text" | "label" => SemanticRole::Label,
+        "label" => SemanticRole::Label,
+        _ => SemanticRole::Generic,
+    }
+}
+
+fn primitive_semantic_role(tag: &str) -> SemanticRole {
+    match tag {
+        "text" | "#text" => SemanticRole::Label,
+        "img" | "svg" => SemanticRole::Image,
         _ => SemanticRole::Generic,
     }
 }
@@ -448,13 +454,13 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
             role: if explicit_role.is_some() {
-                semantic_role(tag, declared, &atoms)
+                semantic_role(explicit_role.as_deref().unwrap_or_default())
             } else if declared.text.is_some() {
                 SemanticRole::Label
             } else {
                 widget_semantics
                     .role
-                    .unwrap_or_else(|| semantic_role(tag, declared, &atoms))
+                    .unwrap_or_else(|| primitive_semantic_role(tag))
             },
             label: label.or(widget_semantics.label),
             value,
@@ -510,9 +516,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn popup_roles_declared_by_primitives_keep_native_semantics() {
-        let mut atoms = AtomPool::default();
-        let role = atoms.intern("role");
+    fn explicit_roles_map_to_native_semantics_without_tag_inference() {
         for (name, expected) in [
             ("menu", SemanticRole::Menu),
             ("menuitem", SemanticRole::MenuItem),
@@ -520,9 +524,10 @@ mod tests {
             ("treeitem", SemanticRole::TreeItem),
             ("grid", SemanticRole::Grid),
         ] {
-            let mut declared = Declared::default();
-            declared.attrs.insert(role, Arc::from(name));
-            assert_eq!(semantic_role("view", &declared, &atoms), expected);
+            assert_eq!(semantic_role(name), expected);
         }
+        assert_eq!(primitive_semantic_role("checkbox"), SemanticRole::Generic);
+        assert_eq!(primitive_semantic_role("text"), SemanticRole::Label);
+        assert_eq!(primitive_semantic_role("img"), SemanticRole::Image);
     }
 }

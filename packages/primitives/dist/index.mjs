@@ -213,7 +213,7 @@ function Button(props) {
 			return props.title;
 		},
 		get role() {
-			return props.role;
+			return props.role ?? "button";
 		},
 		get ["aria-haspopup"]() {
 			return props["aria-haspopup"];
