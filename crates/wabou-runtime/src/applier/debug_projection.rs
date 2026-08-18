@@ -224,15 +224,15 @@ impl Applier {
         declared
             .into_iter()
             .flat_map(|declared| {
-                std::iter::once(&self.universal_rules).chain(
+                std::iter::once(&self.style.universal_rules).chain(
                     declared
                         .classes
                         .iter()
-                        .filter_map(|class| self.rule_index.get(class)),
+                        .filter_map(|class| self.style.rule_index.get(class)),
                 )
             })
             .flatten()
-            .filter_map(|index| self.style_ir.as_ref()?.rules.get(*index))
+            .filter_map(|index| self.style.sheet.as_ref()?.rules.get(*index))
             .map(|rule| {
                 if rule.class_name == "*" {
                     "*".to_owned()
@@ -285,7 +285,8 @@ impl Applier {
                 classes,
                 matched_rules,
                 style_diagnostics: self
-                    .style_diagnostics
+                    .style
+                    .diagnostics
                     .get(&placed_node.node_id)
                     .cloned()
                     .unwrap_or_default(),

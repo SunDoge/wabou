@@ -24,7 +24,7 @@ fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
 
 impl Applier {
     fn inline_property(&mut self, atom: Atom) -> Option<InlineProperty> {
-        if let Some(property) = self.inline_properties.get(&atom) {
+        if let Some(property) = self.style.inline_properties.get(&atom) {
             return Some(property.clone());
         }
         let name: Arc<str> = {
@@ -33,7 +33,7 @@ impl Applier {
         };
         let inherited = INHERITED_PROPERTIES.contains(&name.as_ref()) || name.as_ref() == "font";
         let property = InlineProperty { name, inherited };
-        self.inline_properties.insert(atom, property.clone());
+        self.style.inline_properties.insert(atom, property.clone());
         Some(property)
     }
 
@@ -57,7 +57,7 @@ impl Applier {
             if let Some(declared) = self.node_store.declared.get_mut(&node) {
                 declared.inline.remove(&prop);
             }
-            if self.warned_ir_properties.insert(prop) {
+            if self.style.warned_ir_properties.insert(prop) {
                 tracing::warn!(property = %property.name, "unsupported inline style property or value");
             }
         }
@@ -192,7 +192,7 @@ impl Applier {
         self.scroll.styles.remove(&node);
         self.scroll.offsets.remove(&node);
         self.resources.svg.remove(&node);
-        self.style_diagnostics.remove(&node);
+        self.style.diagnostics.remove(&node);
         if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
             widget.unmount();
         }

@@ -1,5 +1,43 @@
 use super::*;
 
+pub(super) struct StyleState {
+    pub(super) sheet: Option<StyleSheet>,
+    pub(super) active_color_theme: Option<String>,
+    pub(super) active_theme_colors: Arc<HashMap<String, u32>>,
+    pub(super) theme: wabou_style::Theme,
+    pub(super) rule_index: HashMap<Atom, Vec<usize>>,
+    pub(super) universal_rules: Vec<usize>,
+    pub(super) utility_cache: HashMap<Atom, Result<wabou_style::ParsedUtility, String>>,
+    pub(super) class_resolution_cache: HashMap<Vec<Atom>, Arc<CachedClassResolution>>,
+    #[cfg(test)]
+    pub(super) class_resolution_cache_hits: usize,
+    pub(super) warned_utility_classes: HashSet<Atom>,
+    pub(super) warned_ir_properties: HashSet<Atom>,
+    pub(super) inline_properties: HashMap<Atom, InlineProperty>,
+    pub(super) diagnostics: HashMap<NodeId, Vec<String>>,
+}
+
+impl Default for StyleState {
+    fn default() -> Self {
+        Self {
+            sheet: None,
+            active_color_theme: None,
+            active_theme_colors: Arc::new(HashMap::new()),
+            theme: wabou_style::Theme::default(),
+            rule_index: HashMap::new(),
+            universal_rules: Vec::new(),
+            utility_cache: HashMap::new(),
+            class_resolution_cache: HashMap::new(),
+            #[cfg(test)]
+            class_resolution_cache_hits: 0,
+            warned_utility_classes: HashSet::new(),
+            warned_ir_properties: HashSet::new(),
+            inline_properties: HashMap::new(),
+            diagnostics: HashMap::new(),
+        }
+    }
+}
+
 struct ResolvedNodeStyle {
     layout: taffy::Style,
     paint: DeclaredPaint,
@@ -475,7 +513,7 @@ impl Applier {
     }
 
     fn install_resolved_style(&mut self, node: NodeId, resolved: ResolvedNodeStyle) {
-        self.style_diagnostics.insert(node, resolved.diagnostics);
+        self.style.diagnostics.insert(node, resolved.diagnostics);
         if let Some(declared) = self.node_store.declared.get_mut(&node) {
             declared.paint = resolved.paint.clone();
             declared.display_explicit = resolved.display_explicit;
@@ -531,14 +569,14 @@ impl Applier {
         atoms: &AtomPool,
         active_theme_colors: &HashMap<String, u32>,
     ) -> Arc<CachedClassResolution> {
-        if let Some(cached) = self.class_resolution_cache.get(&class_key) {
+        if let Some(cached) = self.style.class_resolution_cache.get(&class_key) {
             #[cfg(feature = "profiling")]
             {
                 self.profile_class_cache_hits += 1;
             }
             #[cfg(test)]
             {
-                self.class_resolution_cache_hits += 1;
+                self.style.class_resolution_cache_hits += 1;
             }
             return cached.clone();
         }
@@ -549,8 +587,8 @@ impl Applier {
 
         let mut declarations = Vec::new();
         let mut diagnostics = Vec::new();
-        if let Some(sheet) = &self.style_ir {
-            for &index in &self.universal_rules {
+        if let Some(sheet) = &self.style.sheet {
+            for &index in &self.style.universal_rules {
                 let rule = &sheet.rules[index];
                 for (index, declaration) in rule.declarations.iter().enumerate() {
                     declarations.push((
@@ -565,7 +603,7 @@ impl Applier {
                 }
             }
             for (class_position, class) in class_key.iter().enumerate() {
-                let Some(indices) = self.rule_index.get(class) else {
+                let Some(indices) = self.style.rule_index.get(class) else {
                     continue;
                 };
                 for &index in indices {
@@ -585,8 +623,8 @@ impl Applier {
             }
         }
         for (class_position, class) in class_key.iter().enumerate() {
-            if self.rule_index.contains_key(class)
-                || self.style_ir.as_ref().is_some_and(|sheet| {
+            if self.style.rule_index.contains_key(class)
+                || self.style.sheet.as_ref().is_some_and(|sheet| {
                     atoms
                         .resolve(*class)
                         .is_some_and(|name| sheet.ignores_class(name))
@@ -603,12 +641,12 @@ impl Applier {
                 })
                 .filter(|token| active_theme_colors.contains_key(*token))
                 .map(str::to_owned);
-            let utility = self.utility_cache.entry(*class).or_insert_with(|| {
+            let utility = self.style.utility_cache.entry(*class).or_insert_with(|| {
                 atoms
                     .resolve(*class)
                     .ok_or_else(|| "unknown class atom".to_string())
                     .and_then(|name| {
-                        wabou_style::parse_utility_with_theme(name, &self.style_theme)
+                        wabou_style::parse_utility_with_theme(name, &self.style.theme)
                             .map_err(|error| error.to_string())
                     })
             });
@@ -623,7 +661,7 @@ impl Applier {
                         ".{}: {diagnostic}",
                         atoms.resolve(*class).unwrap_or("<unknown>")
                     ));
-                    if self.warned_utility_classes.insert(*class) {
+                    if self.style.warned_utility_classes.insert(*class) {
                         tracing::warn!(
                             class = atoms.resolve(*class).unwrap_or("<unknown>"),
                             %diagnostic,
@@ -668,10 +706,11 @@ impl Applier {
                 .collect(),
             diagnostics,
         });
-        if self.class_resolution_cache.len() >= CLASS_RESOLUTION_CACHE_CAPACITY {
-            self.class_resolution_cache.clear();
+        if self.style.class_resolution_cache.len() >= CLASS_RESOLUTION_CACHE_CAPACITY {
+            self.style.class_resolution_cache.clear();
         }
-        self.class_resolution_cache
+        self.style
+            .class_resolution_cache
             .insert(class_key, cached.clone());
         cached
     }
@@ -688,7 +727,7 @@ impl Applier {
         else {
             return;
         };
-        let active_theme_colors = self.active_theme_colors.clone();
+        let active_theme_colors = self.style.active_theme_colors.clone();
         let atoms_handle = self.atoms.clone();
         let atoms = atoms_handle.borrow();
         let cached =
@@ -724,7 +763,7 @@ impl Applier {
                         "{property}: unsupported Style IR property or value"
                     ));
                     if let Some(atom) = atoms.get(property)
-                        && self.warned_ir_properties.insert(atom)
+                        && self.style.warned_ir_properties.insert(atom)
                     {
                         tracing::warn!(property, "unsupported Style IR property");
                     }

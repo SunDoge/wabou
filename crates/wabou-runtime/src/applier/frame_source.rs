@@ -41,32 +41,35 @@ impl Applier {
                     }
                     (rule_index, universal_rules)
                 };
-                self.style_theme = sheet.theme.clone();
+                self.style.theme = sheet.theme.clone();
                 if let Some(themes) = &sheet.color_themes {
                     let selected = self
+                        .style
                         .active_color_theme
                         .as_ref()
                         .filter(|name| themes.themes.contains_key(*name))
                         .cloned()
                         .unwrap_or_else(|| themes.default.clone());
-                    self.active_theme_colors = Arc::new(themes.themes[&selected].colors.clone());
-                    self.style_theme.colors.extend(
-                        self.active_theme_colors
+                    self.style.active_theme_colors =
+                        Arc::new(themes.themes[&selected].colors.clone());
+                    self.style.theme.colors.extend(
+                        self.style
+                            .active_theme_colors
                             .iter()
                             .map(|(name, color)| (name.clone(), *color)),
                     );
-                    self.active_color_theme = Some(selected);
+                    self.style.active_color_theme = Some(selected);
                 } else {
-                    self.active_color_theme = None;
-                    self.active_theme_colors = Arc::new(HashMap::new());
+                    self.style.active_color_theme = None;
+                    self.style.active_theme_colors = Arc::new(HashMap::new());
                 }
-                self.style_ir = Some(sheet);
-                self.rule_index = rule_index;
-                self.universal_rules = universal_rules;
-                self.utility_cache.clear();
-                self.class_resolution_cache.clear();
-                self.warned_utility_classes.clear();
-                self.warned_ir_properties.clear();
+                self.style.sheet = Some(sheet);
+                self.style.rule_index = rule_index;
+                self.style.universal_rules = universal_rules;
+                self.style.utility_cache.clear();
+                self.style.class_resolution_cache.clear();
+                self.style.warned_utility_classes.clear();
+                self.style.warned_ir_properties.clear();
             }
             StylesheetUpdate::Ir(sheet) => tracing::error!(
                 version = sheet.version,
@@ -85,15 +88,16 @@ impl Applier {
             return;
         };
         let selected = self
-            .style_ir
+            .style
+            .sheet
             .as_ref()
             .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&name));
         if let Some(theme) = selected {
-            if self.active_color_theme.as_deref() != Some(name.as_str()) {
-                self.active_theme_colors = Arc::new(theme.colors.clone());
-                self.active_color_theme = Some(name);
-                self.class_resolution_cache.clear();
+            if self.style.active_color_theme.as_deref() != Some(name.as_str()) {
+                self.style.active_theme_colors = Arc::new(theme.colors.clone());
+                self.style.active_color_theme = Some(name);
+                self.style.class_resolution_cache.clear();
                 self.recompute_color_palette();
             }
         } else {
@@ -109,7 +113,8 @@ impl Applier {
             return;
         };
         let tokens = self
-            .style_ir
+            .style
+            .sheet
             .as_ref()
             .and_then(|sheet| sheet.color_themes.as_ref())
             .and_then(|themes| themes.themes.get(&themes.default))
@@ -122,8 +127,8 @@ impl Applier {
             return;
         };
         if tokens.len() == colors.len() {
-            self.active_theme_colors = Arc::new(tokens.into_iter().zip(colors).collect());
-            self.class_resolution_cache.clear();
+            self.style.active_theme_colors = Arc::new(tokens.into_iter().zip(colors).collect());
+            self.style.class_resolution_cache.clear();
             self.recompute_color_palette();
         } else {
             tracing::warn!(

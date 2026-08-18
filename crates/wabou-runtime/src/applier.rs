@@ -89,6 +89,7 @@ use reload::{HmrBatch, ReloadState};
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 use resources::{ImageLoadResult, ResourceState};
 use scroll::{ScrollState, ScrollbarDrag, ScrollbarHit};
+use style_resolution::StyleState;
 use text_selection::TextSelectionState;
 #[cfg(test)]
 use text_selection::{SelectableText, TextSelectionGranularity};
@@ -305,34 +306,7 @@ const INHERITED_PROPERTIES: &[&str] = &[
 pub struct Applier {
     js: JsRuntime,
     node_store: NodeStore,
-    style_ir: Option<StyleSheet>,
-    active_color_theme: Option<String>,
-    active_theme_colors: Arc<HashMap<String, u32>>,
-    /// Theme embedded in Style IR, shared by build-time resolution and the
-    /// runtime fallback for classes created after compilation.
-    style_theme: wabou_style::Theme,
-    /// `class atom → indices` into `style_ir.rules`, built when the sheet
-    /// arrives so per-node matching is O(C) (the node's classes) instead of
-    /// O(R) (all rules). Universal (`*`) rules live in [`universal_rules`]
-    /// since they match every node unconditionally.
-    rule_index: HashMap<Atom, Vec<usize>>,
-    universal_rules: Vec<usize>,
-    /// Runtime utility fallback cache. Each interned class is parsed at most
-    /// once; build-time stylesheet rules bypass this map entirely.
-    utility_cache: HashMap<Atom, Result<wabou_style::ParsedUtility, String>>,
-    /// Ordered class atoms → flattened, priority-sorted declarations.
-    class_resolution_cache: HashMap<Vec<Atom>, Arc<CachedClassResolution>>,
-    #[cfg(test)]
-    class_resolution_cache_hits: usize,
-    warned_utility_classes: HashSet<Atom>,
-    warned_ir_properties: HashSet<Atom>,
-    /// Property atoms are stable for the runtime lifetime. Resolve and classify
-    /// each one once so dynamic inline updates do not allocate a property name
-    /// or repeatedly scan the inherited-property table.
-    inline_properties: HashMap<Atom, InlineProperty>,
-    /// Rejections from the latest cascade pass, keyed by native node for
-    /// DevTools inspection.
-    style_diagnostics: HashMap<NodeId, Vec<String>>,
+    style: StyleState,
     resources: ResourceState,
     /// Explicit host-driven transform state, independent of the CSS cascade.
     runtime_transforms: HashMap<NodeId, [f32; 6]>,
@@ -457,20 +431,7 @@ impl Applier {
         Self {
             js,
             node_store: NodeStore::new(),
-            style_ir: None,
-            active_color_theme: None,
-            active_theme_colors: Arc::new(HashMap::new()),
-            style_theme: wabou_style::Theme::default(),
-            rule_index: HashMap::new(),
-            universal_rules: Vec::new(),
-            utility_cache: HashMap::new(),
-            class_resolution_cache: HashMap::new(),
-            #[cfg(test)]
-            class_resolution_cache_hits: 0,
-            warned_utility_classes: HashSet::new(),
-            warned_ir_properties: HashSet::new(),
-            inline_properties: HashMap::new(),
-            style_diagnostics: HashMap::new(),
+            style: StyleState::default(),
             resources: ResourceState::default(),
             runtime_transforms: HashMap::new(),
             overlay_planes: HashMap::new(),

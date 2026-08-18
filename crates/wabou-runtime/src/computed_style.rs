@@ -60,8 +60,8 @@ fn repeated_inline_updates_reuse_property_metadata() {
         });
     }
 
-    assert_eq!(applier.inline_properties.len(), 1);
-    let property = &applier.inline_properties[&width];
+    assert_eq!(applier.style.inline_properties.len(), 1);
+    let property = &applier.style.inline_properties[&width];
     assert_eq!(&*property.name, "width");
     assert!(!property.inherited);
 }
@@ -301,8 +301,8 @@ fn identical_ordered_class_lists_reuse_resolved_declarations() {
         ],
     });
 
-    assert_eq!(applier.class_resolution_cache.len(), 1);
-    assert!(applier.class_resolution_cache_hits >= 1);
+    assert_eq!(applier.style.class_resolution_cache.len(), 1);
+    assert!(applier.style.class_resolution_cache_hits >= 1);
     let left = applier.computed_node_snapshot(2).unwrap();
     let right = applier.computed_node_snapshot(3).unwrap();
     assert_eq!(left.layout.display, right.layout.display);
@@ -485,11 +485,14 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
-    assert!(matches!(applier.utility_cache.get(&unknown), Some(Err(_))));
-    assert!(applier.warned_utility_classes.contains(&unknown));
+    assert!(matches!(
+        applier.style.utility_cache.get(&unknown),
+        Some(Err(_))
+    ));
+    assert!(applier.style.warned_utility_classes.contains(&unknown));
     let node = applier.node_store.solid_to_node[&2];
-    assert_eq!(applier.style_diagnostics[&node].len(), 1);
-    assert!(applier.style_diagnostics[&node][0].contains("stateful-magic"));
+    assert_eq!(applier.style.diagnostics[&node].len(), 1);
+    assert!(applier.style.diagnostics[&node][0].contains("stateful-magic"));
 }
 
 #[test]
@@ -527,10 +530,10 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
-    assert!(!applier.utility_cache.contains_key(&lucide));
-    assert!(!applier.warned_utility_classes.contains(&lucide));
+    assert!(!applier.style.utility_cache.contains_key(&lucide));
+    assert!(!applier.style.warned_utility_classes.contains(&lucide));
     let node = applier.node_store.solid_to_node[&2];
-    assert!(applier.style_diagnostics[&node].is_empty());
+    assert!(applier.style.diagnostics[&node].is_empty());
 }
 
 #[test]
@@ -584,7 +587,7 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
 
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
-    assert!(!applier.warned_utility_classes.contains(&success));
+    assert!(!applier.style.warned_utility_classes.contains(&success));
     assert_eq!(
         applier.computed_node_snapshot(2).unwrap().background,
         Some(Color::from_rgb8(0x06, 0x4e, 0x3b))

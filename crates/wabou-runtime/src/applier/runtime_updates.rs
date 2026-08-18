@@ -209,7 +209,7 @@ impl Applier {
         self.runtime_transforms.clear();
         self.overlay_planes.clear();
         self.scroll.styles.clear();
-        self.style_diagnostics.clear();
+        self.style.diagnostics.clear();
         self.widget_manager.widgets.clear();
         self.widget_manager.styles.clear();
         self.input.listeners.clear();
