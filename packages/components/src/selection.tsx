@@ -9,7 +9,7 @@ import {
 import {
   createControllableState,
   createRovingFocus,
-} from "@wabou/interactions";
+} from "@wabou/primitives/interactions";
 import type { Handle } from "@wabou/solid-renderer";
 import {
   createComponent,

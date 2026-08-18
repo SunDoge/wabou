@@ -1,7 +1,7 @@
 import {
   createSelectInteraction,
   type SelectCommand,
-} from "@wabou/interactions";
+} from "@wabou/primitives/interactions";
 import {
   Button as HeadlessButton,
   Icon,

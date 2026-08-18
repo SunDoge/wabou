@@ -19,6 +19,11 @@
       "wabou-source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./interactions": {
+      "wabou-source": "./src/interactions/index.ts",
+      "types": "./dist/interactions.d.mts",
+      "import": "./dist/interactions.mjs"
     }
   },
   "dependencies": {
@@ -27,6 +32,7 @@
     "@wabou/animation": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "@wabou/style": "workspace:*",
-    "solid-js": "2.0.0-rc.0"
+    "solid-js": "2.0.0-rc.0",
+    "ts-pattern": "^5.9.0"
   }
 }

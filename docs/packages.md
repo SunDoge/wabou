@@ -18,9 +18,8 @@ renderer publish stable releases; minor RC changes may alter renderer behavior.
 Install the following public packages only when the application uses them:
 
 - `@wabou/components` — styled application components.
-- `@wabou/primitives` — unstyled, composable interaction primitives.
-- `@wabou/interactions` — renderer-independent behavior, collections,
-  selection, keyboard navigation and Solid state adapters.
+- `@wabou/primitives` — unstyled components plus renderer-independent behavior
+  available from `@wabou/primitives/interactions`.
 - `@wabou/router` — native application routing.
 - `@wabou/animation` — Motion-backed animation helpers.
 - `@wabou/terminal` — native terminal component.
@@ -45,9 +44,10 @@ same package surface as registry installations.
 `bun run packages:check` verifies aligned versions, publication metadata and
 that application manifests do not directly depend on internal packages.
 
-The component stack is intentionally layered: `@wabou/interactions` provides
-behavior, `@wabou/primitives` connects it to the native host, and
-`@wabou/components` supplies themed, shadcn-inspired recipes.
+The component stack remains layered inside `@wabou/primitives`: its
+`interactions` subpath provides headless behavior, the root connects behavior
+to the native host, and `@wabou/components` supplies themed,
+shadcn-inspired recipes.
 
 On the Rust side, applications use the `wabou` facade from a pinned Git tag.
 The facade is deliberately not on crates.io for the first preview, allowing

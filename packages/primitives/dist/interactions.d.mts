@@ -1,5 +1,5 @@
 import { Accessor } from "solid-js";
-//#region src/collection.d.ts
+//#region src/interactions/collection.d.ts
 interface CollectionItem {
   id: string;
   disabled?: boolean;
@@ -16,7 +16,7 @@ interface Collection<T extends CollectionItem> {
 }
 declare function createCollection<T extends CollectionItem>(source: () => readonly T[]): Collection<T>;
 //#endregion
-//#region src/machine.d.ts
+//#region src/interactions/machine.d.ts
 interface UpdateResult<State, Command = never> {
   state: State;
   commands: readonly Command[];
@@ -36,7 +36,7 @@ interface Machine<State, Event> {
 declare function createMachine<State, Event, Command = never>(options: MachineOptions<State, Event, Command>): Machine<State, Event>;
 declare function unchanged<State, Command = never>(state: State): UpdateResult<State, Command>;
 //#endregion
-//#region src/disclosure.d.ts
+//#region src/interactions/disclosure.d.ts
 type DisclosureEvent = {
   type: "OPEN";
 } | {
@@ -66,7 +66,7 @@ declare function createDisclosure(options?: DisclosureOptions): {
   toggle: () => boolean;
 };
 //#endregion
-//#region src/roving-focus.d.ts
+//#region src/interactions/roving-focus.d.ts
 interface FocusTarget {
   focus(): void;
 }
@@ -85,13 +85,13 @@ declare function createRovingFocus(options?: RovingFocusOptions): {
   move(current: string, key: string): boolean;
 };
 //#endregion
-//#region src/selection.d.ts
+//#region src/interactions/selection.d.ts
 type SelectionMode = "single" | "multiple";
 type Selection = string | readonly string[] | undefined;
 declare function toggleSelection(current: Selection, item: string, mode: SelectionMode, allowEmpty?: boolean): Selection;
 declare function isSelected(selection: Selection, item: string): boolean;
 //#endregion
-//#region src/select.d.ts
+//#region src/interactions/select.d.ts
 interface SelectItem extends CollectionItem {}
 interface SelectState {
   open: boolean;
@@ -160,7 +160,7 @@ declare function createSelectInteraction<T extends SelectItem>(options: SelectIn
   typeahead(key: string): boolean;
 };
 //#endregion
-//#region src/state.d.ts
+//#region src/interactions/state.d.ts
 interface ControllableStateOptions<T> {
   value: () => T | undefined;
   defaultValue: T;
@@ -173,7 +173,7 @@ interface ControllableState<T> {
 }
 declare function createControllableState<T>(options: ControllableStateOptions<T>): ControllableState<T>;
 //#endregion
-//#region src/typeahead.d.ts
+//#region src/interactions/typeahead.d.ts
 interface TypeaheadOptions {
   timeout?: number;
   locale?: string;
@@ -185,4 +185,4 @@ interface Typeahead<T extends CollectionItem> {
 declare function createTypeahead<T extends CollectionItem>(options?: TypeaheadOptions): Typeahead<T>;
 //#endregion
 export { Collection, CollectionItem, ControllableState, ControllableStateOptions, DisclosureEvent, DisclosureOptions, DisclosureState, FocusTarget, Machine, MachineOptions, RovingFocusItem, RovingFocusOptions, SelectCommand, SelectEvent, SelectInteractionOptions, SelectItem, SelectState, SelectUpdateOptions, Selection, SelectionMode, Typeahead, TypeaheadOptions, Update, UpdateResult, createCollection, createControllableState, createDisclosure, createMachine, createRovingFocus, createSelectInteraction, createTypeahead, isSelected, toggleSelection, unchanged, updateDisclosure, updateSelect };
-//# sourceMappingURL=index.d.mts.map
+//# sourceMappingURL=interactions.d.mts.map

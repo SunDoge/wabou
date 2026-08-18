@@ -1,6 +1,6 @@
-import { P, match } from "ts-pattern";
 import { createSignal } from "solid-js";
-//#region src/collection.ts
+import { P, match } from "ts-pattern";
+//#region src/interactions/collection.ts
 function createCollection(source) {
 	const enabled = () => source().filter((item) => !item.disabled);
 	const adjacent = (id, delta, loop) => {
@@ -22,7 +22,7 @@ function createCollection(source) {
 	};
 }
 //#endregion
-//#region src/machine.ts
+//#region src/interactions/machine.ts
 /** Solid adapter for an Elm-style pure update function and explicit commands. */
 function createMachine(options) {
 	const [state, setState] = createSignal(() => options.initialState);
@@ -47,7 +47,7 @@ function unchanged(state) {
 	};
 }
 //#endregion
-//#region src/state.ts
+//#region src/interactions/state.ts
 function createControllableState(options) {
 	const [local, setLocal] = createSignal(() => options.defaultValue);
 	const value = () => options.value() ?? local();
@@ -62,7 +62,7 @@ function createControllableState(options) {
 	};
 }
 //#endregion
-//#region src/disclosure.ts
+//#region src/interactions/disclosure.ts
 function updateDisclosure(state, event) {
 	return match(event).with({ type: "DISABLED" }, ({ disabled }) => ({
 		state: {
@@ -114,7 +114,7 @@ function createDisclosure(options = {}) {
 	};
 }
 //#endregion
-//#region src/roving-focus.ts
+//#region src/interactions/roving-focus.ts
 function createRovingFocus(options = {}) {
 	const items = [];
 	const enabled = () => items.filter((item) => !item.disabled?.());
@@ -157,7 +157,7 @@ function createRovingFocus(options = {}) {
 	};
 }
 //#endregion
-//#region src/selection.ts
+//#region src/interactions/selection.ts
 function toggleSelection(current, item, mode, allowEmpty = false) {
 	return match(mode).with("single", () => current === item && allowEmpty ? void 0 : item).with("multiple", () => {
 		const values = Array.isArray(current) ? current : [];
@@ -168,7 +168,7 @@ function isSelected(selection, item) {
 	return Array.isArray(selection) ? selection.includes(item) : selection === item;
 }
 //#endregion
-//#region src/typeahead.ts
+//#region src/interactions/typeahead.ts
 function createTypeahead(options = {}) {
 	let keys = "";
 	let timer;
@@ -199,7 +199,7 @@ function createTypeahead(options = {}) {
 	};
 }
 //#endregion
-//#region src/select.ts
+//#region src/interactions/select.ts
 function updateSelect(state, event, options) {
 	const collection = createCollection(() => options.items);
 	const openAt = (id) => ({
@@ -327,4 +327,4 @@ function createSelectInteraction(options) {
 //#endregion
 export { createCollection, createControllableState, createDisclosure, createMachine, createRovingFocus, createSelectInteraction, createTypeahead, isSelected, toggleSelection, unchanged, updateDisclosure, updateSelect };
 
-//# sourceMappingURL=index.mjs.map
+//# sourceMappingURL=interactions.mjs.map

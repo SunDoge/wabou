@@ -5,8 +5,10 @@ const packages: Record<string, UserConfig["entry"]> = {
   animation: { index: "src/index.ts" },
   components: { index: "src/index.tsx" },
   core: { index: "src/index.ts" },
-  interactions: { index: "src/index.ts" },
-  primitives: { index: "src/index.ts" },
+  primitives: {
+    index: "src/index.ts",
+    interactions: "src/interactions/index.ts",
+  },
   protocol: { index: "src/index.ts" },
   router: { index: "src/index.tsx" },
   "solid-renderer": {

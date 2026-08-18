@@ -1,9 +1,8 @@
 {
   "@wabou/animation": "faf76b1202a986a7",
-  "@wabou/components": "1f4deb1148e74b35",
+  "@wabou/components": "14e039cfe493f8ba",
   "@wabou/core": "13c77367a24a237f",
-  "@wabou/interactions": "0ee842b41e7facc6",
-  "@wabou/primitives": "b13ae279d942c9f1",
+  "@wabou/primitives": "94e48ff4cfbce1d6",
   "@wabou/protocol": "c7e80ee2b66a9cc0",
   "@wabou/router": "a0198580ad3d5c1e",
   "@wabou/solid-renderer": "e2426f3709568cec",

@@ -8,7 +8,7 @@ import { rgba, useHost, useWindow } from "@wabou/core";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import { createControllableState, createDisclosure, createRovingFocus, createSelectInteraction, isSelected, toggleSelection } from "@wabou/interactions";
+import { createControllableState, createDisclosure, createRovingFocus, createSelectInteraction, isSelected, toggleSelection } from "@wabou/primitives/interactions";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import check from "lucide-static/icons/check.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";

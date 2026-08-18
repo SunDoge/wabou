@@ -12,7 +12,7 @@ import {
   createDisclosure,
   isSelected,
   toggleSelection,
-} from "@wabou/interactions";
+} from "@wabou/primitives/interactions";
 import { createContext, type JSX, useContext } from "solid-js";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { join } from "./class-names";

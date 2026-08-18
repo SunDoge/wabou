@@ -26,7 +26,6 @@
     "@solidjs/web": "2.0.0-rc.0",
     "@wabou/animation": "workspace:*",
     "@wabou/core": "workspace:*",
-    "@wabou/interactions": "workspace:*",
     "@wabou/primitives": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
     "lucide-static": "1.31.0",

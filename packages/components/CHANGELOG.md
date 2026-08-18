@@ -48,5 +48,4 @@
   - @wabou/solid-renderer@0.1.0-alpha.1
   - @wabou/primitives@0.1.0-alpha.1
   - @wabou/animation@0.1.0-alpha.1
-  - @wabou/interactions@0.1.0-alpha.1
   - @wabou/core@0.1.0-alpha.1
