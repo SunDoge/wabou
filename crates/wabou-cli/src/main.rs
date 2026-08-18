@@ -3,7 +3,6 @@
 use std::env;
 use std::error::Error;
 use std::fs;
-use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::sync::Arc;
@@ -12,7 +11,6 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
-use fs4::fs_std::FileExt as _;
 use serde_json::{Value, json};
 use vello::Scene;
 use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
@@ -29,6 +27,7 @@ mod artifact;
 mod behavior_test;
 mod config;
 mod doctor;
+mod frontend;
 mod packaging;
 mod process;
 mod project;
@@ -44,8 +43,9 @@ use artifact::{binary_target, framework_feature, vite_feature};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
     BuildProfile, PackageFormat, bundle_path, configured_source_map, load_package_config,
-    profile_application_dir, profile_resource_dir,
+    profile_application_dir,
 };
+use frontend::{lock as frontend_build_lock, run as frontend, run_unlocked as frontend_unlocked};
 use process::{
     ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
 };
@@ -488,72 +488,6 @@ fn render_actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAction>
 
 fn manifest(app: &App) -> String {
     app.root.join("Cargo.toml").to_string_lossy().into_owned()
-}
-
-fn frontend_build_lock(workspace: &Path, app: &App) -> Result<fs::File> {
-    let directory = workspace.join("target/wabou/frontend").join(&app.name);
-    fs::create_dir_all(&directory)?;
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(directory.join("frontend.lock"))?;
-    file.lock_exclusive()?;
-    Ok(file)
-}
-
-fn frontend_unlocked(
-    workspace: &Path,
-    app: &App,
-    script: &str,
-    args: &[&str],
-    profile: BuildProfile,
-    source_map: bool,
-) -> Result<ExitStatus> {
-    ensure_workspace_package_exports(workspace)?;
-    let mut command = Command::new("bun");
-    command.current_dir(&app.frontend).args(["run", script]);
-    command
-        .env("WABOU_BUILD_PROFILE", profile.as_str())
-        .env(
-            "WABOU_ENV_DEBUG",
-            if profile == BuildProfile::Debug {
-                "true"
-            } else {
-                "false"
-            },
-        )
-        .env(
-            "WABOU_SOURCE_MAP",
-            if source_map { "true" } else { "false" },
-        )
-        .env(
-            "WABOU_OUT_DIR",
-            profile_resource_dir(workspace, app, profile)?,
-        );
-    if !args.is_empty() {
-        command.arg("--").args(args);
-    }
-    command.status().map_err(|error| {
-        format!(
-            "failed to run `bun run {script}` in {}: {error}; install Bun or run Wabou through `mise exec --`",
-            app.frontend.display()
-        )
-        .into()
-    })
-}
-
-fn frontend(
-    workspace: &Path,
-    app: &App,
-    script: &str,
-    args: &[&str],
-    profile: BuildProfile,
-    source_map: bool,
-) -> Result<ExitStatus> {
-    let _lock = frontend_build_lock(workspace, app)?;
-    frontend_unlocked(workspace, app, script, args, profile, source_map)
 }
 
 fn build(
@@ -1778,26 +1712,6 @@ out-dir = "dist/resources"
             bundle_path(root, &app, BuildProfile::Debug).unwrap(),
             Path::new("/workspace/warden-desktop/dist/debug/resources/bundle.js")
         );
-    }
-
-    #[test]
-    fn frontend_build_lock_excludes_a_second_process_handle() {
-        let root = tempfile::tempdir().unwrap();
-        let app = App {
-            name: "app".into(),
-            root: root.path().into(),
-            frontend: root.path().into(),
-            entry: "ui/index.tsx".into(),
-        };
-        let first = frontend_build_lock(root.path(), &app).unwrap();
-        let second = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(root.path().join("target/wabou/frontend/app/frontend.lock"))
-            .unwrap();
-        assert!(!second.try_lock_exclusive().unwrap());
-        drop(first);
-        assert!(second.try_lock_exclusive().unwrap());
     }
 
     #[test]
