@@ -18,9 +18,8 @@ use process_wrap::std::JobObject;
 use process_wrap::std::ProcessGroup;
 use process_wrap::std::{ChildWrapper, CommandWrap};
 
-use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
+use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
 use fs4::fs_std::FileExt as _;
-use serde::Deserialize;
 use serde_json::{Value, json};
 use vello::Scene;
 use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
@@ -35,6 +34,7 @@ use wabou_shell::{
 
 mod artifact;
 mod behavior_test;
+mod config;
 mod doctor;
 mod packaging;
 mod project;
@@ -48,6 +48,10 @@ use artifact::{
 #[cfg(test)]
 use artifact::{binary_target, framework_feature, vite_feature};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
+use config::{
+    BuildProfile, PackageConfig, PackageFormat, bundle_path, configured_source_map,
+    distribution_root, load_package_config, profile_application_dir, profile_resource_dir,
+};
 use project::{App, ensure_workspace_package_exports, find_workspace, load_app};
 #[cfg(test)]
 use project::{find_app_root, package_source_hash};
@@ -227,88 +231,6 @@ enum BindingsCommand {
         #[arg(value_name = "APP")]
         app: Option<PathBuf>,
     },
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, ValueEnum)]
-#[serde(rename_all = "lowercase")]
-enum PackageFormat {
-    App,
-    Dmg,
-    Nsis,
-    Wix,
-    Deb,
-    Appimage,
-    Pacman,
-}
-
-impl PackageFormat {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::App => "app",
-            Self::Dmg => "dmg",
-            Self::Nsis => "nsis",
-            Self::Wix => "wix",
-            Self::Deb => "deb",
-            Self::Appimage => "appimage",
-            Self::Pacman => "pacman",
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WabouPackageFile {
-    package: PackageConfig,
-    #[serde(default)]
-    build: Option<BuildConfig>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-struct BuildConfig {
-    out_dir: PathBuf,
-    #[serde(default)]
-    source_map: Option<bool>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum BuildProfile {
-    Debug,
-    Release,
-}
-
-impl BuildProfile {
-    fn from_release(release: bool) -> Self {
-        if release { Self::Release } else { Self::Debug }
-    }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Debug => "debug",
-            Self::Release => "release",
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-struct PackageConfig {
-    product_name: String,
-    identifier: String,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    authors: Vec<String>,
-    #[serde(default)]
-    copyright: Option<String>,
-    #[serde(default)]
-    license_file: Option<PathBuf>,
-    #[serde(default)]
-    icons: Vec<String>,
-    #[serde(default)]
-    resources: Vec<PathBuf>,
-    #[serde(default)]
-    formats: Vec<PackageFormat>,
 }
 
 #[derive(Subcommand)]
@@ -571,53 +493,6 @@ fn manifest(app: &App) -> String {
     app.root.join("Cargo.toml").to_string_lossy().into_owned()
 }
 
-fn configured_resource_dir(workspace: &Path, app: &App) -> PathBuf {
-    if let Ok(source) = fs::read_to_string(app.root.join("wabou.toml"))
-        && let Ok(file) = toml::from_str::<WabouPackageFile>(&source)
-        && let Some(build) = file.build
-    {
-        return app.root.join(build.out_dir);
-    }
-    let dist = workspace.join("dist");
-    if workspace == app.root {
-        dist.join("resources")
-    } else {
-        dist.join(&app.name).join("resources")
-    }
-}
-
-fn profile_resource_dir(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
-    let configured = configured_resource_dir(workspace, app);
-    let name = configured.file_name().unwrap_or_default();
-    configured
-        .parent()
-        .unwrap_or(&configured)
-        .join(profile.as_str())
-        .join(name)
-}
-
-fn distribution_root(workspace: &Path, app: &App) -> PathBuf {
-    let resources = configured_resource_dir(workspace, app);
-    resources.parent().unwrap_or(&resources).to_path_buf()
-}
-
-fn profile_application_dir(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
-    distribution_root(workspace, app).join(profile.as_str())
-}
-
-fn bundle_path(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
-    profile_resource_dir(workspace, app, profile).join("bundle.js")
-}
-
-fn configured_source_map(app: &App, profile: BuildProfile) -> bool {
-    let setting = fs::read_to_string(app.root.join("wabou.toml"))
-        .ok()
-        .and_then(|source| toml::from_str::<WabouPackageFile>(&source).ok())
-        .and_then(|file| file.build)
-        .and_then(|build| build.source_map);
-    setting.unwrap_or(profile == BuildProfile::Debug)
-}
-
 fn frontend_build_lock(workspace: &Path, app: &App) -> Result<fs::File> {
     let directory = workspace.join("target/wabou/frontend").join(&app.name);
     fs::create_dir_all(&directory)?;
@@ -761,30 +636,6 @@ fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Re
         println!("[wabou] packaged {}", output.display());
     }
     Ok(())
-}
-
-fn load_package_config(app: &App) -> Result<PackageConfig> {
-    let path = app.root.join("wabou.toml");
-    let source = fs::read_to_string(&path).map_err(|error| {
-        format!(
-            "cannot read package configuration {}: {error}",
-            path.display()
-        )
-    })?;
-    let file: WabouPackageFile =
-        toml::from_str(&source).map_err(|error| format!("invalid {}: {error}", path.display()))?;
-    if file.package.product_name.trim().is_empty() {
-        return Err("package.product-name cannot be empty".into());
-    }
-    let identifier = file.package.identifier.as_str();
-    if !identifier.contains('.')
-        || !identifier
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
-    {
-        return Err("package.identifier must be a reverse-domain identifier".into());
-    }
-    Ok(file.package)
 }
 
 fn stage_application(
