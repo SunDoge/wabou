@@ -335,13 +335,12 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
 fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, focus_scope, tab_index, lowercase_tabindex, disabled) = {
+    let (view, button, focus_scope, lowercase_tabindex, disabled) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
             atoms.intern("focusScope"),
-            atoms.intern("tabIndex"),
             atoms.intern("tabindex"),
             atoms.intern("disabled"),
         )
@@ -359,11 +358,7 @@ fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
         applier.apply_op(&Op::AppendChild { parent, child });
     }
     for id in [2, 4] {
-        applier.apply_op(&Op::SetAttribute {
-            id,
-            name: tab_index,
-            value: "0",
-        });
+        set_focus_order(&mut applier, id, 0);
     }
     applier.apply_op(&Op::SetAttribute {
         id: 4,
@@ -407,8 +402,8 @@ fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
     ];
 
     applier.rebuild_focus_order(&placed);
-    // Rust executes the canonical `tabIndex`; it neither treats `disabled` as
-    // a focus policy nor accepts browser spelling aliases.
+    // Rust executes only the typed focus policy; it neither treats `disabled`
+    // as focus policy nor accepts browser spelling aliases.
     assert_eq!(applier.input.focus_order, [4]);
     assert!(!applier.input.focusable_targets.contains(&2));
 }
@@ -418,7 +413,7 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (button, view, role, aria_label, aria_modal, focus_scope, tab_index) = {
+    let (button, view, role, aria_label, aria_modal, focus_scope) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("button"),
@@ -427,13 +422,12 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
             atoms.intern("aria-label"),
             atoms.intern("aria-modal"),
             atoms.intern("focusScope"),
-            atoms.intern("tabIndex"),
         )
     };
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: button,
-        attrs: vec![(aria_label, "Background"), (tab_index, "0")],
+        attrs: vec![(aria_label, "Background")],
     });
     applier.apply_op(&Op::CreateElement {
         id: 3,
@@ -448,8 +442,10 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     applier.apply_op(&Op::CreateElement {
         id: 4,
         tag: button,
-        attrs: vec![(aria_label, "Save"), (tab_index, "0")],
+        attrs: vec![(aria_label, "Save")],
     });
+    set_focus_order(&mut applier, 2, 0);
+    set_focus_order(&mut applier, 4, 0);
     applier.apply_op(&Op::AppendChild {
         parent: 3,
         child: 4,

@@ -35,6 +35,7 @@ export const OP = {
   SetWidgetConfig: 0x1a,
   RemoveWidgetConfig: 0x1b,
   SetTextBehavior: 0x1c,
+  SetInteractionPolicy: 0x1d,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -45,6 +46,13 @@ export const TEXT_BEHAVIOR = {
 } as const;
 const TEXT_BEHAVIOR_MASK =
   TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+
+export const INTERACTION_POLICY = {
+  Focusable: 0x01,
+  BlockSubtree: 0x02,
+} as const;
+const INTERACTION_POLICY_MASK =
+  INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree;
 
 export const EVENT_CODE = {
   click: 1,
@@ -359,6 +367,29 @@ export class Writer {
     this.emit(OP.SetTextBehavior);
     this.u32(id);
     this.u8(flags);
+  }
+  setInteractionPolicy(id: number, flags: number, focusOrder: number): void {
+    if (
+      !Number.isInteger(flags) ||
+      flags < 0 ||
+      (flags & ~INTERACTION_POLICY_MASK) !== 0
+    ) {
+      throw new RangeError(`invalid interaction policy flags ${flags}`);
+    }
+    if (
+      !Number.isInteger(focusOrder) ||
+      focusOrder < -0x80000000 ||
+      focusOrder > 0x7fffffff
+    ) {
+      throw new RangeError(`invalid focus order ${focusOrder}`);
+    }
+    if ((flags & INTERACTION_POLICY.Focusable) === 0 && focusOrder !== 0) {
+      throw new RangeError("a non-focusable policy must encode focus order 0");
+    }
+    this.emit(OP.SetInteractionPolicy);
+    this.u32(id);
+    this.u8(flags);
+    this.u32(focusOrder >>> 0);
   }
   removeWidgetConfig(id: number): void {
     this.emit(OP.RemoveWidgetConfig);

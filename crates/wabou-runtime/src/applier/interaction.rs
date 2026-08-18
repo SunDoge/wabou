@@ -274,7 +274,6 @@ impl Applier {
         self.input.hit_items.clear();
         self.scroll.hits.clear();
         self.scroll.metrics.clear();
-        let atoms = self.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut transforms = HashMap::with_capacity(placed.len());
         let mut clip_chains: HashMap<NodeId, Vec<HitClip>> = HashMap::with_capacity(placed.len());
@@ -313,10 +312,9 @@ impl Applier {
                     transform: transforms[&parent],
                 });
             }
-            let inert =
-                subtree_has_attribute(&self.node_store, &atoms, node.node_id, "inert", None);
+            let interaction_blocked = subtree_blocks_interaction(&self.node_store, node.node_id);
             if node.paint.pointer_events
-                && !inert
+                && !interaction_blocked
                 && let Some(&solid_id) = self.node_store.node_to_solid.get(&node.node_id)
             {
                 content_hits.insert(
@@ -330,7 +328,7 @@ impl Applier {
                     },
                 );
             }
-            if !inert
+            if !interaction_blocked
                 && node.paint.scrollbar.visibility != ScrollbarVisibility::Hidden
                 && node.scroll.range.iter().any(|range| *range > 0.5)
             {

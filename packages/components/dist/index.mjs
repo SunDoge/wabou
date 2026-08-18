@@ -325,7 +325,7 @@ function Calendar(props) {
 									get ["aria-current"]() {
 										return isSameDay(date(), systemToday()) ? "date" : void 0;
 									},
-									get tabIndex() {
+									get focusOrder() {
 										return isSameDay(date(), tabStop()) ? 0 : -1;
 									},
 									get disabled() {
@@ -1116,7 +1116,7 @@ function Select(props) {
 								return !!interaction.highlighted();
 							})() ? `${id}-option-${interaction.highlighted()}` : void 0;
 						},
-						tabIndex: 0,
+						focusOrder: 0,
 						class: "min-w-0 flex flex-col gap-1",
 						onKeyDown: handleKeyDown,
 						get children() {
@@ -1538,7 +1538,7 @@ function Slider(props) {
 		get ["aria-disabled"]() {
 			return props.disabled;
 		},
-		get tabIndex() {
+		get focusOrder() {
 			return props.disabled ? -1 : 0;
 		},
 		get ["class"]() {

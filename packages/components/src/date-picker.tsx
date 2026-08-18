@@ -65,8 +65,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
     ...DEFAULT_LABELS,
     ...props.labels,
   });
-  const initial =
-    props.value ?? props.defaultValue ?? systemToday();
+  const initial = props.value ?? props.defaultValue ?? systemToday();
   const [localValue, setLocalValue] = createSignal(initial);
   const [visibleMonth, setVisibleMonth] = createSignal(startOfMonth(initial));
   const [focusedDate, setFocusedDate] = createSignal(initial);
@@ -77,7 +76,11 @@ export function Calendar(props: CalendarProps): JSX.Element {
     const currentLocale = locale();
     const week = (
       new Intl.Locale(currentLocale) as Intl.Locale & {
-        getWeekInfo(): { firstDay: number; weekend: number[]; minimalDays: number };
+        getWeekInfo(): {
+          firstDay: number;
+          weekend: number[];
+          minimalDays: number;
+        };
       }
     ).getWeekInfo();
     const firstWeekday = week.firstDay % 7;
@@ -193,8 +196,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
       step = -1;
     } else if (event.key === "End")
       next = date.add({
-        days:
-          6 - ((dayOfWeek(date) - monthInfo().first_weekday + 7) % 7),
+        days: 6 - ((dayOfWeek(date) - monthInfo().first_weekday + 7) % 7),
       });
     else if (event.key === "PageUp") {
       next = date.subtract({ months: 1 });
@@ -261,11 +263,9 @@ export function Calendar(props: CalendarProps): JSX.Element {
                 aria-label={formatDate(date(), "full")}
                 aria-selected={selected()}
                 aria-current={
-                  isSameDay(date(), systemToday())
-                    ? "date"
-                    : undefined
+                  isSameDay(date(), systemToday()) ? "date" : undefined
                 }
-                tabIndex={isSameDay(date(), tabStop()) ? 0 : -1}
+                focusOrder={isSameDay(date(), tabStop()) ? 0 : -1}
                 disabled={disabled()}
                 class={(state) =>
                   join(

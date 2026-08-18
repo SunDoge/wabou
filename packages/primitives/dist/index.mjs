@@ -102,8 +102,8 @@ const ACCENTS = {
 	sky: "#0284c7",
 	amber: "#d97706"
 };
-function resolveButtonTabIndex(disabled, tabIndex) {
-	return disabled ? -1 : tabIndex ?? 0;
+function resolveButtonFocusOrder(disabled, focusOrder) {
+	return disabled ? -1 : focusOrder ?? 0;
 }
 /** Headless button state and event normalization. */
 function createButton(options = {}) {
@@ -211,8 +211,8 @@ function Button(props) {
 		get ["aria-disabled"]() {
 			return disabled();
 		},
-		get tabIndex() {
-			return resolveButtonTabIndex(disabled(), props.tabIndex);
+		get focusOrder() {
+			return resolveButtonFocusOrder(disabled(), props.focusOrder);
 		},
 		get role() {
 			return props.role ?? "button";
@@ -345,8 +345,8 @@ function editorPrimitive(tag, props) {
 		get role() {
 			return props.role ?? "textbox";
 		},
-		get tabIndex() {
-			return props.disabled ? -1 : props.tabIndex ?? 0;
+		get focusOrder() {
+			return props.disabled ? -1 : props.focusOrder ?? 0;
 		},
 		get "aria-disabled"() {
 			return props.disabled ?? false;
@@ -499,8 +499,8 @@ function CollapsiblePresence(props) {
 		get style() {
 			return style();
 		},
-		get inert() {
-			return open() ? void 0 : "";
+		get interactionBlocked() {
+			return !open();
 		},
 		get ["aria-hidden"]() {
 			return open() ? void 0 : "true";

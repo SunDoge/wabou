@@ -142,6 +142,22 @@ fn subtree_has_attribute(
     }
 }
 
+fn subtree_blocks_interaction(node_store: &NodeStore, mut node: NodeId) -> bool {
+    loop {
+        if node_store
+            .declared
+            .get(&node)
+            .is_some_and(|declared| declared.interaction_blocked)
+        {
+            return true;
+        }
+        let Some(parent) = node_store.logical_parent.get(&node).copied() else {
+            return false;
+        };
+        node = parent;
+    }
+}
+
 // Widget actions retain their tagged 32-bit namespace. Native effects use a
 // process-wide sequence so window resource handles stay unique across runtimes.
 const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
@@ -206,6 +222,10 @@ struct Declared {
     display_explicit: bool,
     /// Typed host behavior authored by the JS Text primitive.
     text_behavior: u8,
+    /// Explicit native focus order; `None` means this node cannot receive focus.
+    focus_order: Option<i32>,
+    /// Excludes this node and its logical subtree from input and semantics.
+    interaction_blocked: bool,
 }
 
 impl Declared {

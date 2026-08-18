@@ -723,13 +723,19 @@
     SetScrollbarStyle: 25,
     SetWidgetConfig: 26,
     RemoveWidgetConfig: 27,
-    SetTextBehavior: 28
+    SetTextBehavior: 28,
+    SetInteractionPolicy: 29
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
     SingleLine: 2
   };
   var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+  var INTERACTION_POLICY = {
+    Focusable: 1,
+    BlockSubtree: 2
+  };
+  var INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree;
   var EVENT_CODE = {
     click: 1,
     input: 2,
@@ -990,6 +996,21 @@
       this.emit(OP.SetTextBehavior);
       this.u32(id);
       this.u8(flags);
+    }
+    setInteractionPolicy(id, flags, focusOrder) {
+      if (!Number.isInteger(flags) || flags < 0 || (flags & ~INTERACTION_POLICY_MASK) !== 0) {
+        throw new RangeError(`invalid interaction policy flags ${flags}`);
+      }
+      if (!Number.isInteger(focusOrder) || focusOrder < -2147483648 || focusOrder > 2147483647) {
+        throw new RangeError(`invalid focus order ${focusOrder}`);
+      }
+      if ((flags & INTERACTION_POLICY.Focusable) === 0 && focusOrder !== 0) {
+        throw new RangeError("a non-focusable policy must encode focus order 0");
+      }
+      this.emit(OP.SetInteractionPolicy);
+      this.u32(id);
+      this.u8(flags);
+      this.u32(focusOrder >>> 0);
     }
     removeWidgetConfig(id) {
       this.emit(OP.RemoveWidgetConfig);
@@ -5208,6 +5229,19 @@
   var listenersBySlot = [];
   var nodesBySlot = [];
   var classesByNode = new WeakMap;
+  var interactionByNode = new WeakMap;
+  function emitInteractionPolicy(writer, node) {
+    const state = interactionByNode.get(node) ?? {
+      focusOrder: null,
+      blocked: false
+    };
+    let flags = 0;
+    if (state.focusOrder !== null)
+      flags |= INTERACTION_POLICY.Focusable;
+    if (state.blocked)
+      flags |= INTERACTION_POLICY.BlockSubtree;
+    writer.setInteractionPolicy(node.id, flags, state.focusOrder ?? 0);
+  }
   function emitClasses(writer, node) {
     const state = classesByNode.get(node);
     if (!state)
@@ -5303,6 +5337,7 @@
       next: null,
       ...imperativeMethods(id)
     };
+    interactionByNode.set(h, { focusOrder: null, blocked: false });
     if (typeof WeakRef !== "undefined") {
       nodesBySlot[id & 1048575] = new WeakRef(h);
     }
@@ -5353,6 +5388,16 @@
     if (name === "textBehavior") {
       const flags = value == null || value === false ? 0 : Number(value);
       writer.setTextBehavior(node.id, flags);
+      return;
+    }
+    if (name === "focusOrder" || name === "interactionBlocked") {
+      const state = interactionByNode.get(node);
+      if (name === "focusOrder") {
+        state.focusOrder = value == null || value === false ? null : Number(value);
+      } else {
+        state.blocked = value === true;
+      }
+      emitInteractionPolicy(writer, node);
       return;
     }
     if (name === "scrollbar") {

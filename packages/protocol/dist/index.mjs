@@ -27,13 +27,19 @@ const OP = {
 	SetScrollbarStyle: 25,
 	SetWidgetConfig: 26,
 	RemoveWidgetConfig: 27,
-	SetTextBehavior: 28
+	SetTextBehavior: 28,
+	SetInteractionPolicy: 29
 };
 const TEXT_BEHAVIOR = {
 	AggregateDirectText: 1,
 	SingleLine: 2
 };
 const TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
+const INTERACTION_POLICY = {
+	Focusable: 1,
+	BlockSubtree: 2
+};
+const INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree;
 const EVENT_CODE = {
 	click: 1,
 	input: 2,
@@ -279,6 +285,15 @@ var Writer = class {
 		this.u32(id);
 		this.u8(flags);
 	}
+	setInteractionPolicy(id, flags, focusOrder) {
+		if (!Number.isInteger(flags) || flags < 0 || (flags & ~INTERACTION_POLICY_MASK) !== 0) throw new RangeError(`invalid interaction policy flags ${flags}`);
+		if (!Number.isInteger(focusOrder) || focusOrder < -2147483648 || focusOrder > 2147483647) throw new RangeError(`invalid focus order ${focusOrder}`);
+		if ((flags & INTERACTION_POLICY.Focusable) === 0 && focusOrder !== 0) throw new RangeError("a non-focusable policy must encode focus order 0");
+		this.emit(OP.SetInteractionPolicy);
+		this.u32(id);
+		this.u8(flags);
+		this.u32(focusOrder >>> 0);
+	}
 	removeWidgetConfig(id) {
 		this.emit(OP.RemoveWidgetConfig);
 		this.u32(id);
@@ -406,6 +421,6 @@ var Writer = class {
 	}
 };
 //#endregion
-export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, OP, TEXT_BEHAVIOR, Writer };
+export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, INTERACTION_POLICY, OP, TEXT_BEHAVIOR, Writer };
 
 //# sourceMappingURL=index.mjs.map

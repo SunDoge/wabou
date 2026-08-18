@@ -13,7 +13,7 @@ platform-independent implementation.
 | Solid | `solid-js` reactive primitives and the `solid-js/universal` renderer contract. Components must not assume browser DOM nodes. |
 | Host nodes | `View`, `Text`, `Image`, native form controls, registered native widgets, and documented intrinsic tags. Handles expose Wabou operations, not `HTMLElement`. |
 | Text | `<Text>` is the stable text aggregation boundary. Adjacent JSX text nodes are not implicitly merged into one browser-style text node. |
-| Events | Documented pointer, keyboard, focus, input, wheel and host events. `Tab`/`Shift+Tab` follow native focus order, honor `tabIndex`, remain inside the topmost modal, and run only when JavaScript or the focused widget does not consume the key. |
+| Events | Documented pointer, keyboard, focus, input, wheel and host events. `Tab`/`Shift+Tab` follow the explicit `focusOrder` contract, remain inside the topmost modal, and run only when JavaScript or the focused widget does not consume the key. |
 | Text input | Native input and textarea widgets support IME preedit, commit, surrounding-text deletion, and candidate-window positioning. Registered widgets receive the same IME lifecycle and may expose their own local caret rectangle. |
 | Layout/style | Utilities and typed inline properties listed by the generated Wabou utility manifest. Unsupported candidates are build errors. |
 | Async/runtime | `fetch`, timers, `requestAnimationFrame`, URL APIs, text encoding, resize observation and the typed Wabou Host APIs. |

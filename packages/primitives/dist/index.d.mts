@@ -143,7 +143,7 @@ declare const ACCENTS: {
   readonly sky: "#0284c7";
   readonly amber: "#d97706";
 };
-interface ButtonProps extends Pick<WabouElementProps, "aria-checked" | "aria-controls" | "aria-current" | "aria-expanded" | "aria-haspopup" | "aria-label" | "aria-pressed" | "aria-selected" | "role" | "tabIndex"> {
+interface ButtonProps extends Pick<WabouElementProps, "aria-checked" | "aria-controls" | "aria-current" | "aria-expanded" | "aria-haspopup" | "aria-label" | "aria-pressed" | "aria-selected" | "role" | "focusOrder"> {
   class?: string | ((state: ButtonState) => string);
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle | ((state: ButtonState) => WabouStyle);

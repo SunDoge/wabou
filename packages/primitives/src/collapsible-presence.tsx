@@ -63,9 +63,9 @@ export function CollapsiblePresence(
   createEffect(
     () => [open(), measured.measured(), measured.height()] as const,
     ([isOpen, isMeasured, height]) => {
-    if (isOpen && isMeasured && height === 0) {
-      presence.finishEnter();
-    }
+      if (isOpen && isMeasured && height === 0) {
+        presence.finishEnter();
+      }
     },
   );
 
@@ -80,7 +80,7 @@ export function CollapsiblePresence(
       class={props.class}
       classList={{ "overflow-hidden": true }}
       style={style()}
-      inert={open() ? undefined : ""}
+      interactionBlocked={!open()}
       aria-hidden={open() ? undefined : "true"}
     >
       <Show when={presence.mounted()}>

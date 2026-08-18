@@ -15,11 +15,12 @@
 import {
   EVENT_CODE,
   type EventType,
+  INTERACTION_POLICY,
   OP,
   TEXT_BEHAVIOR,
   Writer,
 } from "@wabou/protocol";
-export { TEXT_BEHAVIOR } from "@wabou/protocol";
+export { INTERACTION_POLICY, TEXT_BEHAVIOR } from "@wabou/protocol";
 import {
   type Affine2D,
   assertInlineStyleValue,
@@ -126,8 +127,10 @@ export interface WabouElementProps {
   children?: JSX.Element;
   ref?: Handle | ((node: Handle) => void);
   role?: WabouSemanticRole;
-  tabIndex?: number;
-  inert?: boolean | "";
+  /** Enables native focus; negative values skip sequential navigation. */
+  focusOrder?: number;
+  /** Removes this subtree from input, focus, and accessibility routing. */
+  interactionBlocked?: boolean;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -302,6 +305,21 @@ const classesByNode = new WeakMap<
   Handle,
   { base: string; toggles: Record<string, boolean> }
 >();
+const interactionByNode = new WeakMap<
+  Handle,
+  { focusOrder: number | null; blocked: boolean }
+>();
+
+function emitInteractionPolicy(writer: Writer, node: Handle): void {
+  const state = interactionByNode.get(node) ?? {
+    focusOrder: null,
+    blocked: false,
+  };
+  let flags = 0;
+  if (state.focusOrder !== null) flags |= INTERACTION_POLICY.Focusable;
+  if (state.blocked) flags |= INTERACTION_POLICY.BlockSubtree;
+  writer.setInteractionPolicy(node.id, flags, state.focusOrder ?? 0);
+}
 
 function emitClasses(writer: Writer, node: Handle): void {
   const state = classesByNode.get(node);
@@ -418,6 +436,7 @@ function makeHandle(tag: string): Handle {
     next: null,
     ...imperativeMethods(id),
   };
+  interactionByNode.set(h, { focusOrder: null, blocked: false });
   if (typeof WeakRef !== "undefined") {
     nodesBySlot[id & 0xfffff] = new WeakRef(h);
   }
@@ -469,6 +488,17 @@ function applyProperty(
   if (name === "textBehavior") {
     const flags = value == null || value === false ? 0 : Number(value);
     writer.setTextBehavior(node.id, flags);
+    return;
+  }
+  if (name === "focusOrder" || name === "interactionBlocked") {
+    const state = interactionByNode.get(node)!;
+    if (name === "focusOrder") {
+      state.focusOrder =
+        value == null || value === false ? null : Number(value);
+    } else {
+      state.blocked = value === true;
+    }
+    emitInteractionPolicy(writer, node);
     return;
   }
   if (name === "scrollbar") {

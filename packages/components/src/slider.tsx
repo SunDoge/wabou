@@ -89,7 +89,7 @@ export function Slider(props: SliderProps): JSX.Element {
       aria-valuenow={value()}
       aria-valuetext={props.valueText?.(value()) ?? String(value())}
       aria-disabled={props.disabled}
-      tabIndex={props.disabled ? -1 : 0}
+      focusOrder={props.disabled ? -1 : 0}
       class={join(
         "h-7 relative flex items-center",
         props.disabled ? "cursor-not-allowed" : "cursor-pointer",

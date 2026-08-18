@@ -24,7 +24,7 @@ export interface ButtonProps
     | "aria-pressed"
     | "aria-selected"
     | "role"
-    | "tabIndex"
+    | "focusOrder"
   > {
   class?: string | ((state: ButtonState) => string);
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
@@ -69,11 +69,11 @@ export interface ButtonState {
   disabled: boolean;
 }
 
-export function resolveButtonTabIndex(
+export function resolveButtonFocusOrder(
   disabled: boolean,
-  tabIndex: number | undefined,
+  focusOrder: number | undefined,
 ): number {
-  return disabled ? -1 : (tabIndex ?? 0);
+  return disabled ? -1 : (focusOrder ?? 0);
 }
 
 export interface CreateButtonOptions {
@@ -214,7 +214,7 @@ export function Button(props: ButtonProps): JSX.Element {
     <button
       disabled={disabled()}
       aria-disabled={disabled()}
-      tabIndex={resolveButtonTabIndex(disabled(), props.tabIndex)}
+      focusOrder={resolveButtonFocusOrder(disabled(), props.focusOrder)}
       role={props.role ?? "button"}
       ref={props.ref}
       aria-haspopup={props["aria-haspopup"]}

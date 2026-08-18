@@ -1,4 +1,4 @@
-import { EVENT_CODE, OP, TEXT_BEHAVIOR, Writer as Writer$1 } from "@wabou/protocol";
+import { EVENT_CODE, INTERACTION_POLICY as INTERACTION_POLICY$1, OP, TEXT_BEHAVIOR, Writer as Writer$1 } from "@wabou/protocol";
 import { Affine2D, WabouStyle } from "@wabou/style";
 import { Element as Element$1, JSX } from "solid-js";
 //#region src/jsx.d.ts
@@ -133,7 +133,7 @@ declare function Portal(props: PortalProps): JSX.Element;
  *
  * ```tsx
  * const fps = createFps();
- * <div>{fps()} fps</div>
+ * <Text>{`${fps()} fps`}</Text>
  * ```
  */
 declare function createFps(): () => number;
@@ -214,8 +214,10 @@ interface WabouElementProps {
   children?: JSX$1.Element;
   ref?: Handle | ((node: Handle) => void);
   role?: WabouSemanticRole;
-  tabIndex?: number;
-  inert?: boolean | "";
+  /** Enables native focus; negative values skip sequential navigation. */
+  focusOrder?: number;
+  /** Removes this subtree from input, focus, and accessibility routing. */
+  interactionBlocked?: boolean;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -409,5 +411,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { setTransform2D as $, acquireOverlayRoot as A, insert as B, WabouPositionedEvent as C, WabouSvgShapeProps as D, WabouSvgProps as E, delegateEvents as F, mount as G, isServer as H, dispatchEvent as I, releaseOverlayRoot as J, ref as K, effect as L, createComponent$1 as M, createElement as N, WabouWheelEvent as O, createTextNode as P, setProp as Q, getMountRoot as R, WabouPointerEvent as S, jsxs as St, WabouSemanticRole as T, memo as U, insertNode as V, mergeProps as W, render as X, removeNode as Y, runSweep as Z, WabouIntrinsicElements as _, LayoutSnapshot as _t, HostCapabilities as a, useFps as at, WabouNativeTag as b, jsx as bt, TEXT_BEHAVIOR as c, Host as ct, WabouElementProps as d, LayoutTarget as dt, spread as et, WabouEventTarget as f, defaultHost as ft, WabouInputProps as g, LayoutRect as gt, WabouInputEvent as h, LayoutNodeMetrics as ht, Handle as i, createFps as it, applyRef as j, Writer$1 as k, WabouBuiltinIntrinsicElements as l, HostProvider as lt, WabouImageProps as m, FrameStats as mt, DynamicProps as n, VirtualList as nt, NativeScrollbarStyle as o, Portal as ot, WabouExposedSemanticRole as p, useHost as pt, registerRoot as q, EVENT_CODE as r, VirtualListProps as rt, OP as s, PortalProps as st, Dynamic as t, writer as tt, WabouControlProps as u, HostProviderProps as ut, WabouKeyEvent as v, Fragment as vt, WabouScrollEvent as w, WabouNodeEvent as x, jsxDEV as xt, WabouNativeElements as y, JSX$1 as yt, getRequestEvent as z };
-//# sourceMappingURL=index-B231WZW-.d.mts.map
+export { setProp as $, Writer$1 as A, getRequestEvent as B, WabouPointerEvent as C, jsxs as Ct, WabouSvgProps as D, WabouSemanticRole as E, createTextNode as F, mergeProps as G, insertNode as H, delegateEvents as I, registerRoot as J, mount as K, dispatchEvent as L, applyRef as M, createComponent$1 as N, WabouSvgShapeProps as O, createElement as P, runSweep as Q, effect as R, WabouNodeEvent as S, jsxDEV as St, WabouScrollEvent as T, isServer as U, insert as V, memo as W, removeNode as X, releaseOverlayRoot as Y, render as Z, WabouInputProps as _, LayoutRect as _t, HostCapabilities as a, createFps as at, WabouNativeElements as b, JSX$1 as bt, OP as c, PortalProps as ct, WabouControlProps as d, HostProviderProps as dt, setTransform2D as et, WabouElementProps as f, LayoutTarget as ft, WabouInputEvent as g, LayoutNodeMetrics as gt, WabouImageProps as h, FrameStats as ht, Handle as i, VirtualListProps as it, acquireOverlayRoot as j, WabouWheelEvent as k, TEXT_BEHAVIOR as l, Host as lt, WabouExposedSemanticRole as m, useHost as mt, DynamicProps as n, writer as nt, INTERACTION_POLICY$1 as o, useFps as ot, WabouEventTarget as p, defaultHost as pt, ref as q, EVENT_CODE as r, VirtualList as rt, NativeScrollbarStyle as s, Portal as st, Dynamic as t, spread as tt, WabouBuiltinIntrinsicElements as u, HostProvider as ut, WabouIntrinsicElements as v, LayoutSnapshot as vt, WabouPositionedEvent as w, WabouNativeTag as x, jsx as xt, WabouKeyEvent as y, Fragment as yt, getMountRoot as z };
+//# sourceMappingURL=index-9_NXJFGR.d.mts.map

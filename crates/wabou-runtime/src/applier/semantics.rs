@@ -251,7 +251,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     let hidden: HashSet<_> = placed
         .iter()
         .filter(|node| {
-            subtree_has_attribute(&applier.node_store, &atoms, node.node_id, "inert", None)
+            subtree_blocks_interaction(&applier.node_store, node.node_id)
                 || subtree_has_attribute(
                     &applier.node_store,
                     &atoms,

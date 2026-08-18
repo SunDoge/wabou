@@ -110,7 +110,7 @@ export function CircleDrawerTask() {
         <View
           role="button"
           aria-label="Circle canvas"
-          tabIndex={0}
+          focusOrder={0}
           class="w-full h-96 relative overflow-hidden rounded-xl border border-strong bg-surface-muted"
           onClick={add}
         >

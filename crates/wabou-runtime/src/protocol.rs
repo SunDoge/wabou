@@ -21,6 +21,9 @@ use crate::atom::Atom;
 pub const TEXT_BEHAVIOR_AGGREGATE_DIRECT: u8 = 0x01;
 pub const TEXT_BEHAVIOR_SINGLE_LINE: u8 = 0x02;
 const TEXT_BEHAVIOR_MASK: u8 = TEXT_BEHAVIOR_AGGREGATE_DIRECT | TEXT_BEHAVIOR_SINGLE_LINE;
+pub const INTERACTION_POLICY_FOCUSABLE: u8 = 0x01;
+pub const INTERACTION_POLICY_BLOCK_SUBTREE: u8 = 0x02;
+const INTERACTION_POLICY_MASK: u8 = INTERACTION_POLICY_FOCUSABLE | INTERACTION_POLICY_BLOCK_SUBTREE;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StyleValue {
@@ -100,6 +103,11 @@ pub enum Op<'a> {
     SetTextBehavior {
         id: u32,
         flags: u8,
+    },
+    SetInteractionPolicy {
+        id: u32,
+        flags: u8,
+        focus_order: i32,
     },
     SetStyle {
         id: u32,
@@ -203,6 +211,11 @@ pub enum DecodeError {
 
     #[snafu(display("invalid text behavior flags 0x{flags:02x}"))]
     BadTextBehavior { flags: u8 },
+
+    #[snafu(display(
+        "invalid interaction policy flags 0x{flags:02x} with focus order {focus_order}"
+    ))]
+    BadInteractionPolicy { flags: u8, focus_order: i32 },
 }
 
 struct Reader<'a> {
@@ -248,6 +261,9 @@ impl<'a> Reader<'a> {
         ]);
         self.pos += 4;
         Ok(v)
+    }
+    fn i32(&mut self) -> Result<i32, DecodeError> {
+        self.u32().map(|value| value as i32)
     }
     fn f32(&mut self) -> Result<f32, DecodeError> {
         self.u32().map(f32::from_bits)
@@ -374,6 +390,21 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
                 return Err(DecodeError::BadTextBehavior { flags });
             }
             Op::SetTextBehavior { id, flags }
+        }
+        op::SET_INTERACTION_POLICY => {
+            let id = r.u32()?;
+            let flags = r.u8()?;
+            let focus_order = r.i32()?;
+            if flags & !INTERACTION_POLICY_MASK != 0
+                || flags & INTERACTION_POLICY_FOCUSABLE == 0 && focus_order != 0
+            {
+                return Err(DecodeError::BadInteractionPolicy { flags, focus_order });
+            }
+            Op::SetInteractionPolicy {
+                id,
+                flags,
+                focus_order,
+            }
         }
         op::SET_STYLE => {
             let id = r.u32()?;
@@ -667,6 +698,45 @@ mod tests {
         assert!(matches!(
             decode_frame(&frame_bytes(0x04)),
             Err(DecodeError::BadTextBehavior { flags: 0x04 })
+        ));
+    }
+
+    #[test]
+    fn decodes_and_validates_interaction_policy() {
+        let frame_bytes = |flags, focus_order: i32| {
+            let mut bytes = Vec::new();
+            push_u32(&mut bytes, 1);
+            push_u32(&mut bytes, 1);
+            bytes.push(op::SET_INTERACTION_POLICY);
+            push_u32(&mut bytes, 42);
+            bytes.push(flags);
+            push_u32(&mut bytes, focus_order as u32);
+            bytes
+        };
+
+        let valid = frame_bytes(INTERACTION_POLICY_FOCUSABLE, -1);
+        let frame = decode_frame(&valid).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetInteractionPolicy {
+                id: 42,
+                flags: INTERACTION_POLICY_FOCUSABLE,
+                focus_order: -1,
+            }
+        ));
+        assert!(matches!(
+            decode_frame(&frame_bytes(0, 1)),
+            Err(DecodeError::BadInteractionPolicy {
+                flags: 0,
+                focus_order: 1,
+            })
+        ));
+        assert!(matches!(
+            decode_frame(&frame_bytes(0x04, 0)),
+            Err(DecodeError::BadInteractionPolicy {
+                flags: 0x04,
+                focus_order: 0,
+            })
         ));
     }
 

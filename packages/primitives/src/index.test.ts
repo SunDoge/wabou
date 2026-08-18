@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { writer } from "@wabou/solid-renderer";
 import { createRoot, flush } from "solid-js";
-import { resolveButtonTabIndex } from "./button";
+import { resolveButtonFocusOrder } from "./button";
 import {
   createButton,
   createFocus,
@@ -308,10 +308,10 @@ describe("tabs primitive", () => {
 
 describe("host primitives", () => {
   test("button preserves explicit roving tab order unless disabled", () => {
-    expect(resolveButtonTabIndex(false, -1)).toBe(-1);
-    expect(resolveButtonTabIndex(false, 4)).toBe(4);
-    expect(resolveButtonTabIndex(false, undefined)).toBe(0);
-    expect(resolveButtonTabIndex(true, 4)).toBe(-1);
+    expect(resolveButtonFocusOrder(false, -1)).toBe(-1);
+    expect(resolveButtonFocusOrder(false, 4)).toBe(4);
+    expect(resolveButtonFocusOrder(false, undefined)).toBe(0);
+    expect(resolveButtonFocusOrder(true, 4)).toBe(-1);
   });
 
   test("authors primitive semantics in JavaScript", () => {
@@ -348,34 +348,37 @@ describe("host primitives", () => {
 
   test("authors native editor focus policy in JavaScript", () => {
     const attributes: Array<[string, string]> = [];
+    const focusOrders: number[] = [];
     const setAttribute = writer.setAttribute.bind(writer);
+    const setInteractionPolicy = writer.setInteractionPolicy.bind(writer);
     writer.setAttribute = (_id, name, value) => {
-      if (name === "role" || name === "tabIndex" || name === "aria-disabled") {
+      if (name === "role" || name === "aria-disabled") {
         attributes.push([name, value]);
       }
+    };
+    writer.setInteractionPolicy = (_id, flags, focusOrder) => {
+      if ((flags & 0x01) !== 0) focusOrders.push(focusOrder);
     };
     try {
       TextInput({});
       TextArea({});
-      PasswordInput({ secret: "test-secret", tabIndex: 4 });
+      PasswordInput({ secret: "test-secret", focusOrder: 4 });
       CodeEditor({ "aria-label": "Config", disabled: true });
     } finally {
       writer.setAttribute = setAttribute;
+      writer.setInteractionPolicy = setInteractionPolicy;
     }
     expect(attributes).toEqual([
       ["role", "textbox"],
-      ["tabIndex", "0"],
       ["aria-disabled", "false"],
       ["role", "textbox"],
-      ["tabIndex", "0"],
       ["aria-disabled", "false"],
       ["role", "textbox"],
-      ["tabIndex", "4"],
       ["aria-disabled", "false"],
       ["role", "textbox"],
-      ["tabIndex", "-1"],
       ["aria-disabled", "true"],
     ]);
+    expect(focusOrders).toEqual([0, 0, 4, -1]);
   });
 
   test("create explicit view, text, image, and editor host nodes", () =>

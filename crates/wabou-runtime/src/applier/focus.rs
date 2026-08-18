@@ -5,7 +5,7 @@ use super::*;
 #[derive(Clone, Copy)]
 struct FocusCandidate {
     solid_id: u32,
-    tab_index: i32,
+    focus_order: i32,
     document_order: usize,
 }
 
@@ -203,31 +203,26 @@ impl Applier {
         for (document_order, placed) in placed.iter().enumerate() {
             if placed.node_id == self.node_store.root
                 || !inside_active_modal(placed.node_id)
-                || subtree_has_attribute(&self.node_store, &atoms, placed.node_id, "inert", None)
+                || subtree_blocks_interaction(&self.node_store, placed.node_id)
             {
                 continue;
             }
             let Some(declared) = self.node_store.declared.get(&placed.node_id) else {
                 continue;
             };
-            // `tabIndex` is the normalized Wabou focus contract. Whether a
-            // disabled component participates is decided by its JS primitive,
-            // rather than inferred here from browser attribute conventions.
-            let explicit_tab_index = declared
-                .attribute(&atoms, "tabIndex")
-                .and_then(|value| value.parse::<i32>().ok());
-            if explicit_tab_index.is_none() {
+            // JS primitives explicitly author focus participation and order.
+            // Rust routes focus without inferring behavior from tags or roles.
+            let Some(focus_order) = declared.focus_order else {
                 continue;
-            }
+            };
             let Some(solid_id) = self.node_store.solid_id_for_node(placed.node_id) else {
                 continue;
             };
             focusable_targets.insert(solid_id);
-            let tab_index = explicit_tab_index.expect("checked above");
-            if tab_index >= 0 {
+            if focus_order >= 0 {
                 candidates.push(FocusCandidate {
                     solid_id,
-                    tab_index,
+                    focus_order,
                     document_order,
                 });
             }
@@ -235,8 +230,8 @@ impl Applier {
         drop(atoms);
         candidates.sort_by_key(|candidate| {
             (
-                candidate.tab_index == 0,
-                candidate.tab_index.max(0),
+                candidate.focus_order == 0,
+                candidate.focus_order.max(0),
                 candidate.document_order,
             )
         });

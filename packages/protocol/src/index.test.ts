@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { OP, Writer } from "./index";
+import { INTERACTION_POLICY, OP, Writer } from "./index";
 
 describe("Writer limits", () => {
   test("rejects strings that cannot be represented by the wire format", () => {
@@ -152,6 +152,25 @@ describe("Writer limits", () => {
     expect(view.getUint32(9, true)).toBe(42);
     expect(frame[13]).toBe(0x03);
     expect(() => writer.setTextBehavior(42, 0x04)).toThrow(RangeError);
+  });
+
+  test("encodes explicit focus and subtree interaction policy", () => {
+    const writer = new Writer();
+    writer.setInteractionPolicy(
+      42,
+      INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree,
+      -1,
+    );
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame.byteLength).toBe(18);
+    expect(frame[8]).toBe(OP.SetInteractionPolicy);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(frame[13]).toBe(0x03);
+    expect(view.getInt32(14, true)).toBe(-1);
+    expect(() => writer.setInteractionPolicy(1, 0, 1)).toThrow(RangeError);
+    expect(() => writer.setInteractionPolicy(1, 0x04, 0)).toThrow(RangeError);
   });
 
   test("encodes one structured widget config without a dynamic property name", () => {

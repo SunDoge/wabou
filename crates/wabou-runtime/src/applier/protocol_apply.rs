@@ -493,6 +493,21 @@ impl Applier {
                     self.recompute_node(node);
                 }
             }
+            Op::SetInteractionPolicy {
+                id,
+                flags,
+                focus_order,
+            } => {
+                if let Some(&node) = self.node_store.solid_to_node.get(id)
+                    && let Some(declared) = self.node_store.declared.get_mut(&node)
+                {
+                    declared.focus_order = (flags & crate::protocol::INTERACTION_POLICY_FOCUSABLE
+                        != 0)
+                        .then_some(*focus_order);
+                    declared.interaction_blocked =
+                        flags & crate::protocol::INTERACTION_POLICY_BLOCK_SUBTREE != 0;
+                }
+            }
             Op::SetStyle { id, prop, value } => {
                 self.set_inline_ir(*id, *prop, style::parse_ir_value(value));
             }

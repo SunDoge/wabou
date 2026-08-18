@@ -187,6 +187,31 @@ test("handles expose imperative native focus through the bridge", () => {
   expect(view.getUint32(9, true)).toBe(button.id);
 });
 
+test("focus and subtree blocking compose as one typed policy", () => {
+  writer.flush();
+  const view = createElement("view");
+  writer.flush();
+
+  setProp(view, "focusOrder", 2, undefined);
+  let frame = writer.flush()!;
+  let bytes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+  expect(frame[8]).toBe(OP.SetInteractionPolicy);
+  expect(frame[13]).toBe(0x01);
+  expect(bytes.getInt32(14, true)).toBe(2);
+
+  setProp(view, "interactionBlocked", true, undefined);
+  frame = writer.flush()!;
+  bytes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+  expect(frame[13]).toBe(0x03);
+  expect(bytes.getInt32(14, true)).toBe(2);
+
+  setProp(view, "focusOrder", undefined, 2);
+  frame = writer.flush()!;
+  bytes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+  expect(frame[13]).toBe(0x02);
+  expect(bytes.getInt32(14, true)).toBe(0);
+});
+
 test("native scrollbar customization uses one typed host operation", () => {
   writer.flush();
   const view = createElement("view");

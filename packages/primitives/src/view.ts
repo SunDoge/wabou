@@ -140,8 +140,8 @@ function editorPrimitive(
       get role() {
         return props.role ?? "textbox";
       },
-      get tabIndex() {
-        return props.disabled ? -1 : (props.tabIndex ?? 0);
+      get focusOrder() {
+        return props.disabled ? -1 : (props.focusOrder ?? 0);
       },
       get "aria-disabled"() {
         return props.disabled ?? false;

@@ -1,4 +1,4 @@
-import { EVENT_CODE, OP, TEXT_BEHAVIOR, Writer } from "@wabou/protocol";
+import { EVENT_CODE, INTERACTION_POLICY, INTERACTION_POLICY as INTERACTION_POLICY$1, OP, TEXT_BEHAVIOR, Writer } from "@wabou/protocol";
 import { assertInlineStyleValue, isTypedStyleValue } from "@wabou/style";
 import { For, Show, createComponent as createComponent$1, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
@@ -82,7 +82,7 @@ function Portal(props) {
 *
 * ```tsx
 * const fps = createFps();
-* <div>{fps()} fps</div>
+* <Text>{`${fps()} fps`}</Text>
 * ```
 */
 function createFps() {
@@ -248,6 +248,17 @@ const listenersBySlot = [];
 /** solid id -> WeakRef<Handle>, so event dispatch can walk the parent chain for bubbling without leaking memory. */
 const nodesBySlot = [];
 const classesByNode = /* @__PURE__ */ new WeakMap();
+const interactionByNode = /* @__PURE__ */ new WeakMap();
+function emitInteractionPolicy(writer, node) {
+	const state = interactionByNode.get(node) ?? {
+		focusOrder: null,
+		blocked: false
+	};
+	let flags = 0;
+	if (state.focusOrder !== null) flags |= INTERACTION_POLICY$1.Focusable;
+	if (state.blocked) flags |= INTERACTION_POLICY$1.BlockSubtree;
+	writer.setInteractionPolicy(node.id, flags, state.focusOrder ?? 0);
+}
 function emitClasses(writer, node) {
 	const state = classesByNode.get(node);
 	if (!state) return;
@@ -330,6 +341,10 @@ function makeHandle(tag) {
 		next: null,
 		...imperativeMethods(id)
 	};
+	interactionByNode.set(h, {
+		focusOrder: null,
+		blocked: false
+	});
 	if (typeof WeakRef !== "undefined") nodesBySlot[id & 1048575] = new WeakRef(h);
 	if (finalizationRegistry) finalizationRegistry.register(h, h.id, h);
 	return h;
@@ -368,6 +383,13 @@ function applyProperty(writer, node, name, value, prev) {
 	if (name === "textBehavior") {
 		const flags = value == null || value === false ? 0 : Number(value);
 		writer.setTextBehavior(node.id, flags);
+		return;
+	}
+	if (name === "focusOrder" || name === "interactionBlocked") {
+		const state = interactionByNode.get(node);
+		if (name === "focusOrder") state.focusOrder = value == null || value === false ? null : Number(value);
+		else state.blocked = value === true;
+		emitInteractionPolicy(writer, node);
 		return;
 	}
 	if (name === "scrollbar") {
@@ -795,6 +817,6 @@ function eventName(code) {
 	return "unknown";
 }
 //#endregion
-export { Dynamic, EVENT_CODE, HostProvider, OP, Portal, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, applyRef, createComponent, createElement, createFps, createTextNode, defaultHost, delegateEvents, dispatchEvent, effect, getMountRoot, getRequestEvent, insert, insertNode, isServer, memo, mergeProps, mount, ref, registerRoot, releaseOverlayRoot, removeNode, render, runSweep, setProp, setTransform2D, spread, useFps, useHost, writer };
+export { Dynamic, EVENT_CODE, HostProvider, INTERACTION_POLICY, OP, Portal, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, applyRef, createComponent, createElement, createFps, createTextNode, defaultHost, delegateEvents, dispatchEvent, effect, getMountRoot, getRequestEvent, insert, insertNode, isServer, memo, mergeProps, mount, ref, registerRoot, releaseOverlayRoot, removeNode, render, runSweep, setProp, setTransform2D, spread, useFps, useHost, writer };
 
 //# sourceMappingURL=index.mjs.map

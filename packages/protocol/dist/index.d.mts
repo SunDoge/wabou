@@ -28,11 +28,16 @@ declare const OP: {
   readonly SetWidgetConfig: 26;
   readonly RemoveWidgetConfig: 27;
   readonly SetTextBehavior: 28;
+  readonly SetInteractionPolicy: 29;
 };
 type OpCode = (typeof OP)[keyof typeof OP];
 declare const TEXT_BEHAVIOR: {
   readonly AggregateDirectText: 1;
   readonly SingleLine: 2;
+};
+declare const INTERACTION_POLICY: {
+  readonly Focusable: 1;
+  readonly BlockSubtree: 2;
 };
 declare const EVENT_CODE: {
   readonly click: 1;
@@ -138,6 +143,7 @@ declare class Writer {
   removeAttribute(id: number, name: string): void;
   setWidgetConfig(id: number, json: string): void;
   setTextBehavior(id: number, flags: number): void;
+  setInteractionPolicy(id: number, flags: number, focusOrder: number): void;
   removeWidgetConfig(id: number): void;
   setStyle(id: number, prop: string, value: string): void;
   setStyleValue(id: number, prop: string, kind: number, value: number): void;
@@ -177,5 +183,5 @@ declare class Writer {
   flush(): Uint8Array | null;
 }
 //#endregion
-export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, EventDataSlot, EventType, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, OP, OpCode, TEXT_BEHAVIOR, Writer };
+export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, EventDataSlot, EventType, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, INTERACTION_POLICY, OP, OpCode, TEXT_BEHAVIOR, Writer };
 //# sourceMappingURL=index.d.mts.map

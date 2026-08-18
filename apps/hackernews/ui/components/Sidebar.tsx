@@ -150,7 +150,7 @@ function SidebarNavItem(props: SidebarItemProps): JSX.Element {
     <View
       role="link"
       aria-current={props.active ? "page" : undefined}
-      tabIndex={0}
+      focusOrder={0}
       class={`w-full h-10 px-2 flex items-center gap-3 rounded-md text-sm ${props.active ? "font-semibold" : ""}`}
       style={{
         "background-color": props.active

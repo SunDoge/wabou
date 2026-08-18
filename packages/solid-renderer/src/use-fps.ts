@@ -9,7 +9,7 @@ import { createSignal, onCleanup } from "solid-js";
  *
  * ```tsx
  * const fps = createFps();
- * <div>{fps()} fps</div>
+ * <Text>{`${fps()} fps`}</Text>
  * ```
  */
 export function createFps(): () => number {

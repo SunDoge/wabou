@@ -186,7 +186,7 @@ export function Select(props: SelectProps): JSX.Element {
               ? `${id}-option-${interaction.highlighted()}`
               : undefined
           }
-          tabIndex={0}
+          focusOrder={0}
           class="min-w-0 flex flex-col gap-1"
           onKeyDown={handleKeyDown}
         >

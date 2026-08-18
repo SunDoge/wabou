@@ -9,6 +9,26 @@ fn set_text_behavior(applier: &mut Applier, id: u32) {
     });
 }
 
+fn set_focus_order(applier: &mut Applier, id: u32, focus_order: i32) {
+    applier.apply_op(&Op::SetInteractionPolicy {
+        id,
+        flags: crate::protocol::INTERACTION_POLICY_FOCUSABLE,
+        focus_order,
+    });
+}
+
+fn set_interaction_blocked(applier: &mut Applier, id: u32, blocked: bool) {
+    applier.apply_op(&Op::SetInteractionPolicy {
+        id,
+        flags: if blocked {
+            crate::protocol::INTERACTION_POLICY_BLOCK_SUBTREE
+        } else {
+            0
+        },
+        focus_order: 0,
+    });
+}
+
 #[test]
 fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");
@@ -1012,7 +1032,7 @@ fn interactive_applier() -> Applier {
 }
 
 #[test]
-fn tab_order_honors_explicit_indices_without_inferring_disabled_policy() {
+fn focus_order_is_explicit_without_inferring_disabled_policy() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     js.with(|ctx| {
@@ -1022,11 +1042,10 @@ fn tab_order_honors_explicit_indices_without_inferring_disabled_policy() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (button, tab_index, disabled, width, height) = {
+    let (button, disabled, width, height) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("button"),
-            atoms.intern("tabIndex"),
             atoms.intern("disabled"),
             atoms.intern("width"),
             atoms.intern("height"),
@@ -1053,31 +1072,11 @@ fn tab_order_honors_explicit_indices_without_inferring_disabled_policy() {
             value: "20px",
         });
     }
-    applier.apply_op(&Op::SetAttribute {
-        id: 2,
-        name: tab_index,
-        value: "0",
-    });
-    applier.apply_op(&Op::SetAttribute {
-        id: 3,
-        name: tab_index,
-        value: "2",
-    });
-    applier.apply_op(&Op::SetAttribute {
-        id: 4,
-        name: tab_index,
-        value: "-1",
-    });
-    applier.apply_op(&Op::SetAttribute {
-        id: 5,
-        name: tab_index,
-        value: "1",
-    });
-    applier.apply_op(&Op::SetAttribute {
-        id: 6,
-        name: tab_index,
-        value: "-1",
-    });
+    set_focus_order(&mut applier, 2, 0);
+    set_focus_order(&mut applier, 3, 2);
+    set_focus_order(&mut applier, 4, -1);
+    set_focus_order(&mut applier, 5, 1);
+    set_focus_order(&mut applier, 6, -1);
     applier.apply_op(&Op::SetAttribute {
         id: 6,
         name: disabled,
@@ -1106,13 +1105,12 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, role, tab_index, disabled, aria_disabled, aria_hidden, width, height) = {
+    let (view, button, role, disabled, aria_disabled, aria_hidden, width, height) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
             atoms.intern("role"),
-            atoms.intern("tabIndex"),
             atoms.intern("disabled"),
             atoms.intern("aria-disabled"),
             atoms.intern("aria-hidden"),
@@ -1148,21 +1146,13 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
             value: if id == 5 { "textbox" } else { "button" },
         });
     }
-    applier.apply_op(&Op::SetAttribute {
-        id: 3,
-        name: tab_index,
-        value: "0",
-    });
+    set_focus_order(&mut applier, 3, 0);
     applier.apply_op(&Op::SetAttribute {
         id: 3,
         name: aria_disabled,
         value: "true",
     });
-    applier.apply_op(&Op::SetAttribute {
-        id: 4,
-        name: tab_index,
-        value: "0",
-    });
+    set_focus_order(&mut applier, 4, 0);
     // Native behavior props are not accessibility policy. JS must publish
     // semantic state explicitly through the semantic contract.
     applier.apply_op(&Op::SetAttribute {
@@ -1175,11 +1165,7 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
         name: aria_hidden,
         value: "true",
     });
-    applier.apply_op(&Op::SetAttribute {
-        id: 5,
-        name: tab_index,
-        value: "-1",
-    });
+    set_focus_order(&mut applier, 5, -1);
 
     let mut tcx = TextContext::new();
     let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
@@ -1196,17 +1182,15 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
 }
 
 #[test]
-fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
+fn interaction_blocking_isolates_an_entire_subtree() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, inert, aria_hidden, tab_index, width, height) = {
+    let (view, button, aria_hidden, width, height) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
-            atoms.intern("inert"),
             atoms.intern("aria-hidden"),
-            atoms.intern("tabIndex"),
             atoms.intern("width"),
             atoms.intern("height"),
         )
@@ -1219,8 +1203,9 @@ fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
     applier.apply_op(&Op::CreateElement {
         id: 3,
         tag: button,
-        attrs: vec![(tab_index, "0")],
+        attrs: vec![],
     });
+    set_focus_order(&mut applier, 3, 0);
     for id in [2, 3] {
         applier.apply_op(&Op::SetStyle {
             id,
@@ -1286,11 +1271,7 @@ fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
             .any(|node| node.id == 3)
     );
 
-    applier.apply_op(&Op::SetAttribute {
-        id: 2,
-        name: inert,
-        value: "",
-    });
+    set_interaction_blocked(&mut applier, 2, true);
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
@@ -1307,7 +1288,7 @@ fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
     assert!(!applier.handle_semantic_action(SemanticAction::Click { target: 3 }));
     assert!(!applier.handle_semantic_action(SemanticAction::Focus { target: 3 }));
 
-    applier.apply_op(&Op::RemoveAttribute { id: 2, name: inert });
+    set_interaction_blocked(&mut applier, 2, false);
     applier.apply_op(&Op::SetAttribute {
         id: 2,
         name: aria_hidden,

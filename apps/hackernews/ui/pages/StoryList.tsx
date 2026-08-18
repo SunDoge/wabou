@@ -127,7 +127,7 @@ export function StoryList(): JSX.Element {
                           }
                         }}
                         role="button"
-                        tabIndex={0}
+                        focusOrder={0}
                       >
                         <Text
                           class="w-7 flex-none text-right text-xs"
