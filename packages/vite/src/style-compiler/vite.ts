@@ -7,7 +7,7 @@ import {
   resolveWabouUtility,
   validateWabouUtility,
   wabouUtilityManifest,
-} from "@wabou/unocss-preset";
+} from "../preset";
 import type { ModuleNode, Plugin } from "vite";
 import {
   STYLE_IR_VERSION,

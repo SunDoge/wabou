@@ -1,9 +1,9 @@
+import { presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest } from "./preset.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readFile, readdir } from "node:fs/promises";
 import { createGenerator } from "@unocss/core";
-import { presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest } from "@wabou/unocss-preset";
 import MagicString from "magic-string";
 import { parse as parse$1 } from "smol-toml";
 import { defineConfig, mergeConfig } from "vite";

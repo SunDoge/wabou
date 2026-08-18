@@ -9,6 +9,5 @@
   "@wabou/style": "769bb1d993311db1",
   "@wabou/terminal": "c4e7325d52f9cb01",
   "@wabou/test": "f42b6f543f1fb4ce",
-  "@wabou/unocss-preset": "183a1b7252fb1d1e",
-  "@wabou/vite": "276657a2617db7ca"
+  "@wabou/vite": "660deff59d08fa33"
 }

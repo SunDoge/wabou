@@ -1,5 +1,5 @@
 import type { Preset, Rule } from "@unocss/core";
-import manifestJson from "../generated/manifest.json" with { type: "json" };
+import manifestJson from "./manifest.json" with { type: "json" };
 
 type Length = { unit: "px" | "percent"; value: number } | { unit: "auto" };
 export type WabouStyleValue =
@@ -18,7 +18,7 @@ type RustParsedUtility = {
   className: string;
   declarations: WabouStyleDeclaration[];
 };
-type Manifest = {
+export type WabouUtilityManifest = {
   version: number;
   spacing: Record<string, number>;
   colors: Record<string, number>;
@@ -40,7 +40,7 @@ type Manifest = {
   conformance: RustParsedUtility[];
 };
 
-export const wabouUtilityManifest = manifestJson as Manifest;
+export const wabouUtilityManifest = manifestJson as WabouUtilityManifest;
 
 export type UtilityDiagnostic = {
   candidate: string;
@@ -55,7 +55,7 @@ export type ResolvedUtility = {
 
 function matchDynamic(
   utility: string,
-  resolver: Manifest["dynamicRules"][number]["resolver"],
+  resolver: WabouUtilityManifest["dynamicRules"][number]["resolver"],
 ):
   | { name: string; token: string; properties: string[]; negative: boolean }
   | undefined {
@@ -486,7 +486,7 @@ function unoRule(): Rule {
 /** UnoCSS adapter for editor tooling over the native utility manifest. */
 export function presetWabou(): Preset {
   return {
-    name: "@wabou/unocss-preset",
+    name: "@wabou/vite/preset",
     rules: [unoRule()],
     autocomplete: {
       templates: [

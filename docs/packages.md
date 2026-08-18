@@ -25,8 +25,8 @@ Install the following public packages only when the application uses them:
 - `@wabou/terminal` — native terminal component.
 - `@wabou/test` — TypeScript behavior tests, normally a dev dependency.
 
-The packages `@wabou/protocol`, `@wabou/solid-renderer`, `@wabou/style` and
-`@wabou/unocss-preset` are published because the
+The packages `@wabou/protocol`, `@wabou/solid-renderer` and `@wabou/style` are
+published because the
 public packages depend on them. They are implementation details, carry
 `wabou.stability: "internal"` metadata, and are not stable import targets.
 `@wabou/vite` exposes its bundled HMR client as `@wabou/vite/runtime`; there is

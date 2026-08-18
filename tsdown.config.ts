@@ -18,9 +18,9 @@ const packages: Record<string, UserConfig["entry"]> = {
   style: { index: "src/index.ts" },
   terminal: { index: "src/index.tsx" },
   test: { index: "src/index.ts" },
-  "unocss-preset": { index: "src/index.ts" },
   vite: {
     index: "src/index.ts",
+    preset: "src/preset/index.ts",
     runtime: "src/runtime/client.ts",
     "utility-manifest": "src/utility-manifest.ts",
   },

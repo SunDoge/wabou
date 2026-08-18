@@ -32,7 +32,7 @@ const manifest = JSON.parse(json) as {
   }[];
 };
 await writeFile(
-  resolve(root, "packages/unocss-preset/generated/manifest.json"),
+  resolve(root, "packages/vite/src/preset/manifest.json"),
   json,
 );
 

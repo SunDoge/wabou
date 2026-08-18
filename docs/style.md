@@ -21,7 +21,7 @@ Vello, and Wabou interaction state. Arbitrary syntax is typed rather than
 arbitrary CSS: `p-[13px]` is valid, while `p-[var(--space)]` and unsupported
 `calc()` expressions are build errors.
 
-The Rust definitions export a generated manifest. `@wabou/unocss-preset`
+The Rust definitions export a generated manifest. `@wabou/vite/preset`
 adapts that manifest for UnoCSS editor tooling and lets the Vite plugin compile
 matched classes directly to Style IR. It is not the semantic authority and no
 production utility CSS is emitted. Rust can also parse classes directly at
@@ -31,7 +31,7 @@ runtime when a precompiled stylesheet rule is absent.
 Rust utility definitions
   ├─ Winnow runtime parser → typed native declarations
   ├─ generated manifest
-  │   └─ @wabou/unocss-preset → completion and build-time Style IR adapter
+  │   └─ @wabou/vite/preset → completion and build-time Style IR adapter
   └─ conformance fixtures → Rust/TypeScript parity tests
 ```
 

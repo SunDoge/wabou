@@ -41,7 +41,6 @@
     "@wabou/core": "workspace:*",
     "@wabou/router": "workspace:*",
     "@wabou/solid-renderer": "workspace:*",
-    "@wabou/unocss-preset": "workspace:*",
     "@wabou/vite": "workspace:*",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.0",

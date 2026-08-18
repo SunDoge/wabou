@@ -3,7 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createGenerator, presetUno } from "unocss";
 import { extractUtilitySource } from "../packages/vite/src/style-compiler/vite.ts";
-import { validateWabouUtility } from "../packages/unocss-preset/src/index.ts";
+import { validateWabouUtility } from "../packages/vite/src/preset/index.ts";
 
 const root = process.cwd();
 const source: string[] = [];

@@ -1,5 +1,5 @@
 import { Preset } from "@unocss/core";
-//#region src/index.d.ts
+//#region src/preset/index.d.ts
 type Length = {
   unit: "px" | "percent";
   value: number;
@@ -39,7 +39,7 @@ type RustParsedUtility = {
   className: string;
   declarations: WabouStyleDeclaration[];
 };
-type Manifest = {
+type WabouUtilityManifest = {
   version: number;
   spacing: Record<string, number>;
   colors: Record<string, number>;
@@ -53,7 +53,7 @@ type Manifest = {
   }[];
   conformance: RustParsedUtility[];
 };
-declare const wabouUtilityManifest: Manifest;
+declare const wabouUtilityManifest: WabouUtilityManifest;
 type UtilityDiagnostic = {
   candidate: string;
   message: string;
@@ -68,5 +68,5 @@ declare function validateWabouUtility(candidate: string): UtilityDiagnostic | un
 /** UnoCSS adapter for editor tooling over the native utility manifest. */
 declare function presetWabou(): Preset;
 //#endregion
-export { ResolvedUtility, UtilityDiagnostic, WabouStyleDeclaration, WabouStyleValue, presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest };
-//# sourceMappingURL=index.d.mts.map
+export { ResolvedUtility, UtilityDiagnostic, WabouStyleDeclaration, WabouStyleValue, WabouUtilityManifest, presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest };
+//# sourceMappingURL=preset.d.mts.map

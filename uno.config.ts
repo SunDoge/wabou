@@ -1,4 +1,4 @@
-import { presetWabou } from "@wabou/unocss-preset";
+import { presetWabou } from "@wabou/vite/preset";
 import { defineConfig } from "unocss";
 
 // Editor/LSP configuration only. Wabou's Vite plugin compiles the same

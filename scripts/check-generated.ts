@@ -8,6 +8,7 @@ const patterns = [
   "packages/*/dist/**/*",
   "packages/*/generated/**/*",
   "packages/core/src/generated/**/*",
+  "packages/vite/src/preset/manifest.json",
   "packages/vite/src/style-compiler/css-support-matrix.json",
 ];
 
