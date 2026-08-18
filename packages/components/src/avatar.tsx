@@ -1,8 +1,7 @@
 import { Center, NetworkImage, Text, View } from "@wabou/primitives";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 export type AvatarSize = "sm" | "default" | "lg";
 export interface AvatarProps {
   src?: string;

@@ -1,8 +1,6 @@
 import { Pulse, Spin, Text, View } from "@wabou/primitives";
 import type { JSX } from "solid-js";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 
 export function Skeleton(props: { class?: string }): JSX.Element {
   return (

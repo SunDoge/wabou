@@ -7,9 +7,7 @@ import {
 } from "@wabou/primitives";
 import { rgba } from "@wabou/core";
 import type { JSX } from "solid-js";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 
 export interface DialogProps extends Omit<ModalProps, "contentClass"> {
   contentClass?: string;

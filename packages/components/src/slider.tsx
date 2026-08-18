@@ -1,5 +1,6 @@
 import { createMeasuredSize, View } from "@wabou/primitives";
 import { createSignal, type JSX } from "solid-js";
+import { join } from "./class-names";
 import { decimalPlaces, finiteOr, normalizeRange } from "./range";
 
 interface SliderPointerEvent {
@@ -25,9 +26,6 @@ export interface SliderProps {
   onValueChange?: (value: number) => void;
   class?: string;
 }
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
 
 export function Slider(props: SliderProps): JSX.Element {
   const range = () => normalizeRange(props.min, props.max, props.step);

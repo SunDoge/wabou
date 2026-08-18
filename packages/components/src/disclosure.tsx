@@ -15,9 +15,7 @@ import {
 } from "@wabou/interactions";
 import { createContext, type JSX, useContext } from "solid-js";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 
 function DisclosureIndicator(props: {
   open: () => boolean;

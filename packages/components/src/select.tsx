@@ -15,9 +15,7 @@ import check from "lucide-static/icons/check.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createUniqueId, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;

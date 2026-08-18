@@ -21,6 +21,7 @@ import {
   untrack,
 } from "solid-js";
 import { match, P } from "ts-pattern";
+import { join } from "./class-names";
 import { normalizePercentage } from "./range";
 
 export * from "./avatar";
@@ -62,9 +63,6 @@ export {
   useComponentsTheme,
 } from "./theme";
 export * from "./title-bar";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
 
 export type ButtonVariant =
   | "default"

@@ -17,9 +17,7 @@ import { createMemo, createSignal, For, type JSX } from "solid-js";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 
 function dayOfWeek(value: CalendarDate): number {
   return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();

@@ -12,6 +12,11 @@ import { createControllableState, createDisclosure, createRovingFocus, createSel
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import check from "lucide-static/icons/check.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
+//#region src/class-names.ts
+function join(...values) {
+	return values.filter(Boolean).join(" ");
+}
+//#endregion
 //#region src/range.ts
 function finiteOr(value, fallback) {
 	return value !== void 0 && Number.isFinite(value) ? value : fallback;
@@ -37,7 +42,6 @@ function decimalPlaces(value) {
 }
 //#endregion
 //#region src/avatar.tsx
-const join$13 = (...values) => values.filter(Boolean).join(" ");
 function Avatar(props) {
 	const size = () => match(props.size ?? "default").with("sm", () => "w-8 h-8 text-xs").with("default", () => "w-10 h-10 text-sm").with("lg", () => "w-12 h-12 text-base").exhaustive();
 	return createComponent(Center, {
@@ -46,7 +50,7 @@ function Avatar(props) {
 			return props.alt ?? props.fallback;
 		},
 		get ["class"]() {
-			return join$13("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
+			return join("flex-none overflow-hidden rounded-full bg-control border border-subtle", size(), props.class);
 		},
 		get children() {
 			return memo(() => {
@@ -72,7 +76,7 @@ function Avatar(props) {
 function AvatarGroup(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$13("flex items-center gap-1", props.class);
+			return join("flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -82,7 +86,7 @@ function AvatarGroup(props) {
 function AvatarGroupCount(props) {
 	return createComponent(Center, {
 		get ["class"]() {
-			return join$13("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
+			return join("w-10 h-10 flex-none rounded-full bg-control border border-subtle", props.class);
 		},
 		get children() {
 			return createComponent(Text, {
@@ -96,7 +100,6 @@ function AvatarGroupCount(props) {
 }
 //#endregion
 //#region src/config-editor.tsx
-const join$12 = (...values) => values.filter(Boolean).join(" ");
 /**
 * Experimental native configuration editor. Its Wabou-owned props deliberately
 * hide the editor-core implementation so the backend can evolve independently.
@@ -105,13 +108,12 @@ function ConfigEditor(props) {
 	return createComponent(CodeEditor, mergeProps(props, {
 		language: "json",
 		get ["class"]() {
-			return join$12("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
+			return join("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
 		}
 	}));
 }
 //#endregion
 //#region src/date-picker.tsx
-const join$11 = (...values) => values.filter(Boolean).join(" ");
 function dayOfWeek(value) {
 	return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
 }
@@ -329,7 +331,7 @@ function Calendar(props) {
 									get disabled() {
 										return disabled();
 									},
-									class: (state) => join$11("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
+									class: (state) => join("w-8 h-8 rounded-md items-center justify-center text-sm", selected() ? "bg-accent text-on-accent" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-primary", outside() && "text-muted"),
 									get style() {
 										return { opacity: disabled() ? .35 : 1 };
 									},
@@ -410,7 +412,7 @@ function DatePicker(props) {
 				return props.disabled;
 			},
 			get ["class"]() {
-				return join$11("w-72 h-9 px-3 justify-start gap-2 rounded-md border border-strong bg-input text-sm", props.class);
+				return join("w-72 h-9 px-3 justify-start gap-2 rounded-md border border-strong bg-input text-sm", props.class);
 			},
 			get children() {
 				return [createComponent(Icon, {
@@ -442,7 +444,6 @@ function DatePicker(props) {
 }
 //#endregion
 //#region src/dialog.tsx
-const join$10 = (...values) => values.filter(Boolean).join(" ");
 function Dialog(props) {
 	return createComponent(Modal, mergeProps(props, {
 		get backdropClass() {
@@ -455,14 +456,14 @@ function Dialog(props) {
 			};
 		},
 		get contentClass() {
-			return join$10("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-6 shadow-lg", props.contentClass);
+			return join("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-6 shadow-lg", props.contentClass);
 		}
 	}));
 }
 function DialogHeader(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$10("flex flex-col gap-1", props.class);
+			return join("flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -472,7 +473,7 @@ function DialogHeader(props) {
 function DialogFooter(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$10("flex items-center justify-end gap-2", props.class);
+			return join("flex items-center justify-end gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -482,7 +483,7 @@ function DialogFooter(props) {
 function DialogTitle(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$10("text-lg font-semibold text-primary", props.class);
+			return join("text-lg font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -492,7 +493,7 @@ function DialogTitle(props) {
 function DialogDescription(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$10("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+			return join("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -501,7 +502,6 @@ function DialogDescription(props) {
 }
 //#endregion
 //#region src/disclosure.tsx
-const join$9 = (...values) => values.filter(Boolean).join(" ");
 function DisclosureIndicator(props) {
 	const rotation = createTransition(() => props.open() ? Math.PI : 0, {
 		duration: .2,
@@ -547,7 +547,7 @@ function Collapsible(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$9("flex flex-col", props.class);
+					return join("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -573,7 +573,7 @@ function CollapsibleTrigger(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$9("w-full flex items-center justify-between gap-3", props.class);
+					return join("w-full flex items-center justify-between gap-3", props.class);
 				},
 				get children() {
 					return [memo(() => {
@@ -643,7 +643,7 @@ function Accordion(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$9("flex flex-col", props.class);
+					return join("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
@@ -663,7 +663,7 @@ function AccordionItem(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$9("flex flex-col border-b border-subtle", props.class);
+					return join("flex flex-col border-b border-subtle", props.class);
 				},
 				get children() {
 					return props.children;
@@ -689,7 +689,7 @@ function AccordionTrigger(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$9("w-full py-4 flex items-center justify-between gap-4", props.class);
+					return join("w-full py-4 flex items-center justify-between gap-4", props.class);
 				},
 				get children() {
 					return [createComponent(Text, {
@@ -719,7 +719,7 @@ function AccordionContent(props) {
 			return root.reducedMotion();
 		},
 		get contentClass() {
-			return join$9("pb-4", props.class);
+			return join("pb-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -728,12 +728,11 @@ function AccordionContent(props) {
 }
 //#endregion
 //#region src/display.tsx
-const join$8 = (...values) => values.filter(Boolean).join(" ");
 function Skeleton(props) {
 	return createComponent(Pulse, {
 		"aria-hidden": "true",
 		get ["class"]() {
-			return join$8("rounded-md bg-control", props.class);
+			return join("rounded-md bg-control", props.class);
 		},
 		from: .45,
 		to: .85,
@@ -747,7 +746,7 @@ function Spinner(props) {
 			return props.label ?? "Loading";
 		},
 		get ["class"]() {
-			return join$8("w-4 h-4 flex-none text-accent", props.class);
+			return join("w-4 h-4 flex-none text-accent", props.class);
 		},
 		duration: .9,
 		get children() {
@@ -780,7 +779,7 @@ function Spinner(props) {
 function Kbd(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$8("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
+			return join("h-5 min-w-5 px-1 py-0.5 flex-none text-center rounded bg-control text-xs font-medium text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -790,7 +789,7 @@ function Kbd(props) {
 function KbdGroup(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$8("inline-flex items-center gap-1", props.class);
+			return join("inline-flex items-center gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -799,12 +798,11 @@ function KbdGroup(props) {
 }
 //#endregion
 //#region src/forms.tsx
-const join$7 = (...values) => values.filter(Boolean).join(" ");
 function Field(props) {
 	const layout = () => match(props.orientation ?? "vertical").with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive();
 	return createComponent(View, {
 		get ["class"]() {
-			return join$7("w-full flex", layout(), props.invalid && "text-danger-primary", props.class);
+			return join("w-full flex", layout(), props.invalid && "text-danger-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -814,7 +812,7 @@ function Field(props) {
 function FieldGroup(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$7("flex flex-col gap-5", props.class);
+			return join("flex flex-col gap-5", props.class);
 		},
 		get children() {
 			return props.children;
@@ -824,7 +822,7 @@ function FieldGroup(props) {
 function FieldLabel(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$7("text-sm font-medium text-primary", props.class);
+			return join("text-sm font-medium text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -834,7 +832,7 @@ function FieldLabel(props) {
 function FieldContent(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$7("min-w-0 flex-1 flex flex-col gap-1", props.class);
+			return join("min-w-0 flex-1 flex flex-col gap-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -844,7 +842,7 @@ function FieldContent(props) {
 function FieldDescription(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$7("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
+			return join("w-full min-w-0 whitespace-normal text-xs text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -855,7 +853,7 @@ function FieldError(props) {
 	return createComponent(Text, {
 		role: "alert",
 		get ["class"]() {
-			return join$7("w-full min-w-0 whitespace-normal text-xs text-danger-primary", props.class);
+			return join("w-full min-w-0 whitespace-normal text-xs text-danger-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -868,7 +866,7 @@ function InputGroup(props) {
 		return focus.bindings;
 	}, {
 		get ["class"]() {
-			return join$7("w-full h-9 flex items-center rounded-md border bg-input", focus.focusWithin() ? "border-focus" : "border-strong", props.class);
+			return join("w-full h-9 flex items-center rounded-md border bg-input", focus.focusWithin() ? "border-focus" : "border-strong", props.class);
 		},
 		get children() {
 			return props.children;
@@ -877,13 +875,13 @@ function InputGroup(props) {
 }
 function InputGroupInput(props) {
 	return createComponent(Input, mergeProps(props, { get ["class"]() {
-		return join$7("flex-1 min-w-0 border-transparent bg-transparent", props.class);
+		return join("flex-1 min-w-0 border-transparent bg-transparent", props.class);
 	} }));
 }
 function InputGroupText(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$7("flex-none px-3 text-sm text-muted", props.class);
+			return join("flex-none px-3 text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -899,22 +897,21 @@ function InputGroupButton(props) {
 			return props.variant ?? "ghost";
 		},
 		get ["class"]() {
-			return join$7("mx-1", props.class);
+			return join("mx-1", props.class);
 		}
 	}));
 }
 function InputGroupTextArea(props) {
 	return createComponent(TextArea$1, mergeProps(props, { get ["class"]() {
-		return join$7("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
+		return join("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
 	} }));
 }
 //#endregion
 //#region src/layout.tsx
-const join$6 = (...values) => values.filter(Boolean).join(" ");
 function Empty(props) {
 	return createComponent(Column, {
 		get ["class"]() {
-			return join$6("w-full min-h-64 p-8 items-center justify-center gap-5 rounded-xl border border-subtle bg-surface", props.class);
+			return join("w-full min-h-64 p-8 items-center justify-center gap-5 rounded-xl border border-subtle bg-surface", props.class);
 		},
 		get children() {
 			return props.children;
@@ -924,7 +921,7 @@ function Empty(props) {
 function EmptyHeader(props) {
 	return createComponent(Column, {
 		get ["class"]() {
-			return join$6("max-w-md items-center gap-2", props.class);
+			return join("max-w-md items-center gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -934,7 +931,7 @@ function EmptyHeader(props) {
 function EmptyMedia(props) {
 	return createComponent(Center, {
 		get ["class"]() {
-			return join$6("w-12 h-12 flex-none rounded-lg bg-control text-secondary", props.class);
+			return join("w-12 h-12 flex-none rounded-lg bg-control text-secondary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -944,7 +941,7 @@ function EmptyMedia(props) {
 function EmptyTitle(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$6("text-base font-semibold text-primary", props.class);
+			return join("text-base font-semibold text-primary", props.class);
 		},
 		get children() {
 			return props.children;
@@ -954,7 +951,7 @@ function EmptyTitle(props) {
 function EmptyDescription(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$6("w-full min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
+			return join("w-full min-w-0 whitespace-normal text-center text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -964,7 +961,7 @@ function EmptyDescription(props) {
 function EmptyContent(props) {
 	return createComponent(View, {
 		get ["class"]() {
-			return join$6("flex items-center gap-2", props.class);
+			return join("flex items-center gap-2", props.class);
 		},
 		get children() {
 			return props.children;
@@ -976,7 +973,7 @@ function ButtonGroup(props) {
 	return createComponent(View, {
 		role: "group",
 		get ["class"]() {
-			return join$6("flex gap-1", layout(), props.class);
+			return join("flex gap-1", layout(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -986,7 +983,7 @@ function ButtonGroup(props) {
 function ButtonGroupText(props) {
 	return createComponent(Text, {
 		get ["class"]() {
-			return join$6("px-2 text-sm text-muted", props.class);
+			return join("px-2 text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -995,7 +992,6 @@ function ButtonGroupText(props) {
 }
 //#endregion
 //#region src/select.tsx
-const join$5 = (...values) => values.filter(Boolean).join(" ");
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
@@ -1049,7 +1045,7 @@ function Select(props) {
 		},
 		placement: "bottom-start",
 		get contentClass() {
-			return join$5("w-72 p-1 rounded-lg border border-subtle bg-surface shadow-lg", props.contentClass);
+			return join("w-72 p-1 rounded-lg border border-subtle bg-surface shadow-lg", props.contentClass);
 		},
 		trigger: (popover) => createComponent(Button$1, {
 			unstyled: true,
@@ -1069,7 +1065,7 @@ function Select(props) {
 				trigger = node;
 				popover.ref(node);
 			},
-			class: (state) => join$5("w-72 h-9 px-3 justify-between gap-3 rounded-md border bg-input text-sm", state.focused ? "border-focus" : "border-strong", props.class),
+			class: (state) => join("w-72 h-9 px-3 justify-between gap-3 rounded-md border bg-input text-sm", state.focused ? "border-focus" : "border-strong", props.class),
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
@@ -1081,7 +1077,7 @@ function Select(props) {
 			get children() {
 				return [createComponent(Text, {
 					get ["class"]() {
-						return join$5("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
+						return join("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
 					},
 					get children() {
 						return selected()?.label ?? props.placeholder ?? "Select an option";
@@ -1144,7 +1140,7 @@ function Select(props) {
 											return option().disabled;
 										},
 										get ["class"]() {
-											return join$5("w-full h-9 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+											return join("w-full h-9 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
 										},
 										get style() {
 											return { opacity: option().disabled ? .45 : 1 };
@@ -1189,7 +1185,6 @@ function Select(props) {
 }
 //#endregion
 //#region src/selection.tsx
-const join$4 = (...values) => values.filter(Boolean).join(" ");
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 function Checkbox(props) {
 	const state = createControllableState({
@@ -1229,14 +1224,14 @@ function Checkbox(props) {
 		get selected() {
 			return checked();
 		},
-		class: (buttonState) => join$4("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
+		class: (buttonState) => join("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
 		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
 		onClick: toggle,
 		get children() {
 			return [createComponent(Center, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join$4(SELECTION_INDICATOR_CLASS, "rounded text-xs font-bold", boxColors());
+					return join(SELECTION_INDICATOR_CLASS, "rounded text-xs font-bold", boxColors());
 				},
 				get children() {
 					return memo(() => {
@@ -1297,7 +1292,7 @@ function RadioGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join$4("flex flex-col gap-3", props.class);
+					return join("flex flex-col gap-3", props.class);
 				},
 				get children() {
 					return props.children;
@@ -1332,7 +1327,7 @@ function RadioGroupItem(props) {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (buttonState) => join$4("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
+		class: (buttonState) => join("min-h-7 px-1 items-center gap-2 rounded-md border border-transparent", buttonState.hovered && "bg-control-hover", buttonState.focused && "border-focus", props.class),
 		style: (buttonState) => ({ opacity: buttonState.disabled ? .45 : 1 }),
 		onClick: () => group.select(props.value),
 		onKeyDown: (event) => {
@@ -1342,7 +1337,7 @@ function RadioGroupItem(props) {
 			return [createComponent(Center, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join$4(SELECTION_INDICATOR_CLASS, "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
+					return join(SELECTION_INDICATOR_CLASS, "rounded-full bg-input", match(checked()).with(true, () => "border-accent").with(false, () => "border-strong").exhaustive());
 				},
 				get children() {
 					return memo(() => {
@@ -1392,7 +1387,7 @@ function Toggle(props) {
 		get ["aria-pressed"]() {
 			return pressed();
 		},
-		class: (state) => join$4("items-center justify-center rounded-md border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focused && "border-focus", props.class),
+		class: (state) => join("items-center justify-center rounded-md border font-medium", size(), colors(state), match(props.variant ?? "default").with("outline", () => "border-strong").with("default", () => "border-transparent").exhaustive(), state.focused && "border-focus", props.class),
 		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 		onClick: toggle,
 		get children() {
@@ -1433,7 +1428,7 @@ function ToggleGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join$4("flex flex-row items-center gap-1 rounded-lg bg-control p-1", props.class);
+					return join("flex flex-row items-center gap-1 rounded-lg bg-control p-1", props.class);
 				},
 				get children() {
 					return props.children;
@@ -1464,7 +1459,7 @@ function ToggleGroupItem(props) {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (state) => join$4("h-8 flex-1 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", selected() ? "bg-surface text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-muted", state.focused && "border-focus", props.class),
+		class: (state) => join("h-8 flex-1 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", selected() ? "bg-surface text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-muted", state.focused && "border-focus", props.class),
 		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 		onClick: () => group.select(props.value),
 		onKeyDown: (event) => {
@@ -1477,7 +1472,6 @@ function ToggleGroupItem(props) {
 }
 //#endregion
 //#region src/slider.tsx
-const join$3 = (...values) => values.filter(Boolean).join(" ");
 function Slider(props) {
 	const range = () => normalizeRange(props.min, props.max, props.step);
 	const min = () => range().min;
@@ -1548,7 +1542,7 @@ function Slider(props) {
 			return props.disabled ? -1 : 0;
 		},
 		get ["class"]() {
-			return join$3("h-7 relative flex items-center", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
+			return join("h-7 relative flex items-center", props.disabled ? "cursor-not-allowed" : "cursor-pointer", props.class);
 		},
 		onFocus: () => setFocused(true),
 		onBlur: () => {
@@ -1586,7 +1580,7 @@ function Slider(props) {
 			}), createComponent(View, {
 				"aria-hidden": "true",
 				get ["class"]() {
-					return join$3("w-5 h-5 absolute rounded-full border bg-surface", focused() || dragging() ? "border-focus" : "border-strong");
+					return join("w-5 h-5 absolute rounded-full border bg-surface", focused() || dragging() ? "border-focus" : "border-strong");
 				},
 				get style() {
 					return {
@@ -1600,7 +1594,6 @@ function Slider(props) {
 }
 //#endregion
 //#region src/tabs.tsx
-const join$2 = (...values) => values.filter(Boolean).join(" ");
 const orientationClass = (orientation, horizontal, vertical) => match(orientation).with("horizontal", () => horizontal).with("vertical", () => vertical).exhaustive();
 const TabsContext = createContext();
 function Tabs(props) {
@@ -1637,7 +1630,7 @@ function Tabs(props) {
 		get children() {
 			return createComponent(View, {
 				get ["class"]() {
-					return join$2("flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
+					return join("flex gap-3", orientationClass(context.orientation(), "flex-col", "flex-row"), props.class);
 				},
 				get children() {
 					return props.children;
@@ -1658,7 +1651,7 @@ function TabsList(props) {
 			return context.orientation();
 		},
 		get ["class"]() {
-			return join$2("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-1 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
+			return join("flex-none flex items-center gap-1", orientationClass(context.orientation(), "flex-row", "flex-col"), match(props.variant ?? "default").with("default", () => "p-1 rounded-lg bg-control").with("line", () => "bg-transparent").exhaustive(), props.class);
 		},
 		get children() {
 			return props.children;
@@ -1687,7 +1680,7 @@ function TabsTrigger(props) {
 			unregister?.();
 			unregister = context.register(props.value, node, () => props.disabled ?? false);
 		},
-		class: (state) => join$2("h-8 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
+		class: (state) => join("h-8 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium", match({
 			selected: selected(),
 			hovered: state.hovered
 		}).with({ selected: true }, () => "bg-surface text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focused && "border-focus", props.class),
@@ -1712,7 +1705,7 @@ function TabsContent(props) {
 	return context.value() === props.value ? createComponent(View, {
 		role: "tabpanel",
 		get ["class"]() {
-			return join$2("flex-1", props.class);
+			return join("flex-1", props.class);
 		},
 		get children() {
 			return props.children;
@@ -1736,7 +1729,6 @@ function useComponentsTheme() {
 }
 //#endregion
 //#region src/title-bar.tsx
-const join$1 = (...values) => values.filter(Boolean).join(" ");
 const titleBarClass = "border-b border-subtle";
 const titleBarLayoutStyle = {
 	display: "flex",
@@ -1758,7 +1750,7 @@ const titleBarDragRegionLayoutStyle = {
 function TitleBar(props) {
 	return createComponent(View, mergeProps(props, {
 		get ["class"]() {
-			return join$1(titleBarClass, props.class);
+			return join(titleBarClass, props.class);
 		},
 		get style() {
 			return {
@@ -1789,7 +1781,6 @@ function TitleBarDragRegion(props) {
 }
 //#endregion
 //#region src/index.tsx
-const join = (...values) => values.filter(Boolean).join(" ");
 function buttonColors(variant, state) {
 	const focus = state.focused ? "border-focus" : "";
 	const passiveBorder = (variant) => match(variant).with("outline", () => "border-strong").with(P.union("default", "secondary", "ghost", "destructive"), () => "border-transparent").exhaustive();

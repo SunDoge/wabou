@@ -3,9 +3,7 @@ import {
   type CodeEditorProps,
 } from "@wabou/primitives";
 import type { JSX } from "solid-js";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 
 export interface ConfigEditorProps extends CodeEditorProps {
   class?: string;

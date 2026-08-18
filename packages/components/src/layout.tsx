@@ -1,8 +1,7 @@
 import { Center, Column, Text, View } from "@wabou/primitives";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 export function Empty(props: { children?: JSX.Element; class?: string }) {
   return (
     <Column

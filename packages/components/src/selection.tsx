@@ -21,9 +21,7 @@ import {
 import { match } from "ts-pattern";
 import check from "lucide-static/icons/check.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
-
-const join = (...values: Array<string | undefined | false>) =>
-  values.filter(Boolean).join(" ");
+import { join } from "./class-names";
 
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 
