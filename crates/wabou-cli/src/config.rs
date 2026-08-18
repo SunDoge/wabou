@@ -89,67 +89,78 @@ pub(super) struct PackageConfig {
     pub(super) formats: Vec<PackageFormat>,
 }
 
-pub(super) fn configured_resource_dir(workspace: &Path, app: &App) -> PathBuf {
-    if let Ok(source) = fs::read_to_string(app.root.join("wabou.toml"))
-        && let Ok(file) = toml::from_str::<WabouPackageFile>(&source)
-        && let Some(build) = file.build
-    {
-        return app.root.join(build.out_dir);
+fn load_config_file(app: &App) -> Result<Option<WabouPackageFile>> {
+    let path = app.root.join("wabou.toml");
+    let source = match fs::read_to_string(&path) {
+        Ok(source) => source,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(format!("cannot read configuration {}: {error}", path.display()).into());
+        }
+    };
+    toml::from_str(&source)
+        .map(Some)
+        .map_err(|error| format!("invalid {}: {error}", path.display()).into())
+}
+
+pub(super) fn configured_resource_dir(workspace: &Path, app: &App) -> Result<PathBuf> {
+    if let Some(build) = load_config_file(app)?.and_then(|file| file.build) {
+        return Ok(app.root.join(build.out_dir));
     }
     let dist = workspace.join("dist");
-    if workspace == app.root {
+    Ok(if workspace == app.root {
         dist.join("resources")
     } else {
         dist.join(&app.name).join("resources")
-    }
+    })
 }
 
-pub(super) fn profile_resource_dir(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
-    let configured = configured_resource_dir(workspace, app);
+pub(super) fn profile_resource_dir(
+    workspace: &Path,
+    app: &App,
+    profile: BuildProfile,
+) -> Result<PathBuf> {
+    let configured = configured_resource_dir(workspace, app)?;
     let name = configured.file_name().unwrap_or_default();
-    configured
+    Ok(configured
         .parent()
         .unwrap_or(&configured)
         .join(profile.as_str())
-        .join(name)
+        .join(name))
 }
 
-pub(super) fn distribution_root(workspace: &Path, app: &App) -> PathBuf {
-    let resources = configured_resource_dir(workspace, app);
-    resources.parent().unwrap_or(&resources).to_path_buf()
+pub(super) fn distribution_root(workspace: &Path, app: &App) -> Result<PathBuf> {
+    let resources = configured_resource_dir(workspace, app)?;
+    Ok(resources.parent().unwrap_or(&resources).to_path_buf())
 }
 
 pub(super) fn profile_application_dir(
     workspace: &Path,
     app: &App,
     profile: BuildProfile,
-) -> PathBuf {
-    distribution_root(workspace, app).join(profile.as_str())
+) -> Result<PathBuf> {
+    Ok(distribution_root(workspace, app)?.join(profile.as_str()))
 }
 
-pub(super) fn bundle_path(workspace: &Path, app: &App, profile: BuildProfile) -> PathBuf {
-    profile_resource_dir(workspace, app, profile).join("bundle.js")
+pub(super) fn bundle_path(workspace: &Path, app: &App, profile: BuildProfile) -> Result<PathBuf> {
+    Ok(profile_resource_dir(workspace, app, profile)?.join("bundle.js"))
 }
 
-pub(super) fn configured_source_map(app: &App, profile: BuildProfile) -> bool {
-    let setting = fs::read_to_string(app.root.join("wabou.toml"))
-        .ok()
-        .and_then(|source| toml::from_str::<WabouPackageFile>(&source).ok())
+pub(super) fn configured_source_map(app: &App, profile: BuildProfile) -> Result<bool> {
+    let setting = load_config_file(app)?
         .and_then(|file| file.build)
         .and_then(|build| build.source_map);
-    setting.unwrap_or(profile == BuildProfile::Debug)
+    Ok(setting.unwrap_or(profile == BuildProfile::Debug))
 }
 
 pub(super) fn load_package_config(app: &App) -> Result<PackageConfig> {
     let path = app.root.join("wabou.toml");
-    let source = fs::read_to_string(&path).map_err(|error| {
+    let file = load_config_file(app)?.ok_or_else(|| {
         format!(
-            "cannot read package configuration {}: {error}",
+            "cannot read package configuration {}: file not found",
             path.display()
         )
     })?;
-    let file: WabouPackageFile =
-        toml::from_str(&source).map_err(|error| format!("invalid {}: {error}", path.display()))?;
     if file.package.product_name.trim().is_empty() {
         return Err("package.product-name cannot be empty".into());
     }

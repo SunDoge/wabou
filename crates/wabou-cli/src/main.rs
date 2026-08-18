@@ -533,7 +533,7 @@ fn frontend_unlocked(
         )
         .env(
             "WABOU_OUT_DIR",
-            profile_resource_dir(workspace, app, profile),
+            profile_resource_dir(workspace, app, profile)?,
         );
     if !args.is_empty() {
         command.arg("--").args(args);
@@ -566,7 +566,7 @@ fn build(
     source_map_override: Option<bool>,
 ) -> Result<()> {
     let profile = BuildProfile::from_release(release);
-    let source_map = source_map_override.unwrap_or_else(|| configured_source_map(app, profile));
+    let source_map = source_map_override.unwrap_or(configured_source_map(app, profile)?);
     let manifest = manifest(app);
     let mut cargo = Command::new("cargo");
     cargo
@@ -601,7 +601,7 @@ fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Re
         return Err("wabou.toml must declare at least one package format".into());
     }
 
-    let package_root = distribution_root(workspace, app);
+    let package_root = distribution_root(workspace, app)?;
     let bundles = package_root.join("bundles");
     fs::create_dir_all(&bundles)?;
     let packager_config = package_root.join("packager.json");
@@ -643,7 +643,7 @@ fn stage_application(
     app: &App,
     config: &PackageConfig,
 ) -> Result<(PathBuf, String)> {
-    let package_root = distribution_root(workspace, app);
+    let package_root = distribution_root(workspace, app)?;
     let stage = package_root.join("stage");
     if stage.is_dir() {
         fs::remove_dir_all(&stage)?;
@@ -714,7 +714,7 @@ fn run(
     profile_trace: Option<&Path>,
 ) -> Result<()> {
     let profile = BuildProfile::from_release(release);
-    let source_map = source_map_override.unwrap_or_else(|| configured_source_map(app, profile));
+    let source_map = source_map_override.unwrap_or(configured_source_map(app, profile)?);
     ensure(
         frontend(workspace, app, "build", &[], profile, source_map)?,
         "Vite build",
@@ -736,7 +736,7 @@ fn run(
             .args(["--features", &app_profiling_feature(workspace, app)?])
             .env("WABOU_PROFILE_TRACE", path);
     }
-    cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app, profile));
+    cargo.env("WABOU_BUNDLE_PATH", bundle_path(workspace, app, profile)?);
     ensure(cargo.status()?, "Rust host")
 }
 
@@ -809,7 +809,7 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     host.current_dir(workspace)
         .env(
             "WABOU_BUNDLE_PATH",
-            bundle_path(workspace, app, BuildProfile::Debug),
+            bundle_path(workspace, app, BuildProfile::Debug)?,
         )
         .env("WABOU_TEST_SCRIPT", scenario_bundle)
         .env("WABOU_TEST_ARTIFACT_DIR", artifact_dir)
@@ -1045,7 +1045,7 @@ fn render(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
         )?,
         "Vite build",
     )?;
-    let path = bundle_path(workspace, app, BuildProfile::Debug);
+    let path = bundle_path(workspace, app, BuildProfile::Debug)?;
     let source = fs::read_to_string(&path).map_err(|error| {
         format!(
             "failed to read JavaScript bundle {}: {error}",
@@ -1224,7 +1224,7 @@ fn devtools_command(workspace: &Path) -> Result<Command> {
         let mut command = Command::new(executable);
         command.env(
             "WABOU_BUNDLE_PATH",
-            bundle_path(workspace, &app, BuildProfile::Debug),
+            bundle_path(workspace, &app, BuildProfile::Debug)?,
         );
         return Ok(command);
     }
@@ -1322,7 +1322,7 @@ fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> 
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
     let (source, binary) = artifact_from_metadata(&metadata, &manifest_path, release)?;
     let destination_dir =
-        profile_application_dir(workspace, app, BuildProfile::from_release(release));
+        profile_application_dir(workspace, app, BuildProfile::from_release(release))?;
     fs::create_dir_all(&destination_dir)?;
     let destination = destination_dir.join(&binary);
     fs::copy(&source, &destination).map_err(|error| {
@@ -2008,11 +2008,11 @@ out-dir = "dist/resources"
             entry: "ui/index.tsx".into(),
         };
         assert_eq!(
-            bundle_path(workspace, &app, BuildProfile::Debug),
+            bundle_path(workspace, &app, BuildProfile::Debug).unwrap(),
             Path::new("/workspace/dist/gallery/debug/resources/bundle.js")
         );
         assert_eq!(
-            bundle_path(workspace, &app, BuildProfile::Release),
+            bundle_path(workspace, &app, BuildProfile::Release).unwrap(),
             Path::new("/workspace/dist/gallery/release/resources/bundle.js")
         );
     }
@@ -2027,7 +2027,7 @@ out-dir = "dist/resources"
             entry: "ui/index.tsx".into(),
         };
         assert_eq!(
-            bundle_path(root, &app, BuildProfile::Debug),
+            bundle_path(root, &app, BuildProfile::Debug).unwrap(),
             Path::new("/workspace/warden-desktop/dist/debug/resources/bundle.js")
         );
     }
@@ -2169,7 +2169,7 @@ out-dir = "dist/resources"
             entry: "ui/index.tsx".into(),
         };
         assert_eq!(
-            bundle_path(&root, &app, BuildProfile::Release),
+            bundle_path(&root, &app, BuildProfile::Release).unwrap(),
             root.join("artifacts/release/ui/bundle.js")
         );
         fs::remove_dir_all(root).unwrap();
@@ -2189,15 +2189,37 @@ out-dir = "dist/resources"
             frontend: root.path().into(),
             entry: "ui/index.tsx".into(),
         };
-        assert!(configured_source_map(&app, BuildProfile::Debug));
-        assert!(!configured_source_map(&app, BuildProfile::Release));
+        assert!(configured_source_map(&app, BuildProfile::Debug).unwrap());
+        assert!(!configured_source_map(&app, BuildProfile::Release).unwrap());
 
         fs::write(
             root.path().join("wabou.toml"),
             "[package]\nproduct-name = \"App\"\nidentifier = \"dev.wabou.app\"\n\n[build]\nout-dir = \"dist/resources\"\nsource-map = true\n",
         )
         .unwrap();
-        assert!(configured_source_map(&app, BuildProfile::Release));
+        assert!(configured_source_map(&app, BuildProfile::Release).unwrap());
+    }
+
+    #[test]
+    fn invalid_application_config_does_not_silently_select_default_outputs() {
+        let root = tempfile::tempdir().unwrap();
+        fs::write(root.path().join("wabou.toml"), "[build\nout-dir = 42").unwrap();
+        let app = App {
+            name: "app".into(),
+            root: root.path().into(),
+            frontend: root.path().into(),
+            entry: "ui/index.tsx".into(),
+        };
+
+        let path_error = bundle_path(root.path(), &app, BuildProfile::Debug)
+            .unwrap_err()
+            .to_string();
+        let source_map_error = configured_source_map(&app, BuildProfile::Debug)
+            .unwrap_err()
+            .to_string();
+        assert!(path_error.contains("invalid"));
+        assert!(source_map_error.contains("invalid"));
+        assert!(path_error.contains("wabou.toml"));
     }
 
     #[test]
