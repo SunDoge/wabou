@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { writer } from "@wabou/solid-renderer";
 import { createRoot, flush } from "solid-js";
 import {
   createButton,
@@ -10,6 +11,7 @@ import {
   createTabs,
   NetworkImage,
   PasswordInput,
+  Svg,
   Text,
   TextArea,
   View,
@@ -302,6 +304,26 @@ describe("tabs primitive", () => {
 });
 
 describe("host primitives", () => {
+  test("authors primitive semantics in JavaScript", () => {
+    const roles: string[] = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    writer.setAttribute = (_id, name, value) => {
+      if (name === "role") roles.push(value);
+    };
+    try {
+      Text({});
+      Svg({ source: "<svg/>" });
+      NetworkImage({
+        url: "https://example.test/avatar.png",
+        format: "raster",
+        cache: "memory",
+      });
+    } finally {
+      writer.setAttribute = setAttribute;
+    }
+    expect(roles).toEqual(["label", "img", "img"]);
+  });
+
   test("create explicit view, text, image, and textarea host nodes", () =>
     createRoot((dispose) => {
       const view = View({}) as unknown as {

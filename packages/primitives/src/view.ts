@@ -5,7 +5,7 @@ import {
   spread,
 } from "@wabou/solid-renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
-import { omit, type JSX } from "solid-js";
+import { type JSX, omit } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/style";
 export { rotate2d, translate2d } from "@wabou/style";
@@ -123,6 +123,19 @@ function primitive(
   return node as unknown as JSX.Element;
 }
 
+function semanticPrimitive(
+  tag: "text" | "svg" | "img",
+  role: "label" | "img",
+  props: PrimitiveProps,
+) {
+  const node = createElement(tag);
+  // Primitive semantics are authored here in JavaScript. The native runtime
+  // projects explicit roles; it does not infer behavior from tag names.
+  spread(node, { role }, false);
+  spread(node, props, false);
+  return node as unknown as JSX.Element;
+}
+
 /** A layout container. Text content should be placed in a {@link Text}. */
 export function View(props: ViewProps): JSX.Element {
   return primitive("view", props);
@@ -135,12 +148,12 @@ export function View(props: ViewProps): JSX.Element {
  * participate in the parent layout as one item.
  */
 export function Text(props: TextProps): JSX.Element {
-  return primitive("text", props);
+  return semanticPrimitive("text", "label", props);
 }
 
 /** A static SVG asset rendered through the native usvg/Vello pipeline. */
 export function Svg(props: SvgProps): JSX.Element {
-  return primitive("svg", props);
+  return semanticPrimitive("svg", "img", props);
 }
 
 /** A theme-colored SVG icon with stable native sizing and semantics. */
@@ -179,13 +192,14 @@ export function Icon(props: IconProps): JSX.Element {
 
 /** A replaced image node rendered by the native host. */
 export function Image(props: ImageProps): JSX.Element {
-  return primitive("img", props);
+  return semanticPrimitive("img", "img", props);
 }
 
 /** An explicit network-backed image with bounded decoding and host caching. */
 export function NetworkImage(props: NetworkImageProps): JSX.Element {
   const rest = omit(props, "url", "format", "cache");
   const node = createElement("img");
+  spread(node, { role: "img" }, false);
   spread(node, rest, false);
   spread(
     node,

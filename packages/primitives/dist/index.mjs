@@ -335,6 +335,12 @@ function primitive(tag, props) {
 	spread(node, props, false);
 	return node;
 }
+function semanticPrimitive(tag, role, props) {
+	const node = createElement(tag);
+	spread(node, { role }, false);
+	spread(node, props, false);
+	return node;
+}
 /** A layout container. Text content should be placed in a {@link Text}. */
 function View(props) {
 	return primitive("view", props);
@@ -346,11 +352,11 @@ function View(props) {
 * participate in the parent layout as one item.
 */
 function Text(props) {
-	return primitive("text", props);
+	return semanticPrimitive("text", "label", props);
 }
 /** A static SVG asset rendered through the native usvg/Vello pipeline. */
 function Svg(props) {
-	return primitive("svg", props);
+	return semanticPrimitive("svg", "img", props);
 }
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 function Icon(props) {
@@ -381,12 +387,13 @@ function Icon(props) {
 }
 /** A replaced image node rendered by the native host. */
 function Image(props) {
-	return primitive("img", props);
+	return semanticPrimitive("img", "img", props);
 }
 /** An explicit network-backed image with bounded decoding and host caching. */
 function NetworkImage(props) {
 	const rest = omit(props, "url", "format", "cache");
 	const node = createElement("img");
+	spread(node, { role: "img" }, false);
 	spread(node, rest, false);
 	spread(node, { get source() {
 		return {

@@ -65,14 +65,6 @@ fn semantic_role(role: &str) -> SemanticRole {
     }
 }
 
-fn primitive_semantic_role(tag: &str) -> SemanticRole {
-    match tag {
-        "text" | "#text" => SemanticRole::Label,
-        "img" | "svg" => SemanticRole::Image,
-        _ => SemanticRole::Generic,
-    }
-}
-
 fn transformed_bounds(rect: [f32; 4], transform: Option<&Affine>) -> [f32; 4] {
     let Some(transform) = transform else {
         return rect;
@@ -458,9 +450,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             } else if declared.text.is_some() {
                 SemanticRole::Label
             } else {
-                widget_semantics
-                    .role
-                    .unwrap_or_else(|| primitive_semantic_role(tag))
+                widget_semantics.role.unwrap_or(SemanticRole::Generic)
             },
             label: label.or(widget_semantics.label),
             value,
@@ -516,7 +506,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn explicit_roles_map_to_native_semantics_without_tag_inference() {
+    fn explicit_roles_map_to_native_semantics() {
         for (name, expected) in [
             ("menu", SemanticRole::Menu),
             ("menuitem", SemanticRole::MenuItem),
@@ -526,8 +516,6 @@ mod tests {
         ] {
             assert_eq!(semantic_role(name), expected);
         }
-        assert_eq!(primitive_semantic_role("checkbox"), SemanticRole::Generic);
-        assert_eq!(primitive_semantic_role("text"), SemanticRole::Label);
-        assert_eq!(primitive_semantic_role("img"), SemanticRole::Image);
+        assert_eq!(semantic_role("unknown"), SemanticRole::Generic);
     }
 }
