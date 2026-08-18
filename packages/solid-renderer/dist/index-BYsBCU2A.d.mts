@@ -15,13 +15,13 @@ declare module "@solidjs/web" {
 declare namespace JSX$2 {
   type Element = Element$1 | Handle | readonly Element[];
   type CSSProperties = JSX$1.CSSProperties;
-  interface ElementClass {}
-  interface ElementAttributesProperty {}
+  type ElementClass = {};
+  type ElementAttributesProperty = {};
   interface ElementChildrenAttribute {
     children: {};
   }
-  interface IntrinsicElements extends JSX$1.IntrinsicElements, WabouIntrinsicElements {}
-  interface IntrinsicAttributes {}
+  interface IntrinsicElements extends WabouBuiltinIntrinsicElements, WabouIntrinsicElements {}
+  type IntrinsicAttributes = {};
 }
 declare module "solid-js" {
   namespace JSX {
@@ -32,7 +32,7 @@ declare module "solid-js" {
     interface ElementChildrenAttribute {
       children: {};
     }
-    interface IntrinsicElements extends WabouIntrinsicElements {}
+    interface IntrinsicElements extends WabouBuiltinIntrinsicElements, WabouIntrinsicElements {}
     interface IntrinsicAttributes {}
     type ButtonHTMLAttributes<T> = JSX$1.ButtonHTMLAttributes<T>;
     type InputHTMLAttributes<T> = JSX$1.InputHTMLAttributes<T>;
@@ -194,6 +194,36 @@ interface HostCapabilities {}
  * registry when exposing the underlying custom tag is useful.
  */
 interface WabouIntrinsicElements {}
+/**
+ * Deliberately small set of structural host tags understood by Wabou apps.
+ * This is not the HTML element registry: unsupported Web tags must be wrapped
+ * by an explicit component or registered as a custom native element.
+ */
+interface WabouBuiltinIntrinsicElements {
+  article: JSX$1.HTMLAttributes<HTMLElement>;
+  aside: JSX$1.HTMLAttributes<HTMLElement>;
+  button: JSX$1.ButtonHTMLAttributes<HTMLButtonElement>;
+  div: JSX$1.HTMLAttributes<HTMLDivElement>;
+  footer: JSX$1.HTMLAttributes<HTMLElement>;
+  h1: JSX$1.HTMLAttributes<HTMLHeadingElement>;
+  header: JSX$1.HTMLAttributes<HTMLElement>;
+  i: JSX$1.HTMLAttributes<HTMLElement>;
+  img: JSX$1.ImgHTMLAttributes<HTMLImageElement>;
+  input: Omit<JSX$1.InputHTMLAttributes<HTMLInputElement>, "type"> & {
+    type?: "text";
+  };
+  label: JSX$1.LabelHTMLAttributes<HTMLLabelElement>;
+  main: JSX$1.HTMLAttributes<HTMLElement>;
+  nav: JSX$1.HTMLAttributes<HTMLElement>;
+  ol: JSX$1.OlHTMLAttributes<HTMLOListElement>;
+  p: JSX$1.HTMLAttributes<HTMLParagraphElement>;
+  section: JSX$1.HTMLAttributes<HTMLElement>;
+  span: JSX$1.HTMLAttributes<HTMLSpanElement>;
+  strong: JSX$1.HTMLAttributes<HTMLElement>;
+  svg: JSX$1.SvgSVGAttributes<SVGSVGElement>;
+  path: JSX$1.PathSVGAttributes<SVGPathElement>;
+  circle: JSX$1.CircleSVGAttributes<SVGCircleElement>;
+}
 /** Props shared by low-level native JSX elements. */
 interface WabouElementProps {
   class?: string;
@@ -291,5 +321,5 @@ declare function mount(code: () => JSX$2.Element): () => void;
  */
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { Fragment as $, removeNode as A, useFps as B, isServer as C, ref as D, mount as E, spread as F, HostProviderProps as G, PortalProps as H, writer as I, useHost as J, LayoutTarget as K, VirtualList as L, runSweep as M, setProp as N, registerRoot as O, setTransform2D as P, LayoutSnapshot as Q, VirtualListProps as R, insertNode as S, mergeProps as T, Host as U, Portal as V, HostProvider as W, LayoutNodeMetrics as X, FrameStats as Y, LayoutRect as Z, dispatchEvent as _, NativeScrollbarStyle as a, getRequestEvent as b, WabouIntrinsicElements as c, acquireOverlayRoot as d, JSX$2 as et, applyRef as f, delegateEvents as g, createTextNode as h, HostCapabilities as i, render as j, releaseOverlayRoot as k, WabouNodeEvent as l, createElement as m, EVENT_CODE as n, jsxDEV as nt, OP as o, createComponent$1 as p, defaultHost as q, Handle as r, jsxs as rt, WabouElementProps as s, Dynamic as t, jsx as tt, Writer$1 as u, effect as v, memo as w, insert as x, getMountRoot as y, createFps as z };
-//# sourceMappingURL=index-vhppgN5b.d.mts.map
+export { LayoutSnapshot as $, releaseOverlayRoot as A, createFps as B, insertNode as C, mount as D, mergeProps as E, setTransform2D as F, HostProvider as G, Portal as H, spread as I, defaultHost as J, HostProviderProps as K, writer as L, render as M, runSweep as N, ref as O, setProp as P, LayoutRect as Q, VirtualList as R, insert as S, memo as T, PortalProps as U, useFps as V, Host as W, FrameStats as X, useHost as Y, LayoutNodeMetrics as Z, delegateEvents as _, NativeScrollbarStyle as a, getMountRoot as b, WabouElementProps as c, Writer$1 as d, Fragment as et, acquireOverlayRoot as f, createTextNode as g, createElement as h, HostCapabilities as i, jsxs as it, removeNode as j, registerRoot as k, WabouIntrinsicElements as l, createComponent$1 as m, EVENT_CODE as n, jsx as nt, OP as o, applyRef as p, LayoutTarget as q, Handle as r, jsxDEV as rt, WabouBuiltinIntrinsicElements as s, Dynamic as t, JSX$2 as tt, WabouNodeEvent as u, dispatchEvent as v, isServer as w, getRequestEvent as x, effect as y, VirtualListProps as z };
+//# sourceMappingURL=index-BYsBCU2A.d.mts.map

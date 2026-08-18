@@ -1,7 +1,8 @@
-import type { Element as SolidElement } from "solid-js";
 import type { JSX as WebJSX } from "@solidjs/web";
+import type { Element as SolidElement } from "solid-js";
 import type {
   Handle,
+  WabouBuiltinIntrinsicElements,
   WabouElementProps,
   WabouIntrinsicElements,
 } from "./index";
@@ -20,16 +21,16 @@ export namespace JSX {
   export type Element = SolidElement | Handle | readonly Element[];
   export type CSSProperties = WebJSX.CSSProperties;
 
-  export interface ElementClass {}
-  export interface ElementAttributesProperty {}
+  export type ElementClass = {};
+  export type ElementAttributesProperty = {};
   export interface ElementChildrenAttribute {
     children: {};
   }
 
   export interface IntrinsicElements
-    extends WebJSX.IntrinsicElements,
+    extends WabouBuiltinIntrinsicElements,
       WabouIntrinsicElements {}
-  export interface IntrinsicAttributes {}
+  export type IntrinsicAttributes = {};
 }
 
 // Keep source compatibility for packages that import `JSX` from `solid-js`.
@@ -42,7 +43,9 @@ declare module "solid-js" {
     interface ElementChildrenAttribute {
       children: {};
     }
-    interface IntrinsicElements extends WabouIntrinsicElements {}
+    interface IntrinsicElements
+      extends WabouBuiltinIntrinsicElements,
+        WabouIntrinsicElements {}
     interface IntrinsicAttributes {}
     type ButtonHTMLAttributes<T> = WebJSX.ButtonHTMLAttributes<T>;
     type InputHTMLAttributes<T> = WebJSX.InputHTMLAttributes<T>;

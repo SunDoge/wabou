@@ -12,6 +12,7 @@
 // where moduleName is this package. So we eagerly build ONE renderer at module
 // load and re-export its methods as named exports below.
 
+import type { JSX as WebJSX } from "@solidjs/web";
 import { EVENT_CODE, type EventType, OP, Writer } from "@wabou/protocol";
 import {
   type Affine2D,
@@ -44,6 +45,37 @@ export interface HostCapabilities {}
  */
 // biome-ignore lint/suspicious/noEmptyInterface: declaration merging requires an interface.
 export interface WabouIntrinsicElements {}
+
+/**
+ * Deliberately small set of structural host tags understood by Wabou apps.
+ * This is not the HTML element registry: unsupported Web tags must be wrapped
+ * by an explicit component or registered as a custom native element.
+ */
+export interface WabouBuiltinIntrinsicElements {
+  article: WebJSX.HTMLAttributes<HTMLElement>;
+  aside: WebJSX.HTMLAttributes<HTMLElement>;
+  button: WebJSX.ButtonHTMLAttributes<HTMLButtonElement>;
+  div: WebJSX.HTMLAttributes<HTMLDivElement>;
+  footer: WebJSX.HTMLAttributes<HTMLElement>;
+  h1: WebJSX.HTMLAttributes<HTMLHeadingElement>;
+  header: WebJSX.HTMLAttributes<HTMLElement>;
+  i: WebJSX.HTMLAttributes<HTMLElement>;
+  img: WebJSX.ImgHTMLAttributes<HTMLImageElement>;
+  input: Omit<WebJSX.InputHTMLAttributes<HTMLInputElement>, "type"> & {
+    type?: "text";
+  };
+  label: WebJSX.LabelHTMLAttributes<HTMLLabelElement>;
+  main: WebJSX.HTMLAttributes<HTMLElement>;
+  nav: WebJSX.HTMLAttributes<HTMLElement>;
+  ol: WebJSX.OlHTMLAttributes<HTMLOListElement>;
+  p: WebJSX.HTMLAttributes<HTMLParagraphElement>;
+  section: WebJSX.HTMLAttributes<HTMLElement>;
+  span: WebJSX.HTMLAttributes<HTMLSpanElement>;
+  strong: WebJSX.HTMLAttributes<HTMLElement>;
+  svg: WebJSX.SvgSVGAttributes<SVGSVGElement>;
+  path: WebJSX.PathSVGAttributes<SVGPathElement>;
+  circle: WebJSX.CircleSVGAttributes<SVGCircleElement>;
+}
 
 /** Props shared by low-level native JSX elements. */
 export interface WabouElementProps {
