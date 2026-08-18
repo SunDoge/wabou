@@ -718,18 +718,18 @@ impl Applier {
             let mut paint = DeclaredPaint::default();
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
-            let tag_name = decl.tag.and_then(|tag| atoms.resolve(tag));
-            let layout_default = decl.attrs.iter().find_map(|(name, value)| {
-                (atoms.resolve(*name) == Some("layoutDefault")).then(|| value.as_ref())
-            });
+            let host_contract = |wanted: &str| {
+                decl.attrs.iter().find_map(|(name, value)| {
+                    (atoms.resolve(*name) == Some(wanted)).then(|| value.as_ref())
+                })
+            };
+            let layout_default = host_contract("layoutDefault");
             if layout_default == Some("block") {
                 layout.display = taffy::Display::Block;
             }
-            // Wabou's explicit Text primitive is a single-line layout leaf by
-            // default, not an HTML inline formatting context. Authored class
-            // and inline declarations below may still opt into wrapping and
-            // flex shrinking explicitly.
-            if tag_name == Some("text") {
+            // JS primitives author host defaults. Authored class and inline
+            // declarations below may still opt into wrapping and shrinking.
+            if host_contract("textLayout") == Some("singleLine") {
                 layout.flex_shrink = 0.0;
                 paint.wrap_text = Some(false);
             }

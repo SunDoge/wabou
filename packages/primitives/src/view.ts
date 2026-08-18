@@ -176,7 +176,15 @@ export function View(props: ViewProps): JSX.Element {
 export function Text(props: TextProps): JSX.Element {
   const node = createElement("text");
   spread(node, props, false);
-  spread(node, { role: props.role ?? "label", textFlow: "container" }, false);
+  spread(
+    node,
+    {
+      role: props.role ?? "label",
+      textFlow: "container",
+      textLayout: "singleLine",
+    },
+    false,
+  );
   return node as unknown as JSX.Element;
 }
 

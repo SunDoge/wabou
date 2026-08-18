@@ -318,7 +318,7 @@ describe("host primitives", () => {
     const semantics: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     writer.setAttribute = (_id, name, value) => {
-      if (name === "role" || name === "textFlow") {
+      if (name === "role" || name === "textFlow" || name === "textLayout") {
         semantics.push([name, value]);
       }
     };
@@ -336,6 +336,7 @@ describe("host primitives", () => {
     expect(semantics).toEqual([
       ["role", "label"],
       ["textFlow", "container"],
+      ["textLayout", "singleLine"],
       ["role", "img"],
       ["role", "img"],
     ]);

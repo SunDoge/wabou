@@ -374,7 +374,8 @@ function Text(props) {
 	spread(node, props, false);
 	spread(node, {
 		role: props.role ?? "label",
-		textFlow: "container"
+		textFlow: "container",
+		textLayout: "singleLine"
 	}, false);
 	return node;
 }

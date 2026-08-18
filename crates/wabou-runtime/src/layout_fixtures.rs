@@ -85,12 +85,14 @@ impl Harness {
         // explicit primitive contracts rather than relying on Rust tag rules.
         let layout_default = self.intern("layoutDefault");
         let text_flow = self.intern("textFlow");
+        let text_layout = self.intern("textLayout");
         let text_tag = self.intern("text");
         for op in &mut ops {
             if let Op::CreateElement { tag, attrs, .. } = op {
                 attrs.push((layout_default, "block"));
                 if *tag == text_tag {
                     attrs.push((text_flow, "container"));
+                    attrs.push((text_layout, "singleLine"));
                 }
             }
         }

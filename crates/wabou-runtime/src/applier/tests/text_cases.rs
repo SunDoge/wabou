@@ -472,7 +472,11 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     let line_end =
         f64::from(origin[0] + applier.text_selection.selectable[&2].layout.width() + 10.0);
     applier.begin_text_selection(2, line_end, f64::from(origin[1] + 5.0), Modifiers::SHIFT);
-    assert_eq!(applier.selected_text().as_deref(), Some("selectable "));
+    assert_eq!(
+        applier.selected_text().as_deref(),
+        Some("selectable text"),
+        "the explicit single-line Text contract extends through the full run"
+    );
     assert!(
         applier.text_selection.last_click.is_none(),
         "Shift extension must not seed a later double click"

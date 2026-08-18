@@ -6,8 +6,40 @@ fn renderer_attrs(applier: &Applier, text_container: bool) -> Vec<(Atom, &'stati
     let mut attrs = vec![(atoms.intern("layoutDefault"), "block")];
     if text_container {
         attrs.push((atoms.intern("textFlow"), "container"));
+        attrs.push((atoms.intern("textLayout"), "singleLine"));
     }
     attrs
+}
+
+#[test]
+fn text_layout_defaults_require_an_explicit_js_contract() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (text, layout_default, text_layout) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("text"),
+            atoms.intern("layoutDefault"),
+            atoms.intern("textLayout"),
+        )
+    };
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: text,
+        attrs: vec![(layout_default, "block")],
+    });
+    let unconfigured = applier.computed_node_snapshot(2).unwrap();
+    assert!(unconfigured.wrap_text);
+    assert_ne!(unconfigured.layout.flex_shrink, 0.0);
+
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: text_layout,
+        value: "singleLine",
+    });
+    let configured = applier.computed_node_snapshot(2).unwrap();
+    assert!(!configured.wrap_text);
+    assert_eq!(configured.layout.flex_shrink, 0.0);
 }
 
 #[test]
