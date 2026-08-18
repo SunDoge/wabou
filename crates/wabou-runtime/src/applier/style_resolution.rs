@@ -428,7 +428,7 @@ impl Applier {
     /// Paint are host-provided and must not be overwritten by an empty
     /// `Declared` (which would reset the size to auto and collapse the tree).
     pub(super) fn recompute_node(&mut self, node: NodeId) {
-        if self.batching_styles {
+        if self.applying_frame {
             self.dirty_styles.insert(node);
             return;
         }

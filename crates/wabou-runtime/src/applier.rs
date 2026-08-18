@@ -378,9 +378,9 @@ pub struct Applier {
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
     effect_bridge: EffectBridge,
     wake_callback: Option<WakeCallback>,
-    /// Protocol frames commonly create a node and then set several properties
-    /// on it. Resolve style once at the frame boundary instead of after every operation.
-    batching_styles: bool,
+    /// Protocol frames commonly perform many related mutations. Resolve dirty
+    /// styles and project the logical tree into Taffy once at the frame boundary.
+    applying_frame: bool,
     dirty_styles: HashSet<NodeId>,
     /// Taffy layout and inherited paint are retained across scroll-only frames.
     layout_viewport: Option<(u32, u32)>,
@@ -486,7 +486,7 @@ impl Applier {
             pending_host_actions,
             effect_bridge,
             wake_callback: None,
-            batching_styles: false,
+            applying_frame: false,
             dirty_styles: HashSet::new(),
             layout_viewport: None,
             host_message_inbox,

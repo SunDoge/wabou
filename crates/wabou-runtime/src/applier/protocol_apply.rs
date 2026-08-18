@@ -23,6 +23,12 @@ fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
 }
 
 impl Applier {
+    fn project_structure_if_unbatched(&mut self) {
+        if !self.applying_frame {
+            self.rebuild_layout_boxes();
+        }
+    }
+
     fn inline_property(&mut self, atom: Atom) -> Option<InlineProperty> {
         if let Some(property) = self.style.inline_properties.get(&atom) {
             return Some(property.clone());
@@ -180,6 +186,7 @@ impl Applier {
             .host_action_routes
             .retain(|_, (widget_node, _)| *widget_node != node);
         self.invalidation.insert(InvalidationFlags::LAYOUT);
+        self.project_structure_if_unbatched();
     }
 
     fn set_attribute(&mut self, id: u32, name: Atom, value: &str) {
@@ -392,11 +399,11 @@ impl Applier {
 
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
-        self.batching_styles = true;
+        self.applying_frame = true;
         for op in &frame.ops {
             self.apply_op(op);
         }
-        self.batching_styles = false;
+        self.applying_frame = false;
         let dirty = std::mem::take(&mut self.dirty_styles);
         for node in dirty {
             self.recompute_node_now(node);
@@ -444,6 +451,7 @@ impl Applier {
                 };
                 // Nodes are styled when created, before they have a parent.
                 self.recompute_subtree(child);
+                self.project_structure_if_unbatched();
             }
             Op::InsertBefore {
                 parent,
@@ -454,10 +462,12 @@ impl Applier {
                     return;
                 };
                 self.recompute_subtree(child);
+                self.project_structure_if_unbatched();
             }
             Op::RemoveChild { parent, child } => {
                 if self.node_store.remove_child(*parent, *child) {
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
+                    self.project_structure_if_unbatched();
                 }
             }
             Op::SetText { id, text } => {

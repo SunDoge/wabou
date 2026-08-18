@@ -86,6 +86,37 @@ fn graphic_sources_are_stored_as_typed_state() {
 }
 
 #[test]
+fn large_sibling_frame_projects_the_complete_logical_tree() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let view = applier.atoms.borrow_mut().intern("view");
+    let mut ops = Vec::with_capacity(8192);
+    for id in 2..=4097 {
+        ops.push(Op::CreateElement { id, tag: view });
+        ops.push(Op::AppendChild {
+            parent: 1,
+            child: id,
+        });
+    }
+
+    applier.apply_frame(&Frame { seq: 1, ops });
+
+    assert_eq!(
+        applier.node_store.children[&applier.node_store.root].len(),
+        4096
+    );
+    assert_eq!(
+        applier
+            .node_store
+            .tree
+            .children(applier.node_store.root)
+            .unwrap()
+            .len(),
+        4096
+    );
+}
+
+#[test]
 fn app_directory_effect_uses_host_configuration_only() {
     let directories = wabou_shell::AppDirectories::resolve(
         &wabou_shell::AppDirectoryConfig::new("dev", "Wabou", "Effect Test"),

@@ -65,8 +65,6 @@ impl NodeStore {
         );
         self.children.entry(parent).or_default().push(child);
         self.logical_parent.insert(child, parent);
-        let children = self.children[&parent].clone();
-        let _ = self.tree.set_children(parent, &children);
         Some(child)
     }
 
@@ -95,8 +93,6 @@ impl NodeStore {
         let children = self.children.entry(parent).or_default();
         children.insert(index.min(children.len()), child);
         self.logical_parent.insert(child, parent);
-        let children = children.clone();
-        let _ = self.tree.set_children(parent, &children);
         Some(child)
     }
 
@@ -115,8 +111,6 @@ impl NodeStore {
         if children.len() == previous_len {
             return false;
         }
-        let projected = children.clone();
-        let _ = self.tree.set_children(parent, &projected);
         if self.logical_parent.get(&child) == Some(&parent) {
             self.logical_parent.remove(&child);
         }
@@ -129,8 +123,6 @@ impl NodeStore {
             && let Some(children) = self.children.get_mut(&parent)
         {
             children.retain(|child| *child != node);
-            let projected = children.clone();
-            let _ = self.tree.set_children(parent, &projected);
         }
         self.node_to_solid.remove(&node);
         self.declared.remove(&node);
@@ -173,5 +165,17 @@ mod tests {
         assert_eq!(store.remove(3), Some(second));
         assert_eq!(store.children[&store.root], [first]);
         assert!(!store.node_to_solid.contains_key(&second));
+    }
+
+    #[test]
+    fn batches_large_sibling_lists_until_layout_projection() {
+        let mut store = NodeStore::new();
+        for solid_id in 2..=4097 {
+            store.create_leaf(solid_id, Declared::default());
+            assert!(store.append(1, solid_id).is_some());
+        }
+
+        assert_eq!(store.children[&store.root].len(), 4096);
+        assert!(store.tree.children(store.root).unwrap().is_empty());
     }
 }
