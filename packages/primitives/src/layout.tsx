@@ -1,8 +1,6 @@
 import type { JSX } from "solid-js";
+import { join } from "./class-names";
 import { View, type ViewProps } from "./view";
-
-const join = (...values: Array<string | undefined>) =>
-  values.filter(Boolean).join(" ");
 
 export interface LayoutProps extends ViewProps {
   class?: string;

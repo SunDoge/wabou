@@ -482,24 +482,28 @@ function CollapsiblePresence(props) {
 	});
 }
 //#endregion
+//#region src/class-names.ts
+function join(...values) {
+	return values.filter(Boolean).join(" ");
+}
+//#endregion
 //#region src/layout.tsx
-const join$1 = (...values) => values.filter(Boolean).join(" ");
 /** Horizontal flex container. No wrapper node is added beyond the host View. */
 function Row(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join$1("flex flex-row", props.class);
+		return join("flex flex-row", props.class);
 	} }));
 }
 /** Vertical flex container. No wrapper node is added beyond the host View. */
 function Column(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join$1("flex flex-col", props.class);
+		return join("flex flex-col", props.class);
 	} }));
 }
 /** Flex container that centers children on both axes. */
 function Center(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join$1("flex items-center justify-center", props.class);
+		return join("flex items-center justify-center", props.class);
 	} }));
 }
 //#endregion
@@ -1105,7 +1109,6 @@ function Popover(props) {
 }
 //#endregion
 //#region src/scroll-area.tsx
-const join = (...values) => values.filter(Boolean).join(" ");
 const scrollAreaViewportClass = (className) => join("min-h-0 overflow-y-auto", className);
 /**
 * Vertical native scroll viewport with explicit sizing.

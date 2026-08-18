@@ -1,9 +1,7 @@
 import type { Handle, NativeScrollbarStyle } from "@wabou/solid-renderer";
 import type { JSX } from "solid-js";
+import { join } from "./class-names";
 import { View, type WabouStyle } from "./view";
-
-const join = (...values: Array<string | undefined>) =>
-  values.filter(Boolean).join(" ");
 
 export const scrollAreaViewportClass = (className?: string) =>
   join("min-h-0 overflow-y-auto", className);
