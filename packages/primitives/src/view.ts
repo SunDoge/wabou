@@ -81,13 +81,15 @@ export interface NetworkImageProps extends Omit<ImageProps, "source"> {
   onResourceError?: (event: { url: string; error: string }) => void;
 }
 
-export interface TextAreaProps extends Omit<PrimitiveProps, "children"> {
+export interface TextInputProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
   placeholder?: string;
   disabled?: boolean;
   readOnly?: boolean;
   onInput?: (event: { currentTarget: { value: string } }) => void;
 }
+
+export interface TextAreaProps extends TextInputProps {}
 
 export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
   /** Rust SecretStore slot. This is an identifier, never the secret value. */
@@ -114,6 +116,7 @@ function primitive(
     | "text"
     | "svg"
     | "img"
+    | "input"
     | "textarea"
     | "password-input"
     | "code-editor",
@@ -125,8 +128,8 @@ function primitive(
 }
 
 function editorPrimitive(
-  tag: "textarea" | "password-input" | "code-editor",
-  props: TextAreaProps | PasswordInputProps | CodeEditorProps,
+  tag: "input" | "textarea" | "password-input" | "code-editor",
+  props: TextInputProps | PasswordInputProps | CodeEditorProps,
 ) {
   // Keyboard policy belongs to the JS primitive. The widget trait only says
   // whether a native implementation can receive focus once JS requests it.
@@ -236,6 +239,11 @@ export function NetworkImage(props: NetworkImageProps): JSX.Element {
     false,
   );
   return node as unknown as JSX.Element;
+}
+
+/** A native single-line text editor with selection and scrolling. */
+export function TextInput(props: TextInputProps): JSX.Element {
+  return editorPrimitive("input", props);
 }
 
 /** A native multiline text editor with wrapping, selection, and scrolling. */

@@ -1,5 +1,4 @@
-import { Handle, WabouKeyEvent } from "@wabou/solid-renderer";
-import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProps, PasswordInputProps as PasswordInputProps$1, TextAreaProps as TextAreaProps$1, ViewProps, WabouStyle } from "@wabou/primitives";
+import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProps, PasswordInputProps as PasswordInputProps$1, TextAreaProps as TextAreaProps$1, TextInputProps, ViewProps, WabouStyle } from "@wabou/primitives";
 import { JSX, ParentProps } from "solid-js";
 import { CalendarDate } from "@internationalized/date";
 //#region src/avatar.d.ts
@@ -460,20 +459,8 @@ declare function Alert(props: {
   variant?: "default" | "destructive";
   class?: string;
 }): JSX.Element;
-interface InputProps {
-  value?: string;
-  placeholder?: string;
-  disabled?: boolean;
-  readOnly?: boolean;
-  "aria-label"?: string;
+interface InputProps extends TextInputProps {
   class?: string;
-  ref?: (node: Handle) => void;
-  onInput?: (event: {
-    currentTarget: {
-      value: string;
-    };
-  }) => void;
-  onKeyDown?: (event: WabouKeyEvent) => void;
 }
 /** A plain-text input. Secrets must use {@link PasswordInput}. */
 declare function Input(props: InputProps): JSX.Element;

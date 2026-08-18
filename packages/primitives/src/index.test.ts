@@ -16,6 +16,7 @@ import {
   Svg,
   Text,
   TextArea,
+  TextInput,
   View,
 } from "./index";
 
@@ -342,6 +343,7 @@ describe("host primitives", () => {
       }
     };
     try {
+      TextInput({});
       TextArea({});
       PasswordInput({ secret: "test-secret", tabIndex: 4 });
       CodeEditor({ "aria-label": "Config", disabled: true });
@@ -352,13 +354,15 @@ describe("host primitives", () => {
       ["role", "textbox"],
       ["tabIndex", "0"],
       ["role", "textbox"],
+      ["tabIndex", "0"],
+      ["role", "textbox"],
       ["tabIndex", "4"],
       ["role", "textbox"],
       ["tabIndex", "-1"],
     ]);
   });
 
-  test("create explicit view, text, image, and textarea host nodes", () =>
+  test("create explicit view, text, image, and editor host nodes", () =>
     createRoot((dispose) => {
       const view = View({}) as unknown as {
         tag: string;
@@ -377,6 +381,9 @@ describe("host primitives", () => {
       const textarea = TextArea({ value: "two\nlines" }) as unknown as {
         tag: string;
       };
+      const input = TextInput({ value: "one line" }) as unknown as {
+        tag: string;
+      };
       const password = PasswordInput({
         secret: "master-password",
       }) as unknown as {
@@ -387,6 +394,7 @@ describe("host primitives", () => {
       expect(text.tag).toBe("text");
       expect(text.firstChild?.tag).toBe("#text");
       expect(image.tag).toBe("img");
+      expect(input.tag).toBe("input");
       expect(textarea.tag).toBe("textarea");
       expect(password.tag).toBe("password-input");
       dispose();

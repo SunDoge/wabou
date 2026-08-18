@@ -1,7 +1,7 @@
 // Wabou DevTools UI entry.
 import "@wabou/core";
 import "virtual:wabou-stylesheet";
-import { Button, Popover, Text } from "@wabou/primitives";
+import { Button, Popover, Text, TextInput } from "@wabou/primitives";
 import { mount, useHost } from "@wabou/core";
 import {
   createEffect,
@@ -204,7 +204,7 @@ function App() {
         <strong class="text-base text-white whitespace-nowrap">
           Wabou DevTools
         </strong>
-        <input
+        <TextInput
           class="flex-1 min-w-0 h-8 px-2 rounded border border-slate-600 bg-slate-950 text-sm text-slate-200"
           value={socket()}
           placeholder="Auto-discover, or enter /run/user/.../wabou-123.sock"
@@ -311,7 +311,7 @@ function App() {
       <main class="flex-1 min-h-0 flex overflow-hidden">
         <section class="w-80 flex-none min-h-0 flex flex-col border-r border-slate-700 bg-slate-900">
           <div class="flex-none p-2 border-b border-slate-700">
-            <input
+            <TextInput
               class="w-full h-8 px-2 rounded border border-slate-600 bg-slate-950 text-sm text-slate-200"
               value={query()}
               placeholder="Search tag, text or class"

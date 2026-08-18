@@ -143,6 +143,8 @@ export {
   Svg,
   type SvgProps,
   Text,
+  TextInput,
+  type TextInputProps,
   TextArea,
   type TextAreaProps,
   type TextProps,

@@ -75,7 +75,7 @@ interface NetworkImageProps extends Omit<ImageProps, "source"> {
     error: string;
   }) => void;
 }
-interface TextAreaProps extends Omit<PrimitiveProps, "children"> {
+interface TextInputProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
   placeholder?: string;
   disabled?: boolean;
@@ -86,6 +86,7 @@ interface TextAreaProps extends Omit<PrimitiveProps, "children"> {
     };
   }) => void;
 }
+interface TextAreaProps extends TextInputProps {}
 interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
   /** Rust SecretStore slot. This is an identifier, never the secret value. */
   secret: string;
@@ -127,6 +128,8 @@ declare function Icon(props: IconProps): JSX.Element;
 declare function Image(props: ImageProps): JSX.Element;
 /** An explicit network-backed image with bounded decoding and host caching. */
 declare function NetworkImage(props: NetworkImageProps): JSX.Element;
+/** A native single-line text editor with selection and scrolling. */
+declare function TextInput(props: TextInputProps): JSX.Element;
 /** A native multiline text editor with wrapping, selection, and scrolling. */
 declare function TextArea(props: TextAreaProps): JSX.Element;
 /** Native password editor whose value remains in a Rust SecretStore. */
@@ -675,5 +678,5 @@ interface TabKeyEvent {
  */
 declare function createTabs<T, K extends TabKey>(options: TabsOptions<T, K>): TabsResult<T, K>;
 //#endregion
-export { type ActiveResult, type AddTabOptions, type Affine2D, type AnimationFrameCallback, Button, type ButtonEvent, type ButtonKeyEvent, type ButtonPrimitive, type ButtonProps, type ButtonState, Center, CodeEditor, type CodeEditorProps, CollapsiblePresence, type CollapsiblePresenceProps, Column, type ComputeFloatingPositionOptions, type ComputeHostFloatingPositionOptions, type ComputePositionReturn, type CreateButtonOptions, type DismissEvent, type DismissKeyEvent, type FocusResult, type FocusTarget, type FocusWithinResult, type HoverResult, Icon, type IconProps, Image, type ImageProps, type ImageSource, type LayoutProps, type LayoutRect, Link, type LinkProps, type MeasuredSize, type MeasuredSizeOptions, type Middleware, Modal, type ModalControls, type ModalEvent, type ModalKeyEvent, type ModalOpenChangeReason, type ModalProps, type ModalTriggerProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, type NotificationControls, type NotificationDismissReason, type NotificationInput, type NotificationItem, type NotificationPlacement, type NotificationPriority, NotificationRegion, type NotificationRegionProps, type Notifications, type NotificationsOptions, type OverlayDismissReason, type OverlayLayer, type OverlayLayerOptions, type OverlayPlane, OverlayPlaneProvider, type OverlayPlaneProviderProps, PasswordInput, type PasswordInputProps, type Placement, Popover, type PopoverProps, type PopoverTriggerProps, type PositionPlatform, type Presence, type PresencePhase, type PressOptions, type PressResult, type PrimitiveProps, Pulse, type PulseProps, Row, ScrollArea, type ScrollAreaProps, type ScrollResetOptions, type ScrollResetTarget, type ShortcutDefinition, type ShortcutEvent, type ShortcutHandler, type ShortcutMap, type ShortcutsResult, Spin, type SpinProps, type Strategy, Svg, type SvgProps, type TabKey, type TabKeyEvent, type TabsOptions, type TabsResult, Text, TextArea, type TextAreaProps, type TextProps, View, type ViewProps, type WabouClassList, type WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
+export { type ActiveResult, type AddTabOptions, type Affine2D, type AnimationFrameCallback, Button, type ButtonEvent, type ButtonKeyEvent, type ButtonPrimitive, type ButtonProps, type ButtonState, Center, CodeEditor, type CodeEditorProps, CollapsiblePresence, type CollapsiblePresenceProps, Column, type ComputeFloatingPositionOptions, type ComputeHostFloatingPositionOptions, type ComputePositionReturn, type CreateButtonOptions, type DismissEvent, type DismissKeyEvent, type FocusResult, type FocusTarget, type FocusWithinResult, type HoverResult, Icon, type IconProps, Image, type ImageProps, type ImageSource, type LayoutProps, type LayoutRect, Link, type LinkProps, type MeasuredSize, type MeasuredSizeOptions, type Middleware, Modal, type ModalControls, type ModalEvent, type ModalKeyEvent, type ModalOpenChangeReason, type ModalProps, type ModalTriggerProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, type NotificationControls, type NotificationDismissReason, type NotificationInput, type NotificationItem, type NotificationPlacement, type NotificationPriority, NotificationRegion, type NotificationRegionProps, type Notifications, type NotificationsOptions, type OverlayDismissReason, type OverlayLayer, type OverlayLayerOptions, type OverlayPlane, OverlayPlaneProvider, type OverlayPlaneProviderProps, PasswordInput, type PasswordInputProps, type Placement, Popover, type PopoverProps, type PopoverTriggerProps, type PositionPlatform, type Presence, type PresencePhase, type PressOptions, type PressResult, type PrimitiveProps, Pulse, type PulseProps, Row, ScrollArea, type ScrollAreaProps, type ScrollResetOptions, type ScrollResetTarget, type ShortcutDefinition, type ShortcutEvent, type ShortcutHandler, type ShortcutMap, type ShortcutsResult, Spin, type SpinProps, type Strategy, Svg, type SvgProps, type TabKey, type TabKeyEvent, type TabsOptions, type TabsResult, Text, TextArea, type TextAreaProps, TextInput, type TextInputProps, type TextProps, View, type ViewProps, type WabouClassList, type WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
 //# sourceMappingURL=index.d.mts.map

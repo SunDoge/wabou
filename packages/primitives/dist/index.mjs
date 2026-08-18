@@ -417,6 +417,10 @@ function NetworkImage(props) {
 	} }, false);
 	return node;
 }
+/** A native single-line text editor with selection and scrolling. */
+function TextInput(props) {
+	return editorPrimitive("input", props);
+}
 /** A native multiline text editor with wrapping, selection, and scrolling. */
 function TextArea(props) {
 	return editorPrimitive("textarea", props);
@@ -1398,6 +1402,6 @@ function assertUniqueKeys(tabs, key) {
 	}
 }
 //#endregion
-export { Button, Center, CodeEditor, CollapsiblePresence, Column, Icon, Image, Link, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Pulse, Row, ScrollArea, Spin, Svg, Text, TextArea, View, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
+export { Button, Center, CodeEditor, CollapsiblePresence, Column, Icon, Image, Link, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Pulse, Row, ScrollArea, Spin, Svg, Text, TextArea, TextInput, View, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
 
 //# sourceMappingURL=index.mjs.map

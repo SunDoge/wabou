@@ -1,6 +1,6 @@
 // Story list page.
 
-import { Button, createHover, Icon, Text } from "@wabou/primitives";
+import { Button, createHover, Icon, Text, TextInput } from "@wabou/primitives";
 import { useNavigate } from "@wabou/router";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
@@ -74,10 +74,9 @@ export function StoryList(): JSX.Element {
           }}
         >
           <Icon source={search} size={15} />
-          <input
+          <TextInput
             class="w-full min-w-0 border-0 bg-transparent text-sm"
             style={{ color: palette().text }}
-            type="text"
             value={query()}
             placeholder="Search"
             aria-label="Filter stories"

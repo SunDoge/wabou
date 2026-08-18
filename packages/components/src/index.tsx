@@ -7,16 +7,14 @@ import {
   type PasswordInputProps as PrimitivePasswordInputProps,
   TextArea as PrimitiveTextArea,
   type TextAreaProps as PrimitiveTextAreaProps,
+  TextInput as PrimitiveTextInput,
+  type TextInputProps as PrimitiveTextInputProps,
   Text,
   translate2d,
   View,
   type WabouStyle,
 } from "@wabou/primitives";
-import {
-  createFps,
-  type Handle,
-  type WabouKeyEvent,
-} from "@wabou/solid-renderer";
+import { createFps } from "@wabou/solid-renderer";
 import {
   createEffect,
   createSignal,
@@ -381,22 +379,14 @@ export function Alert(props: {
   );
 }
 
-export interface InputProps {
-  value?: string;
-  placeholder?: string;
-  disabled?: boolean;
-  readOnly?: boolean;
-  "aria-label"?: string;
+export interface InputProps extends PrimitiveTextInputProps {
   class?: string;
-  ref?: (node: Handle) => void;
-  onInput?: (event: { currentTarget: { value: string } }) => void;
-  onKeyDown?: (event: WabouKeyEvent) => void;
 }
 
 /** A plain-text input. Secrets must use {@link PasswordInput}. */
 export function Input(props: InputProps): JSX.Element {
   return (
-    <input
+    <PrimitiveTextInput
       {...props}
       class={join(
         "h-9 w-full px-3 rounded-md border text-sm",

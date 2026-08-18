@@ -1,6 +1,6 @@
-import { applyRef, createComponent, createElement, createFps, insertNode, memo, mergeProps, spread } from "@wabou/solid-renderer";
+import { applyRef, createComponent, createElement, createFps, insertNode, memo, mergeProps } from "@wabou/solid-renderer";
 import { animate, createTransition } from "@wabou/animation";
-import { Button as Button$1, Center, CodeEditor, CollapsiblePresence, Column, Icon, Modal, NetworkImage, PasswordInput as PasswordInput$1, Popover, Pulse, ScrollArea, Spin, Text, TextArea as TextArea$1, View, createFocusWithin, createMeasuredSize, rotate2d, translate2d } from "@wabou/primitives";
+import { Button as Button$1, Center, CodeEditor, CollapsiblePresence, Column, Icon, Modal, NetworkImage, PasswordInput as PasswordInput$1, Popover, Pulse, ScrollArea, Spin, Text, TextArea as TextArea$1, TextInput, View, createFocusWithin, createMeasuredSize, rotate2d, translate2d } from "@wabou/primitives";
 import { For, createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, createUniqueId, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { P, match } from "ts-pattern";
 import { CalendarDate, endOfMonth, isSameDay, startOfMonth } from "@internationalized/date";
@@ -1970,11 +1970,9 @@ function Alert(props) {
 }
 /** A plain-text input. Secrets must use {@link PasswordInput}. */
 function Input(props) {
-	var _el$ = createElement("input");
-	spread(_el$, mergeProps(props, { get ["class"]() {
+	return createComponent(TextInput, mergeProps(props, { get ["class"]() {
 		return join("h-9 w-full px-3 rounded-md border text-sm", "border-strong bg-input text-primary", props.disabled && "opacity-50", props.class);
-	} }), false);
-	return _el$;
+	} }));
 }
 /** A native secret input whose value never crosses into JavaScript. */
 function PasswordInput(props) {
