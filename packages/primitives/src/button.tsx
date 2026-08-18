@@ -213,6 +213,7 @@ export function Button(props: ButtonProps): JSX.Element {
     // biome-ignore lint/a11y/useAriaPropsSupportedByRole: headless controls replace the default button role at runtime.
     <button
       disabled={disabled()}
+      aria-disabled={disabled()}
       tabIndex={resolveButtonTabIndex(disabled(), props.tabIndex)}
       role={props.role ?? "button"}
       ref={props.ref}

@@ -1078,13 +1078,14 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, role, tab_index, aria_disabled, aria_hidden, width, height) = {
+    let (view, button, role, tab_index, disabled, aria_disabled, aria_hidden, width, height) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
             atoms.intern("role"),
             atoms.intern("tabIndex"),
+            atoms.intern("disabled"),
             atoms.intern("aria-disabled"),
             atoms.intern("aria-hidden"),
             atoms.intern("width"),
@@ -1134,6 +1135,13 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
         name: tab_index,
         value: "0",
     });
+    // Native behavior props are not accessibility policy. JS must publish
+    // semantic state explicitly through the semantic contract.
+    applier.apply_op(&Op::SetAttribute {
+        id: 5,
+        name: disabled,
+        value: "",
+    });
     applier.apply_op(&Op::SetAttribute {
         id: 4,
         name: aria_hidden,
@@ -1146,13 +1154,17 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
     });
 
     let mut tcx = TextContext::new();
-    FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
+    let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
+    applier.rebuild_semantic_snapshot(&placed);
 
     assert_eq!(applier.input.focus_order, [3, 4]);
     assert!(!applier.input.focusable_targets.contains(&2));
     assert!(applier.input.focusable_targets.contains(&3));
     assert!(applier.input.focusable_targets.contains(&4));
     assert!(applier.input.focusable_targets.contains(&5));
+    let semantic = &applier.projections.semantic_snapshot.nodes;
+    assert!(semantic.iter().find(|node| node.id == 3).unwrap().disabled);
+    assert!(!semantic.iter().find(|node| node.id == 5).unwrap().disabled);
 }
 
 #[test]

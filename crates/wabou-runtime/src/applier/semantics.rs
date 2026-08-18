@@ -406,8 +406,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             children,
             controls,
             active_descendant,
-            disabled: attribute(declared, &atoms, "disabled").is_some()
-                || attribute(declared, &atoms, "aria-disabled").as_deref() == Some("true")
+            disabled: attribute(declared, &atoms, "aria-disabled").as_deref() == Some("true")
                 || widget_semantics.disabled.unwrap_or(false),
             states: SemanticStates {
                 checked: semantic_toggle(attribute(declared, &atoms, "aria-checked")),

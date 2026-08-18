@@ -142,6 +142,9 @@ function editorPrimitive(
       get tabIndex() {
         return props.disabled ? -1 : (props.tabIndex ?? 0);
       },
+      get "aria-disabled"() {
+        return props.disabled ?? false;
+      },
     }) as PrimitiveProps,
   );
 }

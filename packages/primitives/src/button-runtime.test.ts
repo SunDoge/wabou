@@ -7,7 +7,11 @@ test("published Button forwards native tab and accessibility state", () => {
   const attributes: Array<[string, string]> = [];
   const setAttribute = writer.setAttribute.bind(writer);
   writer.setAttribute = (_id, name, value) => {
-    if (name === "tabIndex" || name === "aria-current") {
+    if (
+      name === "tabIndex" ||
+      name === "aria-current" ||
+      name === "aria-disabled"
+    ) {
       attributes.push([name, value]);
     }
   };
@@ -15,6 +19,7 @@ test("published Button forwards native tab and accessibility state", () => {
     createRoot((dispose) => {
       createComponent(Button, {
         tabIndex: -1,
+        disabled: true,
         "aria-current": "date",
       });
       dispose();
@@ -23,6 +28,7 @@ test("published Button forwards native tab and accessibility state", () => {
     writer.setAttribute = setAttribute;
   }
   expect(attributes).toEqual([
+    ["aria-disabled", "true"],
     ["tabIndex", "-1"],
     ["aria-current", "date"],
   ]);

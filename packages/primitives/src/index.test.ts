@@ -338,7 +338,11 @@ describe("host primitives", () => {
     const attributes: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     writer.setAttribute = (_id, name, value) => {
-      if (name === "role" || name === "tabIndex") {
+      if (
+        name === "role" ||
+        name === "tabIndex" ||
+        name === "aria-disabled"
+      ) {
         attributes.push([name, value]);
       }
     };
@@ -353,12 +357,16 @@ describe("host primitives", () => {
     expect(attributes).toEqual([
       ["role", "textbox"],
       ["tabIndex", "0"],
+      ["aria-disabled", "false"],
       ["role", "textbox"],
       ["tabIndex", "0"],
+      ["aria-disabled", "false"],
       ["role", "textbox"],
       ["tabIndex", "4"],
+      ["aria-disabled", "false"],
       ["role", "textbox"],
       ["tabIndex", "-1"],
+      ["aria-disabled", "true"],
     ]);
   });
 

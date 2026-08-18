@@ -208,6 +208,9 @@ function Button(props) {
 		get disabled() {
 			return disabled();
 		},
+		get ["aria-disabled"]() {
+			return disabled();
+		},
 		get tabIndex() {
 			return resolveButtonTabIndex(disabled(), props.tabIndex);
 		},
@@ -344,6 +347,9 @@ function editorPrimitive(tag, props) {
 		},
 		get tabIndex() {
 			return props.disabled ? -1 : props.tabIndex ?? 0;
+		},
+		get "aria-disabled"() {
+			return props.disabled ?? false;
 		}
 	}));
 }
