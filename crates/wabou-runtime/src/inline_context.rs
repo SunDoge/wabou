@@ -81,11 +81,10 @@ pub struct InlineFormattingContext {
     pub roots: HashSet<NodeId>,
     /// Flattened plain text for each IFC root (styled runs applied later).
     pub collapsed_text: HashMap<NodeId, Arc<str>>,
-    /// Parent → children that remain Taffy layout boxes.
-    ///
-    /// Empty means: replaced parent, or full collapse into the parent leaf.
-    /// Missing keys are not updated by the applier (parent had no logical entry).
-    pub layout_children: HashMap<NodeId, Vec<NodeId>>,
+    /// Parents whose logical children do not become Taffy layout boxes because
+    /// the parent is replaced content or absorbed its direct text leaves.
+    /// Every other parent projects its existing logical child slice directly.
+    pub suppressed_children: HashSet<NodeId>,
 }
 
 impl InlineFormattingContext {
@@ -105,47 +104,42 @@ impl InlineFormattingContext {
 
             // Replaced: logical descendants stay for serialization; no Taffy kids.
             if parent_facts.replaced {
-                ctx.layout_children.insert(parent, Vec::new());
+                ctx.suppressed_children.insert(parent);
                 continue;
             }
 
             // Flex/grid: every direct child keeps a principal box.
             if parent_facts.establishes_item_layout() {
-                ctx.layout_children.insert(parent, kids.clone());
                 continue;
             }
 
+            let mut text = String::new();
             let can_collapse = parent_facts.text_container
                 && !kids.is_empty()
-                && kids
-                    .iter()
-                    .all(|&child| is_direct_text_leaf(child, logical_children, facts));
+                && kids.iter().all(|&child| {
+                    let child_facts = facts(child);
+                    let Some(value) = child_facts.text else {
+                        return false;
+                    };
+                    if logical_children
+                        .get(&child)
+                        .is_some_and(|kids| !kids.is_empty())
+                    {
+                        return false;
+                    }
+                    text.push_str(&value);
+                    true
+                });
 
             if can_collapse {
-                let mut text = String::new();
-                for &child in kids {
-                    if let Some(value) = facts(child).text {
-                        text.push_str(&value);
-                    }
-                }
                 ctx.roots.insert(parent);
                 ctx.collapsed_text.insert(parent, Arc::from(text));
-                ctx.layout_children.insert(parent, Vec::new());
-            } else {
-                ctx.layout_children.insert(parent, kids.clone());
+                ctx.suppressed_children.insert(parent);
             }
         }
 
         ctx
     }
-}
-
-fn is_direct_text_leaf(
-    node: NodeId,
-    logical_children: &HashMap<NodeId, Vec<NodeId>>,
-    facts: &impl Fn(NodeId) -> NodeFacts,
-) -> bool {
-    facts(node).text.is_some() && logical_children.get(&node).is_none_or(Vec::is_empty)
 }
 
 #[cfg(test)]
@@ -195,7 +189,7 @@ mod tests {
         };
         let ctx = InlineFormattingContext::build(&children, &facts);
         assert!(!ctx.roots.contains(&parent));
-        assert_eq!(ctx.layout_children[&parent], vec![text]);
+        assert!(!ctx.suppressed_children.contains(&parent));
     }
 
     #[test]
@@ -224,7 +218,7 @@ mod tests {
 
         let ctx = InlineFormattingContext::build(&children, &facts);
         assert!(!ctx.roots.contains(&parent));
-        assert_eq!(ctx.layout_children[&parent], vec![a, b]);
+        assert!(!ctx.suppressed_children.contains(&parent));
     }
 
     #[test]
@@ -258,10 +252,10 @@ mod tests {
         };
 
         let ctx = InlineFormattingContext::build(&children, &facts);
-        assert_eq!(ctx.layout_children[&parent], vec![text_host]);
+        assert!(!ctx.suppressed_children.contains(&parent));
         assert!(ctx.roots.contains(&text_host));
         assert_eq!(ctx.collapsed_text[&text_host].as_ref(), "0 stories");
-        assert!(ctx.layout_children[&text_host].is_empty());
+        assert!(ctx.suppressed_children.contains(&text_host));
     }
 
     #[test]
@@ -290,7 +284,7 @@ mod tests {
 
         let ctx = InlineFormattingContext::build(&children, &facts);
         assert!(!ctx.roots.contains(&parent));
-        assert_eq!(ctx.layout_children[&parent], vec![nested]);
+        assert!(!ctx.suppressed_children.contains(&parent));
     }
 
     #[test]
@@ -314,7 +308,7 @@ mod tests {
         };
 
         let ctx = InlineFormattingContext::build(&children, &facts);
-        assert!(ctx.layout_children[&parent].is_empty());
+        assert!(ctx.suppressed_children.contains(&parent));
         assert!(!ctx.roots.contains(&parent));
     }
 }

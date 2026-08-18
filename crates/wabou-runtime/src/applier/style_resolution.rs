@@ -127,9 +127,7 @@ impl Applier {
     pub(super) fn node_facts(&self, node: NodeId) -> NodeFacts {
         let atoms = self.atoms.borrow();
         let decl = self.node_store.declared.get(&node);
-        let tag = decl
-            .and_then(|d| d.tag)
-            .and_then(|t| atoms.resolve(t).map(str::to_owned));
+        let tag = decl.and_then(|d| d.tag);
         let text = decl.and_then(|d| d.text.clone());
         let display = self
             .node_store
@@ -137,7 +135,7 @@ impl Applier {
             .style(node)
             .map(|s| s.display)
             .unwrap_or(taffy::Display::DEFAULT);
-        let is_svg = tag.as_deref() == Some("svg");
+        let is_svg = tag.and_then(|tag| atoms.resolve(tag)) == Some("svg");
         let replaced = is_svg || self.widget_manager.widgets.contains_key(&node);
         NodeFacts {
             text_container: decl.is_some_and(|declared| {
@@ -182,9 +180,14 @@ impl Applier {
                 changed.push(parent);
             }
         }
-        for (parent, kids) in ifc.layout_children {
-            if self.node_store.tree.children(parent).ok().as_deref() != Some(kids.as_slice()) {
-                let _ = self.node_store.tree.set_children(parent, &kids);
+        for (&parent, kids) in &self.node_store.children {
+            let projected = if ifc.suppressed_children.contains(&parent) {
+                &[]
+            } else {
+                kids.as_slice()
+            };
+            if self.node_store.tree.children(parent).ok().as_deref() != Some(projected) {
+                let _ = self.node_store.tree.set_children(parent, projected);
             }
         }
         for node in changed {
