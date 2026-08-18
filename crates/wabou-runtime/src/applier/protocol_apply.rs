@@ -43,6 +43,26 @@ impl Applier {
         Some(property)
     }
 
+    fn is_in_svg_subtree(&self, mut node: NodeId) -> bool {
+        let atoms = self.atoms.borrow();
+        loop {
+            if self
+                .node_store
+                .declared
+                .get(&node)
+                .and_then(|declared| declared.tag)
+                .and_then(|tag| atoms.resolve(tag))
+                == Some("svg")
+            {
+                return true;
+            }
+            let Some(parent) = self.node_store.logical_parent.get(&node).copied() else {
+                return false;
+            };
+            node = parent;
+        }
+    }
+
     fn set_inline_ir(&mut self, id: u32, prop: Atom, ir: IrValue) {
         let Some(&node) = self.node_store.solid_to_node.get(&id) else {
             return;
@@ -198,6 +218,7 @@ impl Applier {
             self.atoms.borrow().resolve(name),
             Some("class" | "className")
         );
+        let affects_resolved_style = is_class || self.is_in_svg_subtree(node);
         if let Some(declared) = self.node_store.declared.get_mut(&node) {
             if is_class {
                 let mut atoms = self.atoms.borrow_mut();
@@ -218,7 +239,9 @@ impl Applier {
         };
         self.invalidate_widget_changes(widget_changes);
         self.projections.semantics_dirty = true;
-        self.recompute_node(node);
+        if affects_resolved_style {
+            self.recompute_node(node);
+        }
     }
 
     fn set_widget_config(&mut self, id: u32, json: &str) {
@@ -382,6 +405,7 @@ impl Applier {
             self.atoms.borrow().resolve(name),
             Some("class" | "className")
         );
+        let affects_resolved_style = is_class || self.is_in_svg_subtree(node);
         if let Some(declared) = self.node_store.declared.get_mut(&node) {
             declared.attrs.remove(&name);
             if is_class {
@@ -397,7 +421,9 @@ impl Applier {
         };
         self.invalidate_widget_changes(widget_changes);
         self.projections.semantics_dirty = true;
-        self.recompute_node(node);
+        if affects_resolved_style {
+            self.recompute_node(node);
+        }
     }
 
     /// Decode + apply one frame's ops in order.

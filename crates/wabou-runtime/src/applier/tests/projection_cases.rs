@@ -104,6 +104,72 @@ fn hit_affecting_paint_still_invalidates_geometry() {
 }
 
 #[test]
+fn semantic_attributes_do_not_invalidate_style_or_layout() {
+    let mut applier = interactive_applier();
+    applier
+        .invalidation
+        .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
+    applier.projections.semantics_dirty = false;
+    let expanded = applier.atoms.borrow_mut().intern("aria-expanded");
+
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: expanded,
+        value: "true",
+    });
+
+    assert!(applier.projections.semantics_dirty);
+    assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
+    assert!(!applier.invalidation.contains(InvalidationFlags::INHERIT));
+
+    let class = applier.atoms.borrow_mut().intern("class");
+    applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: class,
+        value: "opacity-50",
+    });
+    assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
+    assert!(applier.invalidation.contains(InvalidationFlags::INHERIT));
+}
+
+#[test]
+fn svg_descendant_attributes_still_refresh_the_svg_projection() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (svg, path, d) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (atoms.intern("svg"), atoms.intern("path"), atoms.intern("d"))
+    };
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement { id: 2, tag: svg },
+            Op::CreateElement { id: 3, tag: path },
+            Op::AppendChild {
+                parent: 2,
+                child: 3,
+            },
+            Op::AppendChild {
+                parent: 1,
+                child: 2,
+            },
+        ],
+    });
+    applier
+        .invalidation
+        .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
+
+    applier.apply_op(&Op::SetAttribute {
+        id: 3,
+        name: d,
+        value: "M0 0L1 1",
+    });
+
+    assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
+    assert!(applier.invalidation.contains(InvalidationFlags::INHERIT));
+}
+
+#[test]
 fn public_host_adapter_runs_in_embedded_quickjs() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let mut applier = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
