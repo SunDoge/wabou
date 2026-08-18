@@ -319,7 +319,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     );
     applier.rebuild_hit_geometry(&placed);
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    let origin = applier.selectable_text[&2].origin;
+    let origin = applier.text_selection.selectable[&2].origin;
 
     assert!(
         applier
@@ -359,7 +359,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     ));
     applier.prepare_text_selection(&mut placed, &mut tcx);
     assert!(
-        applier.last_text_click.is_none(),
+        applier.text_selection.last_click.is_none(),
         "a drag must not seed the subsequent multi-click streak"
     );
 
@@ -411,7 +411,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         Some(wabou_shell::ClipboardRequest::Write(selected))
     );
 
-    applier.last_text_click = None;
+    applier.text_selection.last_click = None;
     let click_x = f64::from(origin[0] + 10.0);
     let click_y = f64::from(origin[1] + 5.0);
     applier.handle_event(pointer(PointerPhase::Down, click_x, click_y, 1));
@@ -424,12 +424,12 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     applier.handle_event(UiEvent::Pointer(cancelled));
     applier.handle_event(pointer(PointerPhase::Down, click_x, click_y, 1));
     assert_eq!(
-        applier.active_text_selection.as_ref().unwrap().granularity,
+        applier.text_selection.active.as_ref().unwrap().granularity,
         TextSelectionGranularity::Cluster,
         "a cancelled click must not turn the next click into word selection"
     );
     applier.handle_event(pointer(PointerPhase::Cancel, click_x, click_y, 0));
-    applier.last_text_click = None;
+    applier.text_selection.last_click = None;
 
     let word_x = f64::from(origin[0] + 10.0);
     for _ in 0..2 {
@@ -452,11 +452,12 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         payload,
         serde_json::json!({ "text": "selectable", "kind": "word" })
     );
-    let line_end = f64::from(origin[0] + applier.selectable_text[&2].layout.width() + 10.0);
+    let line_end =
+        f64::from(origin[0] + applier.text_selection.selectable[&2].layout.width() + 10.0);
     applier.begin_text_selection(2, line_end, f64::from(origin[1] + 5.0), Modifiers::SHIFT);
     assert_eq!(applier.selected_text().as_deref(), Some("selectable "));
     assert!(
-        applier.last_text_click.is_none(),
+        applier.text_selection.last_click.is_none(),
         "Shift extension must not seed a later double click"
     );
 
@@ -484,7 +485,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         1,
     ));
     assert_eq!(applier.selected_text().as_deref(), Some("selectable text"));
-    applier.next_text_selection_scroll = Some(Instant::now());
+    applier.text_selection.next_scroll = Some(Instant::now());
 
     applier.apply_op(&Op::SetStyle {
         id: 2,
@@ -502,9 +503,9 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
     assert!(!applier.computed_node_snapshot(2).unwrap().text_selectable);
-    assert!(!applier.selectable_text.contains_key(&2));
-    assert!(applier.active_text_selection.is_none());
-    assert!(applier.next_text_selection_scroll.is_none());
+    assert!(!applier.text_selection.selectable.contains_key(&2));
+    assert!(applier.text_selection.active.is_none());
+    assert!(applier.text_selection.next_scroll.is_none());
     assert!(applier.sync_text_selection_change());
     let cleared = applier
         .js
@@ -592,7 +593,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
     );
     applier.rebuild_hit_geometry(&placed);
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    assert_eq!(applier.selectable_text_order, vec![2, 6]);
+    assert_eq!(applier.text_selection.order, vec![2, 6]);
 
     let select_all = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
@@ -640,8 +641,8 @@ fn text_selection_crosses_hosts_in_both_directions() {
             f64::from(text.origin[1]) + geometry.y0 + 2.0,
         )
     };
-    let first_start = point(&applier.selectable_text[&2], 0);
-    let second_end = point(&applier.selectable_text[&6], 4);
+    let first_start = point(&applier.text_selection.selectable[&2], 0);
+    let second_end = point(&applier.text_selection.selectable[&6], 4);
     assert_eq!(
         applier.input.hit_test(first_start.0, first_start.1),
         Some(2)
@@ -666,7 +667,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
         );
     }
 
-    applier.last_text_click = None;
+    applier.text_selection.last_click = None;
     applier.begin_text_selection(6, second_end.0, second_end.1, Modifiers::empty());
     applier.extend_text_selection(Some(2), first_start.0, first_start.1);
     assert_eq!(applier.selected_text().as_deref(), Some("alpha\nbeta"));
@@ -703,7 +704,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
         &HashMap::new(),
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    assert!(applier.active_text_selection.is_none());
+    assert!(applier.text_selection.active.is_none());
     assert!(applier.selected_text().is_none());
     let cleared = applier
         .js
@@ -777,8 +778,8 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
 
-    let small = &applier.selectable_text[&2];
-    let big = &applier.selectable_text[&4];
+    let small = &applier.text_selection.selectable[&2];
+    let big = &applier.text_selection.selectable[&4];
     assert!((small.origin[1] - big.origin[1]).abs() > 1.0);
     assert!(small.visual_y.start < big.visual_y.end && big.visual_y.start < small.visual_y.end);
     assert!(applier.select_all_text());

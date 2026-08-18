@@ -17,7 +17,7 @@ impl Applier {
                 UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
             )
         {
-            self.last_text_click = None;
+            self.text_selection.last_click = None;
         }
 
         let keydown_dispatched = match self.dispatch_focused_keydown(&input) {
@@ -152,7 +152,7 @@ impl Applier {
         let mut changed = if focused {
             false
         } else {
-            self.last_text_click = None;
+            self.text_selection.last_click = None;
             self.cancel_active_pointer_gesture()
         };
         changed |= self.set_window_focused(focused);

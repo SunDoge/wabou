@@ -408,7 +408,7 @@ impl FrameSource for Applier {
             if projection_dirty {
                 self.publish_layout_metrics(&placed, width, height);
             }
-            if projection_dirty || self.active_text_selection.is_some() {
+            if projection_dirty || self.text_selection.active.is_some() {
                 self.prepare_text_selection(&mut placed, tcx);
             }
             if selection_scrolled {
@@ -688,7 +688,7 @@ impl FrameSource for Applier {
             .widgets
             .values()
             .filter_map(|widget| widget.animation_deadline())
-            .chain(self.next_text_selection_scroll)
+            .chain(self.text_selection.next_scroll)
             .chain(scrollbar_deadline)
             .min()
     }
@@ -819,7 +819,7 @@ impl FrameSource for Applier {
                         && pointer.button != Some(PointerButton::Primary)
             )
         {
-            self.last_text_click = None;
+            self.text_selection.last_click = None;
         }
 
         match input {

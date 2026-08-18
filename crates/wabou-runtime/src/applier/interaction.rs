@@ -49,9 +49,9 @@ impl Applier {
         });
         if button == PointerButton::Primary {
             changed |= self.extend_text_selection(target, x, y);
-            self.next_text_selection_scroll = None;
+            self.text_selection.next_scroll = None;
             if self.input.pointer_dragged {
-                self.last_text_click = None;
+                self.text_selection.last_click = None;
             }
         }
         changed |= target.is_some_and(|target| {
@@ -147,7 +147,7 @@ impl Applier {
         self.input.pointer_dragged = false;
         let mut changed = self.set_focused_target(self.pointer_focus_target(target));
         if button == PointerButton::Primary {
-            self.next_text_selection_scroll = None;
+            self.text_selection.next_scroll = None;
             changed |= target
                 .is_some_and(|target| self.begin_text_selection(target, x, y, pointer.modifiers));
         }

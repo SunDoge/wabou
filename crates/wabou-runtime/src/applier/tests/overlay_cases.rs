@@ -235,7 +235,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         .map(|placed| (placed.node_id, placed.rect))
         .collect();
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    let origin = applier.selectable_text[&3].origin;
+    let origin = applier.text_selection.selectable[&3].origin;
     applier.begin_text_selection(
         3,
         f64::from(origin[0] + 1.0),
@@ -248,25 +248,27 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     // Model a cross-panel drag: the stable anchor is outside this
     // overflow container while the focus endpoint remains inside it.
     applier
-        .active_text_selection
+        .text_selection
+        .active
         .as_mut()
         .unwrap()
         .anchor_target = 1;
     applier.arm_text_selection_autoscroll();
     assert!(applier.animation_deadline().is_some());
-    applier.next_text_selection_scroll = Some(Instant::now() - Duration::from_millis(1));
+    applier.text_selection.next_scroll = Some(Instant::now() - Duration::from_millis(1));
     assert!(applier.tick_text_selection_autoscroll());
     let first_scroll = applier.scroll_offsets[&container][1];
     assert!(first_scroll > 0.0);
-    applier.next_text_selection_scroll = Some(Instant::now() - Duration::from_millis(1));
+    applier.text_selection.next_scroll = Some(Instant::now() - Duration::from_millis(1));
     assert!(applier.tick_text_selection_autoscroll());
     assert!(applier.scroll_offsets[&container][1] > first_scroll);
     applier.input.pointer_buttons = 0;
-    applier.next_text_selection_scroll = Some(Instant::now() - Duration::from_millis(1));
+    applier.text_selection.next_scroll = Some(Instant::now() - Duration::from_millis(1));
     assert!(!applier.tick_text_selection_autoscroll());
-    assert!(applier.next_text_selection_scroll.is_none());
+    assert!(applier.text_selection.next_scroll.is_none());
     applier
-        .active_text_selection
+        .text_selection
+        .active
         .as_mut()
         .unwrap()
         .anchor_target = 3;

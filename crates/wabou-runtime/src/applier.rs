@@ -88,6 +88,9 @@ use reload::plan_hmr_batch;
 use reload::{HmrBatch, ReloadState};
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 use resources::{ImageLoadResult, ResourceState};
+use text_selection::TextSelectionState;
+#[cfg(test)]
+use text_selection::{SelectableText, TextSelectionGranularity};
 use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
@@ -280,39 +283,6 @@ pub struct ComputedNodeSnapshot {
     pub runtime_transform: Option<[f32; 6]>,
 }
 
-#[derive(Clone)]
-struct SelectableText {
-    text: Arc<str>,
-    layout: Arc<Layout<[u8; 4]>>,
-    origin: [f32; 2],
-    visual_y: std::ops::Range<f32>,
-    select_all: bool,
-    order: usize,
-}
-
-#[derive(Clone)]
-struct ActiveTextSelection {
-    anchor_target: u32,
-    focus_target: u32,
-    base_selection: Selection,
-    focus_selection: Selection,
-    granularity: TextSelectionGranularity,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct TextSelectionSnapshot {
-    text: Option<String>,
-    kind: Option<&'static str>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-enum TextSelectionGranularity {
-    #[default]
-    Cluster,
-    Word,
-    Line,
-}
-
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     struct InvalidationFlags: u8 {
@@ -421,13 +391,7 @@ pub struct Applier {
     last_viewport: (u32, u32),
     device_scale: f64,
     ime_cursor_area: Option<[f64; 4]>,
-    selectable_text: HashMap<u32, SelectableText>,
-    selectable_text_order: Vec<u32>,
-    active_text_selection: Option<ActiveTextSelection>,
-    last_text_selection: TextSelectionSnapshot,
-    text_selection_event_target: Option<u32>,
-    last_text_click: Option<(Instant, u32, f64, f64, u8)>,
-    next_text_selection_scroll: Option<Instant>,
+    text_selection: TextSelectionState,
     placed_rects: HashMap<NodeId, [f32; 4]>,
     scrollbar_hits: Vec<ScrollbarHit>,
     scroll_metrics: HashMap<NodeId, wabou_shell::layout::ScrollMetrics>,
@@ -557,13 +521,7 @@ impl Applier {
             last_viewport: (0, 0),
             device_scale: 1.0,
             ime_cursor_area: None,
-            selectable_text: HashMap::new(),
-            selectable_text_order: Vec::new(),
-            active_text_selection: None,
-            last_text_selection: TextSelectionSnapshot::default(),
-            text_selection_event_target: None,
-            last_text_click: None,
-            next_text_selection_scroll: None,
+            text_selection: TextSelectionState::default(),
             placed_rects: HashMap::new(),
             scrollbar_hits: Vec::new(),
             scroll_metrics: HashMap::new(),
@@ -696,9 +654,9 @@ impl Applier {
     fn cancel_pointer_gesture(&mut self, pointer: wabou_shell::PointerEvent) -> bool {
         self.input.pointer_position = (pointer.position.x, pointer.position.y);
         self.input.pointer_buttons = pointer.buttons;
-        self.next_text_selection_scroll = None;
+        self.text_selection.next_scroll = None;
         if self.input.pointer_down_target.is_some() {
-            self.last_text_click = None;
+            self.text_selection.last_click = None;
         }
         let old_active = self.input.pointer_down_target.take();
         self.input.pointer_down_position = None;

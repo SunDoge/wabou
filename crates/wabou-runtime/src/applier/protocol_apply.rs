@@ -157,12 +157,13 @@ impl Applier {
         }
         let node = self.node_store.solid_to_node.get(&id).copied();
         if self
-            .active_text_selection
+            .text_selection
+            .active
             .as_ref()
             .is_some_and(|active| active.anchor_target == id || active.focus_target == id)
         {
-            self.active_text_selection = None;
-            self.next_text_selection_scroll = None;
+            self.text_selection.active = None;
+            self.text_selection.next_scroll = None;
             self.sync_text_selection_change();
         }
         if self.input.focused_target == Some(id) {

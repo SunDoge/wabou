@@ -750,7 +750,7 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
     applier.input.pointer_position = (15.0, 25.0);
     applier.input.pointer_buttons = 1;
     applier.input.pointer_dragged = true;
-    applier.last_text_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
+    applier.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
 
     let blurred = applier.handle_event(UiEvent::Focus(false));
 
@@ -762,7 +762,7 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
     assert_eq!(applier.input.pointer_down_position, None);
     assert_eq!(applier.input.pointer_buttons, 0);
     assert!(!applier.input.pointer_dragged);
-    assert!(applier.last_text_click.is_none());
+    assert!(applier.text_selection.last_click.is_none());
 
     let focused = applier.handle_event(UiEvent::Focus(true));
     assert_eq!(focused.text_input, Some(true));
@@ -773,10 +773,10 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
     assert_eq!(applier.input.focused_target, Some(2));
     assert!(applier.input.window_focused);
 
-    applier.last_text_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
+    applier.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
     applier.handle_event(UiEvent::TextInput("x".into()));
     assert!(
-        applier.last_text_click.is_none(),
+        applier.text_selection.last_click.is_none(),
         "text input must break a native text multi-click sequence"
     );
 }

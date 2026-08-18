@@ -348,7 +348,7 @@ impl Applier {
         if self.input.pointer_buttons & 1 == 0 {
             return None;
         }
-        let active = self.active_text_selection.as_ref()?;
+        let active = self.text_selection.active.as_ref()?;
         // Autoscroll belongs to the endpoint currently following the pointer.
         // The stable anchor can live in a different scroll container during
         // a cross-panel selection.
@@ -406,25 +406,25 @@ impl Applier {
     }
 
     pub(super) fn arm_text_selection_autoscroll(&mut self) {
-        self.next_text_selection_scroll = self
+        self.text_selection.next_scroll = self
             .text_selection_scroll_delta()
             .is_some()
             .then(Instant::now);
     }
 
     pub(super) fn tick_text_selection_autoscroll(&mut self) -> bool {
-        let Some(deadline) = self.next_text_selection_scroll else {
+        let Some(deadline) = self.text_selection.next_scroll else {
             return false;
         };
         if Instant::now() < deadline {
             return false;
         }
         let Some((target, dx, dy)) = self.text_selection_scroll_delta() else {
-            self.next_text_selection_scroll = None;
+            self.text_selection.next_scroll = None;
             return false;
         };
         let changed = self.scroll_nearest(target, dx, dy);
-        self.next_text_selection_scroll =
+        self.text_selection.next_scroll =
             changed.then(|| Instant::now() + Duration::from_millis(50));
         changed
     }
