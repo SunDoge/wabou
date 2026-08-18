@@ -11,7 +11,7 @@ mod model;
 mod xplat;
 
 pub use model::{
-    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, SemanticStates,
+    SemanticAction, SemanticCurrent, SemanticNode, SemanticRole, SemanticSnapshot, SemanticStates,
     SemanticToggleState,
 };
 pub use xplat::AccessibilityState;

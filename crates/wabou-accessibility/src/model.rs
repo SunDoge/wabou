@@ -86,6 +86,23 @@ pub enum SemanticToggleState {
     Mixed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Meaning of the item currently active within a related set.
+pub enum SemanticCurrent {
+    /// Current item without a more specific category.
+    True,
+    /// Current page.
+    Page,
+    /// Current step in a process.
+    Step,
+    /// Current location.
+    Location,
+    /// Current date.
+    Date,
+    /// Current time.
+    Time,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 /// Optional interaction states attached to one semantic node.
 pub struct SemanticStates {
@@ -97,6 +114,8 @@ pub struct SemanticStates {
     pub selected: Option<bool>,
     /// Expansion state for disclosure controls and combo boxes.
     pub expanded: Option<bool>,
+    /// Current item state for navigation, progress, dates, and times.
+    pub current: Option<SemanticCurrent>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -19,6 +19,18 @@ fn semantic_toggle(value: Option<Arc<str>>) -> Option<SemanticToggleState> {
     }
 }
 
+fn semantic_current(value: Option<Arc<str>>) -> Option<SemanticCurrent> {
+    match value.as_deref() {
+        Some("true") | Some("") => Some(SemanticCurrent::True),
+        Some("page") => Some(SemanticCurrent::Page),
+        Some("step") => Some(SemanticCurrent::Step),
+        Some("location") => Some(SemanticCurrent::Location),
+        Some("date") => Some(SemanticCurrent::Date),
+        Some("time") => Some(SemanticCurrent::Time),
+        _ => None,
+    }
+}
+
 fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<str>> {
     declared
         .attrs
@@ -460,6 +472,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                 pressed: semantic_toggle(attribute(declared, &atoms, "aria-pressed")),
                 selected: semantic_bool(attribute(declared, &atoms, "aria-selected")),
                 expanded: semantic_bool(attribute(declared, &atoms, "aria-expanded")),
+                current: semantic_current(attribute(declared, &atoms, "aria-current")),
             },
         });
     }

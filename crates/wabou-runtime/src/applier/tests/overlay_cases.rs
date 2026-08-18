@@ -797,18 +797,23 @@ fn semantic_idrefs_resolve_to_live_native_nodes() {
 fn semantic_projection_separates_explicit_roles_from_text_content() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, role, value) = {
+    let (view, role, value, aria_current) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("role"),
             atoms.intern("value"),
+            atoms.intern("aria-current"),
         )
     };
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: view,
-        attrs: vec![(role, "button"), (value, "browser-style fallback")],
+        attrs: vec![
+            (role, "button"),
+            (value, "browser-style fallback"),
+            (aria_current, "date"),
+        ],
     });
     applier.apply_op(&Op::CreateText {
         id: 3,
@@ -857,6 +862,7 @@ fn semantic_projection_separates_explicit_roles_from_text_content() {
     assert_eq!(input.role, SemanticRole::Button);
     assert_eq!(input.value, None);
     assert_eq!(input.label.as_deref(), Some("unowned text"));
+    assert_eq!(input.states.current, Some(SemanticCurrent::Date));
     let text = snapshot
         .nodes
         .iter()

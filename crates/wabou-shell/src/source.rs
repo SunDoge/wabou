@@ -10,7 +10,7 @@
 use vello::peniko::Color;
 
 pub use wabou_accessibility::{
-    SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, SemanticStates,
+    SemanticAction, SemanticCurrent, SemanticNode, SemanticRole, SemanticSnapshot, SemanticStates,
     SemanticToggleState,
 };
 

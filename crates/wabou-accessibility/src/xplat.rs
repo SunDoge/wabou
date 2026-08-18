@@ -2,13 +2,16 @@
 
 use std::sync::{Arc, Mutex};
 
-use accesskit::{Action, Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate};
+use accesskit::{Action, AriaCurrent, Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate};
 use accesskit_xplat::{Adapter, EventHandler, WindowEvent as AccessKitEvent};
 use raw_window_handle::HasWindowHandle;
 use winit::event::WindowEvent;
 use winit::window::Window;
 
-use crate::{SemanticAction, SemanticNode, SemanticRole, SemanticSnapshot, SemanticToggleState};
+use crate::{
+    SemanticAction, SemanticCurrent, SemanticNode, SemanticRole, SemanticSnapshot,
+    SemanticToggleState,
+};
 
 const ROOT_ID: NodeId = NodeId(0);
 
@@ -129,6 +132,16 @@ fn accesskit_node(
     }
     if let Some(expanded) = semantic.states.expanded {
         node.set_expanded(expanded);
+    }
+    if let Some(current) = semantic.states.current {
+        node.set_aria_current(match current {
+            SemanticCurrent::True => AriaCurrent::True,
+            SemanticCurrent::Page => AriaCurrent::Page,
+            SemanticCurrent::Step => AriaCurrent::Step,
+            SemanticCurrent::Location => AriaCurrent::Location,
+            SemanticCurrent::Date => AriaCurrent::Date,
+            SemanticCurrent::Time => AriaCurrent::Time,
+        });
     }
     node.add_action(Action::ScrollIntoView);
     match semantic.role {
@@ -450,6 +463,7 @@ mod tests {
                 checked: Some(SemanticToggleState::Mixed),
                 selected: Some(true),
                 expanded: Some(false),
+                current: Some(SemanticCurrent::Date),
                 ..crate::SemanticStates::default()
             },
         };
@@ -458,6 +472,7 @@ mod tests {
         assert_eq!(node.toggled(), Some(Toggled::Mixed));
         assert_eq!(node.is_selected(), Some(true));
         assert_eq!(node.is_expanded(), Some(false));
+        assert_eq!(node.aria_current(), Some(AriaCurrent::Date));
     }
 
     #[test]

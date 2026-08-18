@@ -138,7 +138,13 @@ export interface WabouElementProps {
   "aria-controls"?: string;
   "aria-activedescendant"?: string;
   "aria-checked"?: boolean | "mixed";
-  "aria-current"?: boolean | "date" | "page" | "step" | "time";
+  "aria-current"?:
+    | boolean
+    | "date"
+    | "location"
+    | "page"
+    | "step"
+    | "time";
   "aria-selected"?: boolean;
   "aria-pressed"?: boolean | "mixed";
   "aria-valuemin"?: number;
