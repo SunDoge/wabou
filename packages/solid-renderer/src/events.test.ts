@@ -113,16 +113,15 @@ test("event handler failures retain the event context and JavaScript stack", () 
 });
 
 test("dispatch reports preventDefault to the Host", () => {
-  const anchor = createElement("a");
-  setProp(anchor, "href", "https://example.com/story", undefined);
-  expect(dispatchEvent(anchor.id, EVENT_CODE.click, "")).toBe(false);
+  const target = createElement("view");
+  expect(dispatchEvent(target.id, EVENT_CODE.click, "")).toBe(false);
   setProp(
-    anchor,
+    target,
     "onClick",
     (event: { preventDefault(): void }) => event.preventDefault(),
     undefined,
   );
-  expect(dispatchEvent(anchor.id, EVENT_CODE.click, "")).toBe(true);
+  expect(dispatchEvent(target.id, EVENT_CODE.click, "")).toBe(true);
 });
 
 test("native scroll observations expose authoritative offsets", () => {
