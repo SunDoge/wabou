@@ -68,7 +68,7 @@ use taffy::style::Display;
 /// Per-node facts the IFC needs from the host (logical tree + computed style).
 #[derive(Clone, Debug)]
 pub struct NodeFacts {
-    /// HTML tag name when this is an element; `None` for `#text`.
+    /// Wabou host tag when this is an element; `None` for `#text`.
     pub tag: Option<String>,
     /// Text content when this is a text node (or element with only stored text).
     pub text: Option<Arc<str>>,
@@ -87,75 +87,30 @@ pub struct NodeFacts {
 }
 
 impl NodeFacts {
-    /// HTML phrasing / presentational inline tags we allow as IFC participants
+    /// Published text-like host tags that may participate in one text flow
     /// when they do not otherwise establish a principal box.
-    pub fn is_phrasing_tag(tag: &str) -> bool {
-        matches!(
-            tag,
-            "span"
-                | "strong"
-                | "b"
-                | "em"
-                | "i"
-                | "small"
-                | "code"
-                | "a"
-                | "label"
-                | "abbr"
-                | "cite"
-                | "dfn"
-                | "kbd"
-                | "mark"
-                | "q"
-                | "s"
-                | "samp"
-                | "sub"
-                | "sup"
-                | "time"
-                | "u"
-                | "var"
-        )
+    pub fn is_inline_text_tag(tag: &str) -> bool {
+        matches!(tag, "span" | "strong" | "i" | "label")
     }
 
-    /// HTML elements whose default display is block-level (not IFC participants).
-    pub fn is_block_tag(tag: &str) -> bool {
+    /// Published box-like host tags. This deliberately is not an HTML default
+    /// stylesheet: tags outside Wabou's JSX contract receive no guessed layout.
+    pub fn is_box_tag(tag: &str) -> bool {
         matches!(
             tag,
-            "address"
-                | "article"
+            "article"
                 | "aside"
-                | "blockquote"
                 | "div"
                 | "footer"
-                | "form"
                 | "h1"
-                | "h2"
-                | "h3"
-                | "h4"
-                | "h5"
-                | "h6"
                 | "header"
-                | "li"
                 | "main"
                 | "nav"
                 | "ol"
                 | "p"
                 | "section"
-                | "ul"
                 | "button"
                 | "input"
-                | "textarea"
-                | "select"
-                | "table"
-                | "thead"
-                | "tbody"
-                | "tr"
-                | "td"
-                | "th"
-                | "pre"
-                | "hr"
-                | "figure"
-                | "figcaption"
                 | "view"
         )
     }
@@ -195,10 +150,10 @@ impl NodeFacts {
         let Some(tag) = self.tag.as_deref() else {
             return false;
         };
-        if Self::is_block_tag(tag) || self.is_block_level_display() {
+        if Self::is_box_tag(tag) || self.is_block_level_display() {
             return false;
         }
-        Self::is_phrasing_tag(tag)
+        Self::is_inline_text_tag(tag)
     }
 }
 
@@ -375,6 +330,14 @@ mod tests {
     }
 
     #[test]
+    fn host_tag_classification_is_closed_to_published_elements() {
+        assert!(NodeFacts::is_inline_text_tag("span"));
+        assert!(NodeFacts::is_box_tag("view"));
+        assert!(!NodeFacts::is_inline_text_tag("a"));
+        assert!(!NodeFacts::is_box_tag("form"));
+    }
+
+    #[test]
     fn flex_parent_never_collapses_direct_children() {
         let mut tree = TaffyTree::<()>::new();
         let mut n = 0;
@@ -517,7 +480,7 @@ mod tests {
             if id == parent {
                 el("div", Display::Block)
             } else if id == link {
-                let mut f = el("a", Display::Flex);
+                let mut f = el("span", Display::Flex);
                 f.has_listeners = true;
                 f
             } else {

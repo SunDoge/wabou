@@ -743,7 +743,7 @@ impl Applier {
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
             let tag_name = decl.tag.and_then(|tag| atoms.resolve(tag));
-            if tag_name.is_some_and(NodeFacts::is_block_tag) {
+            if tag_name.is_some_and(NodeFacts::is_box_tag) {
                 layout.display = taffy::Display::Block;
             }
             // Wabou's explicit Text primitive is a single-line layout leaf by
