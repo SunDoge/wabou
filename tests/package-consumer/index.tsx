@@ -7,7 +7,7 @@ import {
   createMemoryHistory,
 } from "@wabou/router";
 import { defineWabouConfig } from "@wabou/vite";
-import { Portal } from "@wabou/solid-renderer";
+import { Dynamic, Portal } from "@wabou/solid-renderer";
 import { createSignal } from "solid-js";
 
 const [enabled, setEnabled] = createSignal(false);
@@ -33,6 +33,13 @@ const unsupportedPrimitiveHref = <View href="https://example.com" />;
 const unsupportedButtonHref = <PrimitiveButton href="https://example.com" />;
 // @ts-expect-error portal containers expose only native host properties
 const unsupportedPortalHref = <Portal href="https://example.com" />;
+const dynamicNativeView = <Dynamic component="div" class="flex" />;
+// @ts-expect-error Dynamic string targets use the same finite native registry
+const unsupportedDynamicAnchor = <Dynamic component="a" />;
+const NamedView = (props: { name: string }) => <div>{props.name}</div>;
+const dynamicComponent = <Dynamic component={NamedView} name="Wabou" />;
+// @ts-expect-error Dynamic preserves function-component props
+const invalidDynamicComponent = <Dynamic component={NamedView} />;
 // @ts-expect-error inline styles expose only properties implemented by Style IR
 const unsupportedStyle = <div style={{ filter: "blur(4px)" }} />;
 void [
@@ -46,6 +53,10 @@ void [
   unsupportedPrimitiveHref,
   unsupportedButtonHref,
   unsupportedPortalHref,
+  dynamicNativeView,
+  unsupportedDynamicAnchor,
+  dynamicComponent,
+  invalidDynamicComponent,
   unsupportedStyle,
 ];
 

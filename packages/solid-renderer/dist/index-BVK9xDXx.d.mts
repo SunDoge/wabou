@@ -211,6 +211,8 @@ interface WabouBuiltinIntrinsicElements {
   path: WabouSvgShapeProps;
   circle: WabouSvgShapeProps;
 }
+type WabouNativeElements = WabouBuiltinIntrinsicElements & WabouIntrinsicElements;
+type WabouNativeTag = keyof WabouNativeElements & string;
 type WabouSemanticRole = "alert" | "alertdialog" | "button" | "cell" | "checkbox" | "columnheader" | "combobox" | "dialog" | "grid" | "gridcell" | "group" | "heading" | "img" | "label" | "link" | "listbox" | "menu" | "menuitem" | "none" | "option" | "presentation" | "progressbar" | "radio" | "radiogroup" | "row" | "rowheader" | "slider" | "status" | "switch" | "tab" | "tablist" | "tabpanel" | "table" | "textbox" | "tree" | "treeitem";
 type EventHandler<E> = {
   bivarianceHack(event: E): void;
@@ -396,7 +398,12 @@ declare const spread: <T extends object>(node: any, props: T, skipChildren?: boo
 declare const mergeProps: (...sources: unknown[]) => unknown;
 declare const applyRef: (r: ((element: Handle) => void) | ((element: Handle) => void)[], element: Handle) => void;
 declare const ref: (fn: () => ((element: Handle) => void) | ((element: Handle) => void)[], element: Handle) => void;
-declare function Dynamic(props: any): import("solid-js").SourceAccessor<any>;
+type DynamicComponent = (props: never) => JSX$1.Element;
+type DynamicTarget = WabouNativeTag | DynamicComponent;
+type DynamicProps<T extends DynamicTarget> = {
+  component: T;
+} & (T extends WabouNativeTag ? WabouNativeElements[T] : T extends ((props: infer Props) => unknown) ? Props : never);
+declare function Dynamic<T extends DynamicTarget>(props: DynamicProps<T>): JSX$1.Element;
 /** Register the root mount handle so bubbling reaches window-level listeners. */
 declare function registerRoot(root: Handle): void;
 type PublicOverlayPlane = "floating" | "modal";
@@ -414,5 +421,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { createFps as $, delegateEvents as A, mount as B, WabouWheelEvent as C, createComponent$1 as D, applyRef as E, insert as F, render as G, registerRoot as H, insertNode as I, setTransform2D as J, runSweep as K, isServer as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualListProps as Q, memo as R, WabouSvgShapeProps as S, acquireOverlayRoot as T, releaseOverlayRoot as U, ref as V, removeNode as W, writer as X, spread as Y, VirtualList as Z, WabouPointerEvent as _, jsxs as _t, NativeScrollbarStyle as a, HostProviderProps as at, WabouSemanticRole as b, WabouControlProps as c, useHost as ct, WabouImageProps as d, LayoutRect as dt, useFps as et, WabouInputEvent as f, LayoutSnapshot as ft, WabouNodeEvent as g, jsxDEV as gt, WabouKeyEvent as h, jsx as ht, HostCapabilities as i, HostProvider as it, dispatchEvent as j, createTextNode as k, WabouElementProps as l, FrameStats as lt, WabouIntrinsicElements as m, JSX$1 as mt, EVENT_CODE as n, PortalProps as nt, OP as o, LayoutTarget as ot, WabouInputProps as p, Fragment as pt, setProp as q, Handle as r, Host as rt, WabouBuiltinIntrinsicElements as s, defaultHost as st, Dynamic as t, Portal as tt, WabouEventTarget as u, LayoutNodeMetrics as ut, WabouPositionedEvent as v, Writer$1 as w, WabouSvgProps as x, WabouScrollEvent as y, mergeProps as z };
-//# sourceMappingURL=index-5H82nAEo.d.mts.map
+export { writer as $, createComponent$1 as A, isServer as B, WabouSemanticRole as C, Writer$1 as D, WabouWheelEvent as E, effect as F, registerRoot as G, mergeProps as H, getMountRoot as I, render as J, releaseOverlayRoot as K, getRequestEvent as L, createTextNode as M, delegateEvents as N, acquireOverlayRoot as O, dispatchEvent as P, spread as Q, insert as R, WabouScrollEvent as S, WabouSvgShapeProps as T, mount as U, memo as V, ref as W, setProp as X, runSweep as Y, setTransform2D as Z, WabouNativeElements as _, JSX$1 as _t, HostCapabilities as a, PortalProps as at, WabouPointerEvent as b, jsxs as bt, WabouBuiltinIntrinsicElements as c, HostProviderProps as ct, WabouEventTarget as d, useHost as dt, VirtualList as et, WabouImageProps as f, FrameStats as ft, WabouKeyEvent as g, Fragment as gt, WabouIntrinsicElements as h, LayoutSnapshot as ht, Handle as i, Portal as it, createElement as j, applyRef as k, WabouControlProps as l, LayoutTarget as lt, WabouInputProps as m, LayoutRect as mt, DynamicProps as n, createFps as nt, NativeScrollbarStyle as o, Host as ot, WabouInputEvent as p, LayoutNodeMetrics as pt, removeNode as q, EVENT_CODE as r, useFps as rt, OP as s, HostProvider as st, Dynamic as t, VirtualListProps as tt, WabouElementProps as u, defaultHost as ut, WabouNativeTag as v, jsx as vt, WabouSvgProps as w, WabouPositionedEvent as x, WabouNodeEvent as y, jsxDEV as yt, insertNode as z };
+//# sourceMappingURL=index-BVK9xDXx.d.mts.map

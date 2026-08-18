@@ -75,6 +75,10 @@ export interface WabouBuiltinIntrinsicElements {
   circle: WabouSvgShapeProps;
 }
 
+export type WabouNativeElements = WabouBuiltinIntrinsicElements &
+  WabouIntrinsicElements;
+export type WabouNativeTag = keyof WabouNativeElements & string;
+
 export type WabouSemanticRole =
   | "alert"
   | "alertdialog"
@@ -773,16 +777,28 @@ export const mergeProps = renderer.mergeProps;
 export const applyRef = renderer.applyRef;
 export const ref = renderer.ref;
 
-export function Dynamic(props: any) {
-  const local = props;
-  const others = omit(props, "component");
+type DynamicComponent = (props: never) => JSX.Element;
+type DynamicTarget = WabouNativeTag | DynamicComponent;
+export type DynamicProps<T extends DynamicTarget> = {
+  component: T;
+} & (T extends WabouNativeTag
+  ? WabouNativeElements[T]
+  : T extends (props: infer Props) => unknown
+    ? Props
+    : never);
+
+export function Dynamic<T extends DynamicTarget>(
+  props: DynamicProps<T>,
+): JSX.Element {
+  const local = props as { component: DynamicTarget };
+  const others = omit(props as unknown as Record<string, unknown>, "component");
   const cached = createMemo(() => local.component);
 
   return createMemo(() => {
     const component = cached();
     switch (typeof component) {
       case "function":
-        return untrack(() => component(others));
+        return untrack(() => component(others as never));
       case "string": {
         const el = createElement(component);
         spread(el, others, false);
@@ -790,7 +806,7 @@ export function Dynamic(props: any) {
       }
     }
     return null;
-  });
+  }) as unknown as JSX.Element;
 }
 
 /** Register the root mount handle so bubbling reaches window-level listeners. */
