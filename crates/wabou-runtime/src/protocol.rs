@@ -79,11 +79,6 @@ pub enum Op<'a> {
         parent: u32,
         child: u32,
     },
-    ReplaceNode {
-        parent: u32,
-        old_id: u32,
-        new_id: u32,
-    },
     SetText {
         id: u32,
         text: &'a str,
@@ -359,16 +354,6 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             let child = r.u32()?;
             Op::RemoveChild { parent, child }
         }
-        op::REPLACE_NODE => {
-            let parent = r.u32()?;
-            let old_id = r.u32()?;
-            let new_id = r.u32()?;
-            Op::ReplaceNode {
-                parent,
-                old_id,
-                new_id,
-            }
-        }
         op::SET_TEXT => {
             let id = r.u32()?;
             let text = r.str()?;
@@ -643,7 +628,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_removed_comment_and_frame_end_opcodes() {
+    fn rejects_removed_opcodes() {
         let frame = |opcode| {
             let mut bytes = Vec::new();
             push_u32(&mut bytes, 1);
@@ -659,6 +644,10 @@ mod tests {
         assert!(matches!(
             decode_frame(&frame(0x10)),
             Err(DecodeError::BadOp { opcode: 0x10 })
+        ));
+        assert!(matches!(
+            decode_frame(&frame(0x07)),
+            Err(DecodeError::BadOp { opcode: 0x07 })
         ));
     }
 

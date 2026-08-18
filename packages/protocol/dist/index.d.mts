@@ -5,7 +5,6 @@ declare const OP: {
   readonly AppendChild: 4;
   readonly InsertBefore: 5;
   readonly RemoveChild: 6;
-  readonly ReplaceNode: 7;
   readonly SetText: 8;
   readonly SetAttribute: 9;
   readonly RemoveAttribute: 10;
@@ -141,7 +140,6 @@ declare class Writer {
   appendChild(parent: number, child: number): void;
   insertBefore(parent: number, child: number, ref: number): void;
   removeChild(parent: number, child: number): void;
-  replaceNode(parent: number, oldId: number, newId: number): void;
   setText(id: number, text: string): void;
   setAttribute(id: number, name: string, value: string): void;
   removeAttribute(id: number, name: string): void;

@@ -8,7 +8,6 @@ pub mod op {
     pub const APPEND_CHILD: u8 = 0x04;
     pub const INSERT_BEFORE: u8 = 0x05;
     pub const REMOVE_CHILD: u8 = 0x06;
-    pub const REPLACE_NODE: u8 = 0x07;
     pub const SET_TEXT: u8 = 0x08;
     pub const SET_ATTRIBUTE: u8 = 0x09;
     pub const REMOVE_ATTRIBUTE: u8 = 0x0a;

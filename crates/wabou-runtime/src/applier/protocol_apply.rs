@@ -460,16 +460,6 @@ impl Applier {
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
                 }
             }
-            Op::ReplaceNode {
-                parent,
-                old_id,
-                new_id,
-            } => {
-                let Some(new) = self.node_store.replace(*parent, *old_id, *new_id) else {
-                    return;
-                };
-                self.recompute_subtree(new);
-            }
             Op::SetText { id, text } => {
                 if let Some(&n) = self.node_store.solid_to_node.get(id) {
                     if let Some(d) = self.node_store.declared.get_mut(&n) {

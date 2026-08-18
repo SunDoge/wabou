@@ -5,7 +5,6 @@ const OP = {
 	AppendChild: 4,
 	InsertBefore: 5,
 	RemoveChild: 6,
-	ReplaceNode: 7,
 	SetText: 8,
 	SetAttribute: 9,
 	RemoveAttribute: 10,
@@ -248,12 +247,6 @@ var Writer = class {
 		this.emit(OP.RemoveChild);
 		this.u32(parent);
 		this.u32(child);
-	}
-	replaceNode(parent, oldId, newId) {
-		this.emit(OP.ReplaceNode);
-		this.u32(parent);
-		this.u32(oldId);
-		this.u32(newId);
 	}
 	setText(id, text) {
 		this.emit(OP.SetText);

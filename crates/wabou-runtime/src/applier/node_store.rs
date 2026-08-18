@@ -123,22 +123,6 @@ impl NodeStore {
         true
     }
 
-    pub(super) fn replace(&mut self, parent: u32, old: u32, new: u32) -> Option<NodeId> {
-        let (&parent, &old, &new) = (
-            self.solid_to_node.get(&parent)?,
-            self.solid_to_node.get(&old)?,
-            self.solid_to_node.get(&new)?,
-        );
-        let children = self.children.get_mut(&parent)?;
-        let index = children.iter().position(|node| *node == old)?;
-        children[index] = new;
-        let projected = children.clone();
-        let _ = self.tree.set_children(parent, &projected);
-        self.logical_parent.remove(&old);
-        self.logical_parent.insert(new, parent);
-        Some(new)
-    }
-
     pub(super) fn remove(&mut self, solid_id: u32) -> Option<NodeId> {
         let node = self.solid_to_node.remove(&solid_id)?;
         if let Some(parent) = self.logical_parent.get(&node).copied()

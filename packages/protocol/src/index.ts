@@ -12,7 +12,6 @@ export const OP = {
   AppendChild: 0x04,
   InsertBefore: 0x05,
   RemoveChild: 0x06,
-  ReplaceNode: 0x07,
   SetText: 0x08,
   SetAttribute: 0x09,
   RemoveAttribute: 0x0a,
@@ -322,12 +321,6 @@ export class Writer {
     this.emit(OP.RemoveChild);
     this.u32(parent);
     this.u32(child);
-  }
-  replaceNode(parent: number, oldId: number, newId: number): void {
-    this.emit(OP.ReplaceNode);
-    this.u32(parent);
-    this.u32(oldId);
-    this.u32(newId);
   }
   setText(id: number, text: string): void {
     this.emit(OP.SetText);
