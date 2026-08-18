@@ -16,7 +16,7 @@ export interface PortalProps extends Omit<WabouElementProps, "children"> {
   /** Host stacking plane. `system` and `debug` are reserved for native UI. */
   plane?: "floating" | "modal";
   /** Contain native focus traversal within this overlay subtree. */
-  focusScope?: "contain";
+  focusContained?: boolean;
 }
 
 /** Render a native host subtree under its shared synthetic overlay root. */

@@ -172,12 +172,10 @@ impl Applier {
     }
 
     pub(super) fn rebuild_focus_order(&mut self, placed: &[PlacedNode]) {
-        let atoms = self.atoms.borrow();
         let modal = placed.iter().enumerate().rev().find_map(|(index, placed)| {
             let declared = self.node_store.declared.get(&placed.node_id)?;
-            (placed.paint.overlay_plane == OverlayPlane::Modal
-                && declared.attribute(&atoms, "focusScope").as_deref() == Some("contain"))
-            .then_some((index, placed.node_id))
+            (placed.paint.overlay_plane == OverlayPlane::Modal && declared.focus_contained)
+                .then_some((index, placed.node_id))
         });
         // A portal opened from inside a modal is a physical sibling under the
         // shared modal plane, not a logical descendant of the dialog. Treat
@@ -227,7 +225,6 @@ impl Applier {
                 });
             }
         }
-        drop(atoms);
         candidates.sort_by_key(|candidate| {
             (
                 candidate.focus_order == 0,

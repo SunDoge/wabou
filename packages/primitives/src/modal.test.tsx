@@ -5,7 +5,9 @@ import {
   EVENT_CODE,
   getMountRoot,
   type Handle,
+  INTERACTION_POLICY,
   mount,
+  writer,
 } from "@wabou/solid-renderer";
 import { createComponent, createRoot, createSignal, flush } from "solid-js";
 import { Modal, type ModalControls, type ModalTriggerProps } from "./modal";
@@ -15,6 +17,30 @@ import { View } from "./view";
 const event = () => ({
   preventDefault() {},
   stopPropagation() {},
+});
+
+test("Modal explicitly publishes native focus containment", () => {
+  const policies: number[] = [];
+  const setInteractionPolicy = writer.setInteractionPolicy.bind(writer);
+  const disposeMount = mount(() => null);
+  writer.setInteractionPolicy = (_id, flags) => policies.push(flags);
+  try {
+    createRoot((dispose) => {
+      Modal({
+        "aria-label": "Contained dialog",
+        defaultOpen: true,
+        children: View({}),
+      });
+      flush();
+      dispose();
+    });
+  } finally {
+    writer.setInteractionPolicy = setInteractionPolicy;
+    disposeMount();
+  }
+  expect(
+    policies.some((flags) => (flags & INTERACTION_POLICY.ContainFocus) !== 0),
+  ).toBe(true);
 });
 
 test("Modal mounts on the native modal plane and closes from Escape", () => {

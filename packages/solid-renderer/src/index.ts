@@ -131,6 +131,8 @@ export interface WabouElementProps {
   focusOrder?: number;
   /** Removes this subtree from input, focus, and accessibility routing. */
   interactionBlocked?: boolean;
+  /** Contains sequential native focus within this logical subtree. */
+  focusContained?: boolean;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -307,17 +309,19 @@ const classesByNode = new WeakMap<
 >();
 const interactionByNode = new WeakMap<
   Handle,
-  { focusOrder: number | null; blocked: boolean }
+  { focusOrder: number | null; blocked: boolean; contained: boolean }
 >();
 
 function emitInteractionPolicy(writer: Writer, node: Handle): void {
   const state = interactionByNode.get(node) ?? {
     focusOrder: null,
     blocked: false,
+    contained: false,
   };
   let flags = 0;
   if (state.focusOrder !== null) flags |= INTERACTION_POLICY.Focusable;
   if (state.blocked) flags |= INTERACTION_POLICY.BlockSubtree;
+  if (state.contained) flags |= INTERACTION_POLICY.ContainFocus;
   writer.setInteractionPolicy(node.id, flags, state.focusOrder ?? 0);
 }
 
@@ -436,7 +440,11 @@ function makeHandle(tag: string): Handle {
     next: null,
     ...imperativeMethods(id),
   };
-  interactionByNode.set(h, { focusOrder: null, blocked: false });
+  interactionByNode.set(h, {
+    focusOrder: null,
+    blocked: false,
+    contained: false,
+  });
   if (typeof WeakRef !== "undefined") {
     nodesBySlot[id & 0xfffff] = new WeakRef(h);
   }
@@ -490,13 +498,19 @@ function applyProperty(
     writer.setTextBehavior(node.id, flags);
     return;
   }
-  if (name === "focusOrder" || name === "interactionBlocked") {
+  if (
+    name === "focusOrder" ||
+    name === "interactionBlocked" ||
+    name === "focusContained"
+  ) {
     const state = interactionByNode.get(node)!;
     if (name === "focusOrder") {
       state.focusOrder =
         value == null || value === false ? null : Number(value);
-    } else {
+    } else if (name === "interactionBlocked") {
       state.blocked = value === true;
+    } else {
+      state.contained = value === true;
     }
     emitInteractionPolicy(writer, node);
     return;

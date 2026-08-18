@@ -717,7 +717,7 @@ function Modal(props) {
 				plane: "modal",
 				role: "presentation",
 				"aria-modal": "true",
-				focusScope: "contain",
+				focusContained: true,
 				get class() {
 					return props.backdropClass;
 				},

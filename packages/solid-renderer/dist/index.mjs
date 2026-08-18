@@ -252,11 +252,13 @@ const interactionByNode = /* @__PURE__ */ new WeakMap();
 function emitInteractionPolicy(writer, node) {
 	const state = interactionByNode.get(node) ?? {
 		focusOrder: null,
-		blocked: false
+		blocked: false,
+		contained: false
 	};
 	let flags = 0;
 	if (state.focusOrder !== null) flags |= INTERACTION_POLICY$1.Focusable;
 	if (state.blocked) flags |= INTERACTION_POLICY$1.BlockSubtree;
+	if (state.contained) flags |= INTERACTION_POLICY$1.ContainFocus;
 	writer.setInteractionPolicy(node.id, flags, state.focusOrder ?? 0);
 }
 function emitClasses(writer, node) {
@@ -343,7 +345,8 @@ function makeHandle(tag) {
 	};
 	interactionByNode.set(h, {
 		focusOrder: null,
-		blocked: false
+		blocked: false,
+		contained: false
 	});
 	if (typeof WeakRef !== "undefined") nodesBySlot[id & 1048575] = new WeakRef(h);
 	if (finalizationRegistry) finalizationRegistry.register(h, h.id, h);
@@ -385,10 +388,11 @@ function applyProperty(writer, node, name, value, prev) {
 		writer.setTextBehavior(node.id, flags);
 		return;
 	}
-	if (name === "focusOrder" || name === "interactionBlocked") {
+	if (name === "focusOrder" || name === "interactionBlocked" || name === "focusContained") {
 		const state = interactionByNode.get(node);
 		if (name === "focusOrder") state.focusOrder = value == null || value === false ? null : Number(value);
-		else state.blocked = value === true;
+		else if (name === "interactionBlocked") state.blocked = value === true;
+		else state.contained = value === true;
 		emitInteractionPolicy(writer, node);
 		return;
 	}

@@ -733,9 +733,10 @@
   var TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
   var INTERACTION_POLICY = {
     Focusable: 1,
-    BlockSubtree: 2
+    BlockSubtree: 2,
+    ContainFocus: 4
   };
-  var INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree;
+  var INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
   var EVENT_CODE = {
     click: 1,
     input: 2,
@@ -5233,13 +5234,16 @@
   function emitInteractionPolicy(writer, node) {
     const state = interactionByNode.get(node) ?? {
       focusOrder: null,
-      blocked: false
+      blocked: false,
+      contained: false
     };
     let flags = 0;
     if (state.focusOrder !== null)
       flags |= INTERACTION_POLICY.Focusable;
     if (state.blocked)
       flags |= INTERACTION_POLICY.BlockSubtree;
+    if (state.contained)
+      flags |= INTERACTION_POLICY.ContainFocus;
     writer.setInteractionPolicy(node.id, flags, state.focusOrder ?? 0);
   }
   function emitClasses(writer, node) {
@@ -5337,7 +5341,11 @@
       next: null,
       ...imperativeMethods(id)
     };
-    interactionByNode.set(h, { focusOrder: null, blocked: false });
+    interactionByNode.set(h, {
+      focusOrder: null,
+      blocked: false,
+      contained: false
+    });
     if (typeof WeakRef !== "undefined") {
       nodesBySlot[id & 1048575] = new WeakRef(h);
     }
@@ -5390,12 +5398,14 @@
       writer.setTextBehavior(node.id, flags);
       return;
     }
-    if (name === "focusOrder" || name === "interactionBlocked") {
+    if (name === "focusOrder" || name === "interactionBlocked" || name === "focusContained") {
       const state = interactionByNode.get(node);
       if (name === "focusOrder") {
         state.focusOrder = value == null || value === false ? null : Number(value);
-      } else {
+      } else if (name === "interactionBlocked") {
         state.blocked = value === true;
+      } else {
+        state.contained = value === true;
       }
       emitInteractionPolicy(writer, node);
       return;

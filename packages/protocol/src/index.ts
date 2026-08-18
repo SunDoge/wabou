@@ -50,9 +50,12 @@ const TEXT_BEHAVIOR_MASK =
 export const INTERACTION_POLICY = {
   Focusable: 0x01,
   BlockSubtree: 0x02,
+  ContainFocus: 0x04,
 } as const;
 const INTERACTION_POLICY_MASK =
-  INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree;
+  INTERACTION_POLICY.Focusable |
+  INTERACTION_POLICY.BlockSubtree |
+  INTERACTION_POLICY.ContainFocus;
 
 export const EVENT_CODE = {
   click: 1,

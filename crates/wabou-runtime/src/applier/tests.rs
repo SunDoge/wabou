@@ -29,6 +29,14 @@ fn set_interaction_blocked(applier: &mut Applier, id: u32, blocked: bool) {
     });
 }
 
+fn set_focus_contained(applier: &mut Applier, id: u32) {
+    applier.apply_op(&Op::SetInteractionPolicy {
+        id,
+        flags: crate::protocol::INTERACTION_POLICY_CONTAIN_FOCUS,
+        focus_order: 0,
+    });
+}
+
 #[test]
 fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");

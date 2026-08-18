@@ -170,7 +170,7 @@ describe("Writer limits", () => {
     expect(frame[13]).toBe(0x03);
     expect(view.getInt32(14, true)).toBe(-1);
     expect(() => writer.setInteractionPolicy(1, 0, 1)).toThrow(RangeError);
-    expect(() => writer.setInteractionPolicy(1, 0x04, 0)).toThrow(RangeError);
+    expect(() => writer.setInteractionPolicy(1, 0x08, 0)).toThrow(RangeError);
   });
 
   test("encodes one structured widget config without a dynamic property name", () => {

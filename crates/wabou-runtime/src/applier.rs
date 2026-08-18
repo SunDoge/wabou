@@ -226,6 +226,8 @@ struct Declared {
     focus_order: Option<i32>,
     /// Excludes this node and its logical subtree from input and semantics.
     interaction_blocked: bool,
+    /// Contains sequential focus within this logical subtree while present.
+    focus_contained: bool,
 }
 
 impl Declared {

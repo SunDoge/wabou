@@ -335,25 +335,25 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
 fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, focus_scope, lowercase_tabindex, disabled) = {
+    let (view, button, lowercase_tabindex, disabled) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
-            atoms.intern("focusScope"),
             atoms.intern("tabindex"),
             atoms.intern("disabled"),
         )
     };
     for (id, tag, attrs) in [
         (2, button, vec![]),
-        (3, view, vec![(focus_scope, "contain")]),
+        (3, view, vec![]),
         (4, button, vec![]),
         (5, view, vec![]),
         (6, button, vec![]),
     ] {
         applier.apply_op(&Op::CreateElement { id, tag, attrs });
     }
+    set_focus_contained(&mut applier, 3);
     for (parent, child) in [(1, 2), (1, 3), (3, 4), (1, 5), (5, 6)] {
         applier.apply_op(&Op::AppendChild { parent, child });
     }
@@ -413,7 +413,7 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (button, view, role, aria_label, aria_modal, focus_scope) = {
+    let (button, view, role, aria_label, aria_modal) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("button"),
@@ -421,7 +421,6 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
             atoms.intern("role"),
             atoms.intern("aria-label"),
             atoms.intern("aria-modal"),
-            atoms.intern("focusScope"),
         )
     };
     applier.apply_op(&Op::CreateElement {
@@ -436,9 +435,9 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
             (role, "dialog"),
             (aria_label, "Settings"),
             (aria_modal, "true"),
-            (focus_scope, "contain"),
         ],
     });
+    set_focus_contained(&mut applier, 3);
     applier.apply_op(&Op::CreateElement {
         id: 4,
         tag: button,

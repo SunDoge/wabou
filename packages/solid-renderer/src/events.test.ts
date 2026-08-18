@@ -205,10 +205,16 @@ test("focus and subtree blocking compose as one typed policy", () => {
   expect(frame[13]).toBe(0x03);
   expect(bytes.getInt32(14, true)).toBe(2);
 
+  setProp(view, "focusContained", true, undefined);
+  frame = writer.flush()!;
+  bytes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+  expect(frame[13]).toBe(0x07);
+  expect(bytes.getInt32(14, true)).toBe(2);
+
   setProp(view, "focusOrder", undefined, 2);
   frame = writer.flush()!;
   bytes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
-  expect(frame[13]).toBe(0x02);
+  expect(frame[13]).toBe(0x06);
   expect(bytes.getInt32(14, true)).toBe(0);
 });
 

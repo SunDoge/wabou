@@ -506,6 +506,8 @@ impl Applier {
                         .then_some(*focus_order);
                     declared.interaction_blocked =
                         flags & crate::protocol::INTERACTION_POLICY_BLOCK_SUBTREE != 0;
+                    declared.focus_contained =
+                        flags & crate::protocol::INTERACTION_POLICY_CONTAIN_FOCUS != 0;
                 }
             }
             Op::SetStyle { id, prop, value } => {

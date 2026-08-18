@@ -37,9 +37,10 @@ const TEXT_BEHAVIOR = {
 const TEXT_BEHAVIOR_MASK = TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine;
 const INTERACTION_POLICY = {
 	Focusable: 1,
-	BlockSubtree: 2
+	BlockSubtree: 2,
+	ContainFocus: 4
 };
-const INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree;
+const INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
 const EVENT_CODE = {
 	click: 1,
 	input: 2,

@@ -38,6 +38,7 @@ declare const TEXT_BEHAVIOR: {
 declare const INTERACTION_POLICY: {
   readonly Focusable: 1;
   readonly BlockSubtree: 2;
+  readonly ContainFocus: 4;
 };
 declare const EVENT_CODE: {
   readonly click: 1;

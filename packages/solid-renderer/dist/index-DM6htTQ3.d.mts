@@ -118,7 +118,7 @@ interface PortalProps extends Omit<WabouElementProps, "children"> {
   /** Host stacking plane. `system` and `debug` are reserved for native UI. */
   plane?: "floating" | "modal";
   /** Contain native focus traversal within this overlay subtree. */
-  focusScope?: "contain";
+  focusContained?: boolean;
 }
 /** Render a native host subtree under its shared synthetic overlay root. */
 declare function Portal(props: PortalProps): JSX.Element;
@@ -218,6 +218,8 @@ interface WabouElementProps {
   focusOrder?: number;
   /** Removes this subtree from input, focus, and accessibility routing. */
   interactionBlocked?: boolean;
+  /** Contains sequential native focus within this logical subtree. */
+  focusContained?: boolean;
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -412,4 +414,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { setProp as $, Writer$1 as A, getRequestEvent as B, WabouPointerEvent as C, jsxs as Ct, WabouSvgProps as D, WabouSemanticRole as E, createTextNode as F, mergeProps as G, insertNode as H, delegateEvents as I, registerRoot as J, mount as K, dispatchEvent as L, applyRef as M, createComponent$1 as N, WabouSvgShapeProps as O, createElement as P, runSweep as Q, effect as R, WabouNodeEvent as S, jsxDEV as St, WabouScrollEvent as T, isServer as U, insert as V, memo as W, removeNode as X, releaseOverlayRoot as Y, render as Z, WabouInputProps as _, LayoutRect as _t, HostCapabilities as a, createFps as at, WabouNativeElements as b, JSX$1 as bt, OP as c, PortalProps as ct, WabouControlProps as d, HostProviderProps as dt, setTransform2D as et, WabouElementProps as f, LayoutTarget as ft, WabouInputEvent as g, LayoutNodeMetrics as gt, WabouImageProps as h, FrameStats as ht, Handle as i, VirtualListProps as it, acquireOverlayRoot as j, WabouWheelEvent as k, TEXT_BEHAVIOR as l, Host as lt, WabouExposedSemanticRole as m, useHost as mt, DynamicProps as n, writer as nt, INTERACTION_POLICY$1 as o, useFps as ot, WabouEventTarget as p, defaultHost as pt, ref as q, EVENT_CODE as r, VirtualList as rt, NativeScrollbarStyle as s, Portal as st, Dynamic as t, spread as tt, WabouBuiltinIntrinsicElements as u, HostProvider as ut, WabouIntrinsicElements as v, LayoutSnapshot as vt, WabouPositionedEvent as w, WabouNativeTag as x, jsx as xt, WabouKeyEvent as y, Fragment as yt, getMountRoot as z };
-//# sourceMappingURL=index-9_NXJFGR.d.mts.map
+//# sourceMappingURL=index-DM6htTQ3.d.mts.map

@@ -139,7 +139,7 @@ export function Modal(props: ModalProps): JSX.Element {
           // The modal owner marks the focus/semantic boundary. A generic
           // modal-plane Portal may only be a nested popover and must not do so.
           "aria-modal": "true",
-          focusScope: "contain",
+          focusContained: true,
           get class() {
             return props.backdropClass;
           },

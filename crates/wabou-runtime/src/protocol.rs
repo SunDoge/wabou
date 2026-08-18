@@ -23,7 +23,10 @@ pub const TEXT_BEHAVIOR_SINGLE_LINE: u8 = 0x02;
 const TEXT_BEHAVIOR_MASK: u8 = TEXT_BEHAVIOR_AGGREGATE_DIRECT | TEXT_BEHAVIOR_SINGLE_LINE;
 pub const INTERACTION_POLICY_FOCUSABLE: u8 = 0x01;
 pub const INTERACTION_POLICY_BLOCK_SUBTREE: u8 = 0x02;
-const INTERACTION_POLICY_MASK: u8 = INTERACTION_POLICY_FOCUSABLE | INTERACTION_POLICY_BLOCK_SUBTREE;
+pub const INTERACTION_POLICY_CONTAIN_FOCUS: u8 = 0x04;
+const INTERACTION_POLICY_MASK: u8 = INTERACTION_POLICY_FOCUSABLE
+    | INTERACTION_POLICY_BLOCK_SUBTREE
+    | INTERACTION_POLICY_CONTAIN_FOCUS;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StyleValue {
@@ -732,9 +735,9 @@ mod tests {
             })
         ));
         assert!(matches!(
-            decode_frame(&frame_bytes(0x04, 0)),
+            decode_frame(&frame_bytes(0x08, 0)),
             Err(DecodeError::BadInteractionPolicy {
-                flags: 0x04,
+                flags: 0x08,
                 focus_order: 0,
             })
         ));
