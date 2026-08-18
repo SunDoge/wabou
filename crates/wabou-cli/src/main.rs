@@ -36,10 +36,14 @@ use wabou_shell::{
 mod behavior_test;
 mod doctor;
 mod packaging;
+mod project;
 mod render_metrics;
 mod scaffold;
 
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
+use project::{App, ensure_workspace_package_exports, find_workspace, load_app};
+#[cfg(test)]
+use project::{find_app_root, package_source_hash};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -330,13 +334,6 @@ enum InspectCommand {
     },
 }
 
-struct App {
-    name: String,
-    root: PathBuf,
-    frontend: PathBuf,
-    entry: String,
-}
-
 struct RenderOptions {
     out: PathBuf,
     width: u32,
@@ -563,62 +560,6 @@ fn render_actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAction>
     Some(indexed.into_iter().map(|(_, action)| action).collect())
 }
 
-fn find_workspace(start: &Path) -> Result<PathBuf> {
-    for dir in start.ancestors() {
-        let manifest = dir.join("Cargo.toml");
-        if fs::read_to_string(&manifest).is_ok_and(|text| text.contains("[workspace]")) {
-            return Ok(dir.to_path_buf());
-        }
-    }
-    find_app_root(start).ok_or_else(|| "not inside a Wabou Cargo project".into())
-}
-
-fn load_app(workspace: &Path, cwd: &Path, app_path: Option<&Path>) -> Result<App> {
-    let root = match app_path {
-        Some(path) if path.is_absolute() => path.to_path_buf(),
-        Some(path) => cwd.join(path),
-        None => find_app_root(cwd).unwrap_or_else(|| workspace.join("apps/gallery")),
-    };
-    if !root.join("Cargo.toml").is_file() {
-        return Err(format!(
-            "{} is not a Wabou app: Cargo.toml is missing",
-            root.display()
-        )
-        .into());
-    }
-    if !root.join("package.json").is_file() {
-        return Err(format!(
-            "{} is not a Wabou app: package.json is missing",
-            root.display()
-        )
-        .into());
-    }
-    let entry = if root.join("ui/index.tsx").is_file() {
-        "ui/index.tsx"
-    } else {
-        return Err(format!("{} has no conventional ui/index.tsx entry", root.display()).into());
-    };
-    Ok(App {
-        name: root
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or("app directory must have a UTF-8 name")?
-            .to_string(),
-        frontend: root.clone(),
-        root,
-        entry: entry.to_string(),
-    })
-}
-
-fn find_app_root(start: &Path) -> Option<PathBuf> {
-    start
-        .ancestors()
-        .find(|dir| {
-            fs::read_to_string(dir.join("Cargo.toml")).is_ok_and(|text| text.contains("[package]"))
-        })
-        .map(Path::to_path_buf)
-}
-
 fn manifest(app: &App) -> String {
     app.root.join("Cargo.toml").to_string_lossy().into_owned()
 }
@@ -681,159 +622,6 @@ fn frontend_build_lock(workspace: &Path, app: &App) -> Result<fs::File> {
         .open(directory.join("frontend.lock"))?;
     file.lock_exclusive()?;
     Ok(file)
-}
-
-fn collect_dist_exports(value: &Value, output: &mut Vec<String>) {
-    match value {
-        Value::String(path) if path.starts_with("./dist/") => output.push(path[2..].to_owned()),
-        Value::Array(values) => {
-            for value in values {
-                collect_dist_exports(value, output);
-            }
-        }
-        Value::Object(values) => {
-            for (condition, value) in values {
-                if condition != "types" && condition != "wabou-source" {
-                    collect_dist_exports(value, output);
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-fn package_source_hash(package: &Path) -> Result<String> {
-    fn collect_files(directory: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
-        for entry in fs::read_dir(directory)? {
-            let path = entry?.path();
-            if path.is_dir() {
-                collect_files(&path, output)?;
-            } else if path.is_file() {
-                output.push(path);
-            }
-        }
-        Ok(())
-    }
-
-    let source = package.join("src");
-    let mut files = Vec::new();
-    collect_files(&source, &mut files)?;
-    files.sort();
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    let mut update = |bytes: &[u8]| {
-        for byte in bytes {
-            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100_0000_01b3);
-        }
-    };
-    for file in files {
-        let relative = file
-            .strip_prefix(package)
-            .unwrap_or(&file)
-            .to_string_lossy()
-            .replace(std::path::MAIN_SEPARATOR, "/");
-        update(relative.as_bytes());
-        update(&[0]);
-        update(&fs::read(file)?);
-        update(&[0xff]);
-    }
-    Ok(format!("{hash:016x}"))
-}
-
-/// Catch interrupted workspace package builds before Vite turns a missing
-/// tracked entrypoint into an opaque `externalize-deps` resolution failure.
-fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
-    let mut missing = Vec::new();
-    let mut stale = Vec::new();
-    for packages in [
-        workspace.join("packages"),
-        workspace.join("vendor/wabou/packages"),
-    ] {
-        if !packages.is_dir() {
-            continue;
-        }
-        let source_hashes = fs::read_to_string(packages.join(".wabou-source-hashes.json"))
-            .ok()
-            .and_then(|source| serde_json::from_str::<Value>(&source).ok());
-        for entry in fs::read_dir(&packages)? {
-            let package = entry?.path();
-            let manifest_path = package.join("package.json");
-            if !manifest_path.is_file() {
-                continue;
-            }
-            let manifest: Value = serde_json::from_str(&fs::read_to_string(&manifest_path)?)
-                .map_err(|error| {
-                    format!(
-                        "invalid package manifest {}: {error}",
-                        manifest_path.display()
-                    )
-                })?;
-            let Some(package_name) = manifest
-                .get("name")
-                .and_then(Value::as_str)
-                .filter(|name| name.starts_with("@wabou/"))
-            else {
-                continue;
-            };
-            let mut exports = Vec::new();
-            if let Some(value) = manifest.get("exports") {
-                collect_dist_exports(value, &mut exports);
-            }
-            exports.sort();
-            exports.dedup();
-            missing.extend(
-                exports
-                    .into_iter()
-                    .map(|path| package.join(path))
-                    .filter(|path| !path.is_file()),
-            );
-            if package.join("src").is_dir()
-                && let Some(expected) = source_hashes
-                    .as_ref()
-                    .and_then(|hashes| hashes.get(package_name))
-                    .and_then(Value::as_str)
-                && expected != package_source_hash(&package)?
-            {
-                stale.push(package.clone());
-            }
-        }
-    }
-    if !missing.is_empty() {
-        missing.sort();
-        let paths = missing
-            .iter()
-            .map(|path| {
-                path.strip_prefix(workspace)
-                    .unwrap_or(path)
-                    .display()
-                    .to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n  - ");
-        return Err(format!(
-            "Wabou workspace JavaScript package artifacts are missing:\n  - {paths}\nrun `bun run packages:build` from {} and retry",
-            workspace.display()
-        )
-        .into());
-    }
-    if !stale.is_empty() {
-        stale.sort();
-        let paths = stale
-            .iter()
-            .map(|path| {
-                path.strip_prefix(workspace)
-                    .unwrap_or(path)
-                    .display()
-                    .to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n  - ");
-        return Err(format!(
-            "Wabou workspace JavaScript package artifacts are stale:\n  - {paths}\nrun `bun run gen` from {} and retry",
-            workspace.display()
-        )
-        .into());
-    }
-    Ok(())
 }
 
 fn frontend_unlocked(
