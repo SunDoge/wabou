@@ -532,7 +532,6 @@ const renderer = createRenderer({
 	createElement(tag, staticProps) {
 		const h = makeHandle(tag);
 		writer.createElement(h.id, tag);
-		writer.setAttribute(h.id, "layoutDefault", "block");
 		if (staticProps) for (const [name, value] of Object.entries(staticProps)) applyProperty(writer, h, name, value, void 0);
 		return h;
 	},

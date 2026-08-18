@@ -710,14 +710,16 @@ impl Applier {
             .get(&node)
             .expect("declared node remains present during style resolution");
         let resolved = {
-            let mut layout = taffy::Style::default();
+            // Wabou has one tag-independent layout baseline. This is an
+            // engine default, not an HTML-like tag stylesheet; authored
+            // classes and inline style below may override it.
+            let mut layout = taffy::Style {
+                display: taffy::Display::Block,
+                ..taffy::Style::default()
+            };
             let mut paint = DeclaredPaint::default();
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
-            let layout_default = decl.attribute(&atoms, "layoutDefault");
-            if layout_default.as_deref() == Some("block") {
-                layout.display = taffy::Display::Block;
-            }
             // JS primitives author host defaults. Authored class and inline
             // declarations below may still opt into wrapping and shrinking.
             if decl.attribute(&atoms, "textLayout").as_deref() == Some("singleLine") {

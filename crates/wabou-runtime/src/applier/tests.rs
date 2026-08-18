@@ -3,7 +3,7 @@ use super::*;
 
 fn renderer_attrs(applier: &Applier, text_container: bool) -> Vec<(Atom, &'static str)> {
     let mut atoms = applier.atoms.borrow_mut();
-    let mut attrs = vec![(atoms.intern("layoutDefault"), "block")];
+    let mut attrs = Vec::new();
     if text_container {
         attrs.push((atoms.intern("textFlow"), "container"));
         attrs.push((atoms.intern("textLayout"), "singleLine"));
@@ -15,18 +15,14 @@ fn renderer_attrs(applier: &Applier, text_container: bool) -> Vec<(Atom, &'stati
 fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (text, layout_default, text_layout) = {
+    let (text, text_layout) = {
         let mut atoms = applier.atoms.borrow_mut();
-        (
-            atoms.intern("text"),
-            atoms.intern("layoutDefault"),
-            atoms.intern("textLayout"),
-        )
+        (atoms.intern("text"), atoms.intern("textLayout"))
     };
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: text,
-        attrs: vec![(layout_default, "block")],
+        attrs: vec![],
     });
     let unconfigured = applier.computed_node_snapshot(2).unwrap();
     assert!(unconfigured.wrap_text);

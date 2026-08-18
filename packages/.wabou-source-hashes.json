@@ -5,7 +5,7 @@
   "@wabou/primitives": "040f9c2620797377",
   "@wabou/protocol": "c7e80ee2b66a9cc0",
   "@wabou/router": "d09a3ec92bcde517",
-  "@wabou/solid-renderer": "da02bf0ca4f4dfd6",
+  "@wabou/solid-renderer": "e623c767d82a3633",
   "@wabou/style": "769bb1d993311db1",
   "@wabou/terminal": "c4e7325d52f9cb01",
   "@wabou/test": "8709978678d933c1",

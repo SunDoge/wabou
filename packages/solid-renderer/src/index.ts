@@ -688,9 +688,6 @@ const renderer = solidCreateRenderer<Handle>({
   createElement(tag, staticProps) {
     const h = makeHandle(tag);
     writer.createElement(h.id, tag);
-    // Layout defaults are a JS-authored host contract, not native inference
-    // from HTML-like tag names. Authored style may override this default.
-    writer.setAttribute(h.id, "layoutDefault", "block");
     if (staticProps) {
       for (const [name, value] of Object.entries(staticProps)) {
         applyProperty(writer, h, name, value, undefined);
