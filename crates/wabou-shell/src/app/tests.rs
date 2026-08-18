@@ -2,9 +2,13 @@ use super::*;
 
 #[test]
 fn native_semantic_locators_accept_every_published_role() {
-    for role in SemanticRole::ALL {
+    for role in SemanticRole::ALL
+        .iter()
+        .filter(|role| **role != SemanticRole::Generic)
+    {
         assert!(semantic_role_matches(role.as_str(), *role));
     }
+    assert!(!semantic_role_matches("generic", SemanticRole::Generic));
 }
 
 #[test]

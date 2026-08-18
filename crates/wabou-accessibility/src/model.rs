@@ -16,6 +16,10 @@ macro_rules! semantic_roles {
 
             /// Parse the canonical role name used by the JS semantic contract.
             pub fn from_name(name: &str) -> Option<Self> {
+                // Generic is an internal fallback, not an authored semantic role.
+                if name == "generic" {
+                    return None;
+                }
                 match name {
                     $( $name => Some(Self::$variant), )+
                     _ => None,
@@ -298,9 +302,13 @@ mod tests {
 
     #[test]
     fn semantic_role_names_round_trip_through_one_contract() {
-        for role in SemanticRole::ALL {
+        for role in SemanticRole::ALL
+            .iter()
+            .filter(|role| **role != SemanticRole::Generic)
+        {
             assert_eq!(SemanticRole::from_name(role.as_str()), Some(*role));
         }
+        assert_eq!(SemanticRole::from_name("generic"), None);
         assert_eq!(SemanticRole::from_name("alertdialog"), None);
     }
 
