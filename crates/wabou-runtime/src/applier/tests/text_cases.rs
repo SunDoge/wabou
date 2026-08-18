@@ -18,18 +18,22 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
         Arc::new(move || Box::new(crate::PasswordInput::new(factory_secrets.clone()))),
     );
     let mut applier = Applier::from_runtime_with_factories(js, factories, Color::BLACK);
-    let (tag, secret, value) = {
+    let (tag, secret, value, aria_value_text) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("password-input"),
             atoms.intern("secret"),
             atoms.intern("value"),
+            atoms.intern("aria-valuetext"),
         )
     };
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag,
-        attrs: vec![(secret, "master-password")],
+        attrs: vec![
+            (secret, "master-password"),
+            (aria_value_text, "must-not-leak"),
+        ],
     });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
@@ -68,6 +72,16 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
         0
     );
     assert_eq!(secrets.take("master-password").as_str(), "hunter2");
+    assert_eq!(
+        applier
+            .projections
+            .semantic_snapshot
+            .nodes
+            .iter()
+            .find(|node| node.id == 2)
+            .and_then(|node| node.value.as_deref()),
+        None
+    );
 }
 
 #[test]

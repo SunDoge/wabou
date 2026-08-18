@@ -23,6 +23,8 @@ const insecureGenericInput = <input type="password" />;
 const unsupportedTitle = <div title="Browser tooltip" />;
 // @ts-expect-error structural host nodes do not acquire browser navigation
 const unsupportedHref = <div href="https://example.com" />;
+// @ts-expect-error image semantics use an explicit accessible label, not Web alt fallback
+const unsupportedAlt = <img alt="Preview" />;
 // @ts-expect-error inline styles expose only properties implemented by Style IR
 const unsupportedStyle = <div style={{ filter: "blur(4px)" }} />;
 void [

@@ -170,7 +170,6 @@ export interface WabouInputProps extends WabouControlProps {
 
 export interface WabouImageProps extends WabouElementProps {
   src?: string;
-  alt?: string;
 }
 
 export interface WabouSvgProps extends WabouElementProps {

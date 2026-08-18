@@ -389,10 +389,6 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let Some(declared) = applier.node_store.declared.get(&placed_node.node_id) else {
             continue;
         };
-        let tag = declared
-            .tag
-            .and_then(|tag| atoms.resolve(tag))
-            .unwrap_or("view");
         let widget_semantics = applier
             .widget_manager
             .widgets
@@ -400,14 +396,10 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .map(|widget| widget.accessibility())
             .unwrap_or_default();
         let label = attribute(declared, &atoms, "aria-label")
-            .or_else(|| attribute(declared, &atoms, "alt"))
             .map(|value| value.to_string())
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
-        // The dedicated password widget is the only secret-bearing input. A
-        // generic input never becomes secure through a browser-style `type`.
-        let is_secret = tag == "password-input";
         let explicit_role = attribute(declared, &atoms, "role");
-        let value = (!is_secret)
+        let value = (!widget_semantics.value_is_sensitive)
             .then(|| {
                 attribute(declared, &atoms, "aria-valuetext")
                     .or_else(|| attribute(declared, &atoms, "value"))

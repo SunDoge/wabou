@@ -37,6 +37,7 @@ impl Widget for ExternalWidget {
     fn accessibility(&self) -> WidgetAccessibility {
         WidgetAccessibility {
             label: Some("External widget".into()),
+            value_is_sensitive: true,
             ..Default::default()
         }
     }

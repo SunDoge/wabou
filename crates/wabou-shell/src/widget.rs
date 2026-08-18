@@ -240,6 +240,12 @@ pub struct WidgetAccessibility {
     pub label: Option<String>,
     /// Current textual value exposed to assistive technology.
     pub value: Option<String>,
+    /// Whether every textual value associated with this widget is sensitive.
+    ///
+    /// The runtime suppresses both the widget value and any value authored by
+    /// JavaScript when this is set. This lets custom secret controls opt into
+    /// the same protection without relying on a reserved element tag.
+    pub value_is_sensitive: bool,
     /// Disabled state when it cannot be inferred from the host element.
     pub disabled: Option<bool>,
 }
