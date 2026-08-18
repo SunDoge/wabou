@@ -157,46 +157,38 @@ export function Button(props: ButtonProps): JSX.Element {
   const state = primitive.state;
   const customStyle = () =>
     typeof props.style === "function" ? props.style(state()) : props.style;
-  const defaultStyle = (): WabouStyle =>
-    props.unstyled
-      ? {
-          // `unstyled` removes the opinionated skin, not the structural button
-          // layout. Native Wabou elements intentionally have no browser UA
-          // stylesheet, so a bare button would otherwise place its text at the
-          // start of the content box instead of centering it vertically.
-          display: "flex",
-          "align-items": "center",
-          "flex-shrink": 0,
-          "white-space": "nowrap",
-          "user-select": props.selectable ? "text" : "none",
-          cursor: disabled() ? "not-allowed" : "pointer",
-          "outline-width": state().focused ? "2px" : "0px",
-          "outline-offset": "2px",
-          "outline-color": "#38bdf8",
-          "outline-style": "solid",
-        }
-      : {
-          display: "flex",
-          "align-items": "center",
-          "justify-content": "center",
-          "flex-shrink": 0,
-          "white-space": "nowrap",
-          "user-select": props.selectable ? "text" : "none",
-          cursor: disabled() ? "not-allowed" : "pointer",
-          "outline-width": state().focused ? "2px" : "0px",
-          "outline-offset": "2px",
-          "outline-color": "#38bdf8",
-          "outline-style": "solid",
-          "min-height": "32px",
-          padding: "6px 12px",
-          "border-radius": "6px",
-          // Keep focus styling paint-only so focus cannot move the label.
-          "border-width": "1px",
-          "border-color": state().focused ? "#7dd3fc" : "#64748b",
-          "background-color": background(),
-          color: "#f8fafc",
-          opacity: disabled() ? 0.45 : 1,
-        };
+  const structuralStyle = (): WabouStyle => ({
+    display: "flex",
+    "align-items": "center",
+    "flex-shrink": 0,
+    "white-space": "nowrap",
+    "user-select": props.selectable ? "text" : "none",
+    cursor: disabled() ? "not-allowed" : "pointer",
+    "outline-width": state().focused ? "2px" : "0px",
+    "outline-offset": "2px",
+    "outline-color": "#38bdf8",
+    "outline-style": "solid",
+  });
+  const defaultStyle = (): WabouStyle => {
+    // `unstyled` removes the opinionated skin, not the structural button
+    // layout. Native Wabou elements intentionally have no browser UA
+    // stylesheet, so a bare button would otherwise place its text at the
+    // start of the content box instead of centering it vertically.
+    if (props.unstyled) return structuralStyle();
+    return {
+      ...structuralStyle(),
+      "justify-content": "center",
+      "min-height": "32px",
+      padding: "6px 12px",
+      "border-radius": "6px",
+      // Keep focus styling paint-only so focus cannot move the label.
+      "border-width": "1px",
+      "border-color": state().focused ? "#7dd3fc" : "#64748b",
+      "background-color": background(),
+      color: "#f8fafc",
+      opacity: disabled() ? 0.45 : 1,
+    };
+  };
 
   const background = () => {
     if (variant() === "ghost" && !props.selected) {
