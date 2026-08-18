@@ -120,16 +120,43 @@ build, scene, and presentation timing. Performance claims should be accompanied
 by a reproducible workload, hardware, operating system, scale factor, and
 refresh rate.
 
-## Try it
+## Quick start
 
-You need a current Rust toolchain and
-[mise](https://mise.jdx.dev/). Clone the repository, then run:
+Wabou currently supports macOS and Linux. Install a current stable Rust
+toolchain with [rustup](https://rustup.rs/) and install
+[mise](https://mise.jdx.dev/) before continuing.
+
+On macOS, install the Xcode command-line tools:
 
 ```bash
-mise install
-mise exec -- bun install
-mise exec -- bun run wabou run apps/gallery
+xcode-select --install
 ```
+
+On Ubuntu or Debian, install the native build and graphics dependencies:
+
+```bash
+sudo apt-get update
+sudo apt-get install --yes \
+  libegl1-mesa-dev \
+  libfontconfig1-dev \
+  libgtk-3-dev \
+  mesa-vulkan-drivers \
+  pkg-config
+```
+
+Then clone Wabou and launch the component gallery:
+
+```bash
+git clone https://github.com/SunDoge/wabou.git
+cd wabou
+mise install
+mise exec -- bun install --frozen-lockfile
+mise exec -- bun run dev
+```
+
+The first launch compiles the Rust workspace and may take several minutes.
+Later launches reuse the build cache. Run `mise exec -- bun run gen` if Wabou
+reports that checked-in JavaScript package artifacts are missing or stale.
 
 Until binary releases are available, the CLI can also be installed directly
 from the repository (the checkout workflow above is still recommended for
