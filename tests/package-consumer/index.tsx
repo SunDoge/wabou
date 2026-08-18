@@ -1,12 +1,13 @@
 import { Button } from "@wabou/components";
 import { mount } from "@wabou/core";
-import { View } from "@wabou/primitives";
+import { Button as PrimitiveButton, View } from "@wabou/primitives";
 import {
   BaseRootRoute,
   createDataRouter,
   createMemoryHistory,
 } from "@wabou/router";
 import { defineWabouConfig } from "@wabou/vite";
+import { Portal } from "@wabou/solid-renderer";
 import { createSignal } from "solid-js";
 
 const [enabled, setEnabled] = createSignal(false);
@@ -28,6 +29,10 @@ const unsupportedHref = <div href="https://example.com" />;
 const unsupportedAlt = <img alt="Preview" />;
 // @ts-expect-error primitives expose a finite native contract too
 const unsupportedPrimitiveHref = <View href="https://example.com" />;
+// @ts-expect-error headless controls do not forward arbitrary DOM attributes
+const unsupportedButtonHref = <PrimitiveButton href="https://example.com" />;
+// @ts-expect-error portal containers expose only native host properties
+const unsupportedPortalHref = <Portal href="https://example.com" />;
 // @ts-expect-error inline styles expose only properties implemented by Style IR
 const unsupportedStyle = <div style={{ filter: "blur(4px)" }} />;
 void [
@@ -39,6 +44,8 @@ void [
   unsupportedHref,
   unsupportedAlt,
   unsupportedPrimitiveHref,
+  unsupportedButtonHref,
+  unsupportedPortalHref,
   unsupportedStyle,
 ];
 

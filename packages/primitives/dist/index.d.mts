@@ -153,6 +153,8 @@ interface ButtonProps {
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
+  /** Explicit native tab order, used by roving-focus composites. */
+  tabIndex?: number;
   role?: WabouSemanticRole;
   ref?: (node: Handle) => void;
   "aria-haspopup"?: boolean | "false" | "true" | "menu" | "listbox" | "tree" | "grid" | "dialog";
@@ -164,7 +166,6 @@ interface ButtonProps {
   "aria-pressed"?: boolean;
   onKeyDown?: (event: ButtonKeyEvent) => void;
   onClick?: (event: ButtonEvent) => void;
-  [name: string]: unknown;
 }
 interface LinkProps extends ButtonProps {
   /** URL passed explicitly to the native shell when the link is activated. */

@@ -8,13 +8,15 @@ import {
   releaseOverlayRoot,
   removeNode,
   spread,
+  type WabouElementProps,
 } from "./index";
 
-export interface PortalProps {
+export interface PortalProps extends Omit<WabouElementProps, "children"> {
   children?: JSX.Element;
   /** Host stacking plane. `system` and `debug` are reserved for native UI. */
   plane?: "floating" | "modal";
-  [name: string]: unknown;
+  /** Contain native focus traversal within this overlay subtree. */
+  focusScope?: "contain";
 }
 
 /** Render a native host subtree under its shared synthetic overlay root. */

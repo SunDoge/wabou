@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { writer } from "@wabou/solid-renderer";
 import { createRoot, flush } from "solid-js";
+import { resolveButtonTabIndex } from "./button";
 import {
   createButton,
   createFocus,
@@ -304,6 +305,13 @@ describe("tabs primitive", () => {
 });
 
 describe("host primitives", () => {
+  test("button preserves explicit roving tab order unless disabled", () => {
+    expect(resolveButtonTabIndex(false, -1)).toBe(-1);
+    expect(resolveButtonTabIndex(false, 4)).toBe(4);
+    expect(resolveButtonTabIndex(false, undefined)).toBe(0);
+    expect(resolveButtonTabIndex(true, 4)).toBe(-1);
+  });
+
   test("authors primitive semantics in JavaScript", () => {
     const roles: string[] = [];
     const setAttribute = writer.setAttribute.bind(writer);

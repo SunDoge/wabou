@@ -25,6 +25,8 @@ export interface ButtonProps {
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
+  /** Explicit native tab order, used by roving-focus composites. */
+  tabIndex?: number;
   role?: WabouSemanticRole;
   ref?: (node: Handle) => void;
   "aria-haspopup"?:
@@ -44,7 +46,6 @@ export interface ButtonProps {
   "aria-pressed"?: boolean;
   onKeyDown?: (event: ButtonKeyEvent) => void;
   onClick?: (event: ButtonEvent) => void;
-  [name: string]: unknown;
 }
 
 export interface LinkProps extends ButtonProps {
@@ -71,6 +72,13 @@ export interface ButtonState {
   focused: boolean;
   selected: boolean;
   disabled: boolean;
+}
+
+export function resolveButtonTabIndex(
+  disabled: boolean,
+  tabIndex: number | undefined,
+): number {
+  return disabled ? -1 : (tabIndex ?? 0);
 }
 
 export interface CreateButtonOptions {
@@ -210,7 +218,7 @@ export function Button(props: ButtonProps): JSX.Element {
     // biome-ignore lint/a11y/useAriaPropsSupportedByRole: headless controls replace the default button role at runtime.
     <button
       disabled={disabled()}
-      tabIndex={disabled() ? -1 : 0}
+      tabIndex={resolveButtonTabIndex(disabled(), props.tabIndex)}
       role={props.role ?? "button"}
       ref={props.ref as never}
       aria-haspopup={props["aria-haspopup"] as never}

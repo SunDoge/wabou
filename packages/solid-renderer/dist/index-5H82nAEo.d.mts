@@ -113,11 +113,12 @@ declare function HostProvider(props: HostProviderProps): JSX.Element;
 declare function useHost<T extends Host = Host>(): T;
 //#endregion
 //#region src/portal.d.ts
-interface PortalProps {
+interface PortalProps extends Omit<WabouElementProps, "children"> {
   children?: JSX.Element;
   /** Host stacking plane. `system` and `debug` are reserved for native UI. */
   plane?: "floating" | "modal";
-  [name: string]: unknown;
+  /** Contain native focus traversal within this overlay subtree. */
+  focusScope?: "contain";
 }
 /** Render a native host subtree under its shared synthetic overlay root. */
 declare function Portal(props: PortalProps): JSX.Element;
@@ -414,4 +415,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { createFps as $, delegateEvents as A, mount as B, WabouWheelEvent as C, createComponent$1 as D, applyRef as E, insert as F, render as G, registerRoot as H, insertNode as I, setTransform2D as J, runSweep as K, isServer as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualListProps as Q, memo as R, WabouSvgShapeProps as S, acquireOverlayRoot as T, releaseOverlayRoot as U, ref as V, removeNode as W, writer as X, spread as Y, VirtualList as Z, WabouPointerEvent as _, jsxs as _t, NativeScrollbarStyle as a, HostProviderProps as at, WabouSemanticRole as b, WabouControlProps as c, useHost as ct, WabouImageProps as d, LayoutRect as dt, useFps as et, WabouInputEvent as f, LayoutSnapshot as ft, WabouNodeEvent as g, jsxDEV as gt, WabouKeyEvent as h, jsx as ht, HostCapabilities as i, HostProvider as it, dispatchEvent as j, createTextNode as k, WabouElementProps as l, FrameStats as lt, WabouIntrinsicElements as m, JSX$1 as mt, EVENT_CODE as n, PortalProps as nt, OP as o, LayoutTarget as ot, WabouInputProps as p, Fragment as pt, setProp as q, Handle as r, Host as rt, WabouBuiltinIntrinsicElements as s, defaultHost as st, Dynamic as t, Portal as tt, WabouEventTarget as u, LayoutNodeMetrics as ut, WabouPositionedEvent as v, Writer$1 as w, WabouSvgProps as x, WabouScrollEvent as y, mergeProps as z };
-//# sourceMappingURL=index-BkNud46i.d.mts.map
+//# sourceMappingURL=index-5H82nAEo.d.mts.map

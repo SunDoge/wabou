@@ -102,6 +102,9 @@ const ACCENTS = {
 	sky: "#0284c7",
 	amber: "#d97706"
 };
+function resolveButtonTabIndex(disabled, tabIndex) {
+	return disabled ? -1 : tabIndex ?? 0;
+}
 /** Headless button state and event normalization. */
 function createButton(options = {}) {
 	const hover = createHover();
@@ -206,7 +209,7 @@ function Button(props) {
 			return disabled();
 		},
 		get tabIndex() {
-			return disabled() ? -1 : 0;
+			return resolveButtonTabIndex(disabled(), props.tabIndex);
 		},
 		get role() {
 			return props.role ?? "button";
