@@ -230,6 +230,10 @@ impl Widget for PasswordInput {
         !self.disabled
     }
 
+    fn accepts_text_input(&self) -> bool {
+        !self.disabled
+    }
+
     fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
         wabou_shell::WidgetAccessibility {
             role: Some(wabou_shell::SemanticRole::TextInput),

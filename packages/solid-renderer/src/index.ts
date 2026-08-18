@@ -97,7 +97,6 @@ export interface Handle {
   lastChild: Handle | null;
   prev: Handle | null;
   next: Handle | null;
-  href?: string;
   /** Request native keyboard focus for this node on the next bridge flush. */
   focus(): void;
   /** Set this overflow container's native scroll offset. */
@@ -405,7 +404,6 @@ function applyProperty(
       }
       return;
     }
-    if (name === "href") node.href = undefined;
     writer.removeAttribute(node.id, name);
     return;
   }
@@ -436,7 +434,6 @@ function applyProperty(
     writer.setText(node.id, String(value));
     return;
   }
-  if (name === "href") node.href = String(value);
   if (name.startsWith("on") && typeof value === "function") {
     const t = EVENT_CODE[name.slice(2).toLowerCase() as EventType];
     if (t == null) return;

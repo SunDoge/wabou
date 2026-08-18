@@ -1,6 +1,6 @@
 // Story detail page.
 
-import { Button, Icon, Text } from "@wabou/primitives";
+import { Button, Icon, Link, Text } from "@wabou/primitives";
 import { useParams, useRouter } from "@wabou/router";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
@@ -82,16 +82,16 @@ export function StoryDetail(): JSX.Element {
 
               <div class="mt-9 flex gap-3">
                 <Show when={current().url}>
-                  <a
+                  <Link
                     class="h-9 px-4 flex flex-none items-center gap-2 rounded-md text-sm font-medium whitespace-nowrap"
                     style={{
                       "background-color": palette().accent,
                       color: "#ffffff",
                     }}
-                    href={current().url}
+                    url={current().url as string}
                   >
                     Open article <Icon source={externalLink} size={14} />
-                  </a>
+                  </Link>
                 </Show>
                 <span
                   class="h-9 px-4 flex flex-none items-center rounded-md text-sm whitespace-nowrap"

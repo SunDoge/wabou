@@ -767,7 +767,7 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
     assert!(applier.text_selection.last_click.is_none());
 
     let focused = applier.handle_event(UiEvent::Focus(true));
-    assert_eq!(focused.text_input, Some(true));
+    assert_eq!(focused.text_input, Some(false));
     assert_eq!(
         *lifecycle.lock().unwrap(),
         ["pointer-cancel", "focus-out", "focus-in"]
@@ -1026,6 +1026,11 @@ fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
         });
     }
     applier.apply_op(&Op::SetAttribute {
+        id: 2,
+        name: tab_index,
+        value: "0",
+    });
+    applier.apply_op(&Op::SetAttribute {
         id: 3,
         name: tab_index,
         value: "2",
@@ -1039,6 +1044,11 @@ fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
         id: 5,
         name: tab_index,
         value: "1",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 6,
+        name: tab_index,
+        value: "0",
     });
     applier.apply_op(&Op::SetAttribute {
         id: 6,
@@ -1058,16 +1068,105 @@ fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
 }
 
 #[test]
+fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    js.with(|ctx| {
+        ctx.eval::<(), _>(
+            "globalThis.__wabou_tick = () => false; globalThis.__wabou_has_raf = () => false;",
+        )
+    })
+    .unwrap();
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (view, button, role, tab_index, aria_disabled, aria_hidden, width, height) = {
+        let mut atoms = applier.atoms.borrow_mut();
+        (
+            atoms.intern("view"),
+            atoms.intern("button"),
+            atoms.intern("role"),
+            atoms.intern("tabIndex"),
+            atoms.intern("aria-disabled"),
+            atoms.intern("aria-hidden"),
+            atoms.intern("width"),
+            atoms.intern("height"),
+        )
+    };
+    for (id, tag) in [(2, view), (3, view), (4, button), (5, view)] {
+        applier.apply_op(&Op::CreateElement {
+            id,
+            tag,
+            attrs: Vec::new(),
+        });
+        applier.apply_op(&Op::AppendChild {
+            parent: 1,
+            child: id,
+        });
+        applier.apply_op(&Op::SetStyle {
+            id,
+            prop: width,
+            value: "100px",
+        });
+        applier.apply_op(&Op::SetStyle {
+            id,
+            prop: height,
+            value: "20px",
+        });
+    }
+    for id in [2, 3, 5] {
+        applier.apply_op(&Op::SetAttribute {
+            id,
+            name: role,
+            value: if id == 5 { "textbox" } else { "button" },
+        });
+    }
+    applier.apply_op(&Op::SetAttribute {
+        id: 3,
+        name: tab_index,
+        value: "0",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 3,
+        name: aria_disabled,
+        value: "true",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 4,
+        name: tab_index,
+        value: "0",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 4,
+        name: aria_hidden,
+        value: "true",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 5,
+        name: tab_index,
+        value: "-1",
+    });
+
+    let mut tcx = TextContext::new();
+    FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
+
+    assert_eq!(applier.input.focus_order, [3, 4]);
+    assert!(!applier.input.focusable_targets.contains(&2));
+    assert!(applier.input.focusable_targets.contains(&3));
+    assert!(applier.input.focusable_targets.contains(&4));
+    assert!(applier.input.focusable_targets.contains(&5));
+}
+
+#[test]
 fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, inert, aria_hidden, width, height) = {
+    let (view, button, inert, aria_hidden, tab_index, width, height) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
             atoms.intern("inert"),
             atoms.intern("aria-hidden"),
+            atoms.intern("tabIndex"),
             atoms.intern("width"),
             atoms.intern("height"),
         )
@@ -1080,7 +1179,7 @@ fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
     applier.apply_op(&Op::CreateElement {
         id: 3,
         tag: button,
-        attrs: Vec::new(),
+        attrs: vec![(tab_index, "0")],
     });
     for id in [2, 3] {
         applier.apply_op(&Op::SetStyle {
@@ -1178,7 +1277,7 @@ fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
     assert_eq!(applier.input.hit_test(10.0, 10.0), Some(3));
-    assert!(applier.input.focus_order.is_empty());
+    assert_eq!(applier.input.focus_order, [3]);
     assert!(
         applier
             .projections

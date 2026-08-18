@@ -11,6 +11,8 @@ export {
   type ButtonState,
   type CreateButtonOptions,
   createButton,
+  Link,
+  type LinkProps,
 } from "./button";
 export {
   CollapsiblePresence,

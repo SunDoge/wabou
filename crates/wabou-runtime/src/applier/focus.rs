@@ -181,7 +181,7 @@ impl Applier {
         let modal = placed.iter().enumerate().rev().find_map(|(index, placed)| {
             let declared = self.node_store.declared.get(&placed.node_id)?;
             (placed.paint.overlay_plane == OverlayPlane::Modal
-                && attribute(declared, "aria-modal").as_deref() == Some("true"))
+                && attribute(declared, "focusScope").as_deref() == Some("contain"))
             .then_some((index, placed.node_id))
         });
         // A portal opened from inside a modal is a physical sibling under the
@@ -209,51 +209,24 @@ impl Applier {
             if placed.node_id == self.node_store.root
                 || !inside_active_modal(placed.node_id)
                 || subtree_has_attribute(&self.node_store, &atoms, placed.node_id, "inert", None)
-                || subtree_has_attribute(
-                    &self.node_store,
-                    &atoms,
-                    placed.node_id,
-                    "aria-hidden",
-                    Some("true"),
-                )
             {
                 continue;
             }
             let Some(declared) = self.node_store.declared.get(&placed.node_id) else {
                 continue;
             };
-            if attribute(declared, "disabled").is_some()
-                || attribute(declared, "aria-disabled").as_deref() == Some("true")
-            {
+            if attribute(declared, "disabled").is_some() {
                 continue;
             }
             let explicit_tab_index = attribute(declared, "tabIndex")
                 .or_else(|| attribute(declared, "tabindex"))
                 .and_then(|value| value.parse::<i32>().ok());
-            let tag = declared
-                .tag
-                .and_then(|tag| atoms.resolve(tag))
-                .unwrap_or("");
-            let role = attribute(declared, "role").unwrap_or_default();
             let widget_focusable = self
                 .widget_manager
                 .widgets
                 .get(&placed.node_id)
                 .is_some_and(|widget| widget.accepts_focus());
-            let intrinsic_focusable = widget_focusable
-                || matches!(tag, "button" | "input" | "textarea" | "select")
-                || (tag == "a" && attribute(declared, "href").is_some())
-                || matches!(
-                    role.as_str(),
-                    "button"
-                        | "checkbox"
-                        | "combobox"
-                        | "link"
-                        | "listbox"
-                        | "radio"
-                        | "switch"
-                        | "textbox"
-                );
+            let intrinsic_focusable = widget_focusable;
             if explicit_tab_index.is_none() && !intrinsic_focusable {
                 continue;
             }

@@ -743,6 +743,10 @@ impl Widget for TerminalWidget {
         true
     }
 
+    fn accepts_text_input(&self) -> bool {
+        true
+    }
+
     fn accessibility(&self) -> wabou_shell::WidgetAccessibility {
         wabou_shell::WidgetAccessibility {
             role: Some(wabou_shell::SemanticRole::TextInput),

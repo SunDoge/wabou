@@ -72,12 +72,8 @@ impl Applier {
             data[event_data::BUTTONS as usize] =
                 Self::web_buttons(self.input.pointer_buttons) as f64;
             data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
-            let (dispatched, prevented) =
-                self.dispatch_cancellable_numeric(target, event::CLICK, data);
+            let (dispatched, _) = self.dispatch_cancellable_numeric(target, event::CLICK, data);
             changed |= dispatched;
-            if !prevented {
-                changed |= self.open_link_default(target);
-            }
         }
         self.input.pointer_down_target.take();
         self.input.pointer_down_position = None;
@@ -478,34 +474,6 @@ impl Applier {
         }
     }
 
-    pub(super) fn link_url(&self, mut target: u32) -> Option<String> {
-        let atoms = self.atoms.borrow();
-        loop {
-            let node = *self.node_store.solid_to_node.get(&target)?;
-            if let Some(declared) = self.node_store.declared.get(&node)
-                && declared.tag.and_then(|tag| atoms.resolve(tag)) == Some("a")
-                && let Some((_, href)) = declared
-                    .attrs
-                    .iter()
-                    .find(|(name, _)| atoms.resolve(**name) == Some("href"))
-            {
-                return Some(href.to_string());
-            }
-            let parent = self.node_store.tree.parent(node)?;
-            target = self.node_store.solid_id_for_node(parent)?;
-        }
-    }
-
-    pub(super) fn open_link_default(&mut self, target: u32) -> bool {
-        let Some(raw) = self.link_url(target) else {
-            return false;
-        };
-        self.pending_host_actions
-            .borrow_mut()
-            .push_back(wabou_shell::HostAction::OpenUrl(raw));
-        true
-    }
-
     /// Translate Wabou's compact native button representation only at the
     /// Solid/Web compatibility boundary.
     pub(super) fn web_button(button: PointerButton) -> u8 {
@@ -551,21 +519,10 @@ impl Applier {
         let Some(&node) = self.node_store.solid_to_node.get(&target) else {
             return false;
         };
-        if self
-            .widget_manager
+        self.widget_manager
             .widgets
             .get(&node)
-            .is_some_and(|widget| widget.accepts_focus())
-        {
-            return true;
-        }
-        let atoms = self.atoms.borrow();
-        self.node_store
-            .declared
-            .get(&node)
-            .and_then(|decl| decl.tag)
-            .and_then(|tag| atoms.resolve(tag))
-            == Some("input")
+            .is_some_and(|widget| widget.accepts_text_input())
     }
 
     pub(super) fn set_focused_target(&mut self, target: Option<u32>) -> bool {

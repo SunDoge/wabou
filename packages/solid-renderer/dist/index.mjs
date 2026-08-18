@@ -458,7 +458,6 @@ function applyProperty(writer, node, name, value, prev) {
 			}
 			return;
 		}
-		if (name === "href") node.href = void 0;
 		writer.removeAttribute(node.id, name);
 		return;
 	}
@@ -486,7 +485,6 @@ function applyProperty(writer, node, name, value, prev) {
 		writer.setText(node.id, String(value));
 		return;
 	}
-	if (name === "href") node.href = String(value);
 	if (name.startsWith("on") && typeof value === "function") {
 		const t = EVENT_CODE[name.slice(2).toLowerCase()];
 		if (t == null) return;

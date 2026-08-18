@@ -332,17 +332,18 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
 fn modal_focus_scope_includes_later_portals_on_the_modal_plane() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, aria_modal) = {
+    let (view, button, focus_scope, tab_index) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
-            atoms.intern("aria-modal"),
+            atoms.intern("focusScope"),
+            atoms.intern("tabIndex"),
         )
     };
     for (id, tag, attrs) in [
         (2, button, vec![]),
-        (3, view, vec![(aria_modal, "true")]),
+        (3, view, vec![(focus_scope, "contain")]),
         (4, button, vec![]),
         (5, view, vec![]),
         (6, button, vec![]),
@@ -351,6 +352,13 @@ fn modal_focus_scope_includes_later_portals_on_the_modal_plane() {
     }
     for (parent, child) in [(1, 2), (1, 3), (3, 4), (1, 5), (5, 6)] {
         applier.apply_op(&Op::AppendChild { parent, child });
+    }
+    for id in [2, 4, 6] {
+        applier.apply_op(&Op::SetAttribute {
+            id,
+            name: tab_index,
+            value: "0",
+        });
     }
 
     let root = applier.node_store.root;
@@ -393,7 +401,7 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (button, view, role, aria_label, aria_modal) = {
+    let (button, view, role, aria_label, aria_modal, focus_scope, tab_index) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("button"),
@@ -401,12 +409,14 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
             atoms.intern("role"),
             atoms.intern("aria-label"),
             atoms.intern("aria-modal"),
+            atoms.intern("focusScope"),
+            atoms.intern("tabIndex"),
         )
     };
     applier.apply_op(&Op::CreateElement {
         id: 2,
         tag: button,
-        attrs: vec![(aria_label, "Background")],
+        attrs: vec![(aria_label, "Background"), (tab_index, "0")],
     });
     applier.apply_op(&Op::CreateElement {
         id: 3,
@@ -415,12 +425,13 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
             (role, "dialog"),
             (aria_label, "Settings"),
             (aria_modal, "true"),
+            (focus_scope, "contain"),
         ],
     });
     applier.apply_op(&Op::CreateElement {
         id: 4,
         tag: button,
-        attrs: vec![(aria_label, "Save")],
+        attrs: vec![(aria_label, "Save"), (tab_index, "0")],
     });
     applier.apply_op(&Op::AppendChild {
         parent: 3,

@@ -724,6 +724,10 @@ impl Widget for TextInput {
         !self.disabled
     }
 
+    fn accepts_text_input(&self) -> bool {
+        !self.disabled && !self.read_only
+    }
+
     fn intrinsic_size(&self) -> Option<[f32; 2]> {
         if self.multiline {
             Some([240.0, 96.0])

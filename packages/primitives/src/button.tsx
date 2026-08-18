@@ -1,4 +1,5 @@
 import type { Handle } from "@wabou/solid-renderer";
+import { useHost } from "@wabou/solid-renderer";
 import type { JSX as WebJSX } from "@solidjs/web";
 import type { Accessor, JSX } from "solid-js";
 import { createFocus } from "./focus";
@@ -48,7 +49,14 @@ export interface ButtonProps {
   [name: string]: unknown;
 }
 
+export interface LinkProps extends ButtonProps {
+  /** URL passed explicitly to the native shell when the link is activated. */
+  url: string;
+  role?: never;
+}
+
 export interface ButtonEvent {
+  readonly defaultPrevented?: boolean;
   stopPropagation(): void;
   preventDefault(): void;
 }
@@ -205,6 +213,7 @@ export function Button(props: ButtonProps): JSX.Element {
     <button
       type="button"
       disabled={disabled()}
+      tabIndex={disabled() ? -1 : 0}
       title={props.title}
       role={props.role}
       ref={props.ref as never}
@@ -233,5 +242,25 @@ export function Button(props: ButtonProps): JSX.Element {
     >
       {props.children}
     </button>
+  );
+}
+
+/**
+ * An explicit external-link interaction.
+ *
+ * Wabou does not assign browser behavior to an `a` tag or `href` attribute;
+ * the JS primitive owns activation while Rust only executes `openUrl`.
+ */
+export function Link(props: LinkProps): JSX.Element {
+  const host = useHost();
+  return (
+    <Button
+      {...props}
+      role="link"
+      onClick={(event) => {
+        props.onClick?.(event);
+        if (!event.defaultPrevented) host.system.openUrl(props.url);
+      }}
+    />
   );
 }

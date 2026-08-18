@@ -760,6 +760,10 @@ impl Widget for CodeEditor {
         !self.disabled
     }
 
+    fn accepts_text_input(&self) -> bool {
+        !self.disabled && !self.read_only
+    }
+
     fn intrinsic_size(&self) -> Option<[f32; 2]> {
         Some([640.0, 420.0])
     }

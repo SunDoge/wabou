@@ -206,6 +206,9 @@ function Button(props) {
 		get disabled() {
 			return disabled();
 		},
+		get tabIndex() {
+			return disabled() ? -1 : 0;
+		},
 		get title() {
 			return props.title;
 		},
@@ -256,6 +259,22 @@ function Button(props) {
 		return props.children;
 	});
 	return _el$;
+}
+/**
+* An explicit external-link interaction.
+*
+* Wabou does not assign browser behavior to an `a` tag or `href` attribute;
+* the JS primitive owns activation while Rust only executes `openUrl`.
+*/
+function Link(props) {
+	const host = useHost();
+	return createComponent$1(Button, mergeProps(props, {
+		role: "link",
+		onClick: (event) => {
+			props.onClick?.(event);
+			if (!event.defaultPrevented) host.system.openUrl(props.url);
+		}
+	}));
 }
 //#endregion
 //#region src/measure.ts
@@ -663,6 +682,7 @@ function Modal(props) {
 				plane: "modal",
 				role: "presentation",
 				"aria-modal": "true",
+				focusScope: "contain",
 				get class() {
 					return props.backdropClass;
 				},
@@ -1359,6 +1379,6 @@ function assertUniqueKeys(tabs, key) {
 	}
 }
 //#endregion
-export { Button, Center, CodeEditor, CollapsiblePresence, Column, Icon, Image, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Pulse, Row, ScrollArea, Spin, Svg, Text, TextArea, View, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
+export { Button, Center, CodeEditor, CollapsiblePresence, Column, Icon, Image, Link, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Pulse, Row, ScrollArea, Spin, Svg, Text, TextArea, View, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
 
 //# sourceMappingURL=index.mjs.map

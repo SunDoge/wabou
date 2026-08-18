@@ -170,7 +170,13 @@ interface ButtonProps {
   onClick?: (event: ButtonEvent) => void;
   [name: string]: unknown;
 }
+interface LinkProps extends ButtonProps {
+  /** URL passed explicitly to the native shell when the link is activated. */
+  url: string;
+  role?: never;
+}
 interface ButtonEvent {
+  readonly defaultPrevented?: boolean;
   stopPropagation(): void;
   preventDefault(): void;
 }
@@ -215,6 +221,13 @@ declare function createButton(options?: CreateButtonOptions): ButtonPrimitive;
  * applications do not need CSS pseudo-class support to get a responsive button.
  */
 declare function Button(props: ButtonProps): JSX.Element;
+/**
+ * An explicit external-link interaction.
+ *
+ * Wabou does not assign browser behavior to an `a` tag or `href` attribute;
+ * the JS primitive owns activation while Rust only executes `openUrl`.
+ */
+declare function Link(props: LinkProps): JSX.Element;
 //#endregion
 //#region src/collapsible-presence.d.ts
 interface CollapsiblePresenceProps {
@@ -675,5 +688,5 @@ interface TabKeyEvent {
  */
 declare function createTabs<T, K extends TabKey>(options: TabsOptions<T, K>): TabsResult<T, K>;
 //#endregion
-export { type ActiveResult, type AddTabOptions, type Affine2D, type AnimationFrameCallback, Button, type ButtonEvent, type ButtonKeyEvent, type ButtonPrimitive, type ButtonProps, type ButtonState, Center, CodeEditor, type CodeEditorProps, CollapsiblePresence, type CollapsiblePresenceProps, Column, type ComputeFloatingPositionOptions, type ComputeHostFloatingPositionOptions, type ComputePositionReturn, type CreateButtonOptions, type DismissEvent, type DismissKeyEvent, type FocusResult, type FocusTarget, type FocusWithinResult, type HoverResult, Icon, type IconProps, Image, type ImageProps, type ImageSource, type LayoutProps, type LayoutRect, type MeasuredSize, type MeasuredSizeOptions, type Middleware, Modal, type ModalControls, type ModalEvent, type ModalKeyEvent, type ModalOpenChangeReason, type ModalProps, type ModalTriggerProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, type NotificationControls, type NotificationDismissReason, type NotificationInput, type NotificationItem, type NotificationPlacement, type NotificationPriority, NotificationRegion, type NotificationRegionProps, type Notifications, type NotificationsOptions, type OverlayDismissReason, type OverlayLayer, type OverlayLayerOptions, type OverlayPlane, OverlayPlaneProvider, type OverlayPlaneProviderProps, PasswordInput, type PasswordInputProps, type Placement, Popover, type PopoverProps, type PopoverTriggerProps, type PositionPlatform, type Presence, type PresencePhase, type PressOptions, type PressResult, type PrimitiveProps, Pulse, type PulseProps, Row, ScrollArea, type ScrollAreaProps, type ScrollResetOptions, type ScrollResetTarget, type ShortcutDefinition, type ShortcutEvent, type ShortcutHandler, type ShortcutMap, type ShortcutsResult, Spin, type SpinProps, type Strategy, Svg, type SvgProps, type TabKey, type TabKeyEvent, type TabsOptions, type TabsResult, Text, TextArea, type TextAreaProps, type TextProps, View, type ViewProps, type WabouClassList, type WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
+export { type ActiveResult, type AddTabOptions, type Affine2D, type AnimationFrameCallback, Button, type ButtonEvent, type ButtonKeyEvent, type ButtonPrimitive, type ButtonProps, type ButtonState, Center, CodeEditor, type CodeEditorProps, CollapsiblePresence, type CollapsiblePresenceProps, Column, type ComputeFloatingPositionOptions, type ComputeHostFloatingPositionOptions, type ComputePositionReturn, type CreateButtonOptions, type DismissEvent, type DismissKeyEvent, type FocusResult, type FocusTarget, type FocusWithinResult, type HoverResult, Icon, type IconProps, Image, type ImageProps, type ImageSource, type LayoutProps, type LayoutRect, Link, type LinkProps, type MeasuredSize, type MeasuredSizeOptions, type Middleware, Modal, type ModalControls, type ModalEvent, type ModalKeyEvent, type ModalOpenChangeReason, type ModalProps, type ModalTriggerProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, type NotificationControls, type NotificationDismissReason, type NotificationInput, type NotificationItem, type NotificationPlacement, type NotificationPriority, NotificationRegion, type NotificationRegionProps, type Notifications, type NotificationsOptions, type OverlayDismissReason, type OverlayLayer, type OverlayLayerOptions, type OverlayPlane, OverlayPlaneProvider, type OverlayPlaneProviderProps, PasswordInput, type PasswordInputProps, type Placement, Popover, type PopoverProps, type PopoverTriggerProps, type PositionPlatform, type Presence, type PresencePhase, type PressOptions, type PressResult, type PrimitiveProps, Pulse, type PulseProps, Row, ScrollArea, type ScrollAreaProps, type ScrollResetOptions, type ScrollResetTarget, type ShortcutDefinition, type ShortcutEvent, type ShortcutHandler, type ShortcutMap, type ShortcutsResult, Spin, type SpinProps, type Strategy, Svg, type SvgProps, type TabKey, type TabKeyEvent, type TabsOptions, type TabsResult, Text, TextArea, type TextAreaProps, type TextProps, View, type ViewProps, type WabouClassList, type WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createHover, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d, shift, size, translate2d, useOverlayPlane };
 //# sourceMappingURL=index.d.mts.map

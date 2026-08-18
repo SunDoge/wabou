@@ -526,6 +526,13 @@ pub trait Widget {
         false
     }
 
+    /// Whether focusing this widget should enable platform text/IME input.
+    /// Focusability alone does not imply text entry (for example, a native
+    /// canvas control may accept keyboard focus without accepting text).
+    fn accepts_text_input(&self) -> bool {
+        false
+    }
+
     /// Intrinsic content size used when CSS leaves an axis automatic.
     fn intrinsic_size(&self) -> Option<[f32; 2]> {
         None

@@ -35,7 +35,7 @@ fn semantic_role(tag: &str, declared: &Declared, atoms: &AtomPool) -> SemanticRo
         }
         "img" | "image" => SemanticRole::Image,
         "radiogroup" => SemanticRole::RadioGroup,
-        "link" | "a" => SemanticRole::Link,
+        "link" => SemanticRole::Link,
         "dialog" | "alertdialog" => SemanticRole::Dialog,
         "alert" => SemanticRole::Alert,
         "status" => SemanticRole::Status,
