@@ -48,6 +48,7 @@ use crate::asset_cache::ResourceCache;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 
 mod debug_projection;
+mod effect_bridge;
 mod focus;
 mod frame_source;
 mod input_router;
@@ -72,6 +73,7 @@ use crate::jsrt::{JsRuntime, LayoutMetric, LayoutMetricsSnapshot, LayoutRect, Re
 use crate::protocol::{Frame, Op, decode_frame};
 use crate::protocol::{event, event_data};
 use crate::style_ir::{self, StyleSheet, StylesheetUpdate};
+use effect_bridge::EffectBridge;
 #[cfg(test)]
 use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
@@ -132,7 +134,6 @@ fn subtree_has_attribute(
 // process-wide sequence so window resource handles stay unique across runtimes.
 const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
 const HOST_ACTION_SEQUENCE_MASK: u64 = JS_HOST_ACTION_NAMESPACE - 1;
-static NEXT_EFFECT_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1 << 32);
 const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
 
 #[derive(Clone)]
@@ -560,12 +561,7 @@ pub struct Applier {
     scrollbar_activity: HashMap<NodeId, Instant>,
     widget_manager: WidgetManager,
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
-    pending_effects: Rc<RefCell<VecDeque<wabou_shell::EffectRequest>>>,
-    pending_js_effects: Rc<RefCell<HashSet<u64>>>,
-    effect_trace: Rc<RefCell<Option<crate::effect_trace::EffectTrace>>>,
-    replay_completions: Rc<RefCell<VecDeque<wabou_shell::EffectCompletion>>>,
-    app_directories: Rc<RefCell<Option<wabou_shell::AppDirectories>>>,
-    host_action_wake: Rc<RefCell<Option<WakeCallback>>>,
+    effect_bridge: EffectBridge,
     wake_callback: Option<WakeCallback>,
     scroll_offsets: HashMap<NodeId, [f32; 2]>,
     /// Native scroll changes coalesced by Solid target until the next JS tick.
@@ -585,267 +581,6 @@ pub struct Applier {
     host_message_inbox: HostMessageInbox,
     host_message_handle: HostMessageHandle,
     host_message_cancellation: CancellationToken,
-}
-
-fn decode_effect_payload(
-    op: wabou_shell::EffectOp,
-    id: u64,
-    window_id: u64,
-    payload_json: String,
-    app_directories: Option<&wabou_shell::AppDirectories>,
-) -> wabou_shell::EffectPayload {
-    let invalid = |message: String| wabou_shell::EffectPayload::Invalid { op, message };
-    match op {
-        wabou_shell::effect::builtin::CLIPBOARD_READ => wabou_shell::EffectPayload::ClipboardRead,
-        wabou_shell::effect::builtin::CLIPBOARD_WRITE => {
-            #[derive(serde::Deserialize)]
-            struct Request {
-                text: String,
-            }
-            serde_json::from_str::<Request>(&payload_json)
-                .map(|request| wabou_shell::EffectPayload::ClipboardWrite { text: request.text })
-                .unwrap_or_else(|error| invalid(error.to_string()))
-        }
-        wabou_shell::effect::builtin::WINDOW_CREATE => {
-            let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
-            let mut options = wabou_shell::WindowOptions::new();
-            if let Some(title) = value.get("title").and_then(|value| value.as_str()) {
-                options = options.title(title);
-            }
-            options = options.initial_inner_size(
-                value
-                    .get("width")
-                    .and_then(|value| value.as_u64())
-                    .unwrap_or(800) as u32,
-                value
-                    .get("height")
-                    .and_then(|value| value.as_u64())
-                    .unwrap_or(600) as u32,
-            );
-            if let Some(resizable) = value.get("resizable").and_then(|value| value.as_bool()) {
-                options = options.resizable(resizable);
-            }
-            if let Some(decorations) = value.get("decorations").and_then(|value| value.as_bool()) {
-                options = options.decorations(decorations);
-            }
-            if let Some(transparent) = value.get("transparent").and_then(|value| value.as_bool()) {
-                options = options.transparent(transparent);
-            }
-            if let (Some(width), Some(height)) = (
-                value.get("minWidth").and_then(|value| value.as_u64()),
-                value.get("minHeight").and_then(|value| value.as_u64()),
-            ) {
-                options = options.min_inner_size(width as u32, height as u32);
-            }
-            wabou_shell::EffectPayload::WindowCreate(wabou_shell::effect::WindowCreateRequest {
-                window_id: id,
-                options,
-            })
-        }
-        wabou_shell::effect::builtin::WINDOW_CLOSE
-        | wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED
-        | wabou_shell::effect::builtin::WINDOW_SET_TITLE
-        | wabou_shell::effect::builtin::WINDOW_MINIMIZE
-        | wabou_shell::effect::builtin::WINDOW_START_DRAGGING => {
-            let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
-            let target = value
-                .get("windowId")
-                .and_then(|value| value.as_u64())
-                .unwrap_or(window_id);
-            let command = if op == wabou_shell::effect::builtin::WINDOW_CLOSE {
-                wabou_shell::WindowCommand::Close
-            } else if op == wabou_shell::effect::builtin::WINDOW_MINIMIZE {
-                wabou_shell::WindowCommand::Minimize
-            } else if op == wabou_shell::effect::builtin::WINDOW_START_DRAGGING {
-                wabou_shell::WindowCommand::StartDragging
-            } else if op == wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED {
-                wabou_shell::WindowCommand::SetMaximized(
-                    value
-                        .get("value")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false),
-                )
-            } else {
-                wabou_shell::WindowCommand::SetTitle(
-                    value
-                        .get("title")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or_default()
-                        .to_owned(),
-                )
-            };
-            wabou_shell::EffectPayload::WindowControl {
-                window_id: target,
-                command,
-            }
-        }
-        wabou_shell::effect::builtin::CONTEXT_MENU_SHOW => {
-            serde_json::from_str::<wabou_shell::ContextMenuRequest>(&payload_json)
-                .map(wabou_shell::EffectPayload::ContextMenuShow)
-                .unwrap_or_else(|error| invalid(error.to_string()))
-        }
-        wabou_shell::effect::builtin::APP_DIRS_RESOLVE => app_directories
-            .cloned()
-            .map(wabou_shell::EffectPayload::AppDirsResolve)
-            .unwrap_or_else(|| invalid("application directories are not configured".into())),
-        wabou_shell::effect::builtin::DIALOG_OPEN => {
-            serde_json::from_str::<wabou_shell::OpenDialogRequest>(&payload_json)
-                .map(wabou_shell::EffectPayload::DialogOpen)
-                .unwrap_or_else(|error| invalid(error.to_string()))
-        }
-        wabou_shell::effect::builtin::DIALOG_SAVE => {
-            serde_json::from_str::<wabou_shell::SaveDialogRequest>(&payload_json)
-                .map(wabou_shell::EffectPayload::DialogSave)
-                .unwrap_or_else(|error| invalid(error.to_string()))
-        }
-        wabou_shell::effect::builtin::DIALOG_PICK_DIRECTORY => {
-            serde_json::from_str::<wabou_shell::PickDirectoryRequest>(&payload_json)
-                .map(wabou_shell::EffectPayload::DialogPickDirectory)
-                .unwrap_or_else(|error| invalid(error.to_string()))
-        }
-        wabou_shell::effect::builtin::DIALOG_MESSAGE => {
-            serde_json::from_str::<wabou_shell::MessageDialogRequest>(&payload_json)
-                .map(wabou_shell::EffectPayload::DialogMessage)
-                .unwrap_or_else(|error| invalid(error.to_string()))
-        }
-        wabou_shell::effect::builtin::NOTIFICATION_SHOW => {
-            serde_json::from_str::<wabou_shell::NotificationRequest>(&payload_json)
-                .map(wabou_shell::EffectPayload::NotificationShow)
-                .unwrap_or_else(|error| invalid(error.to_string()))
-        }
-        _ => wabou_shell::EffectPayload::Extension {
-            op,
-            bytes: payload_json.into_bytes(),
-        },
-    }
-}
-
-#[derive(Clone)]
-struct EffectBridgeState {
-    effects: Rc<RefCell<VecDeque<wabou_shell::EffectRequest>>>,
-    action_wake: Rc<RefCell<Option<WakeCallback>>>,
-    pending: Rc<RefCell<HashSet<u64>>>,
-    trace: Rc<RefCell<Option<crate::effect_trace::EffectTrace>>>,
-    replay_completions: Rc<RefCell<VecDeque<wabou_shell::EffectCompletion>>>,
-    app_directories: Rc<RefCell<Option<wabou_shell::AppDirectories>>>,
-}
-
-fn install_effect_functions(js: &JsRuntime, window_id: u64, state: EffectBridgeState) {
-    js.with(|ctx| -> rquickjs::Result<()> {
-        let submit_state = state.clone();
-        ctx.globals().set(
-            "__wabou_effect_submit",
-            rquickjs::Function::new(
-                ctx.clone(),
-                move |capability: u32, method: u16, payload_json: String| -> u64 {
-                    let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
-                    let op = wabou_shell::EffectOp::new(capability, method);
-                    let payload = decode_effect_payload(
-                        op,
-                        id,
-                        window_id,
-                        payload_json,
-                        submit_state.app_directories.borrow().as_ref(),
-                    );
-                    submit_state.pending.borrow_mut().insert(id);
-                    let request = wabou_shell::EffectRequest {
-                        id: wabou_shell::EffectId(id),
-                        scope: wabou_shell::EffectScope::Window(window_id),
-                        payload,
-                    };
-                    #[cfg(feature = "profiling")]
-                    tracing::trace!(
-                        target: "wabou::perf",
-                        effect_id = id,
-                        capability,
-                        method,
-                        "native_effect.submit"
-                    );
-                    let submission = submit_state
-                        .trace
-                        .borrow()
-                        .as_ref()
-                        .map(|trace| trace.submit(&request));
-                    match submission {
-                        Some(crate::effect_trace::TraceSubmission::Replay(completions)) => {
-                            submit_state
-                                .replay_completions
-                                .borrow_mut()
-                                .extend(completions);
-                        }
-                        Some(crate::effect_trace::TraceSubmission::Live) | None => {
-                            submit_state.effects.borrow_mut().push_back(request);
-                        }
-                    }
-                    if let Some(wake) = submit_state.action_wake.borrow().as_ref() {
-                        wake();
-                    }
-                    id
-                },
-            )?,
-        )?;
-        ctx.globals()
-            .set("__wabou_effect_abi", wabou_shell::EFFECT_ABI_VERSION)?;
-        ctx.globals().set("__wabou_window_id", window_id)?;
-        Ok(())
-    })
-    .expect("install effect host functions");
-}
-
-fn complete_js_effect(js: &JsRuntime, completion: &wabou_shell::EffectCompletion) {
-    #[cfg(feature = "profiling")]
-    tracing::trace!(
-        target: "wabou::perf",
-        effect_id = completion.id.0,
-        capability = completion.op.capability.0,
-        method = completion.op.method.0,
-        "native_effect.complete"
-    );
-    let (status, payload) = match &completion.result {
-        wabou_shell::EffectResult::Unit => (0_u8, "null".to_owned()),
-        wabou_shell::EffectResult::ClipboardText(text) => (
-            0,
-            serde_json::to_string(text).unwrap_or_else(|_| "null".into()),
-        ),
-        wabou_shell::EffectResult::ContextMenuSelection(selection) => (
-            0,
-            serde_json::to_string(selection).unwrap_or_else(|_| "null".into()),
-        ),
-        wabou_shell::EffectResult::AppDirectories(directories) => (
-            0,
-            serde_json::to_string(directories).unwrap_or_else(|_| "null".into()),
-        ),
-        wabou_shell::EffectResult::DialogPaths(paths) => (
-            0,
-            serde_json::to_string(paths).unwrap_or_else(|_| "null".into()),
-        ),
-        wabou_shell::EffectResult::DialogMessage(result) => (
-            0,
-            serde_json::to_string(result).unwrap_or_else(|_| "null".into()),
-        ),
-        wabou_shell::EffectResult::Cancelled => (1, "null".to_owned()),
-        wabou_shell::EffectResult::Error { code, message } => (
-            2,
-            serde_json::json!({ "code": code, "message": message }).to_string(),
-        ),
-    };
-    let result = js.with(|ctx| -> rquickjs::Result<()> {
-        let callback: rquickjs::Function = ctx.globals().get("__wabou_effect_complete")?;
-        callback.call::<_, ()>((
-            completion.id.0,
-            completion.op.capability.0,
-            completion.op.method.0,
-            status,
-            payload,
-        ))
-    });
-    if let Err(error) = result {
-        tracing::warn!(
-            ?error,
-            effect_id = completion.id.0,
-            "effect completion callback failed"
-        );
-    }
 }
 
 impl Drop for Applier {
@@ -906,25 +641,8 @@ impl Applier {
         let host_message_cancellation = CancellationToken::new();
 
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
-        let host_action_wake = Rc::new(RefCell::new(None));
         let (image_result_tx, image_result_rx) = mpsc::channel();
-        let pending_js_effects = Rc::new(RefCell::new(HashSet::new()));
-        let pending_effects = Rc::new(RefCell::new(VecDeque::new()));
-        let effect_trace = Rc::new(RefCell::new(None));
-        let replay_completions = Rc::new(RefCell::new(VecDeque::new()));
-        let app_directories = Rc::new(RefCell::new(None));
-        install_effect_functions(
-            &js,
-            window_id,
-            EffectBridgeState {
-                effects: pending_effects.clone(),
-                action_wake: host_action_wake.clone(),
-                pending: pending_js_effects.clone(),
-                trace: effect_trace.clone(),
-                replay_completions: replay_completions.clone(),
-                app_directories: app_directories.clone(),
-            },
-        );
+        let effect_bridge = EffectBridge::install(&js, window_id);
         Self {
             js,
             node_store: NodeStore::new(),
@@ -992,12 +710,7 @@ impl Applier {
             scrollbar_activity: HashMap::new(),
             widget_manager: WidgetManager::new(widget_factories),
             pending_host_actions,
-            pending_effects,
-            pending_js_effects,
-            effect_trace,
-            replay_completions,
-            app_directories,
-            host_action_wake,
+            effect_bridge,
             wake_callback: None,
             scroll_offsets: HashMap::new(),
             pending_scroll_events: HashMap::new(),
@@ -1040,12 +753,12 @@ impl Applier {
     }
 
     pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
-        *self.effect_trace.borrow_mut() = Some(trace);
+        self.effect_bridge.set_trace(trace);
     }
 
     /// Publish resolved application-private directories to native effects.
     pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
-        *self.app_directories.borrow_mut() = Some(directories);
+        self.effect_bridge.set_app_directories(directories);
     }
 
     pub(crate) fn set_asset_cache(&mut self, cache: Arc<ResourceCache>) {

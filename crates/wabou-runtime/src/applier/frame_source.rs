@@ -703,7 +703,7 @@ impl FrameSource for Applier {
             widget.set_wake_callback(wake.clone());
         }
         self.host_message_inbox.set_wake(wake.clone());
-        *self.host_action_wake.borrow_mut() = Some(wake.clone());
+        self.effect_bridge.set_wake_callback(wake.clone());
         self.wake_callback = Some(wake);
     }
 
@@ -775,29 +775,11 @@ impl FrameSource for Applier {
     }
 
     fn take_effect(&mut self) -> Option<wabou_shell::EffectRequest> {
-        while let Some(completion) = self.replay_completions.borrow_mut().pop_front() {
-            if self
-                .pending_js_effects
-                .borrow_mut()
-                .remove(&completion.id.0)
-            {
-                complete_js_effect(&self.js, &completion);
-            }
-        }
-        self.pending_effects.borrow_mut().pop_front()
+        self.effect_bridge.take(&self.js)
     }
 
     fn complete_effect(&mut self, completion: wabou_shell::EffectCompletion) {
-        if let Some(trace) = self.effect_trace.borrow().as_ref() {
-            trace.complete(&completion);
-        }
-        if self
-            .pending_js_effects
-            .borrow_mut()
-            .remove(&completion.id.0)
-        {
-            complete_js_effect(&self.js, &completion);
-        }
+        self.effect_bridge.complete(&self.js, completion);
     }
 
     fn take_screenshot_request(&mut self) -> Option<std::path::PathBuf> {

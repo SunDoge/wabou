@@ -1,3 +1,4 @@
+use super::effect_bridge::decode_effect_payload;
 use super::*;
 
 #[test]
