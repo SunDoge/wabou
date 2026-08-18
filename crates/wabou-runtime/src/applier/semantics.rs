@@ -364,12 +364,6 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                 attribute(declared, &atoms, "aria-valuetext")
                     .map(|value| value.to_string())
                     .or(widget_semantics.value)
-                    .or_else(|| {
-                        explicit_role
-                            .as_deref()
-                            .filter(|role| *role != "label")
-                            .and_then(|_| placed_node.paint.text.as_deref().map(str::to_owned))
-                    })
             })
             .flatten();
         let numeric_attribute = |name| {

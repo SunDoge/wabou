@@ -853,7 +853,9 @@ fn semantic_projection_separates_explicit_roles_from_text_content() {
         border_widths: [0.0; 4],
         scroll: layout::ScrollMetrics::default(),
         paint: Paint {
-            text: (node_id == text).then(|| "unowned text".into()),
+            // A role-bearing text surface gets an accessible name from its
+            // content, but content must not also become a control value.
+            text: (node_id == input).then(|| "unowned text".into()),
             ..Paint::default()
         },
     });
