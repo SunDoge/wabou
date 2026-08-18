@@ -10,8 +10,8 @@
 use vello::peniko::Color;
 
 pub use wabou_accessibility::{
-    SemanticAction, SemanticCurrent, SemanticNode, SemanticRole, SemanticSnapshot, SemanticStates,
-    SemanticToggleState,
+    SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
+    SemanticStates, SemanticToggleState,
 };
 
 use std::path::PathBuf;

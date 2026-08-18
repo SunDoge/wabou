@@ -2,14 +2,16 @@
 
 use std::sync::{Arc, Mutex};
 
-use accesskit::{Action, AriaCurrent, Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate};
+use accesskit::{
+    Action, AriaCurrent, HasPopup, Node, NodeId, Rect, Role, Toggled, Tree, TreeId, TreeUpdate,
+};
 use accesskit_xplat::{Adapter, EventHandler, WindowEvent as AccessKitEvent};
 use raw_window_handle::HasWindowHandle;
 use winit::event::WindowEvent;
 use winit::window::Window;
 
 use crate::{
-    SemanticAction, SemanticCurrent, SemanticNode, SemanticRole, SemanticSnapshot,
+    SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
     SemanticToggleState,
 };
 
@@ -142,6 +144,18 @@ fn accesskit_node(
             SemanticCurrent::Date => AriaCurrent::Date,
             SemanticCurrent::Time => AriaCurrent::Time,
         });
+    }
+    if let Some(popup) = semantic.states.popup {
+        node.set_has_popup(match popup {
+            SemanticPopup::Menu => HasPopup::Menu,
+            SemanticPopup::ListBox => HasPopup::Listbox,
+            SemanticPopup::Tree => HasPopup::Tree,
+            SemanticPopup::Grid => HasPopup::Grid,
+            SemanticPopup::Dialog => HasPopup::Dialog,
+        });
+    }
+    if semantic.states.modal == Some(true) {
+        node.set_modal();
     }
     node.add_action(Action::ScrollIntoView);
     match semantic.role {
@@ -464,6 +478,8 @@ mod tests {
                 selected: Some(true),
                 expanded: Some(false),
                 current: Some(SemanticCurrent::Date),
+                popup: Some(SemanticPopup::ListBox),
+                modal: Some(true),
                 ..crate::SemanticStates::default()
             },
         };
@@ -473,6 +489,8 @@ mod tests {
         assert_eq!(node.is_selected(), Some(true));
         assert_eq!(node.is_expanded(), Some(false));
         assert_eq!(node.aria_current(), Some(AriaCurrent::Date));
+        assert_eq!(node.has_popup(), Some(HasPopup::Listbox));
+        assert!(node.is_modal());
     }
 
     #[test]

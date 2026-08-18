@@ -103,6 +103,21 @@ pub enum SemanticCurrent {
     Time,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Kind of popup opened by a semantic control.
+pub enum SemanticPopup {
+    /// Command menu.
+    Menu,
+    /// List of selectable options.
+    ListBox,
+    /// Hierarchical tree.
+    Tree,
+    /// Interactive grid.
+    Grid,
+    /// Dialog surface.
+    Dialog,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 /// Optional interaction states attached to one semantic node.
 pub struct SemanticStates {
@@ -116,6 +131,10 @@ pub struct SemanticStates {
     pub expanded: Option<bool>,
     /// Current item state for navigation, progress, dates, and times.
     pub current: Option<SemanticCurrent>,
+    /// Kind of popup opened by this control.
+    pub popup: Option<SemanticPopup>,
+    /// Whether this node is an explicitly modal surface.
+    pub modal: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

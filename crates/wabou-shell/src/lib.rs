@@ -48,9 +48,9 @@ pub use shortcut::StandardShortcut;
 pub use source::{
     ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
     ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
-    PointerPhase, SemanticAction, SemanticCurrent, SemanticNode, SemanticRole, SemanticSnapshot,
-    SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent,
-    WindowCommand, WindowMetrics, WindowOptions,
+    PointerPhase, SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole,
+    SemanticSnapshot, SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback,
+    WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;
 pub use widget::{

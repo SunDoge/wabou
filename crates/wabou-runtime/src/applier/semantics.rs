@@ -31,6 +31,17 @@ fn semantic_current(value: Option<Arc<str>>) -> Option<SemanticCurrent> {
     }
 }
 
+fn semantic_popup(value: Option<Arc<str>>) -> Option<SemanticPopup> {
+    match value.as_deref() {
+        Some("true") | Some("") | Some("menu") => Some(SemanticPopup::Menu),
+        Some("listbox") => Some(SemanticPopup::ListBox),
+        Some("tree") => Some(SemanticPopup::Tree),
+        Some("grid") => Some(SemanticPopup::Grid),
+        Some("dialog") => Some(SemanticPopup::Dialog),
+        _ => None,
+    }
+}
+
 fn attribute(declared: &Declared, atoms: &AtomPool, wanted: &str) -> Option<Arc<str>> {
     declared
         .attrs
@@ -473,6 +484,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                 selected: semantic_bool(attribute(declared, &atoms, "aria-selected")),
                 expanded: semantic_bool(attribute(declared, &atoms, "aria-expanded")),
                 current: semantic_current(attribute(declared, &atoms, "aria-current")),
+                popup: semantic_popup(attribute(declared, &atoms, "aria-haspopup")),
+                modal: semantic_bool(attribute(declared, &atoms, "aria-modal")),
             },
         });
     }
