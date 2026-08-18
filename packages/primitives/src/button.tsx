@@ -1,4 +1,4 @@
-import type { Handle, WabouSemanticRole } from "@wabou/solid-renderer";
+import type { Handle, WabouElementProps } from "@wabou/solid-renderer";
 import { useHost } from "@wabou/solid-renderer";
 import type { Accessor, JSX } from "solid-js";
 import { createFocus } from "./focus";
@@ -12,7 +12,20 @@ const ACCENTS = {
   amber: "#d97706",
 } as const;
 
-export interface ButtonProps {
+export interface ButtonProps
+  extends Pick<
+    WabouElementProps,
+    | "aria-checked"
+    | "aria-controls"
+    | "aria-current"
+    | "aria-expanded"
+    | "aria-haspopup"
+    | "aria-label"
+    | "aria-pressed"
+    | "aria-selected"
+    | "role"
+    | "tabIndex"
+  > {
   class?: string | ((state: ButtonState) => string);
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle | ((state: ButtonState) => WabouStyle);
@@ -25,25 +38,7 @@ export interface ButtonProps {
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
-  /** Explicit native tab order, used by roving-focus composites. */
-  tabIndex?: number;
-  role?: WabouSemanticRole;
   ref?: (node: Handle) => void;
-  "aria-haspopup"?:
-    | boolean
-    | "false"
-    | "true"
-    | "menu"
-    | "listbox"
-    | "tree"
-    | "grid"
-    | "dialog";
-  "aria-expanded"?: boolean;
-  "aria-controls"?: string;
-  "aria-label"?: string;
-  "aria-checked"?: boolean | "mixed";
-  "aria-selected"?: boolean;
-  "aria-pressed"?: boolean;
   onKeyDown?: (event: ButtonKeyEvent) => void;
   onClick?: (event: ButtonEvent) => void;
 }
@@ -220,14 +215,15 @@ export function Button(props: ButtonProps): JSX.Element {
       disabled={disabled()}
       tabIndex={resolveButtonTabIndex(disabled(), props.tabIndex)}
       role={props.role ?? "button"}
-      ref={props.ref as never}
-      aria-haspopup={props["aria-haspopup"] as never}
-      aria-expanded={props["aria-expanded"] as never}
+      ref={props.ref}
+      aria-haspopup={props["aria-haspopup"]}
+      aria-expanded={props["aria-expanded"]}
       aria-controls={props["aria-controls"]}
       aria-label={props["aria-label"]}
-      aria-checked={props["aria-checked"] as never}
-      aria-selected={props["aria-selected"] as never}
-      aria-pressed={props["aria-pressed"] as never}
+      aria-checked={props["aria-checked"]}
+      aria-current={props["aria-current"]}
+      aria-selected={props["aria-selected"]}
+      aria-pressed={props["aria-pressed"]}
       class={
         typeof props.class === "function" ? props.class(state()) : props.class
       }

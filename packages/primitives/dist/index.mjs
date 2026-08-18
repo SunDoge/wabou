@@ -201,9 +201,9 @@ function Button(props) {
 	};
 	var _el$ = createElement("button");
 	var _ref$ = props.ref;
-	(typeof _ref$ === "function" || Array.isArray(_ref$)) && ref(() => {
+	typeof _ref$ === "function" || Array.isArray(_ref$) ? ref(() => {
 		return _ref$;
-	}, _el$);
+	}, _el$) : props.ref = _el$;
 	spread(_el$, mergeProps({
 		get disabled() {
 			return disabled();
@@ -228,6 +228,9 @@ function Button(props) {
 		},
 		get ["aria-checked"]() {
 			return props["aria-checked"];
+		},
+		get ["aria-current"]() {
+			return props["aria-current"];
 		},
 		get ["aria-selected"]() {
 			return props["aria-selected"];

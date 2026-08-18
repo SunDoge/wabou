@@ -1,5 +1,5 @@
 import { Accessor, JSX } from "solid-js";
-import { Handle, Host, LayoutRect as LayoutRect$1, LayoutTarget, NativeScrollbarStyle, WabouElementProps, WabouSemanticRole } from "@wabou/solid-renderer";
+import { Handle, Host, LayoutRect as LayoutRect$1, LayoutTarget, NativeScrollbarStyle, WabouElementProps } from "@wabou/solid-renderer";
 import { Easing } from "@wabou/animation";
 import { Affine2D, Affine2D as Affine2D$1, Shadow, WabouStyle, WabouStyle as WabouStyle$1, rotate2d, translate2d } from "@wabou/style";
 import { ComputePositionReturn, ComputePositionReturn as ComputePositionReturn$1, Middleware, Middleware as Middleware$1, Placement, Placement as Placement$1, Strategy, Strategy as Strategy$1, arrow, autoPlacement, flip, offset, shift, size } from "@floating-ui/core";
@@ -140,7 +140,7 @@ declare const ACCENTS: {
   readonly sky: "#0284c7";
   readonly amber: "#d97706";
 };
-interface ButtonProps {
+interface ButtonProps extends Pick<WabouElementProps, "aria-checked" | "aria-controls" | "aria-current" | "aria-expanded" | "aria-haspopup" | "aria-label" | "aria-pressed" | "aria-selected" | "role" | "tabIndex"> {
   class?: string | ((state: ButtonState) => string);
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle | ((state: ButtonState) => WabouStyle);
@@ -153,17 +153,7 @@ interface ButtonProps {
   selectable?: boolean;
   selected?: boolean;
   disabled?: boolean;
-  /** Explicit native tab order, used by roving-focus composites. */
-  tabIndex?: number;
-  role?: WabouSemanticRole;
   ref?: (node: Handle) => void;
-  "aria-haspopup"?: boolean | "false" | "true" | "menu" | "listbox" | "tree" | "grid" | "dialog";
-  "aria-expanded"?: boolean;
-  "aria-controls"?: string;
-  "aria-label"?: string;
-  "aria-checked"?: boolean | "mixed";
-  "aria-selected"?: boolean;
-  "aria-pressed"?: boolean;
   onKeyDown?: (event: ButtonKeyEvent) => void;
   onClick?: (event: ButtonEvent) => void;
 }
