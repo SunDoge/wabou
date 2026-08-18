@@ -13,7 +13,8 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(test)]
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
@@ -56,6 +57,7 @@ mod interaction;
 mod node_store;
 mod projections;
 mod protocol_apply;
+mod reload;
 mod runtime_updates;
 mod semantics;
 mod style_resolution;
@@ -79,6 +81,10 @@ use input_router::EventMask;
 use input_router::{HitClip, HitItem, HitNode, InputRouter, hit_contains};
 use node_store::NodeStore;
 use projections::FrameProjections;
+#[cfg(test)]
+use reload::plan_hmr_batch;
+use reload::{HmrBatch, ReloadState};
+pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
@@ -208,102 +214,6 @@ struct Declared {
     display_explicit: bool,
 }
 
-/// A Vite HMR signal forwarded from the background HMR client to the applier.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ReloadMsg {
-    /// Updated Vite module accepted by an HMR boundary.
-    HmrUpdate {
-        /// Module path reported by Vite.
-        path: String,
-        /// Boundary module that accepted the update.
-        accepted_path: String,
-        /// Vite update timestamp.
-        timestamp: u64,
-        /// Updated JavaScript module source.
-        source: String,
-    },
-    /// Native Vite CSS channel. Wabou styles flow through
-    /// `virtual:wabou-stylesheet` → `__wabou_set_stylesheet` (Style IR) instead;
-    /// these messages are acknowledged and logged, not applied as CSSOM.
-    CssUpdate {
-        /// CSS module path reported by Vite.
-        path: String,
-        /// CSS source retained only for diagnostics.
-        source: String,
-    },
-    /// Vite requested a complete entry re-import.
-    FullReload,
-}
-
-/// Result of draining the HMR queue for one frame (for tests / diagnostics).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HmrDrainResult {
-    /// No queued update changed the runtime.
-    Idle,
-    /// One or more JS modules were accepted; Style IR may also have updated
-    /// via `pending_css` in the same frame.
-    Applied {
-        /// Number of JavaScript modules applied in arrival order.
-        js_updates: usize,
-    },
-    /// Entry was (or should be) fully re-imported.
-    FullReload {
-        /// Diagnostic explaining why partial HMR was not possible.
-        reason: String,
-    },
-}
-
-/// Coalesce a burst of websocket messages into one ordered batch.
-///
-/// Order within a frame:
-/// 1. `FullReload` wins over partial updates
-/// 2. Native `CssUpdate` is recorded only for diagnostics (Style IR is separate)
-/// 3. JS `HmrUpdate` list preserves arrival order
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct HmrBatch {
-    full_reload: bool,
-    full_reload_reason: Option<String>,
-    js_updates: Vec<HmrJsUpdate>,
-    css_paths: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct HmrJsUpdate {
-    path: String,
-    accepted_path: String,
-    timestamp: u64,
-    source: String,
-}
-
-fn plan_hmr_batch(msgs: impl IntoIterator<Item = ReloadMsg>) -> HmrBatch {
-    let mut batch = HmrBatch::default();
-    for msg in msgs {
-        match msg {
-            ReloadMsg::FullReload => {
-                batch.full_reload = true;
-                batch.full_reload_reason = Some("vite full-reload payload".to_string());
-            }
-            ReloadMsg::HmrUpdate {
-                path,
-                accepted_path,
-                timestamp,
-                source,
-            } => {
-                batch.js_updates.push(HmrJsUpdate {
-                    path,
-                    accepted_path,
-                    timestamp,
-                    source,
-                });
-            }
-            ReloadMsg::CssUpdate { path, .. } => {
-                batch.css_paths.push(path);
-            }
-        }
-    }
-    batch
-}
-
 /// Immutable view of a node's resolved layout and paint state.
 ///
 /// This is intended for semantic renderer tests: assertions can stop at the
@@ -367,13 +277,6 @@ pub struct ComputedNodeSnapshot {
     pub runtime_transform: Option<[f32; 6]>,
 }
 
-/// Sendable handle the HMR client holds to push [`ReloadMsg`]s into the applier.
-#[derive(Clone)]
-pub struct ReloadHandle {
-    tx: mpsc::Sender<ReloadMsg>,
-    pending: Arc<AtomicBool>,
-}
-
 #[derive(Clone)]
 struct SelectableText {
     text: Arc<str>,
@@ -420,17 +323,6 @@ bitflags::bitflags! {
         const TICK = 1 << 2;
         /// Paint-space geometry changed without changing layout or semantics.
         const GEOMETRY = 1 << 3;
-    }
-}
-
-impl ReloadHandle {
-    /// Enqueue an HMR signal and wake an otherwise idle render loop.
-    pub fn send(&self, message: ReloadMsg) -> Result<(), mpsc::SendError<ReloadMsg>> {
-        self.tx.send(message)?;
-        // Wake the render loop: the applier's `has_anim` ORs this flag so
-        // `about_to_wait` requests a redraw even when the app is otherwise idle.
-        self.pending.store(true, Ordering::Release);
-        Ok(())
     }
 }
 
@@ -511,10 +403,7 @@ pub struct Applier {
     has_raf: bool,
     /// Number of non-empty JS protocol frames applied by this runtime.
     protocol_revision: u64,
-    /// Receives Vite HMR signals from the background websocket client.
-    reload_rx: Option<mpsc::Receiver<ReloadMsg>>,
-    /// Set by [`ReloadHandle::send`] to wake the render loop for HMR drain.
-    has_hmr_pending: Arc<AtomicBool>,
+    reload: ReloadState,
     /// Stylesheet pushed through the private host ABI;
     /// drained in build_frame → replaces `css` + re-resolves every node.
     pending_css: Option<Rc<RefCell<Option<StylesheetUpdate>>>>,
@@ -572,11 +461,6 @@ pub struct Applier {
     dirty_styles: HashSet<NodeId>,
     /// Taffy layout and inherited paint are retained across scroll-only frames.
     layout_viewport: Option<(u32, u32)>,
-    /// Vite entry module path (e.g. `packages/index.tsx`) for in-process full
-    /// reload when solid-refresh declines an update. Empty outside vite mode.
-    vite_entry: Option<String>,
-    /// Last HMR drain outcome (diagnostics / tests).
-    last_hmr_result: HmrDrainResult,
     /// Bounded host→JS message inbox. Producers use [`HostMessageHandle`].
     host_message_inbox: HostMessageInbox,
     host_message_handle: HostMessageHandle,
@@ -675,8 +559,7 @@ impl Applier {
             input: InputRouter::new(),
             has_raf: true,
             protocol_revision: 0,
-            reload_rx: None,
-            has_hmr_pending: Arc::new(AtomicBool::new(false)),
+            reload: ReloadState::default(),
             pending_css: Some(pending_css),
             pending_color_theme: Some(pending_color_theme),
             pending_color_palette: Some(pending_color_palette),
@@ -717,8 +600,6 @@ impl Applier {
             batching_styles: false,
             dirty_styles: HashSet::new(),
             layout_viewport: None,
-            vite_entry: None,
-            last_hmr_result: HmrDrainResult::Idle,
             host_message_inbox,
             host_message_handle,
             host_message_cancellation,

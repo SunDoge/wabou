@@ -137,9 +137,9 @@ impl Applier {
     fn run_javascript_tick(&mut self, width: u32, height: u32) -> bool {
         let hmr = self.drain_hmr_batch();
         if !matches!(hmr, HmrDrainResult::Idle) {
-            self.last_hmr_result = hmr;
+            self.reload.record_result(hmr);
         }
-        self.has_hmr_pending.store(false, Ordering::Release);
+        self.reload.clear_pending();
         self.drain_host_messages();
         self.dispatch_scroll_changes();
 
@@ -651,7 +651,7 @@ impl FrameSource for Applier {
 
     fn has_anim(&self) -> bool {
         self.has_raf
-            || self.has_hmr_pending.load(Ordering::Acquire)
+            || self.reload.is_pending()
             || self.host_message_inbox.has_pending()
             || self.js.has_async_wake()
             || self.invalidation.contains(InvalidationFlags::TICK)

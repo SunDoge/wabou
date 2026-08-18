@@ -42,22 +42,17 @@ impl Applier {
     /// Take a [`ReloadHandle`] the HMR client uses to push updates; the applier
     /// drains them in `FrameSource::build_frame` before the next tick.
     pub fn reload_handle(&mut self) -> ReloadHandle {
-        let (tx, rx) = mpsc::channel();
-        self.reload_rx = Some(rx);
-        ReloadHandle {
-            tx,
-            pending: self.has_hmr_pending.clone(),
-        }
+        self.reload.handle()
     }
 
     /// Record the Vite entry path so declined HMR can re-import it in-process.
     pub fn set_vite_entry(&mut self, entry: impl Into<String>) {
-        self.vite_entry = Some(entry.into());
+        self.reload.set_vite_entry(entry);
     }
 
     /// Last HMR batch outcome (updated each `build_frame` that drains the queue).
     pub fn last_hmr_result(&self) -> &HmrDrainResult {
-        &self.last_hmr_result
+        self.reload.last_result()
     }
 
     /// Drain every pending [`ReloadMsg`] into one batch and apply it.
@@ -67,20 +62,9 @@ impl Applier {
     /// next; any reject/error or explicit full-reload payload resets the scene
     /// and re-imports the Vite entry when configured.
     pub(super) fn drain_hmr_batch(&mut self) -> HmrDrainResult {
-        let msgs = {
-            let Some(rx) = &self.reload_rx else {
-                return HmrDrainResult::Idle;
-            };
-            let mut msgs = Vec::new();
-            while let Ok(msg) = rx.try_recv() {
-                msgs.push(msg);
-            }
-            msgs
-        };
-        if msgs.is_empty() {
+        let Some(batch) = self.reload.drain() else {
             return HmrDrainResult::Idle;
-        }
-        let batch = plan_hmr_batch(msgs);
+        };
         self.apply_hmr_batch(batch)
     }
 
@@ -169,7 +153,7 @@ impl Applier {
 
         #[cfg(feature = "vite")]
         {
-            if let Some(entry) = self.vite_entry.clone() {
+            if let Some(entry) = self.reload.vite_entry().map(str::to_owned) {
                 match self.js.reboot_vite_entry(&entry) {
                     Ok(()) => {
                         tracing::info!(target: "hmr", %entry, "vite entry re-imported after full reload");
