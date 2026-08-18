@@ -459,19 +459,33 @@ impl Applier {
             return false;
         };
         let mut layout = existing.clone();
-        if prop == "display" {
+        let display_changed = prop == "display";
+        if display_changed {
             decl.display_explicit = true;
-            self.ifc_dirty = true;
         }
         if !style::apply_ir(&mut layout, &mut decl.paint, prop, ir) {
             return false;
         }
+        self.ifc_dirty |= display_changed;
         let declared = decl.paint.clone();
         let layout_changed = existing != &layout;
         if layout_changed {
             let _ = self.node_store.tree.set_style(node, layout);
             self.invalidation.insert(InvalidationFlags::LAYOUT);
         }
+        let transform_changed = matches!(
+            prop,
+            "transform"
+                | "transform-translate-x"
+                | "transform-translate-y"
+                | "transform-scale"
+                | "transform-rotate"
+                | "transform-component"
+        );
+        if transform_changed || matches!(prop, "pointer-events" | "border-radius" | "z-index") {
+            self.invalidation.insert(InvalidationFlags::GEOMETRY);
+        }
+        self.projections.semantics_dirty |= transform_changed;
         // Patch only non-inherited computed fields; inherited fields stay at
         // their last resolved values (INHERIT is clear on this path).
         if let Some(mut paint) = self.node_store.tree.get_node_context(node).cloned() {

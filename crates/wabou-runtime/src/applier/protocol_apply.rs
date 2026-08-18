@@ -217,6 +217,7 @@ impl Applier {
             wabou_shell::WidgetChanges::empty()
         };
         self.invalidate_widget_changes(widget_changes);
+        self.projections.semantics_dirty = true;
         self.recompute_node(node);
     }
 
@@ -395,6 +396,7 @@ impl Applier {
             wabou_shell::WidgetChanges::empty()
         };
         self.invalidate_widget_changes(widget_changes);
+        self.projections.semantics_dirty = true;
         self.recompute_node(node);
     }
 
@@ -415,26 +417,7 @@ impl Applier {
     }
 
     pub(super) fn apply_op(&mut self, op: &Op) {
-        match op {
-            Op::SetTransform2D { id, .. } => {
-                let affects_hit_geometry =
-                    self.node_store.solid_to_node.get(id).is_some_and(|node| {
-                        self.node_store
-                            .tree
-                            .get_node_context(*node)
-                            .is_some_and(|paint| paint.pointer_events)
-                            || self
-                                .node_store
-                                .children
-                                .get(node)
-                                .is_some_and(|children| !children.is_empty())
-                    });
-                if affects_hit_geometry {
-                    self.invalidation.insert(InvalidationFlags::GEOMETRY);
-                }
-            }
-            _ => self.projections.semantics_dirty = true,
-        }
+        self.projections.debug_dirty |= self.projections.debug_state.is_some();
         match op {
             Op::CreateElement { id, tag } => {
                 self.create_element(*id, *tag);
@@ -455,6 +438,7 @@ impl Applier {
                 // Nodes are styled when created, before they have a parent.
                 self.recompute_subtree(child);
                 self.ifc_dirty = true;
+                self.projections.semantics_dirty = true;
             }
             Op::InsertBefore {
                 parent,
@@ -466,11 +450,13 @@ impl Applier {
                 };
                 self.recompute_subtree(child);
                 self.ifc_dirty = true;
+                self.projections.semantics_dirty = true;
             }
             Op::RemoveChild { parent, child } => {
                 if self.node_store.remove_child(*parent, *child) {
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
                     self.ifc_dirty = true;
+                    self.projections.semantics_dirty = true;
                 }
             }
             Op::SetText { id, text } => {
@@ -479,6 +465,7 @@ impl Applier {
                         d.text = Some(Arc::from(*text));
                     }
                     self.ifc_dirty = true;
+                    self.projections.semantics_dirty = true;
                     self.recompute_node(n);
                 }
             }
@@ -520,6 +507,7 @@ impl Applier {
                         flags & crate::protocol::INTERACTION_POLICY_BLOCK_SUBTREE != 0;
                     declared.focus_contained =
                         flags & crate::protocol::INTERACTION_POLICY_CONTAIN_FOCUS != 0;
+                    self.projections.semantics_dirty = true;
                 }
             }
             Op::SetGraphicSource { id, kind, source } => {
@@ -539,11 +527,24 @@ impl Applier {
             }
             Op::SetTransform2D { id, matrix } => {
                 if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                    let affects_hit_geometry = self
+                        .node_store
+                        .tree
+                        .get_node_context(n)
+                        .is_some_and(|paint| paint.pointer_events)
+                        || self
+                            .node_store
+                            .children
+                            .get(&n)
+                            .is_some_and(|children| !children.is_empty());
                     self.runtime_transforms.insert(n, *matrix);
                     if let Some(paint) = self.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.runtime_transform = Some(*matrix);
                         let _ = self.node_store.tree.set_node_context(n, Some(paint));
+                    }
+                    if affects_hit_geometry {
+                        self.invalidation.insert(InvalidationFlags::GEOMETRY);
                     }
                 }
             }
@@ -608,6 +609,7 @@ impl Applier {
                         paint.scrollbar = style;
                         let _ = self.node_store.tree.set_node_context(n, Some(paint));
                     }
+                    self.invalidation.insert(InvalidationFlags::GEOMETRY);
                 }
             }
             Op::FocusNode { id } => {
@@ -648,6 +650,7 @@ impl Applier {
                 }
             }
             Op::DropNode { id } => {
+                self.projections.semantics_dirty = true;
                 self.drop_node(*id);
             }
         }

@@ -67,6 +67,40 @@ fn stable_frames_do_not_republish_layout_or_empty_semantics() {
         debug.read().unwrap().snapshot().status.revision,
         debug_revision
     );
+
+    let opacity = applier.atoms.borrow_mut().intern("opacity");
+    applier.apply_op(&Op::SetStyle {
+        id: 2,
+        prop: opacity,
+        value: "0.5",
+    });
+    assert!(!applier.projections.semantics_dirty);
+    assert!(!applier.invalidation.contains(InvalidationFlags::GEOMETRY));
+    applier.build_frame(&mut text, 801, 600);
+    assert_eq!(
+        applier.projections.layout_metrics.borrow().revision,
+        revision,
+        "paint-only updates must not republish whole-tree layout projections"
+    );
+    assert!(
+        debug.read().unwrap().snapshot().status.revision > debug_revision,
+        "attached DevTools still receives the paint update"
+    );
+}
+
+#[test]
+fn hit_affecting_paint_still_invalidates_geometry() {
+    let mut applier = interactive_applier();
+    applier.invalidation.remove(InvalidationFlags::GEOMETRY);
+    let pointer_events = applier.atoms.borrow_mut().intern("pointer-events");
+
+    applier.apply_op(&Op::SetStyle {
+        id: 2,
+        prop: pointer_events,
+        value: "none",
+    });
+
+    assert!(applier.invalidation.contains(InvalidationFlags::GEOMETRY));
 }
 
 #[test]
