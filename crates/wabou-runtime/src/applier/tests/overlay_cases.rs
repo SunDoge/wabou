@@ -542,7 +542,9 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
         id: 5,
         tag: view,
         attrs: vec![
-            (role, "dialog"),
+            // Semantic focus must use the explicit modal root rather than
+            // guessing a focus target from descendant roles.
+            (role, "group"),
             (aria_label, "Confirm"),
             (aria_modal, "true"),
         ],

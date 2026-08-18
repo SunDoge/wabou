@@ -157,7 +157,6 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
 
 fn semantic_focus(
     applier: &Applier,
-    nodes: &[SemanticNode],
     modal_root: Option<u64>,
     modal_node: Option<NodeId>,
 ) -> Option<u64> {
@@ -172,33 +171,9 @@ fn semantic_focus(
             .get(&(solid as u32))
             .is_some_and(|node| applier.node_store.is_logical_descendant(*node, modal_node))
     };
-    let fallback = nodes
-        .iter()
-        .find(|node| {
-            inside_modal(node.id)
-                && matches!(
-                    node.role,
-                    SemanticRole::Dialog
-                        | SemanticRole::Button
-                        | SemanticRole::TextInput
-                        | SemanticRole::Link
-                        | SemanticRole::CheckBox
-                        | SemanticRole::RadioButton
-                        | SemanticRole::Switch
-                        | SemanticRole::ComboBox
-                        | SemanticRole::ListBox
-                        | SemanticRole::Option
-                        | SemanticRole::MenuItem
-                        | SemanticRole::TreeItem
-                        | SemanticRole::Slider
-                        | SemanticRole::Tab
-                )
-        })
-        .map(|node| node.id)
-        .unwrap_or(modal);
     focused
         .filter(|focused| inside_modal(*focused))
-        .or(Some(fallback))
+        .or(Some(modal))
 }
 
 fn semantic_children(
@@ -459,7 +434,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         &hidden,
         &presentational,
     );
-    let focus = semantic_focus(applier, &nodes, modal_root, modal_node);
+    let focus = semantic_focus(applier, modal_root, modal_node);
     applier.projections.semantic_snapshot = Arc::new(SemanticSnapshot {
         revision: applier
             .projections
