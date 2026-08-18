@@ -11,9 +11,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
-use serde_json::{Value, json};
+use serde_json::Value;
 use vello::Scene;
-use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
 use wabou_runtime::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
 use wabou_shell::layout::PlacedNode;
 use wabou_shell::renderer::render_to_png;
@@ -26,6 +25,7 @@ use wabou_shell::{
 mod artifact;
 mod behavior_test;
 mod config;
+mod devtools;
 mod doctor;
 mod frontend;
 mod packaging;
@@ -35,8 +35,7 @@ mod render_metrics;
 mod scaffold;
 
 use artifact::{
-    app_binary, app_profiling_feature, app_vite_feature, artifact_from_metadata, built_executable,
-    cargo_metadata,
+    app_binary, app_profiling_feature, app_vite_feature, artifact_from_metadata, cargo_metadata,
 };
 #[cfg(test)]
 use artifact::{binary_target, framework_feature, vite_feature};
@@ -45,6 +44,7 @@ use config::{
     BuildProfile, PackageFormat, bundle_path, configured_source_map, load_package_config,
     profile_application_dir,
 };
+use devtools::InspectCommand;
 use frontend::{lock as frontend_build_lock, run as frontend, run_unlocked as frontend_unlocked};
 use process::{
     ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
@@ -230,36 +230,6 @@ enum BindingsCommand {
     },
 }
 
-#[derive(Subcommand)]
-enum InspectCommand {
-    Status,
-    Query {
-        query: String,
-        #[arg(long, default_value_t = 100)]
-        limit: usize,
-    },
-    Node {
-        id: u32,
-    },
-    At {
-        x: f32,
-        y: f32,
-    },
-    Frames {
-        #[arg(long, default_value_t = 20)]
-        limit: usize,
-    },
-    Screenshot,
-    Capture {
-        #[arg(long)]
-        x: Option<f32>,
-        #[arg(long)]
-        y: Option<f32>,
-        #[arg(long, value_name = "DIR")]
-        output: PathBuf,
-    },
-}
-
 struct RenderOptions {
     out: PathBuf,
     width: u32,
@@ -409,8 +379,8 @@ fn main() -> Result<()> {
                 },
             )
         }
-        Commands::Devtools => run_devtools(&find_workspace(&cwd).unwrap_or(cwd)),
-        Commands::Inspect { socket, command } => inspect(socket, command),
+        Commands::Devtools => devtools::run(&find_workspace(&cwd).unwrap_or(cwd)),
+        Commands::Inspect { socket, command } => devtools::inspect(socket, command),
     }
 }
 
@@ -967,7 +937,7 @@ fn dev(
     let mut host = ManagedChild::spawn(host_command)?;
 
     let mut inspector = if open_devtools {
-        let command = devtools_command(workspace)?;
+        let command = devtools::command(workspace)?;
         Some(ManagedChild::spawn(command)?)
     } else {
         None
@@ -975,124 +945,6 @@ fn dev(
 
     println!("[wabou] dev server ready at {url}; press Ctrl-C to stop");
     supervise(&mut host, &mut vite, inspector.as_mut())
-}
-
-fn run_devtools(workspace: &Path) -> Result<()> {
-    ensure(devtools_command(workspace)?.status()?, "Wabou DevTools")
-}
-
-/// Resolve the GUI as a helper executable. Inside the Wabou source workspace we
-/// build its frontend and host directly; installed CLIs find a sibling binary
-/// first and then use PATH.
-fn devtools_command(workspace: &Path) -> Result<Command> {
-    let source = workspace.join("apps/devtools");
-    if source.join("Cargo.toml").is_file() && source.join("package.json").is_file() {
-        let app = load_app(workspace, workspace, Some(&source))?;
-        ensure(
-            frontend(workspace, &app, "build", &[], BuildProfile::Debug, true)?,
-            "DevTools Vite build",
-        )?;
-        let manifest = manifest(&app);
-        let mut cargo = Command::new("cargo");
-        cargo
-            .current_dir(workspace)
-            .args(["build", "--manifest-path", &manifest]);
-        ensure(cargo.status()?, "DevTools Rust build")?;
-        let executable = built_executable(workspace, &app, false)?;
-        let mut command = Command::new(executable);
-        command.env(
-            "WABOU_BUNDLE_PATH",
-            bundle_path(workspace, &app, BuildProfile::Debug)?,
-        );
-        return Ok(command);
-    }
-
-    let executable = find_helper(
-        &env::current_exe()?,
-        env::var_os("PATH").as_deref(),
-        "wabou-devtools",
-    )
-    .ok_or(
-        "wabou-devtools was not found next to wabou or on PATH; install the Wabou DevTools package",
-    )?;
-    Ok(Command::new(executable))
-}
-
-fn find_helper(current_exe: &Path, path: Option<&std::ffi::OsStr>, name: &str) -> Option<PathBuf> {
-    let filename = format!("{name}{}", env::consts::EXE_SUFFIX);
-    if let Some(parent) = current_exe.parent() {
-        let sibling = parent.join(&filename);
-        if sibling.is_file() {
-            return Some(sibling);
-        }
-    }
-    path.and_then(|path| {
-        env::split_paths(path)
-            .map(|dir| dir.join(&filename))
-            .find(|candidate| candidate.is_file())
-    })
-}
-
-fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Result<()> {
-    let path = socket.map_or_else(discover_socket, Ok)?;
-    let capture_output = match &command {
-        InspectCommand::Capture { output, .. } => Some(output.clone()),
-        _ => None,
-    };
-    let (method, params): (&str, Value) = match command {
-        InspectCommand::Status => ("status", empty_params()),
-        InspectCommand::Query { query, limit } => {
-            ("queryNodes", json!({ "query": query, "limit": limit }))
-        }
-        InspectCommand::Node { id } => ("inspectNode", json!({ "id": id })),
-        InspectCommand::At { x, y } => ("inspectAtPoint", json!({ "x": x, "y": y })),
-        InspectCommand::Frames { limit } => ("recentFrames", json!({ "limit": limit })),
-        InspectCommand::Screenshot => ("captureScreenshot", empty_params()),
-        InspectCommand::Capture { x, y, .. } => {
-            let params = match (x, y) {
-                (Some(x), Some(y)) => json!({ "x": x, "y": y }),
-                (None, None) => empty_params(),
-                _ => return Err("--x and --y must be provided together".into()),
-            };
-            ("captureCase", params)
-        }
-    };
-    let response = call(&path, &request(1, method, params))
-        .map_err(|error| format!("cannot connect to {}: {error}", path.display()))?;
-    if let Some(error) = response.error {
-        return Err(error.into());
-    }
-    let result = response.result.unwrap_or(Value::Null);
-    if let Some(output) = capture_output {
-        let capture: DebugCaptureCase = serde_json::from_value(result)?;
-        write_capture_case(&output, capture)?;
-        println!("{}", output.display());
-    } else {
-        println!("{}", serde_json::to_string_pretty(&result)?);
-    }
-    Ok(())
-}
-
-fn write_capture_case(output: &Path, mut capture: DebugCaptureCase) -> Result<()> {
-    fs::create_dir_all(output)?;
-    let screenshot = output.join("screenshot.png");
-    fs::copy(&capture.screenshot_path, screenshot)?;
-    capture.screenshot_path = PathBuf::from("screenshot.png");
-    fs::write(
-        output.join("manifest.json"),
-        serde_json::to_vec_pretty(&capture)?,
-    )?;
-    fs::write(
-        output.join("tree.json"),
-        serde_json::to_vec_pretty(&capture.snapshot)?,
-    )?;
-    if let Some(node) = capture.point.as_ref().and_then(|point| point.node.as_ref()) {
-        fs::write(
-            output.join("selected-node.json"),
-            serde_json::to_vec_pretty(node)?,
-        )?;
-    }
-    Ok(())
 }
 
 fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> {
@@ -1215,8 +1067,6 @@ mod tests {
         }
         assert!(!is_alive());
     }
-    use wabou_devtools::{DebugNode, DebugPointInspection, DebugSnapshot};
-
     #[test]
     fn render_defaults_to_the_main_logical_window_and_accepts_an_override() {
         let Cli {
@@ -1882,79 +1732,6 @@ out-dir = "dist/resources"
         assert!(path_error.contains("invalid"));
         assert!(source_map_error.contains("invalid"));
         assert!(path_error.contains("wabou.toml"));
-    }
-
-    #[test]
-    fn finds_a_sibling_devtools_helper_before_path() {
-        let root = env::temp_dir().join(format!("wabou-cli-helper-{}", std::process::id()));
-        let bin = root.join("bin");
-        let path_bin = root.join("path-bin");
-        fs::create_dir_all(&bin).unwrap();
-        fs::create_dir_all(&path_bin).unwrap();
-        let helper_name = format!("wabou-devtools{}", env::consts::EXE_SUFFIX);
-        let sibling = bin.join(&helper_name);
-        let path_helper = path_bin.join(&helper_name);
-        fs::write(&sibling, []).unwrap();
-        fs::write(&path_helper, []).unwrap();
-
-        assert_eq!(
-            find_helper(
-                &bin.join(format!("wabou{}", env::consts::EXE_SUFFIX)),
-                Some(path_bin.as_os_str()),
-                "wabou-devtools",
-            ),
-            Some(sibling)
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn falls_back_to_path_for_the_devtools_helper() {
-        let root = env::temp_dir().join(format!("wabou-cli-path-helper-{}", std::process::id()));
-        let path_bin = root.join("path-bin");
-        fs::create_dir_all(&path_bin).unwrap();
-        let helper = path_bin.join(format!("wabou-devtools{}", env::consts::EXE_SUFFIX));
-        fs::write(&helper, []).unwrap();
-
-        assert_eq!(
-            find_helper(
-                &root.join("missing/wabou"),
-                Some(path_bin.as_os_str()),
-                "wabou-devtools",
-            ),
-            Some(helper)
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-
-    #[test]
-    fn capture_case_writer_emits_frame_matched_bundle() {
-        let root = env::temp_dir().join(format!("wabou-cli-capture-{}", std::process::id()));
-        let source = root.with_extension("png");
-        fs::write(&source, b"png").unwrap();
-        let capture = DebugCaptureCase {
-            screenshot_path: source.clone(),
-            snapshot: DebugSnapshot::default(),
-            point: Some(DebugPointInspection {
-                x: 1.0,
-                y: 2.0,
-                node: Some(DebugNode {
-                    id: 42,
-                    ..Default::default()
-                }),
-                ancestors: Vec::new(),
-            }),
-            frames: Vec::new(),
-        };
-
-        write_capture_case(&root, capture).unwrap();
-
-        assert_eq!(fs::read(root.join("screenshot.png")).unwrap(), b"png");
-        assert!(root.join("manifest.json").is_file());
-        assert!(root.join("tree.json").is_file());
-        assert!(root.join("selected-node.json").is_file());
-        fs::remove_dir_all(root).unwrap();
-        fs::remove_file(source).unwrap();
     }
 
     #[test]
