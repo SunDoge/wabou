@@ -857,7 +857,7 @@ fn apply_overflow_border_ir(
 /// # Support contract
 ///
 /// Property coverage is the CSS support matrix
-/// (`packages/style-compiler/css-support-matrix.json`):
+/// (`packages/vite/src/style-compiler/css-support-matrix.json`):
 /// - **supported** — applied here
 /// - anything else — returns `false` (compiler must not emit these)
 ///

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   type WabouColorThemeOptions,
   wabouStylePlugin,
-} from "@wabou/style-compiler";
+} from "./style-compiler";
 import MagicString from "magic-string";
 import { parse } from "smol-toml";
 import {

@@ -1,11 +1,272 @@
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, join, parse, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { wabouStylePlugin } from "@wabou/style-compiler";
+import { readFile, readdir } from "node:fs/promises";
+import { createGenerator } from "@unocss/core";
+import { presetWabou, resolveWabouUtility, validateWabouUtility, wabouUtilityManifest } from "@wabou/unocss-preset";
 import MagicString from "magic-string";
-import { parse } from "smol-toml";
+import { parse as parse$1 } from "smol-toml";
 import { defineConfig, mergeConfig } from "vite";
 import solid from "vite-plugin-solid";
+//#region src/style-compiler/vite.ts
+const DEFAULT_IGNORED_CLASS_PATTERNS = ["lucide", "lucide-*"];
+function matchesClassPattern(candidate, pattern) {
+	const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(`^${escaped.replaceAll("*", ".*")}$`).test(candidate);
+}
+function filterIgnoredClasses(candidates, patterns = []) {
+	return [...candidates].filter((candidate) => !patterns.some((pattern) => matchesClassPattern(candidate, pattern)));
+}
+function parseThemeColor(value, theme, token) {
+	const match = value.match(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/);
+	if (!match) throw new Error(`invalid color theme value for ${theme}.${token}; expected #RRGGBB or #RRGGBBAA`);
+	const hex = match[1];
+	const parsed = Number.parseInt(hex, 16);
+	return hex.length === 6 ? (parsed << 8 | 255) >>> 0 : parsed >>> 0;
+}
+function compileColorThemes(options) {
+	if (!options) return;
+	const base = options.themes[options.default];
+	if (!base) throw new Error(`default Wabou color theme \`${options.default}\` does not exist`);
+	const tokens = Object.keys(base.colors).sort();
+	if (!tokens.length) throw new Error("Wabou color themes require at least one token");
+	for (const token of tokens) {
+		if (!/^[a-z][a-z0-9-]*$/.test(token)) throw new Error(`invalid Wabou color token \`${token}\``);
+		if (token in wabouUtilityManifest.colors) throw new Error(`Wabou color token \`${token}\` conflicts with a palette color`);
+	}
+	const themes = {};
+	for (const [name, theme] of Object.entries(options.themes)) {
+		const actual = Object.keys(theme.colors).sort();
+		const missing = tokens.filter((token) => !(token in theme.colors));
+		const unknown = actual.filter((token) => !tokens.includes(token));
+		if (missing.length || unknown.length) throw new Error(`Wabou color theme \`${name}\` does not match \`${options.default}\`${missing.length ? `; missing: ${missing.join(", ")}` : ""}${unknown.length ? `; unknown: ${unknown.join(", ")}` : ""}`);
+		themes[name] = {
+			appearance: theme.appearance,
+			colors: Object.fromEntries(tokens.map((token) => [token, parseThemeColor(theme.colors[token], name, token)]))
+		};
+	}
+	return {
+		default: options.default,
+		themes
+	};
+}
+function semanticColorDeclaration(candidate, tokens) {
+	const match = candidate.match(/^(bg|text|border)-(.+)$/);
+	if (!match || !tokens.has(match[2])) return;
+	return {
+		property: match[1] === "bg" ? "background-color" : match[1] === "text" ? "color" : "border-color",
+		value: {
+			type: "color",
+			value: {
+				kind: "token",
+				name: match[2]
+			}
+		}
+	};
+}
+function assertSupportedWabouCandidates(candidates, semanticTokens = /* @__PURE__ */ new Set()) {
+	const unsupported = [...candidates].filter((candidate) => !semanticColorDeclaration(candidate, semanticTokens)).map((candidate) => validateWabouUtility(candidate)).filter((diagnostic) => diagnostic !== void 0);
+	if (unsupported.length) throw new Error(`unsupported Wabou utilities:\n${unsupported.map(({ message }) => `  - ${message}`).join("\n")}`);
+}
+function compileWabouUtilities(candidates, sourceOrderStart = 0, semanticTokens = /* @__PURE__ */ new Set()) {
+	return [...candidates].sort().map((candidate, index) => {
+		const semantic = semanticColorDeclaration(candidate, semanticTokens);
+		if (semantic) return {
+			className: candidate,
+			specificity: 10,
+			sourceOrder: sourceOrderStart + index,
+			declarations: [semantic]
+		};
+		const utility = resolveWabouUtility(candidate);
+		if (!utility) throw new Error(`unsupported Wabou utility \`${candidate}\``);
+		return {
+			className: candidate,
+			specificity: 10,
+			sourceOrder: sourceOrderStart + index,
+			declarations: utility.declarations
+		};
+	});
+}
+/**
+* Keep UnoCSS candidates scoped to JSX class props.
+*
+* Uno's default extractor scans every token, which turns values like
+* `role="tab"` or terminal command strings into accidental utilities.
+*/
+function extractUtilitySource(source) {
+	const values = [];
+	const pushValue = (value, expression = false) => {
+		if (expression) value = value.replace(/(?:===|!==|==|!=)\s*(?:"[^"]*"|'[^']*'|`[^`]*`)/g, "");
+		const interpolations = [...value.matchAll(/\$\{([^}]+)\}/g)];
+		const selectsCompleteUtilities = (code) => /^\s*[\s\S]+?\?\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*:\s*(?:"[^"]*"|'[^']*'|`[^`]*`)\s*$/.test(code);
+		if (interpolations.some((match) => !selectsCompleteUtilities(match[1])) || expression && /(?:["'`]\s*\+|\+\s*["'`])/.test(value)) throw new Error("dynamic class construction is not supported; select complete static utilities with classList and put continuous values in typed style");
+		values.push(value);
+	};
+	for (const match of source.matchAll(/\bclass(?:Name)?\s*=\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g)) pushValue(match[1] ?? match[2] ?? match[3] ?? "");
+	for (const match of source.matchAll(/\bclass(?:Name)?\s*=\s*\{/g)) {
+		const start = (match.index ?? 0) + match[0].length;
+		let depth = 1;
+		let quote = "";
+		let escaped = false;
+		let end = start;
+		for (; end < source.length && depth > 0; end++) {
+			const character = source[end];
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+			if (character === "\\") {
+				escaped = true;
+				continue;
+			}
+			if (quote) {
+				if (character === quote) quote = "";
+				continue;
+			}
+			if (character === "\"" || character === "'" || character === "`") quote = character;
+			else if (character === "{") depth++;
+			else if (character === "}") depth--;
+		}
+		pushValue(source.slice(start, depth === 0 ? end - 1 : end), true);
+	}
+	for (const match of source.matchAll(/\bclassList\s*=\s*\{\{([\s\S]*?)\}\}/g)) {
+		const entries = match[1];
+		for (const candidate of entries.matchAll(/(?:^|,)\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z_][\w-]*))\s*:/g)) pushValue(candidate[1] ?? candidate[2] ?? candidate[3]);
+	}
+	return values.join("\n");
+}
+/** Conventional Wabou source roots that may contain utility classes. */
+function wabouSourceDirectories(root) {
+	return [
+		"src",
+		"ui",
+		"packages"
+	].map((directory) => join(root, directory));
+}
+async function findWorkspacePackages(root) {
+	let directory = root;
+	for (;;) {
+		try {
+			const manifest = JSON.parse(await readFile(join(directory, "package.json"), "utf8"));
+			if (Array.isArray(manifest.workspaces)) return join(directory, "packages");
+		} catch {}
+		const parent = dirname(directory);
+		if (parent === directory || directory === parse(directory).root) return;
+		directory = parent;
+	}
+}
+function wabouHotUpdateModules(modules, stylesheetModule) {
+	return [.../* @__PURE__ */ new Set([...modules, stylesheetModule])];
+}
+function wabouStylePlugin(options) {
+	let referenceGenerator;
+	const sources = /* @__PURE__ */ new Map();
+	const sourceRoots = /* @__PURE__ */ new Set([options.root]);
+	const colorThemes = compileColorThemes(options.colorThemes);
+	const semanticTokens = new Set(Object.keys(colorThemes?.themes[colorThemes.default]?.colors ?? {}));
+	const ignoredClassPatterns = [.../* @__PURE__ */ new Set([...DEFAULT_IGNORED_CLASS_PATTERNS, ...options.ignoreClasses ?? []])];
+	let stylesheet = {
+		version: 6,
+		theme: {
+			spacing: wabouUtilityManifest.spacing,
+			colors: wabouUtilityManifest.colors
+		},
+		colorThemes,
+		diagnostics: [],
+		ignoredClassPatterns,
+		rules: []
+	};
+	const virtual = "virtual:wabou-stylesheet";
+	const resolved = `\0${virtual}`;
+	async function regenerate() {
+		if (!referenceGenerator) return;
+		const utilitySource = [...sources.values()].join("\n");
+		const matched = filterIgnoredClasses((await referenceGenerator.generate(utilitySource, { preflights: false })).matched, ignoredClassPatterns);
+		assertSupportedWabouCandidates(matched, semanticTokens);
+		stylesheet = {
+			version: 6,
+			theme: {
+				spacing: wabouUtilityManifest.spacing,
+				colors: wabouUtilityManifest.colors
+			},
+			colorThemes,
+			diagnostics: [],
+			ignoredClassPatterns,
+			rules: compileWabouUtilities(matched, 0, semanticTokens)
+		};
+	}
+	function accepts(id) {
+		const path = id.split("?", 1)[0];
+		if (path.includes("node_modules") || /\.(?:test|spec)\.(?:tsx?|jsx?)$/.test(path) || ![...sourceRoots].some((root) => path === root || path.startsWith(`${root}${sep}`))) return false;
+		if (/\.css$/.test(path)) throw new Error("CSS stylesheets are not supported; use static utility classes and typed style values");
+		return /\.(tsx|ts|jsx|js)$/.test(path);
+	}
+	async function scan(directory) {
+		let entries;
+		try {
+			entries = await readdir(directory, { withFileTypes: true });
+		} catch {
+			return;
+		}
+		await Promise.all(entries.map(async (entry) => {
+			const path = join(directory, entry.name);
+			if (entry.isDirectory()) {
+				if (!["dist", "node_modules"].includes(entry.name)) await scan(path);
+				return;
+			}
+			if (accepts(path)) {
+				const contents = await readFile(path, "utf8");
+				sources.set(path, extractUtilitySource(contents));
+			}
+		}));
+	}
+	return {
+		name: "wabou-style-compiler",
+		enforce: "pre",
+		async configResolved() {
+			referenceGenerator = await createGenerator({
+				presets: [presetWabou()],
+				rules: [[/^(?:bg|text|border)-(.+)$/, ([, token]) => semanticTokens.has(token) ? { "--wabou-semantic-color": token } : void 0]]
+			});
+		},
+		async buildStart() {
+			const workspacePackages = await findWorkspacePackages(options.root);
+			if (workspacePackages) sourceRoots.add(workspacePackages);
+			await Promise.all([...wabouSourceDirectories(options.root), ...workspacePackages ? [workspacePackages] : []].map(scan));
+			await regenerate();
+		},
+		async transform(code, id) {
+			if (id === resolved) return;
+			if (!accepts(id)) return;
+			sources.set(id, extractUtilitySource(code));
+			await regenerate();
+		},
+		resolveId(id) {
+			return id === virtual ? resolved : null;
+		},
+		load(id) {
+			if (id !== resolved) return null;
+			return [
+				`const __s=${JSON.stringify(JSON.stringify(stylesheet))};`,
+				`globalThis.__wabou_set_stylesheet?.(__s);`,
+				`if(import.meta.hot)import.meta.hot.accept();`,
+				`export default JSON.parse(__s);`
+			].join("\n");
+		},
+		async handleHotUpdate({ file, server, modules }) {
+			if (!accepts(file)) return;
+			const contents = await readFile(file, "utf8");
+			sources.set(file, extractUtilitySource(contents));
+			await regenerate();
+			const module = server.moduleGraph.getModuleById(resolved);
+			if (module) {
+				server.moduleGraph.invalidateModule(module);
+				return wabouHotUpdateModules(modules, module);
+			}
+		}
+	};
+}
+//#endregion
 //#region src/index.ts
 function disableSolidDependencyOptimizer() {
 	return {
@@ -157,7 +418,7 @@ function readManifest(root) {
 	const path = resolve(root, "wabou.toml");
 	try {
 		return {
-			manifest: parse(readFileSync(path, "utf8")),
+			manifest: parse$1(readFileSync(path, "utf8")),
 			path
 		};
 	} catch (error) {

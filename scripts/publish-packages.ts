@@ -10,7 +10,6 @@ const packageDirectories = [
   "solid-renderer",
   "core",
   "unocss-preset",
-  "style-compiler",
   "animation",
   "primitives",
   "interactions",

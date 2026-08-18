@@ -1,5 +1,13 @@
-import { WabouColorThemeOptions } from "@wabou/style-compiler";
 import { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
+//#region src/style-compiler/vite.d.ts
+interface WabouColorThemeOptions {
+  default: string;
+  themes: Record<string, {
+    appearance: "light" | "dark";
+    colors: Record<string, string>;
+  }>;
+}
+//#endregion
 //#region src/index.d.ts
 interface WabouViteOptions {
   /** Application root. Defaults to Vite's current working directory. */

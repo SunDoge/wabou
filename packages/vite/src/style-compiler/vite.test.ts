@@ -188,7 +188,7 @@ describe("utility source extraction", () => {
   });
 
   test("discovers shared workspace packages from a nested app", async () => {
-    const workspace = resolve(import.meta.dir, "../../..");
+    const workspace = resolve(import.meta.dir, "../../../..");
     expect(
       await findWorkspacePackages(resolve(workspace, "apps/gallery")),
     ).toBe(resolve(workspace, "packages"));

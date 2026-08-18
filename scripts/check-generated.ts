@@ -8,7 +8,7 @@ const patterns = [
   "packages/*/dist/**/*",
   "packages/*/generated/**/*",
   "packages/core/src/generated/**/*",
-  "packages/style-compiler/css-support-matrix.json",
+  "packages/vite/src/style-compiler/css-support-matrix.json",
 ];
 
 async function snapshot(): Promise<Map<string, string>> {

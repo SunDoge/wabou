@@ -16,4 +16,3 @@
 - Updated dependencies [14a6081]
   - @wabou/solid-renderer@0.1.0-alpha.1
   - @wabou/unocss-preset@0.1.0-alpha.1
-  - @wabou/style-compiler@0.1.0-alpha.1

@@ -5,9 +5,9 @@
 //! cascade → inherit → Taffy/Parley measure → absolute rects) and assert
 //! **final layout semantics**, not merely that an IR property was emitted.
 //!
-//! ## Three-layer pyramid (see also `computed_style` + `@wabou/style-compiler`)
+//! ## Three-layer pyramid (see also `computed_style` + Wabou's Vite style compiler)
 //!
-//! 1. **Compiler** (`packages/style-compiler`) — class CSS → typed Style IR.
+//! 1. **Compiler** (`packages/vite/src/style-compiler`) — class CSS → typed Style IR.
 //! 2. **Computed style** (`computed_style` module) — cascade, replace, inherit,
 //!    inline priority via [`crate::applier::ComputedNodeSnapshot`].
 //! 3. **Layout fixtures** (this module) — final rects, gaps, wrap, overflow.

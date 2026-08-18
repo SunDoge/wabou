@@ -7,7 +7,7 @@
 //!
 //! ## Pyramid
 //!
-//! 1. Compiler — `packages/style-compiler` (class CSS → typed IR)
+//! 1. Compiler — `packages/vite/src/style-compiler` (class CSS → typed IR)
 //! 2. **Computed style** (this module + selected `applier` tests)
 //! 3. Layout fixtures — final rects (`layout_fixtures`)
 

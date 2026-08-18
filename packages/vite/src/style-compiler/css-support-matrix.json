@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "CSS support contract between @wabou/style-compiler and wabou-shell apply_ir. Every compiler-emitted property maps to Taffy or Vello; everything else is a compile error.",
+  "description": "CSS support contract between @wabou/vite and wabou-shell apply_ir. Every compiler-emitted property maps to Taffy or Vello; everything else is a compile error.",
   "supported": {
     "display": "flex",
     "flex-direction": "column",

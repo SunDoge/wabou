@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dir, "../../..");
 const matrix = JSON.parse(
   await readFile(
-    resolve(root, "packages/style-compiler/css-support-matrix.json"),
+    resolve(root, "packages/vite/src/style-compiler/css-support-matrix.json"),
     "utf8",
   ),
 ) as { supported: Record<string, unknown> };

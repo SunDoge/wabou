@@ -7,7 +7,6 @@ const internalPackages = new Set([
   "@wabou/protocol",
   "@wabou/solid-renderer",
   "@wabou/style",
-  "@wabou/style-compiler",
   "@wabou/unocss-preset",
 ]);
 

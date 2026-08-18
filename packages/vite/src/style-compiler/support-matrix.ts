@@ -4,11 +4,11 @@
  * - **supported**: compile to Style IR and apply in Rust `apply_ir`.
  * - **unsupported**: compile-time error (never emit IR).
  *
- * Source of truth: `../css-support-matrix.json` (also `include_str!`'d by
+ * Source of truth: `./css-support-matrix.json` (also `include_str!`'d by
  * wabou-runtime tests so Rust cannot drift).
  */
 
-import matrixJson from "../css-support-matrix.json" with { type: "json" };
+import matrixJson from "./css-support-matrix.json" with { type: "json" };
 
 export type SupportKind = "supported" | "unsupported";
 

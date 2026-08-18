@@ -7,9 +7,8 @@
   "@wabou/router": "a0198580ad3d5c1e",
   "@wabou/solid-renderer": "e2426f3709568cec",
   "@wabou/style": "769bb1d993311db1",
-  "@wabou/style-compiler": "dea1818304f3766c",
   "@wabou/terminal": "c4e7325d52f9cb01",
   "@wabou/test": "f42b6f543f1fb4ce",
   "@wabou/unocss-preset": "183a1b7252fb1d1e",
-  "@wabou/vite": "a65c00ef72641b39"
+  "@wabou/vite": "276657a2617db7ca"
 }

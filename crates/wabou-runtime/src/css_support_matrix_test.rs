@@ -20,7 +20,7 @@ mod tests {
     }
 
     const MATRIX_JSON: &str =
-        include_str!("../../../packages/style-compiler/css-support-matrix.json");
+        include_str!("../../../packages/vite/src/style-compiler/css-support-matrix.json");
     const CONFORMANCE_JSON: &str = include_str!("gen/style-conformance.json");
 
     fn keyword(value: &str) -> IrValue {

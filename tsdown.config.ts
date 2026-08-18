@@ -15,7 +15,6 @@ const packages: Record<string, UserConfig["entry"]> = {
     index: "src/index.ts",
     "jsx-runtime": "src/jsx.ts",
   },
-  "style-compiler": { index: "src/index.ts" },
   style: { index: "src/index.ts" },
   terminal: { index: "src/index.tsx" },
   test: { index: "src/index.ts" },
