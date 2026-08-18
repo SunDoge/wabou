@@ -36,6 +36,8 @@ export const OP = {
   RemoveWidgetConfig: 0x1b,
   SetTextBehavior: 0x1c,
   SetInteractionPolicy: 0x1d,
+  SetGraphicSource: 0x1e,
+  ClearGraphicSource: 0x1f,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -56,6 +58,15 @@ const INTERACTION_POLICY_MASK =
   INTERACTION_POLICY.Focusable |
   INTERACTION_POLICY.BlockSubtree |
   INTERACTION_POLICY.ContainFocus;
+
+export const GRAPHIC_SOURCE = {
+  Svg: 0x01,
+  NetworkRaster: 0x02,
+} as const;
+
+function validGraphicSourceKind(kind: number): boolean {
+  return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
+}
 
 export const EVENT_CODE = {
   click: 1,
@@ -393,6 +404,23 @@ export class Writer {
     this.u32(id);
     this.u8(flags);
     this.u32(focusOrder >>> 0);
+  }
+  setGraphicSource(id: number, kind: number, source: string): void {
+    if (!validGraphicSourceKind(kind)) {
+      throw new RangeError(`invalid graphic source kind ${kind}`);
+    }
+    this.emit(OP.SetGraphicSource);
+    this.u32(id);
+    this.u8(kind);
+    this.str(source);
+  }
+  clearGraphicSource(id: number, kind: number): void {
+    if (!validGraphicSourceKind(kind)) {
+      throw new RangeError(`invalid graphic source kind ${kind}`);
+    }
+    this.emit(OP.ClearGraphicSource);
+    this.u32(id);
+    this.u8(kind);
   }
   removeWidgetConfig(id: number): void {
     this.emit(OP.RemoveWidgetConfig);

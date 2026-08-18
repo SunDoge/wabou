@@ -32,6 +32,8 @@ pub mod op {
     pub const REMOVE_WIDGET_CONFIG: u8 = 0x1b;
     pub const SET_TEXT_BEHAVIOR: u8 = 0x1c;
     pub const SET_INTERACTION_POLICY: u8 = 0x1d;
+    pub const SET_GRAPHIC_SOURCE: u8 = 0x1e;
+    pub const CLEAR_GRAPHIC_SOURCE: u8 = 0x1f;
 }
 
 #[allow(missing_docs)]

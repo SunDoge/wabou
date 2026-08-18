@@ -27,6 +27,12 @@ pub const INTERACTION_POLICY_CONTAIN_FOCUS: u8 = 0x04;
 const INTERACTION_POLICY_MASK: u8 = INTERACTION_POLICY_FOCUSABLE
     | INTERACTION_POLICY_BLOCK_SUBTREE
     | INTERACTION_POLICY_CONTAIN_FOCUS;
+pub const GRAPHIC_SOURCE_SVG: u8 = 0x01;
+pub const GRAPHIC_SOURCE_NETWORK_RASTER: u8 = 0x02;
+
+fn valid_graphic_source_kind(kind: u8) -> bool {
+    matches!(kind, GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_NETWORK_RASTER)
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum StyleValue {
@@ -111,6 +117,15 @@ pub enum Op<'a> {
         id: u32,
         flags: u8,
         focus_order: i32,
+    },
+    SetGraphicSource {
+        id: u32,
+        kind: u8,
+        source: &'a str,
+    },
+    ClearGraphicSource {
+        id: u32,
+        kind: u8,
     },
     SetStyle {
         id: u32,
@@ -219,6 +234,9 @@ pub enum DecodeError {
         "invalid interaction policy flags 0x{flags:02x} with focus order {focus_order}"
     ))]
     BadInteractionPolicy { flags: u8, focus_order: i32 },
+
+    #[snafu(display("invalid graphic source kind {kind}"))]
+    BadGraphicSourceKind { kind: u8 },
 }
 
 struct Reader<'a> {
@@ -408,6 +426,23 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
                 flags,
                 focus_order,
             }
+        }
+        op::SET_GRAPHIC_SOURCE => {
+            let id = r.u32()?;
+            let kind = r.u8()?;
+            if !valid_graphic_source_kind(kind) {
+                return Err(DecodeError::BadGraphicSourceKind { kind });
+            }
+            let source = r.str()?;
+            Op::SetGraphicSource { id, kind, source }
+        }
+        op::CLEAR_GRAPHIC_SOURCE => {
+            let id = r.u32()?;
+            let kind = r.u8()?;
+            if !valid_graphic_source_kind(kind) {
+                return Err(DecodeError::BadGraphicSourceKind { kind });
+            }
+            Op::ClearGraphicSource { id, kind }
         }
         op::SET_STYLE => {
             let id = r.u32()?;
@@ -740,6 +775,45 @@ mod tests {
                 flags: 0x08,
                 focus_order: 0,
             })
+        ));
+    }
+
+    #[test]
+    fn decodes_and_validates_graphic_sources() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 2);
+        bytes.push(op::SET_GRAPHIC_SOURCE);
+        push_u32(&mut bytes, 42);
+        bytes.push(GRAPHIC_SOURCE_NETWORK_RASTER);
+        let source = b"https://x.test/a.png";
+        bytes.extend_from_slice(&(source.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(source);
+        bytes.push(op::CLEAR_GRAPHIC_SOURCE);
+        push_u32(&mut bytes, 42);
+        bytes.push(GRAPHIC_SOURCE_NETWORK_RASTER);
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetGraphicSource {
+                id: 42,
+                kind: GRAPHIC_SOURCE_NETWORK_RASTER,
+                source: "https://x.test/a.png",
+            }
+        ));
+        assert!(matches!(
+            &frame.ops[1],
+            Op::ClearGraphicSource {
+                id: 42,
+                kind: GRAPHIC_SOURCE_NETWORK_RASTER,
+            }
+        ));
+
+        bytes[13] = 3;
+        assert!(matches!(
+            decode_frame(&bytes),
+            Err(DecodeError::BadGraphicSourceKind { kind: 3 })
         ));
     }
 

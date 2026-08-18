@@ -15,12 +15,17 @@
 import {
   EVENT_CODE,
   type EventType,
+  GRAPHIC_SOURCE,
   INTERACTION_POLICY,
   OP,
   TEXT_BEHAVIOR,
   Writer,
 } from "@wabou/protocol";
-export { INTERACTION_POLICY, TEXT_BEHAVIOR } from "@wabou/protocol";
+export {
+  GRAPHIC_SOURCE,
+  INTERACTION_POLICY,
+  TEXT_BEHAVIOR,
+} from "@wabou/protocol";
 import {
   type Affine2D,
   assertInlineStyleValue,
@@ -542,16 +547,16 @@ function applyProperty(
   if (name === "source") {
     if (node.tag === "svg") {
       if (value == null || value === false) {
-        writer.removeAttribute(node.id, "svg-source");
+        writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.Svg);
       } else if (typeof value === "string") {
-        writer.setAttribute(node.id, "svg-source", value);
+        writer.setGraphicSource(node.id, GRAPHIC_SOURCE.Svg, value);
       } else {
         throw new TypeError("invalid native SVG source");
       }
       return;
     }
     if (value == null || value === false) {
-      writer.removeAttribute(node.id, "image-source");
+      writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster);
       return;
     }
     if (
@@ -563,7 +568,11 @@ function applyProperty(
     ) {
       throw new TypeError("invalid native image source");
     }
-    writer.setAttribute(node.id, "image-source", JSON.stringify(value));
+    writer.setGraphicSource(
+      node.id,
+      GRAPHIC_SOURCE.NetworkRaster,
+      (value as { url: string }).url,
+    );
     return;
   }
   if (name === "transform") {

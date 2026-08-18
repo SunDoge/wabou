@@ -94,20 +94,6 @@ use text_selection::{SelectableText, TextSelectionGranularity};
 use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
-#[derive(serde::Deserialize)]
-struct NetworkImageSource {
-    kind: String,
-    url: String,
-    format: String,
-    cache: String,
-}
-
-fn remote_image_url(encoded: &str) -> Option<String> {
-    let source: NetworkImageSource = serde_json::from_str(encoded).ok()?;
-    (source.kind == "network" && source.format == "raster" && source.cache == "memory")
-        .then_some(source.url)
-}
-
 fn declared_attribute_is(
     declared: &Declared,
     atoms: &AtomPool,
@@ -228,6 +214,10 @@ struct Declared {
     interaction_blocked: bool,
     /// Contains sequential focus within this logical subtree while present.
     focus_contained: bool,
+    /// Trusted inline SVG source authored through the typed graphic contract.
+    svg_source: Option<Arc<str>>,
+    /// Network raster URL authored through the typed graphic contract.
+    network_image_url: Option<Arc<str>>,
 }
 
 impl Declared {

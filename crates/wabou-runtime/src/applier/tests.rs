@@ -58,14 +58,32 @@ fn text_layout_defaults_require_an_explicit_js_contract() {
 }
 
 #[test]
-fn native_image_source_requires_explicit_network_raster_memory_semantics() {
-    let valid = r#"{"kind":"network","url":"https://example.test/icon.png","format":"raster","cache":"memory"}"#;
+fn graphic_sources_are_stored_as_typed_state() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let svg = applier.atoms.borrow_mut().intern("svg");
+    applier.apply_op(&Op::CreateElement {
+        id: 2,
+        tag: svg,
+        attrs: vec![],
+    });
+
+    applier.apply_op(&Op::SetGraphicSource {
+        id: 2,
+        kind: crate::protocol::GRAPHIC_SOURCE_SVG,
+        source: "<svg viewBox='0 0 1 1'/>",
+    });
+    let node = applier.node_store.solid_to_node[&2];
     assert_eq!(
-        remote_image_url(valid).as_deref(),
-        Some("https://example.test/icon.png")
+        applier.node_store.declared[&node].svg_source.as_deref(),
+        Some("<svg viewBox='0 0 1 1'/>")
     );
-    assert!(remote_image_url(r#"{"kind":"network","url":"https://example.test/icon.webp","format":"webp","cache":"memory"}"#).is_none());
-    assert!(remote_image_url(r#"{"kind":"asset","url":"https://example.test/icon.png","format":"png","cache":"memory"}"#).is_none());
+
+    applier.apply_op(&Op::ClearGraphicSource {
+        id: 2,
+        kind: crate::protocol::GRAPHIC_SOURCE_SVG,
+    });
+    assert!(applier.node_store.declared[&node].svg_source.is_none());
 }
 
 #[test]

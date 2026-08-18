@@ -285,9 +285,7 @@ impl Applier {
             return None;
         }
         let current_color = format!("{:x}", color.to_rgba8());
-        if let Some(source) = decl.attrs.iter().find_map(|(name, source)| {
-            (atoms.resolve(*name) == Some("svg-source")).then_some(source)
-        }) {
+        if let Some(source) = decl.svg_source.as_ref() {
             return Some(source.replace("currentColor", &current_color));
         }
         let mut source = String::new();
@@ -501,16 +499,13 @@ impl Applier {
             .map(inherited_paint)
             .unwrap_or_default();
         let previous = self.node_store.tree.get_node_context(node);
-        let image_url = self.node_store.declared.get(&node).and_then(|declared| {
-            let atoms = self.atoms.borrow();
-            declared.attrs.iter().find_map(|(name, source)| {
-                (atoms.resolve(*name) == Some("image-source"))
-                    .then(|| remote_image_url(source))
-                    .flatten()
-            })
-        });
+        let image_url = self
+            .node_store
+            .declared
+            .get(&node)
+            .and_then(|declared| declared.network_image_url.clone());
         let image = image_url
-            .and_then(|url| self.resources.cache.raster(url.as_str()))
+            .and_then(|url| self.resources.cache.raster(url.as_ref()))
             .and_then(Result::ok);
         let host = HostPaint {
             text: resolved.host_text,
@@ -791,15 +786,11 @@ impl Applier {
                 }
             }
             if decl.tag.and_then(|tag| atoms.resolve(tag)) == Some("img")
-                && let Some(url) = decl.attrs.iter().find_map(|(name, source)| {
-                    (atoms.resolve(*name) == Some("image-source"))
-                        .then(|| remote_image_url(source))
-                        .flatten()
-                })
+                && let Some(url) = decl.network_image_url.as_ref()
                 && let Some(size) = self
                     .resources
                     .cache
-                    .raster(url.as_str())
+                    .raster(url.as_ref())
                     .and_then(Result::ok)
                     .map(|image| image.size())
             {

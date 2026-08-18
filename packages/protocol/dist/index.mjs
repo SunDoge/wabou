@@ -28,7 +28,9 @@ const OP = {
 	SetWidgetConfig: 26,
 	RemoveWidgetConfig: 27,
 	SetTextBehavior: 28,
-	SetInteractionPolicy: 29
+	SetInteractionPolicy: 29,
+	SetGraphicSource: 30,
+	ClearGraphicSource: 31
 };
 const TEXT_BEHAVIOR = {
 	AggregateDirectText: 1,
@@ -41,6 +43,13 @@ const INTERACTION_POLICY = {
 	ContainFocus: 4
 };
 const INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
+const GRAPHIC_SOURCE = {
+	Svg: 1,
+	NetworkRaster: 2
+};
+function validGraphicSourceKind(kind) {
+	return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
+}
 const EVENT_CODE = {
 	click: 1,
 	input: 2,
@@ -295,6 +304,19 @@ var Writer = class {
 		this.u8(flags);
 		this.u32(focusOrder >>> 0);
 	}
+	setGraphicSource(id, kind, source) {
+		if (!validGraphicSourceKind(kind)) throw new RangeError(`invalid graphic source kind ${kind}`);
+		this.emit(OP.SetGraphicSource);
+		this.u32(id);
+		this.u8(kind);
+		this.str(source);
+	}
+	clearGraphicSource(id, kind) {
+		if (!validGraphicSourceKind(kind)) throw new RangeError(`invalid graphic source kind ${kind}`);
+		this.emit(OP.ClearGraphicSource);
+		this.u32(id);
+		this.u8(kind);
+	}
 	removeWidgetConfig(id) {
 		this.emit(OP.RemoveWidgetConfig);
 		this.u32(id);
@@ -422,6 +444,6 @@ var Writer = class {
 	}
 };
 //#endregion
-export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, INTERACTION_POLICY, OP, TEXT_BEHAVIOR, Writer };
+export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, GRAPHIC_SOURCE, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, INTERACTION_POLICY, OP, TEXT_BEHAVIOR, Writer };
 
 //# sourceMappingURL=index.mjs.map

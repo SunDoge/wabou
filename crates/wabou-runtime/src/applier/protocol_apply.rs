@@ -225,13 +225,6 @@ impl Applier {
             }
             declared.attrs.insert(name, Arc::from(value));
         }
-        if self.atoms.borrow().resolve(name) == Some("image-source") {
-            if let Some(url) = remote_image_url(value) {
-                self.load_image_source(node, &url);
-            } else {
-                self.clear_image_source(node);
-            }
-        }
         let widget_changes = if !is_class
             && let Some(widget) = self.widget_manager.widgets.get_mut(&node)
             && let Some(name) = self.atoms.borrow().resolve(name)
@@ -355,6 +348,48 @@ impl Applier {
         }
     }
 
+    fn set_graphic_source(&mut self, id: u32, kind: u8, source: &str) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        match kind {
+            crate::protocol::GRAPHIC_SOURCE_SVG => {
+                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                    declared.svg_source = Some(Arc::from(source));
+                }
+            }
+            crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
+                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                    declared.network_image_url = Some(Arc::from(source));
+                }
+                self.load_image_source(node, source);
+            }
+            _ => unreachable!("graphic source kind was validated by the decoder"),
+        }
+        self.recompute_node(node);
+    }
+
+    fn clear_graphic_source(&mut self, id: u32, kind: u8) {
+        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+            return;
+        };
+        match kind {
+            crate::protocol::GRAPHIC_SOURCE_SVG => {
+                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                    declared.svg_source = None;
+                }
+            }
+            crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
+                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                    declared.network_image_url = None;
+                }
+                self.clear_image_source(node);
+            }
+            _ => unreachable!("graphic source kind was validated by the decoder"),
+        }
+        self.recompute_node(node);
+    }
+
     fn remove_attribute(&mut self, id: u32, name: Atom) {
         let Some(&node) = self.node_store.solid_to_node.get(&id) else {
             return;
@@ -368,9 +403,6 @@ impl Applier {
             if is_class {
                 declared.classes.clear();
             }
-        }
-        if self.atoms.borrow().resolve(name) == Some("image-source") {
-            self.clear_image_source(node);
         }
         let widget_changes = if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
             && let Some(name) = self.atoms.borrow().resolve(name)
@@ -509,6 +541,12 @@ impl Applier {
                     declared.focus_contained =
                         flags & crate::protocol::INTERACTION_POLICY_CONTAIN_FOCUS != 0;
                 }
+            }
+            Op::SetGraphicSource { id, kind, source } => {
+                self.set_graphic_source(*id, *kind, source);
+            }
+            Op::ClearGraphicSource { id, kind } => {
+                self.clear_graphic_source(*id, *kind);
             }
             Op::SetStyle { id, prop, value } => {
                 self.set_inline_ir(*id, *prop, style::parse_ir_value(value));

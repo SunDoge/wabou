@@ -1,4 +1,4 @@
-import { EVENT_CODE, INTERACTION_POLICY, INTERACTION_POLICY as INTERACTION_POLICY$1, OP, TEXT_BEHAVIOR, Writer } from "@wabou/protocol";
+import { EVENT_CODE, GRAPHIC_SOURCE, GRAPHIC_SOURCE as GRAPHIC_SOURCE$1, INTERACTION_POLICY, INTERACTION_POLICY as INTERACTION_POLICY$1, OP, TEXT_BEHAVIOR, Writer } from "@wabou/protocol";
 import { assertInlineStyleValue, isTypedStyleValue } from "@wabou/style";
 import { For, Show, createComponent as createComponent$1, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
@@ -415,17 +415,17 @@ function applyProperty(writer, node, name, value, prev) {
 	}
 	if (name === "source") {
 		if (node.tag === "svg") {
-			if (value == null || value === false) writer.removeAttribute(node.id, "svg-source");
-			else if (typeof value === "string") writer.setAttribute(node.id, "svg-source", value);
+			if (value == null || value === false) writer.clearGraphicSource(node.id, GRAPHIC_SOURCE$1.Svg);
+			else if (typeof value === "string") writer.setGraphicSource(node.id, GRAPHIC_SOURCE$1.Svg, value);
 			else throw new TypeError("invalid native SVG source");
 			return;
 		}
 		if (value == null || value === false) {
-			writer.removeAttribute(node.id, "image-source");
+			writer.clearGraphicSource(node.id, GRAPHIC_SOURCE$1.NetworkRaster);
 			return;
 		}
 		if (typeof value !== "object" || value.kind !== "network" || typeof value.url !== "string" || value.format !== "raster" || value.cache !== "memory") throw new TypeError("invalid native image source");
-		writer.setAttribute(node.id, "image-source", JSON.stringify(value));
+		writer.setGraphicSource(node.id, GRAPHIC_SOURCE$1.NetworkRaster, value.url);
 		return;
 	}
 	if (name === "transform") {
@@ -821,6 +821,6 @@ function eventName(code) {
 	return "unknown";
 }
 //#endregion
-export { Dynamic, EVENT_CODE, HostProvider, INTERACTION_POLICY, OP, Portal, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, applyRef, createComponent, createElement, createFps, createTextNode, defaultHost, delegateEvents, dispatchEvent, effect, getMountRoot, getRequestEvent, insert, insertNode, isServer, memo, mergeProps, mount, ref, registerRoot, releaseOverlayRoot, removeNode, render, runSweep, setProp, setTransform2D, spread, useFps, useHost, writer };
+export { Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INTERACTION_POLICY, OP, Portal, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, applyRef, createComponent, createElement, createFps, createTextNode, defaultHost, delegateEvents, dispatchEvent, effect, getMountRoot, getRequestEvent, insert, insertNode, isServer, memo, mergeProps, mount, ref, registerRoot, releaseOverlayRoot, removeNode, render, runSweep, setProp, setTransform2D, spread, useFps, useHost, writer };
 
 //# sourceMappingURL=index.mjs.map

@@ -724,7 +724,9 @@
     SetWidgetConfig: 26,
     RemoveWidgetConfig: 27,
     SetTextBehavior: 28,
-    SetInteractionPolicy: 29
+    SetInteractionPolicy: 29,
+    SetGraphicSource: 30,
+    ClearGraphicSource: 31
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
@@ -737,6 +739,13 @@
     ContainFocus: 4
   };
   var INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
+  var GRAPHIC_SOURCE = {
+    Svg: 1,
+    NetworkRaster: 2
+  };
+  function validGraphicSourceKind(kind) {
+    return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
+  }
   var EVENT_CODE = {
     click: 1,
     input: 2,
@@ -1012,6 +1021,23 @@
       this.u32(id);
       this.u8(flags);
       this.u32(focusOrder >>> 0);
+    }
+    setGraphicSource(id, kind, source) {
+      if (!validGraphicSourceKind(kind)) {
+        throw new RangeError(`invalid graphic source kind ${kind}`);
+      }
+      this.emit(OP.SetGraphicSource);
+      this.u32(id);
+      this.u8(kind);
+      this.str(source);
+    }
+    clearGraphicSource(id, kind) {
+      if (!validGraphicSourceKind(kind)) {
+        throw new RangeError(`invalid graphic source kind ${kind}`);
+      }
+      this.emit(OP.ClearGraphicSource);
+      this.u32(id);
+      this.u8(kind);
     }
     removeWidgetConfig(id) {
       this.emit(OP.RemoveWidgetConfig);
@@ -5430,22 +5456,22 @@
     if (name === "source") {
       if (node.tag === "svg") {
         if (value == null || value === false) {
-          writer.removeAttribute(node.id, "svg-source");
+          writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.Svg);
         } else if (typeof value === "string") {
-          writer.setAttribute(node.id, "svg-source", value);
+          writer.setGraphicSource(node.id, GRAPHIC_SOURCE.Svg, value);
         } else {
           throw new TypeError("invalid native SVG source");
         }
         return;
       }
       if (value == null || value === false) {
-        writer.removeAttribute(node.id, "image-source");
+        writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster);
         return;
       }
       if (typeof value !== "object" || value.kind !== "network" || typeof value.url !== "string" || value.format !== "raster" || value.cache !== "memory") {
         throw new TypeError("invalid native image source");
       }
-      writer.setAttribute(node.id, "image-source", JSON.stringify(value));
+      writer.setGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster, value.url);
       return;
     }
     if (name === "transform") {

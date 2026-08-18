@@ -5,12 +5,54 @@ import {
   createElement,
   dispatchEvent,
   EVENT_CODE,
+  GRAPHIC_SOURCE,
   OP,
   mount,
   runSweep,
   setProp,
   writer,
 } from "./index";
+
+test("graphic sources use the typed resource protocol", () => {
+  const svg = createElement("svg");
+  const image = createElement("img");
+  const sources: Array<[number, string]> = [];
+  const cleared: number[] = [];
+  const setGraphicSource = writer.setGraphicSource.bind(writer);
+  const clearGraphicSource = writer.clearGraphicSource.bind(writer);
+  writer.setGraphicSource = (_id, kind, source) => sources.push([kind, source]);
+  writer.clearGraphicSource = (_id, kind) => cleared.push(kind);
+  try {
+    setProp(svg, "source", "<svg/>", undefined);
+    setProp(
+      image,
+      "source",
+      {
+        kind: "network",
+        url: "https://x.test/icon.png",
+        format: "raster",
+        cache: "memory",
+      },
+      undefined,
+    );
+    setProp(svg, "source", undefined, "<svg/>");
+    setProp(image, "source", undefined, {
+      kind: "network",
+      url: "https://x.test/icon.png",
+      format: "raster",
+      cache: "memory",
+    });
+  } finally {
+    writer.setGraphicSource = setGraphicSource;
+    writer.clearGraphicSource = clearGraphicSource;
+  }
+
+  expect(sources).toEqual([
+    [GRAPHIC_SOURCE.Svg, "<svg/>"],
+    [GRAPHIC_SOURCE.NetworkRaster, "https://x.test/icon.png"],
+  ]);
+  expect(cleared).toEqual([GRAPHIC_SOURCE.Svg, GRAPHIC_SOURCE.NetworkRaster]);
+});
 
 test("mount manages the host root lifecycle", () => {
   const dispose = mount(() => createElement("main") as unknown as JSX.Element);

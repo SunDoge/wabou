@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { INTERACTION_POLICY, OP, Writer } from "./index";
+import { GRAPHIC_SOURCE, INTERACTION_POLICY, OP, Writer } from "./index";
 
 describe("Writer limits", () => {
   test("rejects strings that cannot be represented by the wire format", () => {
@@ -171,6 +171,27 @@ describe("Writer limits", () => {
     expect(view.getInt32(14, true)).toBe(-1);
     expect(() => writer.setInteractionPolicy(1, 0, 1)).toThrow(RangeError);
     expect(() => writer.setInteractionPolicy(1, 0x08, 0)).toThrow(RangeError);
+  });
+
+  test("encodes graphic sources without attribute names or JSON", () => {
+    const writer = new Writer();
+    writer.setGraphicSource(
+      42,
+      GRAPHIC_SOURCE.NetworkRaster,
+      "https://x.test/a.png",
+    );
+    writer.clearGraphicSource(42, GRAPHIC_SOURCE.NetworkRaster);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame[8]).toBe(OP.SetGraphicSource);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(frame[13]).toBe(GRAPHIC_SOURCE.NetworkRaster);
+    expect(frame[14]).toBe(20);
+    expect(frame[36]).toBe(OP.ClearGraphicSource);
+    expect(view.getUint32(37, true)).toBe(42);
+    expect(frame[41]).toBe(GRAPHIC_SOURCE.NetworkRaster);
+    expect(() => writer.setGraphicSource(1, 3, "x")).toThrow(RangeError);
   });
 
   test("encodes one structured widget config without a dynamic property name", () => {
