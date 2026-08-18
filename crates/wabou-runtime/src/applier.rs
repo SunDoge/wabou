@@ -13,9 +13,9 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
+use std::sync::Arc;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
@@ -58,6 +58,7 @@ mod node_store;
 mod projections;
 mod protocol_apply;
 mod reload;
+mod resources;
 mod runtime_updates;
 mod semantics;
 mod style_resolution;
@@ -85,6 +86,7 @@ use projections::FrameProjections;
 use reload::plan_hmr_batch;
 use reload::{HmrBatch, ReloadState};
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
+use resources::{ImageLoadResult, ResourceState};
 use wabou_widgets::builtin_factories;
 use widget_manager::WidgetManager;
 
@@ -302,11 +304,6 @@ struct TextSelectionSnapshot {
     kind: Option<&'static str>,
 }
 
-struct ImageLoadResult {
-    source: Arc<str>,
-    result: Result<Arc<wabou_shell::image::RasterImage>, Arc<str>>,
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum TextSelectionGranularity {
     #[default]
@@ -378,19 +375,7 @@ pub struct Applier {
     /// Rejections from the latest cascade pass, keyed by native node for
     /// DevTools inspection.
     style_diagnostics: HashMap<NodeId, Vec<String>>,
-    /// Current serialized source + parsed fragment bound to each `<svg>` node.
-    svg_cache: HashMap<NodeId, (Arc<str>, Arc<wabou_shell::svg::SvgImage>)>,
-    /// Encoded network assets use Foyer's memory/disk hybrid cache. Decoded
-    /// paint resources are shared in memory by stable source keys.
-    asset_cache: Arc<ResourceCache>,
-    pending_images: HashSet<Arc<str>>,
-    /// Nodes waiting for each in-flight source. A node is removed when it
-    /// changes source or is dropped, so stale completions cannot reach it.
-    image_subscribers: HashMap<Arc<str>, HashSet<NodeId>>,
-    /// The currently declared remote source for each image node.
-    node_image_sources: HashMap<NodeId, Arc<str>>,
-    image_result_tx: mpsc::Sender<ImageLoadResult>,
-    image_result_rx: mpsc::Receiver<ImageLoadResult>,
+    resources: ResourceState,
     /// Explicit host-driven transform state, independent of the CSS cascade.
     runtime_transforms: HashMap<NodeId, [f32; 6]>,
     /// Explicit host stacking planes, independent from CSS cascade/z-index.
@@ -525,7 +510,6 @@ impl Applier {
         let host_message_cancellation = CancellationToken::new();
 
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
-        let (image_result_tx, image_result_rx) = mpsc::channel();
         let effect_bridge = EffectBridge::install(&js, window_id);
         Self {
             js,
@@ -544,13 +528,7 @@ impl Applier {
             warned_ir_properties: HashSet::new(),
             inline_properties: HashMap::new(),
             style_diagnostics: HashMap::new(),
-            svg_cache: HashMap::new(),
-            asset_cache: Arc::new(ResourceCache::memory_only()),
-            pending_images: HashSet::new(),
-            image_subscribers: HashMap::new(),
-            node_image_sources: HashMap::new(),
-            image_result_tx,
-            image_result_rx,
+            resources: ResourceState::default(),
             runtime_transforms: HashMap::new(),
             overlay_planes: HashMap::new(),
             scrollbar_styles: HashMap::new(),
@@ -643,7 +621,7 @@ impl Applier {
     }
 
     pub(crate) fn set_asset_cache(&mut self, cache: Arc<ResourceCache>) {
-        self.asset_cache = cache;
+        self.resources.set_cache(cache);
     }
 
     /// Attach the immutable snapshot store published through DevTools.

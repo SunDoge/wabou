@@ -205,9 +205,7 @@ impl Applier {
         let _ = self.node_store.tree.set_children(self.node_store.root, &[]);
         self.node_store.collapsed_text.clear();
         self.node_store.inline_roots.clear();
-        self.svg_cache.clear();
-        self.image_subscribers.clear();
-        self.node_image_sources.clear();
+        self.resources.clear_scene_bindings();
         self.runtime_transforms.clear();
         self.overlay_planes.clear();
         self.scrollbar_styles.clear();

@@ -190,7 +190,7 @@ impl Applier {
         self.overlay_planes.remove(&node);
         self.scrollbar_styles.remove(&node);
         self.scroll_offsets.remove(&node);
-        self.svg_cache.remove(&node);
+        self.resources.svg.remove(&node);
         self.style_diagnostics.remove(&node);
         if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
             widget.unmount();
@@ -270,37 +270,42 @@ impl Applier {
     fn load_image_source(&mut self, node: NodeId, value: &str) {
         let source: Arc<str> = Arc::from(value);
         self.clear_image_source(node);
-        self.node_image_sources.insert(node, source.clone());
-        if let Some(result) = self.asset_cache.raster(source.as_ref()) {
+        self.resources
+            .node_image_sources
+            .insert(node, source.clone());
+        if let Some(result) = self.resources.cache.raster(source.as_ref()) {
             self.dispatch_image_resource_result(node, source.as_ref(), &result);
             return;
         }
-        self.image_subscribers
+        self.resources
+            .image_subscribers
             .entry(source.clone())
             .or_default()
             .insert(node);
-        if !self.pending_images.insert(source.clone()) {
+        if !self.resources.pending_images.insert(source.clone()) {
             return;
         }
         let Ok(url) = url::Url::parse(value) else {
-            self.pending_images.remove(&source);
+            self.resources.pending_images.remove(&source);
             let result = Err(Arc::from("network image URL must use HTTP(S)"));
-            self.asset_cache
+            self.resources
+                .cache
                 .insert_raster(source.to_string(), result.clone());
             self.finish_image_source(&source, &result);
             return;
         };
         if !matches!(url.scheme(), "http" | "https") {
-            self.pending_images.remove(&source);
+            self.resources.pending_images.remove(&source);
             let result = Err(Arc::from("network image URL must use HTTP(S)"));
-            self.asset_cache
+            self.resources
+                .cache
                 .insert_raster(source.to_string(), result.clone());
             self.finish_image_source(&source, &result);
             return;
         }
-        let tx = self.image_result_tx.clone();
+        let tx = self.resources.result_tx.clone();
         let wake = self.wake_callback.clone();
-        let asset_cache = self.asset_cache.clone();
+        let asset_cache = self.resources.cache.clone();
         tracing::debug!(source = %source, "loading network image");
         let load = async move {
             let result = async {
@@ -316,7 +321,7 @@ impl Applier {
                 wake();
             }
         };
-        self.asset_cache.spawn(load);
+        self.resources.cache.spawn(load);
     }
 
     pub(super) fn finish_image_source(
@@ -324,9 +329,13 @@ impl Applier {
         source: &Arc<str>,
         result: &crate::asset_cache::RasterAsset,
     ) {
-        let nodes = self.image_subscribers.remove(source).unwrap_or_default();
+        let nodes = self
+            .resources
+            .image_subscribers
+            .remove(source)
+            .unwrap_or_default();
         for node in nodes {
-            if self.node_image_sources.get(&node) == Some(source) {
+            if self.resources.node_image_sources.get(&node) == Some(source) {
                 self.recompute_node(node);
                 self.dispatch_image_resource_result(node, source, result);
             }
@@ -334,13 +343,13 @@ impl Applier {
     }
 
     pub(super) fn clear_image_source(&mut self, node: NodeId) {
-        let Some(source) = self.node_image_sources.remove(&node) else {
+        let Some(source) = self.resources.node_image_sources.remove(&node) else {
             return;
         };
-        if let Some(nodes) = self.image_subscribers.get_mut(&source) {
+        if let Some(nodes) = self.resources.image_subscribers.get_mut(&source) {
             nodes.remove(&node);
             if nodes.is_empty() {
-                self.image_subscribers.remove(&source);
+                self.resources.image_subscribers.remove(&source);
             }
         }
     }

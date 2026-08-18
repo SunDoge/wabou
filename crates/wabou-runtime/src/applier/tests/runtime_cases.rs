@@ -610,10 +610,10 @@ fn inline_svg_cache_follows_node_lifetime() {
             .svg
             .is_some()
     );
-    assert_eq!(applier.svg_cache.len(), 1);
+    assert_eq!(applier.resources.svg.len(), 1);
 
     applier.apply_op(&Op::DropNode { id: 2 });
-    assert!(applier.svg_cache.is_empty());
+    assert!(applier.resources.svg.is_empty());
 }
 
 #[test]
@@ -688,17 +688,21 @@ fn image_completion_only_notifies_current_source_subscribers() {
     let first_source: Arc<str> = Arc::from("https://example.test/first.png");
     let second_source: Arc<str> = Arc::from("https://example.test/second.png");
     applier
+        .resources
         .node_image_sources
         .insert(first, first_source.clone());
     applier
+        .resources
         .node_image_sources
         .insert(second, second_source.clone());
     applier
+        .resources
         .image_subscribers
         .entry(first_source.clone())
         .or_default()
         .insert(first);
     applier
+        .resources
         .image_subscribers
         .entry(second_source.clone())
         .or_default()
@@ -722,8 +726,13 @@ fn image_completion_only_notifies_current_source_subscribers() {
             "error": "first failed",
         })
     );
-    assert!(!applier.image_subscribers.contains_key(&first_source));
-    assert_eq!(applier.image_subscribers[&second_source].len(), 1);
+    assert!(
+        !applier
+            .resources
+            .image_subscribers
+            .contains_key(&first_source)
+    );
+    assert_eq!(applier.resources.image_subscribers[&second_source].len(), 1);
 
     applier.clear_image_source(second);
     applier.finish_image_source(&second_source, &Err(Arc::from("stale failure")));

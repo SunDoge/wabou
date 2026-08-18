@@ -318,7 +318,8 @@ impl Applier {
         };
         if let Some(source) = self.serialize_svg(node, inherited.text_color) {
             let cached_for_node = self
-                .svg_cache
+                .resources
+                .svg
                 .get(&node)
                 .filter(|(cached_source, _)| cached_source.as_ref() == source)
                 .map(|(_, image)| image.clone());
@@ -326,7 +327,7 @@ impl Applier {
                 Some(image)
             } else {
                 let source: Arc<str> = Arc::from(source);
-                let cached_asset = self.asset_cache.svg(source.as_ref());
+                let cached_asset = self.resources.cache.svg(source.as_ref());
                 let asset = cached_asset.unwrap_or_else(|| {
                     let parsed = wabou_shell::svg::SvgImage::parse(&source)
                         .map(Arc::new)
@@ -334,20 +335,21 @@ impl Applier {
                     if let Err(error) = &parsed {
                         tracing::warn!(%error, "failed to parse inline SVG");
                     }
-                    self.asset_cache
+                    self.resources
+                        .cache
                         .insert_svg(source.to_string(), parsed.clone());
                     parsed
                 });
                 match asset {
                     Ok(image) => {
-                        self.svg_cache.insert(node, (source, image.clone()));
+                        self.resources.svg.insert(node, (source, image.clone()));
                         Some(image)
                     }
                     Err(_) => None,
                 }
             };
         } else {
-            self.svg_cache.remove(&node);
+            self.resources.svg.remove(&node);
         }
 
         let paint = declared.resolve(parent, host);
@@ -503,7 +505,7 @@ impl Applier {
             })
         });
         let image = image_url
-            .and_then(|url| self.asset_cache.raster(url.as_str()))
+            .and_then(|url| self.resources.cache.raster(url.as_str()))
             .and_then(Result::ok);
         let host = HostPaint {
             text: resolved.host_text,
@@ -793,7 +795,8 @@ impl Applier {
                         .flatten()
                 })
                 && let Some(size) = self
-                    .asset_cache
+                    .resources
+                    .cache
                     .raster(url.as_str())
                     .and_then(Result::ok)
                     .map(|image| image.size())
