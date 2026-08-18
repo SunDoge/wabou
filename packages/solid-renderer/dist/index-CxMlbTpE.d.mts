@@ -213,7 +213,7 @@ interface WabouBuiltinIntrinsicElements {
 }
 type WabouNativeElements = WabouBuiltinIntrinsicElements & WabouIntrinsicElements;
 type WabouNativeTag = keyof WabouNativeElements & string;
-type WabouSemanticRole = "alert" | "alertdialog" | "button" | "cell" | "checkbox" | "columnheader" | "combobox" | "dialog" | "grid" | "gridcell" | "group" | "heading" | "img" | "label" | "link" | "listbox" | "menu" | "menuitem" | "none" | "option" | "presentation" | "progressbar" | "radio" | "radiogroup" | "row" | "rowheader" | "slider" | "status" | "switch" | "tab" | "tablist" | "tabpanel" | "table" | "textbox" | "tree" | "treeitem";
+type WabouSemanticRole = "alert" | "button" | "cell" | "checkbox" | "columnheader" | "combobox" | "dialog" | "grid" | "gridcell" | "group" | "heading" | "img" | "label" | "link" | "listbox" | "menu" | "menuitem" | "none" | "option" | "presentation" | "progressbar" | "radio" | "radiogroup" | "row" | "rowheader" | "slider" | "status" | "switch" | "tab" | "tablist" | "tabpanel" | "table" | "textbox" | "tree" | "treeitem";
 type EventHandler<E> = {
   bivarianceHack(event: E): void;
 }["bivarianceHack"];
@@ -231,7 +231,7 @@ interface WabouElementProps {
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
-  "aria-haspopup"?: boolean | "dialog" | "grid" | "listbox" | "menu" | "tree";
+  "aria-haspopup"?: "dialog" | "grid" | "listbox" | "menu" | "tree";
   "aria-expanded"?: boolean;
   "aria-controls"?: string;
   "aria-activedescendant"?: string;
@@ -422,4 +422,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { writer as $, createComponent$1 as A, isServer as B, WabouSemanticRole as C, Writer$1 as D, WabouWheelEvent as E, effect as F, registerRoot as G, mergeProps as H, getMountRoot as I, render as J, releaseOverlayRoot as K, getRequestEvent as L, createTextNode as M, delegateEvents as N, acquireOverlayRoot as O, dispatchEvent as P, spread as Q, insert as R, WabouScrollEvent as S, WabouSvgShapeProps as T, mount as U, memo as V, ref as W, setProp as X, runSweep as Y, setTransform2D as Z, WabouNativeElements as _, JSX$1 as _t, HostCapabilities as a, PortalProps as at, WabouPointerEvent as b, jsxs as bt, WabouBuiltinIntrinsicElements as c, HostProviderProps as ct, WabouEventTarget as d, useHost as dt, VirtualList as et, WabouImageProps as f, FrameStats as ft, WabouKeyEvent as g, Fragment as gt, WabouIntrinsicElements as h, LayoutSnapshot as ht, Handle as i, Portal as it, createElement as j, applyRef as k, WabouControlProps as l, LayoutTarget as lt, WabouInputProps as m, LayoutRect as mt, DynamicProps as n, createFps as nt, NativeScrollbarStyle as o, Host as ot, WabouInputEvent as p, LayoutNodeMetrics as pt, removeNode as q, EVENT_CODE as r, useFps as rt, OP as s, HostProvider as st, Dynamic as t, VirtualListProps as tt, WabouElementProps as u, defaultHost as ut, WabouNativeTag as v, jsx as vt, WabouSvgProps as w, WabouPositionedEvent as x, WabouNodeEvent as y, jsxDEV as yt, insertNode as z };
-//# sourceMappingURL=index-e0m3WUc3.d.mts.map
+//# sourceMappingURL=index-CxMlbTpE.d.mts.map

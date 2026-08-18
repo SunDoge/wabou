@@ -33,7 +33,7 @@ fn semantic_current(value: Option<Arc<str>>) -> Option<SemanticCurrent> {
 
 fn semantic_popup(value: Option<Arc<str>>) -> Option<SemanticPopup> {
     match value.as_deref() {
-        Some("true") | Some("") | Some("menu") => Some(SemanticPopup::Menu),
+        Some("menu") => Some(SemanticPopup::Menu),
         Some("listbox") => Some(SemanticPopup::ListBox),
         Some("tree") => Some(SemanticPopup::Tree),
         Some("grid") => Some(SemanticPopup::Grid),
@@ -57,7 +57,7 @@ fn semantic_role(role: &str) -> SemanticRole {
         "img" => SemanticRole::Image,
         "radiogroup" => SemanticRole::RadioGroup,
         "link" => SemanticRole::Link,
-        "dialog" | "alertdialog" => SemanticRole::Dialog,
+        "dialog" => SemanticRole::Dialog,
         "alert" => SemanticRole::Alert,
         "status" => SemanticRole::Status,
         "checkbox" => SemanticRole::CheckBox,
@@ -376,7 +376,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             let declared = applier.node_store.declared.get(&node.node_id)?;
             matches!(
                 attribute(declared, &atoms, "role").as_deref(),
-                Some("dialog" | "alertdialog")
+                Some("dialog")
             )
             .then_some(node.node_id)
         })
@@ -386,8 +386,8 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .map(u64::from);
     let source_order =
         semantic_source_order(&applier.node_store, &present, &hidden, &presentational);
-    // HTML IDs are authored strings while the accessibility tree uses stable
-    // Solid node ids. Resolve only currently exposed semantic targets, and use
+    // Authored semantic IDs are strings while the accessibility tree uses
+    // stable Solid node ids. Resolve only currently exposed targets, and use
     // the first source-order occurrence when invalid duplicate IDs exist.
     let mut semantic_ids = HashMap::<Arc<str>, u64>::new();
     for node_id in &source_order {
@@ -534,5 +534,16 @@ mod tests {
             assert_eq!(semantic_role(name), expected);
         }
         assert_eq!(semantic_role("unknown"), SemanticRole::Generic);
+        assert_eq!(semantic_role("alertdialog"), SemanticRole::Generic);
+    }
+
+    #[test]
+    fn popup_kind_requires_an_explicit_supported_value() {
+        assert_eq!(
+            semantic_popup(Some(Arc::from("menu"))),
+            Some(SemanticPopup::Menu)
+        );
+        assert_eq!(semantic_popup(Some(Arc::from("true"))), None);
+        assert_eq!(semantic_popup(Some(Arc::from(""))), None);
     }
 }

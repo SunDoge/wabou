@@ -81,7 +81,6 @@ export type WabouNativeTag = keyof WabouNativeElements & string;
 
 export type WabouSemanticRole =
   | "alert"
-  | "alertdialog"
   | "button"
   | "cell"
   | "checkbox"
@@ -133,7 +132,7 @@ export interface WabouElementProps {
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
-  "aria-haspopup"?: boolean | "dialog" | "grid" | "listbox" | "menu" | "tree";
+  "aria-haspopup"?: "dialog" | "grid" | "listbox" | "menu" | "tree";
   "aria-expanded"?: boolean;
   "aria-controls"?: string;
   "aria-activedescendant"?: string;
