@@ -1,4 +1,7 @@
-import { defaultHost } from "@wabou/solid-renderer";
+import {
+  defaultHost,
+  type WabouExposedSemanticRole,
+} from "@wabou/solid-renderer";
 import {
   decodeLocatorQuery,
   decodeNativeLocatorQuery,
@@ -94,40 +97,7 @@ export interface TestPage {
   waitForIdle(): Promise<void>;
 }
 
-export type SemanticRole =
-  | "button"
-  | "group"
-  | "textbox"
-  | "link"
-  | "dialog"
-  | "alert"
-  | "status"
-  | "checkbox"
-  | "radio"
-  | "switch"
-  | "combobox"
-  | "listbox"
-  | "option"
-  | "menu"
-  | "menuitem"
-  | "tree"
-  | "treeitem"
-  | "table"
-  | "row"
-  | "cell"
-  | "columnheader"
-  | "rowheader"
-  | "slider"
-  | "progressbar"
-  | "heading"
-  | "label"
-  | "img"
-  | "radiogroup"
-  | "tablist"
-  | "tab"
-  | "tabpanel"
-  | "grid"
-  | "gridcell";
+export type SemanticRole = WabouExposedSemanticRole;
 
 export interface Locator {
   readonly windowId: number;

@@ -116,6 +116,12 @@ export type WabouSemanticRole =
   | "tree"
   | "treeitem";
 
+/** Roles that remain addressable after semantic-tree projection. */
+export type WabouExposedSemanticRole = Exclude<
+  WabouSemanticRole,
+  "none" | "presentation"
+>;
+
 type EventHandler<E> = { bivarianceHack(event: E): void }["bivarianceHack"];
 
 /** Props shared by low-level native JSX elements. */

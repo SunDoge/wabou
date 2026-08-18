@@ -1,3 +1,4 @@
+import { WabouExposedSemanticRole } from "@wabou/solid-renderer";
 //#region src/poll.d.ts
 interface PollOptions {
   timeout?: number;
@@ -46,7 +47,7 @@ interface TestPage {
   }): Locator;
   waitForIdle(): Promise<void>;
 }
-type SemanticRole = "button" | "group" | "textbox" | "link" | "dialog" | "alert" | "status" | "checkbox" | "radio" | "switch" | "combobox" | "listbox" | "option" | "menu" | "menuitem" | "tree" | "treeitem" | "table" | "row" | "cell" | "columnheader" | "rowheader" | "slider" | "progressbar" | "heading" | "label" | "img" | "radiogroup" | "tablist" | "tab" | "tabpanel" | "grid" | "gridcell";
+type SemanticRole = WabouExposedSemanticRole;
 interface Locator {
   readonly windowId: number;
   readonly role: SemanticRole;
