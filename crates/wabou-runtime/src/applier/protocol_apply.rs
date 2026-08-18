@@ -24,29 +24,33 @@ fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
 
 impl Applier {
     fn project_structure_if_unbatched(&mut self) {
-        if !self.applying_frame && self.ifc_dirty {
+        if !self.document.applying_frame && self.document.ifc_dirty {
             self.rebuild_layout_boxes();
         }
     }
 
     fn inline_property(&mut self, atom: Atom) -> Option<InlineProperty> {
-        if let Some(property) = self.style.inline_properties.get(&atom) {
+        if let Some(property) = self.document.style.inline_properties.get(&atom) {
             return Some(property.clone());
         }
         let name: Arc<str> = {
-            let atoms = self.atoms.borrow();
+            let atoms = self.document.atoms.borrow();
             Arc::from(atoms.resolve(atom)?)
         };
         let inherited = INHERITED_PROPERTIES.contains(&name.as_ref()) || name.as_ref() == "font";
         let property = InlineProperty { name, inherited };
-        self.style.inline_properties.insert(atom, property.clone());
+        self.document
+            .style
+            .inline_properties
+            .insert(atom, property.clone());
         Some(property)
     }
 
     fn is_in_svg_subtree(&self, mut node: NodeId) -> bool {
-        let atoms = self.atoms.borrow();
+        let atoms = self.document.atoms.borrow();
         loop {
             if self
+                .document
                 .node_store
                 .declared
                 .get(&node)
@@ -56,7 +60,7 @@ impl Applier {
             {
                 return true;
             }
-            let Some(parent) = self.node_store.logical_parent.get(&node).copied() else {
+            let Some(parent) = self.document.node_store.logical_parent.get(&node).copied() else {
                 return false;
             };
             node = parent;
@@ -64,14 +68,14 @@ impl Applier {
     }
 
     fn set_inline_ir(&mut self, id: u32, prop: Atom, ir: IrValue) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
         let Some(property) = self.inline_property(prop) else {
             tracing::warn!(atom = prop.get(), "unknown style-property atom");
             return;
         };
-        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+        if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             declared.inline.insert(prop, InlineValue::Typed(ir.clone()));
         }
 
@@ -80,10 +84,10 @@ impl Applier {
         if property.inherited {
             self.recompute_node(node);
         } else if !self.apply_inline_ir_fast(node, &property.name, &ir) {
-            if let Some(declared) = self.node_store.declared.get_mut(&node) {
+            if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                 declared.inline.remove(&prop);
             }
-            if self.style.warned_ir_properties.insert(prop) {
+            if self.document.style.warned_ir_properties.insert(prop) {
                 tracing::warn!(property = %property.name, "unsupported inline style property or value");
             }
         }
@@ -94,18 +98,22 @@ impl Applier {
             tag: Some(tag),
             ..Declared::default()
         };
-        if self.atoms.borrow().resolve(tag).is_none() {
+        if self.document.atoms.borrow().resolve(tag).is_none() {
             tracing::warn!(atom = tag.get(), "unknown tag atom");
         }
 
-        let node = self.node_store.create_leaf(id, declared);
+        let node = self.document.node_store.create_leaf(id, declared);
         self.recompute_solid(id);
-        let Some(mut widget) = self.widget_manager.create(tag, self.wake_callback.as_ref()) else {
+        let Some(mut widget) = self
+            .document
+            .widget_manager
+            .create(tag, self.runtime.wake_callback.as_ref())
+        else {
             return;
         };
         let mounted_changes = widget.mounted();
-        self.widget_manager.widgets.insert(node, widget);
-        self.ifc_dirty = true;
+        self.document.widget_manager.widgets.insert(node, widget);
+        self.document.ifc_dirty = true;
         self.invalidate_widget_changes(mounted_changes);
         self.drain_widget_host_actions(node);
         self.drain_widget_node_events(node);
@@ -113,10 +121,10 @@ impl Applier {
     }
 
     fn set_shadows(&mut self, id: u32, shadows: &[crate::protocol::ShadowValue]) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
-        let prop = self.atoms.borrow_mut().intern("box-shadow");
+        let prop = self.document.atoms.borrow_mut().intern("box-shadow");
         let values = shadows
             .iter()
             .map(|shadow| {
@@ -142,11 +150,11 @@ impl Applier {
             })
             .collect();
         let ir = IrValue::List { values };
-        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+        if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             declared.inline.insert(prop, InlineValue::Typed(ir.clone()));
         }
         if !self.apply_inline_ir_fast(node, "box-shadow", &ir) {
-            if let Some(declared) = self.node_store.declared.get_mut(&node) {
+            if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                 declared.inline.remove(&prop);
             }
             tracing::warn!("invalid Vello shadow list");
@@ -154,74 +162,76 @@ impl Applier {
     }
 
     fn drop_node(&mut self, id: u32) {
-        if self.input.pointer_down_target == Some(id) {
+        if self.interaction.input.pointer_down_target == Some(id) {
             self.cancel_active_pointer_gesture();
         }
-        let node = self.node_store.solid_to_node.get(&id).copied();
+        let node = self.document.node_store.solid_to_node.get(&id).copied();
         if self
+            .interaction
             .text_selection
             .active
             .as_ref()
             .is_some_and(|active| active.anchor_target == id || active.focus_target == id)
         {
-            self.text_selection.active = None;
-            self.text_selection.next_scroll = None;
+            self.interaction.text_selection.active = None;
+            self.interaction.text_selection.next_scroll = None;
             self.sync_text_selection_change();
         }
-        if self.input.focused_target == Some(id) {
-            if self.input.window_focused
+        if self.interaction.input.focused_target == Some(id) {
+            if self.interaction.input.window_focused
                 && let Some(widget) =
-                    node.and_then(|node| self.widget_manager.widgets.get_mut(&node))
+                    node.and_then(|node| self.document.widget_manager.widgets.get_mut(&node))
             {
                 widget.focus_changed(false);
             }
-            self.input.focused_target = None;
+            self.interaction.input.focused_target = None;
         }
-        self.input.listeners.remove(&id);
-        self.scroll.pending_events.remove(&id);
-        self.resize_targets.borrow_mut().remove(&id);
+        self.interaction.input.listeners.remove(&id);
+        self.interaction.scroll.pending_events.remove(&id);
+        self.frame.resize_targets.borrow_mut().remove(&id);
         // Never retain an id after its generational node has been removed.
-        if self.input.hovered_target == Some(id) {
-            self.input.hovered_target = None;
+        if self.interaction.input.hovered_target == Some(id) {
+            self.interaction.input.hovered_target = None;
         }
 
-        let Some(node) = self.node_store.remove(id) else {
+        let Some(node) = self.document.node_store.remove(id) else {
             return;
         };
         self.clear_image_source(node);
-        self.runtime_transforms.remove(&node);
-        self.overlay_planes.remove(&node);
-        self.scroll.styles.remove(&node);
-        self.scroll.offsets.remove(&node);
-        self.resources.svg.remove(&node);
-        self.style.diagnostics.remove(&node);
-        if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
+        self.document.runtime_transforms.remove(&node);
+        self.document.overlay_planes.remove(&node);
+        self.interaction.scroll.styles.remove(&node);
+        self.interaction.scroll.offsets.remove(&node);
+        self.document.resources.svg.remove(&node);
+        self.document.style.diagnostics.remove(&node);
+        if let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) {
             widget.unmount();
         }
         self.drain_widget_host_actions(node);
-        self.widget_manager.widgets.remove(&node);
-        self.widget_manager.styles.remove(&node);
-        self.widget_manager.geometries.remove(&node);
-        self.widget_manager.visibility.remove(&node);
-        self.widget_manager
+        self.document.widget_manager.widgets.remove(&node);
+        self.document.widget_manager.styles.remove(&node);
+        self.document.widget_manager.geometries.remove(&node);
+        self.document.widget_manager.visibility.remove(&node);
+        self.document
+            .widget_manager
             .host_action_routes
             .retain(|_, (widget_node, _)| *widget_node != node);
-        self.invalidation.insert(InvalidationFlags::LAYOUT);
-        self.ifc_dirty = true;
+        self.document.invalidation.insert(InvalidationFlags::LAYOUT);
+        self.document.ifc_dirty = true;
     }
 
     fn set_attribute(&mut self, id: u32, name: Atom, value: &str) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
         let is_class = matches!(
-            self.atoms.borrow().resolve(name),
+            self.document.atoms.borrow().resolve(name),
             Some("class" | "className")
         );
         let affects_resolved_style = is_class || self.is_in_svg_subtree(node);
-        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+        if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             if is_class {
-                let mut atoms = self.atoms.borrow_mut();
+                let mut atoms = self.document.atoms.borrow_mut();
                 declared.classes = value
                     .split_whitespace()
                     .map(|value| atoms.intern(value))
@@ -230,28 +240,30 @@ impl Applier {
             declared.attrs.insert(name, Arc::from(value));
         }
         let widget_changes = if !is_class
-            && let Some(widget) = self.widget_manager.widgets.get_mut(&node)
-            && let Some(name) = self.atoms.borrow().resolve(name)
+            && let Some(widget) = self.document.widget_manager.widgets.get_mut(&node)
+            && let Some(name) = self.document.atoms.borrow().resolve(name)
         {
             widget.attribute_changed(name, value)
         } else {
             wabou_shell::WidgetChanges::empty()
         };
         self.invalidate_widget_changes(widget_changes);
-        self.projections.semantics_dirty = true;
+        self.frame.projections.semantics_dirty = true;
         if affects_resolved_style {
             if self.is_in_svg_subtree(node) {
-                self.invalidation.insert(InvalidationFlags::INHERIT);
+                self.document
+                    .invalidation
+                    .insert(InvalidationFlags::INHERIT);
             }
             self.recompute_node(node);
         }
     }
 
     fn set_widget_config(&mut self, id: u32, json: &str) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
-        if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
+        if let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) {
             match widget.config_changed(json) {
                 Ok(changes) => self.invalidate_widget_changes(changes),
                 Err(error) => {
@@ -262,10 +274,10 @@ impl Applier {
     }
 
     fn remove_widget_config(&mut self, id: u32) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
-        if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
+        if let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) {
             let changes = widget.config_removed();
             self.invalidate_widget_changes(changes);
         }
@@ -274,42 +286,51 @@ impl Applier {
     fn load_image_source(&mut self, node: NodeId, value: &str) {
         let source: Arc<str> = Arc::from(value);
         self.clear_image_source(node);
-        self.resources
+        self.document
+            .resources
             .node_image_sources
             .insert(node, source.clone());
-        if let Some(result) = self.resources.cache.raster(source.as_ref()) {
+        if let Some(result) = self.document.resources.cache.raster(source.as_ref()) {
             self.dispatch_image_resource_result(node, source.as_ref(), &result);
             return;
         }
-        self.resources
+        self.document
+            .resources
             .image_subscribers
             .entry(source.clone())
             .or_default()
             .insert(node);
-        if !self.resources.pending_images.insert(source.clone()) {
+        if !self
+            .document
+            .resources
+            .pending_images
+            .insert(source.clone())
+        {
             return;
         }
         let Ok(url) = url::Url::parse(value) else {
-            self.resources.pending_images.remove(&source);
+            self.document.resources.pending_images.remove(&source);
             let result = Err(Arc::from("network image URL must use HTTP(S)"));
-            self.resources
+            self.document
+                .resources
                 .cache
                 .insert_raster(source.to_string(), result.clone());
             self.finish_image_source(&source, &result);
             return;
         };
         if !matches!(url.scheme(), "http" | "https") {
-            self.resources.pending_images.remove(&source);
+            self.document.resources.pending_images.remove(&source);
             let result = Err(Arc::from("network image URL must use HTTP(S)"));
-            self.resources
+            self.document
+                .resources
                 .cache
                 .insert_raster(source.to_string(), result.clone());
             self.finish_image_source(&source, &result);
             return;
         }
-        let tx = self.resources.result_tx.clone();
-        let wake = self.wake_callback.clone();
-        let asset_cache = self.resources.cache.clone();
+        let tx = self.document.resources.result_tx.clone();
+        let wake = self.runtime.wake_callback.clone();
+        let asset_cache = self.document.resources.cache.clone();
         tracing::debug!(source = %source, "loading network image");
         let load = async move {
             let result = async {
@@ -325,7 +346,7 @@ impl Applier {
                 wake();
             }
         };
-        self.resources.cache.spawn(load);
+        self.document.resources.cache.spawn(load);
     }
 
     pub(super) fn finish_image_source(
@@ -334,12 +355,13 @@ impl Applier {
         result: &crate::asset_cache::RasterAsset,
     ) {
         let nodes = self
+            .document
             .resources
             .image_subscribers
             .remove(source)
             .unwrap_or_default();
         for node in nodes {
-            if self.resources.node_image_sources.get(&node) == Some(source) {
+            if self.document.resources.node_image_sources.get(&node) == Some(source) {
                 self.recompute_node(node);
                 self.dispatch_image_resource_result(node, source, result);
             }
@@ -347,29 +369,29 @@ impl Applier {
     }
 
     pub(super) fn clear_image_source(&mut self, node: NodeId) {
-        let Some(source) = self.resources.node_image_sources.remove(&node) else {
+        let Some(source) = self.document.resources.node_image_sources.remove(&node) else {
             return;
         };
-        if let Some(nodes) = self.resources.image_subscribers.get_mut(&source) {
+        if let Some(nodes) = self.document.resources.image_subscribers.get_mut(&source) {
             nodes.remove(&node);
             if nodes.is_empty() {
-                self.resources.image_subscribers.remove(&source);
+                self.document.resources.image_subscribers.remove(&source);
             }
         }
     }
 
     fn set_graphic_source(&mut self, id: u32, kind: u8, source: &str) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
         match kind {
             crate::protocol::GRAPHIC_SOURCE_SVG => {
-                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                     declared.svg_source = Some(Arc::from(source));
                 }
             }
             crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
-                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                     declared.network_image_url = Some(Arc::from(source));
                 }
                 self.load_image_source(node, source);
@@ -380,17 +402,17 @@ impl Applier {
     }
 
     fn clear_graphic_source(&mut self, id: u32, kind: u8) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
         match kind {
             crate::protocol::GRAPHIC_SOURCE_SVG => {
-                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                     declared.svg_source = None;
                 }
             }
             crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
-                if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                     declared.network_image_url = None;
                 }
                 self.clear_image_source(node);
@@ -401,32 +423,35 @@ impl Applier {
     }
 
     fn remove_attribute(&mut self, id: u32, name: Atom) {
-        let Some(&node) = self.node_store.solid_to_node.get(&id) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
         let is_class = matches!(
-            self.atoms.borrow().resolve(name),
+            self.document.atoms.borrow().resolve(name),
             Some("class" | "className")
         );
         let affects_resolved_style = is_class || self.is_in_svg_subtree(node);
-        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+        if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             declared.attrs.remove(&name);
             if is_class {
                 declared.classes.clear();
             }
         }
-        let widget_changes = if let Some(widget) = self.widget_manager.widgets.get_mut(&node)
-            && let Some(name) = self.atoms.borrow().resolve(name)
+        let widget_changes = if let Some(widget) =
+            self.document.widget_manager.widgets.get_mut(&node)
+            && let Some(name) = self.document.atoms.borrow().resolve(name)
         {
             widget.attribute_removed(name)
         } else {
             wabou_shell::WidgetChanges::empty()
         };
         self.invalidate_widget_changes(widget_changes);
-        self.projections.semantics_dirty = true;
+        self.frame.projections.semantics_dirty = true;
         if affects_resolved_style {
             if self.is_in_svg_subtree(node) {
-                self.invalidation.insert(InvalidationFlags::INHERIT);
+                self.document
+                    .invalidation
+                    .insert(InvalidationFlags::INHERIT);
             }
             self.recompute_node(node);
         }
@@ -434,22 +459,22 @@ impl Applier {
 
     /// Decode + apply one frame's ops in order.
     pub(super) fn apply_frame(&mut self, frame: &Frame) {
-        self.applying_frame = true;
+        self.document.applying_frame = true;
         for op in &frame.ops {
             self.apply_op(op);
         }
-        self.applying_frame = false;
-        let dirty = std::mem::take(&mut self.dirty_styles);
+        self.document.applying_frame = false;
+        let dirty = std::mem::take(&mut self.document.dirty_styles);
         for node in dirty {
             self.recompute_node_now(node);
         }
-        if self.ifc_dirty {
+        if self.document.ifc_dirty {
             self.rebuild_layout_boxes();
         }
     }
 
     pub(super) fn apply_op(&mut self, op: &Op) {
-        self.projections.debug_dirty |= self.projections.debug_state.is_some();
+        self.frame.projections.debug_dirty |= self.frame.projections.debug_state.is_some();
         match op {
             Op::CreateElement { id, tag } => {
                 self.create_element(*id, *tag);
@@ -460,52 +485,60 @@ impl Applier {
                     text: Some(Arc::from(*text)),
                     ..Declared::default()
                 };
-                self.node_store.create_leaf(id, decl);
+                self.document.node_store.create_leaf(id, decl);
                 self.recompute_solid(id);
             }
             Op::AppendChild { parent, child } => {
-                let Some(child) = self.node_store.append(*parent, *child) else {
+                let Some(child) = self.document.node_store.append(*parent, *child) else {
                     return;
                 };
                 // Nodes are styled when created, before they have a parent.
                 self.recompute_subtree(child);
-                self.ifc_dirty = true;
-                self.projections.semantics_dirty = true;
-                self.invalidation.insert(InvalidationFlags::INHERIT);
+                self.document.ifc_dirty = true;
+                self.frame.projections.semantics_dirty = true;
+                self.document
+                    .invalidation
+                    .insert(InvalidationFlags::INHERIT);
             }
             Op::InsertBefore {
                 parent,
                 child,
                 ref_id,
             } => {
-                let Some(child) = self.node_store.insert_before(*parent, *child, *ref_id) else {
+                let Some(child) = self
+                    .document
+                    .node_store
+                    .insert_before(*parent, *child, *ref_id)
+                else {
                     return;
                 };
                 self.recompute_subtree(child);
-                self.ifc_dirty = true;
-                self.projections.semantics_dirty = true;
-                self.invalidation.insert(InvalidationFlags::INHERIT);
+                self.document.ifc_dirty = true;
+                self.frame.projections.semantics_dirty = true;
+                self.document
+                    .invalidation
+                    .insert(InvalidationFlags::INHERIT);
             }
             Op::RemoveChild { parent, child } => {
-                if self.node_store.remove_child(*parent, *child) {
-                    self.invalidation.insert(InvalidationFlags::LAYOUT);
-                    self.ifc_dirty = true;
-                    self.projections.semantics_dirty = true;
+                if self.document.node_store.remove_child(*parent, *child) {
+                    self.document.invalidation.insert(InvalidationFlags::LAYOUT);
+                    self.document.ifc_dirty = true;
+                    self.frame.projections.semantics_dirty = true;
                 }
             }
             Op::SetText { id, text } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
+                if let Some(&n) = self.document.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.document.node_store.declared.get_mut(&n) {
                         d.text = Some(Arc::from(*text));
                     }
-                    self.ifc_dirty = true;
-                    self.projections.semantics_dirty = true;
+                    self.document.ifc_dirty = true;
+                    self.frame.projections.semantics_dirty = true;
                     self.recompute_node(n);
                 }
             }
             Op::SetClassName { id, classes } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
+                if let Some(&n) = self.document.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.document.node_store.declared.get_mut(&n) {
                         d.classes.clone_from(classes);
                     }
                     self.recompute_node(n);
@@ -518,11 +551,11 @@ impl Applier {
                 self.remove_widget_config(*id);
             }
             Op::SetTextBehavior { id, flags } => {
-                if let Some(&node) = self.node_store.solid_to_node.get(id) {
-                    if let Some(declared) = self.node_store.declared.get_mut(&node) {
+                if let Some(&node) = self.document.node_store.solid_to_node.get(id) {
+                    if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                         declared.text_behavior = *flags;
                     }
-                    self.ifc_dirty = true;
+                    self.document.ifc_dirty = true;
                     self.recompute_node(node);
                 }
             }
@@ -531,8 +564,8 @@ impl Applier {
                 flags,
                 focus_order,
             } => {
-                if let Some(&node) = self.node_store.solid_to_node.get(id)
-                    && let Some(declared) = self.node_store.declared.get_mut(&node)
+                if let Some(&node) = self.document.node_store.solid_to_node.get(id)
+                    && let Some(declared) = self.document.node_store.declared.get_mut(&node)
                 {
                     declared.focus_order = (flags & crate::protocol::INTERACTION_POLICY_FOCUSABLE
                         != 0)
@@ -541,7 +574,7 @@ impl Applier {
                         flags & crate::protocol::INTERACTION_POLICY_BLOCK_SUBTREE != 0;
                     declared.focus_contained =
                         flags & crate::protocol::INTERACTION_POLICY_CONTAIN_FOCUS != 0;
-                    self.projections.semantics_dirty = true;
+                    self.frame.projections.semantics_dirty = true;
                 }
             }
             Op::SetGraphicSource { id, kind, source } => {
@@ -560,30 +593,38 @@ impl Applier {
                 self.set_shadows(*id, shadows);
             }
             Op::SetTransform2D { id, matrix } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                if let Some(&n) = self.document.node_store.solid_to_node.get(id) {
                     let affects_hit_geometry = self
+                        .document
                         .node_store
                         .tree
                         .get_node_context(n)
                         .is_some_and(|paint| paint.pointer_events)
                         || self
+                            .document
                             .node_store
                             .children
                             .get(&n)
                             .is_some_and(|children| !children.is_empty());
-                    self.runtime_transforms.insert(n, *matrix);
-                    if let Some(paint) = self.node_store.tree.get_node_context(n) {
+                    self.document.runtime_transforms.insert(n, *matrix);
+                    if let Some(paint) = self.document.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.runtime_transform = Some(*matrix);
-                        let _ = self.node_store.tree.set_node_context(n, Some(paint));
+                        let _ = self
+                            .document
+                            .node_store
+                            .tree
+                            .set_node_context(n, Some(paint));
                     }
                     if affects_hit_geometry {
-                        self.invalidation.insert(InvalidationFlags::GEOMETRY);
+                        self.document
+                            .invalidation
+                            .insert(InvalidationFlags::GEOMETRY);
                     }
                 }
             }
             Op::SetOverlayPlane { id, plane } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                if let Some(&n) = self.document.node_store.solid_to_node.get(id) {
                     let plane = match plane {
                         0 => OverlayPlane::Content,
                         1 => OverlayPlane::Floating,
@@ -591,13 +632,17 @@ impl Applier {
                         // System and debug are intentionally host-reserved.
                         _ => OverlayPlane::Content,
                     };
-                    self.overlay_planes.insert(n, plane);
-                    if let Some(paint) = self.node_store.tree.get_node_context(n) {
+                    self.document.overlay_planes.insert(n, plane);
+                    if let Some(paint) = self.document.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.overlay_plane = plane;
-                        let _ = self.node_store.tree.set_node_context(n, Some(paint));
+                        let _ = self
+                            .document
+                            .node_store
+                            .tree
+                            .set_node_context(n, Some(paint));
                     }
-                    self.invalidation.insert(InvalidationFlags::LAYOUT);
+                    self.document.invalidation.insert(InvalidationFlags::LAYOUT);
                 }
             }
             Op::SetScrollbarStyle {
@@ -611,7 +656,7 @@ impl Applier {
                 radius,
                 colors,
             } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
+                if let Some(&n) = self.document.node_store.solid_to_node.get(id) {
                     let color = |rgba| {
                         Color::from_rgba8(
                             (rgba >> 24) as u8,
@@ -637,17 +682,23 @@ impl Applier {
                         hover_color: color(colors[2]),
                         active_color: color(colors[3]),
                     };
-                    self.scroll.styles.insert(n, style);
-                    if let Some(paint) = self.node_store.tree.get_node_context(n) {
+                    self.interaction.scroll.styles.insert(n, style);
+                    if let Some(paint) = self.document.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.scrollbar = style;
-                        let _ = self.node_store.tree.set_node_context(n, Some(paint));
+                        let _ = self
+                            .document
+                            .node_store
+                            .tree
+                            .set_node_context(n, Some(paint));
                     }
-                    self.invalidation.insert(InvalidationFlags::GEOMETRY);
+                    self.document
+                        .invalidation
+                        .insert(InvalidationFlags::GEOMETRY);
                 }
             }
             Op::FocusNode { id } => {
-                if self.node_store.solid_to_node.contains_key(id) {
+                if self.document.node_store.solid_to_node.contains_key(id) {
                     self.set_focused_target(Some(*id));
                 }
             }
@@ -658,8 +709,8 @@ impl Applier {
                 self.scroll_node(*id, *x, *y, true);
             }
             Op::RemoveStyle { id, prop } => {
-                if let Some(&n) = self.node_store.solid_to_node.get(id) {
-                    if let Some(d) = self.node_store.declared.get_mut(&n) {
+                if let Some(&n) = self.document.node_store.solid_to_node.get(id) {
+                    if let Some(d) = self.document.node_store.declared.get_mut(&n) {
                         d.inline.remove(prop);
                     }
                     self.recompute_node(n);
@@ -672,19 +723,20 @@ impl Applier {
                 self.remove_attribute(*id, *name);
             }
             Op::AddEventListener { id, event_type } => {
-                self.input
+                self.interaction
+                    .input
                     .listeners
                     .entry(*id)
                     .or_default()
                     .insert(*event_type);
             }
             Op::RemoveEventListener { id, event_type } => {
-                if let Some(s) = self.input.listeners.get_mut(id) {
+                if let Some(s) = self.interaction.input.listeners.get_mut(id) {
                     s.remove(*event_type);
                 }
             }
             Op::DropNode { id } => {
-                self.projections.semantics_dirty = true;
+                self.frame.projections.semantics_dirty = true;
                 self.drop_node(*id);
             }
         }

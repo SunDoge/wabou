@@ -335,9 +335,17 @@ fn metadata_gap_2_is_exactly_8px() {
     ]);
 
     let placed = h.layout(800, 600);
-    assert_eq!(h.applier.node_store.tree.child_count(h.solid_node(row)), 3);
+    assert_eq!(
+        h.applier
+            .document
+            .node_store
+            .tree
+            .child_count(h.solid_node(row)),
+        3
+    );
     assert!(
         !h.applier
+            .document
             .node_store
             .inline_roots
             .contains(&h.solid_node(row))

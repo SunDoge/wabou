@@ -48,6 +48,7 @@ fn solid_resources_settle_native_promises_and_return_runtime_to_idle() {
     applier.build_frame(&mut text_context, 400, 200);
     let texts = |applier: &Applier| {
         applier
+            .document
             .node_store
             .declared
             .values()
@@ -120,6 +121,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     }));
     assert!(response.request_redraw);
     let payload = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(
@@ -142,6 +144,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         .boot(CORE_FIXTURE)
         .expect("boot public core fixture");
     applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<(), _>(
@@ -163,6 +166,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
 
     assert_eq!(
         applier
+            .runtime
             .js
             .with(|ctx| ctx.eval::<u64, _>("currentWindowId"))
             .expect("current window id"),
@@ -207,6 +211,7 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
         .boot(CORE_FIXTURE)
         .expect("boot public core fixture");
     applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<(), _>(
@@ -250,16 +255,17 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
         op: wabou_shell::effect::builtin::CLIPBOARD_WRITE,
         result: wabou_shell::EffectResult::Unit,
     });
-    applier.js.poll_async_runtime();
+    applier.runtime.js.poll_async_runtime();
     applier.complete_effect(wabou_shell::EffectCompletion {
         id: read_request,
         op: wabou_shell::effect::builtin::CLIPBOARD_READ,
         result: wabou_shell::EffectResult::ClipboardText(Some("world".into())),
     });
     for _ in 0..4 {
-        applier.js.poll_async_runtime();
+        applier.runtime.js.poll_async_runtime();
     }
     let completions = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<String, _>("JSON.stringify(clipboardResults)"))
         .expect("clipboard completions");
@@ -275,6 +281,7 @@ fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
         .boot(CORE_FIXTURE)
         .expect("boot public core fixture");
     applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<(), _>(
@@ -326,9 +333,10 @@ fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
         result: wabou_shell::EffectResult::DialogPaths(Some(vec!["/tmp/note.txt".into()])),
     });
     for _ in 0..4 {
-        applier.js.poll_async_runtime();
+        applier.runtime.js.poll_async_runtime();
     }
     let completions = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<String, _>("JSON.stringify(systemResults)"))
         .expect("system effect completions");
@@ -351,6 +359,7 @@ fn applier_host_ffi_surface_matches_the_generated_schema() {
 
     let applier = Applier::from_runtime(JsRuntime::new().expect("runtime"), Color::BLACK);
     let mut actual = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<Vec<String>, _>(
@@ -383,6 +392,7 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
 
     assert_eq!(
         first
+            .runtime
             .js
             .with(|ctx| ctx.eval::<String, _>("localState"))
             .unwrap(),
@@ -390,6 +400,7 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
     );
     assert_eq!(
         second
+            .runtime
             .js
             .with(|ctx| ctx.eval::<String, _>("localState"))
             .unwrap(),
@@ -473,18 +484,22 @@ fn hmr_batch_preserves_js_update_order() {
 fn full_reload_clears_non_root_scene_nodes() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
         child: 2,
     });
-    assert!(applier.node_store.solid_to_node.contains_key(&2));
+    assert!(applier.document.node_store.solid_to_node.contains_key(&2));
     applier.perform_full_reload("test");
-    assert!(!applier.node_store.solid_to_node.contains_key(&2));
-    assert!(applier.node_store.solid_to_node.contains_key(&1));
+    assert!(!applier.document.node_store.solid_to_node.contains_key(&2));
+    assert!(applier.document.node_store.solid_to_node.contains_key(&1));
     assert_eq!(
-        applier.node_store.tree.child_count(applier.node_store.root),
+        applier
+            .document
+            .node_store
+            .tree
+            .child_count(applier.document.node_store.root),
         0
     );
 }
@@ -511,6 +526,7 @@ fn host_messages_are_delivered_to_js_before_tick() {
     applier.build_frame(&mut text, 100, 100);
 
     let got: String = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.__host_got)"))
         .unwrap();
@@ -547,7 +563,7 @@ fn inline_svg_cache_follows_node_lifetime() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (svg, path, view_box, width, height, fill, stroke, d) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("svg"),
             atoms.intern("path"),
@@ -583,10 +599,11 @@ fn inline_svg_cache_follows_node_lifetime() {
     applier.rebuild_layout_boxes();
     applier.inherit();
 
-    let svg_node = applier.node_store.solid_to_node[&2];
-    assert_eq!(applier.node_store.tree.child_count(svg_node), 0);
+    let svg_node = applier.document.node_store.solid_to_node[&2];
+    assert_eq!(applier.document.node_store.tree.child_count(svg_node), 0);
     assert_eq!(
         applier
+            .document
             .node_store
             .tree
             .get_node_context(svg_node)
@@ -596,6 +613,7 @@ fn inline_svg_cache_follows_node_lifetime() {
     );
     assert!(
         applier
+            .document
             .node_store
             .tree
             .get_node_context(svg_node)
@@ -603,10 +621,10 @@ fn inline_svg_cache_follows_node_lifetime() {
             .svg
             .is_some()
     );
-    assert_eq!(applier.resources.svg.len(), 1);
+    assert_eq!(applier.document.resources.svg.len(), 1);
 
     applier.apply_op(&Op::DropNode { id: 2 });
-    assert!(applier.resources.svg.is_empty());
+    assert!(applier.document.resources.svg.is_empty());
 }
 
 #[test]
@@ -614,7 +632,7 @@ fn image_resource_failure_routes_to_the_current_node_handle() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let img = applier.atoms.borrow_mut().intern("img");
+    let img = applier.document.atoms.borrow_mut().intern("img");
     applier.apply_op(&Op::CreateElement { id: 2, tag: img });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
@@ -625,7 +643,7 @@ fn image_resource_failure_routes_to_the_current_node_handle() {
         event_type: event::RESOURCEERROR,
     });
 
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     applier.dispatch_image_resource_result(
         node,
         "https://example.test/icon.png",
@@ -633,6 +651,7 @@ fn image_resource_failure_routes_to_the_current_node_handle() {
     );
 
     let dispatched = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
         .unwrap();
@@ -655,7 +674,7 @@ fn image_completion_only_notifies_current_source_subscribers() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let img = applier.atoms.borrow_mut().intern("img");
+    let img = applier.document.atoms.borrow_mut().intern("img");
     for id in [2, 3] {
         applier.apply_op(&Op::CreateElement { id, tag: img });
         applier.apply_op(&Op::AppendChild {
@@ -668,25 +687,29 @@ fn image_completion_only_notifies_current_source_subscribers() {
         });
     }
 
-    let first = applier.node_store.solid_to_node[&2];
-    let second = applier.node_store.solid_to_node[&3];
+    let first = applier.document.node_store.solid_to_node[&2];
+    let second = applier.document.node_store.solid_to_node[&3];
     let first_source: Arc<str> = Arc::from("https://example.test/first.png");
     let second_source: Arc<str> = Arc::from("https://example.test/second.png");
     applier
+        .document
         .resources
         .node_image_sources
         .insert(first, first_source.clone());
     applier
+        .document
         .resources
         .node_image_sources
         .insert(second, second_source.clone());
     applier
+        .document
         .resources
         .image_subscribers
         .entry(first_source.clone())
         .or_default()
         .insert(first);
     applier
+        .document
         .resources
         .image_subscribers
         .entry(second_source.clone())
@@ -696,6 +719,7 @@ fn image_completion_only_notifies_current_source_subscribers() {
     applier.finish_image_source(&first_source, &Err(Arc::from("first failed")));
 
     let dispatched = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
         .unwrap();
@@ -713,15 +737,20 @@ fn image_completion_only_notifies_current_source_subscribers() {
     );
     assert!(
         !applier
+            .document
             .resources
             .image_subscribers
             .contains_key(&first_source)
     );
-    assert_eq!(applier.resources.image_subscribers[&second_source].len(), 1);
+    assert_eq!(
+        applier.document.resources.image_subscribers[&second_source].len(),
+        1
+    );
 
     applier.clear_image_source(second);
     applier.finish_image_source(&second_source, &Err(Arc::from("stale failure")));
     let dispatched_after_stale = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
         .unwrap();

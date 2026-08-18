@@ -75,7 +75,7 @@ fn resolve_color_tokens(value: &IrValue, colors: &HashMap<String, u32>) -> IrVal
 
 impl Applier {
     pub(super) fn recompute_solid(&mut self, solid_id: u32) {
-        if let Some(&n) = self.node_store.solid_to_node.get(&solid_id) {
+        if let Some(&n) = self.document.node_store.solid_to_node.get(&solid_id) {
             self.recompute_node(n);
         }
     }
@@ -83,6 +83,7 @@ impl Applier {
     pub(super) fn recompute_subtree(&mut self, node: NodeId) {
         self.recompute_node(node);
         let children = self
+            .document
             .node_store
             .children
             .get(&node)
@@ -96,7 +97,13 @@ impl Applier {
     /// Re-derive every node's `ComputedStyle` from the current `css` dict —
     /// called after a stylesheet host update.
     pub(super) fn recompute_all(&mut self) {
-        let nodes: Vec<NodeId> = self.node_store.solid_to_node.values().copied().collect();
+        let nodes: Vec<NodeId> = self
+            .document
+            .node_store
+            .solid_to_node
+            .values()
+            .copied()
+            .collect();
         for n in nodes {
             self.recompute_node(n);
         }
@@ -107,17 +114,23 @@ impl Applier {
     /// layout. Color tokens can only target paint properties, so a palette
     /// animation must not turn every frame into a layout pass.
     pub(super) fn recompute_color_palette(&mut self) {
-        let preserved = self.invalidation;
-        let nodes: Vec<NodeId> = self.node_store.solid_to_node.values().copied().collect();
+        let preserved = self.document.invalidation;
+        let nodes: Vec<NodeId> = self
+            .document
+            .node_store
+            .solid_to_node
+            .values()
+            .copied()
+            .collect();
         for node in nodes {
             self.recompute_node(node);
         }
         self.inherit();
-        self.invalidation.set(
+        self.document.invalidation.set(
             InvalidationFlags::LAYOUT,
             preserved.contains(InvalidationFlags::LAYOUT),
         );
-        self.invalidation.set(
+        self.document.invalidation.set(
             InvalidationFlags::INHERIT,
             preserved.contains(InvalidationFlags::INHERIT),
         );
@@ -125,18 +138,19 @@ impl Applier {
 
     /// Facts for [`InlineFormattingContext::build`] from the retained tree.
     pub(super) fn node_facts(&self, node: NodeId) -> NodeFacts {
-        let atoms = self.atoms.borrow();
-        let decl = self.node_store.declared.get(&node);
+        let atoms = self.document.atoms.borrow();
+        let decl = self.document.node_store.declared.get(&node);
         let tag = decl.and_then(|d| d.tag);
         let text = decl.and_then(|d| d.text.clone());
         let display = self
+            .document
             .node_store
             .tree
             .style(node)
             .map(|s| s.display)
             .unwrap_or(taffy::Display::DEFAULT);
         let is_svg = tag.and_then(|tag| atoms.resolve(tag)) == Some("svg");
-        let replaced = is_svg || self.widget_manager.widgets.contains_key(&node);
+        let replaced = is_svg || self.document.widget_manager.widgets.contains_key(&node);
         NodeFacts {
             text_container: decl.is_some_and(|declared| {
                 declared.text_behavior & crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT != 0
@@ -154,16 +168,17 @@ impl Applier {
     pub(super) fn rebuild_layout_boxes(&mut self) {
         #[cfg(test)]
         {
-            self.ifc_projection_count += 1;
+            self.document.ifc_projection_count += 1;
         }
-        let ifc = InlineFormattingContext::build(&self.node_store.children, &|node| {
+        let ifc = InlineFormattingContext::build(&self.document.node_store.children, &|node| {
             self.node_facts(node)
         });
 
         let mut changed = Vec::new();
-        self.node_store.inline_roots = ifc.roots;
+        self.document.node_store.inline_roots = ifc.roots;
         // Drop collapsed_text for parents that no longer collapse.
         let stale: Vec<NodeId> = self
+            .document
             .node_store
             .collapsed_text
             .keys()
@@ -171,29 +186,41 @@ impl Applier {
             .filter(|n| !ifc.collapsed_text.contains_key(n))
             .collect();
         for n in stale {
-            self.node_store.collapsed_text.remove(&n);
+            self.document.node_store.collapsed_text.remove(&n);
             changed.push(n);
         }
         for (parent, text) in ifc.collapsed_text {
-            if self.node_store.collapsed_text.get(&parent) != Some(&text) {
-                self.node_store.collapsed_text.insert(parent, text);
+            if self.document.node_store.collapsed_text.get(&parent) != Some(&text) {
+                self.document.node_store.collapsed_text.insert(parent, text);
                 changed.push(parent);
             }
         }
-        for (&parent, kids) in &self.node_store.children {
+        for (&parent, kids) in &self.document.node_store.children {
             let projected = if ifc.suppressed_children.contains(&parent) {
                 &[]
             } else {
                 kids.as_slice()
             };
-            if self.node_store.tree.children(parent).ok().as_deref() != Some(projected) {
-                let _ = self.node_store.tree.set_children(parent, projected);
+            if self
+                .document
+                .node_store
+                .tree
+                .children(parent)
+                .ok()
+                .as_deref()
+                != Some(projected)
+            {
+                let _ = self
+                    .document
+                    .node_store
+                    .tree
+                    .set_children(parent, projected);
             }
         }
         for node in changed {
             self.recompute_node_now(node);
         }
-        self.ifc_dirty = false;
+        self.document.ifc_dirty = false;
     }
 
     /// Propagate inherited text styles (`color`, `font-size`) top-down so a
@@ -202,7 +229,7 @@ impl Applier {
     /// without a full CSS engine. Run after `apply_frame` and before layout
     /// (the measure callback reads the effective `font_size`).
     pub(super) fn inherit(&mut self) {
-        self.inherit_node(self.node_store.root, &InheritedPaint::default());
+        self.inherit_node(self.document.node_store.root, &InheritedPaint::default());
     }
 
     pub(super) fn serialize_svg(&self, root: NodeId, color: Color) -> Option<String> {
@@ -239,7 +266,7 @@ impl Applier {
             root: bool,
             out: &mut String,
         ) -> Option<()> {
-            let decl = this.node_store.declared.get(&node)?;
+            let decl = this.document.node_store.declared.get(&node)?;
             if let Some(text) = &decl.text {
                 escape_text(out, text);
                 return Some(());
@@ -270,6 +297,7 @@ impl Applier {
                 out.push('"');
             }
             let children = this
+                .document
                 .node_store
                 .children
                 .get(&node)
@@ -289,8 +317,8 @@ impl Applier {
             Some(())
         }
 
-        let atoms = self.atoms.borrow();
-        let decl = self.node_store.declared.get(&root)?;
+        let atoms = self.document.atoms.borrow();
+        let decl = self.document.node_store.declared.get(&root)?;
         if decl.tag.and_then(|tag| atoms.resolve(tag)) != Some("svg") {
             return None;
         }
@@ -304,7 +332,7 @@ impl Applier {
     }
 
     pub(super) fn inherit_node(&mut self, node: NodeId, parent: &InheritedPaint) {
-        let Some(decl) = self.node_store.declared.get(&node) else {
+        let Some(decl) = self.document.node_store.declared.get(&node) else {
             return;
         };
         let declared = decl.paint.clone();
@@ -312,7 +340,7 @@ impl Applier {
 
         // Preserve host-owned content from the previous computed paint (text,
         // widget scene, intrinsic size). Cascade never owns these.
-        let prev = self.node_store.tree.get_node_context(node);
+        let prev = self.document.node_store.tree.get_node_context(node);
         let mut host = HostPaint {
             text: prev.and_then(|p| p.text.clone()),
             text_runs: prev
@@ -325,12 +353,24 @@ impl Applier {
             image: prev.and_then(|p| p.image.clone()),
             widget: prev.and_then(|p| p.widget.clone()),
             intrinsic_size: prev.and_then(|p| p.intrinsic_size),
-            runtime_transform: self.runtime_transforms.get(&node).copied(),
-            overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
-            scrollbar: self.scroll.styles.get(&node).copied().unwrap_or_default(),
+            runtime_transform: self.document.runtime_transforms.get(&node).copied(),
+            overlay_plane: self
+                .document
+                .overlay_planes
+                .get(&node)
+                .copied()
+                .unwrap_or_default(),
+            scrollbar: self
+                .interaction
+                .scroll
+                .styles
+                .get(&node)
+                .copied()
+                .unwrap_or_default(),
         };
         if let Some(source) = self.serialize_svg(node, inherited.text_color) {
             let cached_for_node = self
+                .document
                 .resources
                 .svg
                 .get(&node)
@@ -340,7 +380,7 @@ impl Applier {
                 Some(image)
             } else {
                 let source: Arc<str> = Arc::from(source);
-                let cached_asset = self.resources.cache.svg(source.as_ref());
+                let cached_asset = self.document.resources.cache.svg(source.as_ref());
                 let asset = cached_asset.unwrap_or_else(|| {
                     let parsed = wabou_shell::svg::SvgImage::parse(&source)
                         .map(Arc::new)
@@ -348,27 +388,36 @@ impl Applier {
                     if let Err(error) = &parsed {
                         tracing::warn!(%error, "failed to parse inline SVG");
                     }
-                    self.resources
+                    self.document
+                        .resources
                         .cache
                         .insert_svg(source.to_string(), parsed.clone());
                     parsed
                 });
                 match asset {
                     Ok(image) => {
-                        self.resources.svg.insert(node, (source, image.clone()));
+                        self.document
+                            .resources
+                            .svg
+                            .insert(node, (source, image.clone()));
                         Some(image)
                     }
                     Err(_) => None,
                 }
             };
         } else {
-            self.resources.svg.remove(&node);
+            self.document.resources.svg.remove(&node);
         }
 
         let paint = declared.resolve(parent, host);
-        let _ = self.node_store.tree.set_node_context(node, Some(paint));
+        let _ = self
+            .document
+            .node_store
+            .tree
+            .set_node_context(node, Some(paint));
 
         let kids = self
+            .document
             .node_store
             .children
             .get(&node)
@@ -378,10 +427,11 @@ impl Applier {
             self.inherit_node(c, &inherited);
         }
 
-        if self.node_store.inline_roots.contains(&node) {
+        if self.document.node_store.inline_roots.contains(&node) {
             let mut text = String::new();
             let mut runs = Vec::new();
             for child in self
+                .document
                 .node_store
                 .children
                 .get(&node)
@@ -390,10 +440,20 @@ impl Applier {
             {
                 self.collect_styled_inline_runs(child, &mut text, &mut runs);
             }
-            if let Some(mut paint) = self.node_store.tree.get_node_context(node).cloned() {
+            if let Some(mut paint) = self
+                .document
+                .node_store
+                .tree
+                .get_node_context(node)
+                .cloned()
+            {
                 paint.text = Some(Arc::from(text));
                 paint.text_runs = Arc::from(runs);
-                let _ = self.node_store.tree.set_node_context(node, Some(paint));
+                let _ = self
+                    .document
+                    .node_store
+                    .tree
+                    .set_node_context(node, Some(paint));
             }
         }
     }
@@ -404,7 +464,7 @@ impl Applier {
         text: &mut String,
         runs: &mut Vec<wabou_shell::text::TextRun>,
     ) {
-        let Some(decl) = self.node_store.declared.get(&node) else {
+        let Some(decl) = self.document.node_store.declared.get(&node) else {
             return;
         };
         if let Some(value) = &decl.text {
@@ -412,7 +472,7 @@ impl Applier {
             text.push_str(value);
             let end = text.len();
             if start != end {
-                let paint = self.node_store.tree.get_node_context(node);
+                let paint = self.document.node_store.tree.get_node_context(node);
                 runs.push(wabou_shell::text::TextRun {
                     range: start..end,
                     font_size: paint.map(|p| p.font_size).unwrap_or(16.0),
@@ -425,7 +485,7 @@ impl Applier {
             }
             return;
         }
-        if let Some(children) = self.node_store.children.get(&node) {
+        if let Some(children) = self.document.node_store.children.get(&node) {
             for child in children {
                 self.collect_styled_inline_runs(*child, text, runs);
             }
@@ -438,8 +498,8 @@ impl Applier {
     /// Paint are host-provided and must not be overwritten by an empty
     /// `Declared` (which would reset the size to auto and collapse the tree).
     pub(super) fn recompute_node(&mut self, node: NodeId) {
-        if self.applying_frame {
-            self.dirty_styles.insert(node);
+        if self.document.applying_frame {
+            self.document.dirty_styles.insert(node);
             return;
         }
         self.recompute_node_now(node);
@@ -452,10 +512,10 @@ impl Applier {
     /// doesn't propagate to descendants. Hot path for animation (moving N
     /// nodes via top/left = 2N SetStyles/frame).
     pub(super) fn apply_inline_ir_fast(&mut self, node: NodeId, prop: &str, ir: &IrValue) -> bool {
-        let Ok(existing) = self.node_store.tree.style(node) else {
+        let Ok(existing) = self.document.node_store.tree.style(node) else {
             return false;
         };
-        let Some(decl) = self.node_store.declared.get_mut(&node) else {
+        let Some(decl) = self.document.node_store.declared.get_mut(&node) else {
             return false;
         };
         let mut layout = existing.clone();
@@ -466,12 +526,12 @@ impl Applier {
         if !style::apply_ir(&mut layout, &mut decl.paint, prop, ir) {
             return false;
         }
-        self.ifc_dirty |= display_changed;
+        self.document.ifc_dirty |= display_changed;
         let declared = decl.paint.clone();
         let layout_changed = existing != &layout;
         if layout_changed {
-            let _ = self.node_store.tree.set_style(node, layout);
-            self.invalidation.insert(InvalidationFlags::LAYOUT);
+            let _ = self.document.node_store.tree.set_style(node, layout);
+            self.document.invalidation.insert(InvalidationFlags::LAYOUT);
         }
         let transform_changed = matches!(
             prop,
@@ -483,12 +543,20 @@ impl Applier {
                 | "transform-component"
         );
         if transform_changed || matches!(prop, "pointer-events" | "border-radius" | "z-index") {
-            self.invalidation.insert(InvalidationFlags::GEOMETRY);
+            self.document
+                .invalidation
+                .insert(InvalidationFlags::GEOMETRY);
         }
-        self.projections.semantics_dirty |= transform_changed;
+        self.frame.projections.semantics_dirty |= transform_changed;
         // Patch only non-inherited computed fields; inherited fields stay at
         // their last resolved values (INHERIT is clear on this path).
-        if let Some(mut paint) = self.node_store.tree.get_node_context(node).cloned() {
+        if let Some(mut paint) = self
+            .document
+            .node_store
+            .tree
+            .get_node_context(node)
+            .cloned()
+        {
             paint.background = declared.background;
             paint.opacity = declared.opacity;
             paint.transform = declared.transform;
@@ -501,48 +569,68 @@ impl Applier {
             paint.text_ellipsis = declared.text_ellipsis;
             paint.pointer_events = declared.pointer_events;
             paint.z_index = declared.z_index;
-            let _ = self.node_store.tree.set_node_context(node, Some(paint));
+            let _ = self
+                .document
+                .node_store
+                .tree
+                .set_node_context(node, Some(paint));
         }
         true
     }
 
     fn install_resolved_style(&mut self, node: NodeId, resolved: ResolvedNodeStyle) {
-        let previous_layout = self.node_store.tree.style(node).ok().cloned();
-        let projection_changed =
-            previous_layout.as_ref().is_some_and(|previous| {
-                previous.display != resolved.layout.display
-                    || self.node_store.declared.get(&node).is_some_and(|declared| {
-                        declared.display_explicit != resolved.display_explicit
-                    })
-            });
-        self.ifc_dirty |= projection_changed;
-        self.style.diagnostics.insert(node, resolved.diagnostics);
-        if let Some(declared) = self.node_store.declared.get_mut(&node) {
+        let previous_layout = self.document.node_store.tree.style(node).ok().cloned();
+        let projection_changed = previous_layout.as_ref().is_some_and(|previous| {
+            previous.display != resolved.layout.display
+                || self
+                    .document
+                    .node_store
+                    .declared
+                    .get(&node)
+                    .is_some_and(|declared| declared.display_explicit != resolved.display_explicit)
+        });
+        self.document.ifc_dirty |= projection_changed;
+        self.document
+            .style
+            .diagnostics
+            .insert(node, resolved.diagnostics);
+        if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             declared.paint = resolved.paint.clone();
             declared.display_explicit = resolved.display_explicit;
         }
         let layout_style_changed = previous_layout.as_ref() != Some(&resolved.layout);
         if layout_style_changed {
-            let _ = self.node_store.tree.set_style(node, resolved.layout);
+            let _ = self
+                .document
+                .node_store
+                .tree
+                .set_style(node, resolved.layout);
         }
 
         // Resolve immediately against the parent so this node is current before
         // the next full inheritance walk updates its descendants.
         let parent = self
+            .document
             .node_store
             .tree
             .parent(node)
-            .and_then(|parent| self.node_store.tree.get_node_context(parent))
+            .and_then(|parent| self.document.node_store.tree.get_node_context(parent))
             .map(inherited_paint)
             .unwrap_or_default();
-        let previous = self.node_store.tree.get_node_context(node).cloned();
+        let previous = self
+            .document
+            .node_store
+            .tree
+            .get_node_context(node)
+            .cloned();
         let image_url = self
+            .document
             .node_store
             .declared
             .get(&node)
             .and_then(|declared| declared.network_image_url.clone());
         let image = image_url
-            .and_then(|url| self.resources.cache.raster(url.as_ref()))
+            .and_then(|url| self.document.resources.cache.raster(url.as_ref()))
             .and_then(Result::ok);
         let host = HostPaint {
             text: resolved.host_text,
@@ -558,9 +646,20 @@ impl Applier {
             image,
             widget: previous.as_ref().and_then(|paint| paint.widget.clone()),
             intrinsic_size: resolved.host_intrinsic,
-            runtime_transform: self.runtime_transforms.get(&node).copied(),
-            overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
-            scrollbar: self.scroll.styles.get(&node).copied().unwrap_or_default(),
+            runtime_transform: self.document.runtime_transforms.get(&node).copied(),
+            overlay_plane: self
+                .document
+                .overlay_planes
+                .get(&node)
+                .copied()
+                .unwrap_or_default(),
+            scrollbar: self
+                .interaction
+                .scroll
+                .styles
+                .get(&node)
+                .copied()
+                .unwrap_or_default(),
         };
         let paint = resolved.paint.resolve(&parent, host);
         let inherited_changed = previous
@@ -591,17 +690,25 @@ impl Applier {
             previous.text_selectable != paint.text_selectable
                 || previous.text_select_all != paint.text_select_all
         });
-        let _ = self.node_store.tree.set_node_context(node, Some(paint));
+        let _ = self
+            .document
+            .node_store
+            .tree
+            .set_node_context(node, Some(paint));
         if layout_style_changed || text_layout_changed {
-            self.invalidation.insert(InvalidationFlags::LAYOUT);
+            self.document.invalidation.insert(InvalidationFlags::LAYOUT);
         }
         if inherited_changed {
-            self.invalidation.insert(InvalidationFlags::INHERIT);
+            self.document
+                .invalidation
+                .insert(InvalidationFlags::INHERIT);
         }
         if geometry_changed {
-            self.invalidation.insert(InvalidationFlags::GEOMETRY);
+            self.document
+                .invalidation
+                .insert(InvalidationFlags::GEOMETRY);
         }
-        self.projections.semantics_dirty |= transform_changed || selection_policy_changed;
+        self.frame.projections.semantics_dirty |= transform_changed || selection_policy_changed;
     }
 
     fn resolve_class_declarations(
@@ -610,26 +717,26 @@ impl Applier {
         atoms: &AtomPool,
         active_theme_colors: &HashMap<String, u32>,
     ) -> Arc<CachedClassResolution> {
-        if let Some(cached) = self.style.class_resolution_cache.get(&class_key) {
+        if let Some(cached) = self.document.style.class_resolution_cache.get(&class_key) {
             #[cfg(feature = "profiling")]
             {
-                self.profile_class_cache_hits += 1;
+                self.frame.profile_class_cache_hits += 1;
             }
             #[cfg(test)]
             {
-                self.style.class_resolution_cache_hits += 1;
+                self.document.style.class_resolution_cache_hits += 1;
             }
             return cached.clone();
         }
         #[cfg(feature = "profiling")]
         {
-            self.profile_class_cache_misses += 1;
+            self.frame.profile_class_cache_misses += 1;
         }
 
         let mut declarations = Vec::new();
         let mut diagnostics = Vec::new();
-        if let Some(sheet) = &self.style.sheet {
-            for &index in &self.style.universal_rules {
+        if let Some(sheet) = &self.document.style.sheet {
+            for &index in &self.document.style.universal_rules {
                 let rule = &sheet.rules[index];
                 for (index, declaration) in rule.declarations.iter().enumerate() {
                     declarations.push((
@@ -644,7 +751,7 @@ impl Applier {
                 }
             }
             for (class_position, class) in class_key.iter().enumerate() {
-                let Some(indices) = self.style.rule_index.get(class) else {
+                let Some(indices) = self.document.style.rule_index.get(class) else {
                     continue;
                 };
                 for &index in indices {
@@ -664,8 +771,8 @@ impl Applier {
             }
         }
         for (class_position, class) in class_key.iter().enumerate() {
-            if self.style.rule_index.contains_key(class)
-                || self.style.sheet.as_ref().is_some_and(|sheet| {
+            if self.document.style.rule_index.contains_key(class)
+                || self.document.style.sheet.as_ref().is_some_and(|sheet| {
                     atoms
                         .resolve(*class)
                         .is_some_and(|name| sheet.ignores_class(name))
@@ -682,18 +789,23 @@ impl Applier {
                 })
                 .filter(|token| active_theme_colors.contains_key(*token))
                 .map(str::to_owned);
-            let utility = self.style.utility_cache.entry(*class).or_insert_with(|| {
-                atoms
-                    .resolve(*class)
-                    .ok_or_else(|| "unknown class atom".to_string())
-                    .and_then(|name| {
-                        wabou_style::parse_utility_with_theme(name, &self.style.theme)
-                            .map_err(|error| error.to_string())
-                    })
-            });
+            let utility = self
+                .document
+                .style
+                .utility_cache
+                .entry(*class)
+                .or_insert_with(|| {
+                    atoms
+                        .resolve(*class)
+                        .ok_or_else(|| "unknown class atom".to_string())
+                        .and_then(|name| {
+                            wabou_style::parse_utility_with_theme(name, &self.document.style.theme)
+                                .map_err(|error| error.to_string())
+                        })
+                });
             #[cfg(feature = "profiling")]
             {
-                self.profile_runtime_utility_fallbacks += 1;
+                self.frame.profile_runtime_utility_fallbacks += 1;
             }
             let utility = match utility {
                 Ok(utility) => utility,
@@ -702,7 +814,7 @@ impl Applier {
                         ".{}: {diagnostic}",
                         atoms.resolve(*class).unwrap_or("<unknown>")
                     ));
-                    if self.style.warned_utility_classes.insert(*class) {
+                    if self.document.style.warned_utility_classes.insert(*class) {
                         tracing::warn!(
                             class = atoms.resolve(*class).unwrap_or("<unknown>"),
                             %diagnostic,
@@ -747,20 +859,22 @@ impl Applier {
                 .collect(),
             diagnostics,
         });
-        if self.style.class_resolution_cache.len() >= CLASS_RESOLUTION_CACHE_CAPACITY {
-            self.style.class_resolution_cache.clear();
+        if self.document.style.class_resolution_cache.len() >= CLASS_RESOLUTION_CACHE_CAPACITY {
+            self.document.style.class_resolution_cache.clear();
         }
-        self.style
+        self.document
+            .style
             .class_resolution_cache
             .insert(class_key, cached.clone());
         cached
     }
 
     pub(super) fn recompute_node_now(&mut self, node: NodeId) {
-        if node == self.node_store.root {
+        if node == self.document.node_store.root {
             return;
         }
         let Some(class_key) = self
+            .document
             .node_store
             .declared
             .get(&node)
@@ -768,12 +882,13 @@ impl Applier {
         else {
             return;
         };
-        let active_theme_colors = self.style.active_theme_colors.clone();
-        let atoms_handle = self.atoms.clone();
+        let active_theme_colors = self.document.style.active_theme_colors.clone();
+        let atoms_handle = self.document.atoms.clone();
         let atoms = atoms_handle.borrow();
         let cached =
             self.resolve_class_declarations(class_key, &atoms, active_theme_colors.as_ref());
         let decl = self
+            .document
             .node_store
             .declared
             .get(&node)
@@ -804,7 +919,7 @@ impl Applier {
                         "{property}: unsupported Style IR property or value"
                     ));
                     if let Some(atom) = atoms.get(property)
-                        && self.style.warned_ir_properties.insert(atom)
+                        && self.document.style.warned_ir_properties.insert(atom)
                     {
                         tracing::warn!(property, "unsupported Style IR property");
                     }
@@ -863,6 +978,7 @@ impl Applier {
             if decl.tag.and_then(|tag| atoms.resolve(tag)) == Some("img")
                 && let Some(url) = decl.network_image_url.as_ref()
                 && let Some(size) = self
+                    .document
                     .resources
                     .cache
                     .raster(url.as_ref())
@@ -873,9 +989,10 @@ impl Applier {
             }
             // Replaced elements paint their own content. Standard text would
             // otherwise be drawn a second time underneath the widget scene.
-            let host_text = (!self.widget_manager.widgets.contains_key(&node))
+            let host_text = (!self.document.widget_manager.widgets.contains_key(&node))
                 .then(|| {
-                    self.node_store
+                    self.document
+                        .node_store
                         .collapsed_text
                         .get(&node)
                         .cloned()
@@ -883,6 +1000,7 @@ impl Applier {
                 })
                 .flatten();
             if let Some(size) = self
+                .document
                 .widget_manager
                 .widgets
                 .get(&node)

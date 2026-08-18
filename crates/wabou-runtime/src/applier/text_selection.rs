@@ -50,8 +50,8 @@ impl Applier {
         placed: &mut [PlacedNode],
         tcx: &mut TextContext,
     ) {
-        self.text_selection.selectable.clear();
-        self.text_selection.order.clear();
+        self.interaction.text_selection.selectable.clear();
+        self.interaction.text_selection.order.clear();
         for node in placed.iter_mut() {
             node.paint.selection_rects = Arc::from([]);
             let Some(text) = node.paint.text.clone() else {
@@ -59,11 +59,15 @@ impl Applier {
             };
             if !node.paint.text_selectable
                 || node.paint.text_ellipsis
-                || self.widget_manager.widgets.contains_key(&node.node_id)
+                || self
+                    .document
+                    .widget_manager
+                    .widgets
+                    .contains_key(&node.node_id)
             {
                 continue;
             }
-            let Some(&target) = self.node_store.node_to_solid.get(&node.node_id) else {
+            let Some(&target) = self.document.node_store.node_to_solid.get(&node.node_id) else {
                 continue;
             };
             let layout = wabou_shell::text::layout_text_styled_overflow(
@@ -86,40 +90,50 @@ impl Applier {
                 layout,
                 origin: node.content_origin,
                 select_all: node.paint.text_select_all,
-                order: self.text_selection.order.len(),
+                order: self.interaction.text_selection.order.len(),
             };
-            self.text_selection.order.push(target);
-            self.text_selection.selectable.insert(target, selectable);
+            self.interaction.text_selection.order.push(target);
+            self.interaction
+                .text_selection
+                .selectable
+                .insert(target, selectable);
         }
 
-        let valid = self.text_selection.active.as_ref().is_none_or(|active| {
-            self.text_selection
-                .selectable
-                .contains_key(&active.anchor_target)
-                && self
+        let valid = self
+            .interaction
+            .text_selection
+            .active
+            .as_ref()
+            .is_none_or(|active| {
+                self.interaction
                     .text_selection
                     .selectable
-                    .contains_key(&active.focus_target)
-        });
+                    .contains_key(&active.anchor_target)
+                    && self
+                        .interaction
+                        .text_selection
+                        .selectable
+                        .contains_key(&active.focus_target)
+            });
         if !valid {
-            self.text_selection.active = None;
-            self.text_selection.next_scroll = None;
+            self.interaction.text_selection.active = None;
+            self.interaction.text_selection.next_scroll = None;
             return;
         }
-        if let Some(active) = &mut self.text_selection.active {
-            let anchor = &self.text_selection.selectable[&active.anchor_target].layout;
+        if let Some(active) = &mut self.interaction.text_selection.active {
+            let anchor = &self.interaction.text_selection.selectable[&active.anchor_target].layout;
             active.base_selection = active.base_selection.refresh(anchor);
-            let focus = &self.text_selection.selectable[&active.focus_target].layout;
+            let focus = &self.interaction.text_selection.selectable[&active.focus_target].layout;
             active.focus_selection = active.focus_selection.refresh(focus);
         }
         for node in placed.iter_mut() {
-            let Some(&target) = self.node_store.node_to_solid.get(&node.node_id) else {
+            let Some(&target) = self.document.node_store.node_to_solid.get(&node.node_id) else {
                 continue;
             };
             let Some(range) = self.text_selection_range(target) else {
                 continue;
             };
-            let text = &self.text_selection.selectable[&target];
+            let text = &self.interaction.text_selection.selectable[&target];
             let selection = Selection::new(
                 Cursor::from_byte_index(&text.layout, range.start, Affinity::Downstream),
                 Cursor::from_byte_index(&text.layout, range.end, Affinity::Upstream),
@@ -166,18 +180,18 @@ impl Applier {
         y: f64,
         modifiers: Modifiers,
     ) -> bool {
-        if modifiers.shift() && self.text_selection.active.is_some() {
-            self.text_selection.last_click = None;
+        if modifiers.shift() && self.interaction.text_selection.active.is_some() {
+            self.interaction.text_selection.last_click = None;
             return self.extend_text_selection(Some(target), x, y);
         }
-        let Some(text) = self.text_selection.selectable.get(&target) else {
-            self.text_selection.last_click = None;
-            return self.text_selection.active.take().is_some();
+        let Some(text) = self.interaction.text_selection.selectable.get(&target) else {
+            self.interaction.text_selection.last_click = None;
+            return self.interaction.text_selection.active.take().is_some();
         };
         let local_x = x as f32 - text.origin[0];
         let local_y = y as f32 - text.origin[1];
         let now = Instant::now();
-        let clicks = self.text_selection.last_click.map_or(
+        let clicks = self.interaction.text_selection.last_click.map_or(
             1,
             |(time, last_target, last_x, last_y, count)| {
                 if last_target == target
@@ -191,14 +205,14 @@ impl Applier {
                 }
             },
         );
-        self.text_selection.last_click = Some((now, target, x, y, clicks));
+        self.interaction.text_selection.last_click = Some((now, target, x, y, clicks));
         let granularity = match clicks {
             2 => TextSelectionGranularity::Word,
             3 => TextSelectionGranularity::Line,
             _ => TextSelectionGranularity::Cluster,
         };
         let selection = Self::selection_from_point(text, granularity, local_x, local_y);
-        self.text_selection.active = Some(ActiveTextSelection {
+        self.interaction.text_selection.active = Some(ActiveTextSelection {
             anchor_target: target,
             focus_target: target,
             base_selection: selection,
@@ -214,19 +228,25 @@ impl Applier {
         x: f64,
         y: f64,
     ) -> bool {
-        if self.text_selection.active.is_none() {
+        if self.interaction.text_selection.active.is_none() {
             return false;
         }
         let target = hit_target
-            .filter(|target| self.text_selection.selectable.contains_key(target))
+            .filter(|target| {
+                self.interaction
+                    .text_selection
+                    .selectable
+                    .contains_key(target)
+            })
             .or_else(|| {
-                self.text_selection
+                self.interaction
+                    .text_selection
                     .order
                     .iter()
                     .copied()
                     .min_by(|left, right| {
                         let distance = |target: u32| {
-                            let text = &self.text_selection.selectable[&target];
+                            let text = &self.interaction.text_selection.selectable[&target];
                             let dx = if x < f64::from(text.origin[0]) {
                                 f64::from(text.origin[0]) - x
                             } else if x > f64::from(text.origin[0] + text.layout.width()) {
@@ -249,10 +269,10 @@ impl Applier {
         let Some(target) = target else {
             return false;
         };
-        let text = &self.text_selection.selectable[&target];
+        let text = &self.interaction.text_selection.selectable[&target];
         let local_x = x as f32 - text.origin[0];
         let local_y = y as f32 - text.origin[1];
-        let active = self.text_selection.active.as_mut().unwrap();
+        let active = self.interaction.text_selection.active.as_mut().unwrap();
         active.focus_target = target;
         active.focus_selection = if target == active.anchor_target {
             active
@@ -265,24 +285,37 @@ impl Applier {
     }
 
     pub(super) fn text_selection_range(&self, target: u32) -> Option<std::ops::Range<usize>> {
-        let active = self.text_selection.active.as_ref()?;
+        let active = self.interaction.text_selection.active.as_ref()?;
         let anchor_index = self
+            .interaction
             .text_selection
             .selectable
             .get(&active.anchor_target)?
             .order;
         let focus_index = self
+            .interaction
             .text_selection
             .selectable
             .get(&active.focus_target)?
             .order;
-        let target_index = self.text_selection.selectable.get(&target)?.order;
+        let target_index = self
+            .interaction
+            .text_selection
+            .selectable
+            .get(&target)?
+            .order;
         if anchor_index == focus_index {
             return (target_index == anchor_index).then(|| active.focus_selection.text_range());
         }
         let anchor_range = active.base_selection.text_range();
         let focus_range = active.focus_selection.text_range();
-        let text_len = self.text_selection.selectable.get(&target)?.text.len();
+        let text_len = self
+            .interaction
+            .text_selection
+            .selectable
+            .get(&target)?
+            .text
+            .len();
         if anchor_index < focus_index {
             match target_index {
                 index if index < anchor_index || index > focus_index => None,
@@ -302,14 +335,14 @@ impl Applier {
     }
 
     pub(super) fn selected_text(&self) -> Option<String> {
-        self.text_selection.active.as_ref()?;
+        self.interaction.text_selection.active.as_ref()?;
         let mut selected = String::new();
         let mut previous_visual_y: Option<std::ops::Range<f32>> = None;
-        for target in &self.text_selection.order {
+        for target in &self.interaction.text_selection.order {
             let Some(range) = self.text_selection_range(*target) else {
                 continue;
             };
-            let text = &self.text_selection.selectable[target];
+            let text = &self.interaction.text_selection.selectable[target];
             if previous_visual_y.as_ref().is_some_and(|previous| {
                 previous.end <= text.visual_y.start || text.visual_y.end <= previous.start
             }) {
@@ -324,7 +357,8 @@ impl Applier {
     pub(super) fn sync_text_selection_change(&mut self) -> bool {
         let text = self.selected_text();
         let kind = text.as_ref().and_then(|_| {
-            self.text_selection
+            self.interaction
+                .text_selection
                 .active
                 .as_ref()
                 .map(|selection| match selection.granularity {
@@ -334,19 +368,20 @@ impl Applier {
                 })
         });
         let snapshot = TextSelectionSnapshot { text, kind };
-        if snapshot == self.text_selection.last_snapshot {
+        if snapshot == self.interaction.text_selection.last_snapshot {
             return false;
         }
         if let Some(target) = self
+            .interaction
             .text_selection
             .active
             .as_ref()
             .map(|selection| selection.anchor_target)
         {
-            self.text_selection.event_target = Some(target);
+            self.interaction.text_selection.event_target = Some(target);
         }
-        self.text_selection.last_snapshot = snapshot.clone();
-        let Some(target) = self.text_selection.event_target else {
+        self.interaction.text_selection.last_snapshot = snapshot.clone();
+        let Some(target) = self.interaction.text_selection.event_target else {
             return false;
         };
         self.dispatch_json(
@@ -358,22 +393,23 @@ impl Applier {
 
     pub(super) fn select_all_text(&mut self) -> bool {
         let Some((&anchor_target, &focus_target)) = self
+            .interaction
             .text_selection
             .order
             .first()
-            .zip(self.text_selection.order.last())
+            .zip(self.interaction.text_selection.order.last())
         else {
             return false;
         };
-        let anchor = &self.text_selection.selectable[&anchor_target];
-        let focus = &self.text_selection.selectable[&focus_target];
+        let anchor = &self.interaction.text_selection.selectable[&anchor_target];
+        let focus = &self.interaction.text_selection.selectable[&focus_target];
         let whole = |text: &SelectableText| {
             Selection::new(
                 Cursor::from_byte_index(&text.layout, 0, Affinity::Downstream),
                 Cursor::from_byte_index(&text.layout, text.text.len(), Affinity::Upstream),
             )
         };
-        self.text_selection.active = Some(ActiveTextSelection {
+        self.interaction.text_selection.active = Some(ActiveTextSelection {
             anchor_target,
             focus_target,
             base_selection: whole(anchor),

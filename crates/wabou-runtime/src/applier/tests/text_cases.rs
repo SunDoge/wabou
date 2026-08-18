@@ -19,7 +19,7 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
     );
     let mut applier = Applier::from_runtime_with_factories(js, factories, Color::BLACK);
     let (tag, secret, value, aria_value_text) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("password-input"),
             atoms.intern("secret"),
@@ -55,19 +55,20 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
     );
     applier.build_frame(&mut tcx, 800, 600);
 
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     assert!(
-        applier.widget_manager.widgets[&node]
+        applier.document.widget_manager.widgets[&node]
             .current_value()
             .is_none()
     );
     assert!(
-        !applier.node_store.declared[&node]
+        !applier.document.node_store.declared[&node]
             .attrs
             .contains_key(&value)
     );
     assert_eq!(
         applier
+            .runtime
             .js
             .with(|ctx| ctx.eval::<usize, _>("globalThis.dispatched.length"))
             .unwrap(),
@@ -76,6 +77,7 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
     assert_eq!(secrets.take("master-password").as_str(), "hunter2");
     assert_eq!(
         applier
+            .frame
             .projections
             .semantic_snapshot
             .nodes
@@ -103,7 +105,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (input, value, width) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("input"),
             atoms.intern("value"),
@@ -129,10 +131,20 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     // build_frame computes layout + paints widgets + drains value sync.
     applier.build_frame(&mut tcx, 800, 600);
     let focus = applier.handle_event(pointer(PointerPhase::Down, 10.0, 10.0, 1));
-    let node = applier.node_store.solid_to_node[&2];
-    assert!(applier.node_store.tree.layout(node).unwrap().size.height > 0.0);
+    let node = applier.document.node_store.solid_to_node[&2];
+    assert!(
+        applier
+            .document
+            .node_store
+            .tree
+            .layout(node)
+            .unwrap()
+            .size
+            .height
+            > 0.0
+    );
     assert_eq!(focus.text_input, Some(true));
-    assert_eq!(applier.input.focused_target, Some(2));
+    assert_eq!(applier.interaction.input.focused_target, Some(2));
 
     // Widgets receive the complete captured pointer stream, including
     // moves/releases outside their hit-test bounds. Text selection relies
@@ -147,7 +159,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
             .handle_event(pointer(PointerPhase::Up, 400.0, 10.0, 0))
             .handled
     );
-    assert!(applier.input.pointer_down_target.is_none());
+    assert!(applier.interaction.input.pointer_down_target.is_none());
 
     // Text edits resolve at paint (pending-edit pattern: handle_event has
     // no FontContext), so the value sync + INPUT dispatch are deferred to
@@ -159,14 +171,15 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     );
     applier.build_frame(&mut tcx, 800, 600);
     assert_eq!(
-        applier.widget_manager.widgets[&node].current_value(),
+        applier.document.widget_manager.widgets[&node].current_value(),
         Some("ab")
     );
     assert_eq!(
-        applier.node_store.declared[&node].attrs[&value].as_ref(),
+        applier.document.node_store.declared[&node].attrs[&value].as_ref(),
         "ab"
     );
     let payload = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<String, _>("globalThis.dispatched[0][2]"))
         .unwrap();
@@ -185,11 +198,11 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     }));
     applier.build_frame(&mut tcx, 800, 600);
     assert_eq!(
-        applier.widget_manager.widgets[&node].current_value(),
+        applier.document.widget_manager.widgets[&node].current_value(),
         Some("a")
     );
     assert_eq!(
-        applier.node_store.declared[&node].attrs[&value].as_ref(),
+        applier.document.node_store.declared[&node].attrs[&value].as_ref(),
         "a"
     );
 
@@ -208,11 +221,11 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     }
     applier.build_frame(&mut tcx, 800, 600);
     assert_eq!(
-        applier.widget_manager.widgets[&node].current_value(),
+        applier.document.widget_manager.widgets[&node].current_value(),
         Some("")
     );
     assert_eq!(
-        applier.node_store.declared[&node].attrs[&value].as_ref(),
+        applier.document.node_store.declared[&node].attrs[&value].as_ref(),
         ""
     );
     // A control char (backspace as text) is filtered out → IGNORED, no
@@ -224,7 +237,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     );
     applier.build_frame(&mut tcx, 800, 600);
     assert_eq!(
-        applier.widget_manager.widgets[&node].current_value(),
+        applier.document.widget_manager.widgets[&node].current_value(),
         Some("")
     );
 }
@@ -233,7 +246,7 @@ fn text_input_updates_value_paints_and_dispatches_input() {
 fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
@@ -258,10 +271,11 @@ fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     });
     applier.rebuild_layout_boxes();
 
-    let parent = applier.node_store.solid_to_node[&2];
-    assert_eq!(applier.node_store.tree.child_count(parent), 0);
+    let parent = applier.document.node_store.solid_to_node[&2];
+    assert_eq!(applier.document.node_store.tree.child_count(parent), 0);
     assert_eq!(
         applier
+            .document
             .node_store
             .tree
             .get_node_context(parent)
@@ -278,6 +292,7 @@ fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     applier.rebuild_layout_boxes();
     assert_eq!(
         applier
+            .document
             .node_store
             .tree
             .get_node_context(parent)
@@ -293,7 +308,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
@@ -317,8 +332,8 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
 
     let mut tcx = TextContext::new();
     let mut placed = layout::compute_and_walk_with_scroll(
-        &mut applier.node_store.tree,
-        applier.node_store.root,
+        &mut applier.document.node_store.tree,
+        applier.document.node_store.root,
         400.0,
         100.0,
         &mut tcx,
@@ -326,7 +341,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     );
     applier.rebuild_hit_geometry(&placed);
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    let origin = applier.text_selection.selectable[&2].origin;
+    let origin = applier.interaction.text_selection.selectable[&2].origin;
 
     assert!(
         applier
@@ -349,6 +364,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
             .handled
     );
     let during_drag = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<usize, _>(format!(
@@ -366,12 +382,13 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     ));
     applier.prepare_text_selection(&mut placed, &mut tcx);
     assert!(
-        applier.text_selection.last_click.is_none(),
+        applier.interaction.text_selection.last_click.is_none(),
         "a drag must not seed the subsequent multi-click streak"
     );
 
     let selected = applier.selected_text().expect("non-empty selection");
     let selection_event = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(format!(
@@ -391,7 +408,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     assert!(
         !placed
             .iter()
-            .find(|node| node.node_id == applier.node_store.solid_to_node[&2])
+            .find(|node| node.node_id == applier.document.node_store.solid_to_node[&2])
             .unwrap()
             .paint
             .selection_rects
@@ -418,7 +435,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         Some(wabou_shell::ClipboardRequest::Write(selected))
     );
 
-    applier.text_selection.last_click = None;
+    applier.interaction.text_selection.last_click = None;
     let click_x = f64::from(origin[0] + 10.0);
     let click_y = f64::from(origin[1] + 5.0);
     applier.handle_event(pointer(PointerPhase::Down, click_x, click_y, 1));
@@ -431,12 +448,18 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     applier.handle_event(UiEvent::Pointer(cancelled));
     applier.handle_event(pointer(PointerPhase::Down, click_x, click_y, 1));
     assert_eq!(
-        applier.text_selection.active.as_ref().unwrap().granularity,
+        applier
+            .interaction
+            .text_selection
+            .active
+            .as_ref()
+            .unwrap()
+            .granularity,
         TextSelectionGranularity::Cluster,
         "a cancelled click must not turn the next click into word selection"
     );
     applier.handle_event(pointer(PointerPhase::Cancel, click_x, click_y, 0));
-    applier.text_selection.last_click = None;
+    applier.interaction.text_selection.last_click = None;
 
     let word_x = f64::from(origin[0] + 10.0);
     for _ in 0..2 {
@@ -445,6 +468,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     assert_eq!(applier.selected_text().as_deref(), Some("selectable"));
     assert!(applier.sync_text_selection_change());
     let word_event = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(format!(
@@ -459,8 +483,13 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         payload,
         serde_json::json!({ "text": "selectable", "kind": "word" })
     );
-    let line_end =
-        f64::from(origin[0] + applier.text_selection.selectable[&2].layout.width() + 10.0);
+    let line_end = f64::from(
+        origin[0]
+            + applier.interaction.text_selection.selectable[&2]
+                .layout
+                .width()
+            + 10.0,
+    );
     applier.begin_text_selection(2, line_end, f64::from(origin[1] + 5.0), Modifiers::SHIFT);
     assert_eq!(
         applier.selected_text().as_deref(),
@@ -468,11 +497,11 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         "the explicit single-line Text contract extends through the full run"
     );
     assert!(
-        applier.text_selection.last_click.is_none(),
+        applier.interaction.text_selection.last_click.is_none(),
         "Shift extension must not seed a later double click"
     );
 
-    let user_select = applier.atoms.borrow_mut().intern("user-select");
+    let user_select = applier.document.atoms.borrow_mut().intern("user-select");
     applier.apply_op(&Op::SetStyle {
         id: 2,
         prop: user_select,
@@ -480,8 +509,8 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     });
     applier.inherit();
     let mut placed = layout::compute_and_walk_with_scroll(
-        &mut applier.node_store.tree,
-        applier.node_store.root,
+        &mut applier.document.node_store.tree,
+        applier.document.node_store.root,
         400.0,
         100.0,
         &mut tcx,
@@ -496,7 +525,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         1,
     ));
     assert_eq!(applier.selected_text().as_deref(), Some("selectable text"));
-    applier.text_selection.next_scroll = Some(Instant::now());
+    applier.interaction.text_selection.next_scroll = Some(Instant::now());
 
     applier.apply_op(&Op::SetStyle {
         id: 2,
@@ -505,8 +534,8 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     });
     applier.inherit();
     let mut placed = layout::compute_and_walk_with_scroll(
-        &mut applier.node_store.tree,
-        applier.node_store.root,
+        &mut applier.document.node_store.tree,
+        applier.document.node_store.root,
         400.0,
         100.0,
         &mut tcx,
@@ -514,11 +543,18 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
     assert!(!applier.computed_node_snapshot(2).unwrap().text_selectable);
-    assert!(!applier.text_selection.selectable.contains_key(&2));
-    assert!(applier.text_selection.active.is_none());
-    assert!(applier.text_selection.next_scroll.is_none());
+    assert!(
+        !applier
+            .interaction
+            .text_selection
+            .selectable
+            .contains_key(&2)
+    );
+    assert!(applier.interaction.text_selection.active.is_none());
+    assert!(applier.interaction.text_selection.next_scroll.is_none());
     assert!(applier.sync_text_selection_change());
     let cleared = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(format!(
@@ -538,7 +574,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (div, height, flex_direction, user_select) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("height"),
@@ -592,8 +628,8 @@ fn text_selection_crosses_hosts_in_both_directions() {
 
     let mut tcx = TextContext::new();
     let mut placed = layout::compute_and_walk_with_scroll(
-        &mut applier.node_store.tree,
-        applier.node_store.root,
+        &mut applier.document.node_store.tree,
+        applier.document.node_store.root,
         300.0,
         100.0,
         &mut tcx,
@@ -601,7 +637,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
     );
     applier.rebuild_hit_geometry(&placed);
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    assert_eq!(applier.text_selection.order, vec![2, 6]);
+    assert_eq!(applier.interaction.text_selection.order, vec![2, 6]);
 
     let select_all = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
@@ -649,21 +685,30 @@ fn text_selection_crosses_hosts_in_both_directions() {
             f64::from(text.origin[1]) + geometry.y0 + 2.0,
         )
     };
-    let first_start = point(&applier.text_selection.selectable[&2], 0);
-    let second_end = point(&applier.text_selection.selectable[&6], 4);
+    let first_start = point(&applier.interaction.text_selection.selectable[&2], 0);
+    let second_end = point(&applier.interaction.text_selection.selectable[&6], 4);
     assert_eq!(
-        applier.input.hit_test(first_start.0, first_start.1),
+        applier
+            .interaction
+            .input
+            .hit_test(first_start.0, first_start.1),
         Some(2)
     );
-    assert_eq!(applier.input.hit_test(second_end.0, second_end.1), Some(6));
+    assert_eq!(
+        applier
+            .interaction
+            .input
+            .hit_test(second_end.0, second_end.1),
+        Some(6)
+    );
     applier.handle_event(pointer(PointerPhase::Down, first_start.0, first_start.1, 1));
     applier.handle_event(pointer(PointerPhase::Move, second_end.0, second_end.1, 1));
     applier.handle_event(pointer(PointerPhase::Up, second_end.0, second_end.1, 0));
     assert_eq!(applier.selected_text().as_deref(), Some("alpha\nbeta"));
-    assert!(applier.input.pointer_down_target.is_none());
+    assert!(applier.interaction.input.pointer_down_target.is_none());
     applier.prepare_text_selection(&mut placed, &mut tcx);
     for target in [2, 6] {
-        let node = applier.node_store.solid_to_node[&target];
+        let node = applier.document.node_store.solid_to_node[&target];
         assert!(
             !placed
                 .iter()
@@ -675,7 +720,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
         );
     }
 
-    applier.text_selection.last_click = None;
+    applier.interaction.text_selection.last_click = None;
     applier.begin_text_selection(6, second_end.0, second_end.1, Modifiers::empty());
     applier.extend_text_selection(Some(2), first_start.0, first_start.1);
     assert_eq!(applier.selected_text().as_deref(), Some("alpha\nbeta"));
@@ -688,8 +733,8 @@ fn text_selection_crosses_hosts_in_both_directions() {
     });
     applier.inherit();
     let mut placed = layout::compute_and_walk_with_scroll(
-        &mut applier.node_store.tree,
-        applier.node_store.root,
+        &mut applier.document.node_store.tree,
+        applier.document.node_store.root,
         300.0,
         100.0,
         &mut tcx,
@@ -704,17 +749,18 @@ fn text_selection_crosses_hosts_in_both_directions() {
     });
     applier.apply_op(&Op::DropNode { id: 6 });
     let mut placed = layout::compute_and_walk_with_scroll(
-        &mut applier.node_store.tree,
-        applier.node_store.root,
+        &mut applier.document.node_store.tree,
+        applier.document.node_store.root,
         300.0,
         100.0,
         &mut tcx,
         &HashMap::new(),
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    assert!(applier.text_selection.active.is_none());
+    assert!(applier.interaction.text_selection.active.is_none());
     assert!(applier.selected_text().is_none());
     let cleared = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(format!(
@@ -733,7 +779,7 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (div, flex_direction, align_items, height, font_size) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("flex-direction"),
@@ -774,8 +820,8 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
     applier.inherit();
     let mut tcx = TextContext::new();
     let mut placed = layout::compute_and_walk_with_scroll(
-        &mut applier.node_store.tree,
-        applier.node_store.root,
+        &mut applier.document.node_store.tree,
+        applier.document.node_store.root,
         300.0,
         60.0,
         &mut tcx,
@@ -783,8 +829,8 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
 
-    let small = &applier.text_selection.selectable[&2];
-    let big = &applier.text_selection.selectable[&4];
+    let small = &applier.interaction.text_selection.selectable[&2];
+    let big = &applier.interaction.text_selection.selectable[&4];
     assert!((small.origin[1] - big.origin[1]).abs() > 1.0);
     assert!(small.visual_y.start < big.visual_y.end && big.visual_y.start < small.visual_y.end);
     assert!(applier.select_all_text());
@@ -796,7 +842,7 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (div, strong, font_weight, color) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("strong"),
@@ -845,11 +891,12 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
     applier.rebuild_layout_boxes();
     applier.inherit();
 
-    let parent = applier.node_store.solid_to_node[&2];
-    assert_eq!(applier.node_store.tree.child_count(parent), 2);
-    assert!(!applier.node_store.inline_roots.contains(&parent));
+    let parent = applier.document.node_store.solid_to_node[&2];
+    assert_eq!(applier.document.node_store.tree.child_count(parent), 2);
+    assert!(!applier.document.node_store.inline_roots.contains(&parent));
     assert!(
         applier
+            .document
             .node_store
             .tree
             .get_node_context(parent)

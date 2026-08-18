@@ -12,7 +12,7 @@ struct FocusCandidate {
 impl Applier {
     pub(super) fn handle_focused_input(&mut self, input: UiEvent) -> EventResponse {
         if matches!(&input, UiEvent::Key(key) if key.phase == KeyPhase::Down) {
-            self.input.focus_visible = true;
+            self.interaction.use_keyboard_modality();
         }
         if matches!(&input, UiEvent::Key(key) if key.phase == KeyPhase::Down)
             || matches!(
@@ -20,7 +20,7 @@ impl Applier {
                 UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
             )
         {
-            self.text_selection.last_click = None;
+            self.interaction.text_selection.last_click = None;
         }
 
         let keydown_dispatched = match self.dispatch_focused_keydown(&input) {
@@ -29,6 +29,7 @@ impl Applier {
         };
 
         let widget_response = self
+            .interaction
             .input
             .focused_target
             .and_then(|target| self.handle_widget_event(target, &input));
@@ -59,7 +60,7 @@ impl Applier {
         if key.phase != KeyPhase::Down {
             return Ok(false);
         }
-        let Some(target) = self.input.focused_target else {
+        let Some(target) = self.interaction.input.focused_target else {
             return Ok(false);
         };
 
@@ -135,14 +136,14 @@ impl Applier {
         match input {
             UiEvent::Key(key) if key.phase == KeyPhase::Down => keydown_dispatched,
             UiEvent::Key(key) if key.phase == KeyPhase::Up => {
-                self.input.focused_target.is_some_and(|target| {
+                self.interaction.input.focused_target.is_some_and(|target| {
                     let payload = key_event_payload(&key);
                     self.dispatch_json(target, event::KEYUP, &payload)
                 })
             }
             UiEvent::TextInput(text)
             | UiEvent::Ime(wabou_shell::ImeEvent::Commit(text))
-            | UiEvent::Paste(text) => self.input.focused_target.is_some_and(|target| {
+            | UiEvent::Paste(text) => self.interaction.input.focused_target.is_some_and(|target| {
                 let payload = serde_json::json!({ "data": text }).to_string();
                 self.dispatch_json(target, event::IMECOMMIT, &payload)
             }),
@@ -155,7 +156,7 @@ impl Applier {
         let mut changed = if focused {
             false
         } else {
-            self.text_selection.last_click = None;
+            self.interaction.text_selection.last_click = None;
             self.cancel_active_pointer_gesture()
         };
         changed |= self.set_window_focused(focused);
@@ -166,6 +167,7 @@ impl Applier {
             text_input: Some(
                 focused
                     && self
+                        .interaction
                         .input
                         .focused_target
                         .is_some_and(|target| self.is_text_input_target(target)),
@@ -176,7 +178,7 @@ impl Applier {
 
     pub(super) fn rebuild_focus_order(&mut self, placed: &[PlacedNode]) {
         let modal = placed.iter().enumerate().rev().find_map(|(index, placed)| {
-            let declared = self.node_store.declared.get(&placed.node_id)?;
+            let declared = self.document.node_store.declared.get(&placed.node_id)?;
             (placed.paint.overlay_plane == OverlayPlane::Modal && declared.focus_contained)
                 .then_some((index, placed.node_id))
         });
@@ -193,22 +195,24 @@ impl Applier {
         });
         let inside_active_modal = |node| {
             modal.is_none_or(|(_, modal_node)| {
-                self.node_store.is_logical_descendant(node, modal_node)
+                self.document
+                    .node_store
+                    .is_logical_descendant(node, modal_node)
                     || supplemental_modal_roots
                         .iter()
-                        .any(|root| self.node_store.is_logical_descendant(node, *root))
+                        .any(|root| self.document.node_store.is_logical_descendant(node, *root))
             })
         };
         let mut candidates = Vec::new();
         let mut focusable_targets = HashSet::new();
         for (document_order, placed) in placed.iter().enumerate() {
-            if placed.node_id == self.node_store.root
+            if placed.node_id == self.document.node_store.root
                 || !inside_active_modal(placed.node_id)
-                || subtree_blocks_interaction(&self.node_store, placed.node_id)
+                || subtree_blocks_interaction(&self.document.node_store, placed.node_id)
             {
                 continue;
             }
-            let Some(declared) = self.node_store.declared.get(&placed.node_id) else {
+            let Some(declared) = self.document.node_store.declared.get(&placed.node_id) else {
                 continue;
             };
             // JS primitives explicitly author focus participation and order.
@@ -216,7 +220,7 @@ impl Applier {
             let Some(focus_order) = declared.focus_order else {
                 continue;
             };
-            let Some(solid_id) = self.node_store.solid_id_for_node(placed.node_id) else {
+            let Some(solid_id) = self.document.node_store.solid_id_for_node(placed.node_id) else {
                 continue;
             };
             focusable_targets.insert(solid_id);
@@ -235,53 +239,60 @@ impl Applier {
                 candidate.document_order,
             )
         });
-        self.input.focus_order = candidates
+        self.interaction.input.focus_order = candidates
             .into_iter()
             .map(|candidate| candidate.solid_id)
             .collect();
-        self.input.focusable_targets = focusable_targets;
+        self.interaction.input.focusable_targets = focusable_targets;
 
         let focused_is_valid = self
+            .interaction
             .input
             .focused_target
-            .is_none_or(|focused| self.input.focusable_targets.contains(&focused));
+            .is_none_or(|focused| self.interaction.input.focusable_targets.contains(&focused));
         if !focused_is_valid {
-            let fallback = modal.and_then(|_| self.input.focus_order.first().copied());
+            let fallback = modal.and_then(|_| self.interaction.input.focus_order.first().copied());
             self.set_focused_target(fallback);
         }
     }
 
     pub(super) fn pointer_focus_target(&self, target: Option<u32>) -> Option<u32> {
         let mut node =
-            target.and_then(|target| self.node_store.solid_to_node.get(&target).copied());
+            target.and_then(|target| self.document.node_store.solid_to_node.get(&target).copied());
         while let Some(current) = node {
-            if let Some(solid_id) = self.node_store.solid_id_for_node(current)
-                && self.input.focusable_targets.contains(&solid_id)
+            if let Some(solid_id) = self.document.node_store.solid_id_for_node(current)
+                && self.interaction.input.focusable_targets.contains(&solid_id)
             {
                 return Some(solid_id);
             }
-            node = self.node_store.logical_parent.get(&current).copied();
+            node = self
+                .document
+                .node_store
+                .logical_parent
+                .get(&current)
+                .copied();
         }
         None
     }
 
     pub(super) fn advance_focus(&mut self, reverse: bool) -> Option<u32> {
-        if self.input.focus_order.is_empty() {
+        if self.interaction.input.focus_order.is_empty() {
             return None;
         }
-        let current = self.input.focused_target.and_then(|focused| {
-            self.input
+        let current = self.interaction.input.focused_target.and_then(|focused| {
+            self.interaction
+                .input
                 .focus_order
                 .iter()
                 .position(|target| *target == focused)
         });
         let index = match (current, reverse) {
-            (Some(0), true) | (None, true) => self.input.focus_order.len() - 1,
+            (Some(0), true) | (None, true) => self.interaction.input.focus_order.len() - 1,
             (Some(index), true) => index - 1,
-            (Some(index), false) => (index + 1) % self.input.focus_order.len(),
+            (Some(index), false) => (index + 1) % self.interaction.input.focus_order.len(),
             (None, false) => 0,
         };
-        let target = self.input.focus_order[index];
+        let target = self.interaction.input.focus_order[index];
         self.set_focused_target(Some(target));
         Some(target)
     }

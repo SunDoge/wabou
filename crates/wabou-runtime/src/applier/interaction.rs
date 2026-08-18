@@ -7,7 +7,7 @@ impl Applier {
         url: &str,
         result: &crate::asset_cache::RasterAsset,
     ) {
-        let Some(&target) = self.node_store.node_to_solid.get(&node) else {
+        let Some(&target) = self.document.node_store.node_to_solid.get(&node) else {
             return;
         };
         match result {
@@ -28,30 +28,34 @@ impl Applier {
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         let button = pointer.button.unwrap_or(PointerButton::Primary);
-        self.input.pointer_position = (x, y);
-        self.input.pointer_buttons = pointer.buttons;
-        if let Some(drag) = self.scroll.drag.take() {
-            self.scroll.activity.insert(drag.node, Instant::now());
+        self.interaction.input.pointer_position = (x, y);
+        self.interaction.input.pointer_buttons = pointer.buttons;
+        if let Some(drag) = self.interaction.scroll.drag.take() {
+            self.interaction
+                .scroll
+                .activity
+                .insert(drag.node, Instant::now());
             return Self::response(true);
         }
         if button == PointerButton::Primary
-            && let Some((down_x, down_y)) = self.input.pointer_down_position
+            && let Some((down_x, down_y)) = self.interaction.input.pointer_down_position
         {
             let dx = x - down_x;
             let dy = y - down_y;
-            self.input.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+            self.interaction.input.pointer_dragged |=
+                dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
         }
-        let target = self.input.hit_test(x, y);
-        let captured = self.input.pointer_down_target;
+        let target = self.interaction.input.hit_test(x, y);
+        let captured = self.interaction.input.pointer_down_target;
         let mut changed = captured.is_some_and(|captured| {
             self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                 .is_some_and(|response| response.handled || response.request_redraw)
         });
         if button == PointerButton::Primary {
             changed |= self.extend_text_selection(target, x, y);
-            self.text_selection.next_scroll = None;
-            if self.input.pointer_dragged {
-                self.text_selection.last_click = None;
+            self.interaction.text_selection.next_scroll = None;
+            if self.interaction.input.pointer_dragged {
+                self.interaction.text_selection.last_click = None;
             }
         }
         changed |= target.is_some_and(|target| {
@@ -59,25 +63,25 @@ impl Applier {
         });
         if let Some(target) = target
             && button == PointerButton::Primary
-            && !self.input.pointer_dragged
-            && Some(target) == self.input.pointer_down_target
+            && !self.interaction.input.pointer_dragged
+            && Some(target) == self.interaction.input.pointer_down_target
         {
             let mut data = [0.0; event_data::LEN];
-            data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
-            data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
-            let local = self.input.local_position(target, x, y);
+            data[event_data::CLIENT_X as usize] = self.interaction.input.pointer_position.0;
+            data[event_data::CLIENT_Y as usize] = self.interaction.input.pointer_position.1;
+            let local = self.interaction.input.local_position(target, x, y);
             data[event_data::OFFSET_X as usize] = local.0;
             data[event_data::OFFSET_Y as usize] = local.1;
             data[event_data::BUTTON as usize] = Self::web_button(button) as f64;
             data[event_data::BUTTONS as usize] =
-                Self::web_buttons(self.input.pointer_buttons) as f64;
+                Self::web_buttons(self.interaction.input.pointer_buttons) as f64;
             data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
             let (dispatched, _) = self.dispatch_cancellable_numeric(target, event::CLICK, data);
             changed |= dispatched;
         }
-        self.input.pointer_down_target.take();
-        self.input.pointer_down_position = None;
-        self.input.pointer_dragged = false;
+        self.interaction.input.pointer_down_target.take();
+        self.interaction.input.pointer_down_position = None;
+        self.interaction.input.pointer_dragged = false;
         changed |= self.sync_text_selection_change();
         Self::response(changed)
     }
@@ -86,8 +90,11 @@ impl Applier {
         &mut self,
         pointer: wabou_shell::PointerEvent,
     ) -> EventResponse {
-        if let Some(drag) = self.scroll.drag.take() {
-            self.scroll.activity.insert(drag.node, Instant::now());
+        if let Some(drag) = self.interaction.scroll.drag.take() {
+            self.interaction
+                .scroll
+                .activity
+                .insert(drag.node, Instant::now());
             Self::response(true)
         } else {
             Self::response(self.cancel_pointer_gesture(pointer))
@@ -100,13 +107,21 @@ impl Applier {
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
         let button = pointer.button.unwrap_or(PointerButton::Primary);
-        self.input.pointer_position = (x, y);
-        self.input.pointer_buttons = pointer.buttons;
+        self.interaction.input.pointer_position = (x, y);
+        self.interaction.input.pointer_buttons = pointer.buttons;
         if button == PointerButton::Primary
             && let Some((node, target)) = self.scrollbar_at(x, y)
-            && let Some(hit) = self.scroll.hits.iter().find(|hit| hit.node == node)
+            && let Some(hit) = self
+                .interaction
+                .scroll
+                .hits
+                .iter()
+                .find(|hit| hit.node == node)
         {
-            self.scroll.activity.insert(node, Instant::now());
+            self.interaction
+                .scroll
+                .activity
+                .insert(node, Instant::now());
             if target.part != ScrollbarPart::Thumb {
                 let index = usize::from(target.axis == ScrollAxis::Vertical);
                 let viewport = match target.axis {
@@ -118,15 +133,20 @@ impl Applier {
                 } else {
                     1.0
                 };
-                let offset = self.scroll.offsets.entry(node).or_insert([0.0; 2]);
+                let offset = self
+                    .interaction
+                    .scroll
+                    .offsets
+                    .entry(node)
+                    .or_insert([0.0; 2]);
                 offset[index] = (offset[index] + direction * viewport)
                     .clamp(0.0, hit.placed.scroll.range[index]);
                 self.queue_scroll_event(node);
-                self.projections.semantics_dirty = true;
+                self.frame.projections.semantics_dirty = true;
                 return Self::response(true);
             }
             let local = hit.transform.inverse() * Point::new(x, y);
-            self.scroll.drag = Some(ScrollbarDrag {
+            self.interaction.scroll.drag = Some(ScrollbarDrag {
                 node,
                 axis: target.axis,
                 last_position: match target.axis {
@@ -137,14 +157,14 @@ impl Applier {
             return Self::response(true);
         }
 
-        let target = self.input.hit_test(x, y);
-        self.input.pointer_down_target = target;
-        self.input.pointer_down_position = Some((x, y));
-        self.input.pointer_dragged = false;
-        self.input.focus_visible = false;
+        let target = self.interaction.input.hit_test(x, y);
+        self.interaction.input.pointer_down_target = target;
+        self.interaction.input.pointer_down_position = Some((x, y));
+        self.interaction.input.pointer_dragged = false;
+        self.interaction.use_pointer_modality();
         let mut changed = self.set_focused_target(self.pointer_focus_target(target));
         if button == PointerButton::Primary {
-            self.text_selection.next_scroll = None;
+            self.interaction.text_selection.next_scroll = None;
             changed |= target
                 .is_some_and(|target| self.begin_text_selection(target, x, y, pointer.modifiers));
         }
@@ -172,22 +192,28 @@ impl Applier {
         pointer: wabou_shell::PointerEvent,
     ) -> EventResponse {
         let (x, y) = (pointer.position.x, pointer.position.y);
-        self.input.pointer_buttons = pointer.buttons;
-        self.input.pointer_position = (x, y);
+        self.interaction.input.pointer_buttons = pointer.buttons;
+        self.interaction.input.pointer_position = (x, y);
         let hovered_scrollbar = self
             .scrollbar_at(x, y)
             .map(|(node, target)| (node, target.axis))
             .or_else(|| self.scrollbar_edge_at(x, y));
-        let scrollbar_hover_changed = hovered_scrollbar != self.scroll.hovered;
-        let previous_hover = self.scroll.hovered;
-        self.scroll.hovered = hovered_scrollbar;
+        let scrollbar_hover_changed = hovered_scrollbar != self.interaction.scroll.hovered;
+        let previous_hover = self.interaction.scroll.hovered;
+        self.interaction.scroll.hovered = hovered_scrollbar;
         if let Some((node, _)) = hovered_scrollbar {
-            self.scroll.activity.insert(node, Instant::now());
+            self.interaction
+                .scroll
+                .activity
+                .insert(node, Instant::now());
         }
         if scrollbar_hover_changed && let Some((node, _)) = previous_hover {
-            self.scroll.activity.insert(node, Instant::now());
+            self.interaction
+                .scroll
+                .activity
+                .insert(node, Instant::now());
         }
-        if self.scroll.drag.is_some() {
+        if self.interaction.scroll.drag.is_some() {
             let changed = self.drag_scrollbar(x, y);
             return EventResponse {
                 handled: true,
@@ -196,15 +222,16 @@ impl Applier {
             };
         }
         if pointer.buttons & 1 != 0
-            && let Some((down_x, down_y)) = self.input.pointer_down_position
+            && let Some((down_x, down_y)) = self.interaction.input.pointer_down_position
         {
             let dx = x - down_x;
             let dy = y - down_y;
-            self.input.pointer_dragged |= dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
+            self.interaction.input.pointer_dragged |=
+                dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_SQUARED;
         }
-        let target = self.input.hit_test(x, y);
+        let target = self.interaction.input.hit_test(x, y);
         let mut changed = scrollbar_hover_changed;
-        if let Some(captured) = self.input.pointer_down_target
+        if let Some(captured) = self.interaction.input.pointer_down_target
             && let Some(response) = self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
         {
             changed |= response.handled || response.request_redraw;
@@ -213,14 +240,14 @@ impl Applier {
             changed |= self.extend_text_selection(target, x, y);
             self.arm_text_selection_autoscroll();
         }
-        if target != self.input.hovered_target {
-            if let Some(old) = self.input.hovered_target {
+        if target != self.interaction.input.hovered_target {
+            if let Some(old) = self.interaction.input.hovered_target {
                 changed |= self.dispatch_pointer(old, event::POINTERLEAVE, None, pointer.modifiers);
             }
             if let Some(new) = target {
                 changed |= self.dispatch_pointer(new, event::POINTERENTER, None, pointer.modifiers);
             }
-            self.input.hovered_target = target;
+            self.interaction.input.hovered_target = target;
         }
         if let Some(target) = target {
             changed |= self.dispatch_pointer(target, event::POINTERMOVE, None, pointer.modifiers);
@@ -229,20 +256,24 @@ impl Applier {
     }
 
     pub(super) fn handle_wheel_event(&mut self, wheel: wabou_shell::WheelEvent) -> EventResponse {
-        self.input.pointer_position = (wheel.position.x, wheel.position.y);
+        self.interaction.input.pointer_position = (wheel.position.x, wheel.position.y);
         // Wheel events carry their own pointer position. Re-hit-test it even
         // when the cached hover target is still alive: semantic automation,
         // trackpads and virtualized content can move the wheel position
         // without first delivering a pointer-move event.
-        self.input.hovered_target = self
-            .input
-            .hit_test(self.input.pointer_position.0, self.input.pointer_position.1)
-            .or_else(|| {
-                self.input
-                    .hovered_target
-                    .filter(|target| self.node_store.solid_to_node.contains_key(target))
-            });
-        let Some(target) = self.input.hovered_target else {
+        self.interaction.input.hovered_target =
+            self.interaction
+                .input
+                .hit_test(
+                    self.interaction.input.pointer_position.0,
+                    self.interaction.input.pointer_position.1,
+                )
+                .or_else(|| {
+                    self.interaction.input.hovered_target.filter(|target| {
+                        self.document.node_store.solid_to_node.contains_key(target)
+                    })
+                });
+        let Some(target) = self.interaction.input.hovered_target else {
             return EventResponse::IGNORED;
         };
 
@@ -253,12 +284,12 @@ impl Applier {
         }
 
         let mut data = [0.0; event_data::LEN];
-        data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
-        data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
-        let local = self.input.local_position(
+        data[event_data::CLIENT_X as usize] = self.interaction.input.pointer_position.0;
+        data[event_data::CLIENT_Y as usize] = self.interaction.input.pointer_position.1;
+        let local = self.interaction.input.local_position(
             target,
-            self.input.pointer_position.0,
-            self.input.pointer_position.1,
+            self.interaction.input.pointer_position.0,
+            self.interaction.input.pointer_position.1,
         );
         data[event_data::OFFSET_X as usize] = local.0;
         data[event_data::OFFSET_Y as usize] = local.1;
@@ -272,9 +303,9 @@ impl Applier {
     }
 
     pub(super) fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {
-        self.input.hit_items.clear();
-        self.scroll.hits.clear();
-        self.scroll.metrics.clear();
+        self.interaction.input.hit_items.clear();
+        self.interaction.scroll.hits.clear();
+        self.interaction.scroll.metrics.clear();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut transforms = HashMap::with_capacity(placed.len());
         let mut clip_chains: HashMap<NodeId, Vec<HitClip>> = HashMap::with_capacity(placed.len());
@@ -282,10 +313,14 @@ impl Applier {
         let mut scrollbar_hits = HashMap::new();
         for node in placed {
             if node.scroll.range.iter().any(|range| *range > 0.5) {
-                self.scroll.metrics.insert(node.node_id, node.scroll);
+                self.interaction
+                    .scroll
+                    .metrics
+                    .insert(node.node_id, node.scroll);
             }
             let is_non_interactive_leaf = !node.paint.pointer_events
                 && self
+                    .document
                     .node_store
                     .children
                     .get(&node.node_id)
@@ -313,10 +348,11 @@ impl Applier {
                     transform: transforms[&parent],
                 });
             }
-            let interaction_blocked = subtree_blocks_interaction(&self.node_store, node.node_id);
+            let interaction_blocked =
+                subtree_blocks_interaction(&self.document.node_store, node.node_id);
             if node.paint.pointer_events
                 && !interaction_blocked
-                && let Some(&solid_id) = self.node_store.node_to_solid.get(&node.node_id)
+                && let Some(&solid_id) = self.document.node_store.node_to_solid.get(&node.node_id)
             {
                 content_hits.insert(
                     node.node_id,
@@ -338,7 +374,7 @@ impl Applier {
                     placed: node.clone(),
                     transform,
                 };
-                self.scroll.hits.push(hit.clone());
+                self.interaction.scroll.hits.push(hit.clone());
                 if node.scroll.opacity > 0.0 {
                     scrollbar_hits.insert(node.node_id, hit);
                 }
@@ -350,12 +386,15 @@ impl Applier {
             match event {
                 SubtreeEvent::Enter(node) => {
                     if let Some(hit) = content_hits.remove(&node.node_id) {
-                        self.input.hit_items.push(HitItem::Content(hit));
+                        self.interaction.input.hit_items.push(HitItem::Content(hit));
                     }
                 }
                 SubtreeEvent::Exit(node) => {
                     if let Some(hit) = scrollbar_hits.remove(&node.node_id) {
-                        self.input.hit_items.push(HitItem::Scrollbar(Box::new(hit)));
+                        self.interaction
+                            .input
+                            .hit_items
+                            .push(HitItem::Scrollbar(Box::new(hit)));
                     }
                 }
             }
@@ -369,6 +408,7 @@ impl Applier {
     pub(super) fn listener_target_in_chain(&self, mut solid_id: u32, code: u8) -> Option<u32> {
         loop {
             if self
+                .interaction
                 .input
                 .listeners
                 .get(&solid_id)
@@ -376,9 +416,9 @@ impl Applier {
             {
                 return Some(solid_id);
             }
-            let node = self.node_store.solid_to_node.get(&solid_id)?;
-            let parent = self.node_store.tree.parent(*node)?;
-            solid_id = self.node_store.solid_id_for_node(parent)?;
+            let node = self.document.node_store.solid_to_node.get(&solid_id)?;
+            let parent = self.document.node_store.tree.parent(*node)?;
+            solid_id = self.document.node_store.solid_id_for_node(parent)?;
         }
     }
 
@@ -393,17 +433,18 @@ impl Applier {
             return false;
         };
         let mut data = [0.0; event_data::LEN];
-        data[event_data::CLIENT_X as usize] = self.input.pointer_position.0;
-        data[event_data::CLIENT_Y as usize] = self.input.pointer_position.1;
-        let local = self.input.local_position(
+        data[event_data::CLIENT_X as usize] = self.interaction.input.pointer_position.0;
+        data[event_data::CLIENT_Y as usize] = self.interaction.input.pointer_position.1;
+        let local = self.interaction.input.local_position(
             target,
-            self.input.pointer_position.0,
-            self.input.pointer_position.1,
+            self.interaction.input.pointer_position.0,
+            self.interaction.input.pointer_position.1,
         );
         data[event_data::OFFSET_X as usize] = local.0;
         data[event_data::OFFSET_Y as usize] = local.1;
         data[event_data::BUTTON as usize] = button.map_or(0, Self::web_button) as f64;
-        data[event_data::BUTTONS as usize] = Self::web_buttons(self.input.pointer_buttons) as f64;
+        data[event_data::BUTTONS as usize] =
+            Self::web_buttons(self.interaction.input.pointer_buttons) as f64;
         data[event_data::MODS as usize] = modifiers.bits() as f64;
         let event = HostEvent::Node(HostNodeEvent {
             target,
@@ -412,7 +453,7 @@ impl Applier {
             cancellable: false,
             payload: NodeEventPayload::Numeric(data),
         });
-        if let Err(error) = self.js.dispatch_host_frame(&[event]) {
+        if let Err(error) = self.runtime.js.dispatch_host_frame(&[event]) {
             tracing::warn!(?error, target, code, "event dispatch failed");
             return false;
         }
@@ -428,8 +469,13 @@ impl Applier {
         if !self.has_listener_in_chain(target, code) {
             return (false, false);
         }
-        self.input.next_host_event_id = self.input.next_host_event_id.wrapping_add(1).max(1);
-        let event_id = self.input.next_host_event_id;
+        self.interaction.input.next_host_event_id = self
+            .interaction
+            .input
+            .next_host_event_id
+            .wrapping_add(1)
+            .max(1);
+        let event_id = self.interaction.input.next_host_event_id;
         let event = HostEvent::Node(HostNodeEvent {
             target,
             event_code: code,
@@ -437,7 +483,7 @@ impl Applier {
             cancellable: true,
             payload: NodeEventPayload::Numeric(data),
         });
-        match self.js.dispatch_host_frame(&[event]) {
+        match self.runtime.js.dispatch_host_frame(&[event]) {
             Ok(disposition) => (true, disposition.is_prevented(event_id)),
             Err(error) => {
                 tracing::warn!(?error, target, code, "event dispatch failed");
@@ -455,8 +501,13 @@ impl Applier {
         if !self.has_listener_in_chain(target, code) {
             return (false, false);
         }
-        self.input.next_host_event_id = self.input.next_host_event_id.wrapping_add(1).max(1);
-        let event_id = self.input.next_host_event_id;
+        self.interaction.input.next_host_event_id = self
+            .interaction
+            .input
+            .next_host_event_id
+            .wrapping_add(1)
+            .max(1);
+        let event_id = self.interaction.input.next_host_event_id;
         let event = HostEvent::Node(HostNodeEvent {
             target,
             event_code: code,
@@ -464,7 +515,7 @@ impl Applier {
             cancellable: true,
             payload: NodeEventPayload::Json(payload),
         });
-        match self.js.dispatch_host_frame(&[event]) {
+        match self.runtime.js.dispatch_host_frame(&[event]) {
             Ok(disposition) => (true, disposition.is_prevented(event_id)),
             Err(error) => {
                 tracing::warn!(?error, target, code, "event dispatch failed");
@@ -507,7 +558,7 @@ impl Applier {
             cancellable: false,
             payload: NodeEventPayload::Json(payload.to_owned()),
         });
-        if let Err(error) = self.js.dispatch_host_frame(&[event]) {
+        if let Err(error) = self.runtime.js.dispatch_host_frame(&[event]) {
             tracing::warn!(?error, target, code, "event dispatch failed");
             return false;
         }
@@ -515,27 +566,28 @@ impl Applier {
     }
 
     pub(super) fn is_text_input_target(&self, target: u32) -> bool {
-        let Some(&node) = self.node_store.solid_to_node.get(&target) else {
+        let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
             return false;
         };
-        self.widget_manager
+        self.document
+            .widget_manager
             .widgets
             .get(&node)
             .is_some_and(|widget| widget.accepts_text_input())
     }
 
     pub(super) fn set_focused_target(&mut self, target: Option<u32>) -> bool {
-        let old = self.input.focused_target;
+        let old = self.interaction.input.focused_target;
         if old == target {
             return false;
         }
-        self.projections.semantics_dirty = true;
-        self.input.focused_target = target;
+        self.frame.projections.semantics_dirty = true;
+        self.interaction.input.focused_target = target;
         let mut changed = false;
         if let Some(old) = old {
-            if self.input.window_focused
-                && let Some(node) = self.node_store.solid_to_node.get(&old)
-                && let Some(widget) = self.widget_manager.widgets.get_mut(node)
+            if self.interaction.input.window_focused
+                && let Some(node) = self.document.node_store.solid_to_node.get(&old)
+                && let Some(widget) = self.document.widget_manager.widgets.get_mut(node)
             {
                 let changes = widget.focus_changed(false);
                 self.invalidate_widget_changes(changes);
@@ -544,17 +596,14 @@ impl Applier {
             changed |= self.dispatch_json(old, event::FOCUSOUT, "");
         }
         if let Some(new) = target {
-            if self.input.window_focused
-                && let Some(node) = self.node_store.solid_to_node.get(&new)
-                && let Some(widget) = self.widget_manager.widgets.get_mut(node)
+            if self.interaction.input.window_focused
+                && let Some(node) = self.document.node_store.solid_to_node.get(&new)
+                && let Some(widget) = self.document.widget_manager.widgets.get_mut(node)
             {
                 let changes = widget.focus_changed(true);
                 self.invalidate_widget_changes(changes);
             }
-            let payload = serde_json::json!({
-                "focusVisible": self.input.focus_visible,
-            })
-            .to_string();
+            let payload = self.interaction.focus_event_payload();
             changed |= self.dispatch_json(new, event::FOCUS, &payload);
             changed |= self.dispatch_json(new, event::FOCUSIN, &payload);
         }
@@ -562,16 +611,16 @@ impl Applier {
     }
 
     pub(super) fn set_window_focused(&mut self, focused: bool) -> bool {
-        if self.input.window_focused == focused {
+        if self.interaction.input.window_focused == focused {
             return false;
         }
-        self.input.window_focused = focused;
-        let Some(target) = self.input.focused_target else {
+        self.interaction.input.window_focused = focused;
+        let Some(target) = self.interaction.input.focused_target else {
             return false;
         };
         let mut changed = false;
-        if let Some(node) = self.node_store.solid_to_node.get(&target)
-            && let Some(widget) = self.widget_manager.widgets.get_mut(node)
+        if let Some(node) = self.document.node_store.solid_to_node.get(&target)
+            && let Some(widget) = self.document.widget_manager.widgets.get_mut(node)
         {
             let changes = widget.focus_changed(focused);
             self.invalidate_widget_changes(changes);
@@ -581,10 +630,7 @@ impl Applier {
             (
                 event::FOCUS,
                 event::FOCUSIN,
-                serde_json::json!({
-                    "focusVisible": self.input.focus_visible,
-                })
-                .to_string(),
+                self.interaction.focus_event_payload(),
             )
         } else {
             (event::BLUR, event::FOCUSOUT, String::new())

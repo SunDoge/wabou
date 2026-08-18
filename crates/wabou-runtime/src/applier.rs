@@ -319,151 +319,44 @@ const INHERITED_PROPERTIES: &[&str] = &[
     "cursor",
 ];
 
-/// Retained Solid/QuickJS frame source consumed by `wabou-shell`.
-///
-/// The applier owns the JavaScript runtime, decoded node tree, style cascade,
-/// widget instances, input routing, and host projections for one logical
-/// window. Mutation ops are applied only at frame boundaries.
-pub struct Applier {
+/// QuickJS and host-bridge state with one shared cancellation lifetime.
+struct RuntimeSession {
     js: JsRuntime,
-    node_store: NodeStore,
-    style: StyleState,
-    resources: ResourceState,
-    /// Explicit host-driven transform state, independent of the CSS cascade.
-    runtime_transforms: HashMap<NodeId, [f32; 6]>,
-    /// Explicit host stacking planes, independent from CSS cascade/z-index.
-    overlay_planes: HashMap<NodeId, OverlayPlane>,
-    base_color: Color,
-    atoms: Rc<RefCell<AtomPool>>,
-    input: InputRouter,
-    /// Last tick's `has_raf` — gates the continuous-redraw loop.
     has_raf: bool,
-    /// Number of non-empty JS protocol frames applied by this runtime.
     protocol_revision: u64,
     reload: ReloadState,
-    /// Stylesheet pushed through the private host ABI;
-    /// drained in build_frame → replaces `css` + re-resolves every node.
     pending_css: Option<Rc<RefCell<Option<StylesheetUpdate>>>>,
     pending_color_theme: Option<Rc<RefCell<Option<String>>>>,
     pending_color_palette: Option<Rc<RefCell<Option<Vec<u32>>>>>,
-    /// Font file bytes pushed by the typed Host API (via
-    /// `JsRuntime::pending_fonts_handle`); drained in build_frame → registered
-    /// into the shared text `FontContext` (cache cleared).
     pending_fonts: Option<Rc<RefCell<Vec<Vec<u8>>>>>,
-    /// Latest per-frame render-stage timings (EMA), written by
-    /// `push_frame_stats` and read by the Host diagnostics API.
     frame_stats: Option<Rc<RefCell<Option<FrameStats>>>>,
-    projections: FrameProjections,
-    resize_targets: ResizeTargets,
-    /// Main-thread invalidation causes. `INHERIT` gates the O(N) cascade pass,
-    /// while non-inherited animation can request only `LAYOUT`.
-    invalidation: InvalidationFlags,
-    /// EMA of `js.tick()` duration (the QuickJS portion of build_frame),
-    /// folded into the FrameStats pushed to the host overlay.
-    js_tick_ema: f64,
-    #[cfg(feature = "profiling")]
-    profile_class_cache_hits: u64,
-    #[cfg(feature = "profiling")]
-    profile_class_cache_misses: u64,
-    #[cfg(feature = "profiling")]
-    profile_runtime_utility_fallbacks: u64,
-    /// Last frame's logical viewport (width, height) — exposed via
-    /// Host diagnostics so the app can self-size / bounce within bounds.
-    last_viewport: (u32, u32),
-    device_scale: f64,
-    ime_cursor_area: Option<[f64; 4]>,
-    text_selection: TextSelectionState,
-    scroll: ScrollState,
-    widget_manager: WidgetManager,
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
     effect_bridge: EffectBridge,
     wake_callback: Option<WakeCallback>,
-    /// Protocol frames commonly perform many related mutations. Resolve dirty
-    /// styles and project the logical tree into Taffy once at the frame boundary.
-    applying_frame: bool,
-    dirty_styles: HashSet<NodeId>,
-    /// Whether the logical tree inputs consumed by the inline formatting
-    /// projection have changed since the last projection.
-    ifc_dirty: bool,
-    #[cfg(test)]
-    ifc_projection_count: usize,
-    /// Taffy layout and inherited paint are retained across scroll-only frames.
-    layout_viewport: Option<(u32, u32)>,
-    /// Bounded host→JS message inbox. Producers use [`HostMessageHandle`].
     host_message_inbox: HostMessageInbox,
     host_message_handle: HostMessageHandle,
     host_message_cancellation: CancellationToken,
 }
 
-impl Drop for Applier {
+impl Drop for RuntimeSession {
     fn drop(&mut self) {
         self.host_message_cancellation.cancel();
     }
 }
 
-impl Applier {
-    /// Monotonically increasing count of non-empty JS-to-host protocol frames.
-    ///
-    /// Deterministic headless drivers can use this to wait for UI commits
-    /// without inspecting private retained-tree state.
-    pub fn protocol_revision(&self) -> u64 {
-        self.protocol_revision
-    }
-
-    /// Build an applier over an already-booted [`JsRuntime`] (the host owns
-    /// boot: `JsRuntime::new().boot(js)` for the static-bundle path, or
-    /// `JsRuntime::new_vite(url).boot_vite(entry)` for dev mode).
-    pub fn from_runtime(js: JsRuntime, base_color: Color) -> Self {
-        Self::from_runtime_with_factories(js, builtin_factories(), base_color)
-    }
-
-    /// Like `from_runtime` but with a widget factory registry (from `HostBuilder`).
-    pub fn from_runtime_with_factories(
-        js: JsRuntime,
-        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
-        base_color: Color,
-    ) -> Self {
-        Self::from_runtime_with_factories_and_window(js, widget_factories, base_color, 1)
-    }
-
-    /// Build an applier with explicit widget factories and logical window id.
-    pub fn from_runtime_with_factories_and_window(
-        js: JsRuntime,
-        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
-        base_color: Color,
-        window_id: u64,
-    ) -> Self {
+impl RuntimeSession {
+    fn new(js: JsRuntime, window_id: u64) -> Self {
         let pending_css = js.pending_css_handle();
         let pending_color_theme = js.pending_color_theme_handle();
         let pending_color_palette = js.pending_color_palette_handle();
         let pending_fonts = js.pending_fonts_handle();
         let frame_stats = js.frame_stats_handle();
-        let layout_metrics = js.layout_metrics_handle();
-        let atoms = js.atom_pool_handle();
-        let resize_targets = js.resize_targets_handle();
-        // Intern the factory tag strings (from `HostBuilder`'s user-facing
-        // `String` API) into the atom pool so `create_widget` can look up by
-        // the `Atom` carried in `Op::CreateElement` with no per-op allocation.
-        let widget_factories: HashMap<Atom, _> = widget_factories
-            .into_iter()
-            .map(|(k, v)| (atoms.borrow_mut().intern(&k), v))
-            .collect();
-        let (host_message_handle, host_message_inbox) =
-            host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
-        let host_message_cancellation = CancellationToken::new();
-
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
         let effect_bridge = EffectBridge::install(&js, window_id);
+        let (host_message_handle, host_message_inbox) =
+            host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
         Self {
             js,
-            node_store: NodeStore::new(),
-            style: StyleState::default(),
-            resources: ResourceState::default(),
-            runtime_transforms: HashMap::new(),
-            overlay_planes: HashMap::new(),
-            base_color,
-            atoms,
-            input: InputRouter::new(),
             has_raf: true,
             protocol_revision: 0,
             reload: ReloadState::default(),
@@ -472,104 +365,60 @@ impl Applier {
             pending_color_palette: Some(pending_color_palette),
             pending_fonts: Some(pending_fonts),
             frame_stats: Some(frame_stats),
-            projections: FrameProjections::new(layout_metrics),
-            resize_targets,
-            invalidation: InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT,
-            js_tick_ema: 0.0,
-            #[cfg(feature = "profiling")]
-            profile_class_cache_hits: 0,
-            #[cfg(feature = "profiling")]
-            profile_class_cache_misses: 0,
-            #[cfg(feature = "profiling")]
-            profile_runtime_utility_fallbacks: 0,
-            last_viewport: (0, 0),
-            device_scale: 1.0,
-            ime_cursor_area: None,
-            text_selection: TextSelectionState::default(),
-            scroll: ScrollState::default(),
-            widget_manager: WidgetManager::new(widget_factories),
             pending_host_actions,
             effect_bridge,
             wake_callback: None,
+            host_message_inbox,
+            host_message_handle,
+            host_message_cancellation: CancellationToken::new(),
+        }
+    }
+}
+
+struct DocumentState {
+    node_store: NodeStore,
+    style: StyleState,
+    resources: ResourceState,
+    runtime_transforms: HashMap<NodeId, [f32; 6]>,
+    overlay_planes: HashMap<NodeId, OverlayPlane>,
+    base_color: Color,
+    atoms: Rc<RefCell<AtomPool>>,
+    invalidation: InvalidationFlags,
+    widget_manager: WidgetManager,
+    applying_frame: bool,
+    dirty_styles: HashSet<NodeId>,
+    ifc_dirty: bool,
+    #[cfg(test)]
+    ifc_projection_count: usize,
+    layout_viewport: Option<(u32, u32)>,
+}
+
+impl DocumentState {
+    fn new(
+        atoms: Rc<RefCell<AtomPool>>,
+        widget_factories: HashMap<Atom, wabou_shell::WidgetFactory>,
+        base_color: Color,
+    ) -> Self {
+        Self {
+            node_store: NodeStore::new(),
+            style: StyleState::default(),
+            resources: ResourceState::default(),
+            runtime_transforms: HashMap::new(),
+            overlay_planes: HashMap::new(),
+            base_color,
+            atoms,
+            invalidation: InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT,
+            widget_manager: WidgetManager::new(widget_factories),
             applying_frame: false,
             dirty_styles: HashSet::new(),
             ifc_dirty: false,
             #[cfg(test)]
             ifc_projection_count: 0,
             layout_viewport: None,
-            host_message_inbox,
-            host_message_handle,
-            host_message_cancellation,
         }
     }
 
-    /// Boot the application after all Applier-owned host bridges have been
-    /// installed. This ordering permits window APIs during initial render.
-    pub fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
-        self.js.boot(source)
-    }
-
-    pub(crate) fn boot_with_source_map(
-        &mut self,
-        source: &str,
-        source_map: Option<&[u8]>,
-    ) -> rquickjs::Result<()> {
-        self.js.boot_with_source_map(source, source_map)
-    }
-
-    /// Evaluate an additional script in the booted application realm.
-    pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
-        self.js.eval_script(source)
-    }
-
-    #[cfg(feature = "vite")]
-    /// Boots an application entry module through the Vite development loader.
-    ///
-    /// Host bridges must already be installed, just as for [`Self::boot`].
-    pub fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
-        self.js.boot_vite(entry)
-    }
-
-    pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
-        self.effect_bridge.set_trace(trace);
-    }
-
-    /// Publish resolved application-private directories to native effects.
-    pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
-        self.effect_bridge.set_app_directories(directories);
-    }
-
-    pub(crate) fn set_asset_cache(&mut self, cache: Arc<ResourceCache>) {
-        self.resources.set_cache(cache);
-    }
-
-    /// Attach the immutable snapshot store published through DevTools.
-    pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
-        self.js.set_debug_state(state.clone());
-        self.projections.debug_state = Some(state);
-        self.projections.debug_dirty = true;
-    }
-
-    /// Cloneable handle for background tasks / streams to push application
-    /// messages toward JS (`host.subscribe` on the guest side).
-    pub fn host_message_handle(&self) -> HostMessageHandle {
-        self.host_message_handle.clone()
-    }
-
-    pub(crate) fn host_message_context(&self, window_id: u64) -> crate::HostMessageContext {
-        crate::HostMessageContext::new(
-            window_id,
-            self.host_message_handle(),
-            self.host_message_cancellation.clone(),
-            self.js.tokio_handle(),
-        )
-    }
-
-    /// Snapshot the currently resolved style for a Solid node id.
-    ///
-    /// Call this after the relevant op frame/build tick. It performs no style
-    /// recomputation and cannot mutate renderer state.
-    pub fn computed_node_snapshot(&self, solid_id: u32) -> Option<ComputedNodeSnapshot> {
+    fn computed_node_snapshot(&self, solid_id: u32) -> Option<ComputedNodeSnapshot> {
         let &node = self.node_store.solid_to_node.get(&solid_id)?;
         let paint = self.node_store.tree.get_node_context(node)?;
         let declared = self.node_store.declared.get(&node)?;
@@ -610,19 +459,214 @@ impl Applier {
     }
 }
 
+struct InteractionState {
+    input: InputRouter,
+    ime_cursor_area: Option<[f64; 4]>,
+    text_selection: TextSelectionState,
+    scroll: ScrollState,
+}
+
+impl InteractionState {
+    fn new() -> Self {
+        Self {
+            input: InputRouter::new(),
+            ime_cursor_area: None,
+            text_selection: TextSelectionState::default(),
+            scroll: ScrollState::default(),
+        }
+    }
+
+    fn use_pointer_modality(&mut self) {
+        self.input.focus_visible = false;
+    }
+
+    fn use_keyboard_modality(&mut self) {
+        self.input.focus_visible = true;
+    }
+
+    fn focus_event_payload(&self) -> String {
+        serde_json::json!({ "focusVisible": self.input.focus_visible }).to_string()
+    }
+}
+
+struct FrameState {
+    projections: FrameProjections,
+    resize_targets: ResizeTargets,
+    js_tick_ema: f64,
+    #[cfg(feature = "profiling")]
+    profile_class_cache_hits: u64,
+    #[cfg(feature = "profiling")]
+    profile_class_cache_misses: u64,
+    #[cfg(feature = "profiling")]
+    profile_runtime_utility_fallbacks: u64,
+    last_viewport: (u32, u32),
+    device_scale: f64,
+}
+
+impl FrameState {
+    fn new(projections: FrameProjections, resize_targets: ResizeTargets) -> Self {
+        Self {
+            projections,
+            resize_targets,
+            js_tick_ema: 0.0,
+            #[cfg(feature = "profiling")]
+            profile_class_cache_hits: 0,
+            #[cfg(feature = "profiling")]
+            profile_class_cache_misses: 0,
+            #[cfg(feature = "profiling")]
+            profile_runtime_utility_fallbacks: 0,
+            last_viewport: (0, 0),
+            device_scale: 1.0,
+        }
+    }
+}
+
+/// Coordinates one transactional JS protocol consumer and its retained native
+/// document. Subsystems own their state; `Applier` owns frame ordering.
+pub struct Applier {
+    runtime: RuntimeSession,
+    document: DocumentState,
+    interaction: InteractionState,
+    frame: FrameState,
+}
+
+impl Applier {
+    /// Monotonically increasing count of non-empty JS-to-host protocol frames.
+    ///
+    /// Deterministic headless drivers can use this to wait for UI commits
+    /// without inspecting private retained-tree state.
+    pub fn protocol_revision(&self) -> u64 {
+        self.runtime.protocol_revision
+    }
+
+    /// Build an applier over an already-booted [`JsRuntime`] (the host owns
+    /// boot: `JsRuntime::new().boot(js)` for the static-bundle path, or
+    /// `JsRuntime::new_vite(url).boot_vite(entry)` for dev mode).
+    pub fn from_runtime(js: JsRuntime, base_color: Color) -> Self {
+        Self::from_runtime_with_factories(js, builtin_factories(), base_color)
+    }
+
+    /// Like `from_runtime` but with a widget factory registry (from `HostBuilder`).
+    pub fn from_runtime_with_factories(
+        js: JsRuntime,
+        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
+        base_color: Color,
+    ) -> Self {
+        Self::from_runtime_with_factories_and_window(js, widget_factories, base_color, 1)
+    }
+
+    /// Build an applier with explicit widget factories and logical window id.
+    pub fn from_runtime_with_factories_and_window(
+        js: JsRuntime,
+        widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
+        base_color: Color,
+        window_id: u64,
+    ) -> Self {
+        let layout_metrics = js.layout_metrics_handle();
+        let atoms = js.atom_pool_handle();
+        let resize_targets = js.resize_targets_handle();
+        // Intern the factory tag strings (from `HostBuilder`'s user-facing
+        // `String` API) into the atom pool so `create_widget` can look up by
+        // the `Atom` carried in `Op::CreateElement` with no per-op allocation.
+        let widget_factories: HashMap<Atom, _> = widget_factories
+            .into_iter()
+            .map(|(k, v)| (atoms.borrow_mut().intern(&k), v))
+            .collect();
+        Self {
+            runtime: RuntimeSession::new(js, window_id),
+            document: DocumentState::new(atoms, widget_factories, base_color),
+            interaction: InteractionState::new(),
+            frame: FrameState::new(FrameProjections::new(layout_metrics), resize_targets),
+        }
+    }
+
+    /// Boot the application after all Applier-owned host bridges have been
+    /// installed. This ordering permits window APIs during initial render.
+    pub fn boot(&mut self, source: &str) -> rquickjs::Result<()> {
+        self.runtime.js.boot(source)
+    }
+
+    pub(crate) fn boot_with_source_map(
+        &mut self,
+        source: &str,
+        source_map: Option<&[u8]>,
+    ) -> rquickjs::Result<()> {
+        self.runtime.js.boot_with_source_map(source, source_map)
+    }
+
+    /// Evaluate an additional script in the booted application realm.
+    pub fn eval_script(&self, source: &str) -> rquickjs::Result<()> {
+        self.runtime.js.eval_script(source)
+    }
+
+    #[cfg(feature = "vite")]
+    /// Boots an application entry module through the Vite development loader.
+    ///
+    /// Host bridges must already be installed, just as for [`Self::boot`].
+    pub fn boot_vite(&mut self, entry: &str) -> rquickjs::Result<()> {
+        self.runtime.js.boot_vite(entry)
+    }
+
+    pub(crate) fn set_effect_trace(&mut self, trace: crate::effect_trace::EffectTrace) {
+        self.runtime.effect_bridge.set_trace(trace);
+    }
+
+    /// Publish resolved application-private directories to native effects.
+    pub fn set_app_directories(&mut self, directories: wabou_shell::AppDirectories) {
+        self.runtime.effect_bridge.set_app_directories(directories);
+    }
+
+    pub(crate) fn set_asset_cache(&mut self, cache: Arc<ResourceCache>) {
+        self.document.resources.set_cache(cache);
+    }
+
+    /// Attach the immutable snapshot store published through DevTools.
+    pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
+        self.runtime.js.set_debug_state(state.clone());
+        self.frame.projections.debug_state = Some(state);
+        self.frame.projections.debug_dirty = true;
+    }
+
+    /// Cloneable handle for background tasks / streams to push application
+    /// messages toward JS (`host.subscribe` on the guest side).
+    pub fn host_message_handle(&self) -> HostMessageHandle {
+        self.runtime.host_message_handle.clone()
+    }
+
+    pub(crate) fn host_message_context(&self, window_id: u64) -> crate::HostMessageContext {
+        crate::HostMessageContext::new(
+            window_id,
+            self.host_message_handle(),
+            self.runtime.host_message_cancellation.clone(),
+            self.runtime.js.tokio_handle(),
+        )
+    }
+
+    /// Snapshot the currently resolved style for a Solid node id.
+    ///
+    /// Call this after the relevant op frame/build tick. It performs no style
+    /// recomputation and cannot mutate renderer state.
+    pub fn computed_node_snapshot(&self, solid_id: u32) -> Option<ComputedNodeSnapshot> {
+        self.document.computed_node_snapshot(solid_id)
+    }
+}
+
 impl Applier {
     fn cancel_pointer_gesture(&mut self, pointer: wabou_shell::PointerEvent) -> bool {
-        self.input.pointer_position = (pointer.position.x, pointer.position.y);
-        self.input.pointer_buttons = pointer.buttons;
-        self.text_selection.next_scroll = None;
-        if self.input.pointer_down_target.is_some() {
-            self.text_selection.last_click = None;
+        self.interaction.input.pointer_position = (pointer.position.x, pointer.position.y);
+        self.interaction.input.pointer_buttons = pointer.buttons;
+        self.interaction.text_selection.next_scroll = None;
+        if self.interaction.input.pointer_down_target.is_some() {
+            self.interaction.text_selection.last_click = None;
         }
-        let old_active = self.input.pointer_down_target.take();
-        self.input.pointer_down_position = None;
-        self.input.pointer_dragged = false;
-        let target =
-            old_active.or_else(|| self.input.hit_test(pointer.position.x, pointer.position.y));
+        let old_active = self.interaction.input.pointer_down_target.take();
+        self.interaction.input.pointer_down_position = None;
+        self.interaction.input.pointer_dragged = false;
+        let target = old_active.or_else(|| {
+            self.interaction
+                .input
+                .hit_test(pointer.position.x, pointer.position.y)
+        });
         let mut changed = old_active.is_some_and(|captured| {
             self.handle_widget_event(captured, &UiEvent::Pointer(pointer))
                 .is_some_and(|response| response.handled || response.request_redraw)
@@ -640,15 +684,15 @@ impl Applier {
     }
 
     fn cancel_active_pointer_gesture(&mut self) -> bool {
-        if self.input.pointer_down_target.is_none() {
-            self.input.pointer_buttons = 0;
+        if self.interaction.input.pointer_down_target.is_none() {
+            self.interaction.input.pointer_buttons = 0;
             return false;
         }
         self.cancel_pointer_gesture(wabou_shell::PointerEvent {
             phase: PointerPhase::Cancel,
             position: wabou_shell::Point {
-                x: self.input.pointer_position.0,
-                y: self.input.pointer_position.1,
+                x: self.interaction.input.pointer_position.0,
+                y: self.interaction.input.pointer_position.1,
             },
             button: None,
             buttons: 0,

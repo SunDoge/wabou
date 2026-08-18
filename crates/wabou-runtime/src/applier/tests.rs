@@ -48,7 +48,7 @@ fn create_element_with_attrs(applier: &mut Applier, id: u32, tag: Atom, attrs: &
 fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let text = applier.atoms.borrow_mut().intern("text");
+    let text = applier.document.atoms.borrow_mut().intern("text");
     applier.apply_op(&Op::CreateElement { id: 2, tag: text });
     let unconfigured = applier.computed_node_snapshot(2).unwrap();
     assert!(unconfigured.wrap_text);
@@ -64,7 +64,7 @@ fn text_layout_defaults_require_an_explicit_js_contract() {
 fn graphic_sources_are_stored_as_typed_state() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let svg = applier.atoms.borrow_mut().intern("svg");
+    let svg = applier.document.atoms.borrow_mut().intern("svg");
     applier.apply_op(&Op::CreateElement { id: 2, tag: svg });
 
     applier.apply_op(&Op::SetGraphicSource {
@@ -72,9 +72,11 @@ fn graphic_sources_are_stored_as_typed_state() {
         kind: crate::protocol::GRAPHIC_SOURCE_SVG,
         source: "<svg viewBox='0 0 1 1'/>",
     });
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     assert_eq!(
-        applier.node_store.declared[&node].svg_source.as_deref(),
+        applier.document.node_store.declared[&node]
+            .svg_source
+            .as_deref(),
         Some("<svg viewBox='0 0 1 1'/>")
     );
 
@@ -82,14 +84,18 @@ fn graphic_sources_are_stored_as_typed_state() {
         id: 2,
         kind: crate::protocol::GRAPHIC_SOURCE_SVG,
     });
-    assert!(applier.node_store.declared[&node].svg_source.is_none());
+    assert!(
+        applier.document.node_store.declared[&node]
+            .svg_source
+            .is_none()
+    );
 }
 
 #[test]
 fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let view = applier.atoms.borrow_mut().intern("view");
+    let view = applier.document.atoms.borrow_mut().intern("view");
     let mut ops = Vec::with_capacity(8192);
     for id in 2..=4097 {
         ops.push(Op::CreateElement { id, tag: view });
@@ -102,19 +108,20 @@ fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
     applier.apply_frame(&Frame { seq: 1, ops });
 
     assert_eq!(
-        applier.node_store.children[&applier.node_store.root].len(),
+        applier.document.node_store.children[&applier.document.node_store.root].len(),
         4096
     );
     assert_eq!(
         applier
+            .document
             .node_store
             .tree
-            .children(applier.node_store.root)
+            .children(applier.document.node_store.root)
             .unwrap()
             .len(),
         4096
     );
-    assert_eq!(applier.ifc_projection_count, 1);
+    assert_eq!(applier.document.ifc_projection_count, 1);
 
     applier.apply_frame(&Frame {
         seq: 2,
@@ -123,15 +130,15 @@ fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
             matrix: [1.0, 0.0, 0.0, 1.0, 8.0, 4.0],
         }],
     });
-    assert_eq!(applier.ifc_projection_count, 1);
+    assert_eq!(applier.document.ifc_projection_count, 1);
 
     applier.apply_frame(&Frame {
         seq: 3,
         ops: Vec::new(),
     });
-    assert_eq!(applier.ifc_projection_count, 1);
+    assert_eq!(applier.document.ifc_projection_count, 1);
 
-    let display = applier.atoms.borrow_mut().intern("display");
+    let display = applier.document.atoms.borrow_mut().intern("display");
     applier.apply_frame(&Frame {
         seq: 4,
         ops: vec![Op::SetStyle {
@@ -140,7 +147,7 @@ fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
             value: "none",
         }],
     });
-    assert_eq!(applier.ifc_projection_count, 2);
+    assert_eq!(applier.document.ifc_projection_count, 2);
 }
 
 #[test]
@@ -421,19 +428,20 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::AddEventListener {
         id: 2,
         event_type: event::KEYDOWN,
     });
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     let received = Arc::new(std::sync::Mutex::new(0));
     applier
+        .document
         .widget_manager
         .widgets
         .insert(node, Box::new(KeyCaptureWidget(received.clone())));
-    applier.input.focused_target = Some(2);
+    applier.interaction.input.focused_target = Some(2);
 
     let response = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
@@ -456,6 +464,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
     assert_eq!(*received.lock().unwrap(), 0);
 
     applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<(), _>(
@@ -490,15 +499,15 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
 fn imperative_focus_uses_the_same_host_focus_state_as_pointer_input() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
 
     applier.apply_op(&Op::FocusNode { id: 2 });
-    assert_eq!(applier.input.focused_target, Some(2));
+    assert_eq!(applier.interaction.input.focused_target, Some(2));
 
     applier.apply_op(&Op::FocusNode { id: 999 });
     assert_eq!(
-        applier.input.focused_target,
+        applier.interaction.input.focused_target,
         Some(2),
         "a stale JS handle must not clear valid native focus"
     );
@@ -515,14 +524,15 @@ fn widget_measurements_refresh_intrinsic_layout_before_paint() {
     })
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::AppendChild {
         parent: 1,
         child: 2,
     });
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     applier
+        .document
         .widget_manager
         .widgets
         .insert(node, Box::new(MeasuringWidget([123.0, 45.0])));
@@ -538,7 +548,12 @@ fn widget_measurements_refresh_intrinsic_layout_before_paint() {
         applier.computed_node_snapshot(2).unwrap().intrinsic_size,
         Some([123.0, 45.0])
     );
-    assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
+    assert!(
+        applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
 }
 
 #[test]
@@ -553,9 +568,9 @@ fn widget_mount_and_visibility_are_delivered_before_first_paint() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
-    let widget_tag = applier.atoms.borrow_mut().intern("input");
+    let widget_tag = applier.document.atoms.borrow_mut().intern("input");
     let factory_calls = calls.clone();
-    applier.widget_manager.factories.insert(
+    applier.document.widget_manager.factories.insert(
         widget_tag,
         Arc::new(move || Box::new(VisibilityLifecycleWidget(factory_calls.clone()))),
     );
@@ -573,7 +588,7 @@ fn widget_mount_and_visibility_are_delivered_before_first_paint() {
     assert!(
         placed
             .iter()
-            .any(|node| node.node_id == applier.node_store.solid_to_node[&2])
+            .any(|node| node.node_id == applier.document.node_store.solid_to_node[&2])
     );
 
     assert_eq!(*calls.lock().unwrap(), ["mount", "visible", "paint"]);
@@ -584,8 +599,8 @@ fn widget_styles_are_delivered_once_before_measurement() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let calls = Arc::new(std::sync::Mutex::new(Vec::new()));
-    applier.widget_manager.widgets.insert(
-        applier.node_store.root,
+    applier.document.widget_manager.widgets.insert(
+        applier.document.node_store.root,
         Box::new(StyleAwareMeasuringWidget(calls.clone())),
     );
 
@@ -597,16 +612,18 @@ fn widget_styles_are_delivered_once_before_measurement() {
     assert_eq!(*calls.lock().unwrap(), ["style", "measure"]);
 
     let mut paint = applier
+        .document
         .node_store
         .tree
-        .get_node_context(applier.node_store.root)
+        .get_node_context(applier.document.node_store.root)
         .unwrap()
         .clone();
     paint.font_size += 1.0;
     applier
+        .document
         .node_store
         .tree
-        .set_node_context(applier.node_store.root, Some(paint))
+        .set_node_context(applier.document.node_store.root, Some(paint))
         .unwrap();
     applier.sync_widget_styles();
 
@@ -618,12 +635,12 @@ fn wheel_routing_preserves_pointer_position_for_widgets() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let received = Arc::new(std::sync::Mutex::new(Vec::new()));
-    applier.widget_manager.widgets.insert(
-        applier.node_store.root,
+    applier.document.widget_manager.widgets.insert(
+        applier.document.node_store.root,
         Box::new(WheelCaptureWidget(received.clone())),
     );
-    applier.input.hovered_target = Some(1);
-    applier.input.pointer_position = (42.0, 73.0);
+    applier.interaction.input.hovered_target = Some(1);
+    applier.interaction.input.pointer_position = (42.0, 73.0);
 
     let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
         position: Point { x: 42.0, y: 73.0 },
@@ -660,7 +677,7 @@ fn event_mask_is_compact_and_preserves_protocol_codes() {
 fn pointer_dispatch_resolves_a_listener_on_the_native_parent_chain() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::CreateText {
         id: 3,
@@ -691,32 +708,35 @@ fn native_scroll_observations_coalesce_by_target() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     applier
+        .interaction
         .input
         .listeners
         .entry(1)
         .or_default()
         .insert(event::SCROLL);
     applier
+        .interaction
         .scroll
         .offsets
-        .insert(applier.node_store.root, [0.0, 12.0]);
-    applier.queue_scroll_event(applier.node_store.root);
+        .insert(applier.document.node_store.root, [0.0, 12.0]);
+    applier.queue_scroll_event(applier.document.node_store.root);
     applier
+        .interaction
         .scroll
         .offsets
-        .insert(applier.node_store.root, [0.0, 48.0]);
-    applier.queue_scroll_event(applier.node_store.root);
+        .insert(applier.document.node_store.root, [0.0, 48.0]);
+    applier.queue_scroll_event(applier.document.node_store.root);
 
-    assert_eq!(applier.scroll.pending_events.len(), 1);
-    assert_eq!(applier.scroll.pending_events[&1], [0.0, 48.0]);
+    assert_eq!(applier.interaction.scroll.pending_events.len(), 1);
+    assert_eq!(applier.interaction.scroll.pending_events[&1], [0.0, 48.0]);
 }
 
 #[test]
 fn widget_host_actions_reach_the_frame_source() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    applier.widget_manager.widgets.insert(
-        applier.node_store.root,
+    applier.document.widget_manager.widgets.insert(
+        applier.document.node_store.root,
         Box::new(HostActionWidget(Some(
             wabou_shell::HostAction::SetWindowTitle(Some("terminal".into())),
         ))),
@@ -739,8 +759,8 @@ fn asynchronous_widget_events_are_routed_to_the_owning_solid_node() {
         id: 2,
         event_type: event::TERMINALEXIT,
     });
-    let node = applier.node_store.solid_to_node[&2];
-    applier.widget_manager.widgets.insert(
+    let node = applier.document.node_store.solid_to_node[&2];
+    applier.document.widget_manager.widgets.insert(
         node,
         Box::new(NodeEventWidget(Some(crate::widget::WidgetNodeEvent::json(
             event::TERMINALEXIT,
@@ -750,6 +770,7 @@ fn asynchronous_widget_events_are_routed_to_the_owning_solid_node() {
 
     assert!(FrameSource::poll_async(&mut applier));
     let dispatched = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(
@@ -767,8 +788,8 @@ fn asynchronous_widget_events_are_routed_to_the_owning_solid_node() {
 fn widget_event_host_actions_are_available_without_an_async_poll() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    applier.widget_manager.widgets.insert(
-        applier.node_store.root,
+    applier.document.widget_manager.widgets.insert(
+        applier.document.node_store.root,
         Box::new(EventHostActionWidget(Some(
             wabou_shell::HostAction::OpenUrl("https://example.com".into()),
         ))),
@@ -790,10 +811,11 @@ fn widget_event_host_actions_are_available_without_an_async_poll() {
 fn dropping_a_widget_drains_unmount_host_actions_before_routing_is_removed() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     applier
+        .document
         .widget_manager
         .widgets
         .insert(node, Box::new(UnmountActionWidget(None)));
@@ -804,25 +826,26 @@ fn dropping_a_widget_drains_unmount_host_actions_before_routing_is_removed() {
         FrameSource::take_host_action(&mut applier),
         Some(wabou_shell::HostAction::SetWindowTitle(None))
     );
-    assert!(!applier.widget_manager.widgets.contains_key(&node));
+    assert!(!applier.document.widget_manager.widgets.contains_key(&node));
 }
 
 #[test]
 fn dropping_a_focused_captured_widget_releases_input_before_unmount() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
     applier
+        .document
         .widget_manager
         .widgets
         .insert(node, Box::new(LifecycleWidget(lifecycle.clone())));
-    applier.input.focused_target = Some(2);
-    applier.input.pointer_down_target = Some(2);
-    applier.input.pointer_down_position = Some((10.0, 20.0));
-    applier.input.pointer_dragged = true;
+    applier.interaction.input.focused_target = Some(2);
+    applier.interaction.input.pointer_down_target = Some(2);
+    applier.interaction.input.pointer_down_position = Some((10.0, 20.0));
+    applier.interaction.input.pointer_dragged = true;
 
     applier.apply_op(&Op::DropNode { id: 2 });
 
@@ -830,43 +853,44 @@ fn dropping_a_focused_captured_widget_releases_input_before_unmount() {
         *lifecycle.lock().unwrap(),
         ["pointer-cancel", "focus-out", "unmount"]
     );
-    assert_eq!(applier.input.focused_target, None);
-    assert_eq!(applier.input.pointer_down_target, None);
-    assert_eq!(applier.input.pointer_down_position, None);
-    assert!(!applier.input.pointer_dragged);
+    assert_eq!(applier.interaction.input.focused_target, None);
+    assert_eq!(applier.interaction.input.pointer_down_target, None);
+    assert_eq!(applier.interaction.input.pointer_down_position, None);
+    assert!(!applier.interaction.input.pointer_dragged);
 }
 
 #[test]
 fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
     applier
+        .document
         .widget_manager
         .widgets
         .insert(node, Box::new(LifecycleWidget(lifecycle.clone())));
-    applier.input.focused_target = Some(2);
-    applier.input.pointer_down_target = Some(2);
-    applier.input.pointer_down_position = Some((10.0, 20.0));
-    applier.input.pointer_position = (15.0, 25.0);
-    applier.input.pointer_buttons = 1;
-    applier.input.pointer_dragged = true;
-    applier.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
+    applier.interaction.input.focused_target = Some(2);
+    applier.interaction.input.pointer_down_target = Some(2);
+    applier.interaction.input.pointer_down_position = Some((10.0, 20.0));
+    applier.interaction.input.pointer_position = (15.0, 25.0);
+    applier.interaction.input.pointer_buttons = 1;
+    applier.interaction.input.pointer_dragged = true;
+    applier.interaction.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
 
     let blurred = applier.handle_event(UiEvent::Focus(false));
 
     assert_eq!(*lifecycle.lock().unwrap(), ["pointer-cancel", "focus-out"]);
     assert_eq!(blurred.text_input, Some(false));
-    assert_eq!(applier.input.focused_target, Some(2));
-    assert!(!applier.input.window_focused);
-    assert_eq!(applier.input.pointer_down_target, None);
-    assert_eq!(applier.input.pointer_down_position, None);
-    assert_eq!(applier.input.pointer_buttons, 0);
-    assert!(!applier.input.pointer_dragged);
-    assert!(applier.text_selection.last_click.is_none());
+    assert_eq!(applier.interaction.input.focused_target, Some(2));
+    assert!(!applier.interaction.input.window_focused);
+    assert_eq!(applier.interaction.input.pointer_down_target, None);
+    assert_eq!(applier.interaction.input.pointer_down_position, None);
+    assert_eq!(applier.interaction.input.pointer_buttons, 0);
+    assert!(!applier.interaction.input.pointer_dragged);
+    assert!(applier.interaction.text_selection.last_click.is_none());
 
     let focused = applier.handle_event(UiEvent::Focus(true));
     assert_eq!(focused.text_input, Some(false));
@@ -874,13 +898,13 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
         *lifecycle.lock().unwrap(),
         ["pointer-cancel", "focus-out", "focus-in"]
     );
-    assert_eq!(applier.input.focused_target, Some(2));
-    assert!(applier.input.window_focused);
+    assert_eq!(applier.interaction.input.focused_target, Some(2));
+    assert!(applier.interaction.input.window_focused);
 
-    applier.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
+    applier.interaction.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
     applier.handle_event(UiEvent::TextInput("x".into()));
     assert!(
-        applier.text_selection.last_click.is_none(),
+        applier.interaction.text_selection.last_click.is_none(),
         "text input must break a native text multi-click sequence"
     );
 }
@@ -889,19 +913,19 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
 fn clipboard_read_completions_route_to_the_requesting_widget() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let second_node = applier.node_store.solid_to_node[&2];
+    let second_node = applier.document.node_store.solid_to_node[&2];
     let first_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let second_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
-    applier.widget_manager.widgets.insert(
-        applier.node_store.root,
+    applier.document.widget_manager.widgets.insert(
+        applier.document.node_store.root,
         Box::new(ClipboardReadWidget {
             action: Some(wabou_shell::HostAction::ReadClipboard { request_id: 7 }),
             completed: first_completed.clone(),
         }),
     );
-    applier.widget_manager.widgets.insert(
+    applier.document.widget_manager.widgets.insert(
         second_node,
         Box::new(ClipboardReadWidget {
             action: Some(wabou_shell::HostAction::ReadClipboard { request_id: 7 }),
@@ -919,8 +943,8 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     assert_eq!(requests.len(), 2);
     assert_ne!(requests[0], requests[1]);
     for request_id in requests.into_iter().rev() {
-        let (node, _) = applier.widget_manager.host_action_routes[&request_id];
-        let text = if node == applier.node_store.root {
+        let (node, _) = applier.document.widget_manager.host_action_routes[&request_id];
+        let text = if node == applier.document.node_store.root {
             "first"
         } else {
             "second"
@@ -1015,7 +1039,7 @@ fn interactive_applier() -> Applier {
 
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (button, width, height) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("button"),
             atoms.intern("width"),
@@ -1044,23 +1068,26 @@ fn interactive_applier() -> Applier {
         });
     }
     let mut root_style = applier
+        .document
         .node_store
         .tree
-        .style(applier.node_store.root)
+        .style(applier.document.node_store.root)
         .expect("root style")
         .clone();
     root_style.size.width = taffy::Dimension::length(800.0);
     root_style.size.height = taffy::Dimension::length(600.0);
     applier
+        .document
         .node_store
         .tree
-        .set_style(applier.node_store.root, root_style)
+        .set_style(applier.document.node_store.root, root_style)
         .expect("viewport style");
     applier
+        .document
         .node_store
         .tree
         .compute_layout(
-            applier.node_store.root,
+            applier.document.node_store.root,
             taffy::geometry::Size {
                 width: taffy::AvailableSpace::Definite(800.0),
                 height: taffy::AvailableSpace::Definite(600.0),
@@ -1068,9 +1095,9 @@ fn interactive_applier() -> Applier {
         )
         .expect("layout");
     let mut placed = layout::flatten_with_scroll(
-        &applier.node_store.tree,
-        applier.node_store.root,
-        &applier.scroll.offsets,
+        &applier.document.node_store.tree,
+        applier.document.node_store.root,
+        &applier.interaction.scroll.offsets,
     );
     applier.update_scrollbar_visuals(&mut placed);
     applier.rebuild_hit_geometry(&placed);
@@ -1089,7 +1116,7 @@ fn focus_order_is_explicit_without_inferring_disabled_policy() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (button, disabled, width, height) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("button"),
             atoms.intern("disabled"),
@@ -1128,9 +1155,9 @@ fn focus_order_is_explicit_without_inferring_disabled_policy() {
     let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
     assert!(placed.len() >= 6, "placed node count: {}", placed.len());
 
-    assert_eq!(applier.input.focus_order, [5, 3, 2]);
-    assert!(applier.input.focusable_targets.contains(&4));
-    assert!(applier.input.focusable_targets.contains(&6));
+    assert_eq!(applier.interaction.input.focus_order, [5, 3, 2]);
+    assert!(applier.interaction.input.focusable_targets.contains(&4));
+    assert!(applier.interaction.input.focusable_targets.contains(&6));
     assert_eq!(applier.advance_focus(false), Some(5));
     assert_eq!(applier.advance_focus(false), Some(3));
     assert_eq!(applier.advance_focus(true), Some(5));
@@ -1148,7 +1175,7 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (view, button, role, disabled, aria_disabled, aria_hidden, width, height) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
@@ -1209,12 +1236,12 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
     let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
     applier.rebuild_semantic_snapshot(&placed);
 
-    assert_eq!(applier.input.focus_order, [3, 4]);
-    assert!(!applier.input.focusable_targets.contains(&2));
-    assert!(applier.input.focusable_targets.contains(&3));
-    assert!(applier.input.focusable_targets.contains(&4));
-    assert!(applier.input.focusable_targets.contains(&5));
-    let semantic = &applier.projections.semantic_snapshot.nodes;
+    assert_eq!(applier.interaction.input.focus_order, [3, 4]);
+    assert!(!applier.interaction.input.focusable_targets.contains(&2));
+    assert!(applier.interaction.input.focusable_targets.contains(&3));
+    assert!(applier.interaction.input.focusable_targets.contains(&4));
+    assert!(applier.interaction.input.focusable_targets.contains(&5));
+    let semantic = &applier.frame.projections.semantic_snapshot.nodes;
     assert!(semantic.iter().find(|node| node.id == 3).unwrap().disabled);
     assert!(!semantic.iter().find(|node| node.id == 5).unwrap().disabled);
 }
@@ -1224,7 +1251,7 @@ fn interaction_blocking_isolates_an_entire_subtree() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (view, button, aria_hidden, width, height) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
@@ -1258,23 +1285,26 @@ fn interaction_blocking_isolates_an_entire_subtree() {
     });
     applier.rebuild_layout_boxes();
     let mut root_style = applier
+        .document
         .node_store
         .tree
-        .style(applier.node_store.root)
+        .style(applier.document.node_store.root)
         .unwrap()
         .clone();
     root_style.size.width = taffy::Dimension::length(200.0);
     root_style.size.height = taffy::Dimension::length(200.0);
     applier
+        .document
         .node_store
         .tree
-        .set_style(applier.node_store.root, root_style)
+        .set_style(applier.document.node_store.root, root_style)
         .unwrap();
     applier
+        .document
         .node_store
         .tree
         .compute_layout(
-            applier.node_store.root,
+            applier.document.node_store.root,
             taffy::geometry::Size {
                 width: taffy::AvailableSpace::Definite(200.0),
                 height: taffy::AvailableSpace::Definite(200.0),
@@ -1282,18 +1312,19 @@ fn interaction_blocking_isolates_an_entire_subtree() {
         )
         .unwrap();
     let placed = layout::flatten_with_scroll(
-        &applier.node_store.tree,
-        applier.node_store.root,
-        &applier.scroll.offsets,
+        &applier.document.node_store.tree,
+        applier.document.node_store.root,
+        &applier.interaction.scroll.offsets,
     );
 
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
-    assert_eq!(applier.input.hit_test(10.0, 10.0), Some(3));
-    assert_eq!(applier.input.focus_order, [3]);
+    assert_eq!(applier.interaction.input.hit_test(10.0, 10.0), Some(3));
+    assert_eq!(applier.interaction.input.focus_order, [3]);
     assert!(
         applier
+            .frame
             .projections
             .semantic_snapshot
             .nodes
@@ -1305,10 +1336,11 @@ fn interaction_blocking_isolates_an_entire_subtree() {
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
-    assert_eq!(applier.input.hit_test(10.0, 10.0), Some(1));
-    assert!(applier.input.focus_order.is_empty());
+    assert_eq!(applier.interaction.input.hit_test(10.0, 10.0), Some(1));
+    assert!(applier.interaction.input.focus_order.is_empty());
     assert!(
         applier
+            .frame
             .projections
             .semantic_snapshot
             .nodes
@@ -1327,10 +1359,11 @@ fn interaction_blocking_isolates_an_entire_subtree() {
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
-    assert_eq!(applier.input.hit_test(10.0, 10.0), Some(3));
-    assert_eq!(applier.input.focus_order, [3]);
+    assert_eq!(applier.interaction.input.hit_test(10.0, 10.0), Some(3));
+    assert_eq!(applier.interaction.input.focus_order, [3]);
     assert!(
         applier
+            .frame
             .projections
             .semantic_snapshot
             .nodes
@@ -1343,16 +1376,17 @@ fn interaction_blocking_isolates_an_entire_subtree() {
 fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&2];
     let received = Arc::new(std::sync::Mutex::new(0));
     applier
+        .document
         .widget_manager
         .widgets
         .insert(node, Box::new(KeyCaptureWidget(received.clone())));
-    applier.input.focused_target = Some(2);
-    applier.input.focus_order = vec![2, 3];
+    applier.interaction.input.focused_target = Some(2);
+    applier.interaction.input.focus_order = vec![2, 3];
 
     let response = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
@@ -1367,7 +1401,7 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     }));
 
     assert!(response.handled);
-    assert_eq!(applier.input.focused_target, Some(2));
+    assert_eq!(applier.interaction.input.focused_target, Some(2));
     assert_eq!(*received.lock().unwrap(), 1);
 }
 

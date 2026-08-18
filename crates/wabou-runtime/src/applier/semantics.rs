@@ -153,16 +153,22 @@ fn semantic_focus(
     modal_root: Option<u64>,
     modal_node: Option<NodeId>,
 ) -> Option<u64> {
-    let focused = applier.input.focused_target.map(u64::from);
+    let focused = applier.interaction.input.focused_target.map(u64::from);
     let (Some(modal), Some(modal_node)) = (modal_root, modal_node) else {
         return focused;
     };
     let inside_modal = |solid: u64| {
         applier
+            .document
             .node_store
             .solid_to_node
             .get(&(solid as u32))
-            .is_some_and(|node| applier.node_store.is_logical_descendant(*node, modal_node))
+            .is_some_and(|node| {
+                applier
+                    .document
+                    .node_store
+                    .is_logical_descendant(*node, modal_node)
+            })
     };
     focused
         .filter(|focused| inside_modal(*focused))
@@ -238,8 +244,9 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .iter()
         .map(|placed| (placed.node_id, placed))
         .collect::<HashMap<_, _>>();
-    let atoms = applier.atoms.borrow();
+    let atoms = applier.document.atoms.borrow();
     let semantic_transforms: HashMap<_, _> = applier
+        .interaction
         .input
         .hit_items
         .iter()
@@ -251,9 +258,9 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     let hidden: HashSet<_> = placed
         .iter()
         .filter(|node| {
-            subtree_blocks_interaction(&applier.node_store, node.node_id)
+            subtree_blocks_interaction(&applier.document.node_store, node.node_id)
                 || subtree_has_attribute(
-                    &applier.node_store,
+                    &applier.document.node_store,
                     &atoms,
                     node.node_id,
                     "aria-hidden",
@@ -263,6 +270,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         .map(|node| node.node_id)
         .collect();
     let presentational = applier
+        .document
         .node_store
         .declared
         .iter()
@@ -281,6 +289,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             !hidden.contains(&node.node_id)
                 && node.paint.overlay_plane == OverlayPlane::Modal
                 && applier
+                    .document
                     .node_store
                     .declared
                     .get(&node.node_id)
@@ -297,12 +306,13 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             if hidden.contains(&node.node_id)
                 || presentational.contains(&node.node_id)
                 || !applier
+                    .document
                     .node_store
                     .is_logical_descendant(node.node_id, container)
             {
                 return None;
             }
-            let declared = applier.node_store.declared.get(&node.node_id)?;
+            let declared = applier.document.node_store.declared.get(&node.node_id)?;
             matches!(
                 declared.attribute(&atoms, "role").as_deref(),
                 Some("dialog")
@@ -311,22 +321,26 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         })
     });
     let modal_root = modal_node
-        .and_then(|node| applier.node_store.solid_id_for_node(node))
+        .and_then(|node| applier.document.node_store.solid_id_for_node(node))
         .map(u64::from);
-    let source_order =
-        semantic_source_order(&applier.node_store, &present, &hidden, &presentational);
+    let source_order = semantic_source_order(
+        &applier.document.node_store,
+        &present,
+        &hidden,
+        &presentational,
+    );
     // Authored semantic IDs are strings while the accessibility tree uses
     // stable Solid node ids. Resolve only currently exposed targets, and use
     // the first source-order occurrence when invalid duplicate IDs exist.
     let mut semantic_ids = HashMap::<Arc<str>, u64>::new();
     for node_id in &source_order {
-        let Some(declared) = applier.node_store.declared.get(node_id) else {
+        let Some(declared) = applier.document.node_store.declared.get(node_id) else {
             continue;
         };
         let Some(id) = declared.attribute(&atoms, "id") else {
             continue;
         };
-        let Some(solid) = applier.node_store.node_to_solid.get(node_id) else {
+        let Some(solid) = applier.document.node_store.node_to_solid.get(node_id) else {
             continue;
         };
         semantic_ids.entry(id).or_insert_with(|| u64::from(*solid));
@@ -336,13 +350,24 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let Some(placed_node) = placed_by_node.get(&node_id).copied() else {
             continue;
         };
-        let Some(&solid_id) = applier.node_store.node_to_solid.get(&placed_node.node_id) else {
+        let Some(&solid_id) = applier
+            .document
+            .node_store
+            .node_to_solid
+            .get(&placed_node.node_id)
+        else {
             continue;
         };
-        let Some(declared) = applier.node_store.declared.get(&placed_node.node_id) else {
+        let Some(declared) = applier
+            .document
+            .node_store
+            .declared
+            .get(&placed_node.node_id)
+        else {
             continue;
         };
         let widget_semantics = applier
+            .document
             .widget_manager
             .widgets
             .get(&placed_node.node_id)
@@ -368,7 +393,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
                 .filter(|value| value.is_finite())
         };
         let children = semantic_children(
-            &applier.node_store,
+            &applier.document.node_store,
             placed_node.node_id,
             &present,
             &hidden,
@@ -419,15 +444,16 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
     }
     infer_descendant_labels(&mut nodes);
     let root_children = semantic_children(
-        &applier.node_store,
-        applier.node_store.root,
+        &applier.document.node_store,
+        applier.document.node_store.root,
         &present,
         &hidden,
         &presentational,
     );
     let focus = semantic_focus(applier, modal_root, modal_node);
-    applier.projections.semantic_snapshot = Arc::new(SemanticSnapshot {
+    applier.frame.projections.semantic_snapshot = Arc::new(SemanticSnapshot {
         revision: applier
+            .frame
             .projections
             .semantic_snapshot
             .revision

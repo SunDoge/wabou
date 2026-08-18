@@ -37,14 +37,15 @@ fn idle_runtime() -> JsRuntime {
 }
 
 fn queue_stylesheet(applier: &Applier, rules: Vec<crate::style_ir::StyleRule>) {
-    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(sheet(rules)));
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() =
+        Some(StylesheetUpdate::Ir(sheet(rules)));
 }
 
 #[test]
 fn repeated_inline_updates_reuse_property_metadata() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, width) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("width"))
     };
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
@@ -56,8 +57,8 @@ fn repeated_inline_updates_reuse_property_metadata() {
         });
     }
 
-    assert_eq!(applier.style.inline_properties.len(), 1);
-    let property = &applier.style.inline_properties[&width];
+    assert_eq!(applier.document.style.inline_properties.len(), 1);
+    let property = &applier.document.style.inline_properties[&width];
     assert_eq!(&*property.name, "width");
     assert!(!property.inherited);
 }
@@ -66,7 +67,7 @@ fn repeated_inline_updates_reuse_property_metadata() {
 fn class_cascade_resolves_into_computed_snapshot() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, card) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("card"))
     };
     applier.apply_frame(&Frame {
@@ -119,7 +120,7 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
 
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, surface) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("bg-surface"))
     };
     applier.apply_frame(&Frame {
@@ -155,7 +156,7 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
             ),
         ]),
     };
-    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
         StyleSheet::builder()
             .color_themes(themes)
             .rules(vec![rule(
@@ -172,21 +173,34 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
         Some(Color::from_rgb8(0x0f, 0x17, 0x2a))
     );
 
-    *applier.pending_color_theme.as_ref().unwrap().borrow_mut() = Some("light".into());
+    *applier
+        .runtime
+        .pending_color_theme
+        .as_ref()
+        .unwrap()
+        .borrow_mut() = Some("light".into());
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
         applier.computed_node_snapshot(2).unwrap().background,
         Some(Color::WHITE)
     );
 
-    *applier.pending_color_palette.as_ref().unwrap().borrow_mut() = Some(vec![0x808080ff]);
+    *applier
+        .runtime
+        .pending_color_palette
+        .as_ref()
+        .unwrap()
+        .borrow_mut() = Some(vec![0x808080ff]);
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
         applier.computed_node_snapshot(2).unwrap().background,
         Some(Color::from_rgb8(0x80, 0x80, 0x80))
     );
     assert!(
-        !applier.invalidation.contains(InvalidationFlags::LAYOUT),
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT),
         "palette-only animation frames must retain the native layout cache"
     );
 }
@@ -195,7 +209,7 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
 fn native_utility_fallback_resolves_without_a_stylesheet() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, flex, padding, width, background, transform) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("flex"),
@@ -246,7 +260,7 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
 fn identical_ordered_class_lists_reuse_resolved_declarations() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, classes) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             vec![atoms.intern("flex"), atoms.intern("p-4")],
@@ -273,8 +287,8 @@ fn identical_ordered_class_lists_reuse_resolved_declarations() {
         ],
     });
 
-    assert_eq!(applier.style.class_resolution_cache.len(), 1);
-    assert!(applier.style.class_resolution_cache_hits >= 1);
+    assert_eq!(applier.document.style.class_resolution_cache.len(), 1);
+    assert!(applier.document.style.class_resolution_cache_hits >= 1);
     let left = applier.computed_node_snapshot(2).unwrap();
     let right = applier.computed_node_snapshot(3).unwrap();
     assert_eq!(left.layout.display, right.layout.display);
@@ -285,7 +299,7 @@ fn identical_ordered_class_lists_reuse_resolved_declarations() {
 fn runtime_utility_fallback_uses_the_stylesheet_theme() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, brand) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("bg-brand"))
     };
     applier.apply_frame(&Frame {
@@ -304,7 +318,7 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
     });
     let mut theme = wabou_style::Theme::default();
     theme.colors.insert("brand".to_string(), 0x336699ff);
-    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
         crate::style_ir::StyleSheet::builder().theme(theme).build(),
     ));
 
@@ -321,7 +335,7 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
 fn utility_order_is_last_wins_and_transform_components_compose() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, width_4, width_8, translate_x_4, translate_y_6, translate_x_2, scale, rotate) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("w-4"),
@@ -377,7 +391,7 @@ fn utility_order_is_last_wins_and_transform_components_compose() {
 fn typed_inline_style_reaches_layout_without_string_parsing() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, width, opacity) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("width"),
@@ -416,7 +430,7 @@ fn typed_inline_style_reaches_layout_without_string_parsing() {
 fn unknown_runtime_utility_is_recorded_for_diagnostics() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, unknown) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("stateful-magic"))
     };
     applier.apply_frame(&Frame {
@@ -438,20 +452,26 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
     applier.build_frame(&mut text, 800, 600);
 
     assert!(matches!(
-        applier.style.utility_cache.get(&unknown),
+        applier.document.style.utility_cache.get(&unknown),
         Some(Err(_))
     ));
-    assert!(applier.style.warned_utility_classes.contains(&unknown));
-    let node = applier.node_store.solid_to_node[&2];
-    assert_eq!(applier.style.diagnostics[&node].len(), 1);
-    assert!(applier.style.diagnostics[&node][0].contains("stateful-magic"));
+    assert!(
+        applier
+            .document
+            .style
+            .warned_utility_classes
+            .contains(&unknown)
+    );
+    let node = applier.document.node_store.solid_to_node[&2];
+    assert_eq!(applier.document.style.diagnostics[&node].len(), 1);
+    assert!(applier.document.style.diagnostics[&node][0].contains("stateful-magic"));
 }
 
 #[test]
 fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, lucide) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("lucide-sun"))
     };
     applier.apply_frame(&Frame {
@@ -468,7 +488,7 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
             },
         ],
     });
-    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
         StyleSheet::builder()
             .ignored_class_patterns(vec!["lucide-*".into()])
             .build(),
@@ -477,17 +497,23 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
 
-    assert!(!applier.style.utility_cache.contains_key(&lucide));
-    assert!(!applier.style.warned_utility_classes.contains(&lucide));
-    let node = applier.node_store.solid_to_node[&2];
-    assert!(applier.style.diagnostics[&node].is_empty());
+    assert!(!applier.document.style.utility_cache.contains_key(&lucide));
+    assert!(
+        !applier
+            .document
+            .style
+            .warned_utility_classes
+            .contains(&lucide)
+    );
+    let node = applier.document.node_store.solid_to_node[&2];
+    assert!(applier.document.style.diagnostics[&node].is_empty());
 }
 
 #[test]
 fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, success) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("bg-success-surface"))
     };
     applier.apply_frame(&Frame {
@@ -523,19 +549,30 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
             ),
         ]),
     };
-    *applier.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
+    *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() = Some(StylesheetUpdate::Ir(
         StyleSheet::builder().color_themes(themes).build(),
     ));
 
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
-    assert!(!applier.style.warned_utility_classes.contains(&success));
+    assert!(
+        !applier
+            .document
+            .style
+            .warned_utility_classes
+            .contains(&success)
+    );
     assert_eq!(
         applier.computed_node_snapshot(2).unwrap().background,
         Some(Color::from_rgb8(0x06, 0x4e, 0x3b))
     );
 
-    *applier.pending_color_theme.as_ref().unwrap().borrow_mut() = Some("light".into());
+    *applier
+        .runtime
+        .pending_color_theme
+        .as_ref()
+        .unwrap()
+        .borrow_mut() = Some("light".into());
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
         applier.computed_node_snapshot(2).unwrap().background,
@@ -547,7 +584,7 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
 fn unsupported_inline_css_never_enters_cascade_state() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, transition, transform) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("transition"),
@@ -566,8 +603,8 @@ fn unsupported_inline_css_never_enters_cascade_state() {
         value: "translate(10px, 0px)",
     });
 
-    let node = applier.node_store.solid_to_node[&2];
-    let inline = &applier.node_store.declared[&node].inline;
+    let node = applier.document.node_store.solid_to_node[&2];
+    let inline = &applier.document.node_store.declared[&node].inline;
     assert!(!inline.contains_key(&transition));
     assert!(!inline.contains_key(&transform));
 }
@@ -576,7 +613,7 @@ fn unsupported_inline_css_never_enters_cascade_state() {
 fn replacing_class_resets_previous_declarations() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, compact, spacious) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("compact"),
@@ -648,7 +685,7 @@ fn replacing_class_resets_previous_declarations() {
 fn inline_style_wins_over_class_for_same_property() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, card, width) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("card"),
@@ -695,7 +732,7 @@ fn inline_style_wins_over_class_for_same_property() {
 fn white_space_nowrap_inherits_to_text_computed_style() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, span, badge) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("div"),
             atoms.intern("span"),
@@ -746,7 +783,7 @@ fn white_space_nowrap_inherits_to_text_computed_style() {
 fn font_color_inherits_from_parent_class() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, parent_c) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("ink"))
     };
     applier.apply_frame(&Frame {

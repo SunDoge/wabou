@@ -5,14 +5,16 @@ impl Applier {
         if changes
             .intersects(wabou_shell::WidgetChanges::VALUE | wabou_shell::WidgetChanges::SEMANTICS)
         {
-            self.projections.semantics_dirty = true;
+            self.frame.projections.semantics_dirty = true;
         }
         if changes
             .intersects(wabou_shell::WidgetChanges::MEASURE | wabou_shell::WidgetChanges::LAYOUT)
         {
-            self.invalidation.insert(InvalidationFlags::LAYOUT);
+            self.document.invalidation.insert(InvalidationFlags::LAYOUT);
         } else if changes.contains(wabou_shell::WidgetChanges::REDRAW) {
-            self.invalidation.insert(InvalidationFlags::GEOMETRY);
+            self.document
+                .invalidation
+                .insert(InvalidationFlags::GEOMETRY);
         }
     }
 
@@ -21,13 +23,18 @@ impl Applier {
         target: u32,
         input: &UiEvent,
     ) -> Option<EventResponse> {
-        let node = *self.node_store.solid_to_node.get(&target)?;
-        let input = self.widget_manager.geometries.get(&node).map_or_else(
-            || input.clone(),
-            |geometry| localize_widget_event(input, *geometry),
-        );
+        let node = *self.document.node_store.solid_to_node.get(&target)?;
+        let input = self
+            .document
+            .widget_manager
+            .geometries
+            .get(&node)
+            .map_or_else(
+                || input.clone(),
+                |geometry| localize_widget_event(input, *geometry),
+            );
         let result = {
-            let widget = self.widget_manager.widgets.get_mut(&node)?;
+            let widget = self.document.widget_manager.widgets.get_mut(&node)?;
             widget.handle_event(&input)
         };
         self.drain_widget_host_actions(node);
@@ -41,7 +48,10 @@ impl Applier {
         // pending edits queued above. Reading + dispatching here would send a
         // stale value to JS. `flush_value_sync` drains this set after paint.
         if result.value_changed() {
-            self.widget_manager.pending_value_sync.insert(target);
+            self.document
+                .widget_manager
+                .pending_value_sync
+                .insert(target);
         }
         Some(EventResponse {
             handled: true,
@@ -59,12 +69,16 @@ impl Applier {
     ) {
         let action = match action {
             wabou_shell::HostAction::ReadClipboard { request_id } => {
-                let host_request_id = self.widget_manager.next_host_action_id;
-                self.widget_manager.next_host_action_id =
-                    (self.widget_manager.next_host_action_id.wrapping_add(1)
-                        & HOST_ACTION_SEQUENCE_MASK)
-                        .max(1);
-                self.widget_manager
+                let host_request_id = self.document.widget_manager.next_host_action_id;
+                self.document.widget_manager.next_host_action_id = (self
+                    .document
+                    .widget_manager
+                    .next_host_action_id
+                    .wrapping_add(1)
+                    & HOST_ACTION_SEQUENCE_MASK)
+                    .max(1);
+                self.document
+                    .widget_manager
                     .host_action_routes
                     .insert(host_request_id, (node, request_id));
                 wabou_shell::HostAction::ReadClipboard {
@@ -73,11 +87,15 @@ impl Applier {
             }
             action => action,
         };
-        self.pending_host_actions.borrow_mut().push_back(action);
+        self.runtime
+            .pending_host_actions
+            .borrow_mut()
+            .push_back(action);
     }
 
     pub(super) fn drain_widget_host_actions(&mut self, node: NodeId) {
         while let Some(action) = self
+            .document
             .widget_manager
             .widgets
             .get_mut(&node)
@@ -88,11 +106,12 @@ impl Applier {
     }
 
     pub(super) fn drain_widget_node_events(&mut self, node: NodeId) -> bool {
-        let Some(target) = self.node_store.solid_id_for_node(node) else {
+        let Some(target) = self.document.node_store.solid_id_for_node(node) else {
             return false;
         };
         let mut events = Vec::new();
         while let Some(event) = self
+            .document
             .widget_manager
             .widgets
             .get_mut(&node)
@@ -110,20 +129,22 @@ impl Applier {
     /// edits, read each widget's now-fresh `current_value()`, sync the `value`
     /// attr, and dispatch `INPUT` to JS.
     pub(super) fn flush_value_sync(&mut self) {
-        if self.widget_manager.pending_value_sync.is_empty() {
+        if self.document.widget_manager.pending_value_sync.is_empty() {
             return;
         }
-        let value_atom = self.atoms.borrow_mut().intern("value");
+        let value_atom = self.document.atoms.borrow_mut().intern("value");
         for target in self
+            .document
             .widget_manager
             .pending_value_sync
             .drain()
             .collect::<Vec<_>>()
         {
-            let Some(&node) = self.node_store.solid_to_node.get(&target) else {
+            let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
                 continue;
             };
             let Some(value) = self
+                .document
                 .widget_manager
                 .widgets
                 .get(&node)
@@ -131,7 +152,7 @@ impl Applier {
             else {
                 continue;
             };
-            if let Some(decl) = self.node_store.declared.get_mut(&node) {
+            if let Some(decl) = self.document.node_store.declared.get_mut(&node) {
                 decl.attrs.insert(value_atom, Arc::from(value.as_str()));
             }
             let payload = serde_json::json!({ "value": value }).to_string();
@@ -140,13 +161,13 @@ impl Applier {
     }
 
     pub(super) fn dispatch_resize_changes(&mut self) -> bool {
-        let mut targets = self.resize_targets.borrow_mut();
+        let mut targets = self.frame.resize_targets.borrow_mut();
         let mut changes = Vec::new();
         for (&solid_id, last) in targets.iter_mut() {
-            let Some(&node) = self.node_store.solid_to_node.get(&solid_id) else {
+            let Some(&node) = self.document.node_store.solid_to_node.get(&solid_id) else {
                 continue;
             };
-            let Ok(layout) = self.node_store.tree.layout(node) else {
+            let Ok(layout) = self.document.node_store.tree.layout(node) else {
                 continue;
             };
             let width = (layout.size.width
@@ -180,7 +201,7 @@ impl Applier {
                 })
             })
             .collect();
-        if let Err(error) = self.js.dispatch_host_frame(&events) {
+        if let Err(error) = self.runtime.js.dispatch_host_frame(&events) {
             tracing::warn!(?error, "ResizeObserver dispatch failed");
             return false;
         }
@@ -190,14 +211,14 @@ impl Applier {
     /// Deliver resolved content styles before widget measurement.
     pub(super) fn sync_widget_styles(&mut self) {
         let mut changes = wabou_shell::WidgetChanges::empty();
-        for (&node, widget) in &mut self.widget_manager.widgets {
-            let Some(paint) = self.node_store.tree.get_node_context(node) else {
+        for (&node, widget) in &mut self.document.widget_manager.widgets {
+            let Some(paint) = self.document.node_store.tree.get_node_context(node) else {
                 continue;
             };
             let style = wabou_shell::WidgetStyle::from(paint);
-            if self.widget_manager.styles.get(&node) != Some(&style) {
+            if self.document.widget_manager.styles.get(&node) != Some(&style) {
                 changes |= widget.style_changed(&style);
-                self.widget_manager.styles.insert(node, style);
+                self.document.widget_manager.styles.insert(node, style);
             }
         }
         self.invalidate_widget_changes(changes);
@@ -207,7 +228,7 @@ impl Applier {
     /// resulting Scene fragment in the matching PlacedNode's `paint.widget`.
     /// `build_scene` composites it at the node's content-box origin.
     pub(super) fn paint_widgets(&mut self, placed: &mut [PlacedNode], tcx: &mut TextContext) {
-        self.ime_cursor_area = None;
+        self.interaction.ime_cursor_area = None;
         let visible = placed
             .iter()
             .filter(|node| node.content_size[0] > 0.0 && node.content_size[1] > 0.0)
@@ -215,11 +236,14 @@ impl Applier {
             .collect::<HashSet<_>>();
         let mut visibility_changes = wabou_shell::WidgetChanges::empty();
         let mut visibility_changed_nodes = Vec::new();
-        for (&node, widget) in &mut self.widget_manager.widgets {
+        for (&node, widget) in &mut self.document.widget_manager.widgets {
             let is_visible = visible.contains(&node);
-            if self.widget_manager.visibility.get(&node) != Some(&is_visible) {
+            if self.document.widget_manager.visibility.get(&node) != Some(&is_visible) {
                 visibility_changes |= widget.visibility_changed(is_visible);
-                self.widget_manager.visibility.insert(node, is_visible);
+                self.document
+                    .widget_manager
+                    .visibility
+                    .insert(node, is_visible);
                 visibility_changed_nodes.push(node);
             }
         }
@@ -236,7 +260,7 @@ impl Applier {
                 .unwrap_or(Affine::IDENTITY);
             let transform = wabou_shell::scene::resolve_node_transform(n, parent_transform);
             transforms.insert(n.node_id, transform);
-            if let Some(w) = self.widget_manager.widgets.get_mut(&n.node_id) {
+            if let Some(w) = self.document.widget_manager.widgets.get_mut(&n.node_id) {
                 let window_to_local = Affine::translate((
                     -f64::from(n.content_origin[0]),
                     -f64::from(n.content_origin[1]),
@@ -244,13 +268,16 @@ impl Applier {
                 let [width, height] = n.content_size;
                 let geometry = wabou_shell::WidgetGeometry {
                     content_size: [width, height],
-                    device_scale: self.device_scale,
+                    device_scale: self.frame.device_scale,
                     local_to_window: window_to_local.inverse().as_coeffs(),
                     window_to_local: window_to_local.as_coeffs(),
                 };
-                if self.widget_manager.geometries.get(&n.node_id) != Some(&geometry) {
+                if self.document.widget_manager.geometries.get(&n.node_id) != Some(&geometry) {
                     w.layout_changed(geometry);
-                    self.widget_manager.geometries.insert(n.node_id, geometry);
+                    self.document
+                        .widget_manager
+                        .geometries
+                        .insert(n.node_id, geometry);
                 }
                 if width > 0.0 && height > 0.0 {
                     let border_inset = n.border_widths.into_iter().fold(0.0_f32, f32::max);
@@ -260,13 +287,14 @@ impl Applier {
                         width,
                         height,
                         inner_radius,
-                        self.device_scale,
+                        self.frame.device_scale,
                         tcx,
                     );
                     w.paint(&mut paint);
                     n.paint.widget = Some(std::sync::Arc::new(paint.finish()));
                 }
-                if self.input.focused_target == self.node_store.solid_id_for_node(n.node_id)
+                if self.interaction.input.focused_target
+                    == self.document.node_store.solid_id_for_node(n.node_id)
                     && let Some([x0, y0, x1, y1]) = w.ime_cursor_area()
                 {
                     let local_to_window = window_to_local.inverse();
@@ -276,7 +304,7 @@ impl Applier {
                         local_to_window * Point::new(f64::from(x0), f64::from(y1)),
                         local_to_window * Point::new(f64::from(x1), f64::from(y1)),
                     ];
-                    self.ime_cursor_area = Some([
+                    self.interaction.ime_cursor_area = Some([
                         points
                             .iter()
                             .map(|point| point.x)
@@ -298,6 +326,7 @@ impl Applier {
             }
         }
         let widget_nodes = self
+            .document
             .widget_manager
             .widgets
             .keys()
@@ -312,6 +341,7 @@ impl Applier {
     #[cfg(test)]
     pub(super) fn measure_widgets(&mut self, tcx: &mut TextContext) {
         let changed: Vec<_> = self
+            .document
             .widget_manager
             .widgets
             .iter_mut()
@@ -322,11 +352,12 @@ impl Applier {
                         wabou_shell::WidgetAvailableSpace::MaxContent,
                         wabou_shell::WidgetAvailableSpace::MaxContent,
                     ],
-                    self.device_scale,
+                    self.frame.device_scale,
                     tcx,
                 );
                 let measured = widget.measure(&mut cx);
                 let current = self
+                    .document
                     .node_store
                     .tree
                     .get_node_context(node)
@@ -335,10 +366,20 @@ impl Applier {
             })
             .collect();
         for (node, measured) in changed {
-            if let Some(mut paint) = self.node_store.tree.get_node_context(node).cloned() {
+            if let Some(mut paint) = self
+                .document
+                .node_store
+                .tree
+                .get_node_context(node)
+                .cloned()
+            {
                 paint.intrinsic_size = measured;
-                let _ = self.node_store.tree.set_node_context(node, Some(paint));
-                self.invalidation.insert(InvalidationFlags::LAYOUT);
+                let _ = self
+                    .document
+                    .node_store
+                    .tree
+                    .set_node_context(node, Some(paint));
+                self.document.invalidation.insert(InvalidationFlags::LAYOUT);
             }
         }
     }

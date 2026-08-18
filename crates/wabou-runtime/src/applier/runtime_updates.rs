@@ -20,7 +20,7 @@ impl Applier {
             "wabou:window-metrics",
             payload,
         ));
-        let handled = self.js.dispatch_host_frame(&[event]).is_ok();
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
         EventResponse {
             handled,
             request_redraw: handled,
@@ -29,12 +29,12 @@ impl Applier {
     }
 
     pub(super) fn drain_host_messages(&mut self) {
-        let batch = self.host_message_inbox.drain_batch();
+        let batch = self.runtime.host_message_inbox.drain_batch();
         if batch.is_empty() {
             return;
         }
         let events: Vec<_> = batch.into_iter().map(HostEvent::Application).collect();
-        if let Err(e) = self.js.dispatch_host_frame(&events) {
+        if let Err(e) = self.runtime.js.dispatch_host_frame(&events) {
             tracing::error!(target: "host_message", error = ?e, count = events.len(), "dispatch Host application frame failed");
         }
     }
@@ -42,17 +42,17 @@ impl Applier {
     /// Take a [`ReloadHandle`] the HMR client uses to push updates; the applier
     /// drains them in `FrameSource::build_frame` before the next tick.
     pub fn reload_handle(&mut self) -> ReloadHandle {
-        self.reload.handle()
+        self.runtime.reload.handle()
     }
 
     /// Record the Vite entry path so declined HMR can re-import it in-process.
     pub fn set_vite_entry(&mut self, entry: impl Into<String>) {
-        self.reload.set_vite_entry(entry);
+        self.runtime.reload.set_vite_entry(entry);
     }
 
     /// Last HMR batch outcome (updated each `build_frame` that drains the queue).
     pub fn last_hmr_result(&self) -> &HmrDrainResult {
-        self.reload.last_result()
+        self.runtime.reload.last_result()
     }
 
     /// Drain every pending [`ReloadMsg`] into one batch and apply it.
@@ -62,7 +62,7 @@ impl Applier {
     /// next; any reject/error or explicit full-reload payload resets the scene
     /// and re-imports the Vite entry when configured.
     pub(super) fn drain_hmr_batch(&mut self) -> HmrDrainResult {
-        let Some(batch) = self.reload.drain() else {
+        let Some(batch) = self.runtime.reload.drain() else {
             return HmrDrainResult::Idle;
         };
         self.apply_hmr_batch(batch)
@@ -97,7 +97,7 @@ impl Applier {
         for update in batch.js_updates {
             #[cfg(feature = "vite")]
             {
-                match self.js.apply_hmr_update(
+                match self.runtime.js.apply_hmr_update(
                     &update.path,
                     &update.accepted_path,
                     update.timestamp,
@@ -153,13 +153,14 @@ impl Applier {
 
         #[cfg(feature = "vite")]
         {
-            if let Some(entry) = self.reload.vite_entry().map(str::to_owned) {
-                match self.js.reboot_vite_entry(&entry) {
+            if let Some(entry) = self.runtime.reload.vite_entry().map(str::to_owned) {
+                match self.runtime.js.reboot_vite_entry(&entry) {
                     Ok(()) => {
                         tracing::info!(target: "hmr", %entry, "vite entry re-imported after full reload");
-                        self.invalidation
+                        self.document
+                            .invalidation
                             .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
-                        self.has_raf = true;
+                        self.runtime.has_raf = true;
                     }
                     Err(e) => {
                         tracing::error!(
@@ -184,6 +185,7 @@ impl Applier {
     /// Clear retained UI state down to the host root (solid id 1).
     pub(super) fn reset_scene_tree(&mut self) {
         let doomed: Vec<NodeId> = self
+            .document
             .node_store
             .solid_to_node
             .iter()
@@ -191,48 +193,61 @@ impl Applier {
             .map(|(_, node)| *node)
             .collect();
         for node in doomed {
-            let _ = self.node_store.tree.remove(node);
+            let _ = self.document.node_store.tree.remove(node);
         }
-        self.node_store.solid_to_node.retain(|id, _| *id == 1);
-        self.node_store.node_to_solid.retain(|_, id| *id == 1);
-        self.node_store
+        self.document
+            .node_store
+            .solid_to_node
+            .retain(|id, _| *id == 1);
+        self.document
+            .node_store
+            .node_to_solid
+            .retain(|_, id| *id == 1);
+        self.document
+            .node_store
             .declared
-            .retain(|node, _| *node == self.node_store.root);
-        self.node_store.children.clear();
-        self.node_store
+            .retain(|node, _| *node == self.document.node_store.root);
+        self.document.node_store.children.clear();
+        self.document
+            .node_store
             .children
-            .insert(self.node_store.root, Vec::new());
-        let _ = self.node_store.tree.set_children(self.node_store.root, &[]);
-        self.node_store.collapsed_text.clear();
-        self.node_store.inline_roots.clear();
-        self.resources.clear_scene_bindings();
-        self.runtime_transforms.clear();
-        self.overlay_planes.clear();
-        self.scroll.styles.clear();
-        self.style.diagnostics.clear();
-        self.widget_manager.widgets.clear();
-        self.widget_manager.styles.clear();
-        self.input.listeners.clear();
-        self.scroll.offsets.clear();
-        self.scroll.pending_events.clear();
-        self.scroll.hits.clear();
-        self.scroll.metrics.clear();
-        self.scroll.drag = None;
-        self.scroll.hovered = None;
-        self.scroll.activity.clear();
-        self.node_store.logical_parent.clear();
-        self.projections.semantic_snapshot = Arc::new(SemanticSnapshot::default());
-        self.projections.semantics_dirty = true;
-        self.widget_manager.pending_value_sync.clear();
-        self.dirty_styles.clear();
-        self.input.pointer_down_target = None;
-        self.input.pointer_down_position = None;
-        self.input.pointer_dragged = false;
-        self.input.hovered_target = None;
-        self.input.focused_target = None;
-        self.invalidation
+            .insert(self.document.node_store.root, Vec::new());
+        let _ = self
+            .document
+            .node_store
+            .tree
+            .set_children(self.document.node_store.root, &[]);
+        self.document.node_store.collapsed_text.clear();
+        self.document.node_store.inline_roots.clear();
+        self.document.resources.clear_scene_bindings();
+        self.document.runtime_transforms.clear();
+        self.document.overlay_planes.clear();
+        self.interaction.scroll.styles.clear();
+        self.document.style.diagnostics.clear();
+        self.document.widget_manager.widgets.clear();
+        self.document.widget_manager.styles.clear();
+        self.interaction.input.listeners.clear();
+        self.interaction.scroll.offsets.clear();
+        self.interaction.scroll.pending_events.clear();
+        self.interaction.scroll.hits.clear();
+        self.interaction.scroll.metrics.clear();
+        self.interaction.scroll.drag = None;
+        self.interaction.scroll.hovered = None;
+        self.interaction.scroll.activity.clear();
+        self.document.node_store.logical_parent.clear();
+        self.frame.projections.semantic_snapshot = Arc::new(SemanticSnapshot::default());
+        self.frame.projections.semantics_dirty = true;
+        self.document.widget_manager.pending_value_sync.clear();
+        self.document.dirty_styles.clear();
+        self.interaction.input.pointer_down_target = None;
+        self.interaction.input.pointer_down_position = None;
+        self.interaction.input.pointer_dragged = false;
+        self.interaction.input.hovered_target = None;
+        self.interaction.input.focused_target = None;
+        self.document
+            .invalidation
             .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
-        if let Ok(mut targets) = self.resize_targets.try_borrow_mut() {
+        if let Ok(mut targets) = self.frame.resize_targets.try_borrow_mut() {
             targets.clear();
         }
     }

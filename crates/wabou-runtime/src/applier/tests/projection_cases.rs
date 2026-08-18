@@ -5,9 +5,9 @@ fn host_layout_snapshot_reports_completed_rects_and_viewport() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let mut applier = interactive_applier();
     let placed = layout::flatten_with_scroll(
-        &applier.node_store.tree,
-        applier.node_store.root,
-        &applier.scroll.offsets,
+        &applier.document.node_store.tree,
+        applier.document.node_store.root,
+        &applier.interaction.scroll.offsets,
     );
     applier.publish_layout_metrics(&placed, 800, 600);
     applier
@@ -15,6 +15,7 @@ fn host_layout_snapshot_reports_completed_rects_and_viewport() {
         .expect("boot public core fixture");
 
     let json = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(
@@ -36,11 +37,11 @@ fn host_layout_snapshot_reports_completed_rects_and_viewport() {
 #[test]
 fn stable_frames_do_not_republish_layout_or_empty_semantics() {
     let mut applier = interactive_applier();
-    let empty_semantics = applier.projections.semantic_snapshot.clone();
+    let empty_semantics = applier.frame.projections.semantic_snapshot.clone();
     applier.set_semantics_enabled(false);
     assert!(Arc::ptr_eq(
         &empty_semantics,
-        &applier.projections.semantic_snapshot
+        &applier.frame.projections.semantic_snapshot
     ));
     applier
         .boot(
@@ -53,14 +54,14 @@ fn stable_frames_do_not_republish_layout_or_empty_semantics() {
 
     let mut text = TextContext::new();
     applier.build_frame(&mut text, 801, 600);
-    let revision = applier.projections.layout_metrics.borrow().revision;
+    let revision = applier.frame.projections.layout_metrics.borrow().revision;
     let debug_revision = debug.read().unwrap().snapshot().status.revision;
     assert!(revision > 0);
     assert!(debug_revision > 0);
 
     applier.build_frame(&mut text, 801, 600);
     assert_eq!(
-        applier.projections.layout_metrics.borrow().revision,
+        applier.frame.projections.layout_metrics.borrow().revision,
         revision
     );
     assert_eq!(
@@ -68,17 +69,22 @@ fn stable_frames_do_not_republish_layout_or_empty_semantics() {
         debug_revision
     );
 
-    let opacity = applier.atoms.borrow_mut().intern("opacity");
+    let opacity = applier.document.atoms.borrow_mut().intern("opacity");
     applier.apply_op(&Op::SetStyle {
         id: 2,
         prop: opacity,
         value: "0.5",
     });
-    assert!(!applier.projections.semantics_dirty);
-    assert!(!applier.invalidation.contains(InvalidationFlags::GEOMETRY));
+    assert!(!applier.frame.projections.semantics_dirty);
+    assert!(
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::GEOMETRY)
+    );
     applier.build_frame(&mut text, 801, 600);
     assert_eq!(
-        applier.projections.layout_metrics.borrow().revision,
+        applier.frame.projections.layout_metrics.borrow().revision,
         revision,
         "paint-only updates must not republish whole-tree layout projections"
     );
@@ -91,8 +97,11 @@ fn stable_frames_do_not_republish_layout_or_empty_semantics() {
 #[test]
 fn hit_affecting_paint_still_invalidates_geometry() {
     let mut applier = interactive_applier();
-    applier.invalidation.remove(InvalidationFlags::GEOMETRY);
-    let pointer_events = applier.atoms.borrow_mut().intern("pointer-events");
+    applier
+        .document
+        .invalidation
+        .remove(InvalidationFlags::GEOMETRY);
+    let pointer_events = applier.document.atoms.borrow_mut().intern("pointer-events");
 
     applier.apply_op(&Op::SetStyle {
         id: 2,
@@ -100,17 +109,23 @@ fn hit_affecting_paint_still_invalidates_geometry() {
         value: "none",
     });
 
-    assert!(applier.invalidation.contains(InvalidationFlags::GEOMETRY));
+    assert!(
+        applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::GEOMETRY)
+    );
 }
 
 #[test]
 fn semantic_attributes_do_not_invalidate_style_or_layout() {
     let mut applier = interactive_applier();
     applier
+        .document
         .invalidation
         .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
-    applier.projections.semantics_dirty = false;
-    let expanded = applier.atoms.borrow_mut().intern("aria-expanded");
+    applier.frame.projections.semantics_dirty = false;
+    let expanded = applier.document.atoms.borrow_mut().intern("aria-expanded");
 
     applier.apply_op(&Op::SetAttribute {
         id: 2,
@@ -118,28 +133,54 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
         value: "true",
     });
 
-    assert!(applier.projections.semantics_dirty);
-    assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
-    assert!(!applier.invalidation.contains(InvalidationFlags::INHERIT));
+    assert!(applier.frame.projections.semantics_dirty);
+    assert!(
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
+    assert!(
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::INHERIT)
+    );
 
-    let class = applier.atoms.borrow_mut().intern("class");
+    let class = applier.document.atoms.borrow_mut().intern("class");
     applier.apply_op(&Op::SetAttribute {
         id: 2,
         name: class,
         value: "opacity-50",
     });
     assert_eq!(applier.computed_node_snapshot(2).unwrap().opacity, 0.5);
-    assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
-    assert!(!applier.invalidation.contains(InvalidationFlags::INHERIT));
+    assert!(
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
+    assert!(
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::INHERIT)
+    );
 
     applier.apply_op(&Op::SetAttribute {
         id: 2,
         name: class,
         value: "flex",
     });
-    assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
+    assert!(
+        applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
 
     applier
+        .document
         .invalidation
         .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
     applier.apply_op(&Op::SetAttribute {
@@ -147,8 +188,18 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
         name: class,
         value: "text-xl",
     });
-    assert!(applier.invalidation.contains(InvalidationFlags::LAYOUT));
-    assert!(applier.invalidation.contains(InvalidationFlags::INHERIT));
+    assert!(
+        applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
+    assert!(
+        applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::INHERIT)
+    );
 }
 
 #[test]
@@ -156,7 +207,7 @@ fn svg_descendant_attributes_still_refresh_the_svg_projection() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let (svg, path, d) = {
-        let mut atoms = applier.atoms.borrow_mut();
+        let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("svg"), atoms.intern("path"), atoms.intern("d"))
     };
     applier.apply_frame(&Frame {
@@ -175,6 +226,7 @@ fn svg_descendant_attributes_still_refresh_the_svg_projection() {
         ],
     });
     applier
+        .document
         .invalidation
         .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
 
@@ -184,8 +236,18 @@ fn svg_descendant_attributes_still_refresh_the_svg_projection() {
         value: "M0 0L1 1",
     });
 
-    assert!(applier.invalidation.contains(InvalidationFlags::INHERIT));
-    assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
+    assert!(
+        applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::INHERIT)
+    );
+    assert!(
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
 }
 
 #[test]
@@ -197,6 +259,7 @@ fn public_host_adapter_runs_in_embedded_quickjs() {
         .expect("boot public core fixture");
 
     let result = applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(
@@ -215,7 +278,7 @@ fn public_host_adapter_runs_in_embedded_quickjs() {
 #[test]
 fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
     let mut applier = interactive_applier();
-    assert_eq!(applier.input.hit_test(20.0, 20.0), Some(2));
+    assert_eq!(applier.interaction.input.hit_test(20.0, 20.0), Some(2));
     assert!(
         applier
             .handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1))
@@ -228,6 +291,7 @@ fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
     );
 
     let codes = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
         .expect("read dispatched events");
@@ -245,15 +309,16 @@ fn dragging_inside_pressed_target_does_not_synthesize_a_click() {
     applier.handle_event(pointer(PointerPhase::Up, 80.0, 20.0, 0));
 
     let codes = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
         .expect("read dispatched events");
     assert!(codes.contains(&event::POINTERDOWN));
     assert!(codes.contains(&event::POINTERUP));
     assert!(!codes.contains(&event::CLICK));
-    assert!(applier.input.pointer_down_target.is_none());
-    assert!(applier.input.pointer_down_position.is_none());
-    assert!(!applier.input.pointer_dragged);
+    assert!(applier.interaction.input.pointer_down_target.is_none());
+    assert!(applier.interaction.input.pointer_down_position.is_none());
+    assert!(!applier.interaction.input.pointer_dragged);
 }
 
 #[test]
@@ -263,6 +328,7 @@ fn coalesced_release_distance_also_suppresses_click() {
     applier.handle_event(pointer(PointerPhase::Up, 80.0, 20.0, 0));
 
     let click_count = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<usize, _>("globalThis.dispatched.filter((x) => x[1] === 1).length"))
         .expect("read click count");
@@ -275,11 +341,11 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
     let placed = layout::flatten_with_scroll(
-        &applier.node_store.tree,
-        applier.node_store.root,
-        &applier.scroll.offsets,
+        &applier.document.node_store.tree,
+        applier.document.node_store.root,
+        &applier.interaction.scroll.offsets,
     );
-    applier.last_viewport = (800, 600);
+    applier.frame.last_viewport = (800, 600);
     applier.publish_debug_snapshot(&placed);
     applier.handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1));
 
@@ -303,19 +369,20 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
     let mut applier = interactive_applier();
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
-    let widget_node = applier.node_store.solid_to_node[&2];
+    let widget_node = applier.document.node_store.solid_to_node[&2];
     applier
+        .document
         .widget_manager
         .widgets
         .insert(widget_node, Box::new(MeasuringWidget([100.0, 50.0])));
     let mut placed = layout::flatten_with_scroll(
-        &applier.node_store.tree,
-        applier.node_store.root,
-        &applier.scroll.offsets,
+        &applier.document.node_store.tree,
+        applier.document.node_store.root,
+        &applier.interaction.scroll.offsets,
     );
     let root = placed
         .iter_mut()
-        .find(|node| node.node_id == applier.node_store.root)
+        .find(|node| node.node_id == applier.document.node_store.root)
         .unwrap();
     root.own_clip = Some([0.0, 0.0, 80.0, 40.0]);
     root.own_clip_radius = 6.0;
@@ -354,6 +421,7 @@ fn releasing_outside_the_pressed_target_does_not_click() {
     applier.handle_event(pointer(PointerPhase::Up, 200.0, 200.0, 0));
 
     let click_count = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<usize, _>("globalThis.dispatched.filter((x) => x[1] === 1).length"))
         .expect("read click count");
@@ -364,6 +432,7 @@ fn releasing_outside_the_pressed_target_does_not_click() {
 fn resize_observer_reports_initial_content_box_once() {
     let mut applier = interactive_applier();
     applier
+        .runtime
         .js
         .with(|ctx| {
             ctx.eval::<(), _>(
@@ -377,6 +446,7 @@ fn resize_observer_reports_initial_content_box_once() {
     assert!(applier.dispatch_resize_changes());
     assert!(!applier.dispatch_resize_changes());
     let changes = applier
+        .runtime
         .js
         .with(|ctx| ctx.eval::<Vec<Vec<f32>>, _>("globalThis.resizeChanges"))
         .expect("read resize changes");
@@ -386,7 +456,7 @@ fn resize_observer_reports_initial_content_box_once() {
 #[test]
 fn devtools_snapshot_exposes_layout_and_redacts_secrets() {
     let mut applier = interactive_applier();
-    let password = applier.atoms.borrow_mut().intern("password");
+    let password = applier.document.atoms.borrow_mut().intern("password");
     applier.apply_op(&Op::SetAttribute {
         id: 2,
         name: password,
@@ -395,11 +465,11 @@ fn devtools_snapshot_exposes_layout_and_redacts_secrets() {
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
     let placed = layout::flatten_with_scroll(
-        &applier.node_store.tree,
-        applier.node_store.root,
-        &applier.scroll.offsets,
+        &applier.document.node_store.tree,
+        applier.document.node_store.root,
+        &applier.interaction.scroll.offsets,
     );
-    applier.last_viewport = (800, 600);
+    applier.frame.last_viewport = (800, 600);
     applier.publish_debug_snapshot(&placed);
 
     let state = state.read().unwrap();
@@ -422,16 +492,25 @@ fn devtools_snapshot_exposes_layout_and_redacts_secrets() {
 #[test]
 fn runtime_transform_updates_paint_without_invalidating_layout() {
     let mut applier = interactive_applier();
-    applier.invalidation.remove(InvalidationFlags::LAYOUT);
+    applier
+        .document
+        .invalidation
+        .remove(InvalidationFlags::LAYOUT);
     applier.apply_op(&Op::SetTransform2D {
         id: 2,
         matrix: [1.0, 0.0, 0.0, 1.0, 12.5, -3.25],
     });
 
-    assert!(!applier.invalidation.contains(InvalidationFlags::LAYOUT));
-    let node = applier.node_store.solid_to_node[&2];
+    assert!(
+        !applier
+            .document
+            .invalidation
+            .contains(InvalidationFlags::LAYOUT)
+    );
+    let node = applier.document.node_store.solid_to_node[&2];
     assert_eq!(
         applier
+            .document
             .node_store
             .tree
             .get_node_context(node)
@@ -440,27 +519,32 @@ fn runtime_transform_updates_paint_without_invalidating_layout() {
         Some([1.0, 0.0, 0.0, 1.0, 12.5, -3.25])
     );
     let placed = layout::flatten_with_scroll(
-        &applier.node_store.tree,
-        applier.node_store.root,
-        &applier.scroll.offsets,
+        &applier.document.node_store.tree,
+        applier.document.node_store.root,
+        &applier.interaction.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
-    assert_ne!(applier.input.hit_test(5.0, 20.0), Some(2));
-    assert_eq!(applier.input.hit_test(32.5, 16.75), Some(2));
+    assert_ne!(applier.interaction.input.hit_test(5.0, 20.0), Some(2));
+    assert_eq!(applier.interaction.input.hit_test(32.5, 16.75), Some(2));
 
-    let transform = applier.atoms.borrow_mut().intern("transform");
+    let transform = applier.document.atoms.borrow_mut().intern("transform");
     applier.apply_op(&Op::SetStyle {
         id: 2,
         prop: transform,
         value: "translate(2px, 3px)",
     });
-    let paint = applier.node_store.tree.get_node_context(node).unwrap();
+    let paint = applier
+        .document
+        .node_store
+        .tree
+        .get_node_context(node)
+        .unwrap();
     assert_eq!(
         paint.runtime_transform,
         Some([1.0, 0.0, 0.0, 1.0, 12.5, -3.25])
     );
     assert_eq!(
-        applier.runtime_transforms.get(&node),
+        applier.document.runtime_transforms.get(&node),
         Some(&[1.0, 0.0, 0.0, 1.0, 12.5, -3.25])
     );
 }
@@ -469,7 +553,7 @@ fn runtime_transform_updates_paint_without_invalidating_layout() {
 fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let div = applier.atoms.borrow_mut().intern("div");
+    let div = applier.document.atoms.borrow_mut().intern("div");
     applier.apply_op(&Op::CreateElement { id: 2, tag: div });
     applier.apply_op(&Op::SetShadows {
         id: 2,
@@ -483,8 +567,13 @@ fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
         }],
     });
 
-    let node = applier.node_store.solid_to_node[&2];
-    let paint = applier.node_store.tree.get_node_context(node).unwrap();
+    let node = applier.document.node_store.solid_to_node[&2];
+    let paint = applier
+        .document
+        .node_store
+        .tree
+        .get_node_context(node)
+        .unwrap();
     assert_eq!(
         paint.shadows,
         vec![wabou_shell::style::Shadow {

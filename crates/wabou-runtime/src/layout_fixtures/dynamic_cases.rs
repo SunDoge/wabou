@@ -86,7 +86,7 @@ fn theme_switch_preserves_all_rects() {
     assert_eq!(panel_before, panel_after);
     assert_eq!(
         h.solid_node(shell),
-        h.applier.node_store.solid_to_node[&shell],
+        h.applier.document.node_store.solid_to_node[&shell],
         "theme must not remount"
     );
 }
@@ -315,6 +315,7 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
     let scroller_node = h.solid_node(scroller);
     assert!(
         h.applier
+            .document
             .node_store
             .tree
             .layout(scroller_node)
@@ -329,8 +330,13 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
 
     // Scroll must not reflow chrome (scroll offsets are paint-time).
     let container = h.solid_node(scroller);
-    h.applier.scroll.offsets.insert(container, [0.0, 120.0]);
     h.applier
+        .interaction
+        .scroll
+        .offsets
+        .insert(container, [0.0, 120.0]);
+    h.applier
+        .document
         .invalidation
         .remove(super::InvalidationFlags::LAYOUT);
     let after_scroll = h.layout(640, viewport_h);

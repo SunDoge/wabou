@@ -72,13 +72,18 @@ impl Applier {
             width: width as f32,
             height: height as f32,
         };
-        let mut snapshot = self.projections.layout_metrics.borrow_mut();
+        let mut snapshot = self.frame.projections.layout_metrics.borrow_mut();
         snapshot.revision = snapshot.revision.wrapping_add(1);
         snapshot.viewport = viewport;
         snapshot.nodes.clear();
         snapshot.nodes.reserve(placed.len());
         for placed_node in placed {
-            let Some(&id) = self.node_store.node_to_solid.get(&placed_node.node_id) else {
+            let Some(&id) = self
+                .document
+                .node_store
+                .node_to_solid
+                .get(&placed_node.node_id)
+            else {
                 continue;
             };
             let rect = |value: [f32; 4]| LayoutRect {
@@ -118,6 +123,7 @@ impl Applier {
             if let Some(rect) = ancestor.own_clip {
                 chain.push(wabou_devtools::DebugClip {
                     node_id: self
+                        .document
                         .node_store
                         .node_to_solid
                         .get(&node_id)
@@ -144,6 +150,7 @@ impl Applier {
             });
         }
         let widget_local = self
+            .document
             .widget_manager
             .widgets
             .contains_key(&placed_node.node_id)
@@ -204,12 +211,13 @@ impl Applier {
                 .map(|matrix| matrix.map(f64::from)),
             border_transform: border_transform.as_coeffs(),
             scene_transform: content_transform.as_coeffs(),
-            device_scale: self.device_scale,
+            device_scale: self.frame.device_scale,
         }
     }
 
     fn debug_listeners(&self, id: u32) -> Vec<u8> {
         let mut listeners: Vec<_> = self
+            .interaction
             .input
             .listeners
             .get(&id)
@@ -224,15 +232,15 @@ impl Applier {
         declared
             .into_iter()
             .flat_map(|declared| {
-                std::iter::once(&self.style.universal_rules).chain(
+                std::iter::once(&self.document.style.universal_rules).chain(
                     declared
                         .classes
                         .iter()
-                        .filter_map(|class| self.style.rule_index.get(class)),
+                        .filter_map(|class| self.document.style.rule_index.get(class)),
                 )
             })
             .flatten()
-            .filter_map(|index| self.style.sheet.as_ref()?.rules.get(*index))
+            .filter_map(|index| self.document.style.sheet.as_ref()?.rules.get(*index))
             .map(|rule| {
                 if rule.class_name == "*" {
                     "*".to_owned()
@@ -244,19 +252,25 @@ impl Applier {
     }
 
     pub(super) fn publish_debug_snapshot(&mut self, placed: &[PlacedNode]) {
-        let Some(state) = self.projections.debug_state.clone() else {
+        let Some(state) = self.frame.projections.debug_state.clone() else {
             return;
         };
-        self.projections.debug_revision = self.projections.debug_revision.wrapping_add(1);
-        let atoms = self.atoms.borrow();
+        self.frame.projections.debug_revision =
+            self.frame.projections.debug_revision.wrapping_add(1);
+        let atoms = self.document.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let css_transforms = resolved_css_transforms(placed);
         let mut nodes = Vec::with_capacity(placed.len());
         for placed_node in placed {
-            let Some(&id) = self.node_store.node_to_solid.get(&placed_node.node_id) else {
+            let Some(&id) = self
+                .document
+                .node_store
+                .node_to_solid
+                .get(&placed_node.node_id)
+            else {
                 continue;
             };
-            let declared = self.node_store.declared.get(&placed_node.node_id);
+            let declared = self.document.node_store.declared.get(&placed_node.node_id);
             let tag = declared
                 .and_then(|declared| declared.tag)
                 .and_then(|tag| atoms.resolve(tag))
@@ -269,13 +283,18 @@ impl Applier {
             let [x0, y0, x1, y1] = placed_node.rect;
             let [cx, cy] = placed_node.content_origin;
             let [cw, ch] = placed_node.content_size;
-            let layout = self.node_store.tree.style(placed_node.node_id).ok();
+            let layout = self
+                .document
+                .node_store
+                .tree
+                .style(placed_node.node_id)
+                .ok();
             let clip = self.debug_clip_info(placed_node, id, &placed_by_id, &css_transforms);
             nodes.push(wabou_devtools::DebugNode {
                 id,
-                parent_id: placed_node
-                    .parent_node_id
-                    .and_then(|parent| self.node_store.node_to_solid.get(&parent).copied()),
+                parent_id: placed_node.parent_node_id.and_then(|parent| {
+                    self.document.node_store.node_to_solid.get(&parent).copied()
+                }),
                 tag,
                 text: placed_node
                     .paint
@@ -285,6 +304,7 @@ impl Applier {
                 classes,
                 matched_rules,
                 style_diagnostics: self
+                    .document
                     .style
                     .diagnostics
                     .get(&placed_node.node_id)
@@ -305,6 +325,7 @@ impl Applier {
                 },
                 listeners,
                 widget: self
+                    .document
                     .widget_manager
                     .widgets
                     .contains_key(&placed_node.node_id)
@@ -335,13 +356,13 @@ impl Applier {
             status: wabou_devtools::DebugStatus {
                 protocol_version: wabou_devtools::PROTOCOL_VERSION,
                 pid: std::process::id(),
-                revision: self.projections.debug_revision,
-                viewport_width: self.last_viewport.0,
-                viewport_height: self.last_viewport.1,
-                device_scale: self.device_scale,
+                revision: self.frame.projections.debug_revision,
+                viewport_width: self.frame.last_viewport.0,
+                viewport_height: self.frame.last_viewport.1,
+                device_scale: self.frame.device_scale,
                 node_count: nodes.len(),
-                focused_node: self.input.focused_target,
-                hovered_node: self.input.hovered_target,
+                focused_node: self.interaction.input.focused_target,
+                hovered_node: self.interaction.input.hovered_target,
             },
             nodes,
         };

@@ -64,7 +64,7 @@ impl Harness {
         if let Some(&a) = self.atoms.get(name) {
             return a;
         }
-        let a = self.applier.atoms.borrow_mut().intern(name);
+        let a = self.applier.document.atoms.borrow_mut().intern(name);
         self.atoms.insert(name, a);
         a
     }
@@ -76,8 +76,13 @@ impl Harness {
     }
 
     fn queue_stylesheet(&self, rules: Vec<StyleRule>) {
-        *self.applier.pending_css.as_ref().unwrap().borrow_mut() =
-            Some(StylesheetUpdate::Ir(sheet(rules)));
+        *self
+            .applier
+            .runtime
+            .pending_css
+            .as_ref()
+            .unwrap()
+            .borrow_mut() = Some(StylesheetUpdate::Ir(sheet(rules)));
     }
 
     fn apply(&mut self, ops: Vec<Op>) {
@@ -107,7 +112,7 @@ impl Harness {
     }
 
     fn rect(&self, placed: &[PlacedNode], solid_id: u32) -> [f32; 4] {
-        let node = self.applier.node_store.solid_to_node[&solid_id];
+        let node = self.applier.document.node_store.solid_to_node[&solid_id];
         placed
             .iter()
             .find(|item| item.node_id == node)
@@ -122,7 +127,7 @@ impl Harness {
     }
 
     fn solid_node(&self, solid_id: u32) -> taffy::NodeId {
-        self.applier.node_store.solid_to_node[&solid_id]
+        self.applier.document.node_store.solid_to_node[&solid_id]
     }
 }
 
