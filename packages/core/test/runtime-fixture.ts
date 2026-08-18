@@ -6,7 +6,7 @@ import {
   notification,
   useWindow,
 } from "@wabou/core";
-import { createElement, defaultHost, mount } from "@wabou/solid-renderer";
+import { createElement, defaultHost, mount } from "../src/renderer";
 
 Object.assign(globalThis, {
   __wabou_test_host_api: {

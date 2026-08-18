@@ -1,5 +1,6 @@
 {
   "name": "@wabou/solid-renderer",
+  "private": true,
   "version": "0.1.0-alpha.1",
   "description": "SolidJS universal renderer for the Wabou native host.",
   "license": "Apache-2.0",
@@ -8,37 +9,17 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/solid-renderer"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "wabou": {
     "stability": "internal"
   },
-  "files": [
-    "dist"
-  ],
   "exports": {
-    ".": {
-      "wabou-source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
-    },
-    "./jsx-runtime": {
-      "wabou-source": "./src/jsx.ts",
-      "types": "./dist/jsx-runtime.d.mts",
-      "import": "./dist/jsx-runtime.mjs"
-    },
-    "./jsx-dev-runtime": {
-      "wabou-source": "./src/jsx.ts",
-      "types": "./dist/jsx-runtime.d.mts",
-      "import": "./dist/jsx-runtime.mjs"
-    }
+    ".": "./src/index.ts",
+    "./jsx-runtime": "./src/jsx.ts",
+    "./jsx-dev-runtime": "./src/jsx.ts"
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.0",
     "@tanstack/virtual-core": "3.17.7",
-    "@wabou/style": "workspace:*",
-    "@wabou/protocol": "workspace:*",
     "solid-js": "2.0.0-rc.0",
     "ts-pattern": "^5.9.0"
   }

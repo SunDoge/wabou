@@ -1,4 +1,5 @@
 import { type AnimationControls, animate } from "@wabou/animation";
+import { createFps } from "@wabou/core/renderer";
 import {
   type ButtonState,
   Button as HeadlessButton,
@@ -14,7 +15,6 @@ import {
   View,
   type WabouStyle,
 } from "@wabou/primitives";
-import { createFps } from "@wabou/solid-renderer";
 import {
   createEffect,
   createSignal,
@@ -26,6 +26,7 @@ import {
 import { match, P } from "ts-pattern";
 import { join } from "./class-names";
 import { normalizePercentage } from "./range";
+import { componentsElevation, useComponentsTheme } from "./theme";
 
 export * from "./avatar";
 export * from "./config-editor";
@@ -60,9 +61,11 @@ export {
   type TabsTriggerProps,
 } from "./tabs";
 export {
+  type ComponentsElevation,
   ComponentsProvider,
   type ComponentsProviderProps,
   type ComponentsTheme,
+  componentsElevation,
   useComponentsTheme,
 } from "./theme";
 export * from "./title-bar";
@@ -84,7 +87,7 @@ export interface ButtonProps
 }
 
 function buttonColors(variant: ButtonVariant, state: ButtonState): string {
-  const focus = state.focused ? "border-focus" : "";
+  const focus = state.focusVisible ? "border-focus" : "";
   const passiveBorder = (variant: ButtonVariant) =>
     match(variant)
       .with("outline", () => "border-strong")
@@ -136,10 +139,10 @@ function buttonColors(variant: ButtonVariant, state: ButtonState): string {
 
 function buttonSize(size: ButtonSize): string {
   return match(size)
-    .with("sm", () => "h-8 px-3 text-xs")
-    .with("default", () => "h-9 px-4 text-sm")
-    .with("lg", () => "h-10 px-6 text-sm")
-    .with("icon", () => "w-9 h-9 p-0 text-sm")
+    .with("sm", () => "h-6 px-2 text-xs")
+    .with("default", () => "h-8 px-3 text-sm")
+    .with("lg", () => "h-10 px-4 text-base")
+    .with("icon", () => "w-8 h-8 p-0 text-sm")
     .exhaustive();
 }
 
@@ -201,7 +204,7 @@ export function Badge(props: BadgeProps): JSX.Element {
   return (
     <Text
       class={join(
-        "flex-none whitespace-nowrap px-2 py-1 rounded-full border text-xs font-medium",
+        "flex-none whitespace-nowrap px-2 py-0.5 rounded-md border text-xs font-medium",
         badgeColors(props.variant ?? "default"),
         props.class,
       )}
@@ -251,14 +254,21 @@ export function Fps(props: FpsProps): JSX.Element {
 export function Card(props: {
   children?: JSX.Element;
   class?: string;
+  shadows?: readonly import("@wabou/core/style").Shadow[] | null;
 }): JSX.Element {
+  const theme = useComponentsTheme();
   return (
     <View
       class={join(
-        "flex flex-col rounded-xl border",
+        "flex flex-col overflow-hidden rounded-lg border",
         "border-subtle bg-surface",
         props.class,
       )}
+      shadows={
+        props.shadows === undefined
+          ? componentsElevation(theme(), "raised")
+          : props.shadows
+      }
     >
       {props.children}
     </View>
@@ -269,7 +279,7 @@ export function CardHeader(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("flex flex-col gap-1 px-5 pt-5", props.class)}>
+    <View class={join("flex flex-col gap-1 px-4 pt-4", props.class)}>
       {props.children}
     </View>
   );
@@ -305,7 +315,7 @@ export function CardContent(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("flex flex-col gap-3 p-5", props.class)}>
+    <View class={join("flex flex-col gap-3 p-4", props.class)}>
       {props.children}
     </View>
   );
@@ -315,7 +325,7 @@ export function CardFooter(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("flex items-center gap-2 px-5 pb-5", props.class)}>
+    <View class={join("flex items-center gap-2 px-4 pb-4", props.class)}>
       {props.children}
     </View>
   );
@@ -362,7 +372,7 @@ export function Alert(props: {
       role="alert"
       aria-label={props.title}
       class={join(
-        "flex flex-col gap-1 rounded-lg border p-4",
+        "flex flex-col gap-1 rounded-lg border p-4 shadow-xs",
         colors().container,
         props.class,
       )}
@@ -389,8 +399,8 @@ export function Input(props: InputProps): JSX.Element {
     <PrimitiveTextInput
       {...props}
       class={join(
-        "h-9 w-full px-3 rounded-md border text-sm",
-        "border-strong bg-input text-primary",
+        "h-8 w-full px-3 rounded-md border text-sm shadow-xs",
+        "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",
         props.class,
       )}
@@ -408,8 +418,8 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
     <PrimitivePasswordInput
       {...props}
       class={join(
-        "h-9 w-full px-3 rounded-md border text-sm",
-        "border-strong bg-input text-primary",
+        "h-8 w-full px-3 rounded-md border text-sm shadow-xs",
+        "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",
         props.class,
       )}
@@ -426,8 +436,8 @@ export function TextArea(props: TextAreaProps): JSX.Element {
     <PrimitiveTextArea
       {...props}
       class={join(
-        "h-24 w-full px-3 py-2 rounded-md border text-sm",
-        "border-strong bg-input text-primary",
+        "h-24 w-full px-3 py-2 rounded-md border text-sm shadow-xs",
+        "border-subtle bg-input text-primary",
         props.disabled && "opacity-50",
         props.class,
       )}

@@ -1,5 +1,5 @@
 import "@wabou/core";
-import { rotate2d } from "@wabou/style";
+import { rotate2d } from "@wabou/core/style";
 import { animateValue } from "motion-dom";
 import { createEffect, createSignal, onCleanup, untrack } from "solid-js";
 //#region src/index.ts

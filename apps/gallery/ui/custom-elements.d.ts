@@ -1,7 +1,7 @@
 import type { WabouElementProps } from "@wabou/core";
-import "@wabou/solid-renderer";
+import "@wabou/core/registry";
 
-declare module "@wabou/solid-renderer" {
+declare module "@wabou/core/registry" {
   interface WabouIntrinsicElements {
     fractal: WabouElementProps & {
       cx?: string;

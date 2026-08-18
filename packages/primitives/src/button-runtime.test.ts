@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { Button } from "@wabou/primitives";
-import { writer } from "@wabou/solid-renderer";
+import { writer } from "@wabou/core/renderer";
 import { createComponent, createRoot } from "solid-js";
 
 test("published Button forwards native focus and accessibility state", () => {

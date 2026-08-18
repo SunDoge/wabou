@@ -89,10 +89,10 @@ OS rather than only on routing and serialization.
 registries. Generated application bindings manage the internal augmentation;
 ordinary application code imports `Host`, `useHost`, and renderer types from
 `@wabou/core`. Native widget packages that add low-level intrinsic tags are the
-one supported exception and augment the renderer registry directly:
+one supported exception and augment the stable registry subpath directly:
 
 ```ts
-declare module "@wabou/solid-renderer" {
+declare module "@wabou/core/registry" {
   interface HostCapabilities {
     readonly workspace: {
       readFile(request: ReadFileRequest): Promise<ReadFileResult>;

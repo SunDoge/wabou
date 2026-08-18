@@ -1,7 +1,8 @@
+import type { Handle } from "@wabou/core/renderer";
 import {
   type ButtonState,
-  Button as HeadlessButton,
   Center,
+  Button as HeadlessButton,
   Icon,
   Text,
   View,
@@ -10,7 +11,8 @@ import {
   createControllableState,
   createRovingFocus,
 } from "@wabou/primitives/interactions";
-import type { Handle } from "@wabou/solid-renderer";
+import check from "lucide-static/icons/check.svg?raw";
+import minus from "lucide-static/icons/minus.svg?raw";
 import {
   createComponent,
   createContext,
@@ -19,8 +21,6 @@ import {
   useContext,
 } from "solid-js";
 import { match } from "ts-pattern";
-import check from "lucide-static/icons/check.svg?raw";
-import minus from "lucide-static/icons/minus.svg?raw";
 import { join } from "./class-names";
 
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
@@ -77,7 +77,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
         join(
           "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
           buttonState.hovered && "bg-control-hover",
-          buttonState.focused && "border-focus",
+          buttonState.focusVisible && "border-focus",
           props.class,
         )
       }
@@ -95,7 +95,11 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
         )}
       >
         {indicator() && (
-          <Icon source={indicator() as string} size={14} class="text-on-accent" />
+          <Icon
+            source={indicator() as string}
+            size={14}
+            class="text-on-accent"
+          />
         )}
       </Center>
       {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
@@ -191,7 +195,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         join(
           "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
           buttonState.hovered && "bg-control-hover",
-          buttonState.focused && "border-focus",
+          buttonState.focusVisible && "border-focus",
           props.class,
         )
       }
@@ -246,8 +250,8 @@ export function Toggle(props: ToggleProps): JSX.Element {
   };
   const size = () =>
     match(props.size ?? "default")
-      .with("sm", () => "h-8 min-w-8 px-2 text-xs")
-      .with("default", () => "h-9 min-w-9 px-2.5 text-sm")
+      .with("sm", () => "h-6 min-w-6 px-2 text-xs")
+      .with("default", () => "h-8 min-w-8 px-2.5 text-sm")
       .with("lg", () => "h-10 min-w-10 px-3 text-sm")
       .exhaustive();
   const colors = (state: ButtonState) =>
@@ -271,7 +275,7 @@ export function Toggle(props: ToggleProps): JSX.Element {
             .with("outline", () => "border-strong")
             .with("default", () => "border-transparent")
             .exhaustive(),
-          state.focused && "border-focus",
+          state.focusVisible && "border-focus",
           props.class,
         )
       }
@@ -332,7 +336,7 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
           role="group"
           aria-label={props["aria-label"]}
           class={join(
-            "flex flex-row items-center gap-1 rounded-lg bg-control p-1",
+            "flex flex-row items-center gap-0.5 rounded-md bg-control p-0.5",
             props.class,
           )}
         >
@@ -370,13 +374,13 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
       }}
       class={(state) =>
         join(
-          "h-8 flex-1 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium",
+          "h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
           selected()
             ? "bg-surface text-primary"
             : state.hovered
               ? "bg-control-hover text-primary"
               : "bg-transparent text-muted",
-          state.focused && "border-focus",
+          state.focusVisible && "border-focus",
           props.class,
         )
       }

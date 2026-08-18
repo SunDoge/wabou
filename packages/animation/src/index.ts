@@ -1,5 +1,5 @@
 import "@wabou/core";
-import { rotate2d, type Affine2D } from "@wabou/style";
+import { rotate2d, type Affine2D } from "@wabou/core/style";
 import type {
   AnimationPlaybackControlsWithThen as MotionControls,
   ValueAnimationOptions,

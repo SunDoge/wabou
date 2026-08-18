@@ -5,7 +5,7 @@ import {
   EVENT_CODE,
   getMountRoot,
   mount,
-} from "@wabou/solid-renderer";
+} from "@wabou/core/renderer";
 import { createRoot, flush, type JSX } from "solid-js";
 import {
   createNotifications,

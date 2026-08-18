@@ -1,5 +1,5 @@
-import type { Handle, WabouElementProps } from "@wabou/solid-renderer";
-import { useHost } from "@wabou/solid-renderer";
+import type { Handle, WabouElementProps } from "@wabou/core/renderer";
+import { useHost } from "@wabou/core/renderer";
 import type { Accessor, JSX } from "solid-js";
 import { createFocus } from "./focus";
 import { createHover } from "./hover";
@@ -65,6 +65,8 @@ export interface ButtonState {
   hovered: boolean;
   pressed: boolean;
   focused: boolean;
+  /** Keyboard-visible focus, separate from focus retained after a click. */
+  focusVisible: boolean;
   selected: boolean;
   disabled: boolean;
 }
@@ -91,7 +93,7 @@ export interface ButtonPrimitive {
     onPointerDown: () => void;
     onPointerUp: () => void;
     onPointerCancel: () => void;
-    onFocus: () => void;
+    onFocus: (event?: { payload?: { focusVisible?: boolean } }) => void;
     onBlur: () => void;
     onClick: (event: ButtonEvent) => void;
     onKeyDown: (event: ButtonKeyEvent) => void;
@@ -121,6 +123,7 @@ export function createButton(
       hovered: hover.hovered(),
       pressed: press.pressed(),
       focused: focus.focused(),
+      focusVisible: focus.focusVisible(),
       selected: selected(),
       disabled: disabled(),
     }),
@@ -130,13 +133,17 @@ export function createButton(
         hover.bindings.onPointerLeave();
         press.bindings.onPointerLeave();
       },
-      onPointerDown: press.bindings.onPointerDown,
+      onPointerDown: () => {
+        focus.pointerModality();
+        press.bindings.onPointerDown();
+      },
       onPointerUp: press.bindings.onPointerUp,
       onPointerCancel: press.bindings.onPointerCancel,
       onFocus: focus.bindings.onFocus,
       onBlur: focus.bindings.onBlur,
       onClick: press.bindings.onClick as (event: ButtonEvent) => void,
       onKeyDown: (event) => {
+        focus.keyboardModality();
         options.onKeyDown?.(event);
         if (event.defaultPrevented || event.repeat) return;
         if (event.key !== "Enter" && event.key !== " ") return;
@@ -173,7 +180,7 @@ export function Button(props: ButtonProps): JSX.Element {
     "white-space": "nowrap",
     "user-select": props.selectable ? "text" : "none",
     cursor: disabled() ? "not-allowed" : "pointer",
-    "outline-width": state().focused ? "2px" : "0px",
+    "outline-width": state().focusVisible ? "2px" : "0px",
     "outline-offset": "2px",
     "outline-color": "#38bdf8",
     "outline-style": "solid",
@@ -192,7 +199,7 @@ export function Button(props: ButtonProps): JSX.Element {
       "border-radius": "6px",
       // Keep focus styling paint-only so focus cannot move the label.
       "border-width": "1px",
-      "border-color": state().focused ? "#7dd3fc" : "#64748b",
+      "border-color": state().focusVisible ? "#7dd3fc" : "#64748b",
       "background-color": background(),
       color: "#f8fafc",
       opacity: disabled() ? 0.45 : 1,

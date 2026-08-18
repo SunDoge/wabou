@@ -1,9 +1,9 @@
+import type { Handle } from "@wabou/core/renderer";
 import { Button as HeadlessButton, Text, View } from "@wabou/primitives";
 import {
   createControllableState,
   createRovingFocus,
 } from "@wabou/primitives/interactions";
-import type { Handle } from "@wabou/solid-renderer";
 import {
   createComponent,
   createContext,
@@ -103,7 +103,7 @@ export function TabsList(props: {
         "flex-none flex items-center gap-1",
         orientationClass(context.orientation(), "flex-row", "flex-col"),
         match(props.variant ?? "default")
-          .with("default", () => "p-1 rounded-lg bg-control")
+          .with("default", () => "p-0.5 rounded-md bg-control")
           .with("line", () => "bg-transparent")
           .exhaustive(),
         props.class,
@@ -144,12 +144,12 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
       }}
       class={(state) =>
         join(
-          "h-8 px-3 items-center justify-center rounded-md border border-transparent text-sm font-medium",
+          "h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
           match({ selected: selected(), hovered: state.hovered })
-            .with({ selected: true }, () => "bg-surface text-primary")
+            .with({ selected: true }, () => "bg-surface text-primary shadow-xs")
             .with({ hovered: true }, () => "bg-control-hover text-primary")
             .otherwise(() => "bg-transparent text-muted"),
-          state.focused && "border-focus",
+          state.focusVisible && "border-focus",
           props.class,
         )
       }

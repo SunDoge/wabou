@@ -27,6 +27,6 @@
     "solid-js": "2.0.0-rc.0"
   },
   "devDependencies": {
-    "@wabou/solid-renderer": "workspace:*"
+    "@wabou/core": "workspace:*"
   }
 }

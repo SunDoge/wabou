@@ -1,7 +1,7 @@
 import {
   defaultHost,
   type WabouExposedSemanticRole,
-} from "@wabou/solid-renderer";
+} from "@wabou/core/renderer";
 import {
   decodeLocatorQuery,
   decodeNativeLocatorQuery,
@@ -67,7 +67,7 @@ interface NativeTestCapability {
   finish(report: string): boolean;
 }
 
-declare module "@wabou/solid-renderer" {
+declare module "@wabou/core/registry" {
   interface HostCapabilities {
     readonly test: NativeTestCapability;
   }

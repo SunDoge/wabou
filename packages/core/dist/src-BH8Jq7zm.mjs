@@ -1,4 +1,4 @@
-//#region generated/style-properties.ts
+//#region ../style/generated/style-properties.ts
 const INLINE_STYLE_CONTRACT = {
 	"align-content": {
 		string: true,
@@ -459,7 +459,7 @@ const INLINE_STYLE_CONTRACT = {
 	}
 };
 //#endregion
-//#region src/index.ts
+//#region ../style/src/index.ts
 const STYLE_VALUE = "__wabou_style_value__";
 const StyleValueKind = {
 	Px: 1,
@@ -555,6 +555,6 @@ const rotate2d = (angle) => {
 /** Type-check a list of utilities while producing Solid's class string. */
 const classes = (...values) => values.join(" ");
 //#endregion
-export { INLINE_STYLE_CONTRACT, STYLE_VALUE, StyleValueKind, assertInlineStyleValue, auto, bool, classes, isTypedStyleValue, number, percent, px, rgba, rotate2d, shadow, translate2d };
+export { bool as a, number as c, rgba as d, rotate2d as f, INLINE_STYLE_CONTRACT as h, auto as i, percent as l, translate2d as m, StyleValueKind as n, classes as o, shadow as p, assertInlineStyleValue as r, isTypedStyleValue as s, STYLE_VALUE as t, px as u };
 
-//# sourceMappingURL=index.mjs.map
+//# sourceMappingURL=src-BH8Jq7zm.mjs.map

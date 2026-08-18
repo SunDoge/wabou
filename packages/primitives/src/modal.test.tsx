@@ -8,7 +8,7 @@ import {
   INTERACTION_POLICY,
   mount,
   writer,
-} from "@wabou/solid-renderer";
+} from "@wabou/core/renderer";
 import { createComponent, createRoot, createSignal, flush } from "solid-js";
 import { Modal, type ModalControls, type ModalTriggerProps } from "./modal";
 import { useOverlayPlane } from "./overlay-layer";

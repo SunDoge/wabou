@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { writer } from "@wabou/solid-renderer";
+import { writer } from "@wabou/core/renderer";
 import { createRoot, flush } from "solid-js";
 import { resolveButtonFocusOrder } from "./button";
 import {
+  CodeEditor,
   createButton,
   createFocus,
   createFocusWithin,
@@ -10,7 +11,6 @@ import {
   createPress,
   createShortcuts,
   createTabs,
-  CodeEditor,
   NetworkImage,
   PasswordInput,
   Svg,
@@ -33,6 +33,7 @@ describe("interaction primitives", () => {
         hovered: true,
         pressed: true,
         focused: true,
+        focusVisible: false,
       });
       button.bindings.onPointerUp();
       button.bindings.onClick({
@@ -71,6 +72,40 @@ describe("interaction primitives", () => {
         false,
         false,
       ]);
+      dispose();
+    }));
+
+  test("shows focus feedback for keyboard focus but not retained pointer focus", () =>
+    createRoot((dispose) => {
+      const button = createButton();
+
+      button.bindings.onKeyDown({
+        key: "Tab",
+        preventDefault() {},
+        stopPropagation() {},
+      });
+      button.bindings.onFocus();
+      flush();
+      expect(button.state()).toMatchObject({
+        focused: true,
+        focusVisible: true,
+      });
+
+      button.bindings.onPointerDown();
+      flush();
+      expect(button.state()).toMatchObject({
+        focused: true,
+        focusVisible: false,
+      });
+      dispose();
+    }));
+
+  test("honours native focus modality when no JavaScript target saw Tab", () =>
+    createRoot((dispose) => {
+      const focus = createFocus();
+      focus.bindings.onFocus({ payload: { focusVisible: true } });
+      flush();
+      expect([focus.focused(), focus.focusVisible()]).toEqual([true, true]);
       dispose();
     }));
 

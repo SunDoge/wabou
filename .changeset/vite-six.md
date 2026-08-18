@@ -1,5 +1,4 @@
 ---
-"@wabou/style-compiler": patch
 "@wabou/vite": patch
 ---
 

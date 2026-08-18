@@ -1,4 +1,4 @@
-import { defaultHost } from "@wabou/solid-renderer";
+import { defaultHost } from "@wabou/core/renderer";
 //#region src/locator-query.ts
 var LocatorAmbiguousError = class extends Error {};
 /** Decode and validate the request-scoped envelope without choosing a match. */

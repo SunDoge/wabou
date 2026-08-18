@@ -7,16 +7,13 @@
       "@wabou/animation",
       "@wabou/components",
       "@wabou/core",
-      "@wabou/interactions",
       "@wabou/primitives",
       "@wabou/protocol",
       "@wabou/router",
       "@wabou/solid-renderer",
       "@wabou/style",
-      "@wabou/style-compiler",
       "@wabou/terminal",
       "@wabou/test",
-      "@wabou/unocss-preset",
       "@wabou/vite"
     ]
   ],
@@ -24,7 +21,7 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "privatePackages": {
-    "version": false,
+    "version": true,
     "tag": false
   },
   "ignore": [

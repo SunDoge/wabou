@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createElement, setProp, writer } from "@wabou/solid-renderer";
+import { createElement, setProp, writer } from "../renderer";
 import { createRenderEffect, createRoot, createSignal, flush } from "solid-js";
 import "./animation-frame";
 
@@ -24,7 +24,9 @@ test("requestAnimationFrame commits Solid effects before writer delivery", () =>
   };
   try {
     requestAnimationFrame(() => setValue("after"));
-    (globalThis as unknown as { __wabou_tick(time: number): boolean }).__wabou_tick(16);
+    (
+      globalThis as unknown as { __wabou_tick(time: number): boolean }
+    ).__wabou_tick(16);
   } finally {
     globalThis.__wabou_flush = originalFlush;
     dispose();

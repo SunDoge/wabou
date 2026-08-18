@@ -1,5 +1,6 @@
 {
   "name": "@wabou/protocol",
+  "private": true,
   "version": "0.1.0-alpha.1",
   "description": "Binary host protocol definitions for Wabou.",
   "license": "Apache-2.0",
@@ -8,20 +9,10 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/protocol"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "wabou": {
     "stability": "internal"
   },
-  "files": [
-    "dist"
-  ],
   "exports": {
-    ".": {
-      "wabou-source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
-    }
+    ".": "./src/index.ts"
   }
 }

@@ -1,5 +1,6 @@
 {
   "name": "@wabou/style",
+  "private": true,
   "version": "0.1.0-alpha.1",
   "description": "Typed runtime style values for Wabou.",
   "license": "Apache-2.0",
@@ -8,21 +9,11 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/style"
   },
-  "publishConfig": {
-    "access": "public"
-  },
   "wabou": {
     "stability": "internal"
   },
   "type": "module",
-  "files": [
-    "dist"
-  ],
   "exports": {
-    ".": {
-      "wabou-source": "./src/index.ts",
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
-    }
+    ".": "./src/index.ts"
   }
 }

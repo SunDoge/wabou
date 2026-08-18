@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "@wabou/core": "workspace:*",
-    "@wabou/style": "workspace:*",
     "solid-js": "2.0.0-rc.0",
     "motion-dom": "^12.43.0"
   }

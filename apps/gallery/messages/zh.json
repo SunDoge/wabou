@@ -1,0 +1,16 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "gallery_i18n_title": "编译型本地化",
+  "gallery_i18n_greeting": "你好，{name}！",
+  "gallery_i18n_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} 个原生组件",
+        "countPlural=other": "{count} 个原生组件"
+      }
+    }
+  ],
+  "gallery_i18n_unused": "这个未使用的消息会被 tree shaking 删除"
+}

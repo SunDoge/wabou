@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { Handle } from "@wabou/solid-renderer";
+import type { Handle } from "@wabou/core/renderer";
 import { createRoot, flush } from "solid-js";
 import { createMeasuredSize } from "./measure";
 

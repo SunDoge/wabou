@@ -1,4 +1,5 @@
-import { type Handle, Portal, useHost } from "@wabou/solid-renderer";
+import { type Handle, Portal, useHost } from "@wabou/core/renderer";
+import type { Shadow } from "@wabou/core/style";
 import {
   createEffect,
   createSignal,
@@ -47,6 +48,7 @@ interface PopoverBaseProps {
   offset?: number;
   contentClass?: string;
   contentStyle?: WabouStyle;
+  contentShadows?: readonly Shadow[] | null;
   closeOnEscape?: boolean;
   restoreFocus?: boolean;
   /** Defaults to the nearest overlay plane, or `floating` at app content. */
@@ -210,6 +212,7 @@ export function Popover(props: PopoverProps): JSX.Element {
             role={props.contentRole ?? "dialog"}
             aria-label={props["aria-label"]}
             class={props.contentClass}
+            shadows={props.contentShadows}
             style={{
               position: "absolute",
               // The panel must participate in layout before Floating UI can

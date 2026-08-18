@@ -4,18 +4,20 @@ import solid from "vite-plugin-solid";
 const packages: Record<string, UserConfig["entry"]> = {
   animation: { index: "src/index.ts" },
   components: { index: "src/index.tsx" },
-  core: { index: "src/index.ts" },
+  core: {
+    index: "src/index.ts",
+    protocol: "src/protocol.ts",
+    registry: "src/registry.ts",
+    renderer: "src/renderer.ts",
+    style: "src/style.ts",
+    i18n: "src/i18n.ts",
+    "jsx-runtime": "src/jsx.ts",
+  },
   primitives: {
     index: "src/index.ts",
     interactions: "src/interactions/index.ts",
   },
-  protocol: { index: "src/index.ts" },
   router: { index: "src/index.tsx" },
-  "solid-renderer": {
-    index: "src/index.ts",
-    "jsx-runtime": "src/jsx.ts",
-  },
-  style: { index: "src/index.ts" },
   terminal: { index: "src/index.tsx" },
   test: { index: "src/index.ts" },
   vite: {
@@ -40,12 +42,29 @@ export default defineConfig(
     clean: true,
     deps: {
       neverBundle: true,
+      ...(name === "core"
+        ? {
+            alwaysBundle: [
+              /^@wabou\/protocol(?:\/|$)/,
+              /^@wabou\/solid-renderer(?:\/|$)/,
+              /^@wabou\/style(?:\/|$)/,
+            ],
+            dts: {
+              neverBundle: true,
+              alwaysBundle: [
+                /^@wabou\/protocol(?:\/|$)/,
+                /^@wabou\/solid-renderer(?:\/|$)/,
+                /^@wabou\/style(?:\/|$)/,
+              ],
+            },
+          }
+        : {}),
     },
     plugins: [
       ...solid({
         solid: {
           generate: "universal",
-          moduleName: "@wabou/solid-renderer",
+          moduleName: name === "core" ? "./index" : "@wabou/core/renderer",
         },
       }),
     ],

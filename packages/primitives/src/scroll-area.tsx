@@ -1,4 +1,4 @@
-import type { Handle, NativeScrollbarStyle } from "@wabou/solid-renderer";
+import type { Handle, NativeScrollbarStyle } from "@wabou/core/renderer";
 import type { JSX } from "solid-js";
 import { join } from "./class-names";
 import { View, type WabouStyle } from "./view";

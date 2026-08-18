@@ -33,6 +33,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
     "@changesets/cli": "^2.29.8",
+    "@inlang/paraglide-js": "^2.24.1",
     "@solidjs/web": "2.0.0-rc.0",
     "@tanstack/history": "1.162.1",
     "@tanstack/router-core": "1.171.24",
@@ -41,7 +42,6 @@
     "@wabou/core": "workspace:*",
     "@wabou/primitives": "workspace:*",
     "@wabou/router": "workspace:*",
-    "@wabou/solid-renderer": "workspace:*",
     "@wabou/vite": "workspace:*",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.0",

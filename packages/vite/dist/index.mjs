@@ -291,7 +291,7 @@ function wabouPlugins(root = process.cwd(), theme, ignoreClasses, intl, entry = 
 		}),
 		...solid({ solid: {
 			generate: "universal",
-			moduleName: "@wabou/solid-renderer"
+			moduleName: "@wabou/core/renderer"
 		} }),
 		disableSolidDependencyOptimizer()
 	];
@@ -307,12 +307,12 @@ function resolveWabouConfig(options, environment) {
 	const sourceMap = process.env.WABOU_SOURCE_MAP;
 	const debug = process.env.WABOU_ENV_DEBUG === "true" || environment.command === "serve";
 	const sourcemap = sourceMap === "true" ? true : sourceMap === "false" ? false : manifestSourceMap(root) ?? debug;
-	const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
+	const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
 	const defaults = {
 		define: { "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (environment.command === "serve" ? "development" : "production")) },
 		plugins: wabouPlugins(root, options.theme, options.ignoreClasses, options.intl, options.entry ?? "ui/index.tsx"),
 		resolve: { alias: {
-			"@wabou/solid-renderer": renderer,
+			"@wabou/core/renderer": renderer,
 			"solid-js/web": renderer
 		} },
 		build: {

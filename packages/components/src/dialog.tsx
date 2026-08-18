@@ -1,3 +1,4 @@
+import { rgba } from "@wabou/core";
 import {
   Modal,
   type ModalControls,
@@ -5,27 +6,33 @@ import {
   Text,
   View,
 } from "@wabou/primitives";
-import { rgba } from "@wabou/core";
 import type { JSX } from "solid-js";
 import { join } from "./class-names";
+import { componentsElevation, useComponentsTheme } from "./theme";
 
 export interface DialogProps extends Omit<ModalProps, "contentClass"> {
   contentClass?: string;
 }
 
 export function Dialog(props: DialogProps): JSX.Element {
+  const theme = useComponentsTheme();
   return (
     <Modal
       {...props}
       backdropClass={props.backdropClass}
       backdropStyle={{
-        "background-color": rgba(0x000000a6),
+        "background-color": rgba(0x00000033),
         ...props.backdropStyle,
       }}
       contentClass={join(
-        "w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-xl border border-subtle bg-surface p-6 shadow-lg",
+        "w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5",
         props.contentClass,
       )}
+      contentShadows={
+        props.contentShadows === undefined
+          ? componentsElevation(theme(), "modal")
+          : props.contentShadows
+      }
     />
   );
 }

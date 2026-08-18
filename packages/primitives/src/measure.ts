@@ -1,4 +1,4 @@
-import type { Handle } from "@wabou/solid-renderer";
+import type { Handle } from "@wabou/core/renderer";
 import { createSignal, onCleanup, type Accessor } from "solid-js";
 
 export interface MeasuredSize {

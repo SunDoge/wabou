@@ -6,7 +6,7 @@ export function Empty(props: { children?: JSX.Element; class?: string }) {
   return (
     <Column
       class={join(
-        "w-full min-h-64 p-8 items-center justify-center gap-5 rounded-xl border border-subtle bg-surface",
+        "w-full min-h-64 p-8 items-center justify-center gap-4 rounded-lg border border-subtle bg-surface shadow-xs",
         props.class,
       )}
     >

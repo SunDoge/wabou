@@ -1,7 +1,7 @@
 import { Accessor, JSX } from "solid-js";
-import { Handle, Host, LayoutRect as LayoutRect$1, LayoutTarget, NativeScrollbarStyle, WabouElementProps } from "@wabou/solid-renderer";
+import { Handle, Host, LayoutRect as LayoutRect$1, LayoutTarget, NativeScrollbarStyle, WabouElementProps } from "@wabou/core/renderer";
 import { Easing } from "@wabou/animation";
-import { Affine2D, Affine2D as Affine2D$1, Shadow, WabouStyle, WabouStyle as WabouStyle$1, rotate2d, translate2d } from "@wabou/style";
+import { Affine2D, Affine2D as Affine2D$1, Shadow, WabouStyle, WabouStyle as WabouStyle$1, rotate2d, translate2d } from "@wabou/core/style";
 import { ComputePositionReturn, ComputePositionReturn as ComputePositionReturn$1, Middleware, Middleware as Middleware$1, Placement, Placement as Placement$1, Strategy, Strategy as Strategy$1, arrow, autoPlacement, flip, offset, shift, size } from "@floating-ui/core";
 //#region src/animation-frame.d.ts
 type AnimationFrameCallback = (timestamp: number) => unknown;
@@ -179,6 +179,8 @@ interface ButtonState {
   hovered: boolean;
   pressed: boolean;
   focused: boolean;
+  /** Keyboard-visible focus, separate from focus retained after a click. */
+  focusVisible: boolean;
   selected: boolean;
   disabled: boolean;
 }
@@ -196,7 +198,11 @@ interface ButtonPrimitive {
     onPointerDown: () => void;
     onPointerUp: () => void;
     onPointerCancel: () => void;
-    onFocus: () => void;
+    onFocus: (event?: {
+      payload?: {
+        focusVisible?: boolean;
+      };
+    }) => void;
     onBlur: () => void;
     onClick: (event: ButtonEvent) => void;
     onKeyDown: (event: ButtonKeyEvent) => void;
@@ -243,9 +249,20 @@ declare function CollapsiblePresence(props: CollapsiblePresenceProps): JSX.Eleme
 //#region src/focus.d.ts
 interface FocusResult {
   focused: () => boolean;
+  focusVisible: () => boolean;
+  /** Record that the next/current focus came from direct pointer input. */
+  pointerModality: () => void;
+  /** Record that the next focus movement came from keyboard input. */
+  keyboardModality: () => void;
   bindings: {
-    onFocus: () => void;
+    onFocus: (event?: FocusEvent) => void;
     onBlur: () => void;
+  };
+}
+interface FocusEvent {
+  /** Native input-modality hint. Styling remains owned by the JS primitive. */
+  payload?: {
+    focusVisible?: boolean;
   };
 }
 /** Reactive focus state and event bindings for a single target. */
@@ -330,6 +347,7 @@ interface ModalProps {
   backdropStyle?: WabouStyle;
   contentClass?: string;
   contentStyle?: WabouStyle;
+  contentShadows?: readonly Shadow[] | null;
   contentRef?: (node: Handle) => void;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
@@ -495,6 +513,7 @@ interface PopoverBaseProps {
   offset?: number;
   contentClass?: string;
   contentStyle?: WabouStyle;
+  contentShadows?: readonly Shadow[] | null;
   closeOnEscape?: boolean;
   restoreFocus?: boolean;
   /** Defaults to the nearest overlay plane, or `floating` at app content. */

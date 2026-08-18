@@ -19,12 +19,46 @@
       "wabou-source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./protocol": {
+      "wabou-source": "./src/protocol.ts",
+      "types": "./dist/protocol.d.mts",
+      "import": "./dist/protocol.mjs"
+    },
+    "./registry": {
+      "wabou-source": "./src/registry.ts",
+      "types": "./dist/registry.d.mts",
+      "import": "./dist/registry.mjs"
+    },
+    "./renderer": {
+      "wabou-source": "./src/renderer.ts",
+      "types": "./dist/renderer.d.mts",
+      "import": "./dist/renderer.mjs"
+    },
+    "./style": {
+      "wabou-source": "./src/style.ts",
+      "types": "./dist/style.d.mts",
+      "import": "./dist/style.mjs"
+    },
+    "./i18n": {
+      "wabou-source": "./src/i18n.ts",
+      "types": "./dist/i18n.d.mts",
+      "import": "./dist/i18n.mjs"
+    },
+    "./jsx-runtime": {
+      "wabou-source": "./src/jsx.ts",
+      "types": "./dist/jsx-runtime.d.mts",
+      "import": "./dist/jsx-runtime.mjs"
+    },
+    "./jsx-dev-runtime": {
+      "wabou-source": "./src/jsx.ts",
+      "types": "./dist/jsx-runtime.d.mts",
+      "import": "./dist/jsx-runtime.mjs"
     }
   },
   "dependencies": {
-    "@wabou/protocol": "workspace:*",
-    "@wabou/solid-renderer": "workspace:*",
-    "@wabou/style": "workspace:*",
+    "@solidjs/universal": "2.0.0-rc.0",
+    "@tanstack/virtual-core": "3.17.7",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.0",
     "whatwg-url": "^17.1.0"

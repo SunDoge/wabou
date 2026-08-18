@@ -5,6 +5,8 @@ import {
   startOfMonth,
 } from "@internationalized/date";
 import { useHost } from "@wabou/core";
+import type { Handle } from "@wabou/core/renderer";
+import type { Shadow } from "@wabou/core/style";
 import {
   Button as HeadlessButton,
   Icon,
@@ -12,12 +14,12 @@ import {
   Text,
   View,
 } from "@wabou/primitives";
-import type { Handle } from "@wabou/solid-renderer";
-import { createMemo, createSignal, For, type JSX } from "solid-js";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
 import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import { createMemo, createSignal, For, type JSX } from "solid-js";
 import { join } from "./class-names";
+import { componentsElevation, useComponentsTheme } from "./theme";
 
 function dayOfWeek(value: CalendarDate): number {
   return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
@@ -213,7 +215,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
       aria-label={props["aria-label"] ?? "Calendar"}
       class="w-72 p-3 flex flex-col gap-3"
     >
-      <View class="h-9 flex items-center justify-between">
+      <View class="h-8 flex items-center justify-between">
         <HeadlessButton
           unstyled
           aria-label={labels().previousMonth}
@@ -221,7 +223,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
             props.disabled ||
             !canShowMonth(visibleMonth().subtract({ months: 1 }))
           }
-          class="w-9 h-9 rounded-md items-center justify-center"
+          class="w-8 h-8 rounded-md items-center justify-center"
           onClick={() =>
             setVisibleMonth((month) => month.subtract({ months: 1 }))
           }
@@ -237,7 +239,7 @@ export function Calendar(props: CalendarProps): JSX.Element {
           disabled={
             props.disabled || !canShowMonth(visibleMonth().add({ months: 1 }))
           }
-          class="w-9 h-9 rounded-md items-center justify-center"
+          class="w-8 h-8 rounded-md items-center justify-center"
           onClick={() => setVisibleMonth((month) => month.add({ months: 1 }))}
         >
           <Icon source={chevronRight} size={16} />
@@ -306,6 +308,7 @@ export interface DatePickerProps extends Omit<CalendarProps, "aria-label"> {
   "aria-label": string;
   placeholder?: string;
   class?: string;
+  contentShadows?: readonly Shadow[] | null;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -315,6 +318,7 @@ export interface DatePickerProps extends Omit<CalendarProps, "aria-label"> {
 /** A shadcn-inspired date picker composed from Wabou Popover and Calendar. */
 export function DatePicker(props: DatePickerProps): JSX.Element {
   const host = useHost();
+  const theme = useComponentsTheme();
   const [localValue, setLocalValue] = createSignal(props.defaultValue);
   const [localOpen, setLocalOpen] = createSignal(props.defaultOpen ?? false);
   const open = () => props.open ?? localOpen();
@@ -348,7 +352,12 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
       open={open()}
       onOpenChange={setOpen}
       placement="bottom-start"
-      contentClass="rounded-lg border border-subtle bg-surface shadow-lg"
+      contentClass="rounded-lg border border-subtle bg-surface"
+      contentShadows={
+        props.contentShadows === undefined
+          ? componentsElevation(theme(), "floating")
+          : props.contentShadows
+      }
       trigger={(trigger) => (
         <HeadlessButton
           unstyled
@@ -356,7 +365,7 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
           aria-label={props["aria-label"]}
           disabled={props.disabled}
           class={join(
-            "w-72 h-9 px-3 justify-start gap-2 rounded-md border border-strong bg-input text-sm",
+            "w-72 h-8 px-3 justify-start gap-2 rounded-md border border-subtle bg-input text-sm shadow-xs",
             props.class,
           )}
         >

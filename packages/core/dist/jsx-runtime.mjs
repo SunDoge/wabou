@@ -1,4 +1,4 @@
-//#region src/jsx.ts
+//#region ../solid-renderer/src/jsx.ts
 function jsx() {
 	throw new Error("Wabou JSX must be compiled by the Solid transform");
 }

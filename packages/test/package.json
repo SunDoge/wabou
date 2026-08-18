@@ -22,6 +22,6 @@
     }
   },
   "dependencies": {
-    "@wabou/solid-renderer": "workspace:*"
+    "@wabou/core": "workspace:*"
   }
 }

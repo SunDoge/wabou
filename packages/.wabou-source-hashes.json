@@ -1,13 +1,13 @@
 {
-  "@wabou/animation": "faf76b1202a986a7",
-  "@wabou/components": "74d89f26e8decf67",
-  "@wabou/core": "13c77367a24a237f",
-  "@wabou/primitives": "44c0d456a166239c",
+  "@wabou/animation": "67a4adc791474d19",
+  "@wabou/components": "810e700fff9c2745",
+  "@wabou/core": "1528478a220ca0b1",
+  "@wabou/primitives": "91cc3933d1b74d87",
   "@wabou/protocol": "af79448b7043ca9b",
-  "@wabou/router": "d09a3ec92bcde517",
-  "@wabou/solid-renderer": "b98a1ae2fc7499d6",
+  "@wabou/router": "8917c25f2e5a7821",
+  "@wabou/solid-renderer": "01f74818c6c21f09",
   "@wabou/style": "769bb1d993311db1",
-  "@wabou/terminal": "c4e7325d52f9cb01",
-  "@wabou/test": "8709978678d933c1",
-  "@wabou/vite": "660deff59d08fa33"
+  "@wabou/terminal": "f8c7aa033f058549",
+  "@wabou/test": "c03de96ff023a67d",
+  "@wabou/vite": "ec757e232bcf792b"
 }

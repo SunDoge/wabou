@@ -1,4 +1,4 @@
-import type { Handle, WabouElementProps } from "@wabou/solid-renderer";
+import type { Handle, WabouElementProps } from "@wabou/core/renderer";
 import type { JSX } from "solid-js";
 
 export type TerminalStyle = Record<string, string | number>;
@@ -103,7 +103,7 @@ export function Terminal(props: TerminalProps): JSX.Element {
   );
 }
 
-declare module "@wabou/solid-renderer" {
+declare module "@wabou/core/registry" {
   interface WabouIntrinsicElements {
     /** Low-level native widget. Prefer the typed PascalCase `Terminal`. */
     terminal: Omit<WabouElementProps, "style" | "ref"> & {

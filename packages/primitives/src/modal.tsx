@@ -1,4 +1,5 @@
-import { type Handle, Portal } from "@wabou/solid-renderer";
+import { type Handle, Portal } from "@wabou/core/renderer";
+import type { Shadow } from "@wabou/core/style";
 import {
   createComponent,
   createEffect,
@@ -50,6 +51,7 @@ export interface ModalProps {
   backdropStyle?: WabouStyle;
   contentClass?: string;
   contentStyle?: WabouStyle;
+  contentShadows?: readonly Shadow[] | null;
   contentRef?: (node: Handle) => void;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
@@ -176,6 +178,9 @@ export function Modal(props: ModalProps): JSX.Element {
               },
               get style() {
                 return props.contentStyle;
+              },
+              get shadows() {
+                return props.contentShadows;
               },
               onClick: (event: ModalEvent) => event.stopPropagation(),
               get children() {

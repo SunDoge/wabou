@@ -29,6 +29,10 @@ import "virtual:wabou-stylesheet";
 import { OverlayPage } from "./pages/overlay";
 import { SystemPage } from "./pages/system";
 
+function classes(...values: Array<string | false | undefined>): string {
+  return values.filter(Boolean).join(" ");
+}
+
 type ComponentId =
   | "button"
   | "badge"
@@ -63,7 +67,8 @@ type ComponentId =
   | "button-group"
   | "select"
   | "date-picker"
-  | "data-table";
+  | "data-table"
+  | "i18n";
 
 const groups: Array<{
   label: string;
@@ -109,6 +114,7 @@ const groups: Array<{
       { id: "colors", name: "Colors" },
       { id: "shadows", name: "Shadows" },
       { id: "overlay", name: "Overlay" },
+      { id: "i18n", name: "Internationalization" },
     ],
   },
   {
@@ -182,6 +188,7 @@ const descriptions: Record<ComponentId, string> = {
     "Groups related actions into horizontal or vertical toolbars.",
   "data-table":
     "A framework-agnostic TanStack Table core rendered through native Wabou primitives.",
+  i18n: "Tree-shakeable typed messages compiled by Paraglide and driven by Solid locale state.",
 };
 
 const history = createMemoryHistory();
@@ -214,6 +221,7 @@ import {
 } from "./pages/basics";
 import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
+import { I18nPage } from "./pages/i18n";
 import {
   AccordionPage,
   AvatarPage,
@@ -258,60 +266,22 @@ function App() {
   return (
     <ColorThemeProvider theme={theme()} transition={false}>
       <ComponentsProvider theme={dark() ? "dark" : "light"}>
-        <View
-          class={
-            dark()
-              ? "w-full h-full flex overflow-hidden bg-slate-950 text-slate-100 font-sans"
-              : "w-full h-full flex overflow-hidden bg-slate-50 text-slate-900 font-sans"
-          }
-        >
-          <View
-            class={
-              dark()
-                ? "w-60 h-full flex-none flex flex-col border-r border-slate-800 bg-slate-950"
-                : "w-60 h-full flex-none flex flex-col border-r border-slate-200 bg-white"
-            }
-          >
-            <View
-              class={
-                dark()
-                  ? "h-16 flex-none px-5 flex items-center gap-3 border-b border-slate-800"
-                  : "h-16 flex-none px-5 flex items-center gap-3 border-b border-slate-200"
-              }
-            >
-              <View class="w-8 h-8 flex items-center justify-center rounded-lg bg-sky-500">
+        <View class="w-full h-full flex overflow-hidden bg-canvas text-primary font-sans">
+          <View class="w-56 h-full flex-none flex flex-col border-r border-subtle bg-surface-muted">
+            <View class="h-14 flex-none px-4 flex items-center gap-3 border-b border-subtle bg-surface">
+              <View class="w-8 h-8 flex items-center justify-center rounded-md bg-accent shadow-sm">
                 <Text class="text-sm font-bold text-white">W</Text>
               </View>
               <View class="flex flex-col">
-                <Text
-                  class={
-                    dark()
-                      ? "text-sm font-semibold text-white"
-                      : "text-sm font-semibold text-slate-950"
-                  }
-                >
-                  Wabou
-                </Text>
-                <Text
-                  class={
-                    dark() ? "text-xs text-slate-500" : "text-xs text-slate-500"
-                  }
-                >
-                  Components & platform
-                </Text>
+                <Text class="text-sm font-semibold text-primary">Wabou</Text>
+                <Text class="text-xs text-muted">Components & platform</Text>
               </View>
             </View>
-            <ScrollArea class="flex-1" contentClass="px-3 py-4">
+            <ScrollArea class="flex-1" contentClass="px-2 py-3">
               <For each={groups}>
                 {(group) => (
-                  <View class="flex-none flex flex-col gap-1 mb-5">
-                    <Text
-                      class={
-                        dark()
-                          ? "px-2 py-1 text-xs font-medium text-slate-600"
-                          : "px-2 py-1 text-xs font-medium text-slate-400"
-                      }
-                    >
+                  <View class="flex-none flex flex-col gap-0.5 mb-4">
+                    <Text class="px-2 py-1 text-xs font-medium text-muted">
                       {group.label}
                     </Text>
                     <For each={group.items}>
@@ -320,28 +290,17 @@ function App() {
                           unstyled
                           aria-label={item.name}
                           selected={selected() === item.id}
-                          class="w-full h-9 px-3 rounded-md text-sm"
-                          style={(state) => ({
-                            "justify-content": "flex-start",
-                            "background-color":
+                          class={(state) =>
+                            classes(
+                              "w-full h-8 px-3 justify-start rounded-md text-sm",
                               selected() === item.id
-                                ? dark()
-                                  ? "#1e293b"
-                                  : "#e0f2fe"
+                                ? "bg-selected text-primary"
                                 : state.hovered
-                                  ? dark()
-                                    ? "#0f172a"
-                                    : "#f1f5f9"
-                                  : "transparent",
-                            color:
-                              selected() === item.id
-                                ? dark()
-                                  ? "#f8fafc"
-                                  : "#0369a1"
-                                : dark()
-                                  ? "#94a3b8"
-                                  : "#475569",
-                          })}
+                                  ? "bg-control-hover text-primary"
+                                  : "bg-transparent text-secondary",
+                              state.focused && "border border-focus",
+                            )
+                          }
                           onClick={() =>
                             void navigate({ to: `/components/${item.id}` })
                           }
@@ -354,13 +313,7 @@ function App() {
                 )}
               </For>
             </ScrollArea>
-            <View
-              class={
-                dark()
-                  ? "flex-none p-4 border-t border-slate-800"
-                  : "flex-none p-4 border-t border-slate-200"
-              }
-            >
+            <View class="flex-none p-3 border-t border-subtle bg-surface">
               <Badge variant="outline">
                 {groups.reduce((total, group) => total + group.items.length, 0)}{" "}
                 showcases
@@ -369,57 +322,35 @@ function App() {
           </View>
 
           <View class="flex-1 min-w-0 h-full flex flex-col">
-            <View
-              class={
-                dark()
-                  ? "h-16 flex-none px-7 flex items-center justify-between border-b border-slate-800 bg-slate-950"
-                  : "h-16 flex-none px-7 flex items-center justify-between border-b border-slate-200 bg-white"
-              }
-            >
+            <View class="h-14 flex-none px-6 flex items-center justify-between border-b border-subtle bg-surface">
               <View class="flex items-center gap-3">
                 <View class="flex items-center gap-1">
                   <PrimitiveButton
                     unstyled
-                    class={
-                      dark()
-                        ? "w-8 h-8 justify-center rounded-md text-slate-400"
-                        : "w-8 h-8 justify-center rounded-md text-slate-600"
+                    class={(state) =>
+                      classes(
+                        "w-8 h-8 justify-center rounded-md text-secondary",
+                        state.hovered && "bg-control-hover text-primary",
+                      )
                     }
-                    style={(state) => ({
-                      "background-color": state.hovered
-                        ? dark()
-                          ? "#1e293b"
-                          : "#f1f5f9"
-                        : "transparent",
-                    })}
                     onClick={() => history.back()}
                   >
                     ‹
                   </PrimitiveButton>
                   <PrimitiveButton
                     unstyled
-                    class={
-                      dark()
-                        ? "w-8 h-8 justify-center rounded-md text-slate-400"
-                        : "w-8 h-8 justify-center rounded-md text-slate-600"
+                    class={(state) =>
+                      classes(
+                        "w-8 h-8 justify-center rounded-md text-secondary",
+                        state.hovered && "bg-control-hover text-primary",
+                      )
                     }
-                    style={(state) => ({
-                      "background-color": state.hovered
-                        ? dark()
-                          ? "#1e293b"
-                          : "#f1f5f9"
-                        : "transparent",
-                    })}
                     onClick={() => history.forward()}
                   >
                     ›
                   </PrimitiveButton>
                 </View>
-                <Text
-                  class={
-                    dark() ? "text-sm text-slate-500" : "text-sm text-slate-500"
-                  }
-                >
+                <Text class="text-sm text-muted">
                   Components / {selectedName()}
                 </Text>
               </View>
@@ -436,25 +367,12 @@ function App() {
               ref={(node) => (contentViewport = node)}
               class="flex-1 min-h-0 overflow-y-auto"
             >
-              <View class="w-full max-w-4xl mx-auto px-8 py-10 flex flex-col gap-7">
+              <View class="w-full max-w-5xl mx-auto px-10 py-8 flex flex-col gap-6">
                 <View class="flex flex-col gap-2">
-                  <Text
-                    role="heading"
-                    class={
-                      dark()
-                        ? "text-3xl font-bold text-white"
-                        : "text-3xl font-bold text-slate-950"
-                    }
-                  >
+                  <Text role="heading" class="text-2xl font-bold text-primary">
                     {selectedName()}
                   </Text>
-                  <Text
-                    class={
-                      dark()
-                        ? "text-base text-slate-400"
-                        : "text-base text-slate-600"
-                    }
-                  >
+                  <Text class="text-sm text-secondary">
                     {descriptions[selected()]}
                   </Text>
                 </View>
@@ -561,6 +479,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "data-table"}>
                     <DataTablePage />
+                  </Match>
+                  <Match when={selected() === "i18n"}>
+                    <I18nPage />
                   </Match>
                 </ShowCase>
               </View>

@@ -1,7 +1,7 @@
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, useContext } from "solid-js";
-import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, spread, useHost } from "@wabou/solid-renderer";
+import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, spread, useHost } from "@wabou/core/renderer";
 import { createPulse, createRotation, createTransition } from "@wabou/animation";
-import { number, px, rotate2d, translate2d } from "@wabou/style";
+import { number, px, rotate2d, translate2d } from "@wabou/core/style";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 //#region src/animation-frame.ts
 /**
@@ -30,14 +30,31 @@ function createAnimationFrame(callback) {
 }
 //#endregion
 //#region src/focus.ts
+let keyboardModality = false;
 /** Reactive focus state and event bindings for a single target. */
 function createFocus() {
 	const [focused, setFocused] = createSignal(false);
+	const [focusVisible, setFocusVisible] = createSignal(false);
 	return {
 		focused,
+		focusVisible,
+		pointerModality: () => {
+			keyboardModality = false;
+			if (focused()) setFocusVisible(false);
+		},
+		keyboardModality: () => {
+			keyboardModality = true;
+			if (focused()) setFocusVisible(true);
+		},
 		bindings: {
-			onFocus: () => setFocused(true),
-			onBlur: () => setFocused(false)
+			onFocus: (event) => {
+				setFocused(true);
+				setFocusVisible(event?.payload?.focusVisible ?? keyboardModality);
+			},
+			onBlur: () => {
+				setFocused(false);
+				setFocusVisible(false);
+			}
 		}
 	};
 }
@@ -120,6 +137,7 @@ function createButton(options = {}) {
 			hovered: hover.hovered(),
 			pressed: press.pressed(),
 			focused: focus.focused(),
+			focusVisible: focus.focusVisible(),
 			selected: selected(),
 			disabled: disabled()
 		}),
@@ -129,13 +147,17 @@ function createButton(options = {}) {
 				hover.bindings.onPointerLeave();
 				press.bindings.onPointerLeave();
 			},
-			onPointerDown: press.bindings.onPointerDown,
+			onPointerDown: () => {
+				focus.pointerModality();
+				press.bindings.onPointerDown();
+			},
 			onPointerUp: press.bindings.onPointerUp,
 			onPointerCancel: press.bindings.onPointerCancel,
 			onFocus: focus.bindings.onFocus,
 			onBlur: focus.bindings.onBlur,
 			onClick: press.bindings.onClick,
 			onKeyDown: (event) => {
+				focus.keyboardModality();
 				options.onKeyDown?.(event);
 				if (event.defaultPrevented || event.repeat) return;
 				if (event.key !== "Enter" && event.key !== " ") return;
@@ -170,7 +192,7 @@ function Button(props) {
 		"white-space": "nowrap",
 		"user-select": props.selectable ? "text" : "none",
 		cursor: disabled() ? "not-allowed" : "pointer",
-		"outline-width": state().focused ? "2px" : "0px",
+		"outline-width": state().focusVisible ? "2px" : "0px",
 		"outline-offset": "2px",
 		"outline-color": "#38bdf8",
 		"outline-style": "solid"
@@ -184,7 +206,7 @@ function Button(props) {
 			padding: "6px 12px",
 			"border-radius": "6px",
 			"border-width": "1px",
-			"border-color": state().focused ? "#7dd3fc" : "#64748b",
+			"border-color": state().focusVisible ? "#7dd3fc" : "#64748b",
 			"background-color": background(),
 			color: "#f8fafc",
 			opacity: disabled() ? .45 : 1
@@ -753,6 +775,9 @@ function Modal(props) {
 						get style() {
 							return props.contentStyle;
 						},
+						get shadows() {
+							return props.contentShadows;
+						},
 						onClick: (event) => event.stopPropagation(),
 						get children() {
 							return createComponent(OverlayPlaneProvider, {
@@ -1142,6 +1167,9 @@ function Popover(props) {
 						},
 						get ["class"]() {
 							return props.contentClass;
+						},
+						get shadows() {
+							return props.contentShadows;
 						},
 						get style() {
 							return {

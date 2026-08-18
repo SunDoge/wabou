@@ -1,8 +1,8 @@
 import {
   createFocusWithin,
-  Text,
   TextArea as PrimitiveTextArea,
   type TextAreaProps as PrimitiveTextAreaProps,
+  Text,
   View,
 } from "@wabou/primitives";
 import type { JSX } from "solid-js";
@@ -92,7 +92,7 @@ export function InputGroup(props: { children?: JSX.Element; class?: string }) {
     <View
       {...focus.bindings}
       class={join(
-        "w-full h-9 flex items-center rounded-md border bg-input",
+        "w-full h-8 flex items-center rounded-md border bg-input shadow-xs",
         focus.focusWithin() ? "border-focus" : "border-strong",
         props.class,
       )}

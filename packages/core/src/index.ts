@@ -5,9 +5,9 @@
 // crates/wabou-runtime/src/jsrt.rs before the app boots.
 //
 // Load order matters only where a later module relies on an earlier one's
-// global (e.g. the lazy TextEncoder in @wabou/protocol, resolved on
+// global (e.g. the lazy TextEncoder in the protocol layer, resolved on
 // first use well after this init). Polyfills that need no host fn can go in
-// any order; glue modules import from @wabou/solid-renderer directly.
+// any order; glue modules import the bundled renderer layer directly.
 
 import "./host";
 import "./polyfills/abort-controller";
@@ -32,10 +32,11 @@ import "./glue/notification";
 import "./glue/intl";
 
 // The renderer and typed style surface are re-exported here so application
-// code has one stable runtime entry point. Their package names remain an
-// implementation detail used by the Vite transform and Wabou's own packages.
-export * from "@wabou/solid-renderer";
-export * from "@wabou/style";
+// code has one stable runtime entry point. Separate source workspaces remain
+// an implementation detail and are bundled into this package for release.
+export * from "./renderer";
+export * from "./registry";
+export * from "./style";
 export {
   type CalendarDateFields,
   intl,

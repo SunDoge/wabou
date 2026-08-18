@@ -3,8 +3,8 @@ import {
   HOST_FRAME,
   HOST_NODE_PAYLOAD,
   HOST_RECORD_KIND,
-} from "@wabou/protocol";
-import { dispatchEvent } from "@wabou/solid-renderer";
+} from "../protocol";
+import { dispatchEvent } from "../renderer";
 import { flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
 import { dispatchResizeObservation } from "./resize-observer";

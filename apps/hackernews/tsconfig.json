@@ -4,16 +4,11 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+    "jsxImportSource": "@wabou/core",
     "types": ["vite/client", "node"],
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true,
-    "paths": {
-      "@wabou/solid-renderer": ["../../packages/solid-renderer/src/index.ts"],
-      "@wabou/core": ["../../packages/core/src/index.ts"],
-      "@wabou/protocol": ["../../packages/protocol/src/index.ts"]
-    }
+    "skipLibCheck": true
   },
   "include": ["ui", "vite.config.ts"]
 }

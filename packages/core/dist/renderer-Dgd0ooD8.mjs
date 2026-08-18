@@ -1,10 +1,9 @@
-import { EVENT_CODE, GRAPHIC_SOURCE, GRAPHIC_SOURCE as GRAPHIC_SOURCE$1, INTERACTION_POLICY, INTERACTION_POLICY as INTERACTION_POLICY$1, OP, TEXT_BEHAVIOR, Writer } from "@wabou/protocol";
-import { assertInlineStyleValue, isTypedStyleValue } from "@wabou/style";
-import { For, Show, createComponent as createComponent$1, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
+import { c as INTERACTION_POLICY, d as Writer, i as GRAPHIC_SOURCE, t as EVENT_CODE } from "./src-BdUoqWlm.mjs";
+import { r as assertInlineStyleValue, s as isTypedStyleValue } from "./src-BH8Jq7zm.mjs";
+import { For, Show, createComponent, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
-import { createComponent as createComponent$2, createElement as createElement$1, effect as effect$1, insert as insert$1, insertNode as insertNode$1, ref as ref$1, setProp as setProp$1 } from "@wabou/solid-renderer";
 import { Virtualizer } from "@tanstack/virtual-core";
-//#region src/host.tsx
+//#region ../solid-renderer/src/host.tsx
 /** Checked adapter around the private Rust/QuickJS ABI. */
 const nativeHost = {
 	openUrl: (url) => __wabou_open_url(url),
@@ -39,7 +38,7 @@ const defaultHost = Object.assign(builtinHost, typeof __wabou_capabilities === "
 const HostContext = createContext(defaultHost);
 /** Bind host capabilities to a Solid subtree (normally one window). */
 function HostProvider(props) {
-	return createComponent$1(HostContext, {
+	return createComponent(HostContext, {
 		get value() {
 			return props.value;
 		},
@@ -53,7 +52,7 @@ function useHost() {
 	return getOwner() ? useContext(HostContext) : defaultHost;
 }
 //#endregion
-//#region src/portal.ts
+//#region ../solid-renderer/src/portal.ts
 /** Render a native host subtree under its shared synthetic overlay root. */
 function Portal(props) {
 	const local = props;
@@ -72,7 +71,7 @@ function Portal(props) {
 	return null;
 }
 //#endregion
-//#region src/use-fps.ts
+//#region ../solid-renderer/src/use-fps.ts
 /**
 * Track frames-per-second. A self-perpetuating rAF loop counts frames; a
 * 1s interval samples the count and resets it. The rAF loop keeps the host
@@ -111,7 +110,7 @@ function createFps() {
 /** @deprecated Use createFps; this primitive creates owned timers rather than consuming context. */
 const useFps = createFps;
 //#endregion
-//#region src/virtual-list.tsx
+//#region ../solid-renderer/src/virtual-list.tsx
 /**
 * Windowed Solid list backed by TanStack Virtual's framework-neutral core.
 * Rust remains authoritative for scrolling, clipping, hit testing and the
@@ -167,7 +166,7 @@ function VirtualList(props) {
 		virtualItems();
 		return virtualizer.getTotalSize();
 	});
-	var _el$ = createElement$1("view", { onScroll: (event) => {
+	var _el$ = createElement("view", { onScroll: (event) => {
 		lastOffset = event.scrollY ?? 0;
 		publishOffset?.(lastOffset, true);
 		if (scrollEndTimer !== void 0) clearTimeout(scrollEndTimer);
@@ -176,22 +175,22 @@ function VirtualList(props) {
 			publishOffset?.(lastOffset, false);
 		}, 150);
 	} });
-	var _el$2 = createElement$1("view");
-	insertNode$1(_el$, _el$2);
-	ref$1(() => {
+	var _el$2 = createElement("view");
+	insertNode(_el$, _el$2);
+	ref(() => {
 		return (node) => {
 			scrollHandle = node;
 			virtualizer._willUpdate();
 		};
 	}, _el$);
-	insert$1(_el$2, createComponent$2(For, {
+	insert(_el$2, createComponent$1(For, {
 		get each() {
 			return virtualItems();
 		},
 		keyed: false,
 		children: (virtualItem) => (() => {
-			var _el$3 = createElement$1("view");
-			insert$1(_el$3, createComponent$2(Show, {
+			var _el$3 = createElement("view");
+			insert(_el$3, createComponent$1(Show, {
 				get when() {
 					return virtualItem().index + 1;
 				},
@@ -201,18 +200,18 @@ function VirtualList(props) {
 					return props.children(props.items()[index], index);
 				}
 			}));
-			effect$1(() => ({
+			effect(() => ({
 				position: "absolute",
 				top: `${virtualItem().start}px`,
 				height: `${virtualItem().size}px`,
 				width: "100%"
 			}), (_v$, _$p) => {
-				setProp$1(_el$3, "style", _v$, _$p);
+				setProp(_el$3, "style", _v$, _$p);
 			});
 			return _el$3;
 		})()
 	}));
-	effect$1(() => {
+	effect(() => {
 		return {
 			e: props.role,
 			t: props.accessibilityLabel,
@@ -229,15 +228,15 @@ function VirtualList(props) {
 			}
 		};
 	}, ({ e, t, a, o }, _p$) => {
-		e !== _p$?.e && setProp$1(_el$, "role", e, _p$?.e);
-		t !== _p$?.t && setProp$1(_el$, "aria-label", t, _p$?.t);
-		a !== _p$?.a && setProp$1(_el$, "style", a, _p$?.a);
-		o !== _p$?.o && setProp$1(_el$2, "style", o, _p$?.o);
+		e !== _p$?.e && setProp(_el$, "role", e, _p$?.e);
+		t !== _p$?.t && setProp(_el$, "aria-label", t, _p$?.t);
+		a !== _p$?.a && setProp(_el$, "style", a, _p$?.a);
+		o !== _p$?.o && setProp(_el$2, "style", o, _p$?.o);
 	});
 	return _el$;
 }
 //#endregion
-//#region src/index.ts
+//#region ../solid-renderer/src/index.ts
 const isServer = false;
 const getRequestEvent = () => void 0;
 const delegateEvents = () => {};
@@ -256,9 +255,9 @@ function emitInteractionPolicy(writer, node) {
 		contained: false
 	};
 	let flags = 0;
-	if (state.focusOrder !== null) flags |= INTERACTION_POLICY$1.Focusable;
-	if (state.blocked) flags |= INTERACTION_POLICY$1.BlockSubtree;
-	if (state.contained) flags |= INTERACTION_POLICY$1.ContainFocus;
+	if (state.focusOrder !== null) flags |= INTERACTION_POLICY.Focusable;
+	if (state.blocked) flags |= INTERACTION_POLICY.BlockSubtree;
+	if (state.contained) flags |= INTERACTION_POLICY.ContainFocus;
 	writer.setInteractionPolicy(node.id, flags, state.focusOrder ?? 0);
 }
 function emitClasses(writer, node) {
@@ -415,17 +414,17 @@ function applyProperty(writer, node, name, value, prev) {
 	}
 	if (name === "source") {
 		if (node.tag === "svg") {
-			if (value == null || value === false) writer.clearGraphicSource(node.id, GRAPHIC_SOURCE$1.Svg);
-			else if (typeof value === "string") writer.setGraphicSource(node.id, GRAPHIC_SOURCE$1.Svg, value);
+			if (value == null || value === false) writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.Svg);
+			else if (typeof value === "string") writer.setGraphicSource(node.id, GRAPHIC_SOURCE.Svg, value);
 			else throw new TypeError("invalid native SVG source");
 			return;
 		}
 		if (value == null || value === false) {
-			writer.clearGraphicSource(node.id, GRAPHIC_SOURCE$1.NetworkRaster);
+			writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster);
 			return;
 		}
 		if (typeof value !== "object" || value.kind !== "network" || typeof value.url !== "string" || value.format !== "raster" || value.cache !== "memory") throw new TypeError("invalid native image source");
-		writer.setGraphicSource(node.id, GRAPHIC_SOURCE$1.NetworkRaster, value.url);
+		writer.setGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster, value.url);
 		return;
 	}
 	if (name === "transform") {
@@ -621,7 +620,7 @@ function removeNode(parent, node) {
 }
 const insert = renderer.insert;
 const setProp = renderer.setProp;
-const createComponent = renderer.createComponent;
+const createComponent$1 = renderer.createComponent;
 const effect = renderer.effect;
 const memo = renderer.memo;
 const spread = renderer.spread;
@@ -821,6 +820,6 @@ function eventName(code) {
 	return "unknown";
 }
 //#endregion
-export { Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INTERACTION_POLICY, OP, Portal, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, applyRef, createComponent, createElement, createFps, createTextNode, defaultHost, delegateEvents, dispatchEvent, effect, getMountRoot, getRequestEvent, insert, insertNode, isServer, memo, mergeProps, mount, ref, registerRoot, releaseOverlayRoot, removeNode, render, runSweep, setProp, setTransform2D, spread, useFps, useHost, writer };
+export { useFps as A, runSweep as C, writer as D, spread as E, HostProvider as M, defaultHost as N, VirtualList as O, useHost as P, render as S, setTransform2D as T, mount as _, createElement as a, releaseOverlayRoot as b, dispatchEvent as c, getRequestEvent as d, insert as f, mergeProps as g, memo as h, createComponent$1 as i, Portal as j, createFps as k, effect as l, isServer as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, ref as v, setProp as w, removeNode as x, registerRoot as y };
 
-//# sourceMappingURL=index.mjs.map
+//# sourceMappingURL=renderer-Dgd0ooD8.mjs.map

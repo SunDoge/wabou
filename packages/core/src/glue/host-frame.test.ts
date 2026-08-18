@@ -6,8 +6,8 @@ import {
   HOST_FRAME,
   HOST_NODE_PAYLOAD,
   HOST_RECORD_KIND,
-} from "@wabou/protocol";
-import { createElement, setProp } from "@wabou/solid-renderer";
+} from "../protocol";
+import { createElement, setProp } from "../renderer";
 import { createRenderEffect, createRoot, createSignal, flush } from "solid-js";
 import { decodeAndDispatchHostFrame } from "./host-frame";
 import { subscribeAll } from "./host-messages";

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "greeting": "你好，{name}！",
+  "item_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} 个项目",
+        "countPlural=other": "{count} 个项目"
+      }
+    }
+  ],
+  "unused_message": "这条消息应该被 tree shaking 删除"
+}

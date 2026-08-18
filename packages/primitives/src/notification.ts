@@ -1,4 +1,4 @@
-import { Portal } from "@wabou/solid-renderer";
+import { Portal } from "@wabou/core/renderer";
 import {
   type Accessor,
   createComponent,

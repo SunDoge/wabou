@@ -1,7 +1,5 @@
-import {
-  createSelectInteraction,
-  type SelectCommand,
-} from "@wabou/primitives/interactions";
+import type { Handle } from "@wabou/core/renderer";
+import type { Shadow } from "@wabou/core/style";
 import {
   Button as HeadlessButton,
   Icon,
@@ -10,12 +8,16 @@ import {
   Text,
   View,
 } from "@wabou/primitives";
-import type { Handle } from "@wabou/solid-renderer";
+import {
+  createSelectInteraction,
+  type SelectCommand,
+} from "@wabou/primitives/interactions";
 import check from "lucide-static/icons/check.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createUniqueId, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { join } from "./class-names";
+import { componentsElevation, useComponentsTheme } from "./theme";
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
@@ -37,12 +39,14 @@ export interface SelectProps {
   "aria-label": string;
   class?: string;
   contentClass?: string;
+  contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
 }
 
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
 export function Select(props: SelectProps): JSX.Element {
+  const theme = useComponentsTheme();
   const id = createUniqueId();
   let trigger: Handle | undefined;
   let content: Handle | undefined;
@@ -120,9 +124,14 @@ export function Select(props: SelectProps): JSX.Element {
       }}
       placement="bottom-start"
       contentClass={join(
-        "w-72 p-1 rounded-lg border border-subtle bg-surface shadow-lg",
+        "w-72 p-1 rounded-lg border border-subtle bg-surface",
         props.contentClass,
       )}
+      contentShadows={
+        props.contentShadows === undefined
+          ? componentsElevation(theme(), "floating")
+          : props.contentShadows
+      }
       trigger={(popover) => (
         <HeadlessButton
           unstyled
@@ -138,8 +147,8 @@ export function Select(props: SelectProps): JSX.Element {
           }}
           class={(state) =>
             join(
-              "w-72 h-9 px-3 justify-between gap-3 rounded-md border bg-input text-sm",
-              state.focused ? "border-focus" : "border-strong",
+              "w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs",
+              state.focused ? "border-focus" : "border-subtle",
               props.class,
             )
           }
@@ -202,7 +211,7 @@ export function Select(props: SelectProps): JSX.Element {
                   aria-selected={selected()}
                   aria-disabled={option().disabled}
                   class={join(
-                    "w-full h-9 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm",
+                    "w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm",
                     highlighted()
                       ? "bg-control-hover text-primary"
                       : "bg-transparent text-secondary",

@@ -20,44 +20,34 @@ import {
   OP,
   TEXT_BEHAVIOR,
   Writer,
-} from "@wabou/protocol";
+} from "../../protocol/src/index";
 export {
   GRAPHIC_SOURCE,
   INTERACTION_POLICY,
   TEXT_BEHAVIOR,
-} from "@wabou/protocol";
+} from "../../protocol/src/index";
 import {
   type Affine2D,
   assertInlineStyleValue,
   isTypedStyleValue,
   type Shadow,
   type WabouStyle,
-} from "@wabou/style";
+} from "../../style/src/index";
 import { createMemo, omit, untrack } from "solid-js";
+import type {
+  HostCapabilities,
+  WabouIntrinsicElements,
+} from "../../core/src/registry";
+export type {
+  HostCapabilities,
+  WabouIntrinsicElements,
+} from "../../core/src/registry";
 export const isServer = false;
 export const getRequestEvent = () => undefined;
 export const delegateEvents = () => {};
 
 import { createRenderer as solidCreateRenderer } from "@solidjs/universal";
 import type { JSX } from "./jsx";
-
-/**
- * Application and widget-package additions to the native Host API.
- *
- * Augment this interface through `declare module "@wabou/solid-renderer"`.
- * It intentionally lives at the package root: augmenting a re-exported
- * interface does not merge into the module where that interface was declared.
- */
-// biome-ignore lint/suspicious/noEmptyInterface: declaration merging requires an interface.
-export interface HostCapabilities {}
-
-/**
- * Low-level native JSX elements supplied by applications and widget packages.
- * Prefer a typed PascalCase component for public widgets, but augment this
- * registry when exposing the underlying custom tag is useful.
- */
-// biome-ignore lint/suspicious/noEmptyInterface: declaration merging requires an interface.
-export interface WabouIntrinsicElements {}
 
 /**
  * Deliberately small set of structural host tags understood by Wabou apps.

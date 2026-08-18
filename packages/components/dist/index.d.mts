@@ -1,5 +1,6 @@
 import { ButtonProps as ButtonProps$1, CodeEditorProps, ModalControls, ModalProps, PasswordInputProps as PasswordInputProps$1, TextAreaProps as TextAreaProps$1, TextInputProps, ViewProps, WabouStyle } from "@wabou/primitives";
 import { JSX, ParentProps } from "solid-js";
+import { Shadow } from "@wabou/core/style";
 import { CalendarDate } from "@internationalized/date";
 //#region src/avatar.d.ts
 type AvatarSize = "sm" | "default" | "lg";
@@ -10,15 +11,15 @@ interface AvatarProps {
   size?: AvatarSize;
   class?: string;
 }
-declare function Avatar(props: AvatarProps): import("@wabou/solid-renderer").JSX.Element;
+declare function Avatar(props: AvatarProps): import("@wabou/core").JSX.Element;
 declare function AvatarGroup(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function AvatarGroupCount(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 //#endregion
 //#region src/config-editor.d.ts
 interface ConfigEditorProps extends CodeEditorProps {
@@ -55,6 +56,7 @@ interface DatePickerProps extends Omit<CalendarProps, "aria-label"> {
   "aria-label": string;
   placeholder?: string;
   class?: string;
+  contentShadows?: readonly Shadow[] | null;
   open?: boolean;
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -71,19 +73,19 @@ declare function Dialog(props: DialogProps): JSX.Element;
 declare function DialogHeader(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function DialogFooter(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function DialogTitle(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function DialogDescription(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 //#endregion
 //#region src/disclosure.d.ts
 interface CollapsibleProps {
@@ -95,15 +97,15 @@ interface CollapsibleProps {
   onOpenChange?: (open: boolean) => void;
   class?: string;
 }
-declare function Collapsible(props: CollapsibleProps): import("@wabou/solid-renderer").JSX.Element;
+declare function Collapsible(props: CollapsibleProps): import("@wabou/core").JSX.Element;
 declare function CollapsibleTrigger(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function CollapsibleContent(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 type AccordionType = "single" | "multiple";
 type AccordionValue = string | readonly string[];
 declare function nextAccordionValue(current: AccordionValue, type: AccordionType, item: string, collapsible?: boolean): AccordionValue;
@@ -118,21 +120,21 @@ interface AccordionProps {
   onValueChange?: (value: AccordionValue) => void;
   class?: string;
 }
-declare function Accordion(props: AccordionProps): import("@wabou/solid-renderer").JSX.Element;
+declare function Accordion(props: AccordionProps): import("@wabou/core").JSX.Element;
 declare function AccordionItem(props: {
   value: string;
   disabled?: boolean;
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function AccordionTrigger(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function AccordionContent(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 //#endregion
 //#region src/display.d.ts
 declare function Skeleton(props: {
@@ -158,75 +160,75 @@ declare function Field(props: {
   orientation?: FieldOrientation;
   invalid?: boolean;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function FieldGroup(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function FieldLabel(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function FieldContent(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function FieldDescription(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function FieldError(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function InputGroup(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
-declare function InputGroupInput(props: InputProps): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
+declare function InputGroupInput(props: InputProps): import("@wabou/core").JSX.Element;
 declare function InputGroupText(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
-declare function InputGroupButton(props: ButtonProps): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
+declare function InputGroupButton(props: ButtonProps): import("@wabou/core").JSX.Element;
 declare function InputGroupTextArea(props: TextAreaProps$1 & {
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 //#endregion
 //#region src/layout.d.ts
 declare function Empty(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function EmptyHeader(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function EmptyMedia(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function EmptyTitle(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function EmptyDescription(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function EmptyContent(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function ButtonGroup(props: {
   children?: JSX.Element;
   orientation?: "horizontal" | "vertical";
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 declare function ButtonGroupText(props: {
   children?: JSX.Element;
   class?: string;
-}): import("@wabou/solid-renderer").JSX.Element;
+}): import("@wabou/core").JSX.Element;
 //#endregion
 //#region src/select.d.ts
 interface SelectOption {
@@ -245,6 +247,7 @@ interface SelectProps {
   "aria-label": string;
   class?: string;
   contentClass?: string;
+  contentShadows?: readonly Shadow[] | null;
   onValueChange?: (value: string) => void;
   onOpenChange?: (open: boolean) => void;
 }
@@ -358,6 +361,14 @@ declare function TabsContent(props: {
 //#endregion
 //#region src/theme.d.ts
 type ComponentsTheme = "light" | "dark";
+type ComponentsElevation = "raised" | "floating" | "modal";
+/**
+ * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
+ * pass standard deviation directly to their renderer, so these values should
+ * not use CSS's doubled blur radius. Floating surfaces also carry a subtle
+ * foreground-colored ring: black in light mode, white in dark mode.
+ */
+declare function componentsElevation(theme: ComponentsTheme, elevation: ComponentsElevation): Shadow[];
 type ComponentsProviderProps = ParentProps<{
   theme?: ComponentsTheme;
 }>;
@@ -428,6 +439,7 @@ declare function Fps(props: FpsProps): JSX.Element;
 declare function Card(props: {
   children?: JSX.Element;
   class?: string;
+  shadows?: readonly import("@wabou/core/style").Shadow[] | null;
 }): JSX.Element;
 declare function CardHeader(props: {
   children?: JSX.Element;
@@ -488,5 +500,5 @@ declare function Progress(props: {
   class?: string;
 }): JSX.Element;
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, PasswordInput, PasswordInputProps, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spinner, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
+export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, PasswordInput, PasswordInputProps, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spinner, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, componentsElevation, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
 //# sourceMappingURL=index.d.mts.map

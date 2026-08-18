@@ -1,5 +1,5 @@
 import { createTransition, type Easing } from "@wabou/animation";
-import { number, px } from "@wabou/style";
+import { number, px } from "@wabou/core/style";
 import { createEffect, type JSX, Show } from "solid-js";
 import { createMeasuredSize } from "./measure";
 import { createPresence } from "./presence";

@@ -1,4 +1,4 @@
-import { createElement, effect, ref, setProp } from "@wabou/solid-renderer";
+import { createElement, effect, ref, setProp } from "@wabou/core/renderer";
 //#region src/index.tsx
 /** Typed Solid wrapper around the Rust `terminal` widget. */
 function Terminal(props) {

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "gallery_i18n_title": "Compiled localization",
+  "gallery_i18n_greeting": "Hello {name}!",
+  "gallery_i18n_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "One native component",
+        "countPlural=other": "{count} native components"
+      }
+    }
+  ],
+  "gallery_i18n_unused": "Tree shaking removes this unused message"
+}

@@ -2,7 +2,7 @@
 "@wabou/components": minor
 "@wabou/primitives": minor
 "@wabou/test": minor
-"@wabou/solid-renderer": patch
+"@wabou/core": patch
 ---
 
 Add replayable native behavior assertions for semantic state, bounds, numeric

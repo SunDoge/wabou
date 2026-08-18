@@ -1,4 +1,4 @@
-import { WabouExposedSemanticRole } from "@wabou/solid-renderer";
+import { WabouExposedSemanticRole } from "@wabou/core/renderer";
 //#region src/poll.d.ts
 interface PollOptions {
   timeout?: number;
@@ -24,7 +24,7 @@ interface NativeTestCapability {
   queryByRole(windowId: number, role: string, label: string, index: number | null): Promise<string | null | undefined>;
   finish(report: string): boolean;
 }
-declare module "@wabou/solid-renderer" {
+declare module "@wabou/core/registry" {
   interface HostCapabilities {
     readonly test: NativeTestCapability;
   }

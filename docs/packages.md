@@ -25,10 +25,18 @@ Install the following public packages only when the application uses them:
 - `@wabou/terminal` — native terminal component.
 - `@wabou/test` — TypeScript behavior tests, normally a dev dependency.
 
-The packages `@wabou/protocol`, `@wabou/solid-renderer` and `@wabou/style` are
-published because the
-public packages depend on them. They are implementation details, carry
-`wabou.stability: "internal"` metadata, and are not stable import targets.
+The source workspaces `@wabou/protocol`, `@wabou/solid-renderer` and
+`@wabou/style` are private implementation details. Their release artifacts are
+bundled into `@wabou/core` and exposed, when an advanced import is useful, as
+`@wabou/core/protocol`, `@wabou/core/renderer` and `@wabou/core/style`.
+Applications normally use the root `@wabou/core` export and set
+`jsxImportSource` to `@wabou/core`.
+
+`@wabou/core/i18n` is a separate tree-shakeable entry for reactive locale
+state and compiler-neutral message functions. The Gallery uses it with
+Paraglide: translation catalogs are compiled during the Vite build, while
+Wabou passes the selected locale explicitly instead of emulating browser URL,
+cookie, or local-storage strategies.
 `@wabou/vite` exposes its bundled HMR client as `@wabou/vite/runtime`; there is
 no separate runtime package.
 
@@ -42,7 +50,8 @@ TypeScript or TSX source. These artifacts are tracked in Git as well as npm so
 applications pinned to an immutable Wabou Git revision consume exactly the
 same package surface as registry installations.
 `bun run packages:check` verifies aligned versions, publication metadata and
-that application manifests do not directly depend on internal packages.
+that public artifacts and application manifests do not depend on private
+workspace packages.
 
 The component stack remains layered inside `@wabou/primitives`: its
 `interactions` subpath provides headless behavior, the root connects behavior

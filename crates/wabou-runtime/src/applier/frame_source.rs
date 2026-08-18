@@ -501,6 +501,7 @@ impl FrameSource for Applier {
             }
             SemanticAction::Focus { .. } => {
                 let changed = self.input.focused_target != Some(target);
+                self.input.focus_visible = true;
                 self.set_focused_target(Some(target));
                 changed
             }

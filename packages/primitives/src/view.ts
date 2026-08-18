@@ -6,12 +6,12 @@ import {
   spread,
   TEXT_BEHAVIOR,
   type WabouElementProps,
-} from "@wabou/solid-renderer";
-import type { Affine2D, Shadow, WabouStyle } from "@wabou/style";
+} from "@wabou/core/renderer";
+import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 
-export type { Affine2D, WabouStyle } from "@wabou/style";
-export { rotate2d, translate2d } from "@wabou/style";
+export type { Affine2D, WabouStyle } from "@wabou/core/style";
+export { rotate2d, translate2d } from "@wabou/core/style";
 export type WabouClassList = Record<string, boolean | undefined>;
 
 export interface TextSelectionChangeEvent {

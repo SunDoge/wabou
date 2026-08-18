@@ -10,7 +10,7 @@ import type {
   Host,
   LayoutRect as HostLayoutRect,
   LayoutTarget,
-} from "@wabou/solid-renderer";
+} from "@wabou/core/renderer";
 
 export type LayoutRect = HostLayoutRect;
 

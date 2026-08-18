@@ -22,7 +22,7 @@
     }
   },
   "dependencies": {
-    "@wabou/solid-renderer": "workspace:*",
+    "@wabou/core": "workspace:*",
     "solid-js": "2.0.0-rc.0"
   }
 }

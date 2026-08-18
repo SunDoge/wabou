@@ -5,9 +5,6 @@ const root = new URL("..", import.meta.url).pathname;
 // Dependencies precede their consumers so a fresh version can be installed as
 // soon as each public package reaches the registry.
 const packageDirectories = [
-  "protocol",
-  "style",
-  "solid-renderer",
   "core",
   "animation",
   "primitives",
@@ -21,14 +18,24 @@ const packageDirectories = [
 const extraArguments = process.argv.slice(2);
 const dryRun = extraArguments.includes("--dry-run");
 const packageRoot = join(root, "packages");
-const publicDirectories = (
+const packageEntries = (
   await readdir(packageRoot, { withFileTypes: true })
-)
-  .filter(
-    (entry) =>
-      entry.isDirectory() &&
-      Bun.file(join(packageRoot, entry.name, "package.json")).size > 0,
+).filter(
+  (entry) =>
+    entry.isDirectory() &&
+    Bun.file(join(packageRoot, entry.name, "package.json")).size > 0,
+);
+const publicDirectories = (
+  await Promise.all(
+    packageEntries.map(async (entry) => ({
+      name: entry.name,
+      manifest: await Bun.file(
+        join(packageRoot, entry.name, "package.json"),
+      ).json(),
+    })),
   )
+)
+  .filter((entry) => entry.manifest.private !== true)
   .map((entry) => entry.name)
   .sort();
 const configuredDirectories = [...packageDirectories].sort();

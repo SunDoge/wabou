@@ -1,4 +1,4 @@
-//#region src/index.ts
+//#region ../protocol/src/index.ts
 const OP = {
 	CreateElement: 1,
 	CreateText: 2,
@@ -421,6 +421,6 @@ var Writer = class {
 	}
 };
 //#endregion
-export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, GRAPHIC_SOURCE, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, INTERACTION_POLICY, OP, TEXT_BEHAVIOR, Writer };
+export { HOST_FRAME as a, INTERACTION_POLICY as c, Writer as d, GRAPHIC_SOURCE as i, OP as l, EVENT_DATA_LEN as n, HOST_NODE_PAYLOAD as o, EVENT_DATA_SLOT as r, HOST_RECORD_KIND as s, EVENT_CODE as t, TEXT_BEHAVIOR as u };
 
-//# sourceMappingURL=index.mjs.map
+//# sourceMappingURL=src-BdUoqWlm.mjs.map

@@ -14,3 +14,4 @@ import "./date-picker.behavior";
 import "./table.behavior";
 import "./selection.behavior";
 import "./semantic-roles.behavior";
+import "./i18n.behavior";

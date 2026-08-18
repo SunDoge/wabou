@@ -141,6 +141,7 @@ impl Applier {
         self.input.pointer_down_target = target;
         self.input.pointer_down_position = Some((x, y));
         self.input.pointer_dragged = false;
+        self.input.focus_visible = false;
         let mut changed = self.set_focused_target(self.pointer_focus_target(target));
         if button == PointerButton::Primary {
             self.text_selection.next_scroll = None;
@@ -550,8 +551,12 @@ impl Applier {
                 let changes = widget.focus_changed(true);
                 self.invalidate_widget_changes(changes);
             }
-            changed |= self.dispatch_json(new, event::FOCUS, "");
-            changed |= self.dispatch_json(new, event::FOCUSIN, "");
+            let payload = serde_json::json!({
+                "focusVisible": self.input.focus_visible,
+            })
+            .to_string();
+            changed |= self.dispatch_json(new, event::FOCUS, &payload);
+            changed |= self.dispatch_json(new, event::FOCUSIN, &payload);
         }
         changed
     }
@@ -572,13 +577,20 @@ impl Applier {
             self.invalidate_widget_changes(changes);
             changed = true;
         }
-        let (focus, focus_within) = if focused {
-            (event::FOCUS, event::FOCUSIN)
+        let (focus, focus_within, payload) = if focused {
+            (
+                event::FOCUS,
+                event::FOCUSIN,
+                serde_json::json!({
+                    "focusVisible": self.input.focus_visible,
+                })
+                .to_string(),
+            )
         } else {
-            (event::BLUR, event::FOCUSOUT)
+            (event::BLUR, event::FOCUSOUT, String::new())
         };
-        changed |= self.dispatch_json(target, focus, "");
-        changed |= self.dispatch_json(target, focus_within, "");
+        changed |= self.dispatch_json(target, focus, &payload);
+        changed |= self.dispatch_json(target, focus_within, &payload);
         changed
     }
 }

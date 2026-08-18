@@ -5797,7 +5797,6 @@ ${detail}`);
     }
     return "unknown";
   }
-
   // packages/core/src/glue/animation-frame.ts
   var rafQueue = new Map;
   var nextRafId = 1;
@@ -5975,7 +5974,6 @@ ${detail}`);
       }
     }
   }
-
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
   var FLAG_CANCELLABLE = 1;

@@ -4,7 +4,7 @@
 // protocol frame back to Rust. `__wabou_has_raf` tells the host whether to keep
 // redrawing.
 
-import { runSweep, writer } from "@wabou/solid-renderer";
+import { runSweep, writer } from "../renderer";
 import { flush } from "solid-js";
 
 const rafQueue = new Map<number, (t: number) => void>();

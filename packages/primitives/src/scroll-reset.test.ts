@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isServer } from "@wabou/solid-renderer";
+import { isServer } from "@wabou/core/renderer";
 import { createRoot, createSignal, flush } from "solid-js";
 import { createScrollReset } from "./scroll-reset";
 

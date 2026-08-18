@@ -1,7 +1,8 @@
-import { EVENT_CODE, GRAPHIC_SOURCE as GRAPHIC_SOURCE$1, INTERACTION_POLICY as INTERACTION_POLICY$1, OP, TEXT_BEHAVIOR, Writer as Writer$1 } from "@wabou/protocol";
-import { Affine2D, WabouStyle } from "@wabou/style";
+import { m as Writer } from "./index-CpjySDmz.mjs";
+import { E as WabouStyle, t as Affine2D } from "./index-Bq47FJfe.mjs";
+import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
 import { Element as Element$1, JSX } from "solid-js";
-//#region src/jsx.d.ts
+//#region ../solid-renderer/src/jsx.d.ts
 /** Renderer-owned JSX namespace for Solid 2's automatic JSX type lookup. */
 declare namespace JSX$1 {
   type Element = Element$1 | Handle | readonly Element[];
@@ -32,7 +33,7 @@ declare const jsxs: typeof jsx;
 declare const jsxDEV: typeof jsx;
 declare const Fragment: (props: WabouElementProps) => JSX$1.Element;
 //#endregion
-//#region src/generated/native-host.d.ts
+//#region ../solid-renderer/src/generated/native-host.d.ts
 type CalendarDateInfo = {
   year: number;
   month: number;
@@ -64,7 +65,7 @@ type LayoutSnapshot = {
   nodes: LayoutNodeMetrics[];
 };
 //#endregion
-//#region src/host.d.ts
+//#region ../solid-renderer/src/host.d.ts
 type LayoutTarget = number | {
   readonly id: number;
 };
@@ -112,7 +113,7 @@ declare function HostProvider(props: HostProviderProps): JSX.Element;
 /** Return the host associated with the current Solid owner/window. */
 declare function useHost<T extends Host = Host>(): T;
 //#endregion
-//#region src/portal.d.ts
+//#region ../solid-renderer/src/portal.d.ts
 interface PortalProps extends Omit<WabouElementProps, "children"> {
   children?: JSX.Element;
   /** Host stacking plane. `system` and `debug` are reserved for native UI. */
@@ -123,24 +124,7 @@ interface PortalProps extends Omit<WabouElementProps, "children"> {
 /** Render a native host subtree under its shared synthetic overlay root. */
 declare function Portal(props: PortalProps): JSX.Element;
 //#endregion
-//#region src/use-fps.d.ts
-/**
- * Track frames-per-second. A self-perpetuating rAF loop counts frames; a
- * 1s interval samples the count and resets it. The rAF loop keeps the host
- * redrawing (it drives `has_anim`), so this measures the active vsync rate
- * while mounted — ~60 on a 60Hz display, ~120 on 120Hz. When nothing animates,
- * the host stops redrawing and the count drops.
- *
- * ```tsx
- * const fps = createFps();
- * <Text>{`${fps()} fps`}</Text>
- * ```
- */
-declare function createFps(): () => number;
-/** @deprecated Use createFps; this primitive creates owned timers rather than consuming context. */
-declare const useFps: typeof createFps;
-//#endregion
-//#region src/virtual-list.d.ts
+//#region ../solid-renderer/src/virtual-list.d.ts
 interface VirtualListProps<T> {
   /** Accessor for the full backing array. Only the visible slice renders. */
   items: () => readonly T[];
@@ -165,24 +149,10 @@ interface VirtualListProps<T> {
  */
 declare function VirtualList<T>(props: VirtualListProps<T>): JSX.Element;
 //#endregion
-//#region src/index.d.ts
+//#region ../solid-renderer/src/index.d.ts
 declare const isServer = false;
 declare const getRequestEvent: () => undefined;
 declare const delegateEvents: () => void;
-/**
- * Application and widget-package additions to the native Host API.
- *
- * Augment this interface through `declare module "@wabou/solid-renderer"`.
- * It intentionally lives at the package root: augmenting a re-exported
- * interface does not merge into the module where that interface was declared.
- */
-interface HostCapabilities {}
-/**
- * Low-level native JSX elements supplied by applications and widget packages.
- * Prefer a typed PascalCase component for public widgets, but augment this
- * registry when exposing the underlying custom tag is useful.
- */
-interface WabouIntrinsicElements {}
 /**
  * Deliberately small set of structural host tags understood by Wabou apps.
  * This is not the HTML element registry: unsupported Web tags must be wrapped
@@ -373,7 +343,7 @@ interface Handle {
   scrollBy(left: number, top: number): void;
 }
 declare function runSweep(): void;
-declare const writer: Writer$1;
+declare const writer: Writer;
 /** Imperative paint-only transform state for high-frequency animation. */
 declare function setTransform2D(node: Handle, matrix: Affine2D): void;
 declare const render: (code: () => JSX$1.Element, node: Handle) => () => void;
@@ -413,5 +383,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { runSweep as $, WabouWheelEvent as A, getMountRoot as B, WabouNodeEvent as C, jsxDEV as Ct, WabouSemanticRole as D, WabouScrollEvent as E, createElement as F, memo as G, insert as H, createTextNode as I, ref as J, mergeProps as K, delegateEvents as L, acquireOverlayRoot as M, applyRef as N, WabouSvgProps as O, createComponent$1 as P, render as Q, dispatchEvent as R, WabouNativeTag as S, jsx as St, WabouPositionedEvent as T, insertNode as U, getRequestEvent as V, isServer as W, releaseOverlayRoot as X, registerRoot as Y, removeNode as Z, WabouInputEvent as _, LayoutNodeMetrics as _t, Handle as a, VirtualListProps as at, WabouKeyEvent as b, Fragment as bt, NativeScrollbarStyle as c, Portal as ct, WabouBuiltinIntrinsicElements as d, HostProvider as dt, setProp as et, WabouControlProps as f, HostProviderProps as ft, WabouImageProps as g, FrameStats as gt, WabouExposedSemanticRole as h, useHost as ht, GRAPHIC_SOURCE$1 as i, VirtualList as it, Writer$1 as j, WabouSvgShapeProps as k, OP as l, PortalProps as lt, WabouEventTarget as m, defaultHost as mt, DynamicProps as n, spread as nt, HostCapabilities as o, createFps as ot, WabouElementProps as p, LayoutTarget as pt, mount as q, EVENT_CODE as r, writer as rt, INTERACTION_POLICY$1 as s, useFps as st, Dynamic as t, setTransform2D as tt, TEXT_BEHAVIOR as u, Host as ut, WabouInputProps as v, LayoutRect as vt, WabouPointerEvent as w, jsxs as wt, WabouNativeElements as x, JSX$1 as xt, WabouIntrinsicElements as y, LayoutSnapshot as yt, effect as z };
-//# sourceMappingURL=index-CiozrcsL.d.mts.map
+export { PortalProps as $, dispatchEvent as A, ref as B, WabouWheelEvent as C, createElement as D, createComponent$1 as E, insertNode as F, runSweep as G, releaseOverlayRoot as H, isServer as I, spread as J, setProp as K, memo as L, getMountRoot as M, getRequestEvent as N, createTextNode as O, insert as P, Portal as Q, mergeProps as R, WabouSvgShapeProps as S, applyRef as T, removeNode as U, registerRoot as V, render as W, VirtualList as X, writer as Y, VirtualListProps as Z, WabouPointerEvent as _, WabouBuiltinIntrinsicElements as a, useHost as at, WabouSemanticRole as b, WabouEventTarget as c, LayoutRect as ct, WabouInputEvent as d, JSX$1 as dt, Host as et, WabouInputProps as f, jsx as ft, WabouNodeEvent as g, WabouNativeTag as h, NativeScrollbarStyle as i, defaultHost as it, effect as j, delegateEvents as k, WabouExposedSemanticRole as l, LayoutSnapshot as lt, WabouNativeElements as m, jsxs as mt, DynamicProps as n, HostProviderProps as nt, WabouControlProps as o, FrameStats as ot, WabouKeyEvent as p, jsxDEV as pt, setTransform2D as q, Handle as r, LayoutTarget as rt, WabouElementProps as s, LayoutNodeMetrics as st, Dynamic as t, HostProvider as tt, WabouImageProps as u, Fragment as ut, WabouPositionedEvent as v, acquireOverlayRoot as w, WabouSvgProps as x, WabouScrollEvent as y, mount as z };
+//# sourceMappingURL=index-DpIBuJdF.d.mts.map

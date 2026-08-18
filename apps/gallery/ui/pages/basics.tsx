@@ -498,7 +498,7 @@ function SliderPage() {
               aria-label="Slider value"
               class="font-mono text-sm text-primary"
             >
-              {value()}%
+              {`${value()}%`}
             </Text>
           </View>
           <Slider

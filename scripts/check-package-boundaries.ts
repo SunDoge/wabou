@@ -70,9 +70,11 @@ if (!changelog.includes(`## ${packageVersion} -`)) {
   throw new Error(`CHANGELOG.md has no ${packageVersion} release heading`);
 }
 for (const entry of packages) {
-  if (entry.private)
-    throw new Error(`${entry.name} cannot be published while private`);
-  if (entry.publishConfig?.access !== "public") {
+  const internal = internalPackages.has(entry.name);
+  if (Boolean(entry.private) !== internal) {
+    throw new Error(`${entry.name} must be ${internal ? "private" : "public"}`);
+  }
+  if (!internal && entry.publishConfig?.access !== "public") {
     throw new Error(`${entry.name} must publish with public npm access`);
   }
   if (!entry.description) {
@@ -88,10 +90,23 @@ for (const entry of packages) {
   ) {
     throw new Error(`${entry.name} must link to its repository directory`);
   }
-  if (!entry.files?.includes("dist")) {
+  if (!internal && !entry.files?.includes("dist")) {
     throw new Error(`${entry.name} must publish its dist directory`);
   }
-  const internal = internalPackages.has(entry.name);
+  if (!internal) {
+    const publishedDependencies = {
+      ...entry.dependencies,
+      ...entry.optionalDependencies,
+      ...entry.peerDependencies,
+    };
+    for (const dependency of internalPackages) {
+      if (dependency in publishedDependencies) {
+        throw new Error(
+          `${entry.name} cannot publish a dependency on private ${dependency}`,
+        );
+      }
+    }
+  }
   if ((entry.wabou?.stability === "internal") !== internal) {
     throw new Error(`${entry.name} has incorrect Wabou stability metadata`);
   }
@@ -196,6 +211,29 @@ for (const manifestPath of packageManifestPaths) {
   }
 }
 
+for (const manifestPath of packageManifestPaths) {
+  const entry = await manifest(manifestPath);
+  if (entry.private) continue;
+  const packageRoot = join(manifestPath, "..");
+  const distGlob = new Bun.Glob("dist/**/*.{mjs,d.mts}");
+  for await (const path of distGlob.scan({
+    cwd: packageRoot,
+    onlyFiles: true,
+  })) {
+    const output = await Bun.file(join(packageRoot, path)).text();
+    for (const dependency of internalPackages) {
+      if (
+        output.includes(`"${dependency}`) ||
+        output.includes(`'${dependency}`)
+      ) {
+        throw new Error(
+          `${entry.name} published output ${path} imports private ${dependency}`,
+        );
+      }
+    }
+  }
+}
+
 const appDirs = await readdir(join(root, "apps"), { withFileTypes: true });
 for (const directory of appDirs.filter((entry) => entry.isDirectory())) {
   const entry = await manifest(
@@ -228,5 +266,5 @@ for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
 }
 
 console.log(
-  `verified ${packages.length} aligned packages and Rust workspace at ${packageVersion}, plus ${appDirs.length} app manifests`,
+  `verified ${packages.filter((entry) => !entry.private).length} public and ${packages.filter((entry) => entry.private).length} private aligned packages and Rust workspace at ${packageVersion}, plus ${appDirs.length} app manifests`,
 );

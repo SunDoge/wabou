@@ -1,5 +1,6 @@
 import { Button } from "@wabou/components";
 import { mount } from "@wabou/core";
+import { createLocale } from "@wabou/core/i18n";
 import { Button as PrimitiveButton, View } from "@wabou/primitives";
 import {
   BaseRootRoute,
@@ -7,10 +8,16 @@ import {
   createMemoryHistory,
 } from "@wabou/router";
 import { defineWabouConfig } from "@wabou/vite";
-import { Dynamic, Portal } from "@wabou/solid-renderer";
+import { Dynamic, Portal } from "@wabou/core/renderer";
 import { createSignal } from "solid-js";
 
 const [enabled, setEnabled] = createSignal(false);
+const locale = createLocale("en" as "en" | "zh");
+const localized = locale.message(
+  (input: { name: string }, options?: { locale?: "en" | "zh" }) =>
+    `${options?.locale}:${input.name}`,
+  { name: "Wabou" },
+);
 const rootRoute = new BaseRootRoute();
 
 // The public JSX registry is intentionally native and finite, rather than the
@@ -58,6 +65,7 @@ void [
   dynamicComponent,
   invalidDynamicComponent,
   unsupportedStyle,
+  localized,
 ];
 
 createDataRouter({

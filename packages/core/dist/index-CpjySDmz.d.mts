@@ -1,4 +1,4 @@
-//#region src/index.d.ts
+//#region ../protocol/src/index.d.ts
 declare const OP: {
   readonly CreateElement: 1;
   readonly CreateText: 2;
@@ -186,5 +186,5 @@ declare class Writer {
   flush(): Uint8Array | null;
 }
 //#endregion
-export { EVENT_CODE, EVENT_DATA_LEN, EVENT_DATA_SLOT, EventDataSlot, EventType, GRAPHIC_SOURCE, HOST_FRAME, HOST_NODE_PAYLOAD, HOST_RECORD_KIND, INTERACTION_POLICY, OP, OpCode, TEXT_BEHAVIOR, Writer };
-//# sourceMappingURL=index.d.mts.map
+export { EventType as a, HOST_NODE_PAYLOAD as c, OP as d, OpCode as f, EventDataSlot as i, HOST_RECORD_KIND as l, Writer as m, EVENT_DATA_LEN as n, GRAPHIC_SOURCE as o, TEXT_BEHAVIOR as p, EVENT_DATA_SLOT as r, HOST_FRAME as s, EVENT_CODE as t, INTERACTION_POLICY as u };
+//# sourceMappingURL=index-CpjySDmz.d.mts.map

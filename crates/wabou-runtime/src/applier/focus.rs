@@ -11,6 +11,9 @@ struct FocusCandidate {
 
 impl Applier {
     pub(super) fn handle_focused_input(&mut self, input: UiEvent) -> EventResponse {
+        if matches!(&input, UiEvent::Key(key) if key.phase == KeyPhase::Down) {
+            self.input.focus_visible = true;
+        }
         if matches!(&input, UiEvent::Key(key) if key.phase == KeyPhase::Down)
             || matches!(
                 &input,

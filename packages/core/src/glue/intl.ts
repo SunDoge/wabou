@@ -1,4 +1,4 @@
-import { defaultHost } from "@wabou/solid-renderer";
+import { defaultHost } from "../renderer";
 
 export interface CalendarDateFields {
   year: number;

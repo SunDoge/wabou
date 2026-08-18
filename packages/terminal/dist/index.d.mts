@@ -1,4 +1,4 @@
-import { Handle } from "@wabou/solid-renderer";
+import { Handle, WabouElementProps } from "@wabou/core/renderer";
 import { JSX } from "solid-js";
 //#region src/index.d.ts
 type TerminalStyle = Record<string, string | number>;
@@ -67,7 +67,7 @@ interface TerminalProps {
 }
 /** Typed Solid wrapper around the Rust `terminal` widget. */
 declare function Terminal(props: TerminalProps): JSX.Element;
-declare module "@wabou/solid-renderer" {
+declare module "@wabou/core/registry" {
   interface WabouIntrinsicElements {
     /** Low-level native widget. Prefer the typed PascalCase `Terminal`. */
     terminal: Omit<WabouElementProps, "style" | "ref"> & {

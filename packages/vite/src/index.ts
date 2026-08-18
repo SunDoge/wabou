@@ -72,7 +72,7 @@ export function wabouPlugins(
     wabouIntlPlugin(root, entry, intl ?? manifestIntl(root)),
     wabouStylePlugin({ root, colorThemes: theme, ignoreClasses }),
     ...solid({
-      solid: { generate: "universal", moduleName: "@wabou/solid-renderer" },
+      solid: { generate: "universal", moduleName: "@wabou/core/renderer" },
     }),
     disableSolidDependencyOptimizer(),
   ];
@@ -108,7 +108,7 @@ function resolveWabouConfig(
       : sourceMap === "false"
         ? false
         : (manifestSourceMap(root) ?? debug);
-  const renderer = fileURLToPath(import.meta.resolve("@wabou/solid-renderer"));
+  const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
   const defaults: UserConfig = {
     define: {
       "process.env.NODE_ENV": JSON.stringify(
@@ -125,7 +125,7 @@ function resolveWabouConfig(
     ),
     resolve: {
       alias: {
-        "@wabou/solid-renderer": renderer,
+        "@wabou/core/renderer": renderer,
         "solid-js/web": renderer,
       },
     },
@@ -198,21 +198,30 @@ function wabouIntlPlugin(
 
 function intlDataModule(options: WabouIntlOptions): string {
   const locales = [...new Set(options.locales ?? ["en", "zh"])];
-  if (locales.length === 0) throw new Error("Wabou intl.locales cannot be empty");
+  if (locales.length === 0)
+    throw new Error("Wabou intl.locales cannot be empty");
   for (const locale of locales) {
     if (!/^[A-Za-z0-9-]+$/.test(locale)) {
-      throw new Error(`invalid Wabou Intl locale module ${JSON.stringify(locale)}`);
+      throw new Error(
+        `invalid Wabou Intl locale module ${JSON.stringify(locale)}`,
+      );
     }
   }
   const imports = [
     "@formatjs/intl-getcanonicallocales/polyfill.js",
     "@formatjs/intl-locale/polyfill.js",
     "@formatjs/intl-pluralrules/polyfill.js",
-    ...locales.map((locale) => `@formatjs/intl-pluralrules/locale-data/${locale}.js`),
+    ...locales.map(
+      (locale) => `@formatjs/intl-pluralrules/locale-data/${locale}.js`,
+    ),
     "@formatjs/intl-numberformat/polyfill.js",
-    ...locales.map((locale) => `@formatjs/intl-numberformat/locale-data/${locale}.js`),
+    ...locales.map(
+      (locale) => `@formatjs/intl-numberformat/locale-data/${locale}.js`,
+    ),
     "@formatjs/intl-datetimeformat/polyfill.js",
-    ...locales.map((locale) => `@formatjs/intl-datetimeformat/locale-data/${locale}.js`),
+    ...locales.map(
+      (locale) => `@formatjs/intl-datetimeformat/locale-data/${locale}.js`,
+    ),
     options.timeZones === "all"
       ? "@formatjs/intl-datetimeformat/add-all-tz.js"
       : "@formatjs/intl-datetimeformat/add-golden-tz.js",

@@ -117,7 +117,7 @@ export function Slider(props: SliderProps): JSX.Element {
     >
       <View
         aria-hidden="true"
-        class="w-full h-2 overflow-hidden rounded-full bg-control"
+        class="w-full h-1.5 overflow-hidden rounded-full border border-subtle bg-control"
       >
         <View
           class="h-full rounded-full bg-accent"
@@ -127,12 +127,12 @@ export function Slider(props: SliderProps): JSX.Element {
       <View
         aria-hidden="true"
         class={join(
-          "w-5 h-5 absolute rounded-full border bg-surface",
+          "w-4 h-4 absolute rounded-full border bg-surface shadow-xs",
           focused() || dragging() ? "border-focus" : "border-strong",
         )}
         style={{
-          left: `${ratio() * Math.max(0, measured.width() - 20)}px`,
-          top: "4px",
+          left: `${ratio() * Math.max(0, measured.width() - 16)}px`,
+          top: "6px",
         }}
       />
     </View>

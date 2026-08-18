@@ -1,5 +1,5 @@
 import "@wabou/core";
-import { Affine2D } from "@wabou/style";
+import { Affine2D } from "@wabou/core/style";
 import { Accessor } from "solid-js";
 //#region src/index.d.ts
 type AnimationValue = number | string;
