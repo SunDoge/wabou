@@ -33,6 +33,7 @@ use wabou_shell::{
     PointerPhase, TextContext, UiEvent, WheelEvent,
 };
 
+mod artifact;
 mod behavior_test;
 mod doctor;
 mod packaging;
@@ -40,6 +41,12 @@ mod project;
 mod render_metrics;
 mod scaffold;
 
+use artifact::{
+    app_binary, app_profiling_feature, app_vite_feature, artifact_from_metadata, built_executable,
+    cargo_metadata, package_metadata,
+};
+#[cfg(test)]
+use artifact::{binary_target, framework_feature, vite_feature};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use project::{App, ensure_workspace_package_exports, find_workspace, load_app};
 #[cfg(test)]
@@ -1382,29 +1389,6 @@ fn devtools_command(workspace: &Path) -> Result<Command> {
     Ok(Command::new(executable))
 }
 
-fn built_executable(workspace: &Path, app: &App, release: bool) -> Result<PathBuf> {
-    let manifest = manifest(app);
-    let output = Command::new("cargo")
-        .current_dir(workspace)
-        .args([
-            "metadata",
-            "--format-version",
-            "1",
-            "--no-deps",
-            "--manifest-path",
-            &manifest,
-        ])
-        .output()?;
-    ensure(output.status, "Cargo metadata")?;
-    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)?;
-    artifact_from_metadata(
-        &metadata,
-        &app.root.join("Cargo.toml").canonicalize()?,
-        release,
-    )
-    .map(|(path, _)| path)
-}
-
 fn find_helper(current_exe: &Path, path: Option<&std::ffi::OsStr>, name: &str) -> Option<PathBuf> {
     let filename = format!("{name}{}", env::consts::EXE_SUFFIX);
     if let Some(parent) = current_exe.parent() {
@@ -1499,133 +1483,6 @@ fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> 
     })?;
     println!("[wabou] packaged {}", destination.display());
     Ok(())
-}
-
-fn app_binary(workspace: &Path, app: &App) -> Result<String> {
-    let metadata = cargo_metadata(workspace, app)?;
-    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    binary_target(&metadata, &manifest_path)
-        .and_then(|target| target["name"].as_str())
-        .map(str::to_owned)
-        .ok_or_else(|| "application binary target has no name".into())
-}
-
-fn app_vite_feature(workspace: &Path, app: &App) -> Result<String> {
-    let metadata = cargo_metadata(workspace, app)?;
-    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    vite_feature(&metadata, &manifest_path)
-        .map(str::to_owned)
-        .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
-}
-
-fn app_profiling_feature(workspace: &Path, app: &App) -> Result<String> {
-    let metadata = cargo_metadata(workspace, app)?;
-    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    framework_feature(&metadata, &manifest_path, "profiling")
-        .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
-}
-
-fn framework_feature(metadata: &Value, manifest_path: &Path, feature: &str) -> Option<String> {
-    let dependencies = package_metadata(metadata, manifest_path)?["dependencies"].as_array()?;
-    if dependencies
-        .iter()
-        .any(|dependency| dependency["name"] == "wabou")
-    {
-        Some(format!("wabou/{feature}"))
-    } else if dependencies
-        .iter()
-        .any(|dependency| dependency["name"] == "wabou-runtime")
-    {
-        Some(format!("wabou-runtime/{feature}"))
-    } else {
-        None
-    }
-}
-
-fn vite_feature<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a str> {
-    let dependencies = package_metadata(metadata, manifest_path)?["dependencies"].as_array()?;
-    if dependencies
-        .iter()
-        .any(|dependency| dependency["name"] == "wabou")
-    {
-        Some("wabou/vite")
-    } else if dependencies
-        .iter()
-        .any(|dependency| dependency["name"] == "wabou-runtime")
-    {
-        Some("wabou-runtime/vite")
-    } else {
-        None
-    }
-}
-
-fn cargo_metadata(workspace: &Path, app: &App) -> Result<Value> {
-    let manifest = manifest(app);
-    let output = Command::new("cargo")
-        .current_dir(workspace)
-        .args([
-            "metadata",
-            "--format-version",
-            "1",
-            "--no-deps",
-            "--manifest-path",
-            &manifest,
-        ])
-        .output()?;
-    ensure(output.status, "Cargo metadata")?;
-    Ok(serde_json::from_slice(&output.stdout)?)
-}
-
-fn binary_target<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Value> {
-    let package = package_metadata(metadata, manifest_path)?;
-    let binaries = package["targets"]
-        .as_array()?
-        .iter()
-        .filter(|target| {
-            target["kind"]
-                .as_array()
-                .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin"))
-        })
-        .collect::<Vec<_>>();
-    let package_name = package["name"].as_str();
-    let named = binaries
-        .iter()
-        .copied()
-        .find(|target| target["name"].as_str() == package_name);
-    named.or_else(|| {
-        if binaries.len() == 1 {
-            Some(binaries[0])
-        } else {
-            None
-        }
-    })
-}
-
-fn package_metadata<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a Value> {
-    metadata["packages"].as_array()?.iter().find(|package| {
-        package["manifest_path"]
-            .as_str()
-            .is_some_and(|path| Path::new(path) == manifest_path)
-    })
-}
-
-fn artifact_from_metadata(
-    metadata: &serde_json::Value,
-    manifest_path: &Path,
-    release: bool,
-) -> Result<(PathBuf, String)> {
-    let binary = binary_target(metadata, manifest_path)
-        .and_then(|target| target["name"].as_str())
-        .ok_or("app package has no unambiguous primary binary target")?;
-    let target_dir = metadata["target_directory"]
-        .as_str()
-        .ok_or("Cargo metadata has no target directory")?;
-    let profile = if release { "release" } else { "debug" };
-    let filename = format!("{binary}{}", env::consts::EXE_SUFFIX);
-    Ok((
-        Path::new(target_dir).join(profile).join(&filename),
-        filename,
-    ))
 }
 
 fn wait_for_vite(url: &str, child: &mut dyn ChildWrapper) -> Result<()> {
