@@ -176,7 +176,7 @@ impl Applier {
             self.input.focused_target = None;
         }
         self.input.listeners.remove(&id);
-        self.pending_scroll_events.remove(&id);
+        self.scroll.pending_events.remove(&id);
         self.resize_targets.borrow_mut().remove(&id);
         // Never retain an id after its generational node has been removed.
         if self.input.hovered_target == Some(id) {
@@ -189,8 +189,8 @@ impl Applier {
         self.clear_image_source(node);
         self.runtime_transforms.remove(&node);
         self.overlay_planes.remove(&node);
-        self.scrollbar_styles.remove(&node);
-        self.scroll_offsets.remove(&node);
+        self.scroll.styles.remove(&node);
+        self.scroll.offsets.remove(&node);
         self.resources.svg.remove(&node);
         self.style_diagnostics.remove(&node);
         if let Some(widget) = self.widget_manager.widgets.get_mut(&node) {
@@ -559,7 +559,7 @@ impl Applier {
                         hover_color: color(colors[2]),
                         active_color: color(colors[3]),
                     };
-                    self.scrollbar_styles.insert(n, style);
+                    self.scroll.styles.insert(n, style);
                     if let Some(paint) = self.node_store.tree.get_node_context(n) {
                         let mut paint = paint.clone();
                         paint.scrollbar = style;

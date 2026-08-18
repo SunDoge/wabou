@@ -1,17 +1,44 @@
 use super::*;
 
+#[derive(Clone)]
+pub(super) struct ScrollbarHit {
+    pub(super) node: NodeId,
+    pub(super) placed: PlacedNode,
+    pub(super) transform: Affine,
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct ScrollbarDrag {
+    pub(super) node: NodeId,
+    pub(super) axis: ScrollAxis,
+    pub(super) last_position: f64,
+}
+
+#[derive(Default)]
+pub(super) struct ScrollState {
+    pub(super) styles: HashMap<NodeId, ScrollbarStyle>,
+    pub(super) placed_rects: HashMap<NodeId, [f32; 4]>,
+    pub(super) hits: Vec<ScrollbarHit>,
+    pub(super) metrics: HashMap<NodeId, wabou_shell::layout::ScrollMetrics>,
+    pub(super) drag: Option<ScrollbarDrag>,
+    pub(super) hovered: Option<(NodeId, ScrollAxis)>,
+    pub(super) activity: HashMap<NodeId, Instant>,
+    pub(super) offsets: HashMap<NodeId, [f32; 2]>,
+    pub(super) pending_events: HashMap<u32, [f32; 2]>,
+}
+
 impl Applier {
     pub(super) fn scroll_into_view(&mut self, target: u32) -> bool {
         let Some(mut node) = self.node_store.solid_to_node.get(&target).copied() else {
             return false;
         };
-        let Some(mut rect) = self.placed_rects.get(&node).copied() else {
+        let Some(mut rect) = self.scroll.placed_rects.get(&node).copied() else {
             return false;
         };
         let mut changed = false;
         while let Some(parent) = self.node_store.tree.parent(node) {
-            if let Some(metrics) = self.scroll_metrics.get(&parent).copied() {
-                let offset = self.scroll_offsets.entry(parent).or_insert(metrics.offset);
+            if let Some(metrics) = self.scroll.metrics.get(&parent).copied() {
+                let offset = self.scroll.offsets.entry(parent).or_insert(metrics.offset);
                 let mut parent_changed = false;
                 for axis in 0..2 {
                     if !metrics.scrollable[axis] {
@@ -55,10 +82,12 @@ impl Applier {
         let mut expired = Vec::new();
         for node in placed {
             let held = self
-                .scrollbar_drag
+                .scroll
+                .drag
                 .is_some_and(|drag| drag.node == node.node_id)
                 || self
-                    .hovered_scrollbar
+                    .scroll
+                    .hovered
                     .is_some_and(|(owner, _)| owner == node.node_id);
             node.scroll.opacity = match node.paint.scrollbar.visibility {
                 ScrollbarVisibility::Always => {
@@ -70,17 +99,18 @@ impl Applier {
                     0.0
                 }
                 ScrollbarVisibility::Auto => {
-                    let opacity =
-                        self.scrollbar_activity
-                            .get(&node.node_id)
-                            .map_or(0.0, |started| {
-                                scrollbar_auto_opacity(
-                                    now.duration_since(*started),
-                                    node.paint.scrollbar.hide_delay,
-                                    node.paint.scrollbar.fade_duration,
-                                    held,
-                                )
-                            });
+                    let opacity = self
+                        .scroll
+                        .activity
+                        .get(&node.node_id)
+                        .map_or(0.0, |started| {
+                            scrollbar_auto_opacity(
+                                now.duration_since(*started),
+                                node.paint.scrollbar.hide_delay,
+                                node.paint.scrollbar.fade_duration,
+                                held,
+                            )
+                        });
                     if opacity <= 0.0 {
                         expired.push(node.node_id);
                     }
@@ -88,12 +118,14 @@ impl Applier {
                 }
             };
             node.scroll.interaction = if self
-                .scrollbar_drag
+                .scroll
+                .drag
                 .is_some_and(|drag| drag.node == node.node_id)
             {
                 2
             } else if self
-                .hovered_scrollbar
+                .scroll
+                .hovered
                 .is_some_and(|(owner, _)| owner == node.node_id)
             {
                 1
@@ -102,7 +134,7 @@ impl Applier {
             };
         }
         for node in expired {
-            self.scrollbar_activity.remove(&node);
+            self.scroll.activity.remove(&node);
         }
     }
 
@@ -139,7 +171,7 @@ impl Applier {
     pub(super) fn scrollbar_edge_at(&self, x: f64, y: f64) -> Option<(NodeId, ScrollAxis)> {
         const EDGE_HOT_ZONE: f64 = 16.0;
         let point = Point::new(x, y);
-        for hit in self.scrollbar_hits.iter().rev() {
+        for hit in self.scroll.hits.iter().rev() {
             if hit.placed.paint.scrollbar.visibility != ScrollbarVisibility::Auto {
                 continue;
             }
@@ -174,11 +206,11 @@ impl Applier {
     }
 
     pub(super) fn drag_scrollbar(&mut self, x: f64, y: f64) -> bool {
-        let Some(mut drag) = self.scrollbar_drag else {
+        let Some(mut drag) = self.scroll.drag else {
             return false;
         };
-        let Some(hit) = self.scrollbar_hits.iter().find(|hit| hit.node == drag.node) else {
-            self.scrollbar_drag = None;
+        let Some(hit) = self.scroll.hits.iter().find(|hit| hit.node == drag.node) else {
+            self.scroll.drag = None;
             return false;
         };
         let local = hit.transform.inverse() * Point::new(x, y);
@@ -188,14 +220,14 @@ impl Applier {
         };
         let delta = (position - drag.last_position) * scrollbar_drag_ratio(&hit.placed, drag.axis);
         drag.last_position = position;
-        self.scrollbar_drag = Some(drag);
-        let offset = self.scroll_offsets.entry(drag.node).or_insert([0.0; 2]);
+        self.scroll.drag = Some(drag);
+        let offset = self.scroll.offsets.entry(drag.node).or_insert([0.0; 2]);
         let index = usize::from(drag.axis == ScrollAxis::Vertical);
         let old = offset[index];
         offset[index] = (offset[index] + delta as f32).clamp(0.0, hit.placed.scroll.range[index]);
         let changed = offset[index] != old;
         self.projections.semantics_dirty |= changed;
-        self.scrollbar_activity.insert(drag.node, Instant::now());
+        self.scroll.activity.insert(drag.node, Instant::now());
         if changed {
             self.queue_scroll_event(drag.node);
         }
@@ -226,7 +258,7 @@ impl Applier {
                     .tree
                     .style(node)
                     .expect("style checked above");
-                let offset = self.scroll_offsets.entry(node).or_insert([0.0, 0.0]);
+                let offset = self.scroll.offsets.entry(node).or_insert([0.0, 0.0]);
                 let old = *offset;
                 if style.overflow.x == taffy::Overflow::Scroll {
                     offset[0] = (offset[0] + delta_x).clamp(0.0, max_x);
@@ -236,7 +268,7 @@ impl Applier {
                 }
                 if *offset != old {
                     self.projections.semantics_dirty = true;
-                    self.scrollbar_activity.insert(node, Instant::now());
+                    self.scroll.activity.insert(node, Instant::now());
                     self.queue_scroll_event(node);
                     return true;
                 }
@@ -269,7 +301,7 @@ impl Applier {
             (layout.size.height - layout.border.top - layout.border.bottom).max(0.0);
         let max_x = (layout.content_size.width - viewport_width).max(0.0);
         let max_y = (layout.content_size.height - viewport_height).max(0.0);
-        let offset = self.scroll_offsets.entry(node).or_insert([0.0, 0.0]);
+        let offset = self.scroll.offsets.entry(node).or_insert([0.0, 0.0]);
         let old = *offset;
         if scroll_x && x.is_finite() {
             offset[0] = (if relative { offset[0] + x } else { x }).clamp(0.0, max_x);
@@ -279,7 +311,7 @@ impl Applier {
         }
         let changed = *offset != old;
         if changed {
-            self.scrollbar_activity.insert(node, Instant::now());
+            self.scroll.activity.insert(node, Instant::now());
             self.queue_scroll_event(node);
         }
         self.projections.semantics_dirty |= changed;
@@ -293,15 +325,15 @@ impl Applier {
         if !self.has_listener_in_chain(target, event::SCROLL) {
             return;
         }
-        let offset = self.scroll_offsets.get(&node).copied().unwrap_or([0.0; 2]);
-        self.pending_scroll_events.insert(target, offset);
+        let offset = self.scroll.offsets.get(&node).copied().unwrap_or([0.0; 2]);
+        self.scroll.pending_events.insert(target, offset);
     }
 
     pub(super) fn dispatch_scroll_changes(&mut self) -> bool {
-        if self.pending_scroll_events.is_empty() {
+        if self.scroll.pending_events.is_empty() {
             return false;
         }
-        let events = std::mem::take(&mut self.pending_scroll_events)
+        let events = std::mem::take(&mut self.scroll.pending_events)
             .into_iter()
             .map(|(target, offset)| {
                 let mut data = [0.0; event_data::LEN];
@@ -328,7 +360,7 @@ impl Applier {
     pub(super) fn clamp_scroll_offsets(&mut self, placed: &[PlacedNode]) -> bool {
         let mut changed = Vec::new();
         for item in placed {
-            let Some(offset) = self.scroll_offsets.get_mut(&item.node_id) else {
+            let Some(offset) = self.scroll.offsets.get_mut(&item.node_id) else {
                 continue;
             };
             let old = *offset;
@@ -379,7 +411,7 @@ impl Applier {
             let scroll_y = style.overflow.y == taffy::Overflow::Scroll;
             if (scroll_x || scroll_y)
                 && let (Some(rect), Ok(layout)) = (
-                    self.placed_rects.get(&node),
+                    self.scroll.placed_rects.get(&node),
                     self.node_store.tree.layout(node),
                 )
             {

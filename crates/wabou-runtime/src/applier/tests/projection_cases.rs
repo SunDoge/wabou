@@ -7,7 +7,7 @@ fn host_layout_snapshot_reports_completed_rects_and_viewport() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.publish_layout_metrics(&placed, 800, 600);
     applier
@@ -158,7 +158,7 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.last_viewport = (800, 600);
     applier.publish_debug_snapshot(&placed);
@@ -192,7 +192,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
     let mut placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     let root = placed
         .iter_mut()
@@ -278,7 +278,7 @@ fn devtools_snapshot_exposes_layout_and_redacts_secrets() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.last_viewport = (800, 600);
     applier.publish_debug_snapshot(&placed);
@@ -323,7 +323,7 @@ fn runtime_transform_updates_paint_without_invalidating_layout() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
     assert_ne!(applier.input.hit_test(5.0, 20.0), Some(2));

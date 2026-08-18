@@ -93,9 +93,9 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
-    applier.placed_rects = placed
+    applier.scroll.placed_rects = placed
         .iter()
         .map(|placed| (placed.node_id, placed.rect))
         .collect();
@@ -119,7 +119,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
     assert_eq!(applier.input.hit_test(210.0, 50.0), Some(3));
@@ -131,12 +131,12 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
     assert!(applier.scroll_into_view(3));
-    assert_eq!(applier.scroll_offsets[&container], [0.0, 100.0]);
-    applier.scroll_offsets.insert(container, [0.0, 0.0]);
+    assert_eq!(applier.scroll.offsets[&container], [0.0, 100.0]);
+    applier.scroll.offsets.insert(container, [0.0, 0.0]);
     let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
         position: Point { x: 10.0, y: 10.0 },
         delta_x: 0.0,
@@ -144,7 +144,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         modifiers: Modifiers::default(),
     }));
     assert!(response.handled);
-    assert_eq!(applier.scroll_offsets[&container], [0.0, 50.0]);
+    assert_eq!(applier.scroll.offsets[&container], [0.0, 50.0]);
     assert!(
         !applier.invalidation.contains(InvalidationFlags::LAYOUT),
         "scroll offsets must not invalidate intrinsic layout"
@@ -155,26 +155,26 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         x: f32::NAN,
         y: 120.0,
     });
-    assert_eq!(applier.scroll_offsets[&container], [0.0, 120.0]);
+    assert_eq!(applier.scroll.offsets[&container], [0.0, 120.0]);
     applier.apply_op(&Op::ScrollBy {
         id: 2,
         x: 0.0,
         y: -20.0,
     });
-    assert_eq!(applier.scroll_offsets[&container], [0.0, 100.0]);
+    assert_eq!(applier.scroll.offsets[&container], [0.0, 100.0]);
     applier.apply_op(&Op::ScrollTo {
         id: 2,
         x: f32::NAN,
         y: -100.0,
     });
-    assert_eq!(applier.scroll_offsets[&container], [0.0, 0.0]);
+    assert_eq!(applier.scroll.offsets[&container], [0.0, 0.0]);
 
     let mut placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
-    applier.scrollbar_activity.clear();
+    applier.scroll.activity.clear();
     applier.update_scrollbar_visuals(&mut placed);
     applier.rebuild_hit_geometry(&placed);
     assert_eq!(applier.scrollbar_at(95.0, 16.0), None);
@@ -191,7 +191,8 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         down.handled,
         "the native thumb must capture pointer down; hits={:?}",
         applier
-            .scrollbar_hits
+            .scroll
+            .hits
             .iter()
             .map(|hit| (
                 hit.placed.rect,
@@ -204,33 +205,33 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     let moved = applier.handle_event(pointer(PointerPhase::Move, 95.0, 50.0, 1));
     assert!(moved.handled);
     assert!(
-        (applier.scroll_offsets[&container][1] - 102.0).abs() < 1.0,
+        (applier.scroll.offsets[&container][1] - 102.0).abs() < 1.0,
         "34 thumb pixels should map through the shared geometry ratio"
     );
     let up = applier.handle_event(pointer(PointerPhase::Up, 95.0, 50.0, 0));
     assert!(up.handled);
-    assert!(applier.scrollbar_drag.is_none());
+    assert!(applier.scroll.drag.is_none());
 
-    applier.scroll_offsets.insert(container, [0.0, 0.0]);
+    applier.scroll.offsets.insert(container, [0.0, 0.0]);
     let mut placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.update_scrollbar_visuals(&mut placed);
     applier.rebuild_hit_geometry(&placed);
     let track = applier.handle_event(pointer(PointerPhase::Down, 95.0, 80.0, 1));
     assert!(track.handled);
-    assert_eq!(applier.scroll_offsets[&container][1], 100.0);
+    assert_eq!(applier.scroll.offsets[&container][1], 100.0);
 
-    applier.scroll_offsets.insert(container, [0.0, 0.0]);
+    applier.scroll.offsets.insert(container, [0.0, 0.0]);
     let mut tcx = TextContext::new();
     let mut placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
-    applier.placed_rects = placed
+    applier.scroll.placed_rects = placed
         .iter()
         .map(|placed| (placed.node_id, placed.rect))
         .collect();
@@ -257,11 +258,11 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     assert!(applier.animation_deadline().is_some());
     applier.text_selection.next_scroll = Some(Instant::now() - Duration::from_millis(1));
     assert!(applier.tick_text_selection_autoscroll());
-    let first_scroll = applier.scroll_offsets[&container][1];
+    let first_scroll = applier.scroll.offsets[&container][1];
     assert!(first_scroll > 0.0);
     applier.text_selection.next_scroll = Some(Instant::now() - Duration::from_millis(1));
     assert!(applier.tick_text_selection_autoscroll());
-    assert!(applier.scroll_offsets[&container][1] > first_scroll);
+    assert!(applier.scroll.offsets[&container][1] > first_scroll);
     applier.input.pointer_buttons = 0;
     applier.text_selection.next_scroll = Some(Instant::now() - Duration::from_millis(1));
     assert!(!applier.tick_text_selection_autoscroll());

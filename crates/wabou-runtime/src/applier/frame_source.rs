@@ -331,14 +331,14 @@ impl FrameSource for Applier {
                             .get_mut(&node)
                             .and_then(|widget| widget.measure(cx))
                     },
-                    &self.scroll_offsets,
+                    &self.scroll.offsets,
                 )
             };
             if self.clamp_scroll_offsets(&placed) {
                 placed = layout::flatten_with_scroll(
                     &self.node_store.tree,
                     self.node_store.root,
-                    &self.scroll_offsets,
+                    &self.scroll.offsets,
                 );
             }
             self.invalidation.remove(InvalidationFlags::LAYOUT);
@@ -358,7 +358,7 @@ impl FrameSource for Applier {
             let mut placed = layout::flatten_with_scroll(
                 &self.node_store.tree,
                 self.node_store.root,
-                &self.scroll_offsets,
+                &self.scroll.offsets,
             );
             {
                 #[cfg(feature = "profiling")]
@@ -378,9 +378,9 @@ impl FrameSource for Applier {
             // frame is unnecessary O(N) work. Scrollbar fades are included because
             // their changing opacity controls whether a scrollbar participates in
             // hit testing.
-            let scrollbars_changing = !self.scrollbar_activity.is_empty()
-                || self.scrollbar_drag.is_some()
-                || self.hovered_scrollbar.is_some();
+            let scrollbars_changing = !self.scroll.activity.is_empty()
+                || self.scroll.drag.is_some()
+                || self.scroll.hovered.is_some();
             let geometry_dirty = projection_dirty
                 || self.invalidation.contains(InvalidationFlags::GEOMETRY)
                 || scrollbars_changing;
@@ -400,8 +400,9 @@ impl FrameSource for Applier {
                 self.rebuild_hit_geometry(&placed);
             }
             if projection_dirty {
-                self.placed_rects.clear();
-                self.placed_rects
+                self.scroll.placed_rects.clear();
+                self.scroll
+                    .placed_rects
                     .extend(placed.iter().map(|placed| (placed.node_id, placed.rect)));
                 self.rebuild_focus_order(&placed);
             }
@@ -660,30 +661,25 @@ impl FrameSource for Applier {
 
     fn animation_deadline(&self) -> Option<Instant> {
         let now = Instant::now();
-        let scrollbar_deadline = self
-            .scrollbar_activity
-            .iter()
-            .filter_map(|(node, started)| {
-                if self.scrollbar_drag.is_some_and(|drag| drag.node == *node)
-                    || self
-                        .hovered_scrollbar
-                        .is_some_and(|(owner, _)| owner == *node)
-                {
-                    return None;
-                }
-                let style = self.node_store.tree.get_node_context(*node)?.scrollbar;
-                if style.visibility != ScrollbarVisibility::Auto {
-                    return None;
-                }
-                let fade_start = *started + style.hide_delay;
-                if now < fade_start {
-                    Some(fade_start)
-                } else if style.fade_duration.is_zero() || now >= fade_start + style.fade_duration {
-                    None
-                } else {
-                    Some(now + Duration::from_millis(16))
-                }
-            });
+        let scrollbar_deadline = self.scroll.activity.iter().filter_map(|(node, started)| {
+            if self.scroll.drag.is_some_and(|drag| drag.node == *node)
+                || self.scroll.hovered.is_some_and(|(owner, _)| owner == *node)
+            {
+                return None;
+            }
+            let style = self.node_store.tree.get_node_context(*node)?.scrollbar;
+            if style.visibility != ScrollbarVisibility::Auto {
+                return None;
+            }
+            let fade_start = *started + style.hide_delay;
+            if now < fade_start {
+                Some(fade_start)
+            } else if style.fade_duration.is_zero() || now >= fade_start + style.fade_duration {
+                None
+            } else {
+                Some(now + Duration::from_millis(16))
+            }
+        });
         self.widget_manager
             .widgets
             .values()

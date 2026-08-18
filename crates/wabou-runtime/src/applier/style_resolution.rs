@@ -310,11 +310,7 @@ impl Applier {
             intrinsic_size: prev.and_then(|p| p.intrinsic_size),
             runtime_transform: self.runtime_transforms.get(&node).copied(),
             overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
-            scrollbar: self
-                .scrollbar_styles
-                .get(&node)
-                .copied()
-                .unwrap_or_default(),
+            scrollbar: self.scroll.styles.get(&node).copied().unwrap_or_default(),
         };
         if let Some(source) = self.serialize_svg(node, inherited.text_color) {
             let cached_for_node = self
@@ -521,11 +517,7 @@ impl Applier {
             intrinsic_size: resolved.host_intrinsic,
             runtime_transform: self.runtime_transforms.get(&node).copied(),
             overlay_plane: self.overlay_planes.get(&node).copied().unwrap_or_default(),
-            scrollbar: self
-                .scrollbar_styles
-                .get(&node)
-                .copied()
-                .unwrap_or_default(),
+            scrollbar: self.scroll.styles.get(&node).copied().unwrap_or_default(),
         };
         let paint = resolved.paint.resolve(&parent, host);
         let _ = self.node_store.tree.set_node_context(node, Some(paint));

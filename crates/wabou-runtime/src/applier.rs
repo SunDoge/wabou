@@ -88,6 +88,7 @@ use reload::plan_hmr_batch;
 use reload::{HmrBatch, ReloadState};
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
 use resources::{ImageLoadResult, ResourceState};
+use scroll::{ScrollState, ScrollbarDrag, ScrollbarHit};
 use text_selection::TextSelectionState;
 #[cfg(test)]
 use text_selection::{SelectableText, TextSelectionGranularity};
@@ -170,20 +171,6 @@ fn key_event_payload(key: &wabou_shell::KeyEvent) -> String {
 #[derive(Clone)]
 enum InlineValue {
     Typed(IrValue),
-}
-
-#[derive(Clone)]
-struct ScrollbarHit {
-    node: NodeId,
-    placed: PlacedNode,
-    transform: Affine,
-}
-
-#[derive(Clone, Copy)]
-struct ScrollbarDrag {
-    node: NodeId,
-    axis: ScrollAxis,
-    last_position: f64,
 }
 
 impl InlineValue {
@@ -351,7 +338,6 @@ pub struct Applier {
     runtime_transforms: HashMap<NodeId, [f32; 6]>,
     /// Explicit host stacking planes, independent from CSS cascade/z-index.
     overlay_planes: HashMap<NodeId, OverlayPlane>,
-    scrollbar_styles: HashMap<NodeId, ScrollbarStyle>,
     base_color: Color,
     atoms: Rc<RefCell<AtomPool>>,
     input: InputRouter,
@@ -392,19 +378,11 @@ pub struct Applier {
     device_scale: f64,
     ime_cursor_area: Option<[f64; 4]>,
     text_selection: TextSelectionState,
-    placed_rects: HashMap<NodeId, [f32; 4]>,
-    scrollbar_hits: Vec<ScrollbarHit>,
-    scroll_metrics: HashMap<NodeId, wabou_shell::layout::ScrollMetrics>,
-    scrollbar_drag: Option<ScrollbarDrag>,
-    hovered_scrollbar: Option<(NodeId, ScrollAxis)>,
-    scrollbar_activity: HashMap<NodeId, Instant>,
+    scroll: ScrollState,
     widget_manager: WidgetManager,
     pending_host_actions: Rc<RefCell<VecDeque<wabou_shell::HostAction>>>,
     effect_bridge: EffectBridge,
     wake_callback: Option<WakeCallback>,
-    scroll_offsets: HashMap<NodeId, [f32; 2]>,
-    /// Native scroll changes coalesced by Solid target until the next JS tick.
-    pending_scroll_events: HashMap<u32, [f32; 2]>,
     /// Protocol frames commonly create a node and then set several properties
     /// on it. Resolve style once at FrameEnd instead of after every operation.
     batching_styles: bool,
@@ -496,7 +474,6 @@ impl Applier {
             resources: ResourceState::default(),
             runtime_transforms: HashMap::new(),
             overlay_planes: HashMap::new(),
-            scrollbar_styles: HashMap::new(),
             base_color,
             atoms,
             input: InputRouter::new(),
@@ -522,18 +499,11 @@ impl Applier {
             device_scale: 1.0,
             ime_cursor_area: None,
             text_selection: TextSelectionState::default(),
-            placed_rects: HashMap::new(),
-            scrollbar_hits: Vec::new(),
-            scroll_metrics: HashMap::new(),
-            scrollbar_drag: None,
-            hovered_scrollbar: None,
-            scrollbar_activity: HashMap::new(),
+            scroll: ScrollState::default(),
             widget_manager: WidgetManager::new(widget_factories),
             pending_host_actions,
             effect_bridge,
             wake_callback: None,
-            scroll_offsets: HashMap::new(),
-            pending_scroll_events: HashMap::new(),
             batching_styles: false,
             dirty_styles: HashSet::new(),
             layout_viewport: None,

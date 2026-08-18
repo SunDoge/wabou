@@ -583,16 +583,18 @@ fn native_scroll_observations_coalesce_by_target() {
         .or_default()
         .insert(event::SCROLL);
     applier
-        .scroll_offsets
+        .scroll
+        .offsets
         .insert(applier.node_store.root, [0.0, 12.0]);
     applier.queue_scroll_event(applier.node_store.root);
     applier
-        .scroll_offsets
+        .scroll
+        .offsets
         .insert(applier.node_store.root, [0.0, 48.0]);
     applier.queue_scroll_event(applier.node_store.root);
 
-    assert_eq!(applier.pending_scroll_events.len(), 1);
-    assert_eq!(applier.pending_scroll_events[&1], [0.0, 48.0]);
+    assert_eq!(applier.scroll.pending_events.len(), 1);
+    assert_eq!(applier.scroll.pending_events[&1], [0.0, 48.0]);
 }
 
 #[test]
@@ -974,7 +976,7 @@ fn interactive_applier() -> Applier {
     let mut placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
     applier.update_scrollbar_visuals(&mut placed);
     applier.rebuild_hit_geometry(&placed);
@@ -1128,7 +1130,7 @@ fn inert_isolates_an_entire_subtree_from_input_focus_and_semantics() {
     let placed = layout::flatten_with_scroll(
         &applier.node_store.tree,
         applier.node_store.root,
-        &applier.scroll_offsets,
+        &applier.scroll.offsets,
     );
 
     applier.rebuild_hit_geometry(&placed);

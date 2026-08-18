@@ -30,8 +30,8 @@ impl Applier {
         let button = pointer.button.unwrap_or(PointerButton::Primary);
         self.input.pointer_position = (x, y);
         self.input.pointer_buttons = pointer.buttons;
-        if let Some(drag) = self.scrollbar_drag.take() {
-            self.scrollbar_activity.insert(drag.node, Instant::now());
+        if let Some(drag) = self.scroll.drag.take() {
+            self.scroll.activity.insert(drag.node, Instant::now());
             return Self::response(true);
         }
         if button == PointerButton::Primary
@@ -90,8 +90,8 @@ impl Applier {
         &mut self,
         pointer: wabou_shell::PointerEvent,
     ) -> EventResponse {
-        if let Some(drag) = self.scrollbar_drag.take() {
-            self.scrollbar_activity.insert(drag.node, Instant::now());
+        if let Some(drag) = self.scroll.drag.take() {
+            self.scroll.activity.insert(drag.node, Instant::now());
             Self::response(true)
         } else {
             Self::response(self.cancel_pointer_gesture(pointer))
@@ -108,9 +108,9 @@ impl Applier {
         self.input.pointer_buttons = pointer.buttons;
         if button == PointerButton::Primary
             && let Some((node, target)) = self.scrollbar_at(x, y)
-            && let Some(hit) = self.scrollbar_hits.iter().find(|hit| hit.node == node)
+            && let Some(hit) = self.scroll.hits.iter().find(|hit| hit.node == node)
         {
-            self.scrollbar_activity.insert(node, Instant::now());
+            self.scroll.activity.insert(node, Instant::now());
             if target.part != ScrollbarPart::Thumb {
                 let index = usize::from(target.axis == ScrollAxis::Vertical);
                 let viewport = match target.axis {
@@ -122,7 +122,7 @@ impl Applier {
                 } else {
                     1.0
                 };
-                let offset = self.scroll_offsets.entry(node).or_insert([0.0; 2]);
+                let offset = self.scroll.offsets.entry(node).or_insert([0.0; 2]);
                 offset[index] = (offset[index] + direction * viewport)
                     .clamp(0.0, hit.placed.scroll.range[index]);
                 self.queue_scroll_event(node);
@@ -130,7 +130,7 @@ impl Applier {
                 return Self::response(true);
             }
             let local = hit.transform.inverse() * Point::new(x, y);
-            self.scrollbar_drag = Some(ScrollbarDrag {
+            self.scroll.drag = Some(ScrollbarDrag {
                 node,
                 axis: target.axis,
                 last_position: match target.axis {
@@ -181,16 +181,16 @@ impl Applier {
             .scrollbar_at(x, y)
             .map(|(node, target)| (node, target.axis))
             .or_else(|| self.scrollbar_edge_at(x, y));
-        let scrollbar_hover_changed = hovered_scrollbar != self.hovered_scrollbar;
-        let previous_hover = self.hovered_scrollbar;
-        self.hovered_scrollbar = hovered_scrollbar;
+        let scrollbar_hover_changed = hovered_scrollbar != self.scroll.hovered;
+        let previous_hover = self.scroll.hovered;
+        self.scroll.hovered = hovered_scrollbar;
         if let Some((node, _)) = hovered_scrollbar {
-            self.scrollbar_activity.insert(node, Instant::now());
+            self.scroll.activity.insert(node, Instant::now());
         }
         if scrollbar_hover_changed && let Some((node, _)) = previous_hover {
-            self.scrollbar_activity.insert(node, Instant::now());
+            self.scroll.activity.insert(node, Instant::now());
         }
-        if self.scrollbar_drag.is_some() {
+        if self.scroll.drag.is_some() {
             let changed = self.drag_scrollbar(x, y);
             return EventResponse {
                 handled: true,
@@ -276,8 +276,8 @@ impl Applier {
 
     pub(super) fn rebuild_hit_geometry(&mut self, placed: &[PlacedNode]) {
         self.input.hit_items.clear();
-        self.scrollbar_hits.clear();
-        self.scroll_metrics.clear();
+        self.scroll.hits.clear();
+        self.scroll.metrics.clear();
         let atoms = self.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let mut transforms = HashMap::with_capacity(placed.len());
@@ -286,7 +286,7 @@ impl Applier {
         let mut scrollbar_hits = HashMap::new();
         for node in placed {
             if node.scroll.range.iter().any(|range| *range > 0.5) {
-                self.scroll_metrics.insert(node.node_id, node.scroll);
+                self.scroll.metrics.insert(node.node_id, node.scroll);
             }
             let is_non_interactive_leaf = !node.paint.pointer_events
                 && self
@@ -343,7 +343,7 @@ impl Applier {
                     placed: node.clone(),
                     transform,
                 };
-                self.scrollbar_hits.push(hit.clone());
+                self.scroll.hits.push(hit.clone());
                 if node.scroll.opacity > 0.0 {
                     scrollbar_hits.insert(node.node_id, hit);
                 }

@@ -351,7 +351,7 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
 
     // Scroll must not reflow chrome (scroll offsets are paint-time).
     let container = h.solid_node(scroller);
-    h.applier.scroll_offsets.insert(container, [0.0, 120.0]);
+    h.applier.scroll.offsets.insert(container, [0.0, 120.0]);
     h.applier
         .invalidation
         .remove(super::InvalidationFlags::LAYOUT);
