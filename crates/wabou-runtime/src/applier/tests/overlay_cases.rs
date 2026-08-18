@@ -329,16 +329,18 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
 }
 
 #[test]
-fn modal_focus_scope_includes_later_portals_on_the_modal_plane() {
+fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
-    let (view, button, focus_scope, tab_index) = {
+    let (view, button, focus_scope, tab_index, lowercase_tabindex, disabled) = {
         let mut atoms = applier.atoms.borrow_mut();
         (
             atoms.intern("view"),
             atoms.intern("button"),
             atoms.intern("focusScope"),
             atoms.intern("tabIndex"),
+            atoms.intern("tabindex"),
+            atoms.intern("disabled"),
         )
     };
     for (id, tag, attrs) in [
@@ -353,13 +355,23 @@ fn modal_focus_scope_includes_later_portals_on_the_modal_plane() {
     for (parent, child) in [(1, 2), (1, 3), (3, 4), (1, 5), (5, 6)] {
         applier.apply_op(&Op::AppendChild { parent, child });
     }
-    for id in [2, 4, 6] {
+    for id in [2, 4] {
         applier.apply_op(&Op::SetAttribute {
             id,
             name: tab_index,
             value: "0",
         });
     }
+    applier.apply_op(&Op::SetAttribute {
+        id: 4,
+        name: disabled,
+        value: "",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: 6,
+        name: lowercase_tabindex,
+        value: "0",
+    });
 
     let root = applier.node_store.root;
     let node = |solid: u32, parent_node_id, plane| PlacedNode {
@@ -392,7 +404,9 @@ fn modal_focus_scope_includes_later_portals_on_the_modal_plane() {
     ];
 
     applier.rebuild_focus_order(&placed);
-    assert_eq!(applier.input.focus_order, [4, 6]);
+    // Rust executes the canonical `tabIndex`; it neither treats `disabled` as
+    // a focus policy nor accepts browser spelling aliases.
+    assert_eq!(applier.input.focus_order, [4]);
     assert!(!applier.input.focusable_targets.contains(&2));
 }
 

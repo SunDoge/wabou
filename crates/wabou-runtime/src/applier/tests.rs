@@ -984,7 +984,7 @@ fn interactive_applier() -> Applier {
 }
 
 #[test]
-fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
+fn tab_order_honors_explicit_indices_without_inferring_disabled_policy() {
     let js = JsRuntime::new().expect("runtime");
     install_host_frame_test_hook(&js);
     js.with(|ctx| {
@@ -1048,7 +1048,7 @@ fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
     applier.apply_op(&Op::SetAttribute {
         id: 6,
         name: tab_index,
-        value: "0",
+        value: "-1",
     });
     applier.apply_op(&Op::SetAttribute {
         id: 6,
@@ -1061,7 +1061,7 @@ fn tab_order_honors_positive_zero_negative_and_disabled_targets() {
 
     assert_eq!(applier.input.focus_order, [5, 3, 2]);
     assert!(applier.input.focusable_targets.contains(&4));
-    assert!(!applier.input.focusable_targets.contains(&6));
+    assert!(applier.input.focusable_targets.contains(&6));
     assert_eq!(applier.advance_focus(false), Some(5));
     assert_eq!(applier.advance_focus(false), Some(3));
     assert_eq!(applier.advance_focus(true), Some(5));

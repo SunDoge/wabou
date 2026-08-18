@@ -215,12 +215,11 @@ impl Applier {
             let Some(declared) = self.node_store.declared.get(&placed.node_id) else {
                 continue;
             };
-            if attribute(declared, "disabled").is_some() {
-                continue;
-            }
-            let explicit_tab_index = attribute(declared, "tabIndex")
-                .or_else(|| attribute(declared, "tabindex"))
-                .and_then(|value| value.parse::<i32>().ok());
+            // `tabIndex` is the normalized Wabou focus contract. Whether a
+            // disabled component participates is decided by its JS primitive,
+            // rather than inferred here from browser attribute conventions.
+            let explicit_tab_index =
+                attribute(declared, "tabIndex").and_then(|value| value.parse::<i32>().ok());
             let widget_focusable = self
                 .widget_manager
                 .widgets
