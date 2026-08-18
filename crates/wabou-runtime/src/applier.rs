@@ -382,6 +382,11 @@ pub struct Applier {
     /// styles and project the logical tree into Taffy once at the frame boundary.
     applying_frame: bool,
     dirty_styles: HashSet<NodeId>,
+    /// Whether the logical tree inputs consumed by the inline formatting
+    /// projection have changed since the last projection.
+    ifc_dirty: bool,
+    #[cfg(test)]
+    ifc_projection_count: usize,
     /// Taffy layout and inherited paint are retained across scroll-only frames.
     layout_viewport: Option<(u32, u32)>,
     /// Bounded host→JS message inbox. Producers use [`HostMessageHandle`].
@@ -488,6 +493,9 @@ impl Applier {
             wake_callback: None,
             applying_frame: false,
             dirty_styles: HashSet::new(),
+            ifc_dirty: false,
+            #[cfg(test)]
+            ifc_projection_count: 0,
             layout_viewport: None,
             host_message_inbox,
             host_message_handle,

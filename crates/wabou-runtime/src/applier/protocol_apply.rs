@@ -24,7 +24,7 @@ fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
 
 impl Applier {
     fn project_structure_if_unbatched(&mut self) {
-        if !self.applying_frame {
+        if !self.applying_frame && self.ifc_dirty {
             self.rebuild_layout_boxes();
         }
     }
@@ -85,6 +85,7 @@ impl Applier {
         };
         let mounted_changes = widget.mounted();
         self.widget_manager.widgets.insert(node, widget);
+        self.ifc_dirty = true;
         self.invalidate_widget_changes(mounted_changes);
         self.drain_widget_host_actions(node);
         self.drain_widget_node_events(node);
@@ -186,7 +187,7 @@ impl Applier {
             .host_action_routes
             .retain(|_, (widget_node, _)| *widget_node != node);
         self.invalidation.insert(InvalidationFlags::LAYOUT);
-        self.project_structure_if_unbatched();
+        self.ifc_dirty = true;
     }
 
     fn set_attribute(&mut self, id: u32, name: Atom, value: &str) {
@@ -408,7 +409,9 @@ impl Applier {
         for node in dirty {
             self.recompute_node_now(node);
         }
-        self.rebuild_layout_boxes();
+        if self.ifc_dirty {
+            self.rebuild_layout_boxes();
+        }
     }
 
     pub(super) fn apply_op(&mut self, op: &Op) {
@@ -451,7 +454,7 @@ impl Applier {
                 };
                 // Nodes are styled when created, before they have a parent.
                 self.recompute_subtree(child);
-                self.project_structure_if_unbatched();
+                self.ifc_dirty = true;
             }
             Op::InsertBefore {
                 parent,
@@ -462,12 +465,12 @@ impl Applier {
                     return;
                 };
                 self.recompute_subtree(child);
-                self.project_structure_if_unbatched();
+                self.ifc_dirty = true;
             }
             Op::RemoveChild { parent, child } => {
                 if self.node_store.remove_child(*parent, *child) {
                     self.invalidation.insert(InvalidationFlags::LAYOUT);
-                    self.project_structure_if_unbatched();
+                    self.ifc_dirty = true;
                 }
             }
             Op::SetText { id, text } => {
@@ -475,6 +478,7 @@ impl Applier {
                     if let Some(d) = self.node_store.declared.get_mut(&n) {
                         d.text = Some(Arc::from(*text));
                     }
+                    self.ifc_dirty = true;
                     self.recompute_node(n);
                 }
             }
@@ -497,6 +501,7 @@ impl Applier {
                     if let Some(declared) = self.node_store.declared.get_mut(&node) {
                         declared.text_behavior = *flags;
                     }
+                    self.ifc_dirty = true;
                     self.recompute_node(node);
                 }
             }
@@ -646,5 +651,6 @@ impl Applier {
                 self.drop_node(*id);
             }
         }
+        self.project_structure_if_unbatched();
     }
 }

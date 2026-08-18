@@ -154,6 +154,10 @@ impl Applier {
     /// [`InlineFormattingContext`]. Only applies IFC output (children +
     /// collapsed text); does not re-implement formatting rules here.
     pub(super) fn rebuild_layout_boxes(&mut self) {
+        #[cfg(test)]
+        {
+            self.ifc_projection_count += 1;
+        }
         let ifc = InlineFormattingContext::build(&self.node_store.children, &|node| {
             self.node_facts(node)
         });
@@ -179,11 +183,14 @@ impl Applier {
             }
         }
         for (parent, kids) in ifc.layout_children {
-            let _ = self.node_store.tree.set_children(parent, &kids);
+            if self.node_store.tree.children(parent).ok().as_deref() != Some(kids.as_slice()) {
+                let _ = self.node_store.tree.set_children(parent, &kids);
+            }
         }
         for node in changed {
             self.recompute_node_now(node);
         }
+        self.ifc_dirty = false;
     }
 
     /// Propagate inherited text styles (`color`, `font-size`) top-down so a
@@ -451,6 +458,7 @@ impl Applier {
         let mut layout = existing.clone();
         if prop == "display" {
             decl.display_explicit = true;
+            self.ifc_dirty = true;
         }
         if !style::apply_ir(&mut layout, &mut decl.paint, prop, ir) {
             return false;
@@ -482,6 +490,14 @@ impl Applier {
     }
 
     fn install_resolved_style(&mut self, node: NodeId, resolved: ResolvedNodeStyle) {
+        let projection_changed =
+            self.node_store.tree.style(node).is_ok_and(|previous| {
+                previous.display != resolved.layout.display
+                    || self.node_store.declared.get(&node).is_some_and(|declared| {
+                        declared.display_explicit != resolved.display_explicit
+                    })
+            });
+        self.ifc_dirty |= projection_changed;
         self.style.diagnostics.insert(node, resolved.diagnostics);
         if let Some(declared) = self.node_store.declared.get_mut(&node) {
             declared.paint = resolved.paint.clone();

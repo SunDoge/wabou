@@ -86,7 +86,7 @@ fn graphic_sources_are_stored_as_typed_state() {
 }
 
 #[test]
-fn large_sibling_frame_projects_the_complete_logical_tree() {
+fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let view = applier.atoms.borrow_mut().intern("view");
@@ -114,6 +114,33 @@ fn large_sibling_frame_projects_the_complete_logical_tree() {
             .len(),
         4096
     );
+    assert_eq!(applier.ifc_projection_count, 1);
+
+    applier.apply_frame(&Frame {
+        seq: 2,
+        ops: vec![Op::SetTransform2D {
+            id: 2,
+            matrix: [1.0, 0.0, 0.0, 1.0, 8.0, 4.0],
+        }],
+    });
+    assert_eq!(applier.ifc_projection_count, 1);
+
+    applier.apply_frame(&Frame {
+        seq: 3,
+        ops: Vec::new(),
+    });
+    assert_eq!(applier.ifc_projection_count, 1);
+
+    let display = applier.atoms.borrow_mut().intern("display");
+    applier.apply_frame(&Frame {
+        seq: 4,
+        ops: vec![Op::SetStyle {
+            id: 2,
+            prop: display,
+            value: "none",
+        }],
+    });
+    assert_eq!(applier.ifc_projection_count, 2);
 }
 
 #[test]
