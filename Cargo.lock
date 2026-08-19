@@ -4049,6 +4049,7 @@ version = "0.1.0"
 dependencies = [
  "aria2-ws",
  "directories",
+ "jiff",
  "open",
  "process-wrap",
  "serde",

@@ -28,6 +28,7 @@ export interface Aria2Task {
 }
 
 export interface Aria2Snapshot {
+  revision: number;
   connected: boolean;
   endpoint: string;
   version?: string;
@@ -37,6 +38,48 @@ export interface Aria2Snapshot {
   tasks: Aria2Task[];
   managed: boolean;
   engineRunning: boolean;
+  activity: number[];
+  downloadedToday: number;
+}
+
+export interface Aria2SnapshotPatch extends Omit<Aria2Snapshot, "tasks"> {
+  baseRevision: number;
+  upsertedTasks: Aria2Task[];
+  removedGids: string[];
+  taskOrder: string[];
+}
+
+export function applySnapshotPatch(
+  current: Aria2Snapshot,
+  patch: Aria2SnapshotPatch,
+): Aria2Snapshot | undefined {
+  if (current.revision !== patch.baseRevision) return undefined;
+  const removed = new Set(patch.removedGids);
+  const tasks = new Map(
+    current.tasks
+      .filter((task) => !removed.has(task.gid))
+      .map((task) => [task.gid, task]),
+  );
+  for (const task of patch.upsertedTasks) tasks.set(task.gid, task);
+  const ordered = patch.taskOrder.flatMap((gid) => {
+    const task = tasks.get(gid);
+    return task ? [task] : [];
+  });
+  if (ordered.length !== patch.taskOrder.length) return undefined;
+  return {
+    revision: patch.revision,
+    connected: patch.connected,
+    endpoint: patch.endpoint,
+    version: patch.version,
+    error: patch.error,
+    downloadSpeed: patch.downloadSpeed,
+    uploadSpeed: patch.uploadSpeed,
+    managed: patch.managed,
+    engineRunning: patch.engineRunning,
+    activity: patch.activity,
+    downloadedToday: patch.downloadedToday,
+    tasks: ordered,
+  };
 }
 
 export interface Aria2TaskDetails {
@@ -116,7 +159,6 @@ interface Aria2ContextValue {
   snapshot(): Aria2Snapshot;
   downloadHistory(): readonly number[];
   uploadHistory(): readonly number[];
-  sessionDownloaded(): number;
   events(): readonly TaskEvent[];
   clearEvents(): void;
   config(): MotrixConfig;
@@ -156,6 +198,7 @@ export interface AddUrisRequest {
 }
 
 const disconnected: Aria2Snapshot = {
+  revision: 0,
   connected: false,
   endpoint: "ws://127.0.0.1:6800/jsonrpc",
   error: "Connecting to aria2…",
@@ -164,6 +207,8 @@ const disconnected: Aria2Snapshot = {
   tasks: [],
   managed: false,
   engineRunning: false,
+  activity: Array(84).fill(0),
+  downloadedToday: 0,
 };
 const defaultConfig: MotrixConfig = {
   theme: "light",
@@ -207,7 +252,6 @@ export function Aria2Provider(props: ParentProps) {
   const [uploadHistory, setUploadHistory] = createSignal<readonly number[]>(
     Array(30).fill(0),
   );
-  const [sessionDownloaded, setSessionDownloaded] = createSignal(0);
   const [events, setEvents] = createSignal<readonly TaskEvent[]>([]);
   const previousStatuses = new Map<string, string>();
   const [config, setConfig] = createSignal(defaultConfig);
@@ -236,7 +280,6 @@ export function Aria2Provider(props: ParentProps) {
     snapshot,
     downloadHistory,
     uploadHistory,
-    sessionDownloaded,
     events,
     clearEvents: () => setEvents([]),
     config,
@@ -274,52 +317,76 @@ export function Aria2Provider(props: ParentProps) {
   void call<MotrixConfig>("getConfig")
     .then(setConfig)
     .catch((error) => console.error("cannot load Motrix config", error));
-  const unsubscribe = hostMessages.subscribe("aria2.snapshot", (payload) => {
-    if (typeof payload !== "string") return;
-    try {
-      const next = JSON.parse(payload) as Aria2Snapshot;
-      setSnapshot(next);
-      setDownloadHistory((values) => [
-        ...values.slice(-29),
-        next.downloadSpeed,
-      ]);
-      setUploadHistory((values) => [...values.slice(-29), next.uploadSpeed]);
-      setSessionDownloaded((value) => value + next.downloadSpeed);
-      for (const task of next.tasks) {
-        const previous = previousStatuses.get(task.gid);
-        previousStatuses.set(task.gid, task.status);
-        if (
-          previous === undefined ||
-          previous === task.status ||
-          (task.status !== "complete" && task.status !== "error")
-        )
-          continue;
-        const event: TaskEvent = {
-          id: Date.now() + events().length,
-          gid: task.gid,
-          name: task.name,
-          status: task.status,
-          time: new Date().toLocaleTimeString(),
-        };
-        setEvents((items) => [event, ...items].slice(0, 100));
-        const currentConfig = config();
-        if (
-          (task.status === "complete" && currentConfig.notifyOnComplete) ||
-          (task.status === "error" && currentConfig.notifyOnError)
-        )
-          void notification.show({
-            title:
-              task.status === "complete"
-                ? "Download complete"
-                : "Download failed",
-            body: task.name,
-          });
-      }
-    } catch (error) {
-      console.error("invalid aria2 snapshot", error);
+  const acceptSnapshot = (next: Aria2Snapshot) => {
+    setSnapshot(next);
+    setDownloadHistory((values) => [...values.slice(-29), next.downloadSpeed]);
+    setUploadHistory((values) => [...values.slice(-29), next.uploadSpeed]);
+    for (const task of next.tasks) {
+      const previous = previousStatuses.get(task.gid);
+      previousStatuses.set(task.gid, task.status);
+      if (
+        previous === undefined ||
+        previous === task.status ||
+        (task.status !== "complete" && task.status !== "error")
+      )
+        continue;
+      const event: TaskEvent = {
+        id: Date.now() + events().length,
+        gid: task.gid,
+        name: task.name,
+        status: task.status,
+        time: new Date().toLocaleTimeString(),
+      };
+      setEvents((items) => [event, ...items].slice(0, 100));
+      const currentConfig = config();
+      if (
+        (task.status === "complete" && currentConfig.notifyOnComplete) ||
+        (task.status === "error" && currentConfig.notifyOnError)
+      )
+        void notification.show({
+          title:
+            task.status === "complete"
+              ? "Download complete"
+              : "Download failed",
+          body: task.name,
+        });
     }
+  };
+  const unsubscribeSnapshot = hostMessages.subscribe(
+    "aria2.snapshot",
+    (payload) => {
+      if (typeof payload !== "string") return;
+      try {
+        acceptSnapshot(JSON.parse(payload) as Aria2Snapshot);
+      } catch (error) {
+        console.error("invalid aria2 snapshot", error);
+      }
+    },
+  );
+  const unsubscribePatch = hostMessages.subscribe(
+    "aria2.snapshot.patch",
+    (payload) => {
+      if (typeof payload !== "string") return;
+      try {
+        const patch = JSON.parse(payload) as Aria2SnapshotPatch;
+        const current = snapshot();
+        const next = applySnapshotPatch(current, patch);
+        if (!next) {
+          void refresh().catch((error) =>
+            setSnapshot((value) => ({ ...value, error: String(error) })),
+          );
+          return;
+        }
+        acceptSnapshot(next);
+      } catch (error) {
+        console.error("invalid aria2 snapshot patch", error);
+      }
+    },
+  );
+  onCleanup(() => {
+    unsubscribeSnapshot();
+    unsubscribePatch();
   });
-  onCleanup(unsubscribe);
   return createComponent(Aria2Context, {
     value,
     get children() {

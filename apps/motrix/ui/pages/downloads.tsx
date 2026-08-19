@@ -10,6 +10,7 @@ import {
   Modal,
   Progress,
   ScrollArea,
+  showNativeMenu,
   Text,
   View,
 } from "@wabou/ui";
@@ -111,6 +112,64 @@ export function DownloadsPage() {
   const requestRemoval = (tasks: Aria2Task[]) => {
     setRemoveFiles(false);
     setPendingRemoval(tasks);
+  };
+  const pauseOrResume = async (task: Aria2Task) => {
+    await aria2.taskAction(
+      task.gid,
+      task.status === "active" || task.status === "seeding"
+        ? "pause"
+        : "resume",
+    );
+    await aria2.refresh();
+  };
+  const retryTask = async (task: Aria2Task) => {
+    await aria2.taskAction(task.gid, "retry");
+    await aria2.refresh();
+  };
+  const showTaskMenu = async (
+    task: Aria2Task,
+    position: { x: number; y: number },
+  ) => {
+    setSelected(task);
+    const canRetry =
+      task.status === "error" && !task.bittorrent && Boolean(task.uri);
+    const selection = await showNativeMenu({
+      position,
+      items: [
+        {
+          kind: "item",
+          id: "toggle",
+          label:
+            task.status === "active" || task.status === "seeding"
+              ? "Pause"
+              : "Resume",
+        },
+        { kind: "item", id: "retry", label: "Retry", enabled: canRetry },
+        { kind: "separator" },
+        {
+          kind: "item",
+          id: "open-folder",
+          label: "Open folder",
+          enabled: Boolean(task.filePath || task.dir),
+        },
+        {
+          kind: "item",
+          id: "copy-source",
+          label: "Copy source",
+          enabled: Boolean(task.uri),
+        },
+        { kind: "separator" },
+        { kind: "item", id: "remove", label: "Remove" },
+      ],
+    });
+    if (selection === "toggle") await pauseOrResume(task);
+    else if (selection === "retry" && canRetry) await retryTask(task);
+    else if (selection === "open-folder") {
+      const path = task.filePath || task.dir;
+      if (path) await aria2.openTaskFolder(path);
+    } else if (selection === "copy-source") {
+      if (task.uri) await clipboard.writeText(task.uri);
+    } else if (selection === "remove") requestRemoval([task]);
   };
   const matchesFilter = (task: Aria2Task) => {
     if (filter() === "all") return true;
@@ -308,6 +367,20 @@ export function DownloadsPage() {
                   <View
                     class={`min-h-20 px-4 flex items-center border-b border-subtle ${selected()?.gid === task.gid ? "bg-selected" : ""}`}
                     onClick={() => setSelected(task)}
+                    onDblClick={() => {
+                      if (task.status !== "complete") return;
+                      const path = task.filePath || task.dir;
+                      if (path) executeAction(() => aria2.openTaskFolder(path));
+                    }}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      void executeAction(() =>
+                        showTaskMenu(task, {
+                          x: event.clientX,
+                          y: event.clientY,
+                        }),
+                      );
+                    }}
                   >
                     <View class="w-9 flex-none">
                       <Checkbox
@@ -372,12 +445,7 @@ export function DownloadsPage() {
                           aria-label={`Retry ${task.name}`}
                           size="icon"
                           variant="ghost"
-                          onClick={() =>
-                            executeAction(async () => {
-                              await aria2.taskAction(task.gid, "retry");
-                              await aria2.refresh();
-                            })
-                          }
+                          onClick={() => executeAction(() => retryTask(task))}
                         >
                           <Icon source={retry} size={15} />
                         </Button>
@@ -386,15 +454,7 @@ export function DownloadsPage() {
                         aria-label={`${task.status === "active" ? "Pause" : "Resume"} ${task.name}`}
                         size="icon"
                         variant="ghost"
-                        onClick={() =>
-                          executeAction(async () => {
-                            await aria2.taskAction(
-                              task.gid,
-                              task.status === "active" ? "pause" : "resume",
-                            );
-                            await aria2.refresh();
-                          })
-                        }
+                        onClick={() => executeAction(() => pauseOrResume(task))}
                       >
                         <Icon
                           source={task.status === "active" ? pause : play}

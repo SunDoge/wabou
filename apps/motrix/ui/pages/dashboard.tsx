@@ -17,12 +17,6 @@ export function DashboardPage() {
   const aria2 = useAria2();
   const snapshot = aria2.snapshot;
   const speedLimit = () => aria2.config().maxOverallDownloadLimit;
-  const activity = () => {
-    const values = aria2.downloadHistory();
-    return [...Array(Math.max(0, 84 - values.length)).fill(0), ...values].slice(
-      -84,
-    );
-  };
   const setSpeedLimit = async (limit: string) => {
     await aria2.saveConfig({
       ...aria2.config(),
@@ -120,15 +114,15 @@ export function DashboardPage() {
         />
         <StatCard
           label="TRANSFER TODAY"
-          value={formatBytes(aria2.sessionDownloaded())}
-          detail="Since this app session started"
+          value={formatBytes(snapshot().downloadedToday)}
+          detail="Persisted for the current local day"
         />
       </View>
       <Card class="min-h-0 flex-1 rounded-2xl shadow-xl">
         <CardContent class="h-full p-5 flex flex-col gap-3">
           <Text class="text-xs font-medium text-muted">ACTIVITY</Text>
           <View class="min-h-0 flex-1 grid grid-cols-12 gap-2">
-            <For each={activity()}>
+            <For each={snapshot().activity}>
               {(value) => (
                 <View
                   class={

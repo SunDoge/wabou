@@ -1,17 +1,18 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     env,
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::Command,
     sync::{
         Arc, Mutex as StdMutex, RwLock,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     thread,
     time::{Duration, Instant},
 };
 
+use crate::activity::ActivityLog;
 use crate::config::{AppConfig, ConfigStore, EngineMode};
 use aria2_ws::{
     Client, TaskOptions,
@@ -30,6 +31,7 @@ use wabou::{
 
 pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("aria2", 1);
 const SNAPSHOT: &str = "aria2.snapshot";
+const SNAPSHOT_PATCH: &str = "aria2.snapshot.patch";
 
 const GET_SNAPSHOT: JsonMethod<(), Snapshot> = JsonMethod::no_request("getSnapshot");
 const ADD_URI: JsonMethod<AddUriRequest, Vec<String>> = JsonMethod::new("addUri");
@@ -63,6 +65,8 @@ pub struct Aria2Service {
     managed: ManagedAria2,
     config: Arc<RwLock<AppConfig>>,
     config_store: ConfigStore,
+    stream_revision: Arc<AtomicU64>,
+    activity: Arc<StdMutex<ActivityLog>>,
 }
 
 #[derive(Clone)]
@@ -165,9 +169,10 @@ enum EngineAction {
     Restart,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
+    revision: u64,
     connected: bool,
     endpoint: String,
     version: Option<String>,
@@ -177,9 +182,11 @@ pub struct Snapshot {
     tasks: Vec<TaskSnapshot>,
     managed: bool,
     engine_running: bool,
+    activity: Vec<u64>,
+    downloaded_today: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct TaskSnapshot {
     gid: String,
@@ -198,6 +205,64 @@ struct TaskSnapshot {
     error_message: Option<String>,
     bittorrent: bool,
     file_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SnapshotPatch {
+    base_revision: u64,
+    revision: u64,
+    connected: bool,
+    endpoint: String,
+    version: Option<String>,
+    error: Option<String>,
+    download_speed: u64,
+    upload_speed: u64,
+    managed: bool,
+    engine_running: bool,
+    activity: Vec<u64>,
+    downloaded_today: u64,
+    upserted_tasks: Vec<TaskSnapshot>,
+    removed_gids: Vec<String>,
+    task_order: Vec<String>,
+}
+
+impl SnapshotPatch {
+    fn between(previous: &Snapshot, next: &Snapshot) -> Self {
+        let previous_by_gid: HashMap<&str, &TaskSnapshot> = previous
+            .tasks
+            .iter()
+            .map(|task| (task.gid.as_str(), task))
+            .collect();
+        let next_gids: HashSet<&str> = next.tasks.iter().map(|task| task.gid.as_str()).collect();
+        Self {
+            base_revision: previous.revision,
+            revision: next.revision,
+            connected: next.connected,
+            endpoint: next.endpoint.clone(),
+            version: next.version.clone(),
+            error: next.error.clone(),
+            download_speed: next.download_speed,
+            upload_speed: next.upload_speed,
+            managed: next.managed,
+            engine_running: next.engine_running,
+            activity: next.activity.clone(),
+            downloaded_today: next.downloaded_today,
+            upserted_tasks: next
+                .tasks
+                .iter()
+                .filter(|task| previous_by_gid.get(task.gid.as_str()).copied() != Some(*task))
+                .cloned()
+                .collect(),
+            removed_gids: previous
+                .tasks
+                .iter()
+                .filter(|task| !next_gids.contains(task.gid.as_str()))
+                .map(|task| task.gid.clone())
+                .collect(),
+            task_order: next.tasks.iter().map(|task| task.gid.clone()).collect(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -245,6 +310,7 @@ impl Aria2Service {
             .port();
         let secret: Arc<str> = uuid::Uuid::new_v4().simple().to_string().into();
         let session_path = config_store.directory()?.join("aria2.session");
+        let activity = ActivityLog::load(config_store.directory()?);
         let managed = ManagedAria2 {
             port,
             secret: secret.clone(),
@@ -273,6 +339,8 @@ impl Aria2Service {
                 managed: managed.clone(),
                 config: Arc::new(RwLock::new(config)),
                 config_store,
+                stream_revision: Arc::new(AtomicU64::new(0)),
+                activity: Arc::new(StdMutex::new(activity)),
             },
             Some(managed),
         ))
@@ -302,6 +370,8 @@ impl Aria2Service {
             managed,
             config: Arc::new(RwLock::new(config)),
             config_store: ConfigStore::new(std::path::Path::new(".")),
+            stream_revision: Arc::new(AtomicU64::new(0)),
+            activity: Arc::new(StdMutex::new(ActivityLog::load(Path::new(".")))),
         }
     }
 
@@ -336,7 +406,9 @@ impl Aria2Service {
                             secret: None,
                             managed: false,
                         });
+                let (activity, downloaded_today) = self.activity_values();
                 Snapshot {
+                    revision: self.stream_revision.load(Ordering::Acquire),
                     connected: false,
                     endpoint: connection.endpoint.to_string(),
                     version: None,
@@ -346,6 +418,8 @@ impl Aria2Service {
                     tasks: Vec::new(),
                     managed: connection.managed,
                     engine_running: !connection.managed || self.managed.is_running(),
+                    activity,
+                    downloaded_today,
                 }
             }
         }
@@ -366,22 +440,43 @@ impl Aria2Service {
             .read()
             .map_err(|_| "aria2 connection lock poisoned")?
             .clone();
+        let tasks: Vec<_> = active
+            .into_iter()
+            .chain(waiting)
+            .chain(stopped)
+            .map(task_snapshot)
+            .collect();
+        let (activity, downloaded_today) = if let Ok(mut log) = self.activity.lock() {
+            log.observe(
+                tasks
+                    .iter()
+                    .map(|task| (task.gid.as_str(), task.completed_length)),
+            );
+            (log.recent(), log.downloaded_today())
+        } else {
+            (vec![0; 84], 0)
+        };
         Ok(Snapshot {
+            revision: self.stream_revision.load(Ordering::Acquire),
             connected: true,
             endpoint: connection.endpoint.to_string(),
             version: Some(version.version),
             error: None,
             download_speed: stat.download_speed,
             upload_speed: stat.upload_speed,
-            tasks: active
-                .into_iter()
-                .chain(waiting)
-                .chain(stopped)
-                .map(task_snapshot)
-                .collect(),
+            tasks,
             managed: connection.managed,
             engine_running: !connection.managed || self.managed.is_running(),
+            activity,
+            downloaded_today,
         })
+    }
+
+    fn activity_values(&self) -> (Vec<u64>, u64) {
+        self.activity
+            .lock()
+            .map(|log| (log.recent(), log.downloaded_today()))
+            .unwrap_or_else(|_| (vec![0; 84], 0))
     }
 
     async fn engine_action(&self, action: EngineAction) -> Result<(), String> {
@@ -623,6 +718,79 @@ impl HostService for ManagedAria2 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn streamed_task(gid: &str, status: &str, speed: u64) -> TaskSnapshot {
+        TaskSnapshot {
+            gid: gid.to_owned(),
+            name: format!("task-{gid}"),
+            status: status.to_owned(),
+            total_length: 100,
+            completed_length: 25,
+            download_speed: speed,
+            upload_speed: 0,
+            uploaded_length: 0,
+            dir: "/downloads".to_owned(),
+            file_path: None,
+            uri: None,
+            connections: 1,
+            seeders: None,
+            error_message: None,
+            bittorrent: false,
+            file_count: 1,
+        }
+    }
+
+    fn streamed_snapshot(revision: u64, tasks: Vec<TaskSnapshot>) -> Snapshot {
+        Snapshot {
+            revision,
+            connected: true,
+            endpoint: "ws://127.0.0.1:6800/jsonrpc".to_owned(),
+            version: Some("1.37.0".to_owned()),
+            error: None,
+            download_speed: tasks.iter().map(|task| task.download_speed).sum(),
+            upload_speed: 0,
+            tasks,
+            managed: true,
+            engine_running: true,
+            activity: vec![0; 84],
+            downloaded_today: 0,
+        }
+    }
+
+    #[test]
+    fn snapshot_patch_only_carries_changed_tasks_and_exact_order() {
+        let previous = streamed_snapshot(
+            7,
+            vec![
+                streamed_task("unchanged", "active", 10),
+                streamed_task("changed", "active", 20),
+                streamed_task("removed", "complete", 0),
+            ],
+        );
+        let next = streamed_snapshot(
+            8,
+            vec![
+                streamed_task("changed", "active", 42),
+                streamed_task("unchanged", "active", 10),
+                streamed_task("new", "waiting", 0),
+            ],
+        );
+
+        let patch = SnapshotPatch::between(&previous, &next);
+
+        assert_eq!(patch.base_revision, 7);
+        assert_eq!(patch.revision, 8);
+        assert_eq!(
+            patch
+                .upserted_tasks
+                .iter()
+                .map(|task| task.gid.as_str())
+                .collect::<Vec<_>>(),
+            ["changed", "new"]
+        );
+        assert_eq!(patch.removed_gids, ["removed"]);
+        assert_eq!(patch.task_order, ["changed", "unchanged", "new"]);
+    }
 
     #[tokio::test]
     #[ignore = "requires aria2c RPC on port 16800"]
@@ -1289,11 +1457,23 @@ pub fn stream_snapshots(context: HostMessageContext, service: Aria2Service) {
         {
             let _ = client.unpause_all().await;
         }
+        let mut previous: Option<Snapshot> = None;
         loop {
-            let snapshot = service.snapshot().await;
-            if let Ok(payload) = serde_json::to_string(&snapshot) {
-                let _ = task_context.messages().emit_str(SNAPSHOT, payload);
+            let mut snapshot = service.snapshot().await;
+            snapshot.revision = service.stream_revision.fetch_add(1, Ordering::AcqRel) + 1;
+            let message = previous
+                .as_ref()
+                .map(|old| {
+                    (
+                        SNAPSHOT_PATCH,
+                        serde_json::to_string(&SnapshotPatch::between(old, &snapshot)),
+                    )
+                })
+                .unwrap_or_else(|| (SNAPSHOT, serde_json::to_string(&snapshot)));
+            if let Ok(payload) = message.1 {
+                let _ = task_context.messages().emit_str(message.0, payload);
             }
+            previous = Some(snapshot);
             tokio::select! {
                 () = task_context.cancelled() => break,
                 () = tokio::time::sleep(Duration::from_secs(1)) => {}

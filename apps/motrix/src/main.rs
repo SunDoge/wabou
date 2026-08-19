@@ -1,3 +1,4 @@
+mod activity;
 mod aria2;
 mod config;
 

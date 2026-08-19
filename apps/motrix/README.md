@@ -8,9 +8,10 @@ than serving as a component-only demo.
 The current implementation includes routed Dashboard, Downloads, Trackers,
 Plugins, Notifications, and Settings surfaces; URL and torrent task creation;
 search, status filters, task inspection with file/tracker/peer details, batch
-actions, and optional system-Trash removal of downloaded files; live RPC speed
-charts; tracker synchronization; native completion/error notifications; and
-light/dark themes.
+actions, task-row native context menus, and optional system-Trash removal of
+downloaded files; revisioned Rust-to-JavaScript task patches; live RPC speed
+charts; a persistent 84-day transfer heatmap; tracker synchronization; native
+completion/error notifications; and light/dark themes.
 
 ## Run
 
@@ -40,6 +41,10 @@ back to terminating the owned process group.
 Closing the main window keeps managed downloads running in the system tray.
 Use **Open Motrix** to restore the window or **Quit Motrix** to save the aria2
 session and stop the managed process cleanly.
+
+Daily transfer totals are derived from completed-byte deltas rather than UI
+frame timing and are saved as `activity.json` in the same platform-native
+configuration directory.
 
 ## Backend boundary
 

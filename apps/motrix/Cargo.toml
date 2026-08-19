@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 aria2-ws = { workspace = true }
 directories = { workspace = true }
+jiff = { workspace = true }
 open = { workspace = true }
 process-wrap = { version = "9.1.0", features = ["std"] }
 serde = { workspace = true, features = ["derive"] }
