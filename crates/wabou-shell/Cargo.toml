@@ -33,6 +33,7 @@ vello_svg = { version = "0.10.0", default-features = false }
 wgpu_context = "0.7"
 winit = { workspace = true }
 wabou-accessibility = { workspace = true }
+wabou-host-api = { workspace = true }
 
 [features]
 profiling = []

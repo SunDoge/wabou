@@ -206,6 +206,10 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     if !scale_factor.is_finite() || *scale_factor <= 0.0 {
         return Err("--scale-factor must be a finite number greater than zero".into());
     }
+    let window_key = u32::try_from(*window_id)
+        .ok()
+        .and_then(|lo| wabou_shell::WindowResourceKey::from_parts(lo, 1))
+        .ok_or("--window-id must be a non-zero 32-bit logical window id")?;
     let frontend_lock = frontend::lock(workspace, app)?;
     let mode_args = mode.as_deref().map(|mode| ["--mode", mode]);
     ensure(
@@ -236,7 +240,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         Arc::new(|| Box::new(PasswordInput::new(SecretStore::default()))),
     );
     let mut applier =
-        Applier::from_runtime_with_factories_and_window(js, factories, base_color, *window_id);
+        Applier::from_runtime_with_factories_and_window(js, factories, base_color, window_key);
     applier
         .boot(&source)
         .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
@@ -248,7 +252,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         .round()
         .clamp(1.0, f64::from(u32::MAX)) as u32;
     applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
-        window_id: *window_id,
+        window_key,
         logical_width: *width,
         logical_height: *height,
         physical_width,

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 const submissions: Array<[number, number, string]> = [];
 Object.assign(globalThis, {
-  __wabou_effect_abi: 2,
+  __wabou_effect_abi: 3,
   __wabou_effect_submit: (
     capability: number,
     method: number,

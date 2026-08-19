@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashSet, VecDeque};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::effect_trace::{EffectTrace, TraceSubmission};
 use crate::jsrt::JsRuntime;
@@ -11,20 +11,20 @@ use wabou_shell::{
     EffectResult, EffectScope, WakeCallback,
 };
 
-static NEXT_EFFECT_ID: AtomicU64 = AtomicU64::new(1 << 32);
+static NEXT_EFFECT_ID: AtomicU32 = AtomicU32::new(1);
 
 #[derive(Clone)]
 pub(super) struct EffectBridge {
     effects: Rc<RefCell<VecDeque<EffectRequest>>>,
     action_wake: Rc<RefCell<Option<WakeCallback>>>,
-    pending: Rc<RefCell<HashSet<u64>>>,
+    pending: Rc<RefCell<HashSet<u32>>>,
     trace: Rc<RefCell<Option<EffectTrace>>>,
     replay_completions: Rc<RefCell<VecDeque<EffectCompletion>>>,
     app_directories: Rc<RefCell<Option<AppDirectories>>>,
 }
 
 impl EffectBridge {
-    pub(super) fn install(js: &JsRuntime, window_id: u64) -> Self {
+    pub(super) fn install(js: &JsRuntime, window_key: wabou_shell::WindowResourceKey) -> Self {
         let bridge = Self {
             effects: Rc::new(RefCell::new(VecDeque::new())),
             action_wake: Rc::new(RefCell::new(None)),
@@ -33,41 +33,31 @@ impl EffectBridge {
             replay_completions: Rc::new(RefCell::new(VecDeque::new())),
             app_directories: Rc::new(RefCell::new(None)),
         };
-        bridge.install_functions(js, window_id);
+        bridge.install_functions(js, window_key);
         bridge
     }
 
-    fn install_functions(&self, js: &JsRuntime, window_id: u64) {
-        let supplied = wabou_shell::WindowResourceKey::from_ffi(window_id);
-        let window_key = if supplied.is_valid() {
-            supplied
-        } else {
-            wabou_shell::WindowResourceKey {
-                lo: window_id as u32,
-                hi: 1,
-            }
-        };
-        let window_id = window_key.as_ffi();
+    fn install_functions(&self, js: &JsRuntime, window_key: wabou_shell::WindowResourceKey) {
         let submit_bridge = self.clone();
         js.with(|ctx| -> rquickjs::Result<()> {
             ctx.globals().set(
                 "__wabou_effect_submit",
                 rquickjs::Function::new(
                     ctx.clone(),
-                    move |capability: u32, method: u16, payload_json: String| -> u64 {
+                    move |capability: u32, method: u16, payload_json: String| -> u32 {
                         let id = NEXT_EFFECT_ID.fetch_add(1, Ordering::Relaxed);
+                        assert_ne!(id, 0, "effect request id space exhausted for this process");
                         let op = EffectOp::new(capability, method);
                         let payload = decode_effect_payload(
                             op,
-                            id,
-                            window_id,
+                            window_key,
                             payload_json,
                             submit_bridge.app_directories.borrow().as_ref(),
                         );
                         submit_bridge.pending.borrow_mut().insert(id);
                         let request = EffectRequest {
                             id: EffectId(id),
-                            scope: EffectScope::Window(window_id),
+                            scope: EffectScope::Window(window_key),
                             payload,
                         };
                         #[cfg(feature = "profiling")]
@@ -101,8 +91,8 @@ impl EffectBridge {
             )?;
             ctx.globals()
                 .set("__wabou_effect_abi", wabou_shell::EFFECT_ABI_VERSION)?;
-            ctx.globals().set("__wabou_window_id_lo", window_key.lo)?;
-            ctx.globals().set("__wabou_window_id_hi", window_key.hi)?;
+            ctx.globals().set("__wabou_window_id_lo", window_key.lo())?;
+            ctx.globals().set("__wabou_window_id_hi", window_key.hi())?;
             Ok(())
         })
         .expect("install effect host functions");
@@ -143,8 +133,7 @@ impl EffectBridge {
 
 pub(super) fn decode_effect_payload(
     op: EffectOp,
-    _id: u64,
-    window_id: u64,
+    window_key: wabou_shell::WindowResourceKey,
     payload_json: String,
     app_directories: Option<&AppDirectories>,
 ) -> EffectPayload {
@@ -204,9 +193,7 @@ pub(super) fn decode_effect_payload(
                 .and_then(|value| {
                     serde_json::from_value::<wabou_shell::WindowResourceKey>(value.clone()).ok()
                 })
-                .filter(|key| key.is_valid())
-                .map(wabou_shell::WindowResourceKey::as_ffi)
-                .unwrap_or(window_id);
+                .unwrap_or(window_key);
             let command = if op == wabou_shell::effect::builtin::WINDOW_CLOSE {
                 wabou_shell::WindowCommand::Close
             } else if op == wabou_shell::effect::builtin::WINDOW_MINIMIZE {

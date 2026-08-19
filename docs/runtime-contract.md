@@ -42,6 +42,10 @@ effects are implementation details of typed services such as clipboard,
 dialog, notification, and window APIs; their numeric ABI is not a fourth
 application-visible communication mechanism.
 
+`packages/core/effect-abi.json` is the sole source for the Effect ABI version
+and operation identifiers. Code generation produces both the Rust constants
+used by `wabou-shell` and the TypeScript constants used by `@wabou/core`.
+
 ### JSON capabilities
 
 JSON capabilities are Wabou's control plane for application-owned, low-rate,
@@ -129,19 +133,26 @@ handles use an explicit presence field or a distinct clear operation; `(0, 0)`
 is not a universal null sentinel.
 
 The shared implementations are `createResourceKeyFamily()` and
-`ResourceKeyTable` in `@wabou/core`, plus `ResourceRegistry<K, V>` in
-`wabou_runtime::resource`. A JS resource family has a private runtime token in
-addition to its TypeScript brand, so accidental casts between two live
-families fail before lookup. Rust uses a distinct `slotmap::new_key_type!` key
-for each registry, making the equivalent family mix-up a type error. NodeKey's
-JS allocator reuses the same validation and table machinery, but nodes remain
-owned by the retained tree rather than a Rust `ResourceRegistry`.
+`ResourceKeyTable` in `@wabou/core`, `ResourceKey<K>` in `wabou-host-api`, and
+`ResourceRegistry<K, V>` in `wabou_runtime::resource`. A JS resource family has
+a private runtime token in addition to its TypeScript brand, so accidental
+casts between two live families fail before lookup. Rust uses a distinct
+family type for each key or registry, making the equivalent mix-up a type
+error. Shell resources such as windows reuse the shared Rust wire key instead
+of defining another `{ lo, hi }` serializer. NodeKey's JS allocator reuses the
+same validation and table machinery, but nodes remain owned by the retained
+tree rather than a Rust `ResourceRegistry`.
 
 Native windows are the first independently owned built-in resource using this
 model. The shell allocates their SlotMap key only while accepting a window
 creation effect, returns the pair in the asynchronous completion, and removes
 the key when the window is permanently closed. Effect request ids remain
-request-routing identities and are never exposed as window handles.
+process-unique `u32` request-routing identities and are never exposed as window
+handles. Their bounded representation is exactly representable by JavaScript.
+
+Window scopes and targets in low-frequency native effects and recorded effect
+tapes use the same `{ lo, hi }` representation. A packed `u64` is permitted as
+an internal Rust lookup value, but it must not appear in JavaScript or JSON.
 
 JSON capabilities should normally return a structured `{ lo, hi }` handle
 when an application must retain one. Subsequent high-frequency operations

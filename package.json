@@ -13,7 +13,7 @@
     "commit:hook": "cog install-hook commit-msg",
     "test:hmr": "bun --conditions=browser --conditions=development test packages/core/src/renderer/hmr.test.ts",
     "test:router": "bun --conditions=browser test packages/ui/src/router/data.test.tsx",
-    "packages:build": "bun --bun tsdown --concurrency 1",
+    "packages:build": "bun run scripts/build-packages.ts",
     "packages:check": "bun run scripts/check-package-boundaries.ts && tsc -p tests/package-consumer/tsconfig.json && bun run scripts/check-ui-tarball.ts",
     "size:report": "bun run scripts/report-artifact-sizes.ts",
     "perf:report": "bun run scripts/report-performance.ts",

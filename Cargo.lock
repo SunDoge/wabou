@@ -8025,6 +8025,7 @@ dependencies = [
  "vello",
  "vello_svg",
  "wabou-accessibility",
+ "wabou-host-api",
  "wgpu_context",
  "winit",
 ]

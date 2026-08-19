@@ -5,7 +5,7 @@ use wabou_runtime::{
 #[test]
 fn application_can_register_a_typed_host_message_producer() {
     let _builder = HostBuilder::new().host_message_producer(|context: HostMessageContext| {
-        let _window_id = context.window_id();
+        let _window_key = context.window_key();
         let _messages = context.messages().clone();
         let task_context = context.clone();
         let _task = context.spawn(async move {

@@ -20,12 +20,12 @@ enum TraceMode {
     Record {
         entries: Vec<EffectTapeEntry>,
         record_all: bool,
-        recorded_ids: HashSet<u64>,
+        recorded_ids: HashSet<u32>,
     },
     Replay {
         entries: VecDeque<EffectTapeEntry>,
         recorded_ops: HashSet<EffectOp>,
-        request_ids: HashMap<u64, u64>,
+        request_ids: HashMap<u32, u32>,
     },
 }
 
@@ -190,12 +190,13 @@ mod tests {
     use super::*;
     use wabou_shell::{EffectId, EffectPayload, EffectScope, WindowCommand};
 
-    fn title(id: u64, title: &str) -> EffectRequest {
+    fn title(id: u32, title: &str) -> EffectRequest {
+        let window_key = wabou_shell::initial_window_resource_key(0);
         EffectRequest {
             id: EffectId(id),
-            scope: EffectScope::Window(1),
+            scope: EffectScope::Window(window_key),
             payload: EffectPayload::WindowControl {
-                window_id: 1,
+                window_id: window_key,
                 command: WindowCommand::SetTitle(title.into()),
             },
         }
@@ -255,7 +256,7 @@ mod tests {
         let trace = EffectTrace::record(false);
         let request = EffectRequest {
             id: EffectId(1),
-            scope: EffectScope::Window(1),
+            scope: EffectScope::Window(wabou_shell::initial_window_resource_key(0)),
             payload: EffectPayload::ClipboardWrite {
                 text: "secret".into(),
             },
@@ -278,6 +279,13 @@ mod tests {
         trace.submit(&request);
         trace.complete(&completion(&request));
         trace.write(&path).unwrap();
+        let tape_json: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(
+            tape_json["entries"][0]["value"]["scope"]["id"],
+            serde_json::json!({ "lo": 1, "hi": 1 }),
+            "serialized window identities must remain lossless outside Rust",
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

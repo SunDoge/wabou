@@ -4,7 +4,7 @@ let nextRequest = 1;
 const calls: Array<[number, number, unknown]> = [];
 
 Object.assign(globalThis, {
-  __wabou_effect_abi: 2,
+  __wabou_effect_abi: 3,
   __wabou_effect_submit: (capability: number, method: number, json: string) => {
     const requestId = nextRequest++;
     calls.push([capability, method, JSON.parse(json)]);

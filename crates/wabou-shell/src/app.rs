@@ -24,6 +24,7 @@ use winit::window::{
     UserAttentionType, WindowId,
 };
 
+use crate::WindowResourceKey;
 use crate::scene as scene_builder;
 use crate::shell::Shell;
 use crate::source::{
@@ -105,7 +106,7 @@ impl Wake for CallbackWaker {
 /// lazily-created [`Shell`] (window + GPU surface + renderer). Created in
 /// `can_create_surfaces` once the event loop is ready.
 pub struct App {
-    logical_window_id: u64,
+    window_key: WindowResourceKey,
     source: Box<dyn FrameSource>,
     state: Option<Shell>,
     window_options: WindowOptions,
@@ -124,7 +125,7 @@ pub struct App {
     present_retry_pending: bool,
     clipboard: Option<arboard::Clipboard>,
     pending_windows: Vec<PendingWindowEffect>,
-    pending_window_commands: Vec<(u64, WindowCommand)>,
+    pending_window_commands: Vec<(crate::WindowResourceKey, WindowCommand)>,
     pending_extension_effects: Vec<crate::EffectRequest>,
     pending_modal_effects: Vec<ModalEffectFuture>,
     effect_completion_tx: Sender<crate::EffectCompletion>,
@@ -193,7 +194,7 @@ impl App {
     pub fn with_options(source: Box<dyn FrameSource>, window_options: WindowOptions) -> Self {
         let (effect_completion_tx, effect_completion_rx) = std::sync::mpsc::channel();
         Self {
-            logical_window_id: 1,
+            window_key: crate::initial_window_resource_key(0),
             source,
             state: None,
             window_options,
@@ -231,7 +232,7 @@ impl App {
         let (physical_width, physical_height) = shell.size();
         let (logical_width, logical_height) = shell.logical_size();
         let next = WindowMetrics {
-            window_id: self.logical_window_id,
+            window_key: self.window_key,
             logical_width,
             logical_height,
             physical_width,
@@ -709,7 +710,7 @@ impl App {
         let frame_span = tracing::trace_span!(
             target: "wabou::perf",
             "frame",
-            window_id = self.logical_window_id,
+            window_id = %self.window_key,
             node_count = tracing::field::Empty,
             build_ms = tracing::field::Empty,
             scene_ms = tracing::field::Empty,
@@ -769,7 +770,7 @@ impl App {
         #[cfg(feature = "profiling")]
         tracing::trace!(
             target: "wabou::perf",
-            window_id = self.logical_window_id,
+            window_id = %self.window_key,
             node_count,
             build_ms = build_frame_ms,
             scene_ms,
@@ -1041,7 +1042,7 @@ struct MultiWindowApp {
     /// Windows intentionally closed to the tray on platforms such as Wayland,
     /// where an existing native window cannot be made invisible. Their frame
     /// sources stay alive and a fresh native surface is created when shown.
-    hidden_windows: HashMap<u64, App>,
+    hidden_windows: HashMap<WindowResourceKey, App>,
     window_resources: SlotMap<WindowSlotKey, ()>,
     startup_errors: Vec<Arc<Mutex<Option<crate::Error>>>>,
     factory: Option<FrameSourceFactory>,
@@ -1054,12 +1055,12 @@ struct MultiWindowApp {
 
 /// Event-loop services exposed to optional shell extensions.
 ///
-/// The API intentionally deals in logical Wabou window ids rather than winit
-/// window handles, keeping platform integration crates independent of Wabou's
-/// window backend.
+/// The API intentionally deals in typed Wabou window keys rather than winit
+/// window handles or unbranded integers, keeping platform integration crates
+/// independent of Wabou's window backend.
 pub struct ExtensionContext<'a> {
     windows: &'a mut HashMap<WindowId, App>,
-    hidden_windows: &'a mut HashMap<u64, App>,
+    hidden_windows: &'a mut HashMap<WindowResourceKey, App>,
     event_loop: &'a dyn ActiveEventLoop,
 }
 
@@ -1070,9 +1071,9 @@ impl ExtensionContext<'_> {
     /// persisting them unless their API explicitly opts into doing so.
     pub fn semantic_snapshot(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
     ) -> Option<Arc<crate::SemanticSnapshot>> {
-        find_window_by_logical_id(self.windows.values_mut(), logical_window_id)?
+        find_window_by_key(self.windows.values_mut(), window_key)?
             .source
             .semantic_snapshot()
     }
@@ -1085,11 +1086,11 @@ impl ExtensionContext<'_> {
     /// selecting whichever node happens to appear first.
     pub fn semantic_node_by_role(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         role: &str,
         label: &str,
     ) -> Option<crate::SemanticNode> {
-        let snapshot = self.semantic_snapshot(logical_window_id)?;
+        let snapshot = self.semantic_snapshot(window_key)?;
         let role = SemanticRole::from_name(role)?;
         snapshot.node_by_role(role, label, None).cloned()
     }
@@ -1097,27 +1098,26 @@ impl ExtensionContext<'_> {
     /// Return one explicit zero-based occurrence in semantic source order.
     pub fn semantic_node_by_role_at(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         role: &str,
         label: &str,
         index: usize,
     ) -> Option<crate::SemanticNode> {
-        let snapshot = self.semantic_snapshot(logical_window_id)?;
+        let snapshot = self.semantic_snapshot(window_key)?;
         let role = SemanticRole::from_name(role)?;
         snapshot.node_by_role(role, label, Some(index)).cloned()
     }
 
     /// Return whether the latest semantic snapshot focuses `node_id`.
-    pub fn semantic_node_focused(&mut self, logical_window_id: u64, node_id: u64) -> bool {
-        find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
+    pub fn semantic_node_focused(&mut self, window_key: WindowResourceKey, node_id: u64) -> bool {
+        find_window_by_key(self.windows.values_mut(), window_key)
             .and_then(|app| app.source.semantic_snapshot())
             .is_some_and(|snapshot| snapshot.focus == Some(node_id))
     }
 
     /// Deliver synthetic input through the same frame-source path as winit.
-    pub fn dispatch_event(&mut self, logical_window_id: u64, event: UiEvent) -> bool {
-        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
-        else {
+    pub fn dispatch_event(&mut self, window_key: WindowResourceKey, event: UiEvent) -> bool {
+        let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) else {
             return false;
         };
         app.source.handle_event(event);
@@ -1125,9 +1125,8 @@ impl ExtensionContext<'_> {
     }
 
     /// Route semantic focus to a node in a visible logical window.
-    pub fn focus_semantic_node(&mut self, logical_window_id: u64, node_id: u64) -> bool {
-        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
-        else {
+    pub fn focus_semantic_node(&mut self, window_key: WindowResourceKey, node_id: u64) -> bool {
+        let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) else {
             return false;
         };
         app.source
@@ -1136,30 +1135,34 @@ impl ExtensionContext<'_> {
 
     /// Find one uniquely matching enabled semantic node and activate it through
     /// the normal pointer hit-test and event-dispatch path.
-    pub fn click_by_role(&mut self, logical_window_id: u64, role: &str, label: &str) -> bool {
-        self.click_by_role_occurrence(logical_window_id, role, label, None)
+    pub fn click_by_role(
+        &mut self,
+        window_key: WindowResourceKey,
+        role: &str,
+        label: &str,
+    ) -> bool {
+        self.click_by_role_occurrence(window_key, role, label, None)
     }
 
     /// Activate one explicit zero-based occurrence in semantic source order.
     pub fn click_by_role_at(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         role: &str,
         label: &str,
         index: usize,
     ) -> bool {
-        self.click_by_role_occurrence(logical_window_id, role, label, Some(index))
+        self.click_by_role_occurrence(window_key, role, label, Some(index))
     }
 
     fn click_by_role_occurrence(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         role: &str,
         label: &str,
         index: Option<usize>,
     ) -> bool {
-        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
-        else {
+        let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) else {
             return false;
         };
         let Some(snapshot) = app.source.semantic_snapshot() else {
@@ -1197,11 +1200,10 @@ impl ExtensionContext<'_> {
     /// Route an asynchronous effect completion to a visible window's source.
     pub fn complete_effect(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         completion: crate::EffectCompletion,
     ) -> bool {
-        let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id)
-        else {
+        let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) else {
             return false;
         };
         app.source.complete_effect(completion);
@@ -1209,10 +1211,10 @@ impl ExtensionContext<'_> {
     }
 
     /// Return a visible window's raw handle for a platform extension.
-    pub fn window_handle(&self, logical_window_id: u64) -> Option<RawWindowHandle> {
+    pub fn window_handle(&self, window_key: WindowResourceKey) -> Option<RawWindowHandle> {
         self.windows
             .values()
-            .find(|app| app.logical_window_id == logical_window_id)?
+            .find(|app| app.window_key == window_key)?
             .state
             .as_ref()?
             .window()
@@ -1222,27 +1224,27 @@ impl ExtensionContext<'_> {
     }
 
     /// Return a visible window's physical-pixels-per-logical-pixel scale.
-    pub fn window_scale_factor(&self, logical_window_id: u64) -> Option<f64> {
+    pub fn window_scale_factor(&self, window_key: WindowResourceKey) -> Option<f64> {
         self.windows
             .values()
-            .find(|app| app.logical_window_id == logical_window_id)?
+            .find(|app| app.window_key == window_key)?
             .state
             .as_ref()
             .map(|shell| shell.scale_factor())
     }
 
     /// Return lifecycle state for a visible or surface-released window.
-    pub fn window_lifecycle(&self, logical_window_id: u64) -> Option<WindowLifecycle> {
+    pub fn window_lifecycle(&self, window_key: WindowResourceKey) -> Option<WindowLifecycle> {
         self.windows
             .values()
-            .find(|app| app.logical_window_id == logical_window_id)
-            .or_else(|| self.hidden_windows.get(&logical_window_id))
+            .find(|app| app.window_key == window_key)
+            .or_else(|| self.hidden_windows.get(&window_key))
             .map(|app| app.lifecycle)
     }
 
     /// Show a hidden window or recreate a previously released surface.
-    pub fn show_window(&mut self, logical_window_id: u64) -> bool {
-        if let Some(app) = find_window_by_logical_id(self.windows.values_mut(), logical_window_id) {
+    pub fn show_window(&mut self, window_key: WindowResourceKey) -> bool {
+        if let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) {
             let Some(shell) = app.state.as_ref() else {
                 return false;
             };
@@ -1264,7 +1266,7 @@ impl ExtensionContext<'_> {
             };
         }
 
-        let Some(mut app) = self.hidden_windows.remove(&logical_window_id) else {
+        let Some(mut app) = self.hidden_windows.remove(&window_key) else {
             return false;
         };
         if app
@@ -1272,12 +1274,12 @@ impl ExtensionContext<'_> {
             .transition(WindowIntent::Show, WindowCapabilities::default())
             != Some(WindowEffect::RecreateSurface)
         {
-            self.hidden_windows.insert(logical_window_id, app);
+            self.hidden_windows.insert(window_key, app);
             return false;
         }
         app.can_create_surfaces(self.event_loop);
         let Some(window_id) = app.state.as_ref().map(|shell| shell.window().id()) else {
-            self.hidden_windows.insert(logical_window_id, app);
+            self.hidden_windows.insert(window_key, app);
             return false;
         };
         self.windows.insert(window_id, app);
@@ -1285,8 +1287,8 @@ impl ExtensionContext<'_> {
     }
 
     /// Hide a logical window using capabilities derived from its native handle.
-    pub fn hide_window(&mut self, logical_window_id: u64) -> bool {
-        self.hide_window_with_capabilities(logical_window_id, None)
+    pub fn hide_window(&mut self, window_key: WindowResourceKey) -> bool {
+        self.hide_window_with_capabilities(window_key, None)
     }
 
     /// Hide using an optional capability override. The override exists for the
@@ -1294,12 +1296,14 @@ impl ExtensionContext<'_> {
     /// native handle.
     pub fn hide_window_with_capabilities(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         override_capabilities: Option<WindowCapabilities>,
     ) -> bool {
-        let Some(window_id) = self.windows.iter().find_map(|(window_id, app)| {
-            (app.logical_window_id == logical_window_id).then_some(*window_id)
-        }) else {
+        let Some(window_id) = self
+            .windows
+            .iter()
+            .find_map(|(window_id, app)| (app.window_key == window_key).then_some(*window_id))
+        else {
             return false;
         };
         let Some(handle) = self
@@ -1324,7 +1328,7 @@ impl ExtensionContext<'_> {
                     return false;
                 };
                 app.destroy_surfaces(self.event_loop);
-                self.hidden_windows.insert(logical_window_id, app);
+                self.hidden_windows.insert(window_key, app);
                 true
             }
             Some(WindowEffect::SetVisible(false)) => self
@@ -1365,7 +1369,7 @@ pub trait ShellExtension {
     /// hiding the window while a tray icon keeps the process alive).
     fn close_requested(
         &mut self,
-        _logical_window_id: u64,
+        _window_key: WindowResourceKey,
         _context: &mut ExtensionContext<'_>,
     ) -> bool {
         false
@@ -1374,7 +1378,7 @@ pub trait ShellExtension {
     /// Handle a pointer button before it is dispatched into the UI tree.
     fn pointer_button(
         &mut self,
-        _logical_window_id: u64,
+        _window_key: WindowResourceKey,
         _button: PointerButton,
         _phase: PointerPhase,
         _position: Point,
@@ -1396,15 +1400,13 @@ pub trait ShellExtension {
 
 /// Factory used to create a frame source for dynamically requested windows.
 pub type FrameSourceFactory =
-    Arc<dyn Fn(u64, &WindowOptions) -> Result<Box<dyn FrameSource>, String>>;
+    Arc<dyn Fn(WindowResourceKey, &WindowOptions) -> Result<Box<dyn FrameSource>, String>>;
 
-fn find_window_by_logical_id<'a>(
+fn find_window_by_key<'a>(
     windows: impl Iterator<Item = &'a mut App>,
-    window_id: u64,
+    window_key: WindowResourceKey,
 ) -> Option<&'a mut App> {
-    windows
-        .into_iter()
-        .find(|app| app.logical_window_id == window_id)
+    windows.into_iter().find(|app| app.window_key == window_key)
 }
 
 fn apply_window_command(app: &mut App, command: WindowCommand) {
@@ -1458,7 +1460,7 @@ impl MultiWindowApp {
 
     fn extension_context<'a>(
         windows: &'a mut HashMap<WindowId, App>,
-        hidden_windows: &'a mut HashMap<u64, App>,
+        hidden_windows: &'a mut HashMap<WindowResourceKey, App>,
         event_loop: &'a dyn ActiveEventLoop,
     ) -> ExtensionContext<'a> {
         ExtensionContext {
@@ -1468,8 +1470,8 @@ impl MultiWindowApp {
         }
     }
 
-    fn release_window_resource(&mut self, window_id: u64) {
-        let key = WindowSlotKey::from(KeyData::from_ffi(window_id));
+    fn release_window_resource(&mut self, window_key: WindowResourceKey) {
+        let key = WindowSlotKey::from(KeyData::from_ffi(window_key.as_ffi()));
         self.window_resources.remove(key);
     }
 
@@ -1486,13 +1488,13 @@ impl MultiWindowApp {
             .windows
             .values_mut()
             .flat_map(|app| {
-                let logical_window_id = app.logical_window_id;
+                let window_key = app.window_key;
                 std::mem::take(&mut app.pending_extension_effects)
                     .into_iter()
-                    .map(move |request| (logical_window_id, request))
+                    .map(move |request| (window_key, request))
             })
             .collect::<Vec<_>>();
-        for (logical_window_id, request) in requests {
+        for (window_key, request) in requests {
             let mut context =
                 Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
             let handled = self
@@ -1501,7 +1503,7 @@ impl MultiWindowApp {
                 .any(|extension| extension.submit_effect(&request, &mut context));
             if !handled {
                 context.complete_effect(
-                    logical_window_id,
+                    window_key,
                     crate::EffectCompletion {
                         id: request.id,
                         op: request.payload.op(),
@@ -1523,7 +1525,7 @@ impl MultiWindowApp {
             .windows
             .values_mut()
             .flat_map(|app| {
-                let owner = app.logical_window_id;
+                let owner = app.window_key;
                 std::mem::take(&mut app.pending_windows)
                     .into_iter()
                     .map(move |request| (owner, request))
@@ -1531,7 +1533,7 @@ impl MultiWindowApp {
             .collect::<Vec<_>>();
         for (owner, request) in requests {
             let Some(factory) = self.factory.clone() else {
-                if let Some(app) = find_window_by_logical_id(self.windows.values_mut(), owner) {
+                if let Some(app) = find_window_by_key(self.windows.values_mut(), owner) {
                     app.source.complete_effect(crate::EffectCompletion {
                         id: request.id,
                         op: request.op,
@@ -1545,16 +1547,18 @@ impl MultiWindowApp {
             };
             let key = self.window_resources.insert(());
             let window_id = key.data().as_ffi();
-            let result = match factory(window_id, &request.options) {
+            let window_key = crate::WindowResourceKey::from_ffi(window_id)
+                .expect("live window registry key must be valid");
+            let result = match factory(window_key, &request.options) {
                 Ok(source) => {
                     let mut app = App::with_options(source, request.options);
                     app.set_wake_callback(self.wake.clone());
-                    app.logical_window_id = window_id;
+                    app.window_key = window_key;
                     app.can_create_surfaces(event_loop);
                     if let Some(id) = app.state.as_ref().map(|shell| shell.window().id()) {
                         self.startup_errors.push(app.startup_error.clone());
                         self.windows.insert(id, app);
-                        crate::EffectResult::Window(crate::WindowResourceKey::from_ffi(window_id))
+                        crate::EffectResult::Window(window_key)
                     } else {
                         self.window_resources.remove(key);
                         crate::EffectResult::Error {
@@ -1577,7 +1581,7 @@ impl MultiWindowApp {
                 op: request.op,
                 result,
             };
-            if let Some(app) = find_window_by_logical_id(self.windows.values_mut(), owner) {
+            if let Some(app) = find_window_by_key(self.windows.values_mut(), owner) {
                 app.source.complete_effect(completion);
             }
         }
@@ -1587,8 +1591,8 @@ impl MultiWindowApp {
             .flat_map(|app| std::mem::take(&mut app.pending_window_commands))
             .collect::<Vec<_>>();
         for (window_id, command) in commands {
-            let Some(app) = find_window_by_logical_id(self.windows.values_mut(), window_id) else {
-                tracing::warn!(window_id, "ignored command for unknown window");
+            let Some(app) = find_window_by_key(self.windows.values_mut(), window_id) else {
+                tracing::warn!(window_id = %window_id, "ignored command for unknown window");
                 continue;
             };
             apply_window_command(app, command);
@@ -1600,7 +1604,7 @@ impl MultiWindowApp {
             .collect::<Vec<_>>();
         for id in closed {
             if let Some(app) = self.windows.remove(&id) {
-                self.release_window_resource(app.logical_window_id);
+                self.release_window_resource(app.window_key);
             }
         }
         if self.windows.is_empty() && self.hidden_windows.is_empty() {
@@ -1625,7 +1629,9 @@ impl MultiWindowApp {
 impl ApplicationHandler for MultiWindowApp {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         for mut app in self.pending.drain(..) {
-            app.logical_window_id = self.window_resources.insert(()).data().as_ffi();
+            app.window_key =
+                WindowResourceKey::from_ffi(self.window_resources.insert(()).data().as_ffi())
+                    .expect("live window registry key must be valid");
             app.can_create_surfaces(event_loop);
             if let Some(id) = app.state.as_ref().map(|shell| shell.window().id()) {
                 self.windows.insert(id, app);
@@ -1685,22 +1691,20 @@ impl ApplicationHandler for MultiWindowApp {
         event: WindowEvent,
     ) {
         if matches!(event, WindowEvent::CloseRequested) {
-            let logical_window_id = self
-                .windows
-                .get(&window_id)
-                .map(|app| app.logical_window_id)
-                .unwrap_or_default();
+            let Some(window_key) = self.windows.get(&window_id).map(|app| app.window_key) else {
+                return;
+            };
             let mut context =
                 Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
             if self
                 .extensions
                 .iter_mut()
-                .any(|extension| extension.close_requested(logical_window_id, &mut context))
+                .any(|extension| extension.close_requested(window_key, &mut context))
             {
                 return;
             }
             if let Some(app) = self.windows.remove(&window_id) {
-                self.release_window_resource(app.logical_window_id);
+                self.release_window_resource(app.window_key);
             }
             if self.windows.is_empty() && self.hidden_windows.is_empty() {
                 self.shutdown_extensions(event_loop);
@@ -1709,11 +1713,9 @@ impl ApplicationHandler for MultiWindowApp {
             return;
         }
         if let WindowEvent::PointerButton { state, button, .. } = &event {
-            let logical_window_id = self
-                .windows
-                .get(&window_id)
-                .map(|app| app.logical_window_id)
-                .unwrap_or_default();
+            let Some(window_key) = self.windows.get(&window_id).map(|app| app.window_key) else {
+                return;
+            };
             let position = self
                 .windows
                 .get(&window_id)
@@ -1727,7 +1729,7 @@ impl ApplicationHandler for MultiWindowApp {
             let mut context =
                 Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
             if self.extensions.iter_mut().any(|extension| {
-                extension.pointer_button(logical_window_id, button, phase, position, &mut context)
+                extension.pointer_button(window_key, button, phase, position, &mut context)
             }) {
                 return;
             }

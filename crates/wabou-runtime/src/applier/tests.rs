@@ -173,8 +173,7 @@ fn app_directory_effect_uses_host_configuration_only() {
     .unwrap();
     let configured = decode_effect_payload(
         wabou_shell::effect::builtin::APP_DIRS_RESOLVE,
-        1,
-        1,
+        wabou_shell::initial_window_resource_key(0),
         "null".into(),
         Some(&directories),
     );
@@ -186,8 +185,7 @@ fn app_directory_effect_uses_host_configuration_only() {
     assert!(matches!(
         decode_effect_payload(
             wabou_shell::effect::builtin::APP_DIRS_RESOLVE,
-            2,
-            1,
+            wabou_shell::initial_window_resource_key(0),
             r#"{"application":"other"}"#.into(),
             None,
         ),

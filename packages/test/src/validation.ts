@@ -1,3 +1,5 @@
+import { isResourceKeyParts, type ResourceKeyParts } from "@wabou/core/protocol";
+
 const MAX_SAFE_JAVASCRIPT_INTEGER = 9_007_199_254_740_991;
 
 /** Keep authored pointer input JSON-safe and reproducible across native hosts. */
@@ -18,15 +20,9 @@ export function validateKey(key: string): void {
   }
 }
 
-export function validateWindowId(windowId: number): void {
-  if (
-    !Number.isSafeInteger(windowId) ||
-    windowId <= 0 ||
-    windowId > MAX_SAFE_JAVASCRIPT_INTEGER
-  ) {
-    throw new RangeError(
-      `window id must be an integer between 1 and ${MAX_SAFE_JAVASCRIPT_INTEGER}`,
-    );
+export function validateWindowKey(windowKey: ResourceKeyParts): void {
+  if (!isResourceKeyParts(windowKey)) {
+    throw new RangeError("window key must contain a non-zero slot and odd generation");
   }
 }
 

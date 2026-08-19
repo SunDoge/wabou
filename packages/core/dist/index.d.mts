@@ -269,7 +269,7 @@ interface NativeMenuPosition {
   readonly y: number;
 }
 interface NativeMenuOptions {
-  readonly windowId?: number;
+  readonly windowId?: WindowKey;
   readonly position?: NativeMenuPosition;
   readonly items: readonly NativeMenuItem[];
 }

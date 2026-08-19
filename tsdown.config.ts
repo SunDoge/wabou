@@ -1,6 +1,8 @@
 import { defineConfig, type UserConfig } from "tsdown";
 import solid from "vite-plugin-solid";
 
+const stageName = process.env.WABOU_PACKAGE_STAGE_NAME;
+
 const packages: Record<string, UserConfig["entry"]> = {
   core: {
     index: "src/index.ts",
@@ -36,6 +38,7 @@ export default defineConfig(
     platform: "neutral",
     target: "es2022",
     dts: name === "ui" ? { eager: true, newContext: true } : true,
+    outDir: stageName ?? "dist",
     outExtensions: () => ({ js: ".mjs", dts: ".d.mts" }),
     sourcemap: true,
     clean: true,

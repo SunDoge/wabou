@@ -11,6 +11,8 @@ pub use wabou_accessibility as accessibility;
 pub mod app;
 pub mod app_dirs;
 pub mod effect;
+#[path = "generated/effect_abi.rs"]
+mod effect_abi;
 pub mod error;
 pub mod image;
 pub mod layout;

@@ -110,7 +110,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let response = applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
-        window_id: wabou_shell::WindowResourceKey { lo: 1, hi: 1 }.as_ffi(),
+        window_key: wabou_shell::WindowResourceKey::from_parts(1, 1).unwrap(),
         logical_width: 800,
         logical_height: 600,
         physical_width: 1600,
@@ -138,8 +138,12 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
 fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let js = JsRuntime::new().expect("runtime");
-    let mut applier =
-        Applier::from_runtime_with_factories_and_window(js, builtin_factories(), Color::BLACK, 17);
+    let mut applier = Applier::from_runtime_with_factories_and_window(
+        js,
+        builtin_factories(),
+        Color::BLACK,
+        wabou_shell::WindowResourceKey::from_parts(17, 1).unwrap(),
+    );
     applier
         .boot(CORE_FIXTURE)
         .expect("boot public core fixture");
@@ -190,7 +194,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         }
         None => panic!("missing create-window effect"),
     };
-    let created_key = wabou_shell::WindowResourceKey { lo: 42, hi: 3 };
+    let created_key = wabou_shell::WindowResourceKey::from_parts(42, 3).unwrap();
     applier.complete_effect(wabou_shell::EffectCompletion {
         id: create_request.id,
         op: wabou_shell::effect::builtin::WINDOW_CREATE,
@@ -199,7 +203,6 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     for _ in 0..4 {
         applier.runtime.js.poll_async_runtime();
     }
-    let created = created_key.as_ffi();
     for command in [
         wabou_shell::WindowCommand::SetTitle("Renamed".into()),
         wabou_shell::WindowCommand::Minimize,
@@ -210,7 +213,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         assert_eq!(
             applier.take_effect().map(|request| request.payload),
             Some(wabou_shell::EffectPayload::WindowControl {
-                window_id: created,
+                window_id: created_key,
                 command,
             })
         );
@@ -255,7 +258,7 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
         }
         effect => panic!("unexpected write effect: {effect:?}"),
     };
-    assert!(write_request.0 >= (1_u64 << 31));
+    assert_ne!(write_request.0, 0);
     let read_request = match applier.take_effect() {
         Some(wabou_shell::EffectRequest {
             id,
@@ -264,6 +267,7 @@ fn clipboard_bridge_routes_native_completions_back_to_javascript() {
         }) => id,
         effect => panic!("unexpected read effect: {effect:?}"),
     };
+    assert_ne!(read_request, write_request);
 
     applier.complete_effect(wabou_shell::EffectCompletion {
         id: write_request,
@@ -396,8 +400,8 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
             window_id,
         )
     };
-    let mut first = make(1);
-    let mut second = make(2);
+    let mut first = make(wabou_shell::WindowResourceKey::from_parts(1, 1).unwrap());
+    let mut second = make(wabou_shell::WindowResourceKey::from_parts(2, 1).unwrap());
     first
         .boot(r#"globalThis.localState = 'first'; __wabou_effect_submit(2, 2, '{"windowId":{"lo":1,"hi":1}}')"#)
         .expect("boot first");
@@ -427,14 +431,14 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
     assert_eq!(
         first_effect.payload,
         wabou_shell::EffectPayload::WindowControl {
-            window_id: wabou_shell::WindowResourceKey { lo: 1, hi: 1 }.as_ffi(),
+            window_id: wabou_shell::WindowResourceKey::from_parts(1, 1).unwrap(),
             command: wabou_shell::WindowCommand::Close,
         }
     );
     assert_eq!(
         second_effect.payload,
         wabou_shell::EffectPayload::WindowControl {
-            window_id: wabou_shell::WindowResourceKey { lo: 2, hi: 1 }.as_ffi(),
+            window_id: wabou_shell::WindowResourceKey::from_parts(2, 1).unwrap(),
             command: wabou_shell::WindowCommand::Close,
         }
     );

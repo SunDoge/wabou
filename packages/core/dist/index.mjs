@@ -473,6 +473,8 @@ function __wabou_dispatch_host_frame(frame) {
 	return decodeAndDispatchHostFrame(frame);
 }
 globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
+//#endregion
+//#region src/generated/effect-abi.ts
 const effectOps = Object.freeze({
 	clipboardRead: {
 		capability: 1,
@@ -535,9 +537,11 @@ const effectOps = Object.freeze({
 		method: 1
 	}
 });
+//#endregion
+//#region src/glue/effects.ts
 const pending = /* @__PURE__ */ new Map();
 function assertAbi() {
-	if (__wabou_effect_abi !== 2) throw new Error(`Wabou effect ABI mismatch: bundle=2, host=${__wabou_effect_abi}`);
+	if (__wabou_effect_abi !== 3) throw new Error(`Wabou effect ABI mismatch: bundle=3, host=${__wabou_effect_abi}`);
 }
 function submit(op, payload) {
 	assertAbi();

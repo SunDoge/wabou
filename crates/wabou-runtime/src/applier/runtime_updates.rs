@@ -6,7 +6,7 @@ impl Applier {
         metrics: wabou_shell::WindowMetrics,
     ) -> EventResponse {
         let payload = serde_json::json!({
-            "windowId": wabou_shell::WindowResourceKey::from_ffi(metrics.window_id),
+            "windowId": metrics.window_key,
             "logicalWidth": metrics.logical_width,
             "logicalHeight": metrics.logical_height,
             "physicalWidth": metrics.physical_width,

@@ -1,4 +1,5 @@
 import { WabouExposedSemanticRole } from "@wabou/core/renderer";
+import { WindowKey } from "@wabou/core";
 //#region src/poll.d.ts
 interface PollOptions {
   timeout?: number;
@@ -15,13 +16,13 @@ interface NativeWindowState {
   surfaceGeneration: number;
 }
 interface NativeTestCapability {
-  waitForIdle(windowId: number): Promise<boolean>;
-  nativeClose(windowId: number, mutableVisibility: boolean): Promise<boolean>;
-  showWindow(windowId: number): Promise<boolean>;
-  windowState(windowId: number): string;
-  clickByRole(windowId: number, role: string, label: string, index: number | null): Promise<boolean>;
-  inputByRole(windowId: number, role: string, label: string, input: string, index: number | null): Promise<boolean>;
-  queryByRole(windowId: number, role: string, label: string, index: number | null): Promise<string | null | undefined>;
+  waitForIdle(lo: number, hi: number): Promise<boolean>;
+  nativeClose(lo: number, hi: number, mutableVisibility: boolean): Promise<boolean>;
+  showWindow(lo: number, hi: number): Promise<boolean>;
+  windowState(lo: number, hi: number): string;
+  clickByRole(lo: number, hi: number, role: string, label: string, index: number | null): Promise<boolean>;
+  inputByRole(lo: number, hi: number, role: string, label: string, input: string, index: number | null): Promise<boolean>;
+  queryByRole(lo: number, hi: number, role: string, label: string, index: number | null): Promise<string | null | undefined>;
   finish(report: string): boolean;
 }
 declare module "@wabou/core/registry" {
@@ -34,13 +35,15 @@ interface TestContext {
   readonly window: TestWindow;
 }
 interface TestWindow {
-  nativeClose(windowId: number, platform: "wayland" | "mutable-visibility"): Promise<void>;
-  show(windowId: number): Promise<void>;
-  state(windowId: number): NativeWindowState | null;
+  /** Window key of the runtime executing this behavior scenario. */
+  readonly current: WindowKey;
+  nativeClose(windowId: WindowKey, platform: "wayland" | "mutable-visibility"): Promise<void>;
+  show(windowId: WindowKey): Promise<void>;
+  state(windowId: WindowKey): NativeWindowState | null;
 }
 interface TestPage {
   /** Bind subsequent locators and frame barriers to one logical window. */
-  forWindow(windowId: number): TestPage;
+  forWindow(windowId: WindowKey): TestPage;
   getByRole(role: SemanticRole, options: {
     name: string;
     index?: number;
@@ -49,7 +52,7 @@ interface TestPage {
 }
 type SemanticRole = WabouExposedSemanticRole;
 interface Locator {
-  readonly windowId: number;
+  readonly windowId: WindowKey;
   readonly role: SemanticRole;
   readonly name: string;
   readonly index?: number;
@@ -191,21 +194,21 @@ interface TestResult {
 }
 type TestAction = {
   action: "nativeClose";
-  windowId: number;
+  windowId: WindowKey;
   platform: "wayland" | "mutable-visibility";
 } | {
   action: "showWindow";
-  windowId: number;
+  windowId: WindowKey;
 } | {
   action: "clickByRole";
-  windowId: number;
+  windowId: WindowKey;
   role: SemanticRole;
   label: string;
   index?: number;
   wait?: ResolvedPollOptions;
 } | {
   action: "inputByRole";
-  windowId: number;
+  windowId: WindowKey;
   role: SemanticRole;
   label: string;
   index?: number;
@@ -213,14 +216,14 @@ type TestAction = {
   wait?: ResolvedPollOptions;
 } | {
   action: "waitForByRole";
-  windowId: number;
+  windowId: WindowKey;
   role: SemanticRole;
   label: string;
   index?: number;
   wait: ResolvedPollOptions;
 } | {
   action: "assertByRole";
-  windowId: number;
+  windowId: WindowKey;
   role: SemanticRole;
   label: string;
   index?: number;
@@ -228,7 +231,7 @@ type TestAction = {
   wait: ResolvedPollOptions;
 } | {
   action: "assertWindowState";
-  windowId: number;
+  windowId: WindowKey;
   expected: NativeWindowState;
   wait: ResolvedPollOptions;
 };
@@ -243,7 +246,7 @@ declare function replay(actions: readonly TestAction[]): void;
 declare function expect<T>(actual: T): {
   toBe(expected: T): void;
   toEqual(expected: T): void;
-  toHaveState(windowId: number, expected: NativeWindowState, options?: LocatorAssertionOptions): Promise<void>;
+  toHaveState(windowId: WindowKey, expected: NativeWindowState, options?: LocatorAssertionOptions): Promise<void>;
   toHaveText(expected: string, options?: LocatorAssertionOptions): Promise<void>;
   toBeAbsent(options?: LocatorAssertionOptions): Promise<void>;
   toHaveCount(expected: number, options?: LocatorAssertionOptions): Promise<void>;

@@ -1,27 +1,10 @@
-export const EFFECT_ABI_VERSION = 2;
+export { EFFECT_ABI_VERSION, effectOps } from "../generated/effect-abi";
+import { EFFECT_ABI_VERSION } from "../generated/effect-abi";
 
 export interface EffectOp {
   readonly capability: number;
   readonly method: number;
 }
-
-export const effectOps = Object.freeze({
-  clipboardRead: { capability: 1, method: 1 },
-  clipboardWrite: { capability: 1, method: 2 },
-  windowCreate: { capability: 2, method: 1 },
-  windowClose: { capability: 2, method: 2 },
-  windowSetMaximized: { capability: 2, method: 3 },
-  windowSetTitle: { capability: 2, method: 4 },
-  windowMinimize: { capability: 2, method: 5 },
-  windowStartDragging: { capability: 2, method: 6 },
-  contextMenuShow: { capability: 3, method: 1 },
-  appDirsResolve: { capability: 4, method: 1 },
-  dialogOpen: { capability: 5, method: 1 },
-  dialogSave: { capability: 5, method: 2 },
-  dialogPickDirectory: { capability: 5, method: 3 },
-  dialogMessage: { capability: 5, method: 4 },
-  notificationShow: { capability: 6, method: 1 },
-} satisfies Record<string, EffectOp>);
 
 interface PendingEffect {
   readonly op: EffectOp;

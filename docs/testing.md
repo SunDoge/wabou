@@ -65,13 +65,13 @@ await page.getByRole("button", { name: "Close" }).click();
 await expect(page.getByRole("dialog", { name: "Settings" })).toBeAbsent();
 ```
 
-Locators are bound to logical window 1 by default. Bind explicitly when an
-application opens additional native windows; recorded and replayed actions
-preserve the same window id:
+Locators are bound to the scenario runtime's `window.current` key by default.
+Bind explicitly when an application opens additional native windows; recorded
+and replayed actions preserve both the slot and generation:
 
 ```ts
-const child = page.forWindow(2);
-await child.getByRole("button", { name: "Close" }).click();
+const childPage = page.forWindow(childWindow.id);
+await childPage.getByRole("button", { name: "Close" }).click();
 ```
 
 Locators traverse only nodes reachable from the current accessibility root.
@@ -297,14 +297,14 @@ Window behavior is modeled explicitly:
 
 ```ts
 test("Wayland close-to-tray", async ({ window }) => {
-  await window.nativeClose(1, "wayland");
-  await expect(window).toHaveState(1, {
+  await window.nativeClose(window.current, "wayland");
+  await expect(window).toHaveState(window.current, {
     presence: "surface-released",
     surfaceGeneration: 1,
   });
 
-  await window.show(1);
-  await expect(window).toHaveState(1, {
+  await window.show(window.current);
+  await expect(window).toHaveState(window.current, {
     presence: "visible",
     surfaceGeneration: 2,
   });

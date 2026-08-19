@@ -1,5 +1,5 @@
 import { dispatchEffect, effectOps } from "./effects";
-import { currentWindow } from "./window";
+import { currentWindow, type WindowKey } from "./window";
 
 export type NativeMenuItem =
   | {
@@ -18,7 +18,7 @@ export interface NativeMenuPosition {
 }
 
 export interface NativeMenuOptions {
-  readonly windowId?: number;
+  readonly windowId?: WindowKey;
   readonly position?: NativeMenuPosition;
   readonly items: readonly NativeMenuItem[];
 }

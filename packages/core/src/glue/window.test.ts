@@ -4,7 +4,7 @@ test("createWindow returns a handle that targets the created window", async () =
   const calls: unknown[][] = [];
   let nextRequest = 42;
   Object.assign(globalThis, {
-  __wabou_effect_abi: 2,
+  __wabou_effect_abi: 3,
     __wabou_window_id_lo: 3,
     __wabou_window_id_hi: 1,
     __wabou_effect_submit: (

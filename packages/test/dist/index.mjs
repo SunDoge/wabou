@@ -1,4 +1,5 @@
 import { defaultHost } from "@wabou/core/renderer";
+import { isResourceKeyParts } from "@wabou/core/protocol";
 //#region src/locator-query.ts
 var LocatorAmbiguousError = class extends Error {};
 /** Decode and validate the request-scoped envelope without choosing a match. */
@@ -159,8 +160,8 @@ function validateInputDeltas(kind, deltaX, deltaY) {
 function validateKey(key) {
 	if (typeof key !== "string" || key.length === 0) throw new RangeError("key must be a non-empty string");
 }
-function validateWindowId(windowId) {
-	if (!Number.isSafeInteger(windowId) || windowId <= 0 || windowId > MAX_SAFE_JAVASCRIPT_INTEGER) throw new RangeError(`window id must be an integer between 1 and ${MAX_SAFE_JAVASCRIPT_INTEGER}`);
+function validateWindowKey(windowKey) {
+	if (!isResourceKeyParts(windowKey)) throw new RangeError("window key must contain a non-zero slot and odd generation");
 }
 function validateSurfaceGeneration(value) {
 	if (!Number.isSafeInteger(value) || value < 0 || value > MAX_SAFE_JAVASCRIPT_INTEGER) throw new RangeError(`surface generation must be an integer between 0 and ${MAX_SAFE_JAVASCRIPT_INTEGER}`);
@@ -188,8 +189,11 @@ function capability() {
 	if (!value) throw new Error("@wabou/test requires `wabou test`");
 	return value;
 }
+function windowLabel(windowId) {
+	return `${windowId.lo}v${windowId.hi}`;
+}
 function createPage(windowId) {
-	validateWindowId(windowId);
+	validateWindowKey(windowId);
 	return {
 		forWindow(nextWindowId) {
 			return createPage(nextWindowId);
@@ -197,22 +201,22 @@ function createPage(windowId) {
 		async waitForIdle() {
 			await Promise.resolve();
 			await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-			if (!await capability().waitForIdle(windowId)) throw new Error(`native window ${windowId} did not become idle`);
+			if (!await capability().waitForIdle(windowId.lo, windowId.hi)) throw new Error(`native window ${windowLabel(windowId)} did not become idle`);
 		},
 		getByRole(role, options) {
 			const index = options.index;
 			if (index !== void 0 && (!Number.isSafeInteger(index) || index < 0 || index > MAX_LOCATOR_INDEX)) throw new RangeError(`locator index must be an integer between 0 and ${MAX_LOCATOR_INDEX}`);
 			const locatorLabel = `${role} named ${JSON.stringify(options.name)}${index === void 0 ? "" : ` at index ${index}`}`;
-			const description = `${locatorLabel} in window ${windowId}`;
+			const description = `${locatorLabel} in window ${windowLabel(windowId)}`;
 			const sendInput = async (value) => {
-				if (!await capability().inputByRole(windowId, role, options.name, JSON.stringify(value), index ?? null)) return false;
+				if (!await capability().inputByRole(windowId.lo, windowId.hi, role, options.name, JSON.stringify(value), index ?? null)) return false;
 				return true;
 			};
 			const input = async (value) => {
 				if (!await sendInput(value)) throw new Error(`no enabled ${locatorLabel}`);
 			};
 			const probe = async () => {
-				return decodeLocatorQuery(await capability().queryByRole(windowId, role, options.name, index ?? null), description, index);
+				return decodeLocatorQuery(await capability().queryByRole(windowId.lo, windowId.hi, role, options.name, index ?? null), description, index);
 			};
 			const snapshot = async () => {
 				const value = await probe();
@@ -251,7 +255,7 @@ function createPage(windowId) {
 						wait
 					});
 					await waitUntilActionable(wait);
-					if (!await capability().clickByRole(windowId, role, options.name, index ?? null)) throw new Error(`no enabled ${locatorLabel}`);
+					if (!await capability().clickByRole(windowId.lo, windowId.hi, role, options.name, index ?? null)) throw new Error(`no enabled ${locatorLabel}`);
 				},
 				async dragBy(deltaX, deltaY, assertionOptions) {
 					validateInputDeltas("drag", deltaX, deltaY);
@@ -413,28 +417,35 @@ function createPage(windowId) {
 	};
 }
 const context = {
-	page: createPage(1),
+	page: createPage({
+		lo: __wabou_window_id_lo,
+		hi: __wabou_window_id_hi
+	}),
 	window: {
+		current: {
+			lo: __wabou_window_id_lo,
+			hi: __wabou_window_id_hi
+		},
 		async nativeClose(windowId, platform) {
-			validateWindowId(windowId);
+			validateWindowKey(windowId);
 			trace.push({
 				action: "nativeClose",
 				windowId,
 				platform
 			});
-			if (!await capability().nativeClose(windowId, platform !== "wayland")) throw new Error(`failed to enqueue native close for window ${windowId}`);
+			if (!await capability().nativeClose(windowId.lo, windowId.hi, platform !== "wayland")) throw new Error(`failed to enqueue native close for window ${windowLabel(windowId)}`);
 		},
 		async show(windowId) {
-			validateWindowId(windowId);
+			validateWindowKey(windowId);
 			trace.push({
 				action: "showWindow",
 				windowId
 			});
-			if (!await capability().showWindow(windowId)) throw new Error(`failed to enqueue show for window ${windowId}`);
+			if (!await capability().showWindow(windowId.lo, windowId.hi)) throw new Error(`failed to enqueue show for window ${windowLabel(windowId)}`);
 		},
 		state(windowId) {
-			validateWindowId(windowId);
-			return JSON.parse(capability().windowState(windowId));
+			validateWindowKey(windowId);
+			return JSON.parse(capability().windowState(windowId.lo, windowId.hi));
 		}
 	}
 };
@@ -504,7 +515,7 @@ function locatorAssertionDiagnostic(assertion, state) {
 	return state.focused === assertion.expected ? null : `expected locator to be ${assertion.expected ? "focused" : "blurred"}`;
 }
 async function locatorAbsenceDiagnostic(target) {
-	const raw = await capability().queryByRole(target.windowId, target.role, target.name, target.index ?? null);
+	const raw = await capability().queryByRole(target.windowId.lo, target.windowId.hi, target.role, target.name, target.index ?? null);
 	if (locatorQueryIsAbsent(raw, target.index)) return null;
 	const query = decodeNativeLocatorQuery(raw);
 	if (query === null) throw new Error("unreachable absent locator query");
@@ -513,7 +524,7 @@ async function locatorAbsenceDiagnostic(target) {
 }
 async function locatorCountDiagnostic(target, expected) {
 	if (target.index !== void 0) throw new Error("toHaveCount requires an unindexed locator");
-	const actual = locatorQueryMatchCount(await capability().queryByRole(target.windowId, target.role, target.name, null));
+	const actual = locatorQueryMatchCount(await capability().queryByRole(target.windowId.lo, target.windowId.hi, target.role, target.name, null));
 	return actual === expected ? null : `expected ${target.role} named ${JSON.stringify(target.name)} to have ${expected} ${expected === 1 ? "match" : "matches"}, found ${actual}`;
 }
 async function assertLocatorEventually(target, assertion, options = {}) {
@@ -552,7 +563,7 @@ async function replayWindowAssertion(window, action) {
 	await assertWindowStateEventually(window, action.windowId, action.expected, action.wait);
 }
 async function assertWindowStateEventually(target, windowId, expected, options = {}) {
-	validateWindowId(windowId);
+	validateWindowKey(windowId);
 	validateWindowPresence(expected.presence);
 	validateSurfaceGeneration(expected.surfaceGeneration);
 	const wait = resolvePollOptions(options);

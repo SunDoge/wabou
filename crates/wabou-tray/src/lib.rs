@@ -16,7 +16,7 @@ use tray_icon::menu::{
     CheckMenuItem, ContextMenu, Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem, Submenu,
 };
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
-use wabou_shell::{ExtensionContext, ShellExtension, WakeCallback};
+use wabou_shell::{ExtensionContext, ShellExtension, WakeCallback, WindowResourceKey};
 
 type Action = Box<dyn FnMut(&mut ExtensionContext<'_>)>;
 
@@ -86,7 +86,15 @@ pub struct SystemTray {
     context_items: Vec<Item>,
     context_separators: Vec<usize>,
     pending: Arc<Mutex<VecDeque<PendingEvent>>>,
-    effect_routes: HashMap<String, (wabou_shell::EffectId, u64, wabou_shell::EffectOp, String)>,
+    effect_routes: HashMap<
+        String,
+        (
+            wabou_shell::EffectId,
+            WindowResourceKey,
+            wabou_shell::EffectOp,
+            String,
+        ),
+    >,
     active_effects: HashSet<wabou_shell::EffectId>,
     #[cfg(not(target_os = "linux"))]
     native: Option<TrayIcon>,
@@ -94,7 +102,7 @@ pub struct SystemTray {
     native_context_menu: Option<Menu>,
     #[cfg(target_os = "linux")]
     context_sender: Option<gtk::glib::Sender<GtkCommand>>,
-    hide_window_on_close: Option<u64>,
+    hide_window_on_close: Option<WindowResourceKey>,
 }
 
 impl SystemTray {
@@ -169,8 +177,8 @@ impl SystemTray {
     }
 
     /// Keep the process alive and hide this window when its close button is used.
-    pub fn hide_window_on_close(mut self, logical_window_id: u64) -> Self {
-        self.hide_window_on_close = Some(logical_window_id);
+    pub fn hide_window_on_close(mut self, window_key: WindowResourceKey) -> Self {
+        self.hide_window_on_close = Some(window_key);
         self
     }
 
@@ -248,10 +256,18 @@ impl SystemTray {
 
     fn route_effect_items(
         effect_id: wabou_shell::EffectId,
-        window_id: u64,
+        window_key: WindowResourceKey,
         op: wabou_shell::EffectOp,
         items: &[wabou_shell::ContextMenuItem],
-        routes: &mut HashMap<String, (wabou_shell::EffectId, u64, wabou_shell::EffectOp, String)>,
+        routes: &mut HashMap<
+            String,
+            (
+                wabou_shell::EffectId,
+                WindowResourceKey,
+                wabou_shell::EffectOp,
+                String,
+            ),
+        >,
         next: &mut usize,
     ) -> Vec<wabou_shell::ContextMenuItem> {
         items
@@ -265,7 +281,7 @@ impl SystemTray {
                 } => {
                     let native_id = format!("wabou.effect.{}.{}", effect_id.0, *next);
                     *next += 1;
-                    routes.insert(native_id.clone(), (effect_id, window_id, op, id.clone()));
+                    routes.insert(native_id.clone(), (effect_id, window_key, op, id.clone()));
                     wabou_shell::ContextMenuItem::Item {
                         id: native_id,
                         label: label.clone(),
@@ -278,7 +294,7 @@ impl SystemTray {
                     wabou_shell::ContextMenuItem::Submenu {
                         label: label.clone(),
                         items: Self::route_effect_items(
-                            effect_id, window_id, op, items, routes, next,
+                            effect_id, window_key, op, items, routes, next,
                         ),
                     }
                 }
@@ -481,16 +497,15 @@ impl ShellExtension for SystemTray {
 
     fn close_requested(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         context: &mut ExtensionContext<'_>,
     ) -> bool {
-        self.hide_window_on_close == Some(logical_window_id)
-            && context.hide_window(logical_window_id)
+        self.hide_window_on_close == Some(window_key) && context.hide_window(window_key)
     }
 
     fn pointer_button(
         &mut self,
-        logical_window_id: u64,
+        window_key: WindowResourceKey,
         button: wabou_shell::PointerButton,
         phase: wabou_shell::PointerPhase,
         position: wabou_shell::Point,
@@ -505,7 +520,7 @@ impl ShellExtension for SystemTray {
 
         #[cfg(target_os = "linux")]
         {
-            let _ = (logical_window_id, position, context);
+            let _ = (window_key, position, context);
             return self
                 .context_sender
                 .as_ref()
@@ -513,13 +528,10 @@ impl ShellExtension for SystemTray {
         }
 
         #[cfg(target_os = "windows")]
-        if let (Some(menu), Some(wabou_shell::raw_window_handle::RawWindowHandle::Win32(handle))) = (
-            &self.native_context_menu,
-            context.window_handle(logical_window_id),
-        ) {
-            let scale = context
-                .window_scale_factor(logical_window_id)
-                .unwrap_or(1.0);
+        if let (Some(menu), Some(wabou_shell::raw_window_handle::RawWindowHandle::Win32(handle))) =
+            (&self.native_context_menu, context.window_handle(window_key))
+        {
+            let scale = context.window_scale_factor(window_key).unwrap_or(1.0);
             let position =
                 tray_icon::menu::dpi::PhysicalPosition::new(position.x * scale, position.y * scale);
             return unsafe {
@@ -528,10 +540,9 @@ impl ShellExtension for SystemTray {
         }
 
         #[cfg(target_os = "macos")]
-        if let (Some(menu), Some(wabou_shell::raw_window_handle::RawWindowHandle::AppKit(handle))) = (
-            &self.native_context_menu,
-            context.window_handle(logical_window_id),
-        ) {
+        if let (Some(menu), Some(wabou_shell::raw_window_handle::RawWindowHandle::AppKit(handle))) =
+            (&self.native_context_menu, context.window_handle(window_key))
+        {
             let position = tray_icon::menu::dpi::LogicalPosition::new(position.x, position.y);
             return unsafe {
                 menu.show_context_menu_for_nsview(handle.ns_view.as_ptr(), Some(position.into()))
@@ -552,11 +563,12 @@ impl ShellExtension for SystemTray {
         };
         let window_id = match request.scope {
             wabou_shell::EffectScope::Window(id) => id,
-            wabou_shell::EffectScope::Runtime(_) => menu_request.window_id,
+            wabou_shell::EffectScope::Runtime => menu_request.window_id,
         };
+        let window_key = window_id;
         if menu_request.items.is_empty() {
             context.complete_effect(
-                window_id,
+                window_key,
                 wabou_shell::EffectCompletion {
                     id: request.id,
                     op: request.payload.op(),
@@ -571,7 +583,7 @@ impl ShellExtension for SystemTray {
         let mut next = 0;
         let items = Self::route_effect_items(
             request.id,
-            window_id,
+            window_key,
             request.payload.op(),
             &menu_request.items,
             &mut self.effect_routes,
@@ -607,9 +619,9 @@ impl ShellExtension for SystemTray {
 
             #[cfg(target_os = "windows")]
             if let Some(wabou_shell::raw_window_handle::RawWindowHandle::Win32(handle)) =
-                context.window_handle(window_id)
+                context.window_handle(window_key)
             {
-                let scale = context.window_scale_factor(window_id).unwrap_or(1.0);
+                let scale = context.window_scale_factor(window_key).unwrap_or(1.0);
                 let position = menu_request.position.as_ref().map(|position| {
                     tray_icon::menu::dpi::PhysicalPosition::new(
                         f64::from(position.x) * scale,
@@ -627,7 +639,7 @@ impl ShellExtension for SystemTray {
 
             #[cfg(target_os = "macos")]
             if let Some(wabou_shell::raw_window_handle::RawWindowHandle::AppKit(handle)) =
-                context.window_handle(window_id)
+                context.window_handle(window_key)
             {
                 let position = menu_request.position.as_ref().map(|position| {
                     tray_icon::menu::dpi::LogicalPosition::new(position.x, position.y).into()

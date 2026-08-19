@@ -1,7 +1,5 @@
-import {
-  defaultHost,
-  type WabouExposedSemanticRole,
-} from "@wabou/core/renderer";
+import type { WindowKey } from "@wabou/core";
+import { defaultHost, type WabouExposedSemanticRole } from "@wabou/core/renderer";
 import {
   decodeLocatorQuery,
   decodeNativeLocatorQuery,
@@ -31,7 +29,7 @@ import {
   validateLocatorCount,
   validateSurfaceGeneration,
   validateTolerance,
-  validateWindowId,
+  validateWindowKey,
   validateWindowPresence,
 } from "./validation";
 
@@ -41,25 +39,28 @@ export interface NativeWindowState {
 }
 
 interface NativeTestCapability {
-  waitForIdle(windowId: number): Promise<boolean>;
-  nativeClose(windowId: number, mutableVisibility: boolean): Promise<boolean>;
-  showWindow(windowId: number): Promise<boolean>;
-  windowState(windowId: number): string;
+  waitForIdle(lo: number, hi: number): Promise<boolean>;
+  nativeClose(lo: number, hi: number, mutableVisibility: boolean): Promise<boolean>;
+  showWindow(lo: number, hi: number): Promise<boolean>;
+  windowState(lo: number, hi: number): string;
   clickByRole(
-    windowId: number,
+    lo: number,
+    hi: number,
     role: string,
     label: string,
     index: number | null,
   ): Promise<boolean>;
   inputByRole(
-    windowId: number,
+    lo: number,
+    hi: number,
     role: string,
     label: string,
     input: string,
     index: number | null,
   ): Promise<boolean>;
   queryByRole(
-    windowId: number,
+    lo: number,
+    hi: number,
     role: string,
     label: string,
     index: number | null,
@@ -79,17 +80,19 @@ export interface TestContext {
 }
 
 export interface TestWindow {
+  /** Window key of the runtime executing this behavior scenario. */
+  readonly current: WindowKey;
   nativeClose(
-    windowId: number,
+    windowId: WindowKey,
     platform: "wayland" | "mutable-visibility",
   ): Promise<void>;
-  show(windowId: number): Promise<void>;
-  state(windowId: number): NativeWindowState | null;
+  show(windowId: WindowKey): Promise<void>;
+  state(windowId: WindowKey): NativeWindowState | null;
 }
 
 export interface TestPage {
   /** Bind subsequent locators and frame barriers to one logical window. */
-  forWindow(windowId: number): TestPage;
+  forWindow(windowId: WindowKey): TestPage;
   getByRole(
     role: SemanticRole,
     options: { name: string; index?: number },
@@ -100,7 +103,7 @@ export interface TestPage {
 export type SemanticRole = WabouExposedSemanticRole;
 
 export interface Locator {
-  readonly windowId: number;
+  readonly windowId: WindowKey;
   readonly role: SemanticRole;
   readonly name: string;
   readonly index?: number;
@@ -235,13 +238,13 @@ export interface TestResult {
 export type TestAction =
   | {
       action: "nativeClose";
-      windowId: number;
+      windowId: WindowKey;
       platform: "wayland" | "mutable-visibility";
     }
-  | { action: "showWindow"; windowId: number }
+  | { action: "showWindow"; windowId: WindowKey }
   | {
       action: "clickByRole";
-      windowId: number;
+      windowId: WindowKey;
       role: SemanticRole;
       label: string;
       index?: number;
@@ -249,7 +252,7 @@ export type TestAction =
     }
   | {
       action: "inputByRole";
-      windowId: number;
+      windowId: WindowKey;
       role: SemanticRole;
       label: string;
       index?: number;
@@ -258,7 +261,7 @@ export type TestAction =
     }
   | {
       action: "waitForByRole";
-      windowId: number;
+      windowId: WindowKey;
       role: SemanticRole;
       label: string;
       index?: number;
@@ -266,7 +269,7 @@ export type TestAction =
     }
   | {
       action: "assertByRole";
-      windowId: number;
+      windowId: WindowKey;
       role: SemanticRole;
       label: string;
       index?: number;
@@ -275,7 +278,7 @@ export type TestAction =
     }
   | {
       action: "assertWindowState";
-      windowId: number;
+      windowId: WindowKey;
       expected: NativeWindowState;
       wait: ResolvedPollOptions;
     };
@@ -299,8 +302,12 @@ function capability(): NativeTestCapability {
   return value;
 }
 
-function createPage(windowId: number): TestPage {
-  validateWindowId(windowId);
+function windowLabel(windowId: WindowKey): string {
+  return `${windowId.lo}v${windowId.hi}`;
+}
+
+function createPage(windowId: WindowKey): TestPage {
+  validateWindowKey(windowId);
   return {
     forWindow(nextWindowId) {
       return createPage(nextWindowId);
@@ -313,8 +320,8 @@ function createPage(windowId: number): TestPage {
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve()),
       );
-      if (!(await capability().waitForIdle(windowId))) {
-        throw new Error(`native window ${windowId} did not become idle`);
+      if (!(await capability().waitForIdle(windowId.lo, windowId.hi))) {
+        throw new Error(`native window ${windowLabel(windowId)} did not become idle`);
       }
     },
     getByRole(role, options) {
@@ -328,11 +335,12 @@ function createPage(windowId: number): TestPage {
         );
       }
       const locatorLabel = `${role} named ${JSON.stringify(options.name)}${index === undefined ? "" : ` at index ${index}`}`;
-      const description = `${locatorLabel} in window ${windowId}`;
+      const description = `${locatorLabel} in window ${windowLabel(windowId)}`;
       const sendInput = async (value: TestInput): Promise<boolean> => {
         if (
           !(await capability().inputByRole(
-            windowId,
+            windowId.lo,
+            windowId.hi,
             role,
             options.name,
             JSON.stringify(value),
@@ -350,7 +358,8 @@ function createPage(windowId: number): TestPage {
       };
       const probe = async (): Promise<LocatorSnapshot | null> => {
         const result = await capability().queryByRole(
-          windowId,
+          windowId.lo,
+          windowId.hi,
           role,
           options.name,
           index ?? null,
@@ -411,7 +420,8 @@ function createPage(windowId: number): TestPage {
           await waitUntilActionable(wait);
           if (
             !(await capability().clickByRole(
-              windowId,
+              windowId.lo,
+              windowId.hi,
               role,
               options.name,
               index ?? null,
@@ -554,28 +564,35 @@ function createPage(windowId: number): TestPage {
 }
 
 const context: TestContext = {
-  page: createPage(1),
+  page: createPage({
+    lo: __wabou_window_id_lo,
+    hi: __wabou_window_id_hi,
+  } as WindowKey),
   window: {
+    current: {
+      lo: __wabou_window_id_lo,
+      hi: __wabou_window_id_hi,
+    } as WindowKey,
     async nativeClose(windowId, platform) {
-      validateWindowId(windowId);
+      validateWindowKey(windowId);
       trace.push({ action: "nativeClose", windowId, platform });
-      if (!(await capability().nativeClose(windowId, platform !== "wayland"))) {
+      if (!(await capability().nativeClose(windowId.lo, windowId.hi, platform !== "wayland"))) {
         throw new Error(
-          `failed to enqueue native close for window ${windowId}`,
+          `failed to enqueue native close for window ${windowLabel(windowId)}`,
         );
       }
     },
     async show(windowId) {
-      validateWindowId(windowId);
+      validateWindowKey(windowId);
       trace.push({ action: "showWindow", windowId });
-      if (!(await capability().showWindow(windowId))) {
-        throw new Error(`failed to enqueue show for window ${windowId}`);
+      if (!(await capability().showWindow(windowId.lo, windowId.hi))) {
+        throw new Error(`failed to enqueue show for window ${windowLabel(windowId)}`);
       }
     },
     state(windowId) {
-      validateWindowId(windowId);
+      validateWindowKey(windowId);
       return JSON.parse(
-        capability().windowState(windowId),
+        capability().windowState(windowId.lo, windowId.hi),
       ) as NativeWindowState | null;
     },
   },
@@ -685,7 +702,8 @@ async function locatorAbsenceDiagnostic(
   target: Locator,
 ): Promise<string | null> {
   const raw = await capability().queryByRole(
-    target.windowId,
+    target.windowId.lo,
+    target.windowId.hi,
     target.role,
     target.name,
     target.index ?? null,
@@ -708,7 +726,8 @@ async function locatorCountDiagnostic(
     throw new Error("toHaveCount requires an unindexed locator");
   }
   const raw = await capability().queryByRole(
-    target.windowId,
+    target.windowId.lo,
+    target.windowId.hi,
     target.role,
     target.name,
     null,
@@ -799,11 +818,11 @@ async function replayWindowAssertion(
 
 async function assertWindowStateEventually(
   target: TestWindow,
-  windowId: number,
+  windowId: WindowKey,
   expected: NativeWindowState,
   options: LocatorAssertionOptions = {},
 ): Promise<void> {
-  validateWindowId(windowId);
+  validateWindowKey(windowId);
   validateWindowPresence(expected.presence);
   validateSurfaceGeneration(expected.surfaceGeneration);
   const wait = resolvePollOptions(options);
@@ -854,7 +873,7 @@ export function expect<T>(actual: T) {
       if (left !== right) throw new Error(`expected ${left} to equal ${right}`);
     },
     toHaveState(
-      windowId: number,
+      windowId: WindowKey,
       expected: NativeWindowState,
       options?: LocatorAssertionOptions,
     ): Promise<void> {

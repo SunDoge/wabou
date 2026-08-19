@@ -6301,8 +6301,8 @@ ${detail}`);
   }
   globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 
-  // packages/core/src/glue/effects.ts
-  var EFFECT_ABI_VERSION = 2;
+  // packages/core/src/generated/effect-abi.ts
+  var EFFECT_ABI_VERSION = 3;
   var effectOps = Object.freeze({
     clipboardRead: { capability: 1, method: 1 },
     clipboardWrite: { capability: 1, method: 2 },
@@ -6320,6 +6320,7 @@ ${detail}`);
     dialogMessage: { capability: 5, method: 4 },
     notificationShow: { capability: 6, method: 1 }
   });
+  // packages/core/src/glue/effects.ts
   var pending = new Map;
   function assertAbi() {
     if (__wabou_effect_abi !== EFFECT_ABI_VERSION) {

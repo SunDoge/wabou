@@ -7,27 +7,27 @@
 
 use std::collections::VecDeque;
 
-use serde::{Deserialize, Deserializer, Serialize, de};
+use serde::{Deserialize, Serialize};
 
 use crate::AppDirectories;
 use crate::{WindowCommand, WindowOptions};
 
 /// Wire schema version for serialized effect requests and completions.
-pub const EFFECT_ABI_VERSION: u16 = 2;
+pub use crate::effect_abi::EFFECT_ABI_VERSION;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 /// Request identifier unique within one runtime session.
-pub struct EffectId(pub u64);
+pub struct EffectId(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "id", rename_all = "camelCase")]
 /// Lifetime and routing domain of an effect.
 pub enum EffectScope {
     /// Effect belongs to the complete application runtime.
-    Runtime(u64),
+    Runtime,
     /// Effect belongs to one Wabou window.
-    Window(u64),
+    Window(WindowResourceKey),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -63,38 +63,7 @@ impl EffectOp {
 
 /// Reserved operation identifiers implemented by the standard desktop host.
 pub mod builtin {
-    use super::EffectOp;
-
-    /// Read text from the system clipboard.
-    pub const CLIPBOARD_READ: EffectOp = EffectOp::new(1, 1);
-    /// Write text to the system clipboard.
-    pub const CLIPBOARD_WRITE: EffectOp = EffectOp::new(1, 2);
-    /// Create a native window.
-    pub const WINDOW_CREATE: EffectOp = EffectOp::new(2, 1);
-    /// Close a native window.
-    pub const WINDOW_CLOSE: EffectOp = EffectOp::new(2, 2);
-    /// Change native maximized state.
-    pub const WINDOW_SET_MAXIMIZED: EffectOp = EffectOp::new(2, 3);
-    /// Change a native window title.
-    pub const WINDOW_SET_TITLE: EffectOp = EffectOp::new(2, 4);
-    /// Minimize a native window.
-    pub const WINDOW_MINIMIZE: EffectOp = EffectOp::new(2, 5);
-    /// Begin native interactive window dragging.
-    pub const WINDOW_START_DRAGGING: EffectOp = EffectOp::new(2, 6);
-    /// Show a native context menu.
-    pub const CONTEXT_MENU_SHOW: EffectOp = EffectOp::new(3, 1);
-    /// Resolve platform application directories.
-    pub const APP_DIRS_RESOLVE: EffectOp = EffectOp::new(4, 1);
-    /// Show an open-file dialog.
-    pub const DIALOG_OPEN: EffectOp = EffectOp::new(5, 1);
-    /// Show a save-file dialog.
-    pub const DIALOG_SAVE: EffectOp = EffectOp::new(5, 2);
-    /// Show a directory picker.
-    pub const DIALOG_PICK_DIRECTORY: EffectOp = EffectOp::new(5, 3);
-    /// Show a platform message dialog.
-    pub const DIALOG_MESSAGE: EffectOp = EffectOp::new(5, 4);
-    /// Publish a desktop notification.
-    pub const NOTIFICATION_SHOW: EffectOp = EffectOp::new(6, 1);
+    pub use crate::effect_abi::*;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -144,7 +113,7 @@ const fn default_true() -> bool {
 /// Request to show a native context menu.
 pub struct ContextMenuRequest {
     /// Window that owns the menu.
-    pub window_id: u64,
+    pub window_id: WindowResourceKey,
     /// Explicit logical position, or current pointer position when absent.
     pub position: Option<MenuPosition>,
     /// Root menu items.
@@ -159,63 +128,19 @@ pub struct WindowCreateRequest {
     pub options: WindowOptions,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
-#[serde(rename_all = "camelCase")]
+/// Type-level family marker for native window resources.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum WindowResource {}
+
 /// Full-width generational identity of one native window resource.
-pub struct WindowResourceKey {
-    /// Low 32 bits of the SlotMap FFI representation.
-    pub lo: u32,
-    /// High 32 bits of the SlotMap FFI representation.
-    pub hi: u32,
-}
-
-impl WindowResourceKey {
-    /// Convert the explicit wire pair to the shell's compact internal form.
-    pub const fn as_ffi(self) -> u64 {
-        self.lo as u64 | ((self.hi as u64) << 32)
-    }
-
-    /// Split the shell's compact internal form for a JS-safe boundary.
-    pub const fn from_ffi(value: u64) -> Self {
-        Self {
-            lo: value as u32,
-            hi: (value >> 32) as u32,
-        }
-    }
-
-    /// Whether the pair can represent a live SlotMap generation.
-    pub const fn is_valid(self) -> bool {
-        self.lo != 0 && self.hi != 0 && self.hi % 2 == 1
-    }
-}
-
-impl<'de> Deserialize<'de> for WindowResourceKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct WireKey {
-            lo: u32,
-            hi: u32,
-        }
-        let wire = WireKey::deserialize(deserializer)?;
-        let key = Self {
-            lo: wire.lo,
-            hi: wire.hi,
-        };
-        key.is_valid().then_some(key).ok_or_else(|| {
-            de::Error::custom("window key lo must be non-zero and hi must be non-zero and odd")
-        })
-    }
-}
+pub type WindowResourceKey = wabou_host_api::ResourceKey<WindowResource>;
 
 /// Predict the initial SlotMap keys allocated by the shell before it starts
 /// the already-constructed root frame sources.
 pub const fn initial_window_resource_key(index: usize) -> WindowResourceKey {
-    WindowResourceKey {
-        lo: index as u32 + 1,
-        hi: 1,
+    match WindowResourceKey::from_parts(index as u32 + 1, 1) {
+        Some(key) => key,
+        None => panic!("initial window resource index exceeds u32"),
     }
 }
 
@@ -355,7 +280,7 @@ pub enum EffectPayload {
     /// Control an existing native window.
     WindowControl {
         /// Target Wabou window identifier.
-        window_id: u64,
+        window_id: WindowResourceKey,
         /// Native operation to apply.
         command: WindowCommand,
     },
@@ -617,10 +542,10 @@ impl EffectExecutor for ReplayEffectExecutor {
 mod tests {
     use super::*;
 
-    fn read(id: u64) -> EffectRequest {
+    fn read(id: u32) -> EffectRequest {
         EffectRequest {
             id: EffectId(id),
-            scope: EffectScope::Window(1),
+            scope: EffectScope::Window(initial_window_resource_key(0)),
             payload: EffectPayload::ClipboardRead,
         }
     }
@@ -639,14 +564,10 @@ mod tests {
 
     #[test]
     fn window_resource_keys_preserve_both_slotmap_halves() {
-        let key = WindowResourceKey {
-            lo: 0xffff_fffe,
-            hi: 0xffff_ffff,
-        };
-        assert!(key.is_valid());
-        assert_eq!(WindowResourceKey::from_ffi(key.as_ffi()), key);
-        assert!(!WindowResourceKey { lo: 0, hi: 1 }.is_valid());
-        assert!(!WindowResourceKey { lo: 1, hi: 2 }.is_valid());
+        let key = WindowResourceKey::from_parts(0xffff_fffe, 0xffff_ffff).unwrap();
+        assert_eq!(WindowResourceKey::from_ffi(key.as_ffi()), Some(key));
+        assert!(WindowResourceKey::from_parts(0, 1).is_none());
+        assert!(WindowResourceKey::from_parts(1, 2).is_none());
     }
 
     #[test]

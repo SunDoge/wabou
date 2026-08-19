@@ -5,7 +5,7 @@ import {
   validateLocatorCount,
   validateSurfaceGeneration,
   validateTolerance,
-  validateWindowId,
+  validateWindowKey,
   validateWindowPresence,
 } from "./validation";
 
@@ -30,11 +30,9 @@ describe("recordable native actions", () => {
   });
 
   test("keeps window identities and generations exactly representable", () => {
-    expect(() => validateWindowId(1)).not.toThrow();
-    expect(() => validateWindowId(0)).toThrow("window id must be an integer");
-    expect(() => validateWindowId(Number.MAX_SAFE_INTEGER + 1)).toThrow(
-      "window id must be an integer",
-    );
+    expect(() => validateWindowKey({ lo: 1, hi: 1 })).not.toThrow();
+    expect(() => validateWindowKey({ lo: 0, hi: 1 })).toThrow("window key");
+    expect(() => validateWindowKey({ lo: 1, hi: 2 })).toThrow("window key");
     expect(() => validateSurfaceGeneration(0)).not.toThrow();
     expect(() => validateSurfaceGeneration(-1)).toThrow(
       "surface generation must be an integer",

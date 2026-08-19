@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dir, "..");
 const patterns = [
   "crates/wabou-runtime/src/gen/**/*",
+  "crates/wabou-shell/src/generated/**/*",
   "docs/host-abi.md",
   "packages/*/dist/**/*",
   "packages/*/generated/**/*",

@@ -145,8 +145,9 @@ fn subtree_blocks_interaction(node_store: &NodeStore, mut node: NodeId) -> bool 
     }
 }
 
-// Widget actions retain their tagged 32-bit namespace. Native effects use a
-// process-wide sequence so window resource handles stay unique across runtimes.
+// Widget actions retain their tagged 32-bit namespace. Native effect request
+// ids use a process-wide sequence so completions remain unambiguous across
+// runtimes; persistent resources use independent generational keys.
 const JS_HOST_ACTION_NAMESPACE: u64 = 1 << 31;
 const HOST_ACTION_SEQUENCE_MASK: u64 = JS_HOST_ACTION_NAMESPACE - 1;
 const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
@@ -346,14 +347,14 @@ impl Drop for RuntimeSession {
 }
 
 impl RuntimeSession {
-    fn new(js: JsRuntime, window_id: u64) -> Self {
+    fn new(js: JsRuntime, window_key: wabou_shell::WindowResourceKey) -> Self {
         let pending_css = js.pending_css_handle();
         let pending_color_theme = js.pending_color_theme_handle();
         let pending_color_palette = js.pending_color_palette_handle();
         let pending_fonts = js.pending_fonts_handle();
         let frame_stats = js.frame_stats_handle();
         let pending_host_actions = Rc::new(RefCell::new(VecDeque::new()));
-        let effect_bridge = EffectBridge::install(&js, window_id);
+        let effect_bridge = EffectBridge::install(&js, window_key);
         let (host_message_handle, host_message_inbox) =
             host_message_channel(DEFAULT_HOST_MESSAGE_CAPACITY);
         Self {
@@ -553,15 +554,20 @@ impl Applier {
         widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
         base_color: Color,
     ) -> Self {
-        Self::from_runtime_with_factories_and_window(js, widget_factories, base_color, 1)
+        Self::from_runtime_with_factories_and_window(
+            js,
+            widget_factories,
+            base_color,
+            wabou_shell::initial_window_resource_key(0),
+        )
     }
 
-    /// Build an applier with explicit widget factories and logical window id.
+    /// Build an applier with explicit widget factories and a typed window key.
     pub fn from_runtime_with_factories_and_window(
         js: JsRuntime,
         widget_factories: HashMap<String, wabou_shell::WidgetFactory>,
         base_color: Color,
-        window_id: u64,
+        window_key: wabou_shell::WindowResourceKey,
     ) -> Self {
         let layout_metrics = js.layout_metrics_handle();
         let atoms = js.atom_pool_handle();
@@ -574,7 +580,7 @@ impl Applier {
             .map(|(k, v)| (atoms.borrow_mut().intern(&k), v))
             .collect();
         Self {
-            runtime: RuntimeSession::new(js, window_id),
+            runtime: RuntimeSession::new(js, window_key),
             document: DocumentState::new(atoms, widget_factories, base_color),
             interaction: InteractionState::new(),
             frame: FrameState::new(FrameProjections::new(layout_metrics), resize_targets),
@@ -634,9 +640,12 @@ impl Applier {
         self.runtime.host_message_handle.clone()
     }
 
-    pub(crate) fn host_message_context(&self, window_id: u64) -> crate::HostMessageContext {
+    pub(crate) fn host_message_context(
+        &self,
+        window_key: wabou_shell::WindowResourceKey,
+    ) -> crate::HostMessageContext {
         crate::HostMessageContext::new(
-            window_id,
+            window_key,
             self.host_message_handle(),
             self.runtime.host_message_cancellation.clone(),
             self.runtime.js.tokio_handle(),

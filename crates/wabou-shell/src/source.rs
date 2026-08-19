@@ -103,11 +103,11 @@ impl WindowOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 /// Current native window state delivered to a [`FrameSource`].
 pub struct WindowMetrics {
     /// Stable Wabou window identifier, independent of platform handles.
-    pub window_id: u64,
+    pub window_key: crate::WindowResourceKey,
     /// Logical client-area width.
     pub logical_width: u32,
     /// Logical client-area height.
@@ -122,6 +122,21 @@ pub struct WindowMetrics {
     pub maximized: bool,
     /// Whether the native window owns keyboard focus.
     pub focused: bool,
+}
+
+impl Default for WindowMetrics {
+    fn default() -> Self {
+        Self {
+            window_key: crate::initial_window_resource_key(0),
+            logical_width: 0,
+            logical_height: 0,
+            physical_width: 0,
+            physical_height: 0,
+            scale_factor: 1.0,
+            maximized: false,
+            focused: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

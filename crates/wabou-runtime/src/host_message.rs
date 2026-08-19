@@ -131,7 +131,7 @@ pub struct HostMessageHandle {
 /// stop even when they have no message ready to send.
 #[derive(Clone)]
 pub struct HostMessageContext {
-    window_id: u64,
+    window_key: wabou_shell::WindowResourceKey,
     messages: HostMessageHandle,
     cancellation: CancellationToken,
     runtime: tokio::runtime::Handle,
@@ -139,22 +139,22 @@ pub struct HostMessageContext {
 
 impl HostMessageContext {
     pub(crate) fn new(
-        window_id: u64,
+        window_key: wabou_shell::WindowResourceKey,
         messages: HostMessageHandle,
         cancellation: CancellationToken,
         runtime: tokio::runtime::Handle,
     ) -> Self {
         Self {
-            window_id,
+            window_key,
             messages,
             cancellation,
             runtime,
         }
     }
 
-    /// Stable logical identifier of the owning native window.
-    pub fn window_id(&self) -> u64 {
-        self.window_id
+    /// Typed generational identity of the owning native window.
+    pub fn window_key(&self) -> wabou_shell::WindowResourceKey {
+        self.window_key
     }
 
     /// Borrow the thread-safe producer handle.
@@ -364,12 +364,12 @@ mod tests {
         let (messages, _inbox) = host_message_channel(2);
         let cancellation = CancellationToken::new();
         let context = HostMessageContext::new(
-            9,
+            wabou_shell::WindowResourceKey::from_parts(9, 1).unwrap(),
             messages,
             cancellation.clone(),
             tokio::runtime::Handle::current(),
         );
-        assert_eq!(context.window_id(), 9);
+        assert_eq!(context.window_key().into_parts(), (9, 1));
         assert!(!context.is_cancelled());
 
         cancellation.cancel();

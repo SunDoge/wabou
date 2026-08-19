@@ -10,8 +10,8 @@ fn main() -> Result<(), Whatever> {
         .window(
             WindowOptions::new()
                 .title("Wabou Components")
-                .initial_inner_size(1080, 760)
-                .min_inner_size(720, 520),
+                .initial_inner_size(1280, 840)
+                .min_inner_size(900, 600),
         )
         .json_capability(gallery::bindings::CAPABILITY, |capability| {
             capability.method(

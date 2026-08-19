@@ -130,15 +130,22 @@ fn targeted_window_commands_do_not_affect_other_windows() {
     let source =
         || Box::new(EventRecordingSource(Arc::new(Mutex::new(Vec::new())))) as Box<dyn FrameSource>;
     let mut windows = [App::new(source()), App::new(source())];
-    windows[0].logical_window_id = 11;
-    windows[1].logical_window_id = 22;
+    windows[0].window_key = WindowResourceKey::from_parts(11, 1).unwrap();
+    windows[1].window_key = WindowResourceKey::from_parts(22, 1).unwrap();
 
-    let target = find_window_by_logical_id(windows.iter_mut(), 22).expect("target window");
+    let target_key = windows[1].window_key;
+    let target = find_window_by_key(windows.iter_mut(), target_key).expect("target window");
     apply_window_command(target, WindowCommand::Close);
 
     assert!(!windows[0].close_requested);
     assert!(windows[1].close_requested);
-    assert!(find_window_by_logical_id(windows.iter_mut(), 99).is_none());
+    assert!(
+        find_window_by_key(
+            windows.iter_mut(),
+            WindowResourceKey::from_parts(99, 1).unwrap()
+        )
+        .is_none()
+    );
 }
 
 #[test]

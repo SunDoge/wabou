@@ -154,7 +154,7 @@ struct RuntimeSourceConfig {
 }
 
 impl RuntimeSourceConfig {
-    fn create(&self, window_id: u64) -> crate::Result<Applier> {
+    fn create(&self, window_key: wabou_shell::WindowResourceKey) -> crate::Result<Applier> {
         #[cfg(feature = "vite")]
         let js = match &self.source {
             ApplicationSource::Vite { url, .. } => {
@@ -182,9 +182,9 @@ impl RuntimeSourceConfig {
             js,
             self.widget_factories.clone(),
             self.base_color,
-            window_id,
+            window_key,
         );
-        install_host_message_producers(&self.host_message_producers, window_id, &applier);
+        install_host_message_producers(&self.host_message_producers, window_key, &applier);
         applier.set_asset_cache(self.asset_cache.clone());
         if let Some(directories) = &self.app_directories {
             applier.set_app_directories(directories.clone());
@@ -325,7 +325,7 @@ impl HostBuilder {
     /// thread. JavaScript receives values through `hostMessages.subscribe()`.
     /// The context is cancelled when its window is dropped.
     ///
-    /// Producers should use `context.window_id()` to avoid duplicate global
+    /// Producers should use `context.window_key()` to avoid duplicate global
     /// streams when an application creates additional windows.
     pub fn host_message_producer<F>(mut self, producer: F) -> Self
     where
@@ -540,12 +540,8 @@ impl HostBuilder {
         let mut sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let window_id = if headless_test {
-                index as u64 + 1
-            } else {
-                wabou_shell::initial_window_resource_key(index).as_ffi()
-            };
-            let applier = runtime_sources.create(window_id)?;
+            let window_key = wabou_shell::initial_window_resource_key(index);
+            let applier = runtime_sources.create(window_key)?;
             if index == 0
                 && let Some(script) = &test_script
             {
@@ -572,10 +568,10 @@ impl HostBuilder {
         let child_hmr_store = child_hmr_clients.clone();
         let child_sources = runtime_sources.clone();
         #[allow(clippy::arc_with_non_send_sync)] // winit invokes this only on its event thread.
-        let factory: crate::FrameSourceFactory = Arc::new(move |window_id, _options| {
+        let factory: crate::FrameSourceFactory = Arc::new(move |window_key, _options| {
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
             let mut applier = child_sources
-                .create(window_id)
+                .create(window_key)
                 .map_err(|error| error.to_string())?;
             #[cfg(feature = "vite")]
             if let Some(client) = child_sources
@@ -614,11 +610,11 @@ impl HostBuilder {
 
 fn install_host_message_producers(
     producers: &[HostMessageProducer],
-    window_id: u64,
+    window_key: wabou_shell::WindowResourceKey,
     applier: &Applier,
 ) {
     for producer in producers {
-        producer(applier.host_message_context(window_id));
+        producer(applier.host_message_context(window_key));
     }
 }
 
@@ -630,7 +626,8 @@ fn run_headless_test(
     const WIDTH: u32 = 1100;
     const HEIGHT: u32 = 720;
 
-    controller.initialize_headless(1..=sources.len() as u64);
+    controller
+        .initialize_headless((0..sources.len()).map(wabou_shell::initial_window_resource_key));
     // JavaScript reports individual test timeouts with the test name. This is
     // only a final safety net for a broken runtime or runner that cannot
     // produce a report at all.
@@ -641,10 +638,10 @@ fn run_headless_test(
     let mut last_nodes = vec![Vec::new(); sources.len()];
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
-            let window_id = wabou_shell::initial_window_resource_key(index).as_ffi();
+            let window_key = wabou_shell::initial_window_resource_key(index);
             source.set_semantics_enabled(true);
             source.handle_event(wabou_shell::UiEvent::WindowMetrics(crate::WindowMetrics {
-                window_id,
+                window_key,
                 logical_width: WIDTH,
                 logical_height: HEIGHT,
                 physical_width: WIDTH,
@@ -654,7 +651,7 @@ fn run_headless_test(
                 focused: true,
             }));
             last_nodes[index] = source.build_frame(&mut text, WIDTH, HEIGHT);
-            controller.poll_headless_source(index as u64 + 1, source.as_mut());
+            controller.poll_headless_source(window_key, source.as_mut());
         }
         std::thread::sleep(Duration::from_millis(1));
     }
@@ -1167,10 +1164,10 @@ mod tests {
         let observed = Arc::new(Mutex::new(Vec::new()));
         let producer_observed = observed.clone();
         let builder = HostBuilder::new().host_message_producer(move |context| {
-            producer_observed.lock().unwrap().push(context.window_id());
+            producer_observed.lock().unwrap().push(context.window_key());
             context
                 .messages()
-                .emit_i32("ready", context.window_id() as i32)
+                .emit_i32("ready", context.window_key().lo() as i32)
                 .unwrap();
         });
         let (handle, inbox) = host_message_channel(4);
@@ -1179,14 +1176,14 @@ mod tests {
 
         for producer in &builder.host_message_producers {
             producer(crate::HostMessageContext::new(
-                7,
+                wabou_shell::WindowResourceKey::from_parts(7, 1).unwrap(),
                 handle.clone(),
                 cancellation.clone(),
                 runtime.handle().clone(),
             ));
         }
 
-        assert_eq!(*observed.lock().unwrap(), [7]);
+        assert_eq!(observed.lock().unwrap()[0].into_parts(), (7, 1));
         let messages = inbox.drain_batch();
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].topic, "ready");
@@ -1213,12 +1210,16 @@ mod tests {
         let runtime = JsRuntime::new().unwrap();
         let applier =
             Applier::from_runtime(runtime, vello::peniko::Color::from_rgb8(0x00, 0x00, 0x00));
-        install_host_message_producers(&builder.host_message_producers, 3, &applier);
+        install_host_message_producers(
+            &builder.host_message_producers,
+            wabou_shell::WindowResourceKey::from_parts(3, 1).unwrap(),
+            &applier,
+        );
         started_rx
             .recv_timeout(std::time::Duration::from_secs(1))
             .unwrap();
         let context = observed.lock().unwrap().clone().unwrap();
-        assert_eq!(context.window_id(), 3);
+        assert_eq!(context.window_key().into_parts(), (3, 1));
         assert!(!context.is_cancelled());
 
         drop(applier);

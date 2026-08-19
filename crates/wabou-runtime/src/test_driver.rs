@@ -17,30 +17,35 @@ use wabou_shell::{
 };
 
 const CAPABILITY: &str = "test";
+type WindowKey = wabou_shell::WindowResourceKey;
+
+fn window_key(lo: u32, hi: u32) -> Option<WindowKey> {
+    WindowKey::from_parts(lo, hi)
+}
 
 #[derive(Debug)]
 enum TestActionKind {
-    WaitForIdle(u64),
+    WaitForIdle(WindowKey),
     NativeClose {
-        window_id: u64,
+        window_key: WindowKey,
         mutable_visibility: bool,
     },
-    ShowWindow(u64),
+    ShowWindow(WindowKey),
     ClickByRole {
-        window_id: u64,
+        window_key: WindowKey,
         role: String,
         label: String,
         index: Option<usize>,
     },
     InputByRole {
-        window_id: u64,
+        window_key: WindowKey,
         role: String,
         label: String,
         input: TestInput,
         index: Option<usize>,
     },
     QueryByRole {
-        window_id: u64,
+        window_key: WindowKey,
         role: String,
         label: String,
         index: Option<usize>,
@@ -83,10 +88,10 @@ struct WindowSnapshot {
 #[derive(Default)]
 struct TestState {
     actions: VecDeque<TestAction>,
-    windows: HashMap<u64, WindowSnapshot>,
+    windows: HashMap<WindowKey, WindowSnapshot>,
     wake: Option<WakeCallback>,
     report: Option<String>,
-    semantic_snapshots: HashMap<u64, Arc<SemanticSnapshot>>,
+    semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
     headless: bool,
 }
 
@@ -150,12 +155,21 @@ impl TestController {
                 "nativeClose",
                 Function::new(
                     ctx.clone(),
-                    Async(move |window_id: u64, mutable_visibility: bool| {
-                        let receiver = native_close.request(TestActionKind::NativeClose {
-                            window_id,
-                            mutable_visibility,
+                    Async(move |lo: u32, hi: u32, mutable_visibility: bool| {
+                        let receiver = window_key(lo, hi).map(|window_key| {
+                            native_close.request(TestActionKind::NativeClose {
+                                window_key,
+                                mutable_visibility,
+                            })
                         });
-                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
                     }),
                 )?,
             )?;
@@ -165,9 +179,17 @@ impl TestController {
                 "showWindow",
                 Function::new(
                     ctx.clone(),
-                    Async(move |window_id: u64| {
-                        let receiver = show.request(TestActionKind::ShowWindow(window_id));
-                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
+                    Async(move |lo: u32, hi: u32| {
+                        let receiver = window_key(lo, hi)
+                            .map(|window_key| show.request(TestActionKind::ShowWindow(window_key)));
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
                     }),
                 )?,
             )?;
@@ -177,9 +199,18 @@ impl TestController {
                 "waitForIdle",
                 Function::new(
                     ctx.clone(),
-                    Async(move |window_id: u64| {
-                        let receiver = idle.request(TestActionKind::WaitForIdle(window_id));
-                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
+                    Async(move |lo: u32, hi: u32| {
+                        let receiver = window_key(lo, hi).map(|window_key| {
+                            idle.request(TestActionKind::WaitForIdle(window_key))
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
                     }),
                 )?,
             )?;
@@ -187,8 +218,10 @@ impl TestController {
             let query = controller.clone();
             capability.set(
                 "windowState",
-                Function::new(ctx.clone(), move |window_id: u64| {
-                    query.window_state_json(window_id)
+                Function::new(ctx.clone(), move |lo: u32, hi: u32| {
+                    window_key(lo, hi)
+                        .map(|window_key| query.window_state_json(window_key))
+                        .unwrap_or_else(|| "null".into())
                 })?,
             )?;
 
@@ -197,15 +230,33 @@ impl TestController {
                 "clickByRole",
                 Function::new(
                     ctx.clone(),
-                    Async(move |window_id: u64, role: String, label: String, index: Option<usize>| {
-                        let receiver = click.request(TestActionKind::ClickByRole {
-                            window_id,
-                            role,
-                            label,
-                            index,
-                        });
-                        async move { matches!(receiver.await, Ok(TestActionResult::Handled(true))) }
-                    }),
+                    Async(
+                        move |lo: u32,
+                              hi: u32,
+                              role: String,
+                              label: String,
+                              index: Option<usize>| {
+                            let receiver = window_key(lo, hi).map(|window_key| {
+                                click.request(TestActionKind::ClickByRole {
+                                    window_key,
+                                    role,
+                                    label,
+                                    index,
+                                })
+                            });
+                            async move {
+                                match receiver {
+                                    Some(receiver) => {
+                                        matches!(
+                                            receiver.await,
+                                            Ok(TestActionResult::Handled(true))
+                                        )
+                                    }
+                                    None => false,
+                                }
+                            }
+                        },
+                    ),
                 )?,
             )?;
 
@@ -215,21 +266,23 @@ impl TestController {
                 Function::new(
                     ctx.clone(),
                     Async(
-                        move |window_id: u64,
+                        move |lo: u32,
+                              hi: u32,
                               role: String,
                               label: String,
                               raw: String,
                               index: Option<usize>| {
-                            let receiver =
+                            let receiver = window_key(lo, hi).and_then(|window_key| {
                                 serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
                                     input.request(TestActionKind::InputByRole {
-                                        window_id,
+                                        window_key,
                                         role,
                                         label,
                                         input: action,
                                         index,
                                     })
-                                });
+                                })
+                            });
                             async move {
                                 match receiver {
                                     Some(receiver) => matches!(
@@ -256,16 +309,25 @@ impl TestController {
                 Function::new(
                     ctx.clone(),
                     Async(
-                        move |window_id: u64, role: String, label: String, index: Option<usize>| {
-                            let receiver = query.request(TestActionKind::QueryByRole {
-                                window_id,
-                                role,
-                                label,
-                                index,
+                        move |lo: u32,
+                              hi: u32,
+                              role: String,
+                              label: String,
+                              index: Option<usize>| {
+                            let receiver = window_key(lo, hi).map(|window_key| {
+                                query.request(TestActionKind::QueryByRole {
+                                    window_key,
+                                    role,
+                                    label,
+                                    index,
+                                })
                             });
                             async move {
-                                match receiver.await {
-                                    Ok(TestActionResult::Query(result)) => result,
+                                match receiver {
+                                    Some(receiver) => match receiver.await {
+                                        Ok(TestActionResult::Query(result)) => result,
+                                        _ => None,
+                                    },
                                     _ => None,
                                 }
                             }
@@ -277,12 +339,12 @@ impl TestController {
         })
     }
 
-    fn window_state_json(&self, window_id: u64) -> String {
+    fn window_state_json(&self, window_key: WindowKey) -> String {
         let snapshot = self
             .0
             .lock()
             .ok()
-            .and_then(|state| state.windows.get(&window_id).copied());
+            .and_then(|state| state.windows.get(&window_key).copied());
         let Some(snapshot) = snapshot else {
             return "null".into();
         };
@@ -302,12 +364,12 @@ impl TestController {
         self.0.lock().ok()?.report.take()
     }
 
-    pub(crate) fn initialize_headless(&self, window_ids: impl IntoIterator<Item = u64>) {
+    pub(crate) fn initialize_headless(&self, window_keys: impl IntoIterator<Item = WindowKey>) {
         if let Ok(mut state) = self.0.lock() {
             state.headless = true;
-            for window_id in window_ids {
+            for window_key in window_keys {
                 state.windows.insert(
-                    window_id,
+                    window_key,
                     WindowSnapshot {
                         lifecycle: WindowLifecycle::visible(),
                     },
@@ -316,20 +378,20 @@ impl TestController {
         }
     }
 
-    pub(crate) fn poll_headless_source(&self, window_id: u64, source: &mut dyn FrameSource) {
+    pub(crate) fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn FrameSource) {
         let snapshot = source.semantic_snapshot();
         if let Some(snapshot) = snapshot.as_ref() {
-            self.record_semantic_snapshot(window_id, snapshot.clone());
+            self.record_semantic_snapshot(window_key, snapshot.clone());
         }
         if let Some(snapshot) = snapshot.as_deref()
             && let Some(action) = self.0.lock().ok().and_then(|state| {
                 state.actions.iter().find_map(|action| match &action.kind {
                     TestActionKind::ClickByRole {
-                        window_id: target_window,
+                        window_key: target_window,
                         role,
                         label,
                         index,
-                    } if *target_window == window_id => {
+                    } if *target_window == window_key => {
                         semantic_target(snapshot, role, label, *index)
                     }
                     _ => None,
@@ -344,8 +406,8 @@ impl TestController {
         let action = self.0.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
                 matches!(
-                    action_window_id(&action.kind),
-                    Some(target) if target == window_id && action_requires_source_poll(&action.kind)
+                    action_window_key(&action.kind),
+                    Some(target) if target == window_key && action_requires_source_poll(&action.kind)
                 )
             })?;
             let action = state.actions.get(index)?;
@@ -400,9 +462,9 @@ impl TestController {
             .as_bool()
     }
 
-    fn record_semantic_snapshot(&self, window_id: u64, snapshot: Arc<SemanticSnapshot>) {
+    fn record_semantic_snapshot(&self, window_key: WindowKey, snapshot: Arc<SemanticSnapshot>) {
         if let Ok(mut state) = self.0.lock() {
-            state.semantic_snapshots.insert(window_id, snapshot);
+            state.semantic_snapshots.insert(window_key, snapshot);
         }
     }
 
@@ -413,12 +475,12 @@ impl TestController {
             .map(|state| state.semantic_snapshots.clone())
             .unwrap_or_default();
         let mut windows = snapshots.into_iter().collect::<Vec<_>>();
-        windows.sort_unstable_by_key(|(window_id, _)| *window_id);
+        windows.sort_unstable_by_key(|(window_key, _)| window_key.as_ffi());
         serde_json::json!({
             "version": 1,
             "windows": windows
                 .into_iter()
-                .map(|(window_id, snapshot)| semantic_snapshot_json(window_id, &snapshot))
+                .map(|(window_key, snapshot)| semantic_snapshot_json(window_key, &snapshot))
                 .collect::<Vec<_>>(),
         })
     }
@@ -497,7 +559,7 @@ fn locator_query_json(
     )
 }
 
-fn semantic_snapshot_json(window_id: u64, snapshot: &SemanticSnapshot) -> serde_json::Value {
+fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) -> serde_json::Value {
     let toggle = |state: Option<wabou_shell::SemanticToggleState>| match state {
         Some(wabou_shell::SemanticToggleState::Off) => serde_json::Value::Bool(false),
         Some(wabou_shell::SemanticToggleState::On) => serde_json::Value::Bool(true),
@@ -505,7 +567,7 @@ fn semantic_snapshot_json(window_id: u64, snapshot: &SemanticSnapshot) -> serde_
         None => serde_json::Value::Null,
     };
     serde_json::json!({
-        "windowId": window_id,
+        "windowId": window_key,
         "revision": snapshot.revision,
         "rootChildren": snapshot.root_children,
         "focus": snapshot.focus,
@@ -543,17 +605,17 @@ fn semantic_snapshot_json(window_id: u64, snapshot: &SemanticSnapshot) -> serde_
 fn apply_headless_action(state: &mut TestState, action: TestAction) {
     let handled = match action.kind {
         TestActionKind::NativeClose {
-            window_id,
+            window_key,
             mutable_visibility,
-        } => state.windows.get_mut(&window_id).is_some_and(|snapshot| {
+        } => state.windows.get_mut(&window_key).is_some_and(|snapshot| {
             snapshot.lifecycle.transition(
                 wabou_shell::window_lifecycle::WindowIntent::Hide,
                 WindowCapabilities { mutable_visibility },
             );
             true
         }),
-        TestActionKind::ShowWindow(window_id) => {
-            state.windows.get_mut(&window_id).is_some_and(|snapshot| {
+        TestActionKind::ShowWindow(window_key) => {
+            state.windows.get_mut(&window_key).is_some_and(|snapshot| {
                 snapshot.lifecycle.transition(
                     wabou_shell::window_lifecycle::WindowIntent::Show,
                     WindowCapabilities::default(),
@@ -582,12 +644,12 @@ fn action_requires_source_poll(kind: &TestActionKind) -> bool {
     matches!(kind, TestActionKind::WaitForIdle(_)) || action_requires_semantics(kind)
 }
 
-fn action_window_id(kind: &TestActionKind) -> Option<u64> {
+fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
     match kind {
-        TestActionKind::WaitForIdle(window_id)
-        | TestActionKind::ClickByRole { window_id, .. }
-        | TestActionKind::InputByRole { window_id, .. }
-        | TestActionKind::QueryByRole { window_id, .. } => Some(*window_id),
+        TestActionKind::WaitForIdle(window_key)
+        | TestActionKind::ClickByRole { window_key, .. }
+        | TestActionKind::InputByRole { window_key, .. }
+        | TestActionKind::QueryByRole { window_key, .. } => Some(*window_key),
         _ => None,
     }
 }
@@ -700,14 +762,14 @@ impl TestDriver {
         Self { controller }
     }
 
-    fn snapshot(&self, window_id: u64, context: &ExtensionContext<'_>) {
-        let Some(lifecycle) = context.window_lifecycle(window_id) else {
+    fn snapshot(&self, window_key: WindowKey, context: &ExtensionContext<'_>) {
+        let Some(lifecycle) = context.window_lifecycle(window_key) else {
             return;
         };
         if let Ok(mut state) = self.controller.0.lock() {
             state
                 .windows
-                .insert(window_id, WindowSnapshot { lifecycle });
+                .insert(window_key, WindowSnapshot { lifecycle });
         }
     }
 }
@@ -733,41 +795,41 @@ impl ShellExtension for TestDriver {
             let Some(action) = action else {
                 break;
             };
-            if let Some(window_id) = action_window_id(&action.kind)
-                && let Some(snapshot) = context.semantic_snapshot(window_id)
+            if let Some(window_key) = action_window_key(&action.kind)
+                && let Some(snapshot) = context.semantic_snapshot(window_key)
             {
                 self.controller
-                    .record_semantic_snapshot(window_id, snapshot);
+                    .record_semantic_snapshot(window_key, snapshot);
             }
             let result = match action.kind {
                 TestActionKind::WaitForIdle(_) => TestActionResult::Handled(true),
                 TestActionKind::NativeClose {
-                    window_id,
+                    window_key,
                     mutable_visibility,
                 } => {
                     let handled = context.hide_window_with_capabilities(
-                        window_id,
+                        window_key,
                         Some(WindowCapabilities { mutable_visibility }),
                     );
-                    self.snapshot(window_id, context);
+                    self.snapshot(window_key, context);
                     TestActionResult::Handled(handled)
                 }
-                TestActionKind::ShowWindow(window_id) => {
-                    let handled = context.show_window(window_id);
-                    self.snapshot(window_id, context);
+                TestActionKind::ShowWindow(window_key) => {
+                    let handled = context.show_window(window_key);
+                    self.snapshot(window_key, context);
                     TestActionResult::Handled(handled)
                 }
                 TestActionKind::ClickByRole {
-                    window_id,
+                    window_key,
                     role,
                     label,
                     index,
                 } => TestActionResult::Handled(match index {
-                    Some(index) => context.click_by_role_at(window_id, &role, &label, index),
-                    None => context.click_by_role(window_id, &role, &label),
+                    Some(index) => context.click_by_role_at(window_key, &role, &label, index),
+                    None => context.click_by_role(window_key, &role, &label),
                 }),
                 TestActionKind::InputByRole {
-                    window_id,
+                    window_key,
                     role,
                     label,
                     input,
@@ -775,9 +837,9 @@ impl ShellExtension for TestDriver {
                 } => {
                     let node = match index {
                         Some(index) => {
-                            context.semantic_node_by_role_at(window_id, &role, &label, index)
+                            context.semantic_node_by_role_at(window_key, &role, &label, index)
                         }
-                        None => context.semantic_node_by_role(window_id, &role, &label),
+                        None => context.semantic_node_by_role(window_key, &role, &label),
                     };
                     let Some(node) = node else {
                         let _ = action.completion.send(TestActionResult::Handled(false));
@@ -792,7 +854,7 @@ impl ShellExtension for TestDriver {
                         | TestInput::Text { .. }
                         | TestInput::Paste { .. }
                         | TestInput::Ime { .. } => {
-                            context.focus_semantic_node(window_id, node.id);
+                            context.focus_semantic_node(window_key, node.id);
                         }
                         _ => {}
                     }
@@ -800,17 +862,17 @@ impl ShellExtension for TestDriver {
                     TestActionResult::Handled(
                         events
                             .into_iter()
-                            .all(|event| context.dispatch_event(window_id, event)),
+                            .all(|event| context.dispatch_event(window_key, event)),
                     )
                 }
                 TestActionKind::QueryByRole {
-                    window_id,
+                    window_key,
                     role,
                     label,
                     index,
                 } => TestActionResult::Query(
                     context
-                        .semantic_snapshot(window_id)
+                        .semantic_snapshot(window_key)
                         .and_then(|snapshot| locator_query_json(&snapshot, &role, &label, index)),
                 ),
             };
@@ -903,6 +965,10 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
 mod tests {
     use super::*;
 
+    fn key(lo: u32) -> WindowKey {
+        WindowKey::from_parts(lo, 1).unwrap()
+    }
+
     struct SemanticSource(Arc<SemanticSnapshot>);
 
     impl FrameSource for SemanticSource {
@@ -955,7 +1021,7 @@ mod tests {
         generic.role = SemanticRole::Generic;
         generic.label = Some("large concatenated descendant label".into());
         controller.record_semantic_snapshot(
-            2,
+            key(2),
             Arc::new(SemanticSnapshot {
                 revision: 9,
                 nodes: vec![sensitive, generic],
@@ -967,7 +1033,10 @@ mod tests {
 
         let artifact = controller.semantic_artifact();
         assert_eq!(artifact["version"], 1);
-        assert_eq!(artifact["windows"][0]["windowId"], 2);
+        assert_eq!(
+            artifact["windows"][0]["windowId"],
+            serde_json::json!({ "lo": 2, "hi": 1 })
+        );
         assert_eq!(artifact["windows"][0]["nodes"][0]["role"], "textbox");
         assert_eq!(artifact["windows"][0]["nodes"][0]["hasValue"], true);
         assert_eq!(artifact["windows"][0]["nodes"][0]["checked"], "mixed");
@@ -1114,14 +1183,14 @@ mod tests {
     fn headless_semantic_actions_read_each_completed_snapshot_without_native_timeout() {
         let snapshot = SemanticSnapshot::default();
         let probe = TestActionKind::InputByRole {
-            window_id: 1,
+            window_key: key(1),
             role: "button".into(),
             label: "Appears later".into(),
             input: TestInput::Probe,
             index: None,
         };
         let click = TestActionKind::ClickByRole {
-            window_id: 1,
+            window_key: key(1),
             role: "button".into(),
             label: "Appears later".into(),
             index: None,
@@ -1134,15 +1203,15 @@ mod tests {
     #[test]
     fn concurrent_queries_keep_results_attached_to_their_requests() {
         let controller = TestController::default();
-        controller.initialize_headless([1, 2]);
+        controller.initialize_headless([key(1), key(2)]);
         let first = controller.request(TestActionKind::QueryByRole {
-            window_id: 1,
+            window_key: key(1),
             role: "textbox".into(),
             label: "First".into(),
             index: None,
         });
         let second = controller.request(TestActionKind::QueryByRole {
-            window_id: 2,
+            window_key: key(2),
             role: "textbox".into(),
             label: "Second".into(),
             index: None,
@@ -1162,8 +1231,8 @@ mod tests {
 
         // Complete both requests before either receiver is observed. A shared
         // query-result slot would overwrite or consume one of these values.
-        controller.poll_headless_source(1, &mut first_source);
-        controller.poll_headless_source(2, &mut second_source);
+        controller.poll_headless_source(key(1), &mut first_source);
+        controller.poll_headless_source(key(2), &mut second_source);
 
         let TestActionResult::Query(Some(first)) = first.blocking_recv().unwrap() else {
             panic!("first query did not return its snapshot")
@@ -1230,13 +1299,13 @@ mod tests {
     fn finishing_cancels_pending_and_future_actions_without_replacing_the_report() {
         let controller = TestController::default();
         let pending_input = controller.request(TestActionKind::ClickByRole {
-            window_id: 1,
+            window_key: key(1),
             role: "button".into(),
             label: "Late action".into(),
             index: None,
         });
         let pending_query = controller.request(TestActionKind::QueryByRole {
-            window_id: 1,
+            window_key: key(1),
             role: "textbox".into(),
             label: "Late query".into(),
             index: None,
@@ -1253,7 +1322,7 @@ mod tests {
             Ok(TestActionResult::Query(None))
         ));
 
-        let future = controller.request(TestActionKind::WaitForIdle(1));
+        let future = controller.request(TestActionKind::WaitForIdle(key(1)));
         assert!(matches!(
             future.blocking_recv(),
             Ok(TestActionResult::Handled(false))
