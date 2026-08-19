@@ -156,7 +156,21 @@ impl TextContext {
         for line in layout.lines() {
             for item in line.items() {
                 if let PositionedLayoutItem::GlyphRun(gr) = item {
-                    let font_data = gr.run().font().clone();
+                    let run = gr.run();
+                    let font_data = run.font().clone();
+                    let glyph_transform = run
+                        .synthesis()
+                        .skew()
+                        .map(|angle| Affine::skew(angle.to_radians().tan() as f64, 0.0));
+                    let synthesis = run.synthesis();
+                    let embolden = if synthesis.embolden() {
+                        // Match the conventional FreeType synthetic-bold
+                        // strength of roughly one twenty-fourth of an em.
+                        let amount = f64::from(run.font_size()) * device_scale / 24.0;
+                        vello::FontEmbolden::new(vello::kurbo::Diagonal2::new(amount, amount))
+                    } else {
+                        vello::FontEmbolden::default()
+                    };
                     let glyphs: Vec<VelloGlyph> = gr
                         .positioned_glyphs()
                         .map(|g| VelloGlyph {
@@ -168,7 +182,10 @@ impl TextContext {
                     if !glyphs.is_empty() {
                         scene
                             .draw_glyphs(&font_data)
-                            .font_size(gr.run().font_size() * device_scale as f32)
+                            .font_size(run.font_size() * device_scale as f32)
+                            .normalized_coords(run.normalized_coords())
+                            .glyph_transform(glyph_transform)
+                            .font_embolden(embolden)
                             // Vello defaults glyph hinting to false. Request it
                             // here so uniform device-scale transforms are folded
                             // into the physical font size and stems align to the
