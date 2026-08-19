@@ -21,7 +21,8 @@ pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
     HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostService,
-    JsonCapability, Result, ShellExtension, WindowMetrics, WindowOptions, widget_api,
+    JsonCapability, Result, ShellExtension, WindowMetrics, WindowOptions, WindowResourceKey,
+    initial_window_resource_key, widget_api,
 };
 
 #[cfg(test)]

@@ -132,8 +132,8 @@ export function DownloadsPage() {
       ),
   );
   return (
-    <View class="flex flex-col gap-5">
-      <View class="flex items-center justify-between">
+    <View class="h-full min-h-0 flex flex-col gap-5">
+      <View class="flex-none flex items-center justify-between">
         <View class="flex items-center gap-3">
           <Text role="heading" class="text-3xl font-bold">
             All Downloads
@@ -201,7 +201,7 @@ export function DownloadsPage() {
           </View>
         </View>
       </View>
-      <View class="flex items-center justify-between">
+      <View class="flex-none flex items-center justify-between">
         <View class="flex gap-2">
           <For each={filters}>
             {([value, label]) => (
@@ -273,10 +273,10 @@ export function DownloadsPage() {
           <Text class="text-sm text-danger-primary">{actionError()}</Text>
         </View>
       </Show>
-      <View class="flex items-start gap-4">
-        <Card class="min-w-0 flex-1 rounded-xl shadow-lg">
-          <CardContent class="p-0">
-            <View class="h-11 px-4 flex items-center border-b border-subtle bg-surface-muted">
+      <View class="min-h-0 flex-1 flex items-stretch gap-4">
+        <Card class="min-w-0 h-full flex-1 rounded-xl shadow-lg">
+          <CardContent class="h-full min-h-0 p-0 flex flex-col">
+            <View class="h-11 flex-none px-4 flex items-center border-b border-subtle bg-surface-muted">
               <View class="w-9 flex-none">
                 <Checkbox
                   aria-label="Select all visible downloads"
@@ -302,126 +302,131 @@ export function DownloadsPage() {
               <Text class="w-1/4 text-xs text-muted">PROGRESS</Text>
               <Text class="flex-1 text-xs text-muted">STATUS</Text>
             </View>
-            <For each={shown()}>
-              {(task) => (
-                <View
-                  class={`min-h-20 px-4 flex items-center border-b border-subtle ${selected()?.gid === task.gid ? "bg-selected" : ""}`}
-                  onClick={() => setSelected(task)}
-                >
-                  <View class="w-9 flex-none">
-                    <Checkbox
-                      aria-label={`Select ${task.name}`}
-                      checked={selectedGids().has(task.gid)}
-                      onCheckedChange={(checked) =>
-                        toggleSelected(task.gid, checked)
-                      }
-                    />
-                  </View>
-                  <View class="w-2/5 min-w-0 flex flex-col">
-                    <Text class="truncate font-medium">{task.name}</Text>
-                    <Text class="text-xs text-muted">
-                      {task.bittorrent ? "BitTorrent" : "HTTP"} ·{" "}
-                      {task.fileCount} {task.fileCount === 1 ? "file" : "files"}{" "}
-                      · {task.connections} connections
+            <ScrollArea class="min-h-0 flex-1">
+              <For each={shown()}>
+                {(task) => (
+                  <View
+                    class={`min-h-20 px-4 flex items-center border-b border-subtle ${selected()?.gid === task.gid ? "bg-selected" : ""}`}
+                    onClick={() => setSelected(task)}
+                  >
+                    <View class="w-9 flex-none">
+                      <Checkbox
+                        aria-label={`Select ${task.name}`}
+                        checked={selectedGids().has(task.gid)}
+                        onCheckedChange={(checked) =>
+                          toggleSelected(task.gid, checked)
+                        }
+                      />
+                    </View>
+                    <View class="w-2/5 min-w-0 flex flex-col">
+                      <Text class="truncate font-medium">{task.name}</Text>
+                      <Text class="text-xs text-muted">
+                        {task.bittorrent ? "BitTorrent" : "HTTP"} ·{" "}
+                        {task.fileCount}{" "}
+                        {task.fileCount === 1 ? "file" : "files"} ·{" "}
+                        {task.connections} connections
+                      </Text>
+                    </View>
+                    <Text class="w-1/6 text-sm">
+                      {formatBytes(task.totalLength)}
                     </Text>
-                  </View>
-                  <Text class="w-1/6 text-sm">
-                    {formatBytes(task.totalLength)}
-                  </Text>
-                  <View class="w-1/4 pr-5 flex flex-col gap-1">
-                    <Progress
-                      value={
-                        task.totalLength
-                          ? (task.completedLength / task.totalLength) * 100
-                          : 0
-                      }
-                    />
-                    <Text class="text-xs text-muted">
-                      {formatBytes(task.completedLength)} ·{" "}
-                      {formatBytes(task.downloadSpeed)}/s · {formatEta(task)}
-                    </Text>
-                  </View>
-                  <View class="flex-1">
-                    <Badge
-                      variant={
-                        task.status === "active" ? "default" : "secondary"
-                      }
-                    >
-                      {task.status}
-                    </Badge>
-                  </View>
-                  <View class="flex gap-1">
-                    <Button
-                      aria-label={`Inspect ${task.name}`}
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setSelected(task)}
-                    >
-                      <Icon source={inspect} size={15} />
-                    </Button>
-                    <Show
-                      when={
-                        task.status === "error" &&
-                        !task.bittorrent &&
-                        Boolean(task.uri)
-                      }
-                    >
+                    <View class="w-1/4 pr-5 flex flex-col gap-1">
+                      <Progress
+                        value={
+                          task.totalLength
+                            ? (task.completedLength / task.totalLength) * 100
+                            : 0
+                        }
+                      />
+                      <Text class="text-xs text-muted">
+                        {formatBytes(task.completedLength)} ·{" "}
+                        {formatBytes(task.downloadSpeed)}/s · {formatEta(task)}
+                      </Text>
+                    </View>
+                    <View class="flex-1">
+                      <Badge
+                        variant={
+                          task.status === "active" ? "default" : "secondary"
+                        }
+                      >
+                        {task.status}
+                      </Badge>
+                    </View>
+                    <View class="flex gap-1">
                       <Button
-                        aria-label={`Retry ${task.name}`}
+                        aria-label={`Inspect ${task.name}`}
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setSelected(task)}
+                      >
+                        <Icon source={inspect} size={15} />
+                      </Button>
+                      <Show
+                        when={
+                          task.status === "error" &&
+                          !task.bittorrent &&
+                          Boolean(task.uri)
+                        }
+                      >
+                        <Button
+                          aria-label={`Retry ${task.name}`}
+                          size="icon"
+                          variant="ghost"
+                          onClick={() =>
+                            executeAction(async () => {
+                              await aria2.taskAction(task.gid, "retry");
+                              await aria2.refresh();
+                            })
+                          }
+                        >
+                          <Icon source={retry} size={15} />
+                        </Button>
+                      </Show>
+                      <Button
+                        aria-label={`${task.status === "active" ? "Pause" : "Resume"} ${task.name}`}
                         size="icon"
                         variant="ghost"
                         onClick={() =>
                           executeAction(async () => {
-                            await aria2.taskAction(task.gid, "retry");
+                            await aria2.taskAction(
+                              task.gid,
+                              task.status === "active" ? "pause" : "resume",
+                            );
                             await aria2.refresh();
                           })
                         }
                       >
-                        <Icon source={retry} size={15} />
+                        <Icon
+                          source={task.status === "active" ? pause : play}
+                          size={15}
+                        />
                       </Button>
-                    </Show>
-                    <Button
-                      aria-label={`${task.status === "active" ? "Pause" : "Resume"} ${task.name}`}
-                      size="icon"
-                      variant="ghost"
-                      onClick={() =>
-                        executeAction(async () => {
-                          await aria2.taskAction(
-                            task.gid,
-                            task.status === "active" ? "pause" : "resume",
-                          );
-                          await aria2.refresh();
-                        })
-                      }
-                    >
-                      <Icon
-                        source={task.status === "active" ? pause : play}
-                        size={15}
-                      />
-                    </Button>
-                    <Button
-                      aria-label={`Remove ${task.name}`}
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => requestRemoval([task])}
-                    >
-                      <Icon source={trash} size={15} />
-                    </Button>
+                      <Button
+                        aria-label={`Remove ${task.name}`}
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => requestRemoval([task])}
+                      >
+                        <Icon source={trash} size={15} />
+                      </Button>
+                    </View>
                   </View>
+                )}
+              </For>
+              <Show when={!shown().length}>
+                <View class="h-56 flex items-center justify-center">
+                  <Text class="text-muted">
+                    No downloads match this search.
+                  </Text>
                 </View>
-              )}
-            </For>
-            <Show when={!shown().length}>
-              <View class="h-56 flex items-center justify-center">
-                <Text class="text-muted">No downloads match this search.</Text>
-              </View>
-            </Show>
+              </Show>
+            </ScrollArea>
           </CardContent>
         </Card>
         <Show when={selected()}>
           {(task) => (
-            <Card class="w-80 flex-none rounded-xl shadow-lg">
-              <CardContent class="p-5 flex flex-col gap-4">
+            <Card class="w-80 h-full flex-none rounded-xl shadow-lg">
+              <CardContent class="h-full min-h-0 p-5 flex flex-col gap-4">
                 <View class="flex flex-col gap-1">
                   <Text class="text-xs font-medium text-muted">
                     TASK DETAILS
@@ -604,7 +609,7 @@ export function DownloadsPage() {
           )}
         </Show>
       </View>
-      <View class="h-10 px-4 flex items-center justify-between rounded-lg border border-subtle bg-surface">
+      <View class="h-10 flex-none px-4 flex items-center justify-between rounded-lg border border-subtle bg-surface">
         <View class="flex gap-5">
           <Text class="text-xs text-muted">
             {

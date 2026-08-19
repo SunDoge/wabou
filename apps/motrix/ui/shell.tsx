@@ -181,7 +181,10 @@ export function AppShell(props: { children?: JSX.Element }) {
           </Show>
           <View class="min-w-0 flex-1 flex flex-col overflow-hidden">
             <Show
-              when={location().pathname !== "/"}
+              when={
+                location().pathname !== "/" &&
+                location().pathname !== "/downloads"
+              }
               fallback={
                 <View class="min-h-0 flex-1 overflow-hidden">
                   <View class="w-full min-w-0 h-full max-w-6xl mx-auto px-7 py-5">

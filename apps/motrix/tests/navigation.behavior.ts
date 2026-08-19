@@ -28,6 +28,24 @@ test("Motrix application shortcuts create tasks and toggle the sidebar", async (
   await downloads.waitFor();
 });
 
+test("Motrix closes to its tray and restores the native window", async ({
+  page,
+  window,
+}) => {
+  const key = window.current;
+  await window.nativeClose(key, "wayland");
+  await expect(window).toHaveState(key, {
+    presence: "surface-released",
+    surfaceGeneration: 1,
+  });
+  await window.show(key);
+  await expect(window).toHaveState(key, {
+    presence: "visible",
+    surfaceGeneration: 2,
+  });
+  await page.getByRole("button", { name: "Downloads" }).waitFor();
+});
+
 test(
   "Motrix inspects and safely removes a real aria2 task",
   async ({ page }) => {

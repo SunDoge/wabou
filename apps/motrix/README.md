@@ -37,6 +37,10 @@ Managed aria2 tasks survive application restarts. Motrix initializes an
 and performs `saveSession` followed by a graceful RPC shutdown before falling
 back to terminating the owned process group.
 
+Closing the main window keeps managed downloads running in the system tray.
+Use **Open Motrix** to restore the window or **Quit Motrix** to save the aria2
+session and stop the managed process cleanly.
+
 ## Backend boundary
 
 The intended production boundary is:
