@@ -6,6 +6,8 @@ use wabou::{HostBuilder, WindowOptions};
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
+        .app_directories("dev", "Wabou", "Gallery")
+        .persist_window_size("main")
         .widget("fractal", || Box::new(gallery::fractal::JuliaWidget::new()))
         .window(
             WindowOptions::new()

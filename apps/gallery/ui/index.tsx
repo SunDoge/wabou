@@ -8,6 +8,7 @@ import {
   createDataRouter,
   createMemoryHistory,
   createScrollReset,
+  createWindowMatch,
   Fps,
   type Handle,
   mount,
@@ -235,6 +236,7 @@ import {
 
 function App() {
   const window = useWindow();
+  const compact = createWindowMatch({ maxWidth: 1099 }, window);
   if (window.id.lo !== 1 || window.id.hi !== 1) return <ChildWindowPage />;
   const [theme, setTheme] = createSignal<GalleryTheme>("dark");
   const dark = () => theme() !== "light";
@@ -276,7 +278,12 @@ function App() {
     >
       <ComponentsProvider theme={dark() ? "dark" : "light"}>
         <View class="w-full h-full flex overflow-hidden bg-canvas text-primary font-sans">
-          <View class="w-56 h-full flex-none flex flex-col border-r border-subtle bg-surface-muted">
+          <View
+            class={classes(
+              "h-full flex-none flex flex-col border-r border-subtle bg-surface-muted",
+              compact() ? "w-48" : "w-56",
+            )}
+          >
             <View class="h-14 flex-none px-4 flex items-center gap-3 border-b border-subtle bg-surface">
               <View class="w-8 h-8 flex items-center justify-center rounded-md bg-accent shadow-sm">
                 <Text class="text-sm font-bold text-white">W</Text>
@@ -389,15 +396,22 @@ function App() {
                 <Button size="sm" variant="ghost" onClick={cycleTheme}>
                   {`Theme: ${themeLabel()}`}
                 </Button>
-                <Badge variant="success">Native</Badge>
-                <Badge variant="outline">UnoCSS</Badge>
+                <Show when={!compact()}>
+                  <Badge variant="success">Native</Badge>
+                  <Badge variant="outline">UnoCSS</Badge>
+                </Show>
               </View>
             </View>
             <View
               ref={(node) => (contentViewport = node)}
               class="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto"
             >
-              <View class="w-full max-w-5xl mx-auto px-10 py-8 flex flex-col gap-6">
+              <View
+                class={classes(
+                  "w-full max-w-5xl mx-auto flex flex-col gap-6",
+                  compact() ? "px-5 py-6" : "px-10 py-8",
+                )}
+              >
                 <Show when={selected() !== null}>
                   <View class="flex flex-col gap-2">
                     <Text

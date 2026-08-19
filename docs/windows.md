@@ -35,6 +35,43 @@ The handle can close, minimize, maximize, retitle, or begin dragging that
 specific window. `useWindow()`
 returns the current runtime's reactive metrics plus the same controls.
 
+## Sizing and responsive layout
+
+Treat the native size as a preferred starting point, not as a substitute for
+responsive layout. Window managers may clamp it to the current work area, and
+font metrics differ across platforms. Set a useful initial and minimum client
+area, then adapt optional UI from the reactive logical size:
+
+```rust
+HostBuilder::new()
+    .app_directories("com", "Example", "Workbench")
+    .persist_window_size("main")
+    .window(
+        WindowOptions::new()
+            .initial_inner_size(1280, 840)
+            .min_inner_size(900, 600),
+    )
+    .run()?;
+```
+
+```tsx
+import { createWindowMatch, View } from "@wabou/ui";
+
+function Workspace() {
+  const compact = createWindowMatch({ maxWidth: 1099 });
+  return (
+    <View class={compact() ? "flex flex-col" : "flex flex-row"}>
+      {/* panes */}
+    </View>
+  );
+}
+```
+
+Persisted sizes live under the configured application-local data directory.
+Wabou records only a valid non-maximized logical size, clamps it to the current
+minimum, and restores it before creating the native surface, so startup does
+not visibly resize after JavaScript boots.
+
 ## Custom title bars
 
 Disable native decorations when the window is created, then explicitly start

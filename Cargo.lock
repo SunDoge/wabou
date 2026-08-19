@@ -8019,6 +8019,7 @@ dependencies = [
  "slotmap",
  "snafu",
  "taffy",
+ "tempfile",
  "tracing",
  "unicode-segmentation",
  "url",

@@ -237,6 +237,7 @@ pub struct HostBuilder {
     extensions: Vec<Box<dyn ShellExtension>>,
     effect_trace: Option<EffectTraceConfig>,
     app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
+    persisted_window_size: Option<String>,
 }
 
 impl Default for HostBuilder {
@@ -262,6 +263,7 @@ impl HostBuilder {
             extensions: Vec::new(),
             effect_trace: None,
             app_directory_config: None,
+            persisted_window_size: None,
         }
     }
 
@@ -374,6 +376,24 @@ impl HostBuilder {
         self
     }
 
+    /// Restore and persist the primary window's normal logical size.
+    ///
+    /// This requires [`Self::app_directories`] so the state has a stable,
+    /// application-private location. `key` distinguishes independently sized
+    /// window roles and may contain ASCII letters, numbers, `-`, or `_`.
+    pub fn persist_window_size(mut self, key: impl Into<String>) -> Self {
+        let key = key.into();
+        assert!(
+            !key.is_empty()
+                && key
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')),
+            "window persistence key must contain only ASCII letters, numbers, '-' or '_'"
+        );
+        self.persisted_window_size = Some(key);
+        self
+    }
+
     /// Enable or disable the local, read-only DevTools socket. It defaults to
     /// enabled in debug builds and is absent from release builds unless opted in.
     pub fn devtools(mut self, enabled: bool) -> Self {
@@ -468,6 +488,26 @@ impl HostBuilder {
                 })
             })
             .transpose()?;
+        if let Some(key) = &self.persisted_window_size {
+            if let Some(directories) = &app_directories {
+                let path = directories
+                    .local_data_dir
+                    .join("window-state")
+                    .join(format!("{key}.json"));
+                let persistence = wabou_shell::WindowSizePersistence::restore(
+                    path,
+                    wabou_shell::initial_window_resource_key(0),
+                    &mut self.window,
+                );
+                // Observe close before a tray extension consumes the request.
+                self.extensions.insert(0, Box::new(persistence));
+            } else {
+                tracing::warn!(
+                    key,
+                    "window size persistence requires HostBuilder::app_directories"
+                );
+            }
+        }
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
-import { useWindow } from "./window-metrics";
+import { createWindowMatch, useWindow } from "./window-metrics";
 
 test("window metrics expose one reactive logical coordinate space", () => {
   const window = useWindow();
@@ -26,4 +26,20 @@ test("window metrics expose one reactive logical coordinate space", () => {
   expect(window.scaleFactor()).toBe(2);
   expect(window.maximized()).toBe(true);
   expect(window.metrics().physicalWidth).toBe(1600);
+});
+
+test("native window size queries are reactive and reject invalid ranges", () => {
+  let width = 1000;
+  const window = {
+    ...useWindow(),
+    width: () => width,
+    height: () => 700,
+  };
+  const compact = createWindowMatch({ maxWidth: 1059 }, window);
+  expect(compact()).toBe(true);
+  width = 1200;
+  expect(compact()).toBe(false);
+  expect(() =>
+    createWindowMatch({ minWidth: 900, maxWidth: 800 }, window),
+  ).toThrow("minWidth cannot exceed maxWidth");
 });

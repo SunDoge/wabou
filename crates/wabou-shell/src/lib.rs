@@ -28,6 +28,7 @@ mod system;
 pub mod text;
 pub mod widget;
 pub mod window_lifecycle;
+mod window_state;
 
 pub use app::{
     ExtensionContext, FrameSourceFactory, ShellExtension, run_window, run_window_with_options,
@@ -59,4 +60,5 @@ pub use widget::{
     WidgetEventResult, WidgetFactory, WidgetGeometry, WidgetHarness, WidgetNodeEvent, WidgetStyle,
     decode_widget_config,
 };
+pub use window_state::WindowSizePersistence;
 pub use winit::raw_window_handle;

@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   CardContent,
+  createWindowMatch,
   Fps,
   Icon,
   Kbd,
@@ -13,6 +14,7 @@ import {
   SplitPaneMain,
   Switch,
   Text,
+  useWindow,
   View,
 } from "@wabou/ui";
 import activity from "lucide-static/icons/activity.svg?raw";
@@ -44,6 +46,7 @@ export function OverviewPage(props: {
   onCycleTheme: () => void;
   onExplore: () => void;
 }) {
+  const compact = createWindowMatch({ maxWidth: 1099 }, useWindow());
   const [selectedNode, setSelectedNode] = createSignal("hero");
   const [motion, setMotion] = createSignal(72);
   const [inspectLayout, setInspectLayout] = createSignal(true);
@@ -52,7 +55,13 @@ export function OverviewPage(props: {
 
   return (
     <View class="w-full flex flex-col gap-6">
-      <View class="flex flex-row items-end justify-between gap-6">
+      <View
+        class={
+          compact()
+            ? "flex flex-col items-start gap-4"
+            : "flex flex-row items-end justify-between gap-6"
+        }
+      >
         <View class="min-w-0 flex flex-col gap-3">
           <View class="flex items-center gap-2">
             <Badge variant="success">Native renderer</Badge>
@@ -81,7 +90,9 @@ export function OverviewPage(props: {
 
       <Card class="relative overflow-hidden border-focus bg-surface">
         <CardContent class="p-0">
-          <SplitPane class="min-h-64">
+          <SplitPane
+            class={compact() ? "min-h-64 flex-col" : "min-h-64 flex-row"}
+          >
             <SplitPaneMain class="p-7 flex flex-col justify-between gap-6">
               <View class="flex items-start gap-4">
                 <View class="flex items-center gap-4">
@@ -117,7 +128,13 @@ export function OverviewPage(props: {
               </View>
             </SplitPaneMain>
 
-            <SplitPaneAside class="w-96 p-6 flex flex-col justify-between gap-5 border-l border-subtle bg-surface-muted">
+            <SplitPaneAside
+              class={
+                compact()
+                  ? "w-full p-6 flex flex-col justify-between gap-5 border-t border-subtle bg-surface-muted"
+                  : "w-96 p-6 flex flex-col justify-between gap-5 border-l border-subtle bg-surface-muted"
+              }
+            >
               <View class="flex items-center justify-between">
                 <View class="flex items-center gap-2">
                   <Icon source={activity} size={15} class="text-accent" />
@@ -158,7 +175,7 @@ export function OverviewPage(props: {
         </CardContent>
       </Card>
 
-      <View class="flex flex-row gap-5">
+      <View class={compact() ? "flex flex-col gap-5" : "flex flex-row gap-5"}>
         <Card class="flex-1 min-w-0" shadows={null}>
           <CardContent class="p-0">
             <View class="h-11 px-4 flex items-center justify-between border-b border-subtle bg-surface-muted">
@@ -231,7 +248,7 @@ export function OverviewPage(props: {
           </CardContent>
         </Card>
 
-        <Card class="w-80 flex-none" shadows={null}>
+        <Card class={compact() ? "w-full" : "w-80 flex-none"} shadows={null}>
           <CardContent class="p-5 flex flex-col gap-5">
             <View class="flex items-center gap-2">
               <Icon source={sparkles} size={15} class="text-accent" />

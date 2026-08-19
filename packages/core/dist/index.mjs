@@ -645,6 +645,27 @@ function usePlatformServices() {
 }
 //#endregion
 //#region src/glue/window-metrics.ts
+/**
+* Create a reactive native-window size query without CSS media-query semantics.
+* A zero-sized pre-boot viewport never matches, avoiding a compact-layout flash.
+*/
+function createWindowMatch(query, window = useWindow()) {
+	const entries = [
+		["minWidth", query.minWidth],
+		["maxWidth", query.maxWidth],
+		["minHeight", query.minHeight],
+		["maxHeight", query.maxHeight]
+	];
+	for (const [name, value] of entries) if (value !== void 0 && (!Number.isFinite(value) || value < 0)) throw new RangeError(`${name} must be a finite non-negative number`);
+	if (query.minWidth !== void 0 && query.maxWidth !== void 0 && query.minWidth > query.maxWidth) throw new RangeError("minWidth cannot exceed maxWidth");
+	if (query.minHeight !== void 0 && query.maxHeight !== void 0 && query.minHeight > query.maxHeight) throw new RangeError("minHeight cannot exceed maxHeight");
+	return () => {
+		const width = window.width();
+		const height = window.height();
+		if (width <= 0 || height <= 0) return false;
+		return (query.minWidth === void 0 || width >= query.minWidth) && (query.maxWidth === void 0 || width <= query.maxWidth) && (query.minHeight === void 0 || height >= query.minHeight) && (query.maxHeight === void 0 || height <= query.maxHeight);
+	};
+}
 const initial = {
 	windowId: windowKeyFromJSON({
 		lo: globalThis.__wabou_window_id_lo ?? 1,
@@ -962,6 +983,6 @@ function showNativeMenu(options) {
 	});
 }
 //#endregion
-export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useHost, useNotification, useWindow, writer };
+export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useHost, useNotification, useWindow, writer };
 
 //# sourceMappingURL=index.mjs.map

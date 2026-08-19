@@ -28,6 +28,61 @@ export interface WindowState extends WindowHandle {
   focused: Accessor<boolean>;
 }
 
+/** Inclusive logical-pixel constraints evaluated against the native client area. */
+export interface WindowSizeQuery {
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+}
+
+/**
+ * Create a reactive native-window size query without CSS media-query semantics.
+ * A zero-sized pre-boot viewport never matches, avoiding a compact-layout flash.
+ */
+export function createWindowMatch(
+  query: WindowSizeQuery,
+  window: WindowState = useWindow(),
+): Accessor<boolean> {
+  const entries = [
+    ["minWidth", query.minWidth],
+    ["maxWidth", query.maxWidth],
+    ["minHeight", query.minHeight],
+    ["maxHeight", query.maxHeight],
+  ] as const;
+  for (const [name, value] of entries) {
+    if (value !== undefined && (!Number.isFinite(value) || value < 0)) {
+      throw new RangeError(`${name} must be a finite non-negative number`);
+    }
+  }
+  if (
+    query.minWidth !== undefined &&
+    query.maxWidth !== undefined &&
+    query.minWidth > query.maxWidth
+  ) {
+    throw new RangeError("minWidth cannot exceed maxWidth");
+  }
+  if (
+    query.minHeight !== undefined &&
+    query.maxHeight !== undefined &&
+    query.minHeight > query.maxHeight
+  ) {
+    throw new RangeError("minHeight cannot exceed maxHeight");
+  }
+
+  return () => {
+    const width = window.width();
+    const height = window.height();
+    if (width <= 0 || height <= 0) return false;
+    return (
+      (query.minWidth === undefined || width >= query.minWidth) &&
+      (query.maxWidth === undefined || width <= query.maxWidth) &&
+      (query.minHeight === undefined || height >= query.minHeight) &&
+      (query.maxHeight === undefined || height <= query.maxHeight)
+    );
+  };
+}
+
 const initial: WindowMetrics = {
   windowId: windowKeyFromJSON({
     lo:

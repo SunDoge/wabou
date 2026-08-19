@@ -1065,6 +1065,14 @@ pub struct ExtensionContext<'a> {
 }
 
 impl ExtensionContext<'_> {
+    /// Return the latest logical and physical metrics for a visible window.
+    pub fn window_metrics(&self, window_key: WindowResourceKey) -> Option<WindowMetrics> {
+        self.windows
+            .values()
+            .find(|app| app.window_key == window_key)
+            .map(|app| app.window_metrics)
+    }
+
     /// Return the latest immutable semantic snapshot for a visible window.
     ///
     /// Extensions should treat values as potentially sensitive and avoid
@@ -1373,6 +1381,14 @@ pub trait ShellExtension {
         _context: &mut ExtensionContext<'_>,
     ) -> bool {
         false
+    }
+
+    /// Observe an authoritative native size or scale transition.
+    fn window_metrics_changed(
+        &mut self,
+        _window_key: WindowResourceKey,
+        _context: &mut ExtensionContext<'_>,
+    ) {
     }
 
     /// Handle a pointer button before it is dispatched into the UI tree.
@@ -1712,6 +1728,10 @@ impl ApplicationHandler for MultiWindowApp {
             }
             return;
         }
+        let metrics_changed = matches!(
+            &event,
+            WindowEvent::SurfaceResized(_) | WindowEvent::ScaleFactorChanged { .. }
+        );
         if let WindowEvent::PointerButton { state, button, .. } = &event {
             let Some(window_key) = self.windows.get(&window_id).map(|app| app.window_key) else {
                 return;
@@ -1736,6 +1756,15 @@ impl ApplicationHandler for MultiWindowApp {
         }
         if let Some(app) = self.windows.get_mut(&window_id) {
             app.window_event(event_loop, window_id, event);
+        }
+        if metrics_changed
+            && let Some(window_key) = self.windows.get(&window_id).map(|app| app.window_key)
+        {
+            let mut context =
+                Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
+            for extension in &mut self.extensions {
+                extension.window_metrics_changed(window_key, &mut context);
+            }
         }
         self.apply_extension_effects(event_loop);
         self.apply_window_requests(event_loop);

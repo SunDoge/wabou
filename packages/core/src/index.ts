@@ -112,7 +112,9 @@ export {
   type WindowHandle,
 } from "./glue/window";
 export {
+  createWindowMatch,
   useWindow,
   type WindowMetrics,
+  type WindowSizeQuery,
   type WindowState,
 } from "./glue/window-metrics";
