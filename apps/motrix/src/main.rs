@@ -1,6 +1,9 @@
 mod activity;
 mod aria2;
 mod config;
+mod nat;
+mod task_archive;
+mod torrent;
 
 use snafu::{OptionExt, ResultExt, Whatever};
 use wabou::{

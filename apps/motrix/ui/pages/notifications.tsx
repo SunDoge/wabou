@@ -7,10 +7,10 @@ import { useAria2 } from "../aria2";
 export function NotificationsPage() {
   const aria2 = useAria2();
   return (
-    <View class="flex flex-col gap-5">
+    <View class="flex flex-col gap-4">
       <View class="flex items-center justify-between">
         <View class="flex items-center gap-3">
-          <Text role="heading" class="text-3xl font-bold">
+          <Text role="heading" class="text-2xl font-bold">
             Notifications
           </Text>
           <Badge variant="outline">{aria2.events().length}</Badge>
@@ -27,7 +27,7 @@ export function NotificationsPage() {
         <CardContent class="p-0">
           <For each={aria2.events()}>
             {(event) => (
-              <View class="min-h-16 px-5 flex items-center gap-4 border-b border-subtle">
+              <View class="min-h-14 px-4 flex items-center gap-3 border-b border-subtle">
                 <View
                   class={`w-9 h-9 rounded-full flex items-center justify-center ${event.status === "complete" ? "bg-success-surface" : "bg-danger-surface"}`}
                 >

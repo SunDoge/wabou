@@ -5,6 +5,7 @@ import {
   createSignal,
   type JSX,
   onCleanup,
+  untrack,
   useContext,
 } from "solid-js";
 
@@ -107,8 +108,8 @@ function topmostLayer(): OpenLayer | undefined {
 export function createOverlayLayer(options: OverlayLayerOptions): OverlayLayer {
   const token = Symbol("wabou-overlay-layer");
   const plane = () => options.plane?.() ?? "floating";
-  let wasOpen = options.open();
-  let activePlane = plane();
+  let wasOpen = untrack(options.open);
+  let activePlane = untrack(plane);
   const [zIndex, setZIndex] = createSignal(
     wasOpen ? pushLayer(token, activePlane) : 0,
   );

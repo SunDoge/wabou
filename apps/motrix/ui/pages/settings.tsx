@@ -21,6 +21,7 @@ import radio from "lucide-static/icons/radio-tower.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import sliders from "lucide-static/icons/sliders-horizontal.svg?raw";
 import { createSignal, For, Show } from "solid-js";
+import type { MotrixSpeedProfile } from "../aria2";
 import { useAria2 } from "../aria2";
 
 type SettingsSection =
@@ -56,8 +57,29 @@ export function SettingsPage() {
   );
   const [endpoint, setEndpoint] = createSignal(initialConfig.externalEndpoint);
   const [secret, setSecret] = createSignal(initialConfig.externalSecret);
+  const [proxyEnabled, setProxyEnabled] = createSignal(
+    initialConfig.proxy.enabled,
+  );
+  const [proxyHost, setProxyHost] = createSignal(initialConfig.proxy.host);
+  const [proxyPort, setProxyPort] = createSignal(
+    String(initialConfig.proxy.port),
+  );
+  const [proxyBypass, setProxyBypass] = createSignal(
+    initialConfig.proxy.bypass.join(", "),
+  );
+  const [natEnabled, setNatEnabled] = createSignal(initialConfig.natEnabled);
+  const [natProtocol, setNatProtocol] = createSignal(initialConfig.natProtocol);
   const [downloadDir, setDownloadDir] = createSignal(initialConfig.downloadDir);
   const [split, setSplit] = createSignal(String(initialConfig.split));
+  const [connectionsPerServer, setConnectionsPerServer] = createSignal(
+    String(initialConfig.maxConnectionPerServer),
+  );
+  const [minSplitSize, setMinSplitSize] = createSignal(
+    initialConfig.minSplitSize,
+  );
+  const [fileAllocation, setFileAllocation] = createSignal(
+    initialConfig.fileAllocation,
+  );
   const [concurrent, setConcurrent] = createSignal(
     String(initialConfig.maxConcurrentDownloads),
   );
@@ -67,7 +89,25 @@ export function SettingsPage() {
   const [uploadLimit, setUploadLimit] = createSignal(
     initialConfig.maxOverallUploadLimit,
   );
+  const [speedProfiles, setSpeedProfiles] = createSignal<MotrixSpeedProfile[]>(
+    initialConfig.speedProfiles.map((profile) => ({ ...profile })),
+  );
   const [userAgent, setUserAgent] = createSignal(initialConfig.userAgent);
+  const [dhtEnabled, setDhtEnabled] = createSignal(initialConfig.dhtEnabled);
+  const [pexEnabled, setPexEnabled] = createSignal(initialConfig.pexEnabled);
+  const [btMaxPeers, setBtMaxPeers] = createSignal(
+    String(initialConfig.btMaxPeers),
+  );
+  const [listenPort, setListenPort] = createSignal(
+    String(initialConfig.listenPort),
+  );
+  const [dhtListenPort, setDhtListenPort] = createSignal(
+    String(initialConfig.dhtListenPort),
+  );
+  const [seedRatio, setSeedRatio] = createSignal(
+    String(initialConfig.seedRatio),
+  );
+  const [seedTime, setSeedTime] = createSignal(String(initialConfig.seedTime));
   const [notifyComplete, setNotifyComplete] = createSignal(
     initialConfig.notifyOnComplete,
   );
@@ -89,6 +129,17 @@ export function SettingsPage() {
   const [message, setMessage] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
+  const updateSpeedProfile = (
+    index: number,
+    field: keyof MotrixSpeedProfile,
+    value: string,
+  ) =>
+    setSpeedProfiles((profiles) =>
+      profiles.map((profile, position) =>
+        position === index ? { ...profile, [field]: value } : profile,
+      ),
+    );
+
   const save = async () => {
     setBusy(true);
     setMessage("Saving…");
@@ -101,6 +152,10 @@ export function SettingsPage() {
         externalSecret: secret(),
         downloadDir: downloadDir().trim(),
         split: Number.parseInt(split(), 10) || 16,
+        maxConnectionPerServer:
+          Number.parseInt(connectionsPerServer(), 10) || 16,
+        minSplitSize: minSplitSize().trim() || "20M",
+        fileAllocation: fileAllocation(),
         maxConcurrentDownloads: Number.parseInt(concurrent(), 10) || 5,
         notifyOnComplete: notifyComplete(),
         notifyOnError: notifyError(),
@@ -109,7 +164,26 @@ export function SettingsPage() {
         warnBeforeQuit: warnBeforeQuit(),
         maxOverallDownloadLimit: downloadLimit().trim() || "0",
         maxOverallUploadLimit: uploadLimit().trim() || "0",
+        speedProfiles: speedProfiles(),
         userAgent: userAgent().trim() || "Motrix-Wabou/0.1",
+        dhtEnabled: dhtEnabled(),
+        pexEnabled: pexEnabled(),
+        btMaxPeers: Number.parseInt(btMaxPeers(), 10) || 128,
+        listenPort: Number.parseInt(listenPort(), 10) || 6881,
+        dhtListenPort: Number.parseInt(dhtListenPort(), 10) || 6881,
+        natEnabled: natEnabled(),
+        natProtocol: natProtocol(),
+        seedRatio: Number.parseFloat(seedRatio()) || 0,
+        seedTime: Number.parseInt(seedTime(), 10) || 0,
+        proxy: {
+          enabled: proxyEnabled(),
+          host: proxyHost().trim(),
+          port: Number.parseInt(proxyPort(), 10) || 8080,
+          bypass: proxyBypass()
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(Boolean),
+        },
       });
       await aria2.refresh();
       setMessage("Settings saved and engine connection updated.");
@@ -151,10 +225,10 @@ export function SettingsPage() {
   };
 
   return (
-    <View class="min-w-0 flex flex-col gap-5">
+    <View class="min-w-0 flex flex-col gap-4">
       <View class="flex items-center justify-between">
         <View class="flex flex-col gap-1">
-          <Text role="heading" class="text-3xl font-bold">
+          <Text role="heading" class="text-2xl font-bold">
             Settings
           </Text>
           <Text class="text-sm text-muted">
@@ -166,21 +240,21 @@ export function SettingsPage() {
         </Badge>
       </View>
 
-      <View class="grid grid-cols-4 gap-3">
+      <View class="grid grid-cols-4 gap-2">
         <For each={settingsItems}>
           {([id, name, detail, icon]) => (
             <Button
               aria-label={`Configure ${name}`}
               variant="ghost"
-              class={`min-w-0 h-auto p-0 justify-start rounded-xl ${section() === id ? "bg-selected" : ""}`}
+              class={`min-w-0 h-20 p-0 justify-start rounded-xl ${section() === id ? "bg-selected" : ""}`}
               onClick={() => setSection(id)}
             >
-              <Card class="w-full min-w-0">
-                <CardContent class="p-4 flex items-center gap-3">
+              <Card class="w-full min-w-0 h-full">
+                <CardContent class="h-full p-3 flex flex-row items-center gap-2">
                   <View
-                    class={`w-10 h-10 flex-none rounded-lg flex items-center justify-center ${section() === id ? "bg-accent text-on-accent" : "bg-control text-accent"}`}
+                    class={`w-8 h-8 flex-none rounded-lg flex items-center justify-center ${section() === id ? "bg-accent text-on-accent" : "bg-control text-accent"}`}
                   >
-                    <Icon source={icon} size={20} />
+                    <Icon source={icon} size={17} />
                   </View>
                   <View class="min-w-0 flex flex-col items-start gap-1">
                     <Text class="font-semibold">{name}</Text>
@@ -194,7 +268,7 @@ export function SettingsPage() {
       </View>
 
       <Card class="rounded-xl shadow-lg">
-        <CardContent class="p-5 flex flex-col gap-5">
+        <CardContent class="p-4 flex flex-col gap-4">
           <Show when={section() === "general"}>
             <SectionHeading
               title="General"
@@ -302,6 +376,26 @@ export function SettingsPage() {
                   onInput={(event) => setConcurrent(event.currentTarget.value)}
                 />
               </FieldLabel>
+              <FieldLabel label="Connections per server">
+                <Input
+                  aria-label="Connections per server"
+                  value={connectionsPerServer()}
+                  placeholder="16"
+                  onInput={(event) =>
+                    setConnectionsPerServer(event.currentTarget.value)
+                  }
+                />
+              </FieldLabel>
+              <FieldLabel label="Minimum split size">
+                <Input
+                  aria-label="Minimum split size"
+                  value={minSplitSize()}
+                  placeholder="20M"
+                  onInput={(event) =>
+                    setMinSplitSize(event.currentTarget.value)
+                  }
+                />
+              </FieldLabel>
               <FieldLabel label="Download limit">
                 <Input
                   aria-label="Maximum download speed"
@@ -328,6 +422,113 @@ export function SettingsPage() {
                   onInput={(event) => setUserAgent(event.currentTarget.value)}
                 />
               </FieldLabel>
+              <FieldLabel label="File allocation">
+                <View class="grid grid-cols-4 gap-2">
+                  <For each={["none", "prealloc", "trunc", "falloc"] as const}>
+                    {(value) => (
+                      <Button
+                        aria-label={`Use ${value} file allocation`}
+                        variant={
+                          fileAllocation() === value ? "default" : "outline"
+                        }
+                        onClick={() => setFileAllocation(value)}
+                      >
+                        {value}
+                      </Button>
+                    )}
+                  </For>
+                </View>
+              </FieldLabel>
+            </View>
+            <View class="w-full flex flex-col gap-3 rounded-xl border border-subtle bg-surface p-4">
+              <View class="flex items-center justify-between gap-3">
+                <View class="flex flex-col gap-1">
+                  <Text class="font-semibold">Speed profiles</Text>
+                  <Text class="text-xs text-muted">
+                    Save paired download and upload limits for one-click use on
+                    the Dashboard.
+                  </Text>
+                </View>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={speedProfiles().length >= 8}
+                  onClick={() =>
+                    setSpeedProfiles((profiles) => [
+                      ...profiles,
+                      {
+                        name: `Profile ${profiles.length + 1}`,
+                        downloadLimit: "0",
+                        uploadLimit: "0",
+                      },
+                    ])
+                  }
+                >
+                  Add profile
+                </Button>
+              </View>
+              <View class="grid grid-cols-4 gap-2">
+                <Text class="text-xs font-semibold text-muted">Name</Text>
+                <Text class="text-xs font-semibold text-muted">Download</Text>
+                <Text class="text-xs font-semibold text-muted">Upload</Text>
+                <Text class="text-xs font-semibold text-muted">Action</Text>
+                <For each={speedProfiles()}>
+                  {(profile, index) => (
+                    <>
+                      <Input
+                        aria-label={`Speed profile ${index() + 1} name`}
+                        value={profile.name}
+                        onInput={(event) =>
+                          updateSpeedProfile(
+                            index(),
+                            "name",
+                            event.currentTarget.value,
+                          )
+                        }
+                      />
+                      <Input
+                        aria-label={`${profile.name || `Profile ${index() + 1}`} download limit`}
+                        value={profile.downloadLimit}
+                        placeholder="0 or 10M"
+                        onInput={(event) =>
+                          updateSpeedProfile(
+                            index(),
+                            "downloadLimit",
+                            event.currentTarget.value,
+                          )
+                        }
+                      />
+                      <Input
+                        aria-label={`${profile.name || `Profile ${index() + 1}`} upload limit`}
+                        value={profile.uploadLimit}
+                        placeholder="0 or 1M"
+                        onInput={(event) =>
+                          updateSpeedProfile(
+                            index(),
+                            "uploadLimit",
+                            event.currentTarget.value,
+                          )
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={speedProfiles().length === 1}
+                        aria-label={`Remove ${profile.name || `profile ${index() + 1}`}`}
+                        onClick={() =>
+                          setSpeedProfiles((profiles) =>
+                            profiles.filter(
+                              (_profile, position) => position !== index(),
+                            ),
+                          )
+                        }
+                      >
+                        Remove
+                      </Button>
+                    </>
+                  )}
+                </For>
+              </View>
             </View>
             <Text class="text-xs text-muted">
               aria2 accepts values such as 512K and 10M. Use 0 for unlimited.
@@ -339,6 +540,60 @@ export function SettingsPage() {
               title="BitTorrent"
               detail="Tracker lists are maintained separately so large lists remain easy to review."
             />
+            <View class="w-full min-w-0 grid grid-cols-2 gap-4">
+              <Switch
+                label="Enable DHT peer discovery"
+                checked={dhtEnabled()}
+                onCheckedChange={setDhtEnabled}
+              />
+              <Switch
+                label="Enable peer exchange (PEX)"
+                checked={pexEnabled()}
+                onCheckedChange={setPexEnabled}
+              />
+              <FieldLabel label="Maximum peers per torrent">
+                <Input
+                  aria-label="Maximum peers per torrent"
+                  value={btMaxPeers()}
+                  placeholder="128"
+                  onInput={(event) => setBtMaxPeers(event.currentTarget.value)}
+                />
+              </FieldLabel>
+              <FieldLabel label="BT listen port">
+                <Input
+                  aria-label="BT listen port"
+                  value={listenPort()}
+                  placeholder="6881"
+                  onInput={(event) => setListenPort(event.currentTarget.value)}
+                />
+              </FieldLabel>
+              <FieldLabel label="DHT listen port">
+                <Input
+                  aria-label="DHT listen port"
+                  value={dhtListenPort()}
+                  placeholder="6881"
+                  onInput={(event) =>
+                    setDhtListenPort(event.currentTarget.value)
+                  }
+                />
+              </FieldLabel>
+              <FieldLabel label="Seed ratio">
+                <Input
+                  aria-label="Seed ratio"
+                  value={seedRatio()}
+                  placeholder="1.0"
+                  onInput={(event) => setSeedRatio(event.currentTarget.value)}
+                />
+              </FieldLabel>
+              <FieldLabel label="Seed time (minutes)">
+                <Input
+                  aria-label="Seed time in minutes"
+                  value={seedTime()}
+                  placeholder="60"
+                  onInput={(event) => setSeedTime(event.currentTarget.value)}
+                />
+              </FieldLabel>
+            </View>
             <View class="p-4 flex items-center justify-between rounded-lg border border-subtle bg-surface-muted">
               <View class="flex flex-col gap-1">
                 <Text class="font-medium">
@@ -455,6 +710,118 @@ export function SettingsPage() {
               WABOU_ARIA2_URL and WABOU_ARIA2_SECRET override saved values for
               the current launch.
             </Text>
+            <View class="border-t border-subtle" />
+            <View class="flex items-center justify-between">
+              <View class="flex flex-col gap-1">
+                <Text class="font-semibold">Incoming peer connections</Text>
+                <Text class="text-xs text-muted">
+                  Maintain TCP and UDP mappings for the configured BT and DHT
+                  ports.
+                </Text>
+              </View>
+              <Switch
+                label="Enable automatic port mapping"
+                checked={natEnabled()}
+                onCheckedChange={setNatEnabled}
+              />
+            </View>
+            <Show when={natEnabled()}>
+              <View class="grid grid-cols-4 gap-2">
+                <For
+                  each={
+                    [
+                      ["auto", "Automatic"],
+                      ["pcp", "PCP"],
+                      ["natPmp", "NAT-PMP"],
+                      ["upnp", "UPnP"],
+                    ] as const
+                  }
+                >
+                  {([value, label]) => (
+                    <Button
+                      size="sm"
+                      variant={natProtocol() === value ? "default" : "outline"}
+                      onClick={() => setNatProtocol(value)}
+                    >
+                      {label}
+                    </Button>
+                  )}
+                </For>
+              </View>
+              <View
+                role="status"
+                aria-label="Port mapping status"
+                class="p-3 flex flex-col gap-1 rounded-lg bg-surface-muted"
+              >
+                <View class="flex items-center justify-between">
+                  <Text class="text-sm font-medium">Port mapping</Text>
+                  <Badge
+                    variant={
+                      snapshot().nat.state === "mapped"
+                        ? "success"
+                        : "secondary"
+                    }
+                  >
+                    {snapshot().nat.state}
+                  </Badge>
+                </View>
+                <Text class="text-xs text-muted">
+                  TCP {snapshot().nat.tcpExternalAddress ?? "discovering"} · UDP{" "}
+                  {snapshot().nat.udpExternalAddress ?? "discovering"}
+                </Text>
+                <Show when={snapshot().nat.dhtExternalAddress}>
+                  {(address) => (
+                    <Text class="text-xs text-muted">DHT UDP {address()}</Text>
+                  )}
+                </Show>
+              </View>
+            </Show>
+            <View class="border-t border-subtle" />
+            <View class="flex items-center justify-between">
+              <View class="flex flex-col gap-1">
+                <Text class="font-semibold">Download proxy</Text>
+                <Text class="text-xs text-muted">
+                  Route aria2 downloads through an explicit proxy.
+                </Text>
+              </View>
+              <Switch
+                label="Enable download proxy"
+                checked={proxyEnabled()}
+                onCheckedChange={setProxyEnabled}
+              />
+            </View>
+            <Show when={proxyEnabled()}>
+              <Text class="text-xs text-muted">
+                aria2 uses an HTTP forward proxy for HTTP, HTTPS, and FTP
+                downloads.
+              </Text>
+              <View class="w-full min-w-0 grid grid-cols-2 gap-3">
+                <FieldLabel label="Proxy host">
+                  <Input
+                    aria-label="Proxy host"
+                    value={proxyHost()}
+                    placeholder="127.0.0.1"
+                    onInput={(event) => setProxyHost(event.currentTarget.value)}
+                  />
+                </FieldLabel>
+                <FieldLabel label="Proxy port">
+                  <Input
+                    aria-label="Proxy port"
+                    value={proxyPort()}
+                    placeholder="8080"
+                    onInput={(event) => setProxyPort(event.currentTarget.value)}
+                  />
+                </FieldLabel>
+              </View>
+              <FieldLabel label="Bypass hosts">
+                <Input
+                  aria-label="Proxy bypass hosts"
+                  value={proxyBypass()}
+                  placeholder="localhost, 127.0.0.1"
+                  onInput={(event) => setProxyBypass(event.currentTarget.value)}
+                />
+              </FieldLabel>
+            </Show>
           </Show>
 
           <Show when={section() === "advanced"}>
@@ -545,7 +912,7 @@ export function SettingsPage() {
 function SectionHeading(props: { title: string; detail: string }) {
   return (
     <View class="flex flex-col gap-1">
-      <Text class="text-xl font-semibold">{props.title}</Text>
+      <Text class="text-lg font-semibold">{props.title}</Text>
       <Text class="whitespace-normal text-sm text-muted">{props.detail}</Text>
     </View>
   );

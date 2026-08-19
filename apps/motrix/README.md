@@ -6,13 +6,26 @@ checkout. It exercises a realistic desktop-download-manager surface rather
 than serving as a component-only demo.
 
 The current implementation includes routed Dashboard, Downloads, Trackers,
-Plugins, Notifications, and Settings surfaces; URL and torrent task creation;
-search, status filters, task inspection with file/tracker/peer details, batch
-actions, task-row native context menus, and optional system-Trash removal of
-downloaded files; revisioned Rust-to-JavaScript task patches; live RPC speed
-charts; a persistent 84-day transfer heatmap; tracker synchronization; native
-completion/error notifications; light/dark/follow-system themes; and an optional in-app
-confirmation before terminating active downloads.
+Plugins, Notifications, and Settings surfaces; URL task creation and torrent
+metadata preview with pre-download file selection;
+search, status filters, task inspection with file/peer details, a bounded
+single-path BitTorrent piece map, and editable per-task trackers; batch
+actions, waiting-queue reordering, per-task speed limits, task-row native
+context menus, advanced HTTP request options, and optional system-Trash removal
+of downloaded files; durable Stop Seeding and Re-seed for completed torrents;
+revisioned Rust-to-JavaScript task patches; animated live
+RPC speed charts; a persistent year-long transfer heatmap; tracker synchronization; native
+and in-app completion/error notifications; configurable BT/DHT listen ports;
+automatic PCP/NAT-PMP/UPnP port mapping with network-change renewal;
+editable paired download/upload speed profiles;
+light/dark/follow-system themes; and an optional in-app confirmation before
+terminating active downloads.
+
+Desktop shortcuts follow the official Motrix conventions: `Primary+N` creates
+a URL task, `Primary+Shift+N` or `Primary+O` opens torrent creation,
+`Primary+L` opens Downloads, `Primary+,` opens Settings, and
+`Primary+Shift+P` / `Primary+Shift+R` pause or resume all tasks. `Primary+B`
+toggles the sidebar.
 
 ## Run
 

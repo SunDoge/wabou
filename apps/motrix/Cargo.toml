@@ -13,6 +13,7 @@ directories = { workspace = true }
 jiff = { workspace = true }
 open = { workspace = true }
 process-wrap = { version = "9.1.0", features = ["std"] }
+portmapper = "0.19.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 snafu = { workspace = true }

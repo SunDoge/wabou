@@ -93,6 +93,7 @@
         "@wabou/ui": "workspace:*",
         "lucide-static": "1.31.0",
         "solid-js": "2.0.0-rc.0",
+        "ts-pattern": "^5.9.0",
       },
       "devDependencies": {
         "@wabou/test": "workspace:*",
@@ -151,6 +152,16 @@
         "whatwg-url": "^17.1.0",
       },
     },
+    "packages/style-compiler": {
+      "name": "@wabou/style-compiler",
+      "version": "0.1.0-alpha.1",
+      "dependencies": {
+        "@unocss/core": "^66.7.5",
+        "@wabou/unocss-preset": "workspace:*",
+        "unocss": "^66.7.5",
+        "vite": "^6.0.0",
+      },
+    },
     "packages/terminal": {
       "name": "@wabou/terminal",
       "version": "0.1.0-alpha.1",
@@ -179,6 +190,13 @@
         "motion-dom": "^12.43.0",
         "solid-js": "2.0.0-rc.0",
         "ts-pattern": "^5.9.0",
+      },
+    },
+    "packages/unocss-preset": {
+      "name": "@wabou/unocss-preset",
+      "version": "0.1.0-alpha.1",
+      "dependencies": {
+        "@unocss/core": "^66.7.5",
       },
     },
     "packages/vite": {
@@ -666,6 +684,8 @@
 
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
 
+    "@wabou/style-compiler": ["@wabou/style-compiler@workspace:packages/style-compiler"],
+
     "@wabou/terminal": ["@wabou/terminal@workspace:packages/terminal"],
 
     "@wabou/terminal-demo": ["@wabou/terminal-demo@workspace:apps/terminal"],
@@ -673,6 +693,8 @@
     "@wabou/test": ["@wabou/test@workspace:packages/test"],
 
     "@wabou/ui": ["@wabou/ui@workspace:packages/ui"],
+
+    "@wabou/unocss-preset": ["@wabou/unocss-preset@workspace:packages/unocss-preset"],
 
     "@wabou/vite": ["@wabou/vite@workspace:packages/vite"],
 

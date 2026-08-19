@@ -10,7 +10,8 @@
   "dependencies": {
     "@wabou/ui": "workspace:*",
     "lucide-static": "1.31.0",
-    "solid-js": "2.0.0-rc.0"
+    "solid-js": "2.0.0-rc.0",
+    "ts-pattern": "^5.9.0"
   },
   "devDependencies": {
     "@wabou/test": "workspace:*",

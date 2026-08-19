@@ -7,7 +7,9 @@ use std::{
 use jiff::{Span, Timestamp};
 use serde::{Deserialize, Serialize};
 
-const HISTORY_DAYS: usize = 84;
+// Keep a complete 52-week grid. A multiple of seven also makes the UI's
+// week columns stable without padding synthetic days at either edge.
+const HISTORY_DAYS: usize = 364;
 
 #[derive(Debug, Default, Deserialize, Serialize)]
 struct PersistedActivity {

@@ -87,7 +87,7 @@ const read = (value, fallback) => typeof value === "function" ? value() : value 
 * toggled disclosure, hover and selection state.
 */
 function createTransition(target, options = {}) {
-	const [value, setValue] = createSignal(target());
+	const [value, setValue] = createSignal(untrack(target));
 	const [state, setState] = createSignal("idle");
 	let controls;
 	let generation = 0;
@@ -836,8 +836,8 @@ function topmostLayer() {
 function createOverlayLayer(options) {
 	const token = Symbol("wabou-overlay-layer");
 	const plane = () => options.plane?.() ?? "floating";
-	let wasOpen = options.open();
-	let activePlane = plane();
+	let wasOpen = untrack(options.open);
+	let activePlane = untrack(plane);
 	const [zIndex, setZIndex] = createSignal(wasOpen ? pushLayer(token, activePlane) : 0);
 	const restoreFocus = () => {
 		if (options.restoreFocus?.() ?? true) options.returnFocus?.()?.focus();
@@ -1734,4 +1734,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { animate as $, Image as A, rotate2d$1 as B, useOverlayPlane as C, CollapsiblePresence as D, Row as E, Svg as F, Link as G, createPresence as H, Text as I, createPress as J, createButton as K, TextArea as L, PasswordInput as M, Path as N, CodeEditor as O, PathBuilder as P, createAnimationFrame as Q, TextInput as R, createOverlayLayer as S, Column as T, createMeasuredSize as U, translate2d as V, Button as W, createFocus as X, createHover as Y, createFocusWithin as Z, Pulse as _, ScrollArea as a, Modal as b, autoPlacement as c, flip as d, animateKeyframes as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, createTransition as it, NetworkImage as j, Icon as k, computeFloatingPosition as l, size as m, createTabs as n, createPulse as nt, Popover as o, shift as p, createActive as q, createShortcuts as r, createRotation as rt, arrow as s, primitives_exports as t, createLoop as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, View as z };
 
-//# sourceMappingURL=primitives-Boh1u0BU.mjs.map
+//# sourceMappingURL=primitives-CUceJFHh.mjs.map

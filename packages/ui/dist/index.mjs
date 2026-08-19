@@ -1,4 +1,4 @@
-import { $ as animate, A as Image, B as rotate2d$1, D as CollapsiblePresence, E as Row, F as Svg, G as Link, H as createPresence, I as Text, J as createPress, K as createButton, L as TextArea, M as PasswordInput$1, N as Path, O as CodeEditor, P as PathBuilder, Q as createAnimationFrame, R as TextInput, S as createOverlayLayer, T as Column, U as createMeasuredSize, V as translate2d, W as Button$1, X as createFocus, Y as createHover, Z as createFocusWithin, _ as Pulse, a as ScrollArea, b as Modal, et as animateKeyframes, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as createTransition, j as NetworkImage, k as Icon, n as createTabs, nt as createPulse, o as Popover, q as createActive, r as createShortcuts, rt as createRotation, t as primitives_exports, tt as createLoop, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as View } from "./primitives-Boh1u0BU.mjs";
+import { $ as animate, A as Image, B as rotate2d$1, D as CollapsiblePresence, E as Row, F as Svg, G as Link, H as createPresence, I as Text, J as createPress, K as createButton, L as TextArea, M as PasswordInput$1, N as Path, O as CodeEditor, P as PathBuilder, Q as createAnimationFrame, R as TextInput, S as createOverlayLayer, T as Column, U as createMeasuredSize, V as translate2d, W as Button$1, X as createFocus, Y as createHover, Z as createFocusWithin, _ as Pulse, a as ScrollArea, b as Modal, et as animateKeyframes, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as createTransition, j as NetworkImage, k as Icon, n as createTabs, nt as createPulse, o as Popover, q as createActive, r as createShortcuts, rt as createRotation, t as primitives_exports, tt as createLoop, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as View } from "./primitives-CUceJFHh.mjs";
 import { rgba, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -2226,7 +2226,7 @@ function Button(props) {
 	const size = () => local.size ?? "default";
 	return createComponent$1(Button$1, mergeProps(forwarded, {
 		unstyled: true,
-		class: (state) => join("inline-flex flex-none whitespace-nowrap items-center justify-center rounded-md border font-medium", buttonColors(variant(), state), buttonSize(size()), local.class),
+		class: (state) => join("inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium", buttonColors(variant(), state), buttonSize(size()), local.class),
 		style: (state) => ({
 			"border-width": 1,
 			opacity: state.disabled ? .45 : 1,

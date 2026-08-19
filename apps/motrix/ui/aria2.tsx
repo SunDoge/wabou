@@ -24,6 +24,10 @@ export interface Aria2Task {
   seeders?: number;
   errorMessage?: string;
   bittorrent: boolean;
+  /** The host can reconstruct this task from its URI or BitTorrent info hash. */
+  retryable: boolean;
+  /** Completed task retained by Motrix after aria2 stopped seeding it. */
+  archived: boolean;
   fileCount: number;
 }
 
@@ -40,6 +44,15 @@ export interface Aria2Snapshot {
   engineRunning: boolean;
   activity: number[];
   downloadedToday: number;
+  nat: NatStatus;
+}
+
+export interface NatStatus {
+  enabled: boolean;
+  state: "disabled" | "starting" | "mapping" | "mapped" | "error";
+  tcpExternalAddress?: string;
+  udpExternalAddress?: string;
+  dhtExternalAddress?: string;
 }
 
 export interface Aria2SnapshotPatch extends Omit<Aria2Snapshot, "tasks"> {
@@ -78,14 +91,72 @@ export function applySnapshotPatch(
     engineRunning: patch.engineRunning,
     activity: patch.activity,
     downloadedToday: patch.downloadedToday,
+    nat: patch.nat,
     tasks: ordered,
   };
+}
+
+export function terminalTaskTransitions(
+  previousStatuses: Map<string, string>,
+  tasks: readonly Aria2Task[],
+  suppressUnknown: boolean,
+): Array<Aria2Task & { status: "complete" | "error" }> {
+  const currentGids = new Set(tasks.map((task) => task.gid));
+  const terminal: Array<Aria2Task & { status: "complete" | "error" }> = [];
+  for (const task of tasks) {
+    const previous = previousStatuses.get(task.gid);
+    previousStatuses.set(task.gid, task.status);
+    if (
+      previous !== task.status &&
+      !(previous === undefined && suppressUnknown) &&
+      (task.status === "complete" || task.status === "error")
+    )
+      terminal.push(task as Aria2Task & { status: "complete" | "error" });
+  }
+  for (const gid of previousStatuses.keys()) {
+    if (!currentGids.has(gid)) previousStatuses.delete(gid);
+  }
+  return terminal;
+}
+
+export interface TaskSpeedHistory {
+  download: readonly number[];
+  upload: readonly number[];
+}
+
+export type TaskSpeedHistories = Readonly<Record<string, TaskSpeedHistory>>;
+
+export function appendTaskSpeedHistories(
+  current: TaskSpeedHistories,
+  tasks: readonly Aria2Task[],
+  limit = 120,
+): TaskSpeedHistories {
+  const boundedLimit = Math.max(1, Math.floor(limit));
+  return Object.fromEntries(
+    tasks.map((task) => {
+      const previous = current[task.gid] ?? { download: [], upload: [] };
+      return [
+        task.gid,
+        {
+          download: [...previous.download, task.downloadSpeed].slice(
+            -boundedLimit,
+          ),
+          upload: [...previous.upload, task.uploadSpeed].slice(-boundedLimit),
+        },
+      ];
+    }),
+  );
 }
 
 export interface Aria2TaskDetails {
   files: Aria2TaskFile[];
   trackers: string[];
   peers: Aria2TaskPeer[];
+  bitfield: string;
+  pieceLength: number;
+  numPieces: number;
+  maxDownloadLimit: string;
+  maxUploadLimit: string;
 }
 
 export interface Aria2TaskFile {
@@ -111,6 +182,9 @@ export interface MotrixConfig {
   externalSecret: string;
   downloadDir: string;
   split: number;
+  maxConnectionPerServer: number;
+  minSplitSize: string;
+  fileAllocation: "none" | "prealloc" | "trunc" | "falloc";
   maxConcurrentDownloads: number;
   notifyOnComplete: boolean;
   notifyOnError: boolean;
@@ -118,9 +192,33 @@ export interface MotrixConfig {
   newTaskShowDownloading: boolean;
   warnBeforeQuit: boolean;
   btTrackers: string[];
+  dhtEnabled: boolean;
+  pexEnabled: boolean;
+  btMaxPeers: number;
+  listenPort: number;
+  dhtListenPort: number;
+  natEnabled: boolean;
+  natProtocol: "auto" | "pcp" | "natPmp" | "upnp";
+  seedRatio: number;
+  seedTime: number;
   maxOverallDownloadLimit: string;
   maxOverallUploadLimit: string;
+  speedProfiles: MotrixSpeedProfile[];
   userAgent: string;
+  proxy: MotrixProxyConfig;
+}
+
+export interface MotrixSpeedProfile {
+  name: string;
+  downloadLimit: string;
+  uploadLimit: string;
+}
+
+export interface MotrixProxyConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+  bypass: string[];
 }
 
 export interface TaskEvent {
@@ -136,6 +234,7 @@ interface NativeAria2Capability {
   getSnapshot(): string | PromiseLike<string>;
   addUri(request: string): string | PromiseLike<string>;
   addTorrent(request: string): string | PromiseLike<string>;
+  inspectTorrent(request: string): string | PromiseLike<string>;
   taskAction(request: string): string | PromiseLike<string>;
   batchTaskAction(request: string): string | PromiseLike<string>;
   engineAction(request: string): string | PromiseLike<string>;
@@ -146,13 +245,16 @@ interface NativeAria2Capability {
   globalTaskAction(request: string): string | PromiseLike<string>;
   getTaskDetails(request: string): string | PromiseLike<string>;
   setSelectedFiles(request: string): string | PromiseLike<string>;
+  setTaskLimits(request: string): string | PromiseLike<string>;
+  setTaskTrackers(request: string): string | PromiseLike<string>;
+  changeTaskPosition(request: string): string | PromiseLike<string>;
 }
 
 interface Aria2Host extends Host {
   aria2: NativeAria2Capability;
 }
 
-type Aria2Action = "pause" | "resume" | "remove" | "retry";
+type Aria2Action = "pause" | "resume" | "remove" | "retry" | "stopSeeding";
 export interface TaskActionOptions {
   removeFiles?: boolean;
 }
@@ -162,6 +264,7 @@ interface Aria2ContextValue {
   uploadHistory(): readonly number[];
   events(): readonly TaskEvent[];
   quitRequests(): number;
+  taskHistory(gid: string): TaskSpeedHistory;
   clearEvents(): void;
   config(): MotrixConfig;
   addUris(request: AddUrisRequest): Promise<string[]>;
@@ -169,9 +272,21 @@ interface Aria2ContextValue {
     path: string;
     dir?: string;
     split?: number;
+    selectedFiles?: number[];
   }): Promise<string>;
+  inspectTorrent(path: string): Promise<TorrentPreview>;
   taskDetails(gid: string): Promise<Aria2TaskDetails>;
   setSelectedFiles(gid: string, indices: number[]): Promise<Aria2TaskDetails>;
+  setTaskLimits(
+    gid: string,
+    maxDownloadLimit: string,
+    maxUploadLimit: string,
+  ): Promise<Aria2TaskDetails>;
+  setTaskTrackers(gid: string, trackers: string[]): Promise<Aria2TaskDetails>;
+  changeTaskPosition(
+    gid: string,
+    position: "top" | "up" | "down" | "bottom",
+  ): Promise<number>;
   taskAction(
     gid: string,
     action: Aria2Action,
@@ -192,11 +307,26 @@ interface Aria2ContextValue {
   refresh(): Promise<void>;
 }
 
+export interface TorrentFilePreview {
+  index: number;
+  path: string;
+  length: number;
+}
+
+export interface TorrentPreview {
+  name: string;
+  totalLength: number;
+  files: TorrentFilePreview[];
+}
+
 export interface AddUrisRequest {
   uris: string[];
   dir?: string;
   out?: string;
   split?: number;
+  headers?: string[];
+  checksum?: string;
+  proxy?: string;
 }
 
 const disconnected: Aria2Snapshot = {
@@ -209,8 +339,9 @@ const disconnected: Aria2Snapshot = {
   tasks: [],
   managed: false,
   engineRunning: false,
-  activity: Array(84).fill(0),
+  activity: Array(364).fill(0),
   downloadedToday: 0,
+  nat: { enabled: false, state: "disabled" },
 };
 const defaultConfig: MotrixConfig = {
   theme: "light",
@@ -219,6 +350,9 @@ const defaultConfig: MotrixConfig = {
   externalSecret: "",
   downloadDir: "",
   split: 16,
+  maxConnectionPerServer: 16,
+  minSplitSize: "20M",
+  fileAllocation: "none",
   maxConcurrentDownloads: 5,
   notifyOnComplete: true,
   notifyOnError: true,
@@ -230,9 +364,29 @@ const defaultConfig: MotrixConfig = {
     "udp://open.stealth.si:80/announce",
     "udp://tracker.torrent.eu.org:451/announce",
   ],
+  dhtEnabled: true,
+  pexEnabled: true,
+  btMaxPeers: 128,
+  listenPort: 6881,
+  dhtListenPort: 6881,
+  natEnabled: true,
+  natProtocol: "auto",
+  seedRatio: 1,
+  seedTime: 60,
   maxOverallDownloadLimit: "0",
   maxOverallUploadLimit: "0",
+  speedProfiles: [
+    { name: "Unlimited", downloadLimit: "0", uploadLimit: "0" },
+    { name: "Balanced", downloadLimit: "10M", uploadLimit: "1M" },
+    { name: "Saver", downloadLimit: "1M", uploadLimit: "256K" },
+  ],
   userAgent: "Motrix-Wabou/0.1",
+  proxy: {
+    enabled: false,
+    host: "",
+    port: 8080,
+    bypass: ["localhost", "127.0.0.1"],
+  },
 };
 
 const Aria2Context = createContext<Aria2ContextValue>();
@@ -256,8 +410,12 @@ export function Aria2Provider(props: ParentProps) {
     Array(30).fill(0),
   );
   const [events, setEvents] = createSignal<readonly TaskEvent[]>([]);
+  const [taskHistories, setTaskHistories] = createSignal<TaskSpeedHistories>(
+    {},
+  );
   const [quitRequests, setQuitRequests] = createSignal(0);
   const previousStatuses = new Map<string, string>();
+  let statusesSeeded = false;
   const [config, setConfig] = createSignal(defaultConfig);
   const call = async <T,>(
     method: keyof NativeAria2Capability,
@@ -286,14 +444,22 @@ export function Aria2Provider(props: ParentProps) {
     uploadHistory,
     events,
     quitRequests,
+    taskHistory: (gid) => taskHistories()[gid] ?? { download: [], upload: [] },
     clearEvents: () => setEvents([]),
     config,
     refresh,
     addUris: (request) => call("addUri", request),
     addTorrent: (request) => call("addTorrent", request),
+    inspectTorrent: (path) => call("inspectTorrent", { path }),
     taskDetails: (gid) => call("getTaskDetails", { gid }),
     setSelectedFiles: (gid, indices) =>
       call("setSelectedFiles", { gid, indices }),
+    setTaskLimits: (gid, maxDownloadLimit, maxUploadLimit) =>
+      call("setTaskLimits", { gid, maxDownloadLimit, maxUploadLimit }),
+    setTaskTrackers: (gid, trackers) =>
+      call("setTaskTrackers", { gid, trackers }),
+    changeTaskPosition: (gid, position) =>
+      call("changeTaskPosition", { gid, position }),
     taskAction: (gid, action, options) =>
       call("taskAction", {
         gid,
@@ -326,15 +492,16 @@ export function Aria2Provider(props: ParentProps) {
     setSnapshot(next);
     setDownloadHistory((values) => [...values.slice(-29), next.downloadSpeed]);
     setUploadHistory((values) => [...values.slice(-29), next.uploadSpeed]);
-    for (const task of next.tasks) {
-      const previous = previousStatuses.get(task.gid);
-      previousStatuses.set(task.gid, task.status);
-      if (
-        previous === undefined ||
-        previous === task.status ||
-        (task.status !== "complete" && task.status !== "error")
-      )
-        continue;
+    setTaskHistories((current) =>
+      appendTaskSpeedHistories(current, next.tasks),
+    );
+    const terminalTasks = terminalTaskTransitions(
+      previousStatuses,
+      next.tasks,
+      !statusesSeeded,
+    );
+    statusesSeeded = true;
+    for (const task of terminalTasks) {
       const event: TaskEvent = {
         id: Date.now() + events().length,
         gid: task.gid,

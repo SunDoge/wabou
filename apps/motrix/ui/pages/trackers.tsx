@@ -65,10 +65,10 @@ export function TrackersPage() {
     }
   };
   return (
-    <View class="flex flex-col gap-5">
+    <View class="flex flex-col gap-4">
       <View class="flex items-center justify-between">
         <View class="flex items-center gap-3">
-          <Text role="heading" class="text-3xl font-bold">
+          <Text role="heading" class="text-2xl font-bold">
             Trackers
           </Text>
           <Badge variant="outline">{trackers().length}</Badge>
@@ -99,7 +99,7 @@ export function TrackersPage() {
         </View>
       </View>
       <Card>
-        <CardContent class="p-5 flex flex-col gap-4">
+        <CardContent class="p-4 flex flex-col gap-3">
           <Text class="text-sm text-muted">
             One tracker URL per line. Saving updates aria2's global BitTorrent
             tracker option without restarting the managed engine.

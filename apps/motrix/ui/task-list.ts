@@ -3,6 +3,32 @@ import type { Aria2Task } from "./aria2";
 export type TaskFilter = "all" | "active" | "waiting" | "complete" | "stopped";
 export type TaskSort = "queue" | "name" | "size" | "progress" | "speed";
 
+export type RestartTaskAction = "retry" | "reseed";
+export type PrimaryTaskAction = "pause" | "resume" | "stopSeeding";
+
+export function primaryTaskAction(
+  task: Aria2Task,
+): PrimaryTaskAction | undefined {
+  if (task.status === "active" || task.status === "waiting") return "pause";
+  if (task.status === "paused") return "resume";
+  if (task.status === "seeding") return "stopSeeding";
+  return undefined;
+}
+
+export function primaryTaskActionLabel(action: PrimaryTaskAction): string {
+  if (action === "stopSeeding") return "Stop seeding";
+  return action === "pause" ? "Pause" : "Resume";
+}
+
+export function restartTaskAction(
+  task: Aria2Task,
+): RestartTaskAction | undefined {
+  if (!task.retryable) return undefined;
+  if (task.status === "error" || task.status === "removed") return "retry";
+  if (task.status === "complete" && task.bittorrent) return "reseed";
+  return undefined;
+}
+
 export function taskMatchesFilter(
   task: Aria2Task,
   filter: TaskFilter,

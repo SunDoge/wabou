@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
-  applySnapshotPatch,
   type Aria2Snapshot,
   type Aria2SnapshotPatch,
   type Aria2Task,
+  appendTaskSpeedHistories,
+  applySnapshotPatch,
+  terminalTaskTransitions,
 } from "./aria2";
 
 function task(gid: string, downloadSpeed: number): Aria2Task {
@@ -19,6 +21,8 @@ function task(gid: string, downloadSpeed: number): Aria2Task {
     dir: "/downloads",
     connections: 1,
     bittorrent: false,
+    retryable: true,
+    archived: false,
     fileCount: 1,
   };
 }
@@ -34,8 +38,9 @@ function snapshot(): Aria2Snapshot {
     tasks: [task("a", 10), task("b", 20), task("removed", 0)],
     managed: true,
     engineRunning: true,
-    activity: Array(84).fill(0),
+    activity: Array(364).fill(0),
     downloadedToday: 0,
+    nat: { enabled: false, state: "disabled" },
   };
 }
 
@@ -50,8 +55,13 @@ function patch(): Aria2SnapshotPatch {
     uploadSpeed: 0,
     managed: true,
     engineRunning: true,
-    activity: Array(83).fill(0).concat(45),
+    activity: Array(363).fill(0).concat(45),
     downloadedToday: 45,
+    nat: {
+      enabled: true,
+      state: "mapped",
+      tcpExternalAddress: "203.0.113.1:6881",
+    },
     upsertedTasks: [task("b", 42), task("new", 0)],
     removedGids: ["removed"],
     taskOrder: ["b", "a", "new"],
@@ -66,6 +76,7 @@ describe("aria2 snapshot patches", () => {
     expect(next?.downloadSpeed).toBe(52);
     expect(next?.tasks.map((value) => value.gid)).toEqual(["b", "a", "new"]);
     expect(next?.tasks[0]?.downloadSpeed).toBe(42);
+    expect(next?.nat.tcpExternalAddress).toBe("203.0.113.1:6881");
   });
 
   test("rejects a missed revision or incomplete task order", () => {
@@ -78,5 +89,36 @@ describe("aria2 snapshot patches", () => {
         taskOrder: ["b", "missing"],
       }),
     ).toBeUndefined();
+  });
+});
+
+describe("aria2 terminal task events", () => {
+  test("suppresses history but reports a newly observed immediate failure", () => {
+    const statuses = new Map<string, string>();
+    const historical = { ...task("old", 0), status: "complete" as const };
+    expect(terminalTaskTransitions(statuses, [historical], true)).toEqual([]);
+
+    const failed = { ...task("new", 0), status: "error" as const };
+    expect(
+      terminalTaskTransitions(statuses, [historical, failed], false),
+    ).toEqual([failed]);
+    expect(
+      terminalTaskTransitions(statuses, [historical, failed], false),
+    ).toEqual([]);
+  });
+});
+
+describe("aria2 task speed histories", () => {
+  test("bounds samples and removes tasks no longer present", () => {
+    let histories = appendTaskSpeedHistories(
+      {},
+      [task("a", 10), task("b", 20)],
+      2,
+    );
+    histories = appendTaskSpeedHistories(histories, [task("a", 30)], 2);
+    histories = appendTaskSpeedHistories(histories, [task("a", 40)], 2);
+
+    expect(histories.a?.download).toEqual([30, 40]);
+    expect(histories.b).toBeUndefined();
   });
 });

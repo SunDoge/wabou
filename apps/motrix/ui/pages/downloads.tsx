@@ -12,18 +12,29 @@ import {
   ScrollArea,
   showNativeMenu,
   Text,
+  TextArea,
   View,
 } from "@wabou/ui";
-import inspect from "lucide-static/icons/panel-right-open.svg?raw";
 import sortIcon from "lucide-static/icons/arrow-down-wide-narrow.svg?raw";
+import inspect from "lucide-static/icons/panel-right-open.svg?raw";
 import pause from "lucide-static/icons/pause.svg?raw";
 import play from "lucide-static/icons/play.svg?raw";
 import retry from "lucide-static/icons/rotate-ccw.svg?raw";
+import stop from "lucide-static/icons/square.svg?raw";
 import trash from "lucide-static/icons/trash-2.svg?raw";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { type Aria2Task, type Aria2TaskDetails, useAria2 } from "../aria2";
+import { LiveChart } from "../components/live-chart";
+import { PieceMap } from "../components/piece-map";
 import { formatBytes } from "../lib/format";
-import { projectTasks, type TaskFilter, type TaskSort } from "../task-list";
+import {
+  projectTasks,
+  primaryTaskAction,
+  primaryTaskActionLabel,
+  restartTaskAction,
+  type TaskFilter,
+  type TaskSort,
+} from "../task-list";
 
 const sortLabels: Record<TaskSort, string> = {
   queue: "Queue order",
@@ -32,6 +43,9 @@ const sortLabels: Record<TaskSort, string> = {
   progress: "Most progress",
   speed: "Fastest speed",
 };
+
+const isQueuedTask = (task: Aria2Task) =>
+  task.status === "waiting" || task.status === "paused";
 
 export function DownloadsPage() {
   const aria2 = useAria2();
@@ -49,16 +63,33 @@ export function DownloadsPage() {
   const [selectedGids, setSelectedGids] = createSignal<ReadonlySet<string>>(
     new Set<string>(),
   );
+  const selectedTasks = createMemo(() =>
+    aria2.snapshot().tasks.filter((task) => selectedGids().has(task.gid)),
+  );
   const [actionError, setActionError] = createSignal("");
   const [pendingRemoval, setPendingRemoval] = createSignal<Aria2Task[]>([]);
   const [removeFiles, setRemoveFiles] = createSignal(false);
   const [details, setDetails] = createSignal<Aria2TaskDetails>();
   const [detailsError, setDetailsError] = createSignal("");
   const [fileSelectionBusy, setFileSelectionBusy] = createSignal(false);
+  const [taskDownloadLimit, setTaskDownloadLimit] = createSignal("0");
+  const [taskUploadLimit, setTaskUploadLimit] = createSignal("0");
+  const [taskLimitsBusy, setTaskLimitsBusy] = createSignal(false);
+  const [taskTrackers, setTaskTrackers] = createSignal("");
+  const [taskTrackersBusy, setTaskTrackersBusy] = createSignal(false);
   const [detailTab, setDetailTab] = createSignal<
-    "overview" | "files" | "peers"
+    "overview" | "files" | "activity" | "pieces" | "peers" | "trackers"
   >("overview");
   let detailsRequest = 0;
+  createEffect(
+    () => [selected(), aria2.snapshot().tasks] as const,
+    ([current, tasks]) => {
+      if (!current) return;
+      const latest = tasks.find((task) => task.gid === current.gid);
+      if (!latest) setSelected(undefined);
+      else if (latest !== current) setSelected(latest);
+    },
+  );
   createEffect(
     () => selected()?.gid,
     (gid) => {
@@ -66,7 +97,31 @@ export function DownloadsPage() {
       setDetails(undefined);
       setDetailsError("");
       setDetailTab("overview");
-      if (!gid) return;
+      if (!gid || selected()?.archived) return;
+      void aria2
+        .taskDetails(gid)
+        .then((value) => {
+          if (request !== detailsRequest) return;
+          setDetails(value);
+          setTaskDownloadLimit(value.maxDownloadLimit);
+          setTaskUploadLimit(value.maxUploadLimit);
+          setTaskTrackers(value.trackers.join("\n"));
+        })
+        .catch((error) => {
+          if (request === detailsRequest) setDetailsError(String(error));
+        });
+    },
+  );
+  createEffect(
+    () =>
+      [
+        selected()?.gid,
+        selected()?.completedLength,
+        selected()?.uploadedLength,
+      ] as const,
+    ([gid]) => {
+      if (!gid || !details()) return;
+      const request = detailsRequest;
       void aria2
         .taskDetails(gid)
         .then((value) => {
@@ -77,6 +132,44 @@ export function DownloadsPage() {
         });
     },
   );
+  const saveTaskLimits = async () => {
+    const task = selected();
+    if (!task || taskLimitsBusy()) return;
+    setTaskLimitsBusy(true);
+    setDetailsError("");
+    try {
+      const value = await aria2.setTaskLimits(
+        task.gid,
+        taskDownloadLimit(),
+        taskUploadLimit(),
+      );
+      setDetails(value);
+      setTaskDownloadLimit(value.maxDownloadLimit);
+      setTaskUploadLimit(value.maxUploadLimit);
+    } catch (error) {
+      setDetailsError(String(error));
+    } finally {
+      setTaskLimitsBusy(false);
+    }
+  };
+  const saveTaskTrackers = async () => {
+    const task = selected();
+    if (!task || taskTrackersBusy()) return;
+    setTaskTrackersBusy(true);
+    setDetailsError("");
+    try {
+      const value = await aria2.setTaskTrackers(
+        task.gid,
+        taskTrackers().split(/\r?\n/),
+      );
+      setDetails(value);
+      setTaskTrackers(value.trackers.join("\n"));
+    } catch (error) {
+      setDetailsError(String(error));
+    } finally {
+      setTaskTrackersBusy(false);
+    }
+  };
   const executeAction = async (action: () => Promise<void>) => {
     setActionError("");
     try {
@@ -114,8 +207,12 @@ export function DownloadsPage() {
       else next.delete(gid);
       return next;
     });
-  const runBatch = async (action: "pause" | "resume") => {
-    await aria2.batchTaskAction([...selectedGids()], action);
+  const runBatch = async (action: "pause" | "resume" | "stopSeeding") => {
+    const gids = selectedTasks()
+      .filter((task) => primaryTaskAction(task) === action)
+      .map((task) => task.gid);
+    if (!gids.length) return;
+    await aria2.batchTaskAction(gids, action);
     setSelectedGids(new Set<string>());
     await aria2.refresh();
   };
@@ -124,16 +221,21 @@ export function DownloadsPage() {
     setPendingRemoval(tasks);
   };
   const pauseOrResume = async (task: Aria2Task) => {
-    await aria2.taskAction(
-      task.gid,
-      task.status === "active" || task.status === "seeding"
-        ? "pause"
-        : "resume",
-    );
+    const action = primaryTaskAction(task);
+    if (!action) return;
+    await aria2.taskAction(task.gid, action);
     await aria2.refresh();
   };
   const retryTask = async (task: Aria2Task) => {
     await aria2.taskAction(task.gid, "retry");
+    await aria2.refresh();
+  };
+  const moveWaitingTask = async (
+    task: Aria2Task,
+    position: "top" | "up" | "down" | "bottom",
+  ) => {
+    if (!isQueuedTask(task)) return;
+    await aria2.changeTaskPosition(task.gid, position);
     await aria2.refresh();
   };
   const showTaskMenu = async (
@@ -141,20 +243,49 @@ export function DownloadsPage() {
     position: { x: number; y: number },
   ) => {
     setSelected(task);
-    const canRetry =
-      task.status === "error" && !task.bittorrent && Boolean(task.uri);
+    const restartAction = restartTaskAction(task);
+    const primaryAction = primaryTaskAction(task);
     const selection = await showNativeMenu({
       position,
       items: [
         {
           kind: "item",
           id: "toggle",
-          label:
-            task.status === "active" || task.status === "seeding"
-              ? "Pause"
-              : "Resume",
+          label: primaryAction
+            ? primaryTaskActionLabel(primaryAction)
+            : "Pause",
+          enabled: Boolean(primaryAction),
         },
-        { kind: "item", id: "retry", label: "Retry", enabled: canRetry },
+        {
+          kind: "item",
+          id: "retry",
+          label: restartAction === "reseed" ? "Re-seed" : "Retry",
+          enabled: Boolean(restartAction),
+        },
+        {
+          kind: "item",
+          id: "queue-top",
+          label: "Move to top",
+          enabled: isQueuedTask(task),
+        },
+        {
+          kind: "item",
+          id: "queue-up",
+          label: "Move up",
+          enabled: isQueuedTask(task),
+        },
+        {
+          kind: "item",
+          id: "queue-down",
+          label: "Move down",
+          enabled: isQueuedTask(task),
+        },
+        {
+          kind: "item",
+          id: "queue-bottom",
+          label: "Move to bottom",
+          enabled: isQueuedTask(task),
+        },
         { kind: "separator" },
         {
           kind: "item",
@@ -172,8 +303,13 @@ export function DownloadsPage() {
         { kind: "item", id: "remove", label: "Remove" },
       ],
     });
-    if (selection === "toggle") await pauseOrResume(task);
-    else if (selection === "retry" && canRetry) await retryTask(task);
+    if (selection === "toggle" && primaryAction) await pauseOrResume(task);
+    else if (selection === "retry" && restartAction) await retryTask(task);
+    else if (selection === "queue-top") await moveWaitingTask(task, "top");
+    else if (selection === "queue-up") await moveWaitingTask(task, "up");
+    else if (selection === "queue-down") await moveWaitingTask(task, "down");
+    else if (selection === "queue-bottom")
+      await moveWaitingTask(task, "bottom");
     else if (selection === "open-folder") {
       const path = task.filePath || task.dir;
       if (path) await aria2.openTaskFolder(path);
@@ -185,10 +321,10 @@ export function DownloadsPage() {
     projectTasks(aria2.snapshot().tasks, filter(), query(), sort()),
   );
   return (
-    <View class="h-full min-h-0 flex flex-col gap-5">
+    <View class="h-full min-h-0 flex flex-col gap-3">
       <View class="flex-none flex items-center justify-between">
         <View class="flex items-center gap-3">
-          <Text role="heading" class="text-3xl font-bold">
+          <Text role="heading" class="text-2xl font-bold">
             All Downloads
           </Text>
           <Badge variant="outline">
@@ -318,6 +454,11 @@ export function DownloadsPage() {
             <Button
               size="sm"
               variant="ghost"
+              disabled={
+                !selectedTasks().some(
+                  (task) => primaryTaskAction(task) === "pause",
+                )
+              }
               onClick={() => executeAction(() => runBatch("pause"))}
             >
               <Icon source={pause} size={14} />
@@ -326,21 +467,34 @@ export function DownloadsPage() {
             <Button
               size="sm"
               variant="ghost"
+              disabled={
+                !selectedTasks().some(
+                  (task) => primaryTaskAction(task) === "resume",
+                )
+              }
               onClick={() => executeAction(() => runBatch("resume"))}
             >
               <Icon source={play} size={14} />
               Resume
             </Button>
+            <Show
+              when={selectedTasks().some(
+                (task) => primaryTaskAction(task) === "stopSeeding",
+              )}
+            >
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => executeAction(() => runBatch("stopSeeding"))}
+              >
+                <Icon source={stop} size={14} />
+                Stop seeding
+              </Button>
+            </Show>
             <Button
               size="sm"
               variant="destructive"
-              onClick={() =>
-                requestRemoval(
-                  aria2
-                    .snapshot()
-                    .tasks.filter((task) => selectedGids().has(task.gid)),
-                )
-              }
+              onClick={() => requestRemoval(selectedTasks())}
             >
               <Icon source={trash} size={14} />
               Remove
@@ -353,7 +507,7 @@ export function DownloadsPage() {
           <Text class="text-sm text-danger-primary">{actionError()}</Text>
         </View>
       </Show>
-      <View class="min-h-0 flex-1 flex items-stretch gap-4">
+      <View class="min-h-0 flex-1 flex items-stretch gap-3">
         <Card class="min-w-0 h-full flex-1 rounded-xl shadow-lg">
           <CardContent class="h-full min-h-0 p-0 flex flex-col">
             <View class="h-11 flex-none px-4 flex items-center border-b border-subtle bg-surface-muted">
@@ -386,7 +540,7 @@ export function DownloadsPage() {
               <For each={shown()}>
                 {(task) => (
                   <View
-                    class={`min-h-20 px-4 flex items-center border-b border-subtle ${selected()?.gid === task.gid ? "bg-selected" : ""}`}
+                    class={`min-h-16 px-4 flex items-center border-b border-subtle ${selected()?.gid === task.gid ? "bg-selected" : ""}`}
                     onClick={() => setSelected(task)}
                     onDblClick={() => {
                       if (task.status !== "complete") return;
@@ -455,33 +609,41 @@ export function DownloadsPage() {
                       >
                         <Icon source={inspect} size={15} />
                       </Button>
-                      <Show
-                        when={
-                          task.status === "error" &&
-                          !task.bittorrent &&
-                          Boolean(task.uri)
-                        }
-                      >
-                        <Button
-                          aria-label={`Retry ${task.name}`}
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => executeAction(() => retryTask(task))}
-                        >
-                          <Icon source={retry} size={15} />
-                        </Button>
+                      <Show when={restartTaskAction(task)} keyed>
+                        {(restartAction) => (
+                          <Button
+                            aria-label={`${restartAction === "reseed" ? "Re-seed" : "Retry"} ${task.name}`}
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => executeAction(() => retryTask(task))}
+                          >
+                            <Icon source={retry} size={15} />
+                          </Button>
+                        )}
                       </Show>
-                      <Button
-                        aria-label={`${task.status === "active" ? "Pause" : "Resume"} ${task.name}`}
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => executeAction(() => pauseOrResume(task))}
-                      >
-                        <Icon
-                          source={task.status === "active" ? pause : play}
-                          size={15}
-                        />
-                      </Button>
+                      <Show when={primaryTaskAction(task)} keyed>
+                        {(action) => (
+                          <Button
+                            aria-label={`${primaryTaskActionLabel(action)} ${task.name}`}
+                            size="icon"
+                            variant="ghost"
+                            onClick={() =>
+                              executeAction(() => pauseOrResume(task))
+                            }
+                          >
+                            <Icon
+                              source={
+                                action === "stopSeeding"
+                                  ? stop
+                                  : action === "pause"
+                                    ? pause
+                                    : play
+                              }
+                              size={15}
+                            />
+                          </Button>
+                        )}
+                      </Show>
                       <Button
                         aria-label={`Remove ${task.name}`}
                         size="icon"
@@ -506,8 +668,8 @@ export function DownloadsPage() {
         </Card>
         <Show when={selected()}>
           {(task) => (
-            <Card class="w-80 h-full flex-none rounded-xl shadow-lg">
-              <CardContent class="h-full min-h-0 p-5 flex flex-col gap-4">
+            <Card class="w-72 h-full flex-none rounded-xl shadow-lg">
+              <CardContent class="h-full min-h-0 p-4 flex flex-col gap-3">
                 <View class="flex flex-col gap-1">
                   <Text class="text-xs font-medium text-muted">
                     TASK DETAILS
@@ -516,22 +678,45 @@ export function DownloadsPage() {
                     {task().name}
                   </Text>
                 </View>
-                <View class="flex gap-1 rounded-lg bg-surface-muted p-1">
+                <View class="grid grid-cols-2 gap-1 rounded-lg bg-surface-muted p-1">
                   <InspectorTab
                     label="Overview"
+                    ariaLabel="Task overview"
                     selected={detailTab() === "overview"}
                     onClick={() => setDetailTab("overview")}
                   />
+                  <Show when={!task().archived}>
+                    <InspectorTab
+                      label={`Files ${details()?.files.length ?? task().fileCount}`}
+                      ariaLabel="Task files"
+                      selected={detailTab() === "files"}
+                      onClick={() => setDetailTab("files")}
+                    />
+                  </Show>
                   <InspectorTab
-                    label={`Files ${details()?.files.length ?? task().fileCount}`}
-                    selected={detailTab() === "files"}
-                    onClick={() => setDetailTab("files")}
+                    label="Activity"
+                    ariaLabel="Task activity"
+                    selected={detailTab() === "activity"}
+                    onClick={() => setDetailTab("activity")}
                   />
-                  <Show when={task().bittorrent}>
+                  <Show when={task().bittorrent && !task().archived}>
+                    <InspectorTab
+                      label="Pieces"
+                      ariaLabel="Task pieces"
+                      selected={detailTab() === "pieces"}
+                      onClick={() => setDetailTab("pieces")}
+                    />
                     <InspectorTab
                       label={`Peers ${details()?.peers.length ?? 0}`}
+                      ariaLabel="Task peers"
                       selected={detailTab() === "peers"}
                       onClick={() => setDetailTab("peers")}
+                    />
+                    <InspectorTab
+                      label="Trackers"
+                      ariaLabel="Task trackers"
+                      selected={detailTab() === "trackers"}
+                      onClick={() => setDetailTab("trackers")}
                     />
                   </Show>
                 </View>
@@ -558,6 +743,94 @@ export function DownloadsPage() {
                       label="Upload speed"
                       value={`${formatBytes(task().uploadSpeed)}/s`}
                     />
+                    <Show
+                      when={
+                        task().status !== "complete" &&
+                        task().status !== "removed" &&
+                        task().status !== "error"
+                      }
+                    >
+                      <View class="pt-2 flex flex-col gap-2 border-t border-subtle">
+                        <Text class="text-xs font-medium text-muted">
+                          TASK SPEED LIMITS
+                        </Text>
+                        <Input
+                          aria-label="Task download limit"
+                          value={taskDownloadLimit()}
+                          placeholder="0 or 10M"
+                          onInput={(event) =>
+                            setTaskDownloadLimit(event.currentTarget.value)
+                          }
+                        />
+                        <Input
+                          aria-label="Task upload limit"
+                          value={taskUploadLimit()}
+                          placeholder="0 or 1M"
+                          onInput={(event) =>
+                            setTaskUploadLimit(event.currentTarget.value)
+                          }
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={taskLimitsBusy()}
+                          onClick={() => void saveTaskLimits()}
+                        >
+                          {taskLimitsBusy() ? "Saving…" : "Save task limits"}
+                        </Button>
+                      </View>
+                    </Show>
+                    <Show when={isQueuedTask(task())}>
+                      <View class="pt-2 flex flex-col gap-2 border-t border-subtle">
+                        <Text class="text-xs font-medium text-muted">
+                          QUEUE POSITION
+                        </Text>
+                        <View class="grid grid-cols-2 gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              executeAction(() =>
+                                moveWaitingTask(task(), "top"),
+                              )
+                            }
+                          >
+                            Move to top
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              executeAction(() => moveWaitingTask(task(), "up"))
+                            }
+                          >
+                            Move up
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              executeAction(() =>
+                                moveWaitingTask(task(), "down"),
+                              )
+                            }
+                          >
+                            Move down
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              executeAction(() =>
+                                moveWaitingTask(task(), "bottom"),
+                              )
+                            }
+                          >
+                            Move to bottom
+                          </Button>
+                        </View>
+                      </View>
+                    </Show>
                     <Show when={task().bittorrent}>
                       <Detail
                         label="Seeders"
@@ -615,6 +888,58 @@ export function DownloadsPage() {
                     </View>
                   </ScrollArea>
                 </Show>
+                <Show when={detailTab() === "activity"}>
+                  <View class="flex flex-col gap-3">
+                    <View class="grid grid-cols-2 gap-2">
+                      <View class="p-3 flex flex-col gap-1 rounded-lg bg-surface-muted">
+                        <Text class="text-xs text-muted">Downloaded</Text>
+                        <Text class="text-sm font-semibold">
+                          {formatBytes(task().completedLength)}
+                        </Text>
+                        <Text class="text-xs text-muted">
+                          {formatBytes(task().downloadSpeed)}/s now
+                        </Text>
+                      </View>
+                      <View class="p-3 flex flex-col gap-1 rounded-lg bg-surface-muted">
+                        <Text class="text-xs text-muted">Uploaded</Text>
+                        <Text class="text-sm font-semibold">
+                          {formatBytes(task().uploadedLength)}
+                        </Text>
+                        <Text class="text-xs text-muted">
+                          {formatBytes(task().uploadSpeed)}/s now
+                        </Text>
+                      </View>
+                    </View>
+                    <View class="flex flex-col gap-2">
+                      <View class="flex items-center gap-3">
+                        <View class="flex items-center gap-1">
+                          <View class="w-2 h-2 rounded-full bg-chart-download" />
+                          <Text class="text-xs text-muted">Download</Text>
+                        </View>
+                        <View class="flex items-center gap-1">
+                          <View class="w-2 h-2 rounded-full bg-chart-upload" />
+                          <Text class="text-xs text-muted">Upload</Text>
+                        </View>
+                      </View>
+                      <View class="relative h-24">
+                        <LiveChart
+                          width={248}
+                          values={aria2.taskHistory(task().gid).download}
+                        />
+                        <View class="absolute inset-0">
+                          <LiveChart
+                            width={248}
+                            color="upload"
+                            values={aria2.taskHistory(task().gid).upload}
+                          />
+                        </View>
+                      </View>
+                    </View>
+                    <Text class="text-xs text-muted">
+                      Session history · up to 120 snapshots
+                    </Text>
+                  </View>
+                </Show>
                 <Show when={detailTab() === "peers"}>
                   <ScrollArea class="h-60 rounded-lg border border-subtle">
                     <View class="flex flex-col">
@@ -648,6 +973,49 @@ export function DownloadsPage() {
                       </Show>
                     </View>
                   </ScrollArea>
+                </Show>
+                <Show when={detailTab() === "pieces"}>
+                  <Show
+                    when={details()}
+                    fallback={
+                      <Text class="p-3 text-sm text-muted">
+                        Loading piece map…
+                      </Text>
+                    }
+                  >
+                    {(value) => (
+                      <PieceMap
+                        bitfield={value().bitfield}
+                        pieceCount={value().numPieces}
+                        pieceLength={value().pieceLength}
+                      />
+                    )}
+                  </Show>
+                </Show>
+                <Show when={detailTab() === "trackers"}>
+                  <View class="flex flex-col gap-2">
+                    <TextArea
+                      class="h-52"
+                      aria-label="Task tracker URLs"
+                      value={taskTrackers()}
+                      placeholder="One HTTP, HTTPS, or UDP tracker per line"
+                      disabled={!details() || taskTrackersBusy()}
+                      onInput={(event) =>
+                        setTaskTrackers(event.currentTarget.value)
+                      }
+                    />
+                    <Text class="text-xs text-muted">
+                      Empty lines and lines beginning with # are ignored.
+                    </Text>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!details() || taskTrackersBusy()}
+                      onClick={() => void saveTaskTrackers()}
+                    >
+                      {taskTrackersBusy() ? "Saving…" : "Save task trackers"}
+                    </Button>
+                  </View>
                 </Show>
                 <Show when={detailsError()}>
                   <Text role="alert" class="text-sm text-danger-primary">
@@ -801,11 +1169,13 @@ function fileName(path: string): string {
 
 function InspectorTab(props: {
   label: string;
+  ariaLabel?: string;
   selected: boolean;
   onClick(): void;
 }) {
   return (
     <Button
+      aria-label={props.ariaLabel}
       class="flex-1"
       size="sm"
       variant={props.selected ? "secondary" : "ghost"}

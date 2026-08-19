@@ -202,7 +202,7 @@ export function createTransition(
   target: Accessor<number>,
   options: TransitionOptions = {},
 ): ReactiveTransition {
-  const [value, setValue] = createSignal(target());
+  const [value, setValue] = createSignal(untrack(target));
   const [state, setState] = createSignal<AnimationState>("idle");
   let controls: AnimationControls | undefined;
   let generation = 0;
