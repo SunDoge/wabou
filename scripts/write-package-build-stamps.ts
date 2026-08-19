@@ -14,7 +14,11 @@ async function sourceFiles(root: string): Promise<string[]> {
   return entries
     .filter((entry) => entry.isFile())
     .map((entry) => resolve(entry.parentPath, entry.name))
-    .sort((left, right) => left.localeCompare(right));
+    // Keep this byte-for-byte compatible with Rust's `PathBuf::sort` in the
+    // CLI preflight. `localeCompare` is locale and platform dependent (macOS
+    // and Linux can order punctuation differently), which made freshly
+    // cloned, checked-in artifacts appear stale on another OS.
+    .sort();
 }
 
 async function sourceHash(root: string): Promise<string> {
