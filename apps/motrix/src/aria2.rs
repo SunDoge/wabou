@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     env,
+    future::Future,
     net::{TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::Command,
@@ -67,6 +68,23 @@ pub struct Aria2Service {
     config_store: ConfigStore,
     stream_revision: Arc<AtomicU64>,
     activity: Arc<StdMutex<ActivityLog>>,
+    stopped_cache: Arc<Mutex<StoppedTaskCache>>,
+}
+
+struct StoppedTaskCache {
+    total: i32,
+    refreshed_at: Instant,
+    tasks: Vec<Status>,
+}
+
+impl Default for StoppedTaskCache {
+    fn default() -> Self {
+        Self {
+            total: -1,
+            refreshed_at: Instant::now() - Duration::from_secs(60),
+            tasks: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -341,6 +359,7 @@ impl Aria2Service {
                 config_store,
                 stream_revision: Arc::new(AtomicU64::new(0)),
                 activity: Arc::new(StdMutex::new(activity)),
+                stopped_cache: Arc::new(Mutex::new(StoppedTaskCache::default())),
             },
             Some(managed),
         ))
@@ -372,6 +391,7 @@ impl Aria2Service {
             config_store: ConfigStore::new(std::path::Path::new(".")),
             stream_revision: Arc::new(AtomicU64::new(0)),
             activity: Arc::new(StdMutex::new(ActivityLog::load(Path::new(".")))),
+            stopped_cache: Arc::new(Mutex::new(StoppedTaskCache::default())),
         }
     }
 
@@ -427,12 +447,17 @@ impl Aria2Service {
 
     async fn read_snapshot(&self) -> Result<Snapshot, String> {
         let client = self.client().await?;
-        let (version, stat, active, waiting, stopped) = tokio::try_join!(
+        let (version, stat, active) = tokio::try_join!(
             client.get_version(),
             client.get_global_stat(),
             client.tell_active(),
-            client.tell_waiting(0, 100),
-            client.tell_stopped(0, 100),
+        )
+        .map_err(|error| error.to_string())?;
+        let (waiting, stopped) = tokio::try_join!(
+            fetch_all_pages(client.clone(), |client, offset, count| async move {
+                client.tell_waiting(offset, count).await
+            }),
+            self.stopped_tasks(&client, stat.num_stopped_total),
         )
         .map_err(|error| error.to_string())?;
         let connection = self
@@ -477,6 +502,32 @@ impl Aria2Service {
             .lock()
             .map(|log| (log.recent(), log.downloaded_today()))
             .unwrap_or_else(|_| (vec![0; 84], 0))
+    }
+
+    async fn stopped_tasks(
+        &self,
+        client: &Client,
+        total: i32,
+    ) -> Result<Vec<Status>, aria2_ws::Error> {
+        {
+            let cache = self.stopped_cache.lock().await;
+            if cache.total == total && cache.refreshed_at.elapsed() < Duration::from_secs(30) {
+                return Ok(cache.tasks.clone());
+            }
+        }
+        let tasks = fetch_all_pages(client.clone(), |client, offset, count| async move {
+            client.tell_stopped(offset, count).await
+        })
+        .await?;
+        let mut cache = self.stopped_cache.lock().await;
+        cache.total = total;
+        cache.refreshed_at = Instant::now();
+        cache.tasks = tasks.clone();
+        Ok(tasks)
+    }
+
+    async fn invalidate_stopped_cache(&self) {
+        *self.stopped_cache.lock().await = StoppedTaskCache::default();
     }
 
     async fn engine_action(&self, action: EngineAction) -> Result<(), String> {
@@ -548,6 +599,7 @@ impl Aria2Service {
                 .write()
                 .map_err(|_| "aria2 connection lock poisoned")? = connection;
             *self.client.lock().await = None;
+            *self.stopped_cache.lock().await = StoppedTaskCache::default();
             if config.engine_mode == EngineMode::Managed {
                 self.managed.start()?;
             }
@@ -581,6 +633,25 @@ impl Aria2Service {
             change_global_options(&client, options).await?;
         }
         Ok(config)
+    }
+}
+
+async fn fetch_all_pages<T, E, C, Fetch, FetchFuture>(client: C, fetch: Fetch) -> Result<Vec<T>, E>
+where
+    C: Clone,
+    Fetch: Fn(C, i32, i32) -> FetchFuture,
+    FetchFuture: Future<Output = Result<Vec<T>, E>>,
+{
+    const PAGE_SIZE: i32 = 256;
+    let mut values = Vec::new();
+    loop {
+        let offset = i32::try_from(values.len()).unwrap_or(i32::MAX);
+        let page = fetch(client.clone(), offset, PAGE_SIZE).await?;
+        let complete = page.len() < PAGE_SIZE as usize;
+        values.extend(page);
+        if complete || values.len() >= i32::MAX as usize {
+            return Ok(values);
+        }
     }
 }
 
@@ -790,6 +861,29 @@ mod tests {
         );
         assert_eq!(patch.removed_gids, ["removed"]);
         assert_eq!(patch.task_order, ["changed", "unchanged", "new"]);
+    }
+
+    #[tokio::test]
+    async fn pagination_does_not_truncate_large_task_histories() {
+        let total = Arc::new(600_usize);
+        let offsets = Arc::new(StdMutex::new(Vec::new()));
+        let observed_offsets = offsets.clone();
+        let values = fetch_all_pages(total, move |total, offset, count| {
+            let offsets = observed_offsets.clone();
+            async move {
+                offsets.lock().unwrap().push(offset);
+                let start = offset as usize;
+                let end = (start + count as usize).min(*total);
+                Ok::<_, ()>((start..end).collect::<Vec<_>>())
+            }
+        })
+        .await
+        .expect("infallible page source");
+
+        assert_eq!(values.len(), 600);
+        assert_eq!(values.first(), Some(&0));
+        assert_eq!(values.last(), Some(&599));
+        assert_eq!(*offsets.lock().unwrap(), [0, 256, 512]);
     }
 
     #[tokio::test]
@@ -1091,7 +1185,9 @@ pub fn mount(capability: JsonCapability<'_>, service: Aria2Service) -> rquickjs:
                     GlobalTaskAction::ResumeAll => client.unpause_all().await,
                     GlobalTaskAction::ClearCompleted => client.purge_download_result().await,
                 }
-                .map_err(|error| error.to_string())
+                .map_err(|error| error.to_string())?;
+                service.invalidate_stopped_cache().await;
+                Ok::<(), String>(())
             }
         },
     )?;
@@ -1162,7 +1258,9 @@ pub fn mount(capability: JsonCapability<'_>, service: Aria2Service) -> rquickjs:
                     remove_task(&client, &request.gid, request.remove_files).await
                 }
                 TaskAction::Retry => retry_task(&client, &request.gid).await,
-            }
+            }?;
+            service.invalidate_stopped_cache().await;
+            Ok::<(), String>(())
         }
     })?;
     let batch_service = service.clone();
@@ -1186,6 +1284,7 @@ pub fn mount(capability: JsonCapability<'_>, service: Aria2Service) -> rquickjs:
                 result.map_err(|error| format!("task {gid}: {error}"))?;
                 completed.push(gid);
             }
+            service.invalidate_stopped_cache().await;
             Ok::<_, String>(completed)
         }
     })?;

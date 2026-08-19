@@ -15,6 +15,7 @@ import {
   View,
 } from "@wabou/ui";
 import inspect from "lucide-static/icons/panel-right-open.svg?raw";
+import sortIcon from "lucide-static/icons/arrow-down-wide-narrow.svg?raw";
 import pause from "lucide-static/icons/pause.svg?raw";
 import play from "lucide-static/icons/play.svg?raw";
 import retry from "lucide-static/icons/rotate-ccw.svg?raw";
@@ -22,19 +23,28 @@ import trash from "lucide-static/icons/trash-2.svg?raw";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import { type Aria2Task, type Aria2TaskDetails, useAria2 } from "../aria2";
 import { formatBytes } from "../lib/format";
+import { projectTasks, type TaskFilter, type TaskSort } from "../task-list";
+
+const sortLabels: Record<TaskSort, string> = {
+  queue: "Queue order",
+  name: "Name",
+  size: "Largest size",
+  progress: "Most progress",
+  speed: "Fastest speed",
+};
 
 export function DownloadsPage() {
   const aria2 = useAria2();
   const [query, setQuery] = createSignal("");
-  type Filter = "all" | "active" | "waiting" | "complete" | "stopped";
-  const filters: readonly [Filter, string][] = [
+  const filters: readonly [TaskFilter, string][] = [
     ["all", "All"],
     ["active", "Downloading"],
     ["waiting", "Waiting"],
     ["complete", "Completed"],
     ["stopped", "Stopped"],
   ];
-  const [filter, setFilter] = createSignal<Filter>("all");
+  const [filter, setFilter] = createSignal<TaskFilter>("all");
+  const [sort, setSort] = createSignal<TaskSort>("queue");
   const [selected, setSelected] = createSignal<Aria2Task>();
   const [selectedGids, setSelectedGids] = createSignal<ReadonlySet<string>>(
     new Set<string>(),
@@ -171,24 +181,8 @@ export function DownloadsPage() {
       if (task.uri) await clipboard.writeText(task.uri);
     } else if (selection === "remove") requestRemoval([task]);
   };
-  const matchesFilter = (task: Aria2Task) => {
-    if (filter() === "all") return true;
-    if (filter() === "waiting")
-      return task.status === "waiting" || task.status === "paused";
-    if (filter() === "stopped")
-      return task.status === "error" || task.status === "removed";
-    if (filter() === "active")
-      return task.status === "active" || task.status === "seeding";
-    return task.status === filter();
-  };
   const shown = createMemo(() =>
-    aria2
-      .snapshot()
-      .tasks.filter(
-        (task) =>
-          matchesFilter(task) &&
-          task.name.toLowerCase().includes(query().toLowerCase()),
-      ),
+    projectTasks(aria2.snapshot().tasks, filter(), query(), sort()),
   );
   return (
     <View class="h-full min-h-0 flex flex-col gap-5">
@@ -249,6 +243,33 @@ export function DownloadsPage() {
             }
           >
             Clear finished
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            aria-label="Sort downloads"
+            onClick={() =>
+              executeAction(async () => {
+                const selectedSort = await showNativeMenu({
+                  items: (
+                    Object.entries(sortLabels) as [TaskSort, string][]
+                  ).map(([id, label]) => ({
+                    kind: "item" as const,
+                    id,
+                    label,
+                    checked: sort() === id,
+                  })),
+                });
+                if (
+                  typeof selectedSort === "string" &&
+                  selectedSort in sortLabels
+                )
+                  setSort(selectedSort as TaskSort);
+              })
+            }
+          >
+            <Icon source={sortIcon} size={14} />
+            {sortLabels[sort()]}
           </Button>
           <View class="w-56">
             <Input
