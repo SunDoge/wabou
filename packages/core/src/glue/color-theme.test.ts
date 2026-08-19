@@ -45,6 +45,14 @@ test("rejects an empty color theme name before crossing the bridge", () => {
   expect(() => colorTheme.set("")).toThrow("cannot be empty");
 });
 
+test("reports a missing compiled theme with configuration guidance", () => {
+  globalThis.__wabou_get_color_theme_palette = () => "undefined";
+
+  expect(() => colorTheme.set("midnight")).toThrow(
+    "declare it in the `theme.themes` section of vite.config.ts",
+  );
+});
+
 test("animates a complete palette in JavaScript and commits the named theme", async () => {
   installPalettes();
   globalThis.__wabou_set_color_theme = () => {};

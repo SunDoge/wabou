@@ -60,6 +60,8 @@ export const OP = {
   SetInteractionPolicy: 0x1d,
   SetGraphicSource: 0x1e,
   ClearGraphicSource: 0x1f,
+  SetGraphicData: 0x20,
+  ClearGraphicData: 0x21,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -85,6 +87,9 @@ export const GRAPHIC_SOURCE = {
   Svg: 0x01,
   NetworkRaster: 0x02,
 } as const;
+
+export const GRAPHIC_DATA = { VectorPath: 0x01 } as const;
+const MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
 
 function validGraphicSourceKind(kind: number): boolean {
   return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
@@ -421,6 +426,26 @@ export class Writer {
       throw new RangeError(`invalid graphic source kind ${kind}`);
     }
     this.emit(OP.ClearGraphicSource);
+    this.key(id);
+    this.u8(kind);
+  }
+  setGraphicData(id: NodeKey, kind: number, data: Uint8Array): void {
+    if (kind !== GRAPHIC_DATA.VectorPath)
+      throw new RangeError(`invalid graphic data kind ${kind}`);
+    if (data.byteLength > MAX_GRAPHIC_DATA_BYTES)
+      throw new RangeError("graphic data exceeds the 16 MiB protocol limit");
+    this.emit(OP.SetGraphicData);
+    this.key(id);
+    this.u8(kind);
+    this.u32(data.byteLength);
+    this.ensure(data.byteLength);
+    this.buf.set(data, this.cursor);
+    this.cursor += data.byteLength;
+  }
+  clearGraphicData(id: NodeKey, kind: number): void {
+    if (kind !== GRAPHIC_DATA.VectorPath)
+      throw new RangeError(`invalid graphic data kind ${kind}`);
+    this.emit(OP.ClearGraphicData);
     this.key(id);
     this.u8(kind);
   }

@@ -17,6 +17,7 @@ import {
   type EventType,
   formatNodeKey,
   GRAPHIC_SOURCE,
+  GRAPHIC_DATA,
   INTERACTION_POLICY,
   type NodeKey,
   NodeKeyAllocator,
@@ -36,6 +37,7 @@ export {
 
 import { createMemo, omit, untrack } from "solid-js";
 import type { HostCapabilities, WabouIntrinsicElements } from "../registry";
+import { isVectorPath, type VectorPath } from "../vector-path";
 import {
   type Affine2D,
   assertInlineStyleValue,
@@ -68,6 +70,7 @@ export interface WabouBuiltinIntrinsicElements {
   svg: WabouSvgProps;
   path: WabouSvgShapeProps;
   circle: WabouSvgShapeProps;
+  "vector-path": WabouVectorPathProps;
 }
 
 export type WabouNativeElements = WabouBuiltinIntrinsicElements &
@@ -134,6 +137,8 @@ export interface WabouElementProps {
   interactionBlocked?: boolean;
   /** Contains sequential native focus within this logical subtree. */
   focusContained?: boolean;
+  /** Places this subtree in a native overlay plane above ordinary content. */
+  overlayPlane?: "content" | "floating" | "modal";
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -172,6 +177,10 @@ export interface WabouElementProps {
 
 export interface WabouControlProps extends WabouElementProps {
   disabled?: boolean;
+}
+
+export interface WabouVectorPathProps extends WabouElementProps {
+  source: VectorPath;
 }
 
 export interface WabouInputProps extends WabouControlProps {
@@ -517,6 +526,14 @@ function applyProperty(
     return;
   }
   if (name === "source") {
+    if (node.tag === "vector-path") {
+      if (value == null || value === false)
+        writer.clearGraphicData(node.id, GRAPHIC_DATA.VectorPath);
+      else if (isVectorPath(value))
+        writer.setGraphicData(node.id, GRAPHIC_DATA.VectorPath, value.data);
+      else throw new TypeError("invalid native vector path source");
+      return;
+    }
     if (node.tag === "svg") {
       if (value == null || value === false) {
         writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.Svg);

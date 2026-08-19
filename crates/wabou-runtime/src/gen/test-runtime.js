@@ -888,7 +888,9 @@
     SetTextBehavior: 28,
     SetInteractionPolicy: 29,
     SetGraphicSource: 30,
-    ClearGraphicSource: 31
+    ClearGraphicSource: 31,
+    SetGraphicData: 32,
+    ClearGraphicData: 33
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
@@ -905,6 +907,8 @@
     Svg: 1,
     NetworkRaster: 2
   };
+  var GRAPHIC_DATA = { VectorPath: 1 };
+  var MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
   function validGraphicSourceKind(kind) {
     return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
   }
@@ -1182,6 +1186,26 @@
         throw new RangeError(`invalid graphic source kind ${kind}`);
       }
       this.emit(OP.ClearGraphicSource);
+      this.key(id);
+      this.u8(kind);
+    }
+    setGraphicData(id, kind, data) {
+      if (kind !== GRAPHIC_DATA.VectorPath)
+        throw new RangeError(`invalid graphic data kind ${kind}`);
+      if (data.byteLength > MAX_GRAPHIC_DATA_BYTES)
+        throw new RangeError("graphic data exceeds the 16 MiB protocol limit");
+      this.emit(OP.SetGraphicData);
+      this.key(id);
+      this.u8(kind);
+      this.u32(data.byteLength);
+      this.ensure(data.byteLength);
+      this.buf.set(data, this.cursor);
+      this.cursor += data.byteLength;
+    }
+    clearGraphicData(id, kind) {
+      if (kind !== GRAPHIC_DATA.VectorPath)
+        throw new RangeError(`invalid graphic data kind ${kind}`);
+      this.emit(OP.ClearGraphicData);
       this.key(id);
       this.u8(kind);
     }
@@ -4634,6 +4658,110 @@
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
 
+  // packages/core/src/vector-path.ts
+  var PATH_MAGIC = 827343447;
+  var PATH_VERSION = 1;
+  var HEADER_SIZE = 36;
+  var MAX_PATH_BYTES = 16 * 1024 * 1024;
+  var COMMAND = {
+    MoveTo: 1,
+    LineTo: 2,
+    QuadTo: 3,
+    CubicTo: 4,
+    Close: 5
+  };
+  function finite(name, values) {
+    if (!values.every(Number.isFinite))
+      throw new RangeError(`${name} requires finite coordinates`);
+  }
+  function rgba(value, fallback) {
+    if (value === undefined)
+      return fallback;
+    if (!Number.isInteger(value) || value < 0 || value > 4294967295)
+      throw new RangeError("path colors must be packed 32-bit RGBA values");
+    return value >>> 0;
+  }
+  function positive(name, value) {
+    if (!Number.isFinite(value) || value <= 0)
+      throw new RangeError(`${name} must be a positive finite number`);
+    return value;
+  }
+
+  class PathBuilder {
+    #commands = [];
+    moveTo(x, y) {
+      finite("moveTo", [x, y]);
+      this.#commands.push([COMMAND.MoveTo, x, y]);
+      return this;
+    }
+    lineTo(x, y) {
+      finite("lineTo", [x, y]);
+      this.#commands.push([COMMAND.LineTo, x, y]);
+      return this;
+    }
+    quadTo(cx, cy, x, y) {
+      finite("quadTo", [cx, cy, x, y]);
+      this.#commands.push([COMMAND.QuadTo, cx, cy, x, y]);
+      return this;
+    }
+    cubicTo(c1x, c1y, c2x, c2y, x, y) {
+      finite("cubicTo", [c1x, c1y, c2x, c2y, x, y]);
+      this.#commands.push([COMMAND.CubicTo, c1x, c1y, c2x, c2y, x, y]);
+      return this;
+    }
+    close() {
+      this.#commands.push([COMMAND.Close]);
+      return this;
+    }
+    build(paint = {}) {
+      const resolved = Object.freeze({
+        fill: rgba(paint.fill, 0),
+        stroke: rgba(paint.stroke, 0),
+        strokeWidth: positive("strokeWidth", paint.strokeWidth ?? 1),
+        fillRule: paint.fillRule ?? "nonzero",
+        lineCap: paint.lineCap ?? "butt",
+        lineJoin: paint.lineJoin ?? "miter",
+        miterLimit: positive("miterLimit", paint.miterLimit ?? 4)
+      });
+      const byteLength = HEADER_SIZE + this.#commands.reduce((size, command) => size + 4 + (command.length - 1) * 4, 0);
+      if (byteLength > MAX_PATH_BYTES)
+        throw new RangeError("vector path exceeds the 16 MiB protocol limit");
+      const data = new Uint8Array(byteLength);
+      const view = new DataView(data.buffer);
+      view.setUint32(0, PATH_MAGIC, true);
+      view.setUint16(4, PATH_VERSION, true);
+      view.setUint16(6, 0, true);
+      view.setUint32(8, this.#commands.length, true);
+      view.setUint32(12, byteLength, true);
+      view.setUint32(16, resolved.fill, true);
+      view.setUint32(20, resolved.stroke, true);
+      view.setFloat32(24, resolved.strokeWidth, true);
+      view.setUint8(28, resolved.fillRule === "evenodd" ? 1 : 0);
+      view.setUint8(29, resolved.lineCap === "round" ? 1 : resolved.lineCap === "square" ? 2 : 0);
+      view.setUint8(30, resolved.lineJoin === "round" ? 1 : resolved.lineJoin === "bevel" ? 2 : 0);
+      view.setUint8(31, 0);
+      view.setFloat32(32, resolved.miterLimit, true);
+      let offset = HEADER_SIZE;
+      for (const command of this.#commands) {
+        view.setUint8(offset, command[0]);
+        offset += 4;
+        for (let index = 1;index < command.length; index++) {
+          view.setFloat32(offset, command[index], true);
+          offset += 4;
+        }
+      }
+      return Object.freeze({
+        kind: "wabou-vector-path",
+        get data() {
+          return data.slice();
+        }
+      });
+    }
+  }
+  function isVectorPath(value) {
+    return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && value.data instanceof Uint8Array;
+  }
+
   // packages/core/src/style/generated/style-properties.ts
   var INLINE_STYLE_CONTRACT = {
     "align-content": {
@@ -5575,6 +5703,15 @@
       return;
     }
     if (name === "source") {
+      if (node.tag === "vector-path") {
+        if (value == null || value === false)
+          writer.clearGraphicData(node.id, GRAPHIC_DATA.VectorPath);
+        else if (isVectorPath(value))
+          writer.setGraphicData(node.id, GRAPHIC_DATA.VectorPath, value.data);
+        else
+          throw new TypeError("invalid native vector path source");
+        return;
+      }
       if (node.tag === "svg") {
         if (value == null || value === false) {
           writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.Svg);
@@ -6538,7 +6675,13 @@ ${detail}`);
   function paletteFor(name) {
     if (!name)
       throw new Error("Wabou color theme name cannot be empty");
-    const parsed = JSON.parse(globalThis.__wabou_get_color_theme_palette(name));
+    const raw = globalThis.__wabou_get_color_theme_palette(name);
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`);
+    }
     if (!Array.isArray(parsed) || !parsed.every((value) => Number.isInteger(value)))
       throw new Error(`Wabou color theme \`${name}\` returned an invalid palette`);
     return Uint32Array.from(parsed);

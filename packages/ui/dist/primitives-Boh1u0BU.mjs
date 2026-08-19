@@ -1,6 +1,6 @@
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.mjs";
-import "@wabou/core";
-import { number, px, rotate2d, rotate2d as rotate2d$1, translate2d } from "@wabou/core/style";
+import { PathBuilder } from "@wabou/core";
+import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d } from "@wabou/core/style";
 import { animateValue } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, spread, useHost as useHost$1 } from "@wabou/core/renderer";
@@ -608,6 +608,10 @@ function Text(props) {
 function Svg(props) {
 	return semanticPrimitive("svg", "img", props);
 }
+/** A native Vello vector path in local logical-pixel coordinates. */
+function Path(props) {
+	return primitive("vector-path", props);
+}
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 function Icon(props) {
 	const rest = omit(props, "source", "size", "fill", "label");
@@ -883,7 +887,7 @@ function createOverlayLayer(options) {
 * isolation. Visual styling remains explicit so applications can own it.
 */
 function Modal(props) {
-	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
+	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(untrack(() => props.defaultOpen ?? false));
 	const open = () => props.open ?? uncontrolledOpen();
 	let trigger;
 	let focusFrame = 0;
@@ -996,7 +1000,7 @@ function Modal(props) {
 			});
 		}
 	});
-	return [props.trigger?.(triggerProps), overlay];
+	return [untrack(() => props.trigger?.(triggerProps)), overlay];
 }
 //#endregion
 //#region src/primitives/motion.tsx
@@ -1040,6 +1044,30 @@ function Pulse(props) {
 	return createComponent$1(View, mergeProps(view, { get style() {
 		return style();
 	} }));
+}
+/** A center-originating ring that expands while fading out, then repeats. */
+function Ripple(props) {
+	const motion = props;
+	const view = omit(props, "duration", "speed", "paused", "fromScale", "style", "transform");
+	const ripple = createLoop({
+		autoplay: !motion.paused,
+		duration: motion.duration ?? 1.4,
+		from: 0,
+		to: 1
+	});
+	bindPlayback(ripple.controls, motion);
+	const progress = () => ripple.value();
+	return createComponent$1(View, mergeProps(view, {
+		get transform() {
+			return scale2d((motion.fromScale ?? .35) + progress() * (1 - (motion.fromScale ?? .35)));
+		},
+		get style() {
+			return {
+				...motion.style ?? {},
+				opacity: 1 - progress()
+			};
+		}
+	}));
 }
 //#endregion
 //#region src/primitives/notification.ts
@@ -1664,8 +1692,11 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	NotificationRegion: () => NotificationRegion,
 	OverlayPlaneProvider: () => OverlayPlaneProvider,
 	PasswordInput: () => PasswordInput,
+	Path: () => Path,
+	PathBuilder: () => PathBuilder,
 	Popover: () => Popover,
 	Pulse: () => Pulse,
+	Ripple: () => Ripple,
 	Row: () => Row,
 	ScrollArea: () => ScrollArea,
 	Spin: () => Spin,
@@ -1701,6 +1732,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { createPulse as $, NetworkImage as A, createMeasuredSize as B, Center as C, CodeEditor as D, CollapsiblePresence as E, TextInput as F, createPress as G, Link as H, View as I, createFocusWithin as J, createHover as K, rotate2d$1 as L, Svg as M, Text as N, Icon as O, TextArea as P, createLoop as Q, translate2d as R, useOverlayPlane as S, Row as T, createButton as U, Button as V, createActive as W, animate as X, createAnimationFrame as Y, animateKeyframes as Z, Pulse as _, ScrollArea as a, OverlayPlaneProvider as b, autoPlacement as c, flip as d, createRotation as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, PasswordInput as j, Image as k, computeFloatingPosition as l, size as m, createTabs as n, Popover as o, shift as p, createFocus as q, createShortcuts as r, arrow as s, primitives_exports as t, createTransition as tt, computeHostFloatingPosition as u, Spin as v, Column as w, createOverlayLayer as x, Modal as y, createPresence as z };
+export { animate as $, Image as A, rotate2d$1 as B, useOverlayPlane as C, CollapsiblePresence as D, Row as E, Svg as F, Link as G, createPresence as H, Text as I, createPress as J, createButton as K, TextArea as L, PasswordInput as M, Path as N, CodeEditor as O, PathBuilder as P, createAnimationFrame as Q, TextInput as R, createOverlayLayer as S, Column as T, createMeasuredSize as U, translate2d as V, Button as W, createFocus as X, createHover as Y, createFocusWithin as Z, Pulse as _, ScrollArea as a, Modal as b, autoPlacement as c, flip as d, animateKeyframes as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, createTransition as it, NetworkImage as j, Icon as k, computeFloatingPosition as l, size as m, createTabs as n, createPulse as nt, Popover as o, shift as p, createActive as q, createShortcuts as r, createRotation as rt, arrow as s, primitives_exports as t, createLoop as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, View as z };
 
-//# sourceMappingURL=primitives-DuHpwH4P.mjs.map
+//# sourceMappingURL=primitives-Boh1u0BU.mjs.map

@@ -268,14 +268,14 @@ function wabouStylePlugin(options) {
 }
 //#endregion
 //#region src/index.ts
-function disableSolidDependencyOptimizer() {
+function configureDependencyOptimizer() {
 	return {
-		name: "wabou-disable-solid-deps-optimizer",
+		name: "wabou-configure-deps-optimizer",
 		enforce: "post",
 		configResolved(config) {
 			if (config.command === "serve") {
 				config.optimizeDeps.noDiscovery = true;
-				config.optimizeDeps.include = [];
+				config.optimizeDeps.include ??= [];
 			}
 		}
 	};
@@ -293,7 +293,7 @@ function wabouPlugins(root = process.cwd(), theme, ignoreClasses, intl, entry = 
 			generate: "universal",
 			moduleName: "@wabou/core/renderer"
 		} }),
-		disableSolidDependencyOptimizer()
+		configureDependencyOptimizer()
 	];
 }
 /** Define the complete conventional Vite configuration for a Wabou app. */
@@ -315,6 +315,10 @@ function resolveWabouConfig(options, environment) {
 			"@wabou/core/renderer": renderer,
 			"solid-js/web": renderer
 		} },
+		optimizeDeps: {
+			noDiscovery: true,
+			include: ["@tanstack/router-core"]
+		},
 		build: {
 			sourcemap,
 			lib: {

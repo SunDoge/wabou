@@ -12,14 +12,18 @@
     "@tanstack/table-core": "^8.21.3",
     "@wabou/core": "workspace:*",
     "@wabou/ui": "workspace:*",
+    "d3-scale": "4.0.2",
+    "d3-shape": "3.2.0",
     "lucide-static": "1.31.0",
     "solid-js": "2.0.0-rc.0"
   },
   "devDependencies": {
     "@inlang/paraglide-js": "^2.24.1",
+    "@types/d3-scale": "4.0.9",
+    "@types/d3-shape": "3.1.7",
+    "@types/node": "^26.1.1",
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
-    "@types/node": "^26.1.1",
     "vite": "^6.0.0"
   }
 }

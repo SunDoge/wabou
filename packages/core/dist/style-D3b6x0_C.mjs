@@ -539,6 +539,15 @@ const translate2d = (x, y) => [
 	x,
 	y
 ];
+/** Uniform scaling; the native host pivots it around the border-box center. */
+const scale2d = (scale) => [
+	scale,
+	0,
+	0,
+	scale,
+	0,
+	0
+];
 /** Rotation in radians; the native host pivots it around the border-box center. */
 const rotate2d = (angle) => {
 	const cosine = Math.cos(angle);
@@ -555,6 +564,6 @@ const rotate2d = (angle) => {
 /** Type-check a list of utilities while producing Solid's class string. */
 const classes = (...values) => values.join(" ");
 //#endregion
-export { bool as a, number as c, rgba as d, rotate2d as f, INLINE_STYLE_CONTRACT as h, auto as i, percent as l, translate2d as m, StyleValueKind as n, classes as o, shadow as p, assertInlineStyleValue as r, isTypedStyleValue as s, STYLE_VALUE as t, px as u };
+export { bool as a, number as c, rgba as d, rotate2d as f, INLINE_STYLE_CONTRACT as g, translate2d as h, auto as i, percent as l, shadow as m, StyleValueKind as n, classes as o, scale2d as p, assertInlineStyleValue as r, isTypedStyleValue as s, STYLE_VALUE as t, px as u };
 
-//# sourceMappingURL=style-B_gSda0o.mjs.map
+//# sourceMappingURL=style-D3b6x0_C.mjs.map

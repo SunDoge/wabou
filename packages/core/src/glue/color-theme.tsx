@@ -48,9 +48,15 @@ let activeAnimation: ColorThemeAnimation | undefined;
 
 function paletteFor(name: string): ColorPalette {
   if (!name) throw new Error("Wabou color theme name cannot be empty");
-  const parsed: unknown = JSON.parse(
-    globalThis.__wabou_get_color_theme_palette(name),
-  );
+  const raw = globalThis.__wabou_get_color_theme_palette(name);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`,
+    );
+  }
   if (
     !Array.isArray(parsed) ||
     !parsed.every((value) => Number.isInteger(value))

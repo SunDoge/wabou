@@ -39,7 +39,7 @@ describe("@wabou/vite", () => {
       "wabou-style-compiler",
       "solid:boundary-modules",
       "solid",
-      "wabou-disable-solid-deps-optimizer",
+      "wabou-configure-deps-optimizer",
     ]);
   });
 
@@ -61,6 +61,10 @@ describe("@wabou/vite", () => {
     expect(config.resolve?.alias).toMatchObject({
       "@wabou/core/renderer": expect.stringContaining("core/dist/renderer"),
       "solid-js/web": expect.stringContaining("core/dist/renderer"),
+    });
+    expect(config.optimizeDeps).toMatchObject({
+      noDiscovery: true,
+      include: ["@tanstack/router-core"],
     });
     expect(config.define?.["process.env.NODE_ENV"]).toBe(
       JSON.stringify(process.env.NODE_ENV ?? "production"),

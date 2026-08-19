@@ -38,6 +38,7 @@ import "./glue/intl";
 export * from "./renderer";
 export * from "./registry";
 export * from "./style";
+export * from "./vector-path";
 export {
   type CalendarDateFields,
   intl,

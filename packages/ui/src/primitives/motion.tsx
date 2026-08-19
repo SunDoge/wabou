@@ -1,9 +1,11 @@
+import { scale2d } from "@wabou/core/style";
+import { createEffect, type JSX, omit } from "solid-js";
 import {
+  type AnimationControls,
+  createLoop,
   createPulse,
   createRotation,
-  type AnimationControls,
 } from "../animation";
-import { createEffect, omit, type JSX } from "solid-js";
 import { View, type ViewProps, type WabouStyle } from "./view";
 
 interface PlaybackProps {
@@ -78,4 +80,41 @@ export function Pulse(props: PulseProps): JSX.Element {
     opacity: pulse.value(),
   });
   return <View {...view} style={style()} />;
+}
+
+export interface RippleProps extends ViewProps, PlaybackProps {
+  /** Scale at the beginning of each ripple. Defaults to 0.35. */
+  fromScale?: number;
+}
+
+/** A center-originating ring that expands while fading out, then repeats. */
+export function Ripple(props: RippleProps): JSX.Element {
+  const motion = props;
+  const view = omit(
+    props,
+    "duration",
+    "speed",
+    "paused",
+    "fromScale",
+    "style",
+    "transform",
+  );
+  const ripple = createLoop({
+    autoplay: !motion.paused,
+    duration: motion.duration ?? 1.4,
+    from: 0,
+    to: 1,
+  });
+  bindPlayback(ripple.controls, motion);
+  const progress = () => ripple.value();
+  return (
+    <View
+      {...view}
+      transform={scale2d(
+        (motion.fromScale ?? 0.35) +
+          progress() * (1 - (motion.fromScale ?? 0.35)),
+      )}
+      style={{ ...(motion.style ?? {}), opacity: 1 - progress() }}
+    />
+  );
 }

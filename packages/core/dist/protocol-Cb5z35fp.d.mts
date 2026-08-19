@@ -116,6 +116,8 @@ declare const OP: {
   readonly SetInteractionPolicy: 29;
   readonly SetGraphicSource: 30;
   readonly ClearGraphicSource: 31;
+  readonly SetGraphicData: 32;
+  readonly ClearGraphicData: 33;
 };
 type OpCode = (typeof OP)[keyof typeof OP];
 declare const TEXT_BEHAVIOR: {
@@ -130,6 +132,9 @@ declare const INTERACTION_POLICY: {
 declare const GRAPHIC_SOURCE: {
   readonly Svg: 1;
   readonly NetworkRaster: 2;
+};
+declare const GRAPHIC_DATA: {
+  readonly VectorPath: 1;
 };
 declare const EVENT_CODE: {
   readonly click: 1;
@@ -237,6 +242,8 @@ declare class Writer {
   setInteractionPolicy(id: NodeKey, flags: number, focusOrder: number): void;
   setGraphicSource(id: NodeKey, kind: number, source: string): void;
   clearGraphicSource(id: NodeKey, kind: number): void;
+  setGraphicData(id: NodeKey, kind: number, data: Uint8Array): void;
+  clearGraphicData(id: NodeKey, kind: number): void;
   removeWidgetConfig(id: NodeKey): void;
   setStyle(id: NodeKey, prop: string, value: string): void;
   setStyleValue(id: NodeKey, prop: string, kind: number, value: number): void;
@@ -275,5 +282,5 @@ declare class Writer {
   flush(): Uint8Array | null;
 }
 //#endregion
-export { isResourceKeyParts as A, nodeKeyFromSlotMapFfi as C, ResourceKeyTable as D, ResourceKeyParts as E, createResourceKeyFamily as O, nodeKeyEquals as S, ResourceKeyFamily as T, NodeKeyTable as _, EventType as a, isNodeKey as b, HOST_NODE_PAYLOAD as c, OP as d, OpCode as f, NodeKeyAllocator as g, NodeKey as h, EventDataSlot as i, validateResourceKeyParts as j, formatResourceKeyParts as k, HOST_RECORD_KIND as l, Writer as m, EVENT_DATA_LEN as n, GRAPHIC_SOURCE as o, TEXT_BEHAVIOR as p, EVENT_DATA_SLOT as r, HOST_FRAME as s, EVENT_CODE as t, INTERACTION_POLICY as u, ROOT_NODE_KEY as v, ResourceKey as w, nodeKey as x, formatNodeKey as y };
-//# sourceMappingURL=protocol-B_tyWo-Z.d.mts.map
+export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventType as a, formatNodeKey as b, HOST_FRAME as c, INTERACTION_POLICY as d, OP as f, NodeKey as g, Writer as h, EventDataSlot as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_NODE_PAYLOAD as l, TEXT_BEHAVIOR as m, EVENT_DATA_LEN as n, GRAPHIC_DATA as o, OpCode as p, EVENT_DATA_SLOT as r, GRAPHIC_SOURCE as s, EVENT_CODE as t, HOST_RECORD_KIND as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
+//# sourceMappingURL=protocol-Cb5z35fp.d.mts.map

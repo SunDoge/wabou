@@ -58,6 +58,26 @@ type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
 type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
 
+/// Application-owned resource that must surround every native window and JS runtime.
+pub trait HostService: Send + Sync {
+    /// Stable name used in diagnostics.
+    fn name(&self) -> &'static str;
+    /// Start the service before Wabou creates JavaScript runtimes.
+    fn start(&self) -> Result<(), String>;
+    /// Stop the service after the native event loop finishes.
+    fn shutdown(&self);
+}
+
+struct HostServicesGuard(Vec<Arc<dyn HostService>>);
+
+impl Drop for HostServicesGuard {
+    fn drop(&mut self) {
+        for service in self.0.iter().rev() {
+            service.shutdown();
+        }
+    }
+}
+
 struct ResourceCacheShutdownGuard {
     cache: Arc<ResourceCache>,
 }
@@ -233,6 +253,7 @@ pub struct HostBuilder {
     widget_factories: HashMap<String, WidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
+    services: Vec<Arc<dyn HostService>>,
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
     effect_trace: Option<EffectTraceConfig>,
@@ -259,6 +280,7 @@ impl HostBuilder {
             widget_factories: builtin_factories(),
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
+            services: Vec::new(),
             devtools: cfg!(debug_assertions),
             extensions: Vec::new(),
             effect_trace: None,
@@ -334,6 +356,12 @@ impl HostBuilder {
         F: Fn(HostMessageContext) + Send + Sync + 'static,
     {
         self.host_message_producers.push(Arc::new(producer));
+        self
+    }
+
+    /// Own a process, database, or background service for the full host lifetime.
+    pub fn service(mut self, service: impl HostService + 'static) -> Self {
+        self.services.push(Arc::new(service));
         self
     }
 
@@ -435,6 +463,16 @@ impl HostBuilder {
 
     /// Build the JsRuntime + Applier + run the winit event loop.
     pub fn run(mut self) -> crate::Result<()> {
+        let mut _services = HostServicesGuard(Vec::with_capacity(self.services.len()));
+        for service in &self.services {
+            service
+                .start()
+                .map_err(|message| crate::Error::HostService {
+                    name: service.name(),
+                    message,
+                })?;
+            _services.0.push(service.clone());
+        }
         let test_script = std::env::var_os("WABOU_TEST_SCRIPT")
             .map(PathBuf::from)
             .map(|path| {
@@ -579,9 +617,9 @@ impl HostBuilder {
         let mut hmr_clients = Vec::new();
         let mut sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
-            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
             let window_key = wabou_shell::initial_window_resource_key(index);
-            let applier = runtime_sources.create(window_key)?;
+            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
+            let mut applier = runtime_sources.create(window_key)?;
             if index == 0
                 && let Some(script) = &test_script
             {

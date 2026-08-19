@@ -133,6 +133,7 @@ pub struct App {
     wake_callback: Option<WakeCallback>,
     close_requested: bool,
     lifecycle: WindowLifecycle,
+    force_semantics: bool,
 }
 
 impl App {
@@ -217,6 +218,7 @@ impl App {
             wake_callback: None,
             close_requested: false,
             lifecycle: WindowLifecycle::visible(),
+            force_semantics: false,
         }
     }
 
@@ -721,7 +723,7 @@ impl App {
         let Some(shell) = self.state.as_mut() else {
             return;
         };
-        let semantics_enabled = shell.accessibility.prepare_frame();
+        let semantics_enabled = self.force_semantics || shell.accessibility.prepare_frame();
         self.source.set_semantics_enabled(semantics_enabled);
         for action in shell.accessibility.take_actions() {
             self.source.handle_semantic_action(action);
@@ -1079,6 +1081,7 @@ struct MultiWindowApp {
     extensions_initialized: bool,
     extensions_shutdown: bool,
     extension_error: Arc<Mutex<Option<crate::Error>>>,
+    force_semantics: bool,
 }
 
 /// Event-loop services exposed to optional shell extensions.
@@ -1093,6 +1096,30 @@ pub struct ExtensionContext<'a> {
 }
 
 impl ExtensionContext<'_> {
+    /// Render the latest completed native scene for a visible window.
+    pub fn render_screenshot(
+        &mut self,
+        window_key: WindowResourceKey,
+        path: &std::path::Path,
+    ) -> Result<(), String> {
+        let app = find_window_by_key(self.windows.values_mut(), window_key)
+            .ok_or_else(|| "native window is not visible".to_owned())?;
+        let base_color = app.source.base_color();
+        let shell = app
+            .state
+            .as_ref()
+            .ok_or_else(|| "native window has no render surface".to_owned())?;
+        let (width, height) = shell.size();
+        crate::renderer::render_to_png(
+            &shell.scene,
+            width,
+            height,
+            base_color,
+            &path.to_string_lossy(),
+        )
+        .map_err(|error| error.to_string())
+    }
+
     /// Return the latest logical and physical metrics for a visible window.
     pub fn window_metrics(&self, window_key: WindowResourceKey) -> Option<WindowMetrics> {
         self.windows
@@ -1391,6 +1418,12 @@ impl ExtensionContext<'_> {
 /// Implementations create platform resources in `initialize`, enqueue events
 /// from native callbacks, and drain them in `poll` on the event-loop thread.
 pub trait ShellExtension {
+    /// Keep semantic snapshots active without a connected platform
+    /// accessibility client. Native UI test drivers use this explicitly.
+    fn requires_semantics(&self) -> bool {
+        false
+    }
+
     /// Create native resources and retain `wake` for callback-to-loop delivery.
     fn initialize(&mut self, wake: WakeCallback) -> Result<(), String>;
     /// Drain native callbacks and interact with windows on the event-loop thread.
@@ -1481,11 +1514,17 @@ fn apply_window_command(app: &mut App, command: WindowCommand) {
 
 impl MultiWindowApp {
     fn new(
-        apps: Vec<App>,
+        mut apps: Vec<App>,
         factory: Option<FrameSourceFactory>,
         wake: WakeCallback,
         extensions: Vec<Box<dyn ShellExtension>>,
     ) -> Self {
+        let force_semantics = extensions
+            .iter()
+            .any(|extension| extension.requires_semantics());
+        for app in &mut apps {
+            app.force_semantics = force_semantics;
+        }
         let startup_errors = apps.iter().map(|app| app.startup_error.clone()).collect();
         Self {
             pending: apps,
@@ -1499,6 +1538,7 @@ impl MultiWindowApp {
             extensions_initialized: false,
             extensions_shutdown: false,
             extension_error: Arc::new(Mutex::new(None)),
+            force_semantics,
         }
     }
 
@@ -1596,6 +1636,7 @@ impl MultiWindowApp {
             let result = match factory(window_key, &request.options) {
                 Ok(source) => {
                     let mut app = App::with_options(source, request.options);
+                    app.force_semantics = self.force_semantics;
                     app.set_wake_callback(self.wake.clone());
                     app.window_key = window_key;
                     app.can_create_surfaces(event_loop);

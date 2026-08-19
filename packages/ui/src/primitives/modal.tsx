@@ -7,6 +7,7 @@ import {
   type JSX,
   onCleanup,
   Show,
+  untrack,
 } from "solid-js";
 import { createOverlayLayer, OverlayPlaneProvider } from "./overlay-layer";
 import type { WabouStyle } from "./view";
@@ -66,7 +67,7 @@ export interface ModalProps {
  */
 export function Modal(props: ModalProps): JSX.Element {
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(
-    props.defaultOpen ?? false,
+    untrack(() => props.defaultOpen ?? false),
   );
   const open = () => props.open ?? uncontrolledOpen();
   let trigger: Handle | undefined;
@@ -200,5 +201,6 @@ export function Modal(props: ModalProps): JSX.Element {
     },
   );
 
-  return [props.trigger?.(triggerProps), overlay] as JSX.Element;
+  const triggerElement = untrack(() => props.trigger?.(triggerProps));
+  return [triggerElement, overlay] as JSX.Element;
 }

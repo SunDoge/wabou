@@ -350,6 +350,7 @@ impl Applier {
                 .map(|p| p.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
             svg: None,
+            vector_path: decl.vector_path.clone(),
             image: prev.and_then(|p| p.image.clone()),
             widget: prev.and_then(|p| p.widget.clone()),
             intrinsic_size: prev.and_then(|p| p.intrinsic_size),
@@ -643,6 +644,12 @@ impl Applier {
                 .map(|paint| paint.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
             svg: previous.as_ref().and_then(|paint| paint.svg.clone()),
+            vector_path: self
+                .document
+                .node_store
+                .declared
+                .get(&node)
+                .and_then(|declared| declared.vector_path.clone()),
             image,
             widget: previous.as_ref().and_then(|paint| paint.widget.clone()),
             intrinsic_size: resolved.host_intrinsic,

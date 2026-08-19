@@ -755,11 +755,17 @@ fn semantic_query_target<'a>(
 
 pub(crate) struct TestDriver {
     controller: TestController,
+    last_window_key: Option<WindowKey>,
+    failure_screenshot_captured: bool,
 }
 
 impl TestDriver {
     pub(crate) fn new(controller: TestController) -> Self {
-        Self { controller }
+        Self {
+            controller,
+            last_window_key: None,
+            failure_screenshot_captured: false,
+        }
     }
 
     fn snapshot(&self, window_key: WindowKey, context: &ExtensionContext<'_>) {
@@ -775,6 +781,10 @@ impl TestDriver {
 }
 
 impl ShellExtension for TestDriver {
+    fn requires_semantics(&self) -> bool {
+        true
+    }
+
     fn initialize(&mut self, wake: WakeCallback) -> Result<(), String> {
         self.controller
             .0
@@ -795,6 +805,9 @@ impl ShellExtension for TestDriver {
             let Some(action) = action else {
                 break;
             };
+            if let Some(window_key) = action_window_key(&action.kind) {
+                self.last_window_key = Some(window_key);
+            }
             if let Some(window_key) = action_window_key(&action.kind)
                 && let Some(snapshot) = context.semantic_snapshot(window_key)
             {
@@ -878,12 +891,25 @@ impl ShellExtension for TestDriver {
             };
             let _ = action.completion.send(result);
         }
-        if self
-            .controller
-            .0
-            .lock()
-            .is_ok_and(|state| state.report.is_some())
-        {
+        if self.controller.has_report() {
+            if !self.failure_screenshot_captured
+                && self.controller.report_passed() == Some(false)
+                && std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0")
+                && let (Some(window_key), Some(directory)) = (
+                    self.last_window_key,
+                    std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(std::path::PathBuf::from),
+                )
+            {
+                self.failure_screenshot_captured = true;
+                if let Err(error) = std::fs::create_dir_all(&directory)
+                    .map_err(|error| format!("cannot create failure artifact directory: {error}"))
+                    .and_then(|()| {
+                        context.render_screenshot(window_key, &directory.join("failure.png"))
+                    })
+                {
+                    tracing::warn!(%error, "could not capture native behavior-test failure");
+                }
+            }
             context.exit();
         }
     }

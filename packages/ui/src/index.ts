@@ -2,13 +2,13 @@
 // implementation boundaries, but applications should not need to understand
 // that package graph for ordinary UI work.
 
+export * from "@wabou/core";
+export * from "@wabou/core/i18n";
 export * from "./animation";
 export * from "./components";
 // Prefer the styled component where a high-level component and a host-service
 // type share a name. The lower-level host API remains available as `dialog`.
 export { Dialog } from "./components";
-export * from "@wabou/core";
-export * from "@wabou/core/i18n";
 export * as primitives from "./primitives";
 
 // Foundational scene elements are common enough to belong at the main entry.
@@ -61,10 +61,15 @@ export {
   OverlayPlaneProvider,
   PasswordInput as PrimitivePasswordInput,
   type PasswordInputProps as PrimitivePasswordInputProps,
+  Path,
+  PathBuilder,
+  type PathProps,
   Popover,
   type PopoverProps,
   type PressResult,
   Pulse,
+  Ripple,
+  type RippleProps,
   Row,
   ScrollArea,
   type ScrollAreaProps,
@@ -78,6 +83,8 @@ export {
   TextInput as PrimitiveTextInput,
   type TextInputProps as PrimitiveTextInputProps,
   type TextProps,
+  type VectorPath,
+  type VectorPathPaint,
   View,
   type ViewProps,
   type WabouClassList,

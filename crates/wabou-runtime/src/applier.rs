@@ -220,6 +220,8 @@ struct Declared {
     svg_source: Option<Arc<str>>,
     /// Network raster URL authored through the typed graphic contract.
     network_image_url: Option<Arc<str>>,
+    /// Decoded local-coordinate vector path.
+    vector_path: Option<Arc<wabou_shell::style::VectorPath>>,
 }
 
 impl Declared {

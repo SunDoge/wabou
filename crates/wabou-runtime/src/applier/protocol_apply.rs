@@ -1,5 +1,140 @@
 use super::*;
 
+fn decode_vector_path(data: &[u8]) -> Option<Arc<wabou_shell::style::VectorPath>> {
+    use vello::kurbo::{BezPath, Cap, Join, Stroke};
+
+    const MAGIC: u32 = 0x3150_4257;
+    if data.len() < 36
+        || u32::from_le_bytes(data[0..4].try_into().ok()?) != MAGIC
+        || u16::from_le_bytes(data[4..6].try_into().ok()?) != 1
+        || u16::from_le_bytes(data[6..8].try_into().ok()?) != 0
+        || u32::from_le_bytes(data[12..16].try_into().ok()?) as usize != data.len()
+    {
+        return None;
+    }
+    let count = u32::from_le_bytes(data[8..12].try_into().ok()?) as usize;
+    if count > (data.len() - 36) / 4 {
+        return None;
+    }
+    let fill = u32::from_le_bytes(data[16..20].try_into().ok()?);
+    let stroke = u32::from_le_bytes(data[20..24].try_into().ok()?);
+    let stroke_width = f32::from_le_bytes(data[24..28].try_into().ok()?);
+    let fill_rule = data[28];
+    let line_cap = data[29];
+    let line_join = data[30];
+    let miter_limit = f32::from_le_bytes(data[32..36].try_into().ok()?);
+    if data[31] != 0
+        || !stroke_width.is_finite()
+        || stroke_width <= 0.0
+        || !miter_limit.is_finite()
+        || miter_limit <= 0.0
+        || fill_rule > 1
+        || line_cap > 2
+        || line_join > 2
+    {
+        return None;
+    }
+    let mut offset = 36usize;
+    let mut path = BezPath::new();
+    let read = |offset: &mut usize| -> Option<f64> {
+        let end = offset.checked_add(4)?;
+        let value = f32::from_le_bytes(data.get(*offset..end)?.try_into().ok()?);
+        *offset = end;
+        value.is_finite().then_some(f64::from(value))
+    };
+    for _ in 0..count {
+        let command = *data.get(offset)?;
+        if data.get(offset + 1..offset + 4)? != [0, 0, 0] {
+            return None;
+        }
+        offset += 4;
+        match command {
+            1 => path.move_to((read(&mut offset)?, read(&mut offset)?)),
+            2 => path.line_to((read(&mut offset)?, read(&mut offset)?)),
+            3 => path.quad_to(
+                (read(&mut offset)?, read(&mut offset)?),
+                (read(&mut offset)?, read(&mut offset)?),
+            ),
+            4 => path.curve_to(
+                (read(&mut offset)?, read(&mut offset)?),
+                (read(&mut offset)?, read(&mut offset)?),
+                (read(&mut offset)?, read(&mut offset)?),
+            ),
+            5 => path.close_path(),
+            _ => return None,
+        }
+    }
+    if offset != data.len() {
+        return None;
+    }
+    let color = |rgba: u32| {
+        ((rgba & 0xff) != 0).then(|| {
+            Color::from_rgba8(
+                (rgba >> 24) as u8,
+                (rgba >> 16) as u8,
+                (rgba >> 8) as u8,
+                rgba as u8,
+            )
+        })
+    };
+    let cap = match line_cap {
+        1 => Cap::Round,
+        2 => Cap::Square,
+        _ => Cap::Butt,
+    };
+    let join = match line_join {
+        1 => Join::Round,
+        2 => Join::Bevel,
+        _ => Join::Miter,
+    };
+    Some(Arc::new(wabou_shell::style::VectorPath {
+        path: Arc::new(path),
+        fill: color(fill),
+        stroke: color(stroke),
+        even_odd: fill_rule == 1,
+        stroke_style: Stroke::new(f64::from(stroke_width))
+            .with_caps(cap)
+            .with_join(join)
+            .with_miter_limit(f64::from(miter_limit)),
+    }))
+}
+
+#[cfg(test)]
+mod vector_path_tests {
+    use super::decode_vector_path;
+
+    fn path_bytes(command: u8, coordinates: &[f32]) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&0x3150_4257u32.to_le_bytes());
+        bytes.extend_from_slice(&1u16.to_le_bytes());
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.extend_from_slice(&1u32.to_le_bytes());
+        bytes.extend_from_slice(&0u32.to_le_bytes());
+        bytes.extend_from_slice(&0x38bd_f8ffu32.to_le_bytes());
+        bytes.extend_from_slice(&0xa78b_faffu32.to_le_bytes());
+        bytes.extend_from_slice(&2.0f32.to_le_bytes());
+        bytes.extend_from_slice(&[0, 1, 1, 0]);
+        bytes.extend_from_slice(&4.0f32.to_le_bytes());
+        bytes.extend_from_slice(&[command, 0, 0, 0]);
+        for coordinate in coordinates {
+            bytes.extend_from_slice(&coordinate.to_le_bytes());
+        }
+        let len = bytes.len() as u32;
+        bytes[12..16].copy_from_slice(&len.to_le_bytes());
+        bytes
+    }
+
+    #[test]
+    fn validates_path_payload_before_retain() {
+        assert!(decode_vector_path(&path_bytes(1, &[3.0, 4.0])).is_some());
+        assert!(decode_vector_path(&path_bytes(99, &[])).is_none());
+        assert!(decode_vector_path(&path_bytes(1, &[f32::NAN, 4.0])).is_none());
+        let mut truncated = path_bytes(1, &[3.0, 4.0]);
+        truncated.pop();
+        assert!(decode_vector_path(&truncated).is_none());
+    }
+}
+
 fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
     use crate::protocol::StyleValue;
     use wabou_shell::style::IrLength;
@@ -582,6 +717,28 @@ impl Applier {
             }
             Op::ClearGraphicSource { id, kind } => {
                 self.clear_graphic_source(*id, *kind);
+            }
+            Op::SetGraphicData { id, kind, data } => {
+                if let Some(&node) = self.document.node_store.solid_to_node.get(id) {
+                    debug_assert_eq!(*kind, crate::protocol::GRAPHIC_DATA_VECTOR_PATH);
+                    let decoded = decode_vector_path(data);
+                    if decoded.is_none() {
+                        tracing::warn!(node = %id, "rejected malformed vector path");
+                    }
+                    if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
+                        declared.vector_path = decoded;
+                    }
+                    self.recompute_node(node);
+                }
+            }
+            Op::ClearGraphicData { id, kind } => {
+                debug_assert_eq!(*kind, crate::protocol::GRAPHIC_DATA_VECTOR_PATH);
+                if let Some(&node) = self.document.node_store.solid_to_node.get(id) {
+                    if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
+                        declared.vector_path = None;
+                    }
+                    self.recompute_node(node);
+                }
             }
             Op::SetStyle { id, prop, value } => {
                 self.set_inline_ir(*id, *prop, style::parse_ir_value(value));

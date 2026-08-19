@@ -266,6 +266,39 @@ fn draw_svg(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     );
 }
 
+fn draw_vector_path(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
+    let Some(vector) = &node.paint.vector_path else {
+        return;
+    };
+    let local = transform
+        * Affine::translate((
+            f64::from(node.content_origin[0]),
+            f64::from(node.content_origin[1]),
+        ));
+    if let Some(fill) = vector.fill {
+        scene.fill(
+            if vector.even_odd {
+                Fill::EvenOdd
+            } else {
+                Fill::NonZero
+            },
+            local,
+            fill,
+            None,
+            vector.path.as_ref(),
+        );
+    }
+    if let Some(stroke) = vector.stroke {
+        scene.stroke(
+            &vector.stroke_style,
+            local,
+            stroke,
+            None,
+            vector.path.as_ref(),
+        );
+    }
+}
+
 fn draw_image(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     let Some(image) = &node.paint.image else {
         return;
@@ -440,6 +473,7 @@ pub fn build_scene_scaled(
         }
 
         draw_svg(scene, n, node_transform);
+        draw_vector_path(scene, n, node_transform);
         draw_image(scene, n, node_transform);
 
         if let Some(ws) = &n.paint.widget {

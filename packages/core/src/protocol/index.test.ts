@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  GRAPHIC_DATA,
   GRAPHIC_SOURCE,
   INTERACTION_POLICY,
   nodeKey,
@@ -238,5 +239,21 @@ describe("Writer limits", () => {
     expect(view.getUint16(17, true)).toBe(16);
     expect(frame[35]).toBe(OP.RemoveWidgetConfig);
     expect(view.getUint32(36, true)).toBe(42);
+  });
+
+  test("encodes opaque length-delimited graphic data", () => {
+    const writer = new Writer();
+    writer.setGraphicData(k(42), GRAPHIC_DATA.VectorPath, new Uint8Array([7, 8, 9]));
+    writer.clearGraphicData(k(42), GRAPHIC_DATA.VectorPath);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame[8]).toBe(OP.SetGraphicData);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(frame[17]).toBe(GRAPHIC_DATA.VectorPath);
+    expect(view.getUint32(18, true)).toBe(3);
+    expect(Array.from(frame.subarray(22, 25))).toEqual([7, 8, 9]);
+    expect(frame[25]).toBe(OP.ClearGraphicData);
+    expect(frame[34]).toBe(GRAPHIC_DATA.VectorPath);
   });
 });

@@ -202,7 +202,9 @@ const OP = {
 	SetTextBehavior: 28,
 	SetInteractionPolicy: 29,
 	SetGraphicSource: 30,
-	ClearGraphicSource: 31
+	ClearGraphicSource: 31,
+	SetGraphicData: 32,
+	ClearGraphicData: 33
 };
 const TEXT_BEHAVIOR = {
 	AggregateDirectText: 1,
@@ -219,6 +221,8 @@ const GRAPHIC_SOURCE = {
 	Svg: 1,
 	NetworkRaster: 2
 };
+const GRAPHIC_DATA = { VectorPath: 1 };
+const MAX_GRAPHIC_DATA_BYTES = 16777216;
 function validGraphicSourceKind(kind) {
 	return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
 }
@@ -476,6 +480,23 @@ var Writer = class {
 		this.key(id);
 		this.u8(kind);
 	}
+	setGraphicData(id, kind, data) {
+		if (kind !== GRAPHIC_DATA.VectorPath) throw new RangeError(`invalid graphic data kind ${kind}`);
+		if (data.byteLength > MAX_GRAPHIC_DATA_BYTES) throw new RangeError("graphic data exceeds the 16 MiB protocol limit");
+		this.emit(OP.SetGraphicData);
+		this.key(id);
+		this.u8(kind);
+		this.u32(data.byteLength);
+		this.ensure(data.byteLength);
+		this.buf.set(data, this.cursor);
+		this.cursor += data.byteLength;
+	}
+	clearGraphicData(id, kind) {
+		if (kind !== GRAPHIC_DATA.VectorPath) throw new RangeError(`invalid graphic data kind ${kind}`);
+		this.emit(OP.ClearGraphicData);
+		this.key(id);
+		this.u8(kind);
+	}
 	removeWidgetConfig(id) {
 		this.emit(OP.RemoveWidgetConfig);
 		this.key(id);
@@ -600,6 +621,6 @@ var Writer = class {
 	}
 };
 //#endregion
-export { isResourceKeyParts as C, formatResourceKeyParts as S, nodeKey as _, HOST_FRAME as a, ResourceKeyTable as b, INTERACTION_POLICY as c, Writer as d, NodeKeyAllocator as f, isNodeKey as g, formatNodeKey as h, GRAPHIC_SOURCE as i, OP as l, ROOT_NODE_KEY as m, EVENT_DATA_LEN as n, HOST_NODE_PAYLOAD as o, NodeKeyTable as p, EVENT_DATA_SLOT as r, HOST_RECORD_KIND as s, EVENT_CODE as t, TEXT_BEHAVIOR as u, nodeKeyEquals as v, validateResourceKeyParts as w, createResourceKeyFamily as x, nodeKeyFromSlotMapFfi as y };
+export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-DfLpXnPC.mjs.map
+//# sourceMappingURL=protocol-B5PLhBe8.mjs.map

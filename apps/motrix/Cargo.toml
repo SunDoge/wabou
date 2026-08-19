@@ -1,0 +1,23 @@
+[package]
+name = "motrix-wabou"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "motrix-wabou"
+path = "src/main.rs"
+
+[dependencies]
+aria2-ws = { workspace = true }
+directories = { workspace = true }
+open = { workspace = true }
+process-wrap = { version = "9.1.0", features = ["std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+snafu = { workspace = true }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+trash = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+uuid = { workspace = true, features = ["v4"] }
+wabou = { workspace = true }

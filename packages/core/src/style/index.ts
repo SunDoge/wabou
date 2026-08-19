@@ -184,6 +184,9 @@ export const translate2d = (x: number, y: number): Affine2D => [
   y,
 ];
 
+/** Uniform scaling; the native host pivots it around the border-box center. */
+export const scale2d = (scale: number): Affine2D => [scale, 0, 0, scale, 0, 0];
+
 /** Rotation in radians; the native host pivots it around the border-box center. */
 export const rotate2d = (angle: number): Affine2D => {
   const cosine = Math.cos(angle);

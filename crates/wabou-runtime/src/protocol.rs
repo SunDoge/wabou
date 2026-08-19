@@ -56,6 +56,9 @@ pub struct ShadowValue {
     pub radius: Option<f32>,
 }
 
+pub const GRAPHIC_DATA_VECTOR_PATH: u8 = 0x01;
+const MAX_GRAPHIC_DATA_BYTES: usize = 16 * 1024 * 1024;
+
 /// A decoded operation. String operands borrow from the frame buffer
 /// (`'a`) so decode is allocation-free; the applier owns them into `String`s.
 #[derive(Debug)]
@@ -116,6 +119,15 @@ pub enum Op<'a> {
         source: &'a str,
     },
     ClearGraphicSource {
+        id: NodeKey,
+        kind: u8,
+    },
+    SetGraphicData {
+        id: NodeKey,
+        kind: u8,
+        data: &'a [u8],
+    },
+    ClearGraphicData {
         id: NodeKey,
         kind: u8,
     },
@@ -232,6 +244,12 @@ pub enum DecodeError {
     #[snafu(display("invalid graphic source kind {kind}"))]
     BadGraphicSourceKind { kind: u8 },
 
+    #[snafu(display("invalid graphic data kind {kind}"))]
+    BadGraphicDataKind { kind: u8 },
+
+    #[snafu(display("graphic data length {len} exceeds the protocol limit"))]
+    BadGraphicDataLength { len: usize },
+
     #[snafu(display("protocol frame contains {remaining} trailing bytes"))]
     TrailingBytes { remaining: usize },
 }
@@ -318,6 +336,14 @@ impl<'a> Reader<'a> {
             self.strings.push(s);
         }
         Ok(s)
+    }
+    fn bytes(&mut self, len: usize) -> Result<&'a [u8], DecodeError> {
+        if self.pos + len > self.b.len() {
+            return Err(DecodeError::UnexpectedEof);
+        }
+        let bytes = &self.b[self.pos..self.pos + len];
+        self.pos += len;
+        Ok(bytes)
     }
 }
 
@@ -434,6 +460,27 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
                 return Err(DecodeError::BadGraphicSourceKind { kind });
             }
             Op::ClearGraphicSource { id, kind }
+        }
+        op::SET_GRAPHIC_DATA => {
+            let id = r.node_key()?;
+            let kind = r.u8()?;
+            if kind != GRAPHIC_DATA_VECTOR_PATH {
+                return Err(DecodeError::BadGraphicDataKind { kind });
+            }
+            let len = r.u32()? as usize;
+            if len > MAX_GRAPHIC_DATA_BYTES {
+                return Err(DecodeError::BadGraphicDataLength { len });
+            }
+            let data = r.bytes(len)?;
+            Op::SetGraphicData { id, kind, data }
+        }
+        op::CLEAR_GRAPHIC_DATA => {
+            let id = r.node_key()?;
+            let kind = r.u8()?;
+            if kind != GRAPHIC_DATA_VECTOR_PATH {
+                return Err(DecodeError::BadGraphicDataKind { kind });
+            }
+            Op::ClearGraphicData { id, kind }
         }
         op::SET_STYLE => {
             let id = r.node_key()?;
@@ -863,6 +910,44 @@ mod tests {
         assert!(matches!(
             decode_frame(&bytes),
             Err(DecodeError::BadGraphicSourceKind { kind: 3 })
+        ));
+    }
+
+    #[test]
+    fn decodes_length_delimited_graphic_data() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 2);
+        bytes.push(op::SET_GRAPHIC_DATA);
+        push_node(&mut bytes, 42);
+        bytes.push(GRAPHIC_DATA_VECTOR_PATH);
+        push_u32(&mut bytes, 3);
+        bytes.extend_from_slice(&[7, 8, 9]);
+        bytes.push(op::CLEAR_GRAPHIC_DATA);
+        push_node(&mut bytes, 42);
+        bytes.push(GRAPHIC_DATA_VECTOR_PATH);
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetGraphicData {
+                id: NodeKey { lo: 42, hi: 1 },
+                kind: GRAPHIC_DATA_VECTOR_PATH,
+                data: [7, 8, 9],
+            }
+        ));
+        assert!(matches!(
+            &frame.ops[1],
+            Op::ClearGraphicData {
+                id: NodeKey { lo: 42, hi: 1 },
+                kind: GRAPHIC_DATA_VECTOR_PATH,
+            }
+        ));
+
+        bytes[17] = 2;
+        assert!(matches!(
+            decode_frame(&bytes),
+            Err(DecodeError::BadGraphicDataKind { kind: 2 })
         ));
     }
 

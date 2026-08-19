@@ -1,6 +1,6 @@
-import { _ as nodeKey, a as HOST_FRAME, c as INTERACTION_POLICY, i as GRAPHIC_SOURCE, l as OP, n as EVENT_DATA_LEN, o as HOST_NODE_PAYLOAD, p as NodeKeyTable, s as HOST_RECORD_KIND, t as EVENT_CODE, u as TEXT_BEHAVIOR, x as createResourceKeyFamily } from "./protocol-DfLpXnPC.mjs";
-import { a as bool, c as number, d as rgba, f as rotate2d, h as INLINE_STYLE_CONTRACT, i as auto, l as percent, m as translate2d, n as StyleValueKind, o as classes, p as shadow, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-B_gSda0o.mjs";
-import { A as Portal, C as runSweep, D as writer, E as spread, M as defaultHost, N as useHost, O as VirtualList, S as render, T as setTransform2D, _ as mount, a as createElement, b as releaseOverlayRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as mergeProps, h as memo, i as createComponent, j as HostProvider, k as createFps, l as effect, m as isServer, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as ref, w as setProp, x as removeNode, y as registerRoot } from "./renderer-aT76Sl0b.mjs";
+import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, m as NodeKeyTable, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-B5PLhBe8.mjs";
+import { A as Portal, C as runSweep, D as writer, E as spread, F as isVectorPath, M as defaultHost, N as useHost, O as VirtualList, P as PathBuilder, S as render, T as setTransform2D, _ as mount, a as createElement, b as releaseOverlayRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as mergeProps, h as memo, i as createComponent, j as HostProvider, k as createFps, l as effect, m as isServer, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as ref, w as setProp, x as removeNode, y as registerRoot } from "./renderer-EI5N2oES.mjs";
+import { a as bool, c as number, d as rgba, f as rotate2d, g as INLINE_STYLE_CONTRACT, h as translate2d, i as auto, l as percent, m as shadow, n as StyleValueKind, o as classes, p as scale2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-D3b6x0_C.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
 import { createComponent as createComponent$1, createContext, createEffect, createSignal, flush, getOwner, onCleanup, useContext } from "solid-js";
@@ -844,7 +844,13 @@ let currentPalette;
 let activeAnimation;
 function paletteFor(name) {
 	if (!name) throw new Error("Wabou color theme name cannot be empty");
-	const parsed = JSON.parse(globalThis.__wabou_get_color_theme_palette(name));
+	const raw = globalThis.__wabou_get_color_theme_palette(name);
+	let parsed;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		throw new Error(`Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`);
+	}
 	if (!Array.isArray(parsed) || !parsed.every((value) => Number.isInteger(value))) throw new Error(`Wabou color theme \`${name}\` returned an invalid palette`);
 	return Uint32Array.from(parsed);
 }
@@ -1012,6 +1018,6 @@ function showNativeMenu(options) {
 	});
 }
 //#endregion
-export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
+export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PathBuilder, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
 
 //# sourceMappingURL=index.mjs.map

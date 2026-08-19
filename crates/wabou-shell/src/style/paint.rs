@@ -1,5 +1,20 @@
 use super::*;
 
+#[derive(Clone)]
+/// Host-owned vector geometry and its renderer-independent paint contract.
+pub struct VectorPath {
+    /// Decoded local-coordinate geometry.
+    pub path: Arc<vello::kurbo::BezPath>,
+    /// Optional fill color.
+    pub fill: Option<Color>,
+    /// Optional stroke color.
+    pub stroke: Option<Color>,
+    /// Even-odd rather than non-zero filling.
+    pub even_odd: bool,
+    /// Vello stroke configuration, including width, caps and joins.
+    pub stroke_style: vello::kurbo::Stroke,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 /// Platform cursor requested by the hovered retained node.
 pub enum CursorStyle {
@@ -302,6 +317,7 @@ impl DeclaredPaint {
             z_index: self.z_index,
             font_family: inherited.font_family,
             svg: host.svg,
+            vector_path: host.vector_path,
             image: host.image,
             widget: host.widget,
             intrinsic_size: host.intrinsic_size,
@@ -394,6 +410,8 @@ pub struct HostPaint {
     pub selection_rects: Arc<[[f32; 4]]>,
     /// Parsed SVG retained by an SVG root node.
     pub svg: Option<Arc<crate::svg::SvgImage>>,
+    /// Typed vector path retained by a `<vector-path>` node.
+    pub vector_path: Option<Arc<VectorPath>>,
     /// Decoded raster image retained by a replaced image node.
     pub image: Option<Arc<crate::image::RasterImage>>,
     /// Scene fragment painted by a Rust widget.
@@ -477,6 +495,8 @@ pub struct Paint {
     /// Parsed inline SVG attached to an `<svg>` root. Descendant SVG elements
     /// are collapsed into this retained scene fragment by the host runtime.
     pub svg: Option<Arc<crate::svg::SvgImage>>,
+    /// Typed vector path attached to a `<vector-path>` node.
+    pub vector_path: Option<Arc<VectorPath>>,
     /// A decoded raster image attached to an `<img>` replaced element.
     pub image: Option<Arc<crate::image::RasterImage>>,
     /// A Rust-side `Widget`'s painted scene fragment (e.g. TextInput, Canvas).

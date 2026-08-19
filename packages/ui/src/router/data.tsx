@@ -23,6 +23,7 @@ import {
   type JSX,
   onCleanup,
   Show,
+  untrack,
   useContext,
 } from "solid-js";
 
@@ -31,7 +32,10 @@ import {
 globalThis.scrollTo ??= () => {};
 
 function createMutableStore<T>(initial: T): RouterWritableStore<T> {
-  const [read, write] = createSignal<T>(() => initial);
+  // Router Core owns this store and may publish a navigation while a Solid
+  // component/event owner is current. Solid 2 treats that as an accidental
+  // cross-owner write unless the adapter declares the write intentional.
+  const [read, write] = createSignal<T>(() => initial, { ownedWrite: true });
   return {
     get: read,
     set(next: T | ((previous: T) => T)) {
@@ -220,12 +224,33 @@ export interface RouterProviderProps {
 
 /** Own router lifecycle and render its current native component branch. */
 export function RouterProvider(props: RouterProviderProps): JSX.Element {
-  const router = props.router;
-  const unsubscribe = router.history.subscribe(() => {
-    void router.load().catch(console.error);
+  // The provider owns one router for its lifetime; reading that invariant prop
+  // reactively would only produce Solid 2's untracked-read diagnostic.
+  const router = untrack(() => props.router);
+  let disposed = false;
+  let loadScheduled = false;
+  const scheduleLoad = () => {
+    if (disposed || loadScheduled) return;
+    loadScheduled = true;
+    // Router Core reads and publishes its external store during load(). Run it
+    // after component construction so Solid does not mistake those reads for
+    // untracked component dependencies. Multiple synchronous history events
+    // collapse into one load of the latest location.
+    void Promise.resolve()
+      .then(async () => {
+        loadScheduled = false;
+        if (!disposed) await router.load();
+      })
+      .catch((error) => {
+        console.error(`[wabou-router] route load failed: ${String(error)}`);
+      });
+  };
+  const unsubscribe = router.history.subscribe(scheduleLoad);
+  onCleanup(() => {
+    disposed = true;
+    unsubscribe();
   });
-  onCleanup(unsubscribe);
-  void router.load().catch(console.error);
+  scheduleLoad();
   return createComponent(DataRouterContext, {
     value: router,
     get children() {

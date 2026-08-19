@@ -8,6 +8,9 @@ import {
   type WabouElementProps,
 } from "@wabou/core/renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
+import type { VectorPath } from "@wabou/core";
+export { PathBuilder } from "@wabou/core";
+export type { VectorPath, VectorPathPaint } from "@wabou/core";
 import { type JSX, omit } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/core/style";
@@ -45,6 +48,11 @@ export interface TextProps extends PrimitiveProps {}
 export interface SvgProps extends Omit<PrimitiveProps, "children"> {
   /** Trusted inline SVG source parsed and cached by the native host. */
   source: string;
+}
+
+export interface PathProps extends Omit<PrimitiveProps, "children"> {
+  /** Immutable geometry and paint snapshot built with PathBuilder. */
+  source: VectorPath;
 }
 
 export interface IconProps extends Omit<SvgProps, "source"> {
@@ -120,7 +128,8 @@ function primitive(
     | "input"
     | "textarea"
     | "password-input"
-    | "code-editor",
+    | "code-editor"
+    | "vector-path",
   props: PrimitiveProps,
 ) {
   const node = createElement(tag);
@@ -192,6 +201,11 @@ export function Text(props: TextProps): JSX.Element {
 /** A static SVG asset rendered through the native usvg/Vello pipeline. */
 export function Svg(props: SvgProps): JSX.Element {
   return semanticPrimitive("svg", "img", props);
+}
+
+/** A native Vello vector path in local logical-pixel coordinates. */
+export function Path(props: PathProps): JSX.Element {
+  return primitive("vector-path", props);
 }
 
 /** A theme-colored SVG icon with stable native sizing and semantics. */

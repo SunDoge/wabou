@@ -7,6 +7,8 @@ import {
   Fps,
   Icon,
   Kbd,
+  Path,
+  PathBuilder,
   Progress,
   Slider,
   SplitPane,
@@ -25,7 +27,8 @@ import layers from "lucide-static/icons/layers-3.svg?raw";
 import palette from "lucide-static/icons/palette.svg?raw";
 import scan from "lucide-static/icons/scan-line.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
-import { createSignal, For, type JSX } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, type JSX } from "solid-js";
+import { appendSmoothPath } from "../lib/smooth-path";
 
 const treeNodes = [
   { id: "shell", name: "ApplicationShell", detail: "flex row, 1440 by 900" },
@@ -40,6 +43,32 @@ const stages = [
   { label: "Scene", value: "0.8 ms", width: 18 },
   { label: "Present", value: "1.1 ms", width: 24 },
 ] as const;
+
+function LiveFrameChart() {
+  const [tick, setTick] = createSignal(0);
+  const timer = setInterval(() => setTick((value) => value + 1), 650);
+  onCleanup(() => clearInterval(timer));
+  const source = createMemo(() => {
+    const phase = tick();
+    const points = [];
+    for (let index = 0; index < 18; index++) {
+      const value = 42 + Math.sin((index + phase) * 0.72) * 13 +
+        Math.sin((index - phase) * 0.31) * 7;
+      points.push({ x: index * 18, y: 72 - value });
+    }
+    return appendSmoothPath(new PathBuilder(), points).build({
+      stroke: 0x38bdf8ff,
+      strokeWidth: 2.5,
+      lineCap: "round",
+      lineJoin: "round",
+    });
+  });
+  return (
+    <View class="relative h-16 overflow-hidden rounded-md bg-control">
+      <Path class="absolute inset-0 w-full h-full" source={source()} />
+    </View>
+  );
+}
 
 export function OverviewPage(props: {
   theme: string;
@@ -145,6 +174,7 @@ export function OverviewPage(props: {
                 <Badge variant="outline">Live</Badge>
               </View>
               <View class="flex flex-col gap-3">
+                <LiveFrameChart />
                 <For each={stages}>
                   {(stage) => (
                     <View class="flex items-center gap-3">

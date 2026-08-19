@@ -868,7 +868,10 @@ impl JsRuntime {
         let origin = url::Url::parse(server_url).map_err(|_| rquickjs::Error::Unknown)?;
         let rt = AsyncRuntime::new()?;
         futures_lite::future::block_on(async {
-            rt.set_max_stack_size(2048 * 1024).await;
+            // Vite evaluates an ESM graph instead of one bundled module, so
+            // linking can require at least as much native stack as production
+            // evaluation. Keep both runtime creation paths on the same limit.
+            rt.set_max_stack_size(QUICKJS_STACK_SIZE).await;
         });
         let vite = crate::vite::ViteState::new(origin);
         vite.install_loader(&rt)?;

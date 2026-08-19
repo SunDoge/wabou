@@ -2566,6 +2566,138 @@
         }
       }
     ],
+    "text-4xl": [
+      {
+        "property": "font-size",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 36.0
+          }
+        }
+      },
+      {
+        "property": "line-height",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 40.0
+          }
+        }
+      }
+    ],
+    "text-5xl": [
+      {
+        "property": "font-size",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 48.0
+          }
+        }
+      },
+      {
+        "property": "line-height",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 48.0
+          }
+        }
+      }
+    ],
+    "text-6xl": [
+      {
+        "property": "font-size",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 60.0
+          }
+        }
+      },
+      {
+        "property": "line-height",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 60.0
+          }
+        }
+      }
+    ],
+    "text-7xl": [
+      {
+        "property": "font-size",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 72.0
+          }
+        }
+      },
+      {
+        "property": "line-height",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 72.0
+          }
+        }
+      }
+    ],
+    "text-8xl": [
+      {
+        "property": "font-size",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 96.0
+          }
+        }
+      },
+      {
+        "property": "line-height",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 96.0
+          }
+        }
+      }
+    ],
+    "text-9xl": [
+      {
+        "property": "font-size",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 128.0
+          }
+        }
+      },
+      {
+        "property": "line-height",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 128.0
+          }
+        }
+      }
+    ],
     "text-base": [
       {
         "property": "font-size",

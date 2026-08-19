@@ -2228,6 +2228,120 @@ var manifest_default = {
 				}
 			}
 		}],
+		"text-4xl": [{
+			"property": "font-size",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 36
+				}
+			}
+		}, {
+			"property": "line-height",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 40
+				}
+			}
+		}],
+		"text-5xl": [{
+			"property": "font-size",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 48
+				}
+			}
+		}, {
+			"property": "line-height",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 48
+				}
+			}
+		}],
+		"text-6xl": [{
+			"property": "font-size",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 60
+				}
+			}
+		}, {
+			"property": "line-height",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 60
+				}
+			}
+		}],
+		"text-7xl": [{
+			"property": "font-size",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 72
+				}
+			}
+		}, {
+			"property": "line-height",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 72
+				}
+			}
+		}],
+		"text-8xl": [{
+			"property": "font-size",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 96
+				}
+			}
+		}, {
+			"property": "line-height",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 96
+				}
+			}
+		}],
+		"text-9xl": [{
+			"property": "font-size",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 128
+				}
+			}
+		}, {
+			"property": "line-height",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 128
+				}
+			}
+		}],
 		"text-base": [{
 			"property": "font-size",
 			"value": {
@@ -3475,4 +3589,4 @@ var manifest_default = {
 //#endregion
 export { manifest_default as t };
 
-//# sourceMappingURL=manifest-Bc3Dti5x.mjs.map
+//# sourceMappingURL=manifest-BfG7g8LY.mjs.map

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createMemoryHistory } from "@tanstack/history";
 import { isServer, mount } from "@wabou/core/renderer";
-import { createComponent, createEffect, flush } from "solid-js";
+import { createComponent, createEffect, createRoot, flush } from "solid-js";
 import {
   BaseRootRoute,
   BaseRoute,
@@ -106,4 +106,16 @@ test("data-router hooks reject calls outside RouterProvider", () => {
   expect(() => useRouter()).toThrow(
     "Wabou data-router hooks must be used inside <RouterProvider>",
   );
+});
+
+test("router-owned stores can publish while a Solid owner is current", async () => {
+  const root = new BaseRootRoute({ component: () => null });
+  const router = createDataRouter({
+    routeTree: root,
+    history: createMemoryHistory({ initialEntries: ["/"] }),
+    context: {},
+  });
+
+  await createRoot(() => router.load());
+  expect(router.state.status).toBe("idle");
 });

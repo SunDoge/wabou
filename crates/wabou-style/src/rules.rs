@@ -492,6 +492,17 @@ pub fn parse_utility_with_theme(
             .map(|value| (property, value))
     }) {
         vec![length(property, value)]
+    } else if utility.strip_prefix("text-").is_some_and(|token| {
+        token.ends_with("xl")
+            && token
+                .trim_end_matches("xl")
+                .chars()
+                .all(|character| character.is_ascii_digit())
+    }) {
+        return Err(ParseError::InvalidValue {
+            utility: class_name.into(),
+            expected: "a named font-size token from xs through 9xl",
+        });
     } else if let Ok((prefix, token)) = color_rule.parse(utility) {
         let rgba = theme_color(token, theme).ok_or_else(|| ParseError::InvalidValue {
             utility: class_name.into(),

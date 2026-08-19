@@ -47,14 +47,19 @@ export type WabouViteOptionsExport =
   | WabouViteOptions
   | ((environment: ConfigEnv) => WabouViteOptions);
 
-function disableSolidDependencyOptimizer(): Plugin {
+function configureDependencyOptimizer(): Plugin {
   return {
-    name: "wabou-disable-solid-deps-optimizer",
+    name: "wabou-configure-deps-optimizer",
     enforce: "post",
     configResolved(config) {
       if (config.command === "serve") {
         config.optimizeDeps.noDiscovery = true;
-        config.optimizeDeps.include = [];
+        // Automatic discovery can prebundle Solid against the DOM renderer,
+        // but explicitly configured dependencies are still valuable. In
+        // particular, packages with dense/cyclic ESM graphs (TanStack Router)
+        // can overflow QuickJS's recursive module linker when served as many
+        // individual modules.
+        config.optimizeDeps.include ??= [];
       }
     },
   };
@@ -74,7 +79,7 @@ export function wabouPlugins(
     ...solid({
       solid: { generate: "universal", moduleName: "@wabou/core/renderer" },
     }),
-    disableSolidDependencyOptimizer(),
+    configureDependencyOptimizer(),
   ];
 }
 
@@ -128,6 +133,10 @@ function resolveWabouConfig(
         "@wabou/core/renderer": renderer,
         "solid-js/web": renderer,
       },
+    },
+    optimizeDeps: {
+      noDiscovery: true,
+      include: ["@tanstack/router-core"],
     },
     build: {
       // The native QuickJS host consumes this map to report TS/TSX locations

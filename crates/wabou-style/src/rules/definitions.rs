@@ -646,6 +646,48 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
                 length("line-height", Length::Px { value: 36.0 }),
             ],
         ),
+        (
+            "text-4xl",
+            vec![
+                length("font-size", Length::Px { value: 36.0 }),
+                length("line-height", Length::Px { value: 40.0 }),
+            ],
+        ),
+        (
+            "text-5xl",
+            vec![
+                length("font-size", Length::Px { value: 48.0 }),
+                length("line-height", Length::Px { value: 48.0 }),
+            ],
+        ),
+        (
+            "text-6xl",
+            vec![
+                length("font-size", Length::Px { value: 60.0 }),
+                length("line-height", Length::Px { value: 60.0 }),
+            ],
+        ),
+        (
+            "text-7xl",
+            vec![
+                length("font-size", Length::Px { value: 72.0 }),
+                length("line-height", Length::Px { value: 72.0 }),
+            ],
+        ),
+        (
+            "text-8xl",
+            vec![
+                length("font-size", Length::Px { value: 96.0 }),
+                length("line-height", Length::Px { value: 96.0 }),
+            ],
+        ),
+        (
+            "text-9xl",
+            vec![
+                length("font-size", Length::Px { value: 128.0 }),
+                length("line-height", Length::Px { value: 128.0 }),
+            ],
+        ),
         ("leading-tight", vec![number("line-height", 1.25)]),
         ("leading-normal", vec![number("line-height", 1.5)]),
         ("leading-relaxed", vec![number("line-height", 1.625)]),

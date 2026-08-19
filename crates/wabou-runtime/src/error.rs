@@ -63,6 +63,15 @@ pub enum Error {
         application: String,
     },
 
+    /// An application-owned background service failed to start.
+    #[snafu(display("host service `{name}` failed to start: {message}"))]
+    HostService {
+        /// Stable diagnostic name supplied by the service.
+        name: &'static str,
+        /// Service-specific startup failure.
+        message: String,
+    },
+
     /// Built-in behavior test scenario reported failure.
     #[snafu(display("test scenario failed: {message}"))]
     TestScenario {

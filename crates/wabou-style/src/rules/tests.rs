@@ -124,6 +124,30 @@ fn text_ellipsis_does_not_require_overflow_clipping() {
 }
 
 #[test]
+fn named_display_font_sizes_cover_the_complete_scale() {
+    for (candidate, size) in [
+        ("text-4xl", 36.0),
+        ("text-5xl", 48.0),
+        ("text-6xl", 60.0),
+        ("text-7xl", 72.0),
+        ("text-8xl", 96.0),
+        ("text-9xl", 128.0),
+    ] {
+        assert_eq!(
+            parse_utility(candidate).unwrap().declarations[0].value,
+            Value::Length {
+                value: Length::Px { value: size }
+            }
+        );
+    }
+    assert!(matches!(
+        parse_utility("text-10xl"),
+        Err(ParseError::InvalidValue { expected, .. })
+            if expected.contains("font-size")
+    ));
+}
+
+#[test]
 fn static_transform_utilities_emit_typed_nested_ir() {
     let parsed = parse_utility("translate-x-4").unwrap();
     assert!(matches!(

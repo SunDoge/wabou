@@ -4373,9 +4373,171 @@
       ]
     },
     {
-      "className": "text-[18px]",
+      "className": "text-4xl",
       "specificity": 10,
       "sourceOrder": 185,
+      "declarations": [
+        {
+          "property": "font-size",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 36
+            }
+          }
+        },
+        {
+          "property": "line-height",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 40
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "text-5xl",
+      "specificity": 10,
+      "sourceOrder": 186,
+      "declarations": [
+        {
+          "property": "font-size",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 48
+            }
+          }
+        },
+        {
+          "property": "line-height",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 48
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "text-6xl",
+      "specificity": 10,
+      "sourceOrder": 187,
+      "declarations": [
+        {
+          "property": "font-size",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 60
+            }
+          }
+        },
+        {
+          "property": "line-height",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 60
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "text-7xl",
+      "specificity": 10,
+      "sourceOrder": 188,
+      "declarations": [
+        {
+          "property": "font-size",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 72
+            }
+          }
+        },
+        {
+          "property": "line-height",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 72
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "text-8xl",
+      "specificity": 10,
+      "sourceOrder": 189,
+      "declarations": [
+        {
+          "property": "font-size",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 96
+            }
+          }
+        },
+        {
+          "property": "line-height",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 96
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "text-9xl",
+      "specificity": 10,
+      "sourceOrder": 190,
+      "declarations": [
+        {
+          "property": "font-size",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 128
+            }
+          }
+        },
+        {
+          "property": "line-height",
+          "value": {
+            "type": "length",
+            "value": {
+              "unit": "px",
+              "value": 128
+            }
+          }
+        }
+      ]
+    },
+    {
+      "className": "text-[18px]",
+      "specificity": 10,
+      "sourceOrder": 191,
       "declarations": [
         {
           "property": "font-size",
@@ -4392,7 +4554,7 @@
     {
       "className": "text-[2px]",
       "specificity": 10,
-      "sourceOrder": 186,
+      "sourceOrder": 192,
       "declarations": [
         {
           "property": "font-size",
@@ -4409,7 +4571,7 @@
     {
       "className": "text-base",
       "specificity": 10,
-      "sourceOrder": 187,
+      "sourceOrder": 193,
       "declarations": [
         {
           "property": "font-size",
@@ -4436,7 +4598,7 @@
     {
       "className": "text-center",
       "specificity": 10,
-      "sourceOrder": 188,
+      "sourceOrder": 194,
       "declarations": [
         {
           "property": "text-align",
@@ -4450,7 +4612,7 @@
     {
       "className": "text-ellipsis",
       "specificity": 10,
-      "sourceOrder": 189,
+      "sourceOrder": 195,
       "declarations": [
         {
           "property": "text-overflow",
@@ -4464,7 +4626,7 @@
     {
       "className": "text-left",
       "specificity": 10,
-      "sourceOrder": 190,
+      "sourceOrder": 196,
       "declarations": [
         {
           "property": "text-align",
@@ -4478,7 +4640,7 @@
     {
       "className": "text-lg",
       "specificity": 10,
-      "sourceOrder": 191,
+      "sourceOrder": 197,
       "declarations": [
         {
           "property": "font-size",
@@ -4505,7 +4667,7 @@
     {
       "className": "text-right",
       "specificity": 10,
-      "sourceOrder": 192,
+      "sourceOrder": 198,
       "declarations": [
         {
           "property": "text-align",
@@ -4519,7 +4681,7 @@
     {
       "className": "text-slate-900",
       "specificity": 10,
-      "sourceOrder": 193,
+      "sourceOrder": 199,
       "declarations": [
         {
           "property": "color",
@@ -4536,7 +4698,7 @@
     {
       "className": "text-sm",
       "specificity": 10,
-      "sourceOrder": 194,
+      "sourceOrder": 200,
       "declarations": [
         {
           "property": "font-size",
@@ -4563,7 +4725,7 @@
     {
       "className": "text-xl",
       "specificity": 10,
-      "sourceOrder": 195,
+      "sourceOrder": 201,
       "declarations": [
         {
           "property": "font-size",
@@ -4590,7 +4752,7 @@
     {
       "className": "text-xs",
       "specificity": 10,
-      "sourceOrder": 196,
+      "sourceOrder": 202,
       "declarations": [
         {
           "property": "font-size",
@@ -4617,7 +4779,7 @@
     {
       "className": "top-4",
       "specificity": 10,
-      "sourceOrder": 197,
+      "sourceOrder": 203,
       "declarations": [
         {
           "property": "top",
@@ -4634,7 +4796,7 @@
     {
       "className": "translate-x-4",
       "specificity": 10,
-      "sourceOrder": 198,
+      "sourceOrder": 204,
       "declarations": [
         {
           "property": "transform-translate-x",
@@ -4665,7 +4827,7 @@
     {
       "className": "translate-y-4",
       "specificity": 10,
-      "sourceOrder": 199,
+      "sourceOrder": 205,
       "declarations": [
         {
           "property": "transform-translate-y",
@@ -4696,7 +4858,7 @@
     {
       "className": "translate-y-6",
       "specificity": 10,
-      "sourceOrder": 200,
+      "sourceOrder": 206,
       "declarations": [
         {
           "property": "transform-translate-y",
@@ -4727,7 +4889,7 @@
     {
       "className": "truncate",
       "specificity": 10,
-      "sourceOrder": 201,
+      "sourceOrder": 207,
       "declarations": [
         {
           "property": "overflow",
@@ -4755,7 +4917,7 @@
     {
       "className": "w-2/3",
       "specificity": 10,
-      "sourceOrder": 202,
+      "sourceOrder": 208,
       "declarations": [
         {
           "property": "width",
@@ -4772,7 +4934,7 @@
     {
       "className": "w-38%",
       "specificity": 10,
-      "sourceOrder": 203,
+      "sourceOrder": 209,
       "declarations": [
         {
           "property": "width",
@@ -4789,7 +4951,7 @@
     {
       "className": "w-4",
       "specificity": 10,
-      "sourceOrder": 204,
+      "sourceOrder": 210,
       "declarations": [
         {
           "property": "width",
@@ -4806,7 +4968,7 @@
     {
       "className": "w-full",
       "specificity": 10,
-      "sourceOrder": 205,
+      "sourceOrder": 211,
       "declarations": [
         {
           "property": "width",
@@ -4823,7 +4985,7 @@
     {
       "className": "whitespace-normal",
       "specificity": 10,
-      "sourceOrder": 206,
+      "sourceOrder": 212,
       "declarations": [
         {
           "property": "white-space",
@@ -4837,7 +4999,7 @@
     {
       "className": "whitespace-nowrap",
       "specificity": 10,
-      "sourceOrder": 207,
+      "sourceOrder": 213,
       "declarations": [
         {
           "property": "white-space",
@@ -4851,7 +5013,7 @@
     {
       "className": "z-0",
       "specificity": 10,
-      "sourceOrder": 208,
+      "sourceOrder": 214,
       "declarations": [
         {
           "property": "z-index",
@@ -4865,7 +5027,7 @@
     {
       "className": "z-10",
       "specificity": 10,
-      "sourceOrder": 209,
+      "sourceOrder": 215,
       "declarations": [
         {
           "property": "z-index",
@@ -4879,7 +5041,7 @@
     {
       "className": "z-20",
       "specificity": 10,
-      "sourceOrder": 210,
+      "sourceOrder": 216,
       "declarations": [
         {
           "property": "z-index",
@@ -4893,7 +5055,7 @@
     {
       "className": "z-30",
       "specificity": 10,
-      "sourceOrder": 211,
+      "sourceOrder": 217,
       "declarations": [
         {
           "property": "z-index",
@@ -4907,7 +5069,7 @@
     {
       "className": "z-40",
       "specificity": 10,
-      "sourceOrder": 212,
+      "sourceOrder": 218,
       "declarations": [
         {
           "property": "z-index",
@@ -4921,7 +5083,7 @@
     {
       "className": "z-50",
       "specificity": 10,
-      "sourceOrder": 213,
+      "sourceOrder": 219,
       "declarations": [
         {
           "property": "z-index",
@@ -4935,7 +5097,7 @@
     {
       "className": "z-[2]",
       "specificity": 10,
-      "sourceOrder": 214,
+      "sourceOrder": 220,
       "declarations": [
         {
           "property": "z-index",
@@ -4949,7 +5111,7 @@
     {
       "className": "z-[42]",
       "specificity": 10,
-      "sourceOrder": 215,
+      "sourceOrder": 221,
       "declarations": [
         {
           "property": "z-index",

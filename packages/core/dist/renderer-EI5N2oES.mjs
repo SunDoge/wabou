@@ -1,8 +1,142 @@
-import { c as INTERACTION_POLICY, d as Writer, f as NodeKeyAllocator, g as isNodeKey, h as formatNodeKey, i as GRAPHIC_SOURCE, m as ROOT_NODE_KEY, p as NodeKeyTable, t as EVENT_CODE, v as nodeKeyEquals } from "./protocol-DfLpXnPC.mjs";
-import { r as assertInlineStyleValue, s as isTypedStyleValue } from "./style-B_gSda0o.mjs";
+import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-B5PLhBe8.mjs";
+import { r as assertInlineStyleValue, s as isTypedStyleValue } from "./style-D3b6x0_C.mjs";
 import { For, Show, createComponent, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
 import { Virtualizer } from "@tanstack/virtual-core";
+//#region src/vector-path.ts
+/** Stable, renderer-independent vector path command stream. */
+const PATH_MAGIC = 827343447;
+const PATH_VERSION = 1;
+const HEADER_SIZE = 36;
+const MAX_PATH_BYTES = 16777216;
+const COMMAND = {
+	MoveTo: 1,
+	LineTo: 2,
+	QuadTo: 3,
+	CubicTo: 4,
+	Close: 5
+};
+function finite(name, values) {
+	if (!values.every(Number.isFinite)) throw new RangeError(`${name} requires finite coordinates`);
+}
+function rgba(value, fallback) {
+	if (value === void 0) return fallback;
+	if (!Number.isInteger(value) || value < 0 || value > 4294967295) throw new RangeError("path colors must be packed 32-bit RGBA values");
+	return value >>> 0;
+}
+function positive(name, value) {
+	if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be a positive finite number`);
+	return value;
+}
+var PathBuilder = class {
+	#commands = [];
+	moveTo(x, y) {
+		finite("moveTo", [x, y]);
+		this.#commands.push([
+			COMMAND.MoveTo,
+			x,
+			y
+		]);
+		return this;
+	}
+	lineTo(x, y) {
+		finite("lineTo", [x, y]);
+		this.#commands.push([
+			COMMAND.LineTo,
+			x,
+			y
+		]);
+		return this;
+	}
+	quadTo(cx, cy, x, y) {
+		finite("quadTo", [
+			cx,
+			cy,
+			x,
+			y
+		]);
+		this.#commands.push([
+			COMMAND.QuadTo,
+			cx,
+			cy,
+			x,
+			y
+		]);
+		return this;
+	}
+	cubicTo(c1x, c1y, c2x, c2y, x, y) {
+		finite("cubicTo", [
+			c1x,
+			c1y,
+			c2x,
+			c2y,
+			x,
+			y
+		]);
+		this.#commands.push([
+			COMMAND.CubicTo,
+			c1x,
+			c1y,
+			c2x,
+			c2y,
+			x,
+			y
+		]);
+		return this;
+	}
+	close() {
+		this.#commands.push([COMMAND.Close]);
+		return this;
+	}
+	/** Create an immutable snapshot. Later builder mutations cannot alter it. */
+	build(paint = {}) {
+		const resolved = Object.freeze({
+			fill: rgba(paint.fill, 0),
+			stroke: rgba(paint.stroke, 0),
+			strokeWidth: positive("strokeWidth", paint.strokeWidth ?? 1),
+			fillRule: paint.fillRule ?? "nonzero",
+			lineCap: paint.lineCap ?? "butt",
+			lineJoin: paint.lineJoin ?? "miter",
+			miterLimit: positive("miterLimit", paint.miterLimit ?? 4)
+		});
+		const byteLength = HEADER_SIZE + this.#commands.reduce((size, command) => size + 4 + (command.length - 1) * 4, 0);
+		if (byteLength > MAX_PATH_BYTES) throw new RangeError("vector path exceeds the 16 MiB protocol limit");
+		const data = new Uint8Array(byteLength);
+		const view = new DataView(data.buffer);
+		view.setUint32(0, PATH_MAGIC, true);
+		view.setUint16(4, PATH_VERSION, true);
+		view.setUint16(6, 0, true);
+		view.setUint32(8, this.#commands.length, true);
+		view.setUint32(12, byteLength, true);
+		view.setUint32(16, resolved.fill, true);
+		view.setUint32(20, resolved.stroke, true);
+		view.setFloat32(24, resolved.strokeWidth, true);
+		view.setUint8(28, resolved.fillRule === "evenodd" ? 1 : 0);
+		view.setUint8(29, resolved.lineCap === "round" ? 1 : resolved.lineCap === "square" ? 2 : 0);
+		view.setUint8(30, resolved.lineJoin === "round" ? 1 : resolved.lineJoin === "bevel" ? 2 : 0);
+		view.setUint8(31, 0);
+		view.setFloat32(32, resolved.miterLimit, true);
+		let offset = HEADER_SIZE;
+		for (const command of this.#commands) {
+			view.setUint8(offset, command[0]);
+			offset += 4;
+			for (let index = 1; index < command.length; index++) {
+				view.setFloat32(offset, command[index], true);
+				offset += 4;
+			}
+		}
+		return Object.freeze({
+			kind: "wabou-vector-path",
+			get data() {
+				return data.slice();
+			}
+		});
+	}
+};
+function isVectorPath(value) {
+	return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && value.data instanceof Uint8Array;
+}
+//#endregion
 //#region src/renderer/host.tsx
 /** Checked adapter around the private Rust/QuickJS ABI. */
 const nativeHost = {
@@ -392,6 +526,12 @@ function applyProperty(writer, node, name, value, prev) {
 		return;
 	}
 	if (name === "source") {
+		if (node.tag === "vector-path") {
+			if (value == null || value === false) writer.clearGraphicData(node.id, GRAPHIC_DATA.VectorPath);
+			else if (isVectorPath(value)) writer.setGraphicData(node.id, GRAPHIC_DATA.VectorPath, value.data);
+			else throw new TypeError("invalid native vector path source");
+			return;
+		}
 		if (node.tag === "svg") {
 			if (value == null || value === false) writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.Svg);
 			else if (typeof value === "string") writer.setGraphicSource(node.id, GRAPHIC_SOURCE.Svg, value);
@@ -795,6 +935,6 @@ function eventName(code) {
 	return "unknown";
 }
 //#endregion
-export { Portal as A, runSweep as C, writer as D, spread as E, defaultHost as M, useHost as N, VirtualList as O, render as S, setTransform2D as T, mount as _, createElement as a, releaseOverlayRoot as b, dispatchEvent as c, getRequestEvent as d, insert as f, mergeProps as g, memo as h, createComponent$1 as i, HostProvider as j, createFps as k, effect as l, isServer as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, ref as v, setProp as w, removeNode as x, registerRoot as y };
+export { Portal as A, runSweep as C, writer as D, spread as E, isVectorPath as F, defaultHost as M, useHost as N, VirtualList as O, PathBuilder as P, render as S, setTransform2D as T, mount as _, createElement as a, releaseOverlayRoot as b, dispatchEvent as c, getRequestEvent as d, insert as f, mergeProps as g, memo as h, createComponent$1 as i, HostProvider as j, createFps as k, effect as l, isServer as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, ref as v, setProp as w, removeNode as x, registerRoot as y };
 
-//# sourceMappingURL=renderer-aT76Sl0b.mjs.map
+//# sourceMappingURL=renderer-EI5N2oES.mjs.map

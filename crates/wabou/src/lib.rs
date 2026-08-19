@@ -17,10 +17,11 @@
 #[cfg(feature = "bindings")]
 pub use wabou_bindgen::{Bindings, Capability, Type, specta};
 pub use wabou_bindgen::{JsonCapabilityContract, JsonMethod};
+pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
-    HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, Result,
-    ShellExtension, WindowMetrics, WindowOptions, widget_api,
+    HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostService,
+    JsonCapability, Result, ShellExtension, WindowMetrics, WindowOptions, widget_api,
 };
 
 #[cfg(test)]

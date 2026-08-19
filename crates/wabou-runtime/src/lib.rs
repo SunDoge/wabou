@@ -40,7 +40,7 @@ pub mod widget_api;
 pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};
-pub use host::HostBuilder;
+pub use host::{HostBuilder, HostService};
 pub use host_frame::{
     HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, ResizeObservation,
 };
@@ -48,6 +48,7 @@ pub use host_message::{
     DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageError,
     HostMessageHandle, HostMessagePayload, MAX_HOST_MESSAGES_PER_FRAME,
 };
+pub use json_capability::JsonCapability;
 pub use jsrt::JsRuntime;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;

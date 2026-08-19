@@ -1,7 +1,39 @@
-import { h as NodeKey$1, m as Writer } from "./protocol-B_tyWo-Z.mjs";
+import { g as NodeKey$1, h as Writer } from "./protocol-Cb5z35fp.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
-import { E as WabouStyle, t as Affine2D } from "./style-CxY9AxRA.mjs";
+import { D as WabouStyle, t as Affine2D } from "./style-COVvh6aZ.mjs";
 import { Element as Element$1, JSX } from "solid-js";
+//#region src/vector-path.d.ts
+type PathFillRule = "nonzero" | "evenodd";
+type PathLineCap = "butt" | "round" | "square";
+type PathLineJoin = "miter" | "round" | "bevel";
+interface VectorPathPaint {
+  /** Packed RGBA (`0xRRGGBBAA`). Omit to disable filling. */
+  fill?: number;
+  /** Packed RGBA (`0xRRGGBBAA`). Omit to disable stroking. */
+  stroke?: number;
+  strokeWidth?: number;
+  fillRule?: PathFillRule;
+  lineCap?: PathLineCap;
+  lineJoin?: PathLineJoin;
+  miterLimit?: number;
+}
+/** Immutable path snapshot suitable for signals, memos, and component props. */
+interface VectorPath {
+  readonly kind: "wabou-vector-path";
+  readonly data: Uint8Array;
+}
+declare class PathBuilder {
+  #private;
+  moveTo(x: number, y: number): this;
+  lineTo(x: number, y: number): this;
+  quadTo(cx: number, cy: number, x: number, y: number): this;
+  cubicTo(c1x: number, c1y: number, c2x: number, c2y: number, x: number, y: number): this;
+  close(): this;
+  /** Create an immutable snapshot. Later builder mutations cannot alter it. */
+  build(paint?: VectorPathPaint): VectorPath;
+}
+declare function isVectorPath(value: unknown): value is VectorPath;
+//#endregion
 //#region src/renderer/jsx.d.ts
 /** Renderer-owned JSX namespace for Solid 2's automatic JSX type lookup. */
 declare namespace JSX$1 {
@@ -170,6 +202,7 @@ interface WabouBuiltinIntrinsicElements {
   svg: WabouSvgProps;
   path: WabouSvgShapeProps;
   circle: WabouSvgShapeProps;
+  "vector-path": WabouVectorPathProps;
 }
 type WabouNativeElements = WabouBuiltinIntrinsicElements & WabouIntrinsicElements;
 type WabouNativeTag = keyof WabouNativeElements & string;
@@ -194,6 +227,8 @@ interface WabouElementProps {
   interactionBlocked?: boolean;
   /** Contains sequential native focus within this logical subtree. */
   focusContained?: boolean;
+  /** Places this subtree in a native overlay plane above ordinary content. */
+  overlayPlane?: "content" | "floating" | "modal";
   "aria-label"?: string;
   "aria-hidden"?: boolean | "true" | "false";
   "aria-modal"?: boolean | "true" | "false";
@@ -231,6 +266,9 @@ interface WabouElementProps {
 }
 interface WabouControlProps extends WabouElementProps {
   disabled?: boolean;
+}
+interface WabouVectorPathProps extends WabouElementProps {
+  source: VectorPath;
 }
 interface WabouInputProps extends WabouControlProps {
   type?: "text";
@@ -387,5 +425,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { PortalProps as $, dispatchEvent as A, ref as B, WabouWheelEvent as C, createElement as D, createComponent$1 as E, insertNode as F, runSweep as G, releaseOverlayRoot as H, isServer as I, spread as J, setProp as K, memo as L, getMountRoot as M, getRequestEvent as N, createTextNode as O, insert as P, Portal as Q, mergeProps as R, WabouSvgShapeProps as S, applyRef as T, removeNode as U, registerRoot as V, render as W, VirtualList as X, writer as Y, VirtualListProps as Z, WabouPointerEvent as _, WabouBuiltinIntrinsicElements as a, useHost as at, WabouSemanticRole as b, WabouEventTarget as c, LayoutRect as ct, WabouInputEvent as d, JSX$1 as dt, Host as et, WabouInputProps as f, jsx as ft, WabouNodeEvent as g, WabouNativeTag as h, NativeScrollbarStyle as i, defaultHost as it, effect as j, delegateEvents as k, WabouExposedSemanticRole as l, LayoutSnapshot as lt, WabouNativeElements as m, jsxs as mt, DynamicProps as n, HostProviderProps as nt, WabouControlProps as o, FrameStats as ot, WabouKeyEvent as p, jsxDEV as pt, setTransform2D as q, Handle as r, LayoutTarget as rt, WabouElementProps as s, LayoutNodeMetrics as st, Dynamic as t, HostProvider as tt, WabouImageProps as u, Fragment as ut, WabouPositionedEvent as v, acquireOverlayRoot as w, WabouSvgProps as x, WabouScrollEvent as y, mount as z };
-//# sourceMappingURL=index-nANgi0V1.d.mts.map
+export { Portal as $, delegateEvents as A, mount as B, WabouVectorPathProps as C, createComponent$1 as D, applyRef as E, insert as F, render as G, registerRoot as H, insertNode as I, setTransform2D as J, runSweep as K, isServer as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualListProps as Q, memo as R, WabouSvgShapeProps as S, isVectorPath as St, acquireOverlayRoot as T, releaseOverlayRoot as U, ref as V, removeNode as W, writer as X, spread as Y, VirtualList as Z, WabouPointerEvent as _, PathFillRule as _t, WabouBuiltinIntrinsicElements as a, defaultHost as at, WabouSemanticRole as b, VectorPath as bt, WabouEventTarget as c, LayoutNodeMetrics as ct, WabouInputEvent as d, Fragment as dt, PortalProps as et, WabouInputProps as f, JSX$1 as ft, WabouNodeEvent as g, PathBuilder as gt, WabouNativeTag as h, jsxs as ht, NativeScrollbarStyle as i, LayoutTarget as it, dispatchEvent as j, createTextNode as k, WabouExposedSemanticRole as l, LayoutRect as lt, WabouNativeElements as m, jsxDEV as mt, DynamicProps as n, HostProvider as nt, WabouControlProps as o, useHost as ot, WabouKeyEvent as p, jsx as pt, setProp as q, Handle as r, HostProviderProps as rt, WabouElementProps as s, FrameStats as st, Dynamic as t, Host as tt, WabouImageProps as u, LayoutSnapshot as ut, WabouPositionedEvent as v, PathLineCap as vt, WabouWheelEvent as w, WabouSvgProps as x, VectorPathPaint as xt, WabouScrollEvent as y, PathLineJoin as yt, mergeProps as z };
+//# sourceMappingURL=index-CClWq0PS.d.mts.map

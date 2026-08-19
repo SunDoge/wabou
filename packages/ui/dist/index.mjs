@@ -1,4 +1,4 @@
-import { $ as createPulse, A as NetworkImage, B as createMeasuredSize, C as Center, D as CodeEditor, E as CollapsiblePresence, F as TextInput, G as createPress, H as Link, I as View, J as createFocusWithin, K as createHover, L as rotate2d$1, M as Svg, N as Text, O as Icon, P as TextArea, Q as createLoop, R as translate2d, T as Row, U as createButton, V as Button$1, W as createActive, X as animate, Y as createAnimationFrame, Z as animateKeyframes, _ as Pulse, a as ScrollArea, b as OverlayPlaneProvider, et as createRotation, g as createNotifications, h as NotificationRegion, i as createScrollReset, j as PasswordInput$1, k as Image, n as createTabs, o as Popover, q as createFocus, r as createShortcuts, t as primitives_exports, tt as createTransition, v as Spin, w as Column, x as createOverlayLayer, y as Modal, z as createPresence } from "./primitives-DuHpwH4P.mjs";
+import { $ as animate, A as Image, B as rotate2d$1, D as CollapsiblePresence, E as Row, F as Svg, G as Link, H as createPresence, I as Text, J as createPress, K as createButton, L as TextArea, M as PasswordInput$1, N as Path, O as CodeEditor, P as PathBuilder, Q as createAnimationFrame, R as TextInput, S as createOverlayLayer, T as Column, U as createMeasuredSize, V as translate2d, W as Button$1, X as createFocus, Y as createHover, Z as createFocusWithin, _ as Pulse, a as ScrollArea, b as Modal, et as animateKeyframes, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as createTransition, j as NetworkImage, k as Icon, n as createTabs, nt as createPulse, o as Popover, q as createActive, r as createShortcuts, rt as createRotation, t as primitives_exports, tt as createLoop, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as View } from "./primitives-Boh1u0BU.mjs";
 import { rgba, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -2519,7 +2519,7 @@ function Progress(props) {
 //#region src/router/data.tsx
 globalThis.scrollTo ??= () => {};
 function createMutableStore(initial) {
-	const [read, write] = createSignal(() => initial);
+	const [read, write] = createSignal(() => initial, { ownedWrite: true });
 	return {
 		get: read,
 		set(next) {
@@ -2604,12 +2604,25 @@ function RouteOutlet(props) {
 }
 /** Own router lifecycle and render its current native component branch. */
 function RouterProvider(props) {
-	const router = props.router;
-	const unsubscribe = router.history.subscribe(() => {
-		router.load().catch(console.error);
+	const router = untrack(() => props.router);
+	let disposed = false;
+	let loadScheduled = false;
+	const scheduleLoad = () => {
+		if (disposed || loadScheduled) return;
+		loadScheduled = true;
+		Promise.resolve().then(async () => {
+			loadScheduled = false;
+			if (!disposed) await router.load();
+		}).catch((error) => {
+			console.error(`[wabou-router] route load failed: ${String(error)}`);
+		});
+	};
+	const unsubscribe = router.history.subscribe(scheduleLoad);
+	onCleanup(() => {
+		disposed = true;
+		unsubscribe();
 	});
-	onCleanup(unsubscribe);
-	router.load().catch(console.error);
+	scheduleLoad();
 	return createComponent(DataRouterContext, {
 		value: router,
 		get children() {
@@ -2646,6 +2659,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, View, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createDataRouter, createFocus, createFocusWithin, createHover, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, nextAccordionValue, notFound, primitives_exports as primitives, redirect, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useRouter, useRouterState };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, View, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createDataRouter, createFocus, createFocusWithin, createHover, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, nextAccordionValue, notFound, primitives_exports as primitives, redirect, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useRouter, useRouterState };
 
 //# sourceMappingURL=index.mjs.map
