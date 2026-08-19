@@ -20,6 +20,16 @@ export {
   nodeKeyFromSlotMapFfi,
   ROOT_NODE_KEY,
 } from "./node-key";
+export {
+  createResourceKeyFamily,
+  formatResourceKeyParts,
+  isResourceKeyParts,
+  type ResourceKey,
+  type ResourceKeyFamily,
+  type ResourceKeyParts,
+  ResourceKeyTable,
+  validateResourceKeyParts,
+} from "./resource-key";
 
 export const OP = {
   CreateElement: 0x01,

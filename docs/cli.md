@@ -83,9 +83,10 @@ runtime entrypoints declared by every `packages/*/package.json` before starting
 Vite. An interrupted `packages:build` can otherwise leave a temporarily-cleaned
 `dist/` directory and Vite reports only an opaque `externalize-deps` package
 resolution error. The preflight lists the missing files and asks for
-`bun run packages:build`. If existing artifacts no longer match their sources,
-the preflight asks for `bun run gen`; standalone applications and published
-packages do not incur this workspace-only check.
+`bun run packages:build`. Source-to-artifact drift is checked deterministically
+by `bun run gen:check` in CI rather than guessed by the runtime CLI;
+standalone applications and published packages do not incur this workspace-only
+check.
 
 ## Application verification
 

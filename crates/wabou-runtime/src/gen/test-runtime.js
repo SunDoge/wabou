@@ -694,34 +694,118 @@
   }
   installFetchPolyfill();
 
-  // packages/core/src/protocol/node-key.ts
+  // packages/core/src/protocol/resource-key.ts
   var U32_MAX = 4294967295;
-  var ROOT_NODE_KEY = nodeKey(1, 1);
+  var resourceKeyFamily = Symbol("wabou.resource-key-family");
   function u32(value, field) {
     if (!Number.isInteger(value) || value < 0 || value > U32_MAX) {
       throw new RangeError(`${field} must be an unsigned 32-bit integer`);
     }
     return value;
   }
-  function nodeKey(lo, hi) {
-    lo = u32(lo, "NodeKey.lo");
-    hi = u32(hi, "NodeKey.hi");
+  function validateResourceKeyParts(value, label = "ResourceKey") {
+    const lo = u32(value.lo, `${label}.lo`);
+    const hi = u32(value.hi, `${label}.hi`);
     if (lo === 0)
-      throw new RangeError("NodeKey slot zero is reserved");
+      throw new RangeError(`${label} slot zero is reserved`);
     if ((hi & 1) === 0) {
-      throw new RangeError("NodeKey generation must be a non-zero odd u32");
+      throw new RangeError(`${label} generation must be a non-zero odd u32`);
     }
     return { lo, hi };
   }
-  function isNodeKey(value) {
+  function isResourceKeyParts(value) {
     if (value === null || typeof value !== "object")
       return false;
     const candidate = value;
-    const { lo, hi } = candidate;
-    return typeof lo === "number" && Number.isInteger(lo) && lo > 0 && lo <= U32_MAX && typeof hi === "number" && Number.isInteger(hi) && hi > 0 && hi <= U32_MAX && (hi & 1) === 1;
+    return typeof candidate.lo === "number" && Number.isInteger(candidate.lo) && candidate.lo > 0 && candidate.lo <= U32_MAX && typeof candidate.hi === "number" && Number.isInteger(candidate.hi) && candidate.hi > 0 && candidate.hi <= U32_MAX && (candidate.hi & 1) === 1;
+  }
+  function formatResourceKeyParts(value) {
+    return `${value.lo}v${value.hi}`;
+  }
+
+  class ResourceKeyTable {
+    #family;
+    #entries = [];
+    constructor(family) {
+      this.#family = family;
+    }
+    set(key, value) {
+      this.#family.assert(key);
+      this.#entries[key.lo] = { hi: key.hi, value };
+      return this;
+    }
+    get(key) {
+      if (!this.#family.is(key))
+        return;
+      const entry = this.#entries[key.lo];
+      return entry?.hi === key.hi ? entry.value : undefined;
+    }
+    has(key) {
+      return this.#family.is(key) && this.#entries[key.lo]?.hi === key.hi;
+    }
+    delete(key) {
+      if (!this.#family.is(key))
+        return false;
+      const entry = this.#entries[key.lo];
+      if (entry?.hi !== key.hi)
+        return false;
+      this.#entries[key.lo] = undefined;
+      return true;
+    }
+    clear() {
+      this.#entries.length = 0;
+    }
+  }
+  function createResourceKeyFamily(name, options = {}) {
+    const token = Symbol(`wabou.resource-key.${name}`);
+    const runtimeBrand = options.runtimeBrand ?? true;
+    const fromParts = (lo, hi) => {
+      const parts = validateResourceKeyParts({ lo, hi }, `${name} key`);
+      if (runtimeBrand) {
+        Object.defineProperty(parts, resourceKeyFamily, { value: token });
+      }
+      return parts;
+    };
+    const is = (value) => isResourceKeyParts(value) && (!runtimeBrand || value[resourceKeyFamily] === token);
+    const assert = (value) => {
+      if (!is(value))
+        throw new TypeError(`expected a ${name} resource key`);
+    };
+    const family = {
+      name,
+      fromParts,
+      fromJSON(value) {
+        if (!isResourceKeyParts(value)) {
+          throw new TypeError(`expected { lo, hi } for a ${name} resource key`);
+        }
+        return fromParts(value.lo, value.hi);
+      },
+      is,
+      assert,
+      equals(left, right) {
+        return left === right || !!left && !!right && is(left) && is(right) && left.lo === right.lo && left.hi === right.hi;
+      },
+      format(value) {
+        return `${name}:${formatResourceKeyParts(value)}`;
+      },
+      table() {
+        return new ResourceKeyTable(family);
+      }
+    };
+    return Object.freeze(family);
+  }
+
+  // packages/core/src/protocol/node-key.ts
+  var nodeKeyFamily = createResourceKeyFamily("node", { runtimeBrand: false });
+  var ROOT_NODE_KEY = nodeKey(1, 1);
+  function nodeKey(lo, hi) {
+    return nodeKeyFamily.fromParts(lo, hi);
+  }
+  function isNodeKey(value) {
+    return isResourceKeyParts(value);
   }
   function nodeKeyEquals(left, right) {
-    return left === right || !!left && !!right && left.lo === right.lo && left.hi === right.hi;
+    return nodeKeyFamily.equals(left, right);
   }
   function formatNodeKey(key) {
     return `${key.lo}v${key.hi}`;
@@ -732,7 +816,10 @@
     #free = [];
     #nextSlot;
     constructor(firstSlot = 2) {
-      this.#nextSlot = u32(firstSlot, "firstSlot");
+      if (!Number.isInteger(firstSlot) || firstSlot < 0 || firstSlot > 4294967295) {
+        throw new RangeError("firstSlot must be an unsigned 32-bit integer");
+      }
+      this.#nextSlot = firstSlot;
       if (firstSlot === 0)
         throw new RangeError("slot zero is reserved");
     }
@@ -749,7 +836,7 @@
         return false;
       this.#live[key.lo] = false;
       const next = key.hi + 2;
-      if (next <= U32_MAX) {
+      if (next <= 4294967295) {
         this.#generations[key.lo] = next;
         this.#free.push(key.lo);
       }
@@ -759,35 +846,16 @@
       return this.#live[key.lo] === true && this.#generations[key.lo] === key.hi;
     }
     #allocateSlot() {
-      if (this.#nextSlot > U32_MAX) {
+      if (this.#nextSlot > 4294967295) {
         throw new RangeError("NodeKey slot space exhausted");
       }
       return this.#nextSlot++;
     }
   }
 
-  class NodeKeyTable {
-    #entries = [];
-    set(key, value) {
-      this.#entries[key.lo] = { hi: key.hi, value };
-      return this;
-    }
-    get(key) {
-      const entry = this.#entries[key.lo];
-      return entry?.hi === key.hi ? entry.value : undefined;
-    }
-    has(key) {
-      return this.#entries[key.lo]?.hi === key.hi;
-    }
-    delete(key) {
-      const entry = this.#entries[key.lo];
-      if (entry?.hi !== key.hi)
-        return false;
-      this.#entries[key.lo] = undefined;
-      return true;
-    }
-    clear() {
-      this.#entries.length = 0;
+  class NodeKeyTable extends ResourceKeyTable {
+    constructor() {
+      super(nodeKeyFamily);
     }
   }
 

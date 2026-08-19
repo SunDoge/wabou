@@ -128,6 +128,15 @@ shared. Rust validates the key against the typed map before use. Optional
 handles use an explicit presence field or a distinct clear operation; `(0, 0)`
 is not a universal null sentinel.
 
+The shared implementations are `createResourceKeyFamily()` and
+`ResourceKeyTable` in `@wabou/core`, plus `ResourceRegistry<K, V>` in
+`wabou_runtime::resource`. A JS resource family has a private runtime token in
+addition to its TypeScript brand, so accidental casts between two live
+families fail before lookup. Rust uses a distinct `slotmap::new_key_type!` key
+for each registry, making the equivalent family mix-up a type error. NodeKey's
+JS allocator reuses the same validation and table machinery, but nodes remain
+owned by the retained tree rather than a Rust `ResourceRegistry`.
+
 JSON capabilities should normally return a structured `{ lo, hi }` handle
 when an application must retain one. Subsequent high-frequency operations
 carry the same pair in binary frames.

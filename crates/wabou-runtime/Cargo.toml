@@ -30,6 +30,7 @@ rquickjs = {
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 snafu = { workspace = true }
+slotmap = { workspace = true }
 sourcemap = "9.2.2"
 sys-locale = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }

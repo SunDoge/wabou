@@ -1,4 +1,4 @@
-import { h as NodeKey$1, m as Writer } from "./protocol-DlNB_E1x.mjs";
+import { h as NodeKey$1, m as Writer } from "./protocol-B_tyWo-Z.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
 import { E as WabouStyle, t as Affine2D } from "./style-CxY9AxRA.mjs";
 import { Element as Element$1, JSX } from "solid-js";
@@ -388,4 +388,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { PortalProps as $, dispatchEvent as A, ref as B, WabouWheelEvent as C, createElement as D, createComponent$1 as E, insertNode as F, runSweep as G, releaseOverlayRoot as H, isServer as I, spread as J, setProp as K, memo as L, getMountRoot as M, getRequestEvent as N, createTextNode as O, insert as P, Portal as Q, mergeProps as R, WabouSvgShapeProps as S, applyRef as T, removeNode as U, registerRoot as V, render as W, VirtualList as X, writer as Y, VirtualListProps as Z, WabouPointerEvent as _, WabouBuiltinIntrinsicElements as a, useHost as at, WabouSemanticRole as b, WabouEventTarget as c, LayoutRect as ct, WabouInputEvent as d, JSX$1 as dt, Host as et, WabouInputProps as f, jsx as ft, WabouNodeEvent as g, WabouNativeTag as h, NativeScrollbarStyle as i, defaultHost as it, effect as j, delegateEvents as k, WabouExposedSemanticRole as l, LayoutSnapshot as lt, WabouNativeElements as m, jsxs as mt, DynamicProps as n, HostProviderProps as nt, WabouControlProps as o, FrameStats as ot, WabouKeyEvent as p, jsxDEV as pt, setTransform2D as q, Handle as r, LayoutTarget as rt, WabouElementProps as s, LayoutNodeMetrics as st, Dynamic as t, HostProvider as tt, WabouImageProps as u, Fragment as ut, WabouPositionedEvent as v, acquireOverlayRoot as w, WabouSvgProps as x, WabouScrollEvent as y, mount as z };
-//# sourceMappingURL=index-DlIErfDi.d.mts.map
+//# sourceMappingURL=index-nANgi0V1.d.mts.map

@@ -87,48 +87,10 @@ fn collect_dist_exports(value: &Value, output: &mut Vec<String>) {
     }
 }
 
-pub(super) fn package_source_hash(package: &Path) -> Result<String> {
-    fn collect_files(directory: &Path, output: &mut Vec<PathBuf>) -> Result<()> {
-        for entry in fs::read_dir(directory)? {
-            let path = entry?.path();
-            if path.is_dir() {
-                collect_files(&path, output)?;
-            } else if path.is_file() {
-                output.push(path);
-            }
-        }
-        Ok(())
-    }
-
-    let source = package.join("src");
-    let mut files = Vec::new();
-    collect_files(&source, &mut files)?;
-    files.sort();
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    let mut update = |bytes: &[u8]| {
-        for byte in bytes {
-            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100_0000_01b3);
-        }
-    };
-    for file in files {
-        let relative = file
-            .strip_prefix(package)
-            .unwrap_or(&file)
-            .to_string_lossy()
-            .replace(std::path::MAIN_SEPARATOR, "/");
-        update(relative.as_bytes());
-        update(&[0]);
-        update(&fs::read(file)?);
-        update(&[0xff]);
-    }
-    Ok(format!("{hash:016x}"))
-}
-
 /// Catch interrupted workspace package builds before Vite turns a missing
 /// tracked entrypoint into an opaque `externalize-deps` resolution failure.
 pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
     let mut missing = Vec::new();
-    let mut stale = Vec::new();
     for packages in [
         workspace.join("packages"),
         workspace.join("vendor/wabou/packages"),
@@ -136,9 +98,6 @@ pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
         if !packages.is_dir() {
             continue;
         }
-        let source_hashes = fs::read_to_string(packages.join(".wabou-source-hashes.json"))
-            .ok()
-            .and_then(|source| serde_json::from_str::<Value>(&source).ok());
         for entry in fs::read_dir(&packages)? {
             let package = entry?.path();
             let manifest_path = package.join("package.json");
@@ -152,7 +111,7 @@ pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
                         manifest_path.display()
                     )
                 })?;
-            let Some(package_name) = manifest
+            let Some(_package_name) = manifest
                 .get("name")
                 .and_then(Value::as_str)
                 .filter(|name| name.starts_with("@wabou/"))
@@ -171,15 +130,6 @@ pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
                     .map(|path| package.join(path))
                     .filter(|path| !path.is_file()),
             );
-            if package.join("src").is_dir()
-                && let Some(expected) = source_hashes
-                    .as_ref()
-                    .and_then(|hashes| hashes.get(package_name))
-                    .and_then(Value::as_str)
-                && expected != package_source_hash(&package)?
-            {
-                stale.push(package.clone());
-            }
         }
     }
     if !missing.is_empty() {
@@ -196,24 +146,6 @@ pub(super) fn ensure_workspace_package_exports(workspace: &Path) -> Result<()> {
             .join("\n  - ");
         return Err(format!(
             "Wabou workspace JavaScript package artifacts are missing:\n  - {paths}\nrun `bun run packages:build` from {} and retry",
-            workspace.display()
-        )
-        .into());
-    }
-    if !stale.is_empty() {
-        stale.sort();
-        let paths = stale
-            .iter()
-            .map(|path| {
-                path.strip_prefix(workspace)
-                    .unwrap_or(path)
-                    .display()
-                    .to_string()
-            })
-            .collect::<Vec<_>>()
-            .join("\n  - ");
-        return Err(format!(
-            "Wabou workspace JavaScript package artifacts are stale:\n  - {paths}\nrun `bun run gen` from {} and retry",
             workspace.display()
         )
         .into());

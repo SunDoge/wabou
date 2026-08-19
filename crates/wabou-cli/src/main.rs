@@ -45,9 +45,9 @@ use headless_render::{
 use process::{
     ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
 };
-use project::{App, ensure_workspace_package_exports, find_workspace, load_app};
 #[cfg(test)]
-use project::{find_app_root, package_source_hash};
+use project::find_app_root;
+use project::{App, ensure_workspace_package_exports, find_workspace, load_app};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -1595,37 +1595,6 @@ out-dir = "dist/resources"
         fs::create_dir_all(package.join("dist")).unwrap();
         fs::write(package.join("dist/index.mjs"), []).unwrap();
         ensure_workspace_package_exports(root.path()).unwrap();
-    }
-
-    #[test]
-    fn workspace_package_preflight_reports_stale_generated_packages() {
-        let root = tempfile::tempdir().unwrap();
-        let package = root.path().join("packages/example");
-        fs::create_dir_all(package.join("src")).unwrap();
-        fs::create_dir_all(package.join("dist")).unwrap();
-        fs::write(
-            package.join("package.json"),
-            r#"{"name":"@wabou/example","exports":"./dist/index.mjs"}"#,
-        )
-        .unwrap();
-        fs::write(package.join("src/index.ts"), "export const value = 1;\n").unwrap();
-        fs::write(package.join("dist/index.mjs"), "const value = 1;\n").unwrap();
-        fs::write(
-            root.path().join("packages/.wabou-source-hashes.json"),
-            format!(
-                "{{\"@wabou/example\":\"{}\"}}\n",
-                package_source_hash(&package).unwrap()
-            ),
-        )
-        .unwrap();
-        ensure_workspace_package_exports(root.path()).unwrap();
-
-        fs::write(package.join("src/index.ts"), "export const value = 2;\n").unwrap();
-        let message = ensure_workspace_package_exports(root.path())
-            .unwrap_err()
-            .to_string();
-        assert!(message.contains("packages/example"));
-        assert!(message.contains("bun run gen"));
     }
 
     #[test]

@@ -25,6 +25,7 @@ mod inline_context;
 mod json_capability;
 mod jsrt;
 mod protocol;
+pub mod resource;
 mod source_map;
 mod style_ir;
 mod test_driver;

@@ -7977,6 +7977,7 @@ dependencies = [
  "rquickjs",
  "serde",
  "serde_json",
+ "slotmap",
  "snafu",
  "sourcemap",
  "sys-locale",

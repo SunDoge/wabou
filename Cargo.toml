@@ -38,6 +38,7 @@ rfd = "0.17.2"
 serde = "1"
 serde_json = "1"
 snafu = "0.9.2"
+slotmap = "1.1.1"
 # Specta 2 is still pre-stable and its RC API is allowed to change. Keep the
 # schema generator and derive macro on the version this workspace validates.
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
