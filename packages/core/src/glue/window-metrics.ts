@@ -1,10 +1,15 @@
 import { createSignal, type Accessor } from "solid-js";
 import { subscribe } from "./host-messages";
-import { currentWindow, type WindowHandle } from "./window";
+import {
+  currentWindow,
+  type WindowHandle,
+  type WindowKey,
+  windowKeyFromJSON,
+} from "./window";
 import { usePlatformServices } from "./platform-context";
 
 export interface WindowMetrics {
-  windowId: number;
+  windowId: WindowKey;
   logicalWidth: number;
   logicalHeight: number;
   physicalWidth: number;
@@ -24,9 +29,14 @@ export interface WindowState extends WindowHandle {
 }
 
 const initial: WindowMetrics = {
-  windowId:
-    (globalThis as typeof globalThis & { __wabou_window_id?: number })
-      .__wabou_window_id ?? 0,
+  windowId: windowKeyFromJSON({
+    lo:
+      (globalThis as typeof globalThis & { __wabou_window_id_lo?: number })
+        .__wabou_window_id_lo ?? 1,
+    hi:
+      (globalThis as typeof globalThis & { __wabou_window_id_hi?: number })
+        .__wabou_window_id_hi ?? 1,
+  }),
   logicalWidth: 0,
   logicalHeight: 0,
   physicalWidth: 0,
@@ -40,8 +50,10 @@ const [metrics, setMetrics] = createSignal(initial, { equals: false });
 
 subscribe("wabou:window-metrics", (payload) => {
   if (typeof payload !== "string") return;
-  const next = JSON.parse(payload) as WindowMetrics;
-  setMetrics(next);
+  const next = JSON.parse(payload) as Omit<WindowMetrics, "windowId"> & {
+    windowId: unknown;
+  };
+  setMetrics({ ...next, windowId: windowKeyFromJSON(next.windowId) });
 });
 
 const state: WindowState = {

@@ -5,17 +5,19 @@ import { type Dialog, useDialog } from "./dialog";
 import { type Notification, useNotification } from "./notification";
 import { PlatformProvider } from "./platform-context";
 import { useWindow, type WindowState } from "./window-metrics";
+import { windowKeyFromJSON } from "./window";
 
 const resolve = (value: unknown): unknown =>
   typeof value === "function" ? resolve(value()) : value;
 
 test("PlatformProvider injects window-scoped services into useXxx hooks", () => {
+  const windowKey = windowKeyFromJSON({ lo: 99, hi: 1 });
   const fakeClipboard = {
     readText: async () => "injected",
     writeText: async () => {},
   };
   const metrics = () => ({
-    windowId: 99,
+    windowId: windowKey,
     logicalWidth: 320,
     logicalHeight: 200,
     physicalWidth: 640,
@@ -25,7 +27,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     focused: true,
   });
   const fakeWindow: WindowState = {
-    id: 99,
+    id: windowKey,
     close: () => {},
     minimize: () => {},
     setMaximized: () => {},
@@ -78,6 +80,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
 });
 
 test("nested partial providers inherit services they do not override", () => {
+  const windowKey = windowKeyFromJSON({ lo: 42, hi: 1 });
   const parentClipboard: Clipboard = {
     readText: async () => "parent",
     writeText: async () => {},
@@ -87,7 +90,7 @@ test("nested partial providers inherit services they do not override", () => {
     writeText: async () => {},
   };
   const metrics = () => ({
-    windowId: 42,
+    windowId: windowKey,
     logicalWidth: 1,
     logicalHeight: 1,
     physicalWidth: 1,
@@ -97,7 +100,7 @@ test("nested partial providers inherit services they do not override", () => {
     focused: false,
   });
   const parentWindow: WindowState = {
-    id: 42,
+    id: windowKey,
     close: () => {},
     minimize: () => {},
     setMaximized: () => {},

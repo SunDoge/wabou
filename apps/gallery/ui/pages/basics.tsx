@@ -623,7 +623,7 @@ function PlatformPage() {
               dark="text-sm font-medium text-slate-100"
               light="text-sm font-medium text-slate-900"
             >
-              Current window #{window.id}
+              {`Current window #${window.id.lo}v${window.id.hi}`}
             </ThemeText>
             <ThemeText
               dark="text-xs text-slate-500"
@@ -633,16 +633,16 @@ function PlatformPage() {
             </ThemeText>
           </View>
           <Button
-            onClick={() =>
-              createWindow({
+            onClick={() => {
+              void createWindow({
                 title: "Wabou child window",
                 width: 640,
                 height: 420,
                 minWidth: 360,
                 minHeight: 240,
                 decorations: false,
-              })
-            }
+              });
+            }}
           >
             Open native window
           </Button>
@@ -670,7 +670,7 @@ function ChildWindowPage() {
       <View class="flex-1 flex flex-col items-center justify-center gap-4">
         <Text class="text-2xl font-semibold">Independent native window</Text>
         <Text class="text-sm text-slate-400">
-          Window #{window.id} · {window.width()} × {window.height()}
+          {`Window #${window.id.lo}v${window.id.hi} · ${window.width()} × ${window.height()}`}
         </Text>
         <View class="flex gap-2">
           <Button onClick={() => window.setMaximized(!window.maximized())}>

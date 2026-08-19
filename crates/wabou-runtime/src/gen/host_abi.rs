@@ -153,7 +153,13 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
         feature: None,
     },
     HostAbiEntry {
-        name: "__wabou_window_id",
+        name: "__wabou_window_id_lo",
+        direction: Direction::Host,
+        owner: "applier",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_window_id_hi",
         direction: Direction::Host,
         owner: "applier",
         feature: None,

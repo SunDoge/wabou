@@ -32,7 +32,8 @@ declare global {
     method: number,
     payloadJson: string,
   ): number;
-  const __wabou_window_id: number;
+  const __wabou_window_id_lo: number;
+  const __wabou_window_id_hi: number;
   function __wabou_vite_update_style(id: string, css: string): void;
   function __wabou_vite_remove_style(id: string): void;
   function __wabou_tick(): boolean;

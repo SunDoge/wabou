@@ -1,4 +1,4 @@
-import { d as OP, m as Writer, o as GRAPHIC_SOURCE, p as TEXT_BEHAVIOR, t as EVENT_CODE, u as INTERACTION_POLICY } from "./protocol-B_tyWo-Z.mjs";
+import { d as OP, m as Writer, o as GRAPHIC_SOURCE, p as TEXT_BEHAVIOR, t as EVENT_CODE, u as INTERACTION_POLICY, w as ResourceKey } from "./protocol-B_tyWo-Z.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
 import { C as WabouStaticUtility, E as WabouStyle, S as WabouSpacingToken, T as INLINE_STYLE_CONTRACT, _ as shadow, a as StyleValueKind, b as WabouColorToken, c as auto, d as isTypedStyleValue, f as number, g as rotate2d, h as rgba, i as ShadowOptions, l as bool, m as px, n as STYLE_VALUE, o as TypedStyleValue, p as percent, r as Shadow, s as assertInlineStyleValue, t as Affine2D, u as classes, v as translate2d, w as WabouUtility, x as WabouDynamicUtility, y as WabouBaseUtility } from "./style-CxY9AxRA.mjs";
 import { $ as PortalProps, A as dispatchEvent, B as ref, C as WabouWheelEvent, D as createElement, E as createComponent, F as insertNode, G as runSweep, H as releaseOverlayRoot, I as isServer, J as spread, K as setProp, L as memo, M as getMountRoot, N as getRequestEvent, O as createTextNode, P as insert, Q as Portal, R as mergeProps, S as WabouSvgShapeProps, T as applyRef, U as removeNode, V as registerRoot, W as render, X as VirtualList, Y as writer, Z as VirtualListProps, _ as WabouPointerEvent, a as WabouBuiltinIntrinsicElements, at as useHost, b as WabouSemanticRole, c as WabouEventTarget, ct as LayoutRect, d as WabouInputEvent, dt as JSX, et as Host, f as WabouInputProps, g as WabouNodeEvent, h as WabouNativeTag, i as NativeScrollbarStyle, it as defaultHost, j as effect, k as delegateEvents, l as WabouExposedSemanticRole, lt as LayoutSnapshot, m as WabouNativeElements, n as DynamicProps, nt as HostProviderProps, o as WabouControlProps, ot as FrameStats, p as WabouKeyEvent, q as setTransform2D, r as Handle, rt as LayoutTarget, s as WabouElementProps, st as LayoutNodeMetrics, t as Dynamic, tt as HostProvider, u as WabouImageProps, v as WabouPositionedEvent, w as acquireOverlayRoot, x as WabouSvgProps, y as WabouScrollEvent, z as mount } from "./index-nANgi0V1.mjs";
@@ -29,7 +29,8 @@ declare global {
   function __wabou_resize_unobserve(nodeLo: number, nodeHi: number): void;
   const __wabou_effect_abi: number;
   function __wabou_effect_submit(capability: number, method: number, payloadJson: string): number;
-  const __wabou_window_id: number;
+  const __wabou_window_id_lo: number;
+  const __wabou_window_id_hi: number;
   function __wabou_vite_update_style(id: string, css: string): void;
   function __wabou_vite_remove_style(id: string): void;
   function __wabou_tick(): boolean;
@@ -63,6 +64,7 @@ declare const hostMessages: {
 };
 //#endregion
 //#region src/glue/window.d.ts
+type WindowKey = ResourceKey<"window">;
 interface CreateWindowOptions {
   title?: string;
   width?: number;
@@ -76,7 +78,7 @@ interface CreateWindowOptions {
   transparent?: boolean;
 }
 interface WindowHandle {
-  readonly id: number;
+  readonly id: WindowKey;
   close(): void;
   minimize(): void;
   setMaximized(value: boolean): void;
@@ -85,13 +87,13 @@ interface WindowHandle {
   startDragging(): void;
 }
 /** Create an independent native window running this application's bundle. */
-declare function createWindow(options?: CreateWindowOptions): WindowHandle;
+declare function createWindow(options?: CreateWindowOptions): Promise<WindowHandle>;
 /** An imperative handle for the native window that owns this JS runtime. */
 declare function currentWindow(): WindowHandle;
 //#endregion
 //#region src/glue/window-metrics.d.ts
 interface WindowMetrics {
-  windowId: number;
+  windowId: WindowKey;
   logicalWidth: number;
   logicalHeight: number;
   physicalWidth: number;
@@ -288,5 +290,5 @@ interface PlatformProviderProps {
 /** Override native services for one Solid subtree, primarily for tests and previews. */
 declare function PlatformProvider(props: PlatformProviderProps): JSX$1.Element;
 //#endregion
-export { Affine2D, type AppDirectories, type CalendarDateFields, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type FrameStats, GRAPHIC_SOURCE, Handle, type Host, HostCapabilities, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type LayoutNodeMetrics, type LayoutRect, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouImageProps, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouUtility, WabouWheelEvent, type WindowHandle, type WindowMetrics, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useHost, useNotification, useWindow, writer };
+export { Affine2D, type AppDirectories, type CalendarDateFields, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type FrameStats, GRAPHIC_SOURCE, Handle, type Host, HostCapabilities, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type LayoutNodeMetrics, type LayoutRect, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouImageProps, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouUtility, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useHost, useNotification, useWindow, writer };
 //# sourceMappingURL=index.d.mts.map

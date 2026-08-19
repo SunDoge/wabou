@@ -8,7 +8,7 @@ test("window metrics expose one reactive logical coordinate space", () => {
   dispatchHostMessage(
     "wabou:window-metrics",
     JSON.stringify({
-      windowId: 7,
+      windowId: { lo: 7, hi: 1 },
       logicalWidth: 800,
       logicalHeight: 600,
       physicalWidth: 1600,
@@ -21,7 +21,7 @@ test("window metrics expose one reactive logical coordinate space", () => {
   flush();
 
   expect(window.width()).toBe(800);
-  expect(window.id).toBe(7);
+  expect(window.id).toMatchObject({ lo: 7, hi: 1 });
   expect(window.height()).toBe(600);
   expect(window.scaleFactor()).toBe(2);
   expect(window.maximized()).toBe(true);

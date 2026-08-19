@@ -28,7 +28,8 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_resize_unobserve` | host | runtime | always |
 | `__wabou_effect_abi` | host | applier | always |
 | `__wabou_effect_submit` | host | applier | always |
-| `__wabou_window_id` | host | applier | always |
+| `__wabou_window_id_lo` | host | applier | always |
+| `__wabou_window_id_hi` | host | applier | always |
 | `__wabou_vite_update_style` | host | vite | vite |
 | `__wabou_vite_remove_style` | host | vite | vite |
 | `__wabou_tick` | guest | core | always |

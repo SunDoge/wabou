@@ -11,14 +11,14 @@ import { createWindow, useWindow } from "@wabou/ui";
 function App() {
   const window = useWindow();
 
-  if (window.id !== 1) {
+  if (window.id.lo !== 1 || window.id.hi !== 1) {
     return <Settings onDone={() => window.close()} />;
   }
 
   return (
     <Button
       onPress={() =>
-        createWindow({ title: "Settings", width: 720, height: 480 })
+        void createWindow({ title: "Settings", width: 720, height: 480 })
       }
     >
       Settings
@@ -27,7 +27,10 @@ function App() {
 }
 ```
 
-`createWindow(options)` creates a new runtime and returns a `WindowHandle`.
+`createWindow(options)` creates a new runtime and resolves to a `WindowHandle`
+after the native surface exists. Creation failures reject the Promise. The
+handle carries a full `{ lo, hi }` generational key rather than reusing the
+effect request id.
 The handle can close, minimize, maximize, retitle, or begin dragging that
 specific window. `useWindow()`
 returns the current runtime's reactive metrics plus the same controls.

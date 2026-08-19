@@ -137,6 +137,12 @@ for each registry, making the equivalent family mix-up a type error. NodeKey's
 JS allocator reuses the same validation and table machinery, but nodes remain
 owned by the retained tree rather than a Rust `ResourceRegistry`.
 
+Native windows are the first independently owned built-in resource using this
+model. The shell allocates their SlotMap key only while accepting a window
+creation effect, returns the pair in the asynchronous completion, and removes
+the key when the window is permanently closed. Effect request ids remain
+request-routing identities and are never exposed as window handles.
+
 JSON capabilities should normally return a structured `{ lo, hi }` handle
 when an application must retain one. Subsequent high-frequency operations
 carry the same pair in binary frames.

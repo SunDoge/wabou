@@ -39,7 +39,7 @@ pub use effect::{
     EffectPayload, EffectRequest, EffectResult, EffectScope, EffectTapeEntry, MenuPosition,
     MessageDialogButtons, MessageDialogLevel, MessageDialogRequest, MethodId, NotificationRequest,
     OpenDialogRequest, PickDirectoryRequest, RecordingEffectExecutor, ReplayEffectExecutor,
-    SaveDialogRequest,
+    SaveDialogRequest, WindowResourceKey, initial_window_resource_key,
 };
 pub use error::{Error, Result};
 pub use shell::Shell;

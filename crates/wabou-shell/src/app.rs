@@ -2,6 +2,7 @@
 
 #![warn(missing_docs)]
 
+use slotmap::{Key as SlotMapKey, KeyData, SlotMap};
 use snafu::ResultExt;
 use std::collections::HashMap;
 use std::future::Future;
@@ -78,6 +79,16 @@ fn frame_wake(has_animation: bool, deadline: Option<Instant>, now: Instant) -> F
 
 type ModalEffectFuture = Pin<Box<dyn Future<Output = crate::EffectCompletion>>>;
 
+slotmap::new_key_type! {
+    struct WindowSlotKey;
+}
+
+struct PendingWindowEffect {
+    id: crate::EffectId,
+    op: crate::EffectOp,
+    options: WindowOptions,
+}
+
 struct CallbackWaker(WakeCallback);
 
 impl Wake for CallbackWaker {
@@ -112,7 +123,7 @@ pub struct App {
     /// redraw without spinning forever while a window is occluded.
     present_retry_pending: bool,
     clipboard: Option<arboard::Clipboard>,
-    pending_windows: Vec<(u64, WindowOptions)>,
+    pending_windows: Vec<PendingWindowEffect>,
     pending_window_commands: Vec<(u64, WindowCommand)>,
     pending_extension_effects: Vec<crate::EffectRequest>,
     pending_modal_effects: Vec<ModalEffectFuture>,
@@ -490,12 +501,6 @@ impl App {
                             .request_user_attention(Some(UserAttentionType::Informational));
                     }
                 }
-                HostAction::CreateWindow { window_id, options } => {
-                    self.pending_windows.push((window_id, options));
-                }
-                HostAction::ControlWindow { window_id, command } => {
-                    self.pending_window_commands.push((window_id, command));
-                }
             }
         }
         handled
@@ -542,12 +547,10 @@ impl App {
                         .complete_effect(crate::EffectCompletion { id, op, result });
                 }
                 crate::EffectPayload::WindowCreate(request) => {
-                    self.pending_windows
-                        .push((request.window_id, request.options));
-                    self.source.complete_effect(crate::EffectCompletion {
+                    self.pending_windows.push(PendingWindowEffect {
                         id,
                         op,
-                        result: crate::EffectResult::Unit,
+                        options: request.options,
                     });
                 }
                 crate::EffectPayload::WindowControl { window_id, command } => {
@@ -1039,6 +1042,7 @@ struct MultiWindowApp {
     /// where an existing native window cannot be made invisible. Their frame
     /// sources stay alive and a fresh native surface is created when shown.
     hidden_windows: HashMap<u64, App>,
+    window_resources: SlotMap<WindowSlotKey, ()>,
     startup_errors: Vec<Arc<Mutex<Option<crate::Error>>>>,
     factory: Option<FrameSourceFactory>,
     wake: WakeCallback,
@@ -1441,6 +1445,7 @@ impl MultiWindowApp {
             pending: apps,
             windows: HashMap::new(),
             hidden_windows: HashMap::new(),
+            window_resources: SlotMap::with_key(),
             startup_errors,
             factory,
             wake,
@@ -1461,6 +1466,11 @@ impl MultiWindowApp {
             hidden_windows,
             event_loop,
         }
+    }
+
+    fn release_window_resource(&mut self, window_id: u64) {
+        let key = WindowSlotKey::from(KeyData::from_ffi(window_id));
+        self.window_resources.remove(key);
     }
 
     fn poll_extensions(&mut self, event_loop: &dyn ActiveEventLoop) {
@@ -1512,25 +1522,63 @@ impl MultiWindowApp {
         let requests = self
             .windows
             .values_mut()
-            .flat_map(|app| std::mem::take(&mut app.pending_windows))
+            .flat_map(|app| {
+                let owner = app.logical_window_id;
+                std::mem::take(&mut app.pending_windows)
+                    .into_iter()
+                    .map(move |request| (owner, request))
+            })
             .collect::<Vec<_>>();
-        if let Some(factory) = self.factory.clone() {
-            for (window_id, options) in requests {
-                match factory(window_id, &options) {
-                    Ok(source) => {
-                        let mut app = App::with_options(source, options);
-                        app.set_wake_callback(self.wake.clone());
-                        app.logical_window_id = window_id;
-                        app.can_create_surfaces(event_loop);
-                        if let Some(id) = app.state.as_ref().map(|shell| shell.window().id()) {
-                            self.startup_errors.push(app.startup_error.clone());
-                            self.windows.insert(id, app);
+        for (owner, request) in requests {
+            let Some(factory) = self.factory.clone() else {
+                if let Some(app) = find_window_by_logical_id(self.windows.values_mut(), owner) {
+                    app.source.complete_effect(crate::EffectCompletion {
+                        id: request.id,
+                        op: request.op,
+                        result: crate::EffectResult::Error {
+                            code: crate::EffectErrorCode::Unsupported,
+                            message: "this host has no window source factory".into(),
+                        },
+                    });
+                }
+                continue;
+            };
+            let key = self.window_resources.insert(());
+            let window_id = key.data().as_ffi();
+            let result = match factory(window_id, &request.options) {
+                Ok(source) => {
+                    let mut app = App::with_options(source, request.options);
+                    app.set_wake_callback(self.wake.clone());
+                    app.logical_window_id = window_id;
+                    app.can_create_surfaces(event_loop);
+                    if let Some(id) = app.state.as_ref().map(|shell| shell.window().id()) {
+                        self.startup_errors.push(app.startup_error.clone());
+                        self.windows.insert(id, app);
+                        crate::EffectResult::Window(crate::WindowResourceKey::from_ffi(window_id))
+                    } else {
+                        self.window_resources.remove(key);
+                        crate::EffectResult::Error {
+                            code: crate::EffectErrorCode::PlatformFailure,
+                            message: "native window surface creation failed".into(),
                         }
                     }
-                    Err(error) => {
-                        tracing::error!(window_id, %error, "failed to create window runtime")
+                }
+                Err(error) => {
+                    self.window_resources.remove(key);
+                    tracing::error!(window_id, %error, "failed to create window runtime");
+                    crate::EffectResult::Error {
+                        code: crate::EffectErrorCode::PlatformFailure,
+                        message: error.to_string(),
                     }
                 }
+            };
+            let completion = crate::EffectCompletion {
+                id: request.id,
+                op: request.op,
+                result,
+            };
+            if let Some(app) = find_window_by_logical_id(self.windows.values_mut(), owner) {
+                app.source.complete_effect(completion);
             }
         }
         let commands = self
@@ -1551,7 +1599,9 @@ impl MultiWindowApp {
             .filter_map(|(id, app)| app.close_requested.then_some(*id))
             .collect::<Vec<_>>();
         for id in closed {
-            self.windows.remove(&id);
+            if let Some(app) = self.windows.remove(&id) {
+                self.release_window_resource(app.logical_window_id);
+            }
         }
         if self.windows.is_empty() && self.hidden_windows.is_empty() {
             self.shutdown_extensions(event_loop);
@@ -1574,8 +1624,8 @@ impl MultiWindowApp {
 
 impl ApplicationHandler for MultiWindowApp {
     fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
-        for (index, mut app) in self.pending.drain(..).enumerate() {
-            app.logical_window_id = index as u64 + 1;
+        for mut app in self.pending.drain(..) {
+            app.logical_window_id = self.window_resources.insert(()).data().as_ffi();
             app.can_create_surfaces(event_loop);
             if let Some(id) = app.state.as_ref().map(|shell| shell.window().id()) {
                 self.windows.insert(id, app);
@@ -1613,6 +1663,7 @@ impl ApplicationHandler for MultiWindowApp {
         }
         self.windows.clear();
         self.hidden_windows.clear();
+        self.window_resources.clear();
     }
 
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
@@ -1648,7 +1699,9 @@ impl ApplicationHandler for MultiWindowApp {
             {
                 return;
             }
-            self.windows.remove(&window_id);
+            if let Some(app) = self.windows.remove(&window_id) {
+                self.release_window_resource(app.logical_window_id);
+            }
             if self.windows.is_empty() && self.hidden_windows.is_empty() {
                 self.shutdown_extensions(event_loop);
                 event_loop.exit();

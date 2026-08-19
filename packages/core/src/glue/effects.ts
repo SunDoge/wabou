@@ -1,4 +1,4 @@
-export const EFFECT_ABI_VERSION = 1;
+export const EFFECT_ABI_VERSION = 2;
 
 export interface EffectOp {
   readonly capability: number;
@@ -57,14 +57,6 @@ export function dispatchEffect<T>(op: EffectOp, payload?: unknown): Promise<T> {
       reject,
     });
   });
-}
-
-/** Submit a command whose resource handle is its effect id. */
-export function dispatchResourceEffect(
-  op: EffectOp,
-  payload?: unknown,
-): number {
-  return submit(op, payload);
 }
 
 /** Submit a command without retaining a Promise or callback. */

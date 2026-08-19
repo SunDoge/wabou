@@ -8016,6 +8016,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "slotmap",
  "snafu",
  "taffy",
  "tracing",

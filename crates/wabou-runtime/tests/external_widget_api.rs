@@ -72,10 +72,6 @@ fn external_widget_can_use_the_complete_public_sdk() {
         buttons: 1,
         modifiers: Modifiers::empty(),
     });
-    let _window_action = HostAction::CreateWindow {
-        window_id: 2,
-        options: WindowOptions::default(),
-    };
     let _factory: WidgetFactory = std::sync::Arc::new(|| Box::new(ExternalWidget::new()));
     let mut harness = WidgetHarness::new(ExternalWidget::new());
     harness.layout(WidgetGeometry {

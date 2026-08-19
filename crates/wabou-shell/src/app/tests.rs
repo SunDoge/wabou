@@ -142,6 +142,23 @@ fn targeted_window_commands_do_not_affect_other_windows() {
 }
 
 #[test]
+fn closed_window_handles_cannot_target_reused_slots() {
+    let mut resources = SlotMap::<WindowSlotKey, ()>::with_key();
+    let closed = resources.insert(());
+    let closed_id = closed.data().as_ffi();
+
+    assert_eq!(resources.remove(closed), Some(()));
+
+    let replacement = resources.insert(());
+    let replacement_id = replacement.data().as_ffi();
+
+    assert_eq!(closed_id as u32, replacement_id as u32);
+    assert_ne!(closed_id, replacement_id);
+    assert!(!resources.contains_key(WindowSlotKey::from(KeyData::from_ffi(closed_id))));
+    assert!(resources.contains_key(WindowSlotKey::from(KeyData::from_ffi(replacement_id))));
+}
+
+#[test]
 fn wayland_windows_report_that_visibility_requires_surface_recreation() {
     let surface = NonNull::from(&()).cast();
     let handle = RawWindowHandle::Wayland(WaylandWindowHandle::new(surface));

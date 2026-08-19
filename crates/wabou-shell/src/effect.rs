@@ -7,13 +7,13 @@
 
 use std::collections::VecDeque;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::AppDirectories;
 use crate::{WindowCommand, WindowOptions};
 
 /// Wire schema version for serialized effect requests and completions.
-pub const EFFECT_ABI_VERSION: u16 = 1;
+pub const EFFECT_ABI_VERSION: u16 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -155,10 +155,68 @@ pub struct ContextMenuRequest {
 #[serde(rename_all = "camelCase")]
 /// Payload for creating a native window.
 pub struct WindowCreateRequest {
-    /// Application-assigned stable window identifier.
-    pub window_id: u64,
     /// Initial native window options.
     pub options: WindowOptions,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+/// Full-width generational identity of one native window resource.
+pub struct WindowResourceKey {
+    /// Low 32 bits of the SlotMap FFI representation.
+    pub lo: u32,
+    /// High 32 bits of the SlotMap FFI representation.
+    pub hi: u32,
+}
+
+impl WindowResourceKey {
+    /// Convert the explicit wire pair to the shell's compact internal form.
+    pub const fn as_ffi(self) -> u64 {
+        self.lo as u64 | ((self.hi as u64) << 32)
+    }
+
+    /// Split the shell's compact internal form for a JS-safe boundary.
+    pub const fn from_ffi(value: u64) -> Self {
+        Self {
+            lo: value as u32,
+            hi: (value >> 32) as u32,
+        }
+    }
+
+    /// Whether the pair can represent a live SlotMap generation.
+    pub const fn is_valid(self) -> bool {
+        self.lo != 0 && self.hi != 0 && self.hi % 2 == 1
+    }
+}
+
+impl<'de> Deserialize<'de> for WindowResourceKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct WireKey {
+            lo: u32,
+            hi: u32,
+        }
+        let wire = WireKey::deserialize(deserializer)?;
+        let key = Self {
+            lo: wire.lo,
+            hi: wire.hi,
+        };
+        key.is_valid().then_some(key).ok_or_else(|| {
+            de::Error::custom("window key lo must be non-zero and hi must be non-zero and odd")
+        })
+    }
+}
+
+/// Predict the initial SlotMap keys allocated by the shell before it starts
+/// the already-constructed root frame sources.
+pub const fn initial_window_resource_key(index: usize) -> WindowResourceKey {
+    WindowResourceKey {
+        lo: index as u32 + 1,
+        hi: 1,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -408,6 +466,8 @@ pub enum EffectResult {
     ContextMenuSelection(Option<String>),
     /// Resolved platform application directories.
     AppDirectories(AppDirectories),
+    /// Newly-created native window resource.
+    Window(WindowResourceKey),
     /// Selected paths, or `None` when the dialog was dismissed.
     DialogPaths(Option<Vec<String>>),
     /// Platform-independent identifier of the selected message button.
@@ -575,6 +635,18 @@ mod tests {
         assert_eq!(builtin::DIALOG_OPEN, EffectOp::new(5, 1));
         assert_eq!(builtin::DIALOG_MESSAGE, EffectOp::new(5, 4));
         assert_eq!(builtin::NOTIFICATION_SHOW, EffectOp::new(6, 1));
+    }
+
+    #[test]
+    fn window_resource_keys_preserve_both_slotmap_halves() {
+        let key = WindowResourceKey {
+            lo: 0xffff_fffe,
+            hi: 0xffff_ffff,
+        };
+        assert!(key.is_valid());
+        assert_eq!(WindowResourceKey::from_ffi(key.as_ffi()), key);
+        assert!(!WindowResourceKey { lo: 0, hi: 1 }.is_valid());
+        assert!(!WindowResourceKey { lo: 1, hi: 2 }.is_valid());
     }
 
     #[test]

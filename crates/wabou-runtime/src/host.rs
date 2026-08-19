@@ -540,7 +540,12 @@ impl HostBuilder {
         let mut sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut applier = runtime_sources.create(index as u64 + 1)?;
+            let window_id = if headless_test {
+                index as u64 + 1
+            } else {
+                wabou_shell::initial_window_resource_key(index).as_ffi()
+            };
+            let applier = runtime_sources.create(window_id)?;
             if index == 0
                 && let Some(script) = &test_script
             {
@@ -636,7 +641,7 @@ fn run_headless_test(
     let mut last_nodes = vec![Vec::new(); sources.len()];
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
-            let window_id = index as u64 + 1;
+            let window_id = wabou_shell::initial_window_resource_key(index).as_ffi();
             source.set_semantics_enabled(true);
             source.handle_event(wabou_shell::UiEvent::WindowMetrics(crate::WindowMetrics {
                 window_id,
@@ -649,7 +654,7 @@ fn run_headless_test(
                 focused: true,
             }));
             last_nodes[index] = source.build_frame(&mut text, WIDTH, HEIGHT);
-            controller.poll_headless_source(window_id, source.as_mut());
+            controller.poll_headless_source(index as u64 + 1, source.as_mut());
         }
         std::thread::sleep(Duration::from_millis(1));
     }

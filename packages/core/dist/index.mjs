@@ -1,4 +1,4 @@
-import { _ as nodeKey, a as HOST_FRAME, c as INTERACTION_POLICY, i as GRAPHIC_SOURCE, l as OP, n as EVENT_DATA_LEN, o as HOST_NODE_PAYLOAD, p as NodeKeyTable, s as HOST_RECORD_KIND, t as EVENT_CODE, u as TEXT_BEHAVIOR } from "./protocol-DfLpXnPC.mjs";
+import { _ as nodeKey, a as HOST_FRAME, c as INTERACTION_POLICY, i as GRAPHIC_SOURCE, l as OP, n as EVENT_DATA_LEN, o as HOST_NODE_PAYLOAD, p as NodeKeyTable, s as HOST_RECORD_KIND, t as EVENT_CODE, u as TEXT_BEHAVIOR, x as createResourceKeyFamily } from "./protocol-DfLpXnPC.mjs";
 import { a as bool, c as number, d as rgba, f as rotate2d, h as INLINE_STYLE_CONTRACT, i as auto, l as percent, m as translate2d, n as StyleValueKind, o as classes, p as shadow, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-B_gSda0o.mjs";
 import { A as Portal, C as runSweep, D as writer, E as spread, M as defaultHost, N as useHost, O as VirtualList, S as render, T as setTransform2D, _ as mount, a as createElement, b as releaseOverlayRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as mergeProps, h as memo, i as createComponent, j as HostProvider, k as createFps, l as effect, m as isServer, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as ref, w as setProp, x as removeNode, y as registerRoot } from "./renderer-aT76Sl0b.mjs";
 import "./registry.mjs";
@@ -537,7 +537,7 @@ const effectOps = Object.freeze({
 });
 const pending = /* @__PURE__ */ new Map();
 function assertAbi() {
-	if (__wabou_effect_abi !== 1) throw new Error(`Wabou effect ABI mismatch: bundle=1, host=${__wabou_effect_abi}`);
+	if (__wabou_effect_abi !== 2) throw new Error(`Wabou effect ABI mismatch: bundle=2, host=${__wabou_effect_abi}`);
 }
 function submit(op, payload) {
 	assertAbi();
@@ -552,10 +552,6 @@ function dispatchEffect(op, payload) {
 			reject
 		});
 	});
-}
-/** Submit a command whose resource handle is its effect id. */
-function dispatchResourceEffect(op, payload) {
-	return submit(op, payload);
 }
 /** Submit a command without retaining a Promise or callback. */
 function dispatchFireAndForget(op, payload) {
@@ -586,6 +582,10 @@ function complete(id, capability, method, status, payloadJson) {
 globalThis.__wabou_effect_complete = complete;
 //#endregion
 //#region src/glue/window.ts
+const windowKeys = createResourceKeyFamily("window");
+function windowKeyFromJSON(value) {
+	return windowKeys.fromJSON(value);
+}
 function handle(id) {
 	return Object.freeze({
 		id,
@@ -604,11 +604,11 @@ function handle(id) {
 }
 /** Create an independent native window running this application's bundle. */
 function createWindow(options = {}) {
-	return handle(dispatchResourceEffect(effectOps.windowCreate, options));
+	return dispatchEffect(effectOps.windowCreate, options).then((key) => handle(windowKeyFromJSON(key)));
 }
 /** An imperative handle for the native window that owns this JS runtime. */
 function currentWindow() {
-	return handle(globalThis.__wabou_window_id);
+	return handle(windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi));
 }
 //#endregion
 //#region src/glue/platform-context.ts
@@ -642,7 +642,10 @@ function usePlatformServices() {
 //#endregion
 //#region src/glue/window-metrics.ts
 const initial = {
-	windowId: globalThis.__wabou_window_id ?? 0,
+	windowId: windowKeyFromJSON({
+		lo: globalThis.__wabou_window_id_lo ?? 1,
+		hi: globalThis.__wabou_window_id_hi ?? 1
+	}),
 	logicalWidth: 0,
 	logicalHeight: 0,
 	physicalWidth: 0,
@@ -655,7 +658,10 @@ const [metrics, setMetrics] = createSignal(initial, { equals: false });
 subscribe("wabou:window-metrics", (payload) => {
 	if (typeof payload !== "string") return;
 	const next = JSON.parse(payload);
-	setMetrics(next);
+	setMetrics({
+		...next,
+		windowId: windowKeyFromJSON(next.windowId)
+	});
 });
 const state = {
 	get id() {

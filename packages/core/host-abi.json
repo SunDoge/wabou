@@ -191,7 +191,14 @@
       "returns": "number"
     },
     {
-      "name": "__wabou_window_id",
+      "name": "__wabou_window_id_lo",
+      "direction": "host",
+      "owner": "applier",
+      "kind": "const",
+      "type": "number"
+    },
+    {
+      "name": "__wabou_window_id_hi",
       "direction": "host",
       "owner": "applier",
       "kind": "const",

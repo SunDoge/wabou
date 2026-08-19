@@ -22,6 +22,7 @@ pollster = "0.4"
 rfd = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
+slotmap = { workspace = true }
 snafu = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
 tracing = { workspace = true }

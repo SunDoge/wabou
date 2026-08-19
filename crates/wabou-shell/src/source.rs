@@ -409,20 +409,6 @@ pub enum HostAction {
     SetWindowTitle(Option<String>),
     /// Ask the window manager to draw the user's attention.
     RequestAttention,
-    /// Create an additional native window.
-    CreateWindow {
-        /// Application-assigned stable window identifier.
-        window_id: u64,
-        /// Initial native window options.
-        options: WindowOptions,
-    },
-    /// Apply a command to an existing native window.
-    ControlWindow {
-        /// Target Wabou window identifier.
-        window_id: u64,
-        /// Operation to perform.
-        command: WindowCommand,
-    },
 }
 
 /// Completion for a [`HostAction`] which requires data from the native host.

@@ -6302,7 +6302,7 @@ ${detail}`);
   globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 
   // packages/core/src/glue/effects.ts
-  var EFFECT_ABI_VERSION = 1;
+  var EFFECT_ABI_VERSION = 2;
   var effectOps = Object.freeze({
     clipboardRead: { capability: 1, method: 1 },
     clipboardWrite: { capability: 1, method: 2 },
@@ -6340,9 +6340,6 @@ ${detail}`);
       });
     });
   }
-  function dispatchResourceEffect(op, payload) {
-    return submit(op, payload);
-  }
   function dispatchFireAndForget(op, payload) {
     submit(op, payload);
   }
@@ -6372,6 +6369,10 @@ ${detail}`);
   globalThis.__wabou_effect_complete = complete;
 
   // packages/core/src/glue/window.ts
+  var windowKeys = createResourceKeyFamily("window");
+  function windowKeyFromJSON(value) {
+    return windowKeys.fromJSON(value);
+  }
   function handle(id) {
     return Object.freeze({
       id,
@@ -6386,10 +6387,10 @@ ${detail}`);
     });
   }
   function createWindow(options = {}) {
-    return handle(dispatchResourceEffect(effectOps.windowCreate, options));
+    return dispatchEffect(effectOps.windowCreate, options).then((key) => handle(windowKeyFromJSON(key)));
   }
   function currentWindow() {
-    return handle(globalThis.__wabou_window_id);
+    return handle(windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi));
   }
 
   // packages/core/src/glue/platform-context.ts
@@ -6400,7 +6401,10 @@ ${detail}`);
 
   // packages/core/src/glue/window-metrics.ts
   var initial = {
-    windowId: globalThis.__wabou_window_id ?? 0,
+    windowId: windowKeyFromJSON({
+      lo: globalThis.__wabou_window_id_lo ?? 1,
+      hi: globalThis.__wabou_window_id_hi ?? 1
+    }),
     logicalWidth: 0,
     logicalHeight: 0,
     physicalWidth: 0,
@@ -6414,7 +6418,7 @@ ${detail}`);
     if (typeof payload !== "string")
       return;
     const next = JSON.parse(payload);
-    setMetrics(next);
+    setMetrics({ ...next, windowId: windowKeyFromJSON(next.windowId) });
   });
   var state = {
     get id() {

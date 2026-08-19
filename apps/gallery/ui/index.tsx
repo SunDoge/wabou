@@ -235,7 +235,7 @@ import {
 
 function App() {
   const window = useWindow();
-  if (window.id !== 1) return <ChildWindowPage />;
+  if (window.id.lo !== 1 || window.id.hi !== 1) return <ChildWindowPage />;
   const [theme, setTheme] = createSignal<GalleryTheme>("dark");
   const dark = () => theme() !== "light";
   const themeLabel = () =>

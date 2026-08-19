@@ -110,7 +110,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let response = applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
-        window_id: 1,
+        window_id: wabou_shell::WindowResourceKey { lo: 1, hi: 1 }.as_ffi(),
         logical_width: 800,
         logical_height: 600,
         physical_width: 1600,
@@ -130,7 +130,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         })
         .unwrap();
     assert!(payload.contains("logicalWidth"));
-    assert!(payload.contains("\"windowId\":1"));
+    assert!(payload.contains("\"windowId\":{\"hi\":1,\"lo\":1}"));
     assert!(payload.contains("\"scaleFactor\":2.0"));
 }
 
@@ -152,13 +152,16 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
             globalThis.created = __wabou_test_host_api.createWindow({
               title: "Child", width: 640, height: 480,
               resizable: false, decorations: false, transparent: true
+            }).then(created => {
+              created.setTitle("Renamed");
+              created.minimize();
+              created.setMaximized(true);
+              created.startDragging();
+              created.close();
             });
-            created.setTitle("Renamed");
-            created.minimize();
-            created.setMaximized(true);
-            created.startDragging();
-            created.close();
-            globalThis.currentWindowId = __wabou_test_host_api.currentWindow().id;
+            globalThis.currentWindowId = JSON.stringify(
+              __wabou_test_host_api.currentWindow().id
+            );
             "#,
             )
         })
@@ -168,23 +171,35 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         applier
             .runtime
             .js
-            .with(|ctx| ctx.eval::<u64, _>("currentWindowId"))
+            .with(|ctx| ctx.eval::<String, _>("currentWindowId"))
             .expect("current window id"),
-        17
+        r#"{"lo":17,"hi":1}"#
     );
-    let created = match applier.take_effect().map(|request| request.payload) {
-        Some(wabou_shell::EffectPayload::WindowCreate(request)) => {
-            let window_id = request.window_id;
-            let options = request.options;
+    let create_request = match applier.take_effect() {
+        Some(request) => {
+            let wabou_shell::EffectPayload::WindowCreate(window) = &request.payload else {
+                panic!("unexpected effect: {:?}", request.payload)
+            };
+            let options = &window.options;
             assert_eq!(options.title, "Child");
             assert_eq!(options.initial_inner_size, (640, 480));
             assert!(!options.resizable);
             assert!(!options.decorations);
             assert!(options.transparent);
-            window_id
+            request
         }
-        effect => panic!("unexpected effect: {effect:?}"),
+        None => panic!("missing create-window effect"),
     };
+    let created_key = wabou_shell::WindowResourceKey { lo: 42, hi: 3 };
+    applier.complete_effect(wabou_shell::EffectCompletion {
+        id: create_request.id,
+        op: wabou_shell::effect::builtin::WINDOW_CREATE,
+        result: wabou_shell::EffectResult::Window(created_key),
+    });
+    for _ in 0..4 {
+        applier.runtime.js.poll_async_runtime();
+    }
+    let created = created_key.as_ffi();
     for command in [
         wabou_shell::WindowCommand::SetTitle("Renamed".into()),
         wabou_shell::WindowCommand::Minimize,
@@ -384,10 +399,10 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
     let mut first = make(1);
     let mut second = make(2);
     first
-        .boot(r#"globalThis.localState = 'first'; __wabou_effect_submit(2, 2, '{"windowId":1}')"#)
+        .boot(r#"globalThis.localState = 'first'; __wabou_effect_submit(2, 2, '{"windowId":{"lo":1,"hi":1}}')"#)
         .expect("boot first");
     second
-        .boot(r#"globalThis.localState = 'second'; __wabou_effect_submit(2, 2, '{"windowId":2}')"#)
+        .boot(r#"globalThis.localState = 'second'; __wabou_effect_submit(2, 2, '{"windowId":{"lo":2,"hi":1}}')"#)
         .expect("boot second");
 
     assert_eq!(
@@ -412,14 +427,14 @@ fn window_runtimes_keep_globals_and_action_queues_isolated() {
     assert_eq!(
         first_effect.payload,
         wabou_shell::EffectPayload::WindowControl {
-            window_id: 1,
+            window_id: wabou_shell::WindowResourceKey { lo: 1, hi: 1 }.as_ffi(),
             command: wabou_shell::WindowCommand::Close,
         }
     );
     assert_eq!(
         second_effect.payload,
         wabou_shell::EffectPayload::WindowControl {
-            window_id: 2,
+            window_id: wabou_shell::WindowResourceKey { lo: 2, hi: 1 }.as_ffi(),
             command: wabou_shell::WindowCommand::Close,
         }
     );

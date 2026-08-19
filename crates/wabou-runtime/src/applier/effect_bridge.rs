@@ -38,6 +38,16 @@ impl EffectBridge {
     }
 
     fn install_functions(&self, js: &JsRuntime, window_id: u64) {
+        let supplied = wabou_shell::WindowResourceKey::from_ffi(window_id);
+        let window_key = if supplied.is_valid() {
+            supplied
+        } else {
+            wabou_shell::WindowResourceKey {
+                lo: window_id as u32,
+                hi: 1,
+            }
+        };
+        let window_id = window_key.as_ffi();
         let submit_bridge = self.clone();
         js.with(|ctx| -> rquickjs::Result<()> {
             ctx.globals().set(
@@ -91,7 +101,8 @@ impl EffectBridge {
             )?;
             ctx.globals()
                 .set("__wabou_effect_abi", wabou_shell::EFFECT_ABI_VERSION)?;
-            ctx.globals().set("__wabou_window_id", window_id)?;
+            ctx.globals().set("__wabou_window_id_lo", window_key.lo)?;
+            ctx.globals().set("__wabou_window_id_hi", window_key.hi)?;
             Ok(())
         })
         .expect("install effect host functions");
@@ -132,7 +143,7 @@ impl EffectBridge {
 
 pub(super) fn decode_effect_payload(
     op: EffectOp,
-    id: u64,
+    _id: u64,
     window_id: u64,
     payload_json: String,
     app_directories: Option<&AppDirectories>,
@@ -180,10 +191,7 @@ pub(super) fn decode_effect_payload(
             ) {
                 options = options.min_inner_size(width as u32, height as u32);
             }
-            EffectPayload::WindowCreate(wabou_shell::effect::WindowCreateRequest {
-                window_id: id,
-                options,
-            })
+            EffectPayload::WindowCreate(wabou_shell::effect::WindowCreateRequest { options })
         }
         wabou_shell::effect::builtin::WINDOW_CLOSE
         | wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED
@@ -193,7 +201,11 @@ pub(super) fn decode_effect_payload(
             let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
             let target = value
                 .get("windowId")
-                .and_then(|value| value.as_u64())
+                .and_then(|value| {
+                    serde_json::from_value::<wabou_shell::WindowResourceKey>(value.clone()).ok()
+                })
+                .filter(|key| key.is_valid())
+                .map(wabou_shell::WindowResourceKey::as_ffi)
                 .unwrap_or(window_id);
             let command = if op == wabou_shell::effect::builtin::WINDOW_CLOSE {
                 wabou_shell::WindowCommand::Close
@@ -285,6 +297,10 @@ fn complete_js_effect(js: &JsRuntime, completion: &EffectCompletion) {
         EffectResult::AppDirectories(directories) => (
             0,
             serde_json::to_string(directories).unwrap_or_else(|_| "null".into()),
+        ),
+        EffectResult::Window(window) => (
+            0,
+            serde_json::to_string(window).unwrap_or_else(|_| "null".into()),
         ),
         EffectResult::DialogPaths(paths) => (
             0,
