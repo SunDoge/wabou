@@ -913,6 +913,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn retry_source_falls_back_to_a_torrent_info_hash() {
+        assert_eq!(
+            retry_source(Some("https://example.com/file"), Some("ignored")),
+            Some("https://example.com/file".into())
+        );
+        assert_eq!(
+            retry_source(None, Some("0123456789abcdef")),
+            Some("magnet:?xt=urn:btih:0123456789abcdef".into())
+        );
+        assert_eq!(retry_source(Some(""), None), None);
+    }
+
     #[tokio::test]
     async fn pagination_does_not_truncate_large_task_histories() {
         let total = Arc::new(600_usize);
@@ -1614,11 +1627,10 @@ async fn retry_task(client: &Client, gid: &str) -> Result<(), String> {
         .files
         .first()
         .and_then(|file| file.uris.first())
-        .map(|uri| uri.uri.clone());
+        .map(|uri| uri.uri.as_str());
+    let uri = retry_source(uri, status.info_hash.as_deref());
     let Some(uri) = uri else {
-        // aria2 does not retain a reconstructable URI for most torrent tasks.
-        // Do not silently create a different download recipe.
-        return Err("task has no reconstructable source URI".to_owned());
+        return Err("task has neither a source URI nor a BitTorrent info hash".to_owned());
     };
     let out = status
         .files
@@ -1626,11 +1638,11 @@ async fn retry_task(client: &Client, gid: &str) -> Result<(), String> {
         .and_then(|file| std::path::Path::new(&file.path).file_name())
         .and_then(|name| name.to_str())
         .map(str::to_owned);
-    let options = TaskOptions {
-        dir: (!status.dir.is_empty()).then_some(status.dir),
-        out,
-        ..TaskOptions::default()
-    };
+    let mut options = client.get_option(gid).await.unwrap_or_default();
+    options.dir = options
+        .dir
+        .or_else(|| (!status.dir.is_empty()).then_some(status.dir));
+    options.out = options.out.or(out);
     client
         .remove_download_result(gid)
         .await
@@ -1640,6 +1652,16 @@ async fn retry_task(client: &Client, gid: &str) -> Result<(), String> {
         .await
         .map_err(|error| error.to_string())?;
     Ok(())
+}
+
+fn retry_source(uri: Option<&str>, info_hash: Option<&str>) -> Option<String> {
+    uri.filter(|value| !value.trim().is_empty())
+        .map(str::to_owned)
+        .or_else(|| {
+            info_hash
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| format!("magnet:?xt=urn:btih:{value}"))
+        })
 }
 
 pub fn stream_snapshots(context: HostMessageContext, service: Aria2Service) {
