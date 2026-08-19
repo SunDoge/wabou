@@ -24,6 +24,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 slotmap = { workspace = true }
 snafu = { workspace = true }
+swash = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
 tracing = { workspace = true }
 unicode-segmentation = "1.12"

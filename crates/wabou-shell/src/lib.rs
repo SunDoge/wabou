@@ -26,6 +26,7 @@ pub mod style;
 pub mod svg;
 mod system;
 pub mod text;
+mod text_raster;
 pub mod widget;
 pub mod window_lifecycle;
 mod window_state;

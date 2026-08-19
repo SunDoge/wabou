@@ -356,11 +356,35 @@ fn draw_text(
             &Rect::new(f64::from(x0), f64::from(y0), f64::from(x1), f64::from(y1)),
         );
     }
+    let text_transform = transform * origin;
+    let [a, b, c, d, tx, ty] = text_transform.as_coeffs();
+    let raster_eligible = b.abs() < 1e-6
+        && c.abs() < 1e-6
+        && (a - device_scale).abs() < 1e-6
+        && (d - device_scale).abs() < 1e-6;
+    if raster_eligible {
+        let quantized_x = (tx * 4.0).round() / 4.0;
+        let quantized_y = (ty * 4.0).round() / 4.0;
+        let pixel_x = quantized_x.floor();
+        let pixel_y = quantized_y.floor();
+        let variant = [
+            ((quantized_x - pixel_x) * 4.0) as u8,
+            ((quantized_y - pixel_y) * 4.0) as u8,
+        ];
+        if let Some(glyph_scene) = tcx.raster_scene_scaled(&layout, device_scale, variant) {
+            append_fragment(
+                scene,
+                &glyph_scene,
+                Some(Affine::translate((pixel_x, pixel_y))),
+            );
+            return;
+        }
+    }
     let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
     append_fragment(
         scene,
         &glyph_scene,
-        Some(transform * origin * Affine::scale(device_scale.recip())),
+        Some(text_transform * Affine::scale(device_scale.recip())),
     );
 }
 
