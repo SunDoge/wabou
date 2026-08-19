@@ -189,7 +189,7 @@ impl Applier {
             .node_store
             .solid_to_node
             .iter()
-            .filter(|(solid, _)| **solid != 1)
+            .filter(|(solid, _)| **solid != NodeKey::ROOT)
             .map(|(_, node)| *node)
             .collect();
         for node in doomed {
@@ -198,11 +198,11 @@ impl Applier {
         self.document
             .node_store
             .solid_to_node
-            .retain(|id, _| *id == 1);
+            .retain(|id, _| *id == NodeKey::ROOT);
         self.document
             .node_store
             .node_to_solid
-            .retain(|_, id| *id == 1);
+            .retain(|_, id| *id == NodeKey::ROOT);
         self.document
             .node_store
             .declared

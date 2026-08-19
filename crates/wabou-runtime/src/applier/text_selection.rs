@@ -12,8 +12,8 @@ pub(super) struct SelectableText {
 
 #[derive(Clone)]
 pub(super) struct ActiveTextSelection {
-    pub(super) anchor_target: u32,
-    pub(super) focus_target: u32,
+    pub(super) anchor_target: NodeKey,
+    pub(super) focus_target: NodeKey,
     pub(super) base_selection: Selection,
     pub(super) focus_selection: Selection,
     pub(super) granularity: TextSelectionGranularity,
@@ -35,12 +35,12 @@ pub(super) enum TextSelectionGranularity {
 
 #[derive(Default)]
 pub(super) struct TextSelectionState {
-    pub(super) selectable: HashMap<u32, SelectableText>,
-    pub(super) order: Vec<u32>,
+    pub(super) selectable: HashMap<NodeKey, SelectableText>,
+    pub(super) order: Vec<NodeKey>,
     pub(super) active: Option<ActiveTextSelection>,
     last_snapshot: TextSelectionSnapshot,
-    event_target: Option<u32>,
-    pub(super) last_click: Option<(Instant, u32, f64, f64, u8)>,
+    event_target: Option<NodeKey>,
+    pub(super) last_click: Option<(Instant, NodeKey, f64, f64, u8)>,
     pub(super) next_scroll: Option<Instant>,
 }
 
@@ -175,7 +175,7 @@ impl Applier {
 
     pub(super) fn begin_text_selection(
         &mut self,
-        target: u32,
+        target: NodeKey,
         x: f64,
         y: f64,
         modifiers: Modifiers,
@@ -224,7 +224,7 @@ impl Applier {
 
     pub(super) fn extend_text_selection(
         &mut self,
-        hit_target: Option<u32>,
+        hit_target: Option<NodeKey>,
         x: f64,
         y: f64,
     ) -> bool {
@@ -245,7 +245,7 @@ impl Applier {
                     .iter()
                     .copied()
                     .min_by(|left, right| {
-                        let distance = |target: u32| {
+                        let distance = |target: NodeKey| {
                             let text = &self.interaction.text_selection.selectable[&target];
                             let dx = if x < f64::from(text.origin[0]) {
                                 f64::from(text.origin[0]) - x
@@ -284,7 +284,7 @@ impl Applier {
         true
     }
 
-    pub(super) fn text_selection_range(&self, target: u32) -> Option<std::ops::Range<usize>> {
+    pub(super) fn text_selection_range(&self, target: NodeKey) -> Option<std::ops::Range<usize>> {
         let active = self.interaction.text_selection.active.as_ref()?;
         let anchor_index = self
             .interaction

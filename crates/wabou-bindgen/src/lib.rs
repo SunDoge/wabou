@@ -1059,7 +1059,7 @@ mod tests {
         assert!(output.contains("displayName: string"));
         assert!(output.contains("export type NativeResult<T> = T | PromiseLike<T>"));
         assert!(output.contains("interface NativeHostCapabilities"));
-        assert!(!output.contains("@wabou/solid-renderer"));
+        assert!(!output.contains("@wabou/core/renderer"));
         assert!(output.contains("updateFile(request: string): NativeResult<string>"));
         assert!(output.contains("updateFile(request: FunctionRequest): Promise<FunctionResponse>"));
         assert!(output.contains("encodeNativeRequest(request, \"workspace.updateFile\")"));

@@ -4,6 +4,12 @@ import { join } from "node:path";
 
 const root = new URL("..", import.meta.url).pathname;
 const temporary = await mkdtemp(join(tmpdir(), "wabou-ui-consumer-"));
+const obsoleteUiPackages = [
+  "@wabou/animation",
+  "@wabou/components",
+  "@wabou/primitives",
+  "@wabou/router",
+];
 
 async function run(command: string[], cwd = root): Promise<void> {
   const child = Bun.spawn(command, {
@@ -110,7 +116,8 @@ await run(["bun", "install"], temporary);
 await run(["bun", "x", "tsc", "--noEmit"], temporary);
 await run(["bun", "x", "vite", "build"], temporary);
 
-for (const internal of ["animation", "components", "primitives", "router"]) {
+for (const packageName of obsoleteUiPackages) {
+  const internal = packageName.slice("@wabou/".length);
   const installed = await access(
     join(temporary, "node_modules/@wabou", internal),
   ).then(
@@ -130,9 +137,9 @@ const installedManifest = JSON.parse(
     "utf8",
   ),
 );
-for (const internal of uiManifest.wabou.bundles) {
-  if (installedManifest.dependencies?.[internal]) {
-    throw new Error(`published @wabou/ui still depends on ${internal}`);
+for (const packageName of obsoleteUiPackages) {
+  if (installedManifest.dependencies?.[packageName]) {
+    throw new Error(`published @wabou/ui still depends on ${packageName}`);
   }
 }
 

@@ -289,6 +289,6 @@ HostBuilder::new().json_capability(WORKSPACE, |capability| {
 });
 ```
 
-Use the lower-level `HostBuilder::capability` escape hatch only for small
-synchronous primitives or APIs whose native QuickJS signature intentionally
-does not use the generated structured-request convention.
+Application capabilities always use this structured adapter. Framework-owned
+synchronous QuickJS functions are declared explicitly in the native host API;
+applications do not receive a raw `rquickjs::Object` escape hatch.

@@ -6,7 +6,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .nth(1)
         .ok_or("expected `write` or `check`")?;
     let output = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packages/solid-renderer/src/generated/native-host.ts");
+        .join("../../packages/core/src/renderer/generated/native-host.ts");
     match mode.as_str() {
         "write" => wabou_host_api::bindings().write(&output)?,
         "check" => wabou_host_api::bindings().check(&output)?,

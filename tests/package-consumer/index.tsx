@@ -8,6 +8,7 @@ import {
   Portal,
   View,
 } from "@wabou/ui";
+import * as Wabou from "@wabou/ui";
 import { createLocale } from "@wabou/ui/i18n";
 import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import { defineWabouConfig } from "@wabou/vite";
@@ -51,6 +52,8 @@ const dynamicComponent = <Dynamic component={NamedView} name="Wabou" />;
 const invalidDynamicComponent = <Dynamic component={NamedView} />;
 // @ts-expect-error inline styles expose only properties implemented by Style IR
 const unsupportedStyle = <view style={{ filter: "blur(4px)" }} />;
+// @ts-expect-error numeric native effects are a private framework ABI
+const privateEffectDispatcher = Wabou.dispatchEffect;
 void [
   structuralHostNode,
   plainTextInput,
@@ -67,6 +70,7 @@ void [
   dynamicComponent,
   invalidDynamicComponent,
   unsupportedStyle,
+  privateEffectDispatcher,
   localized,
 ];
 

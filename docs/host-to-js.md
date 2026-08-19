@@ -13,9 +13,9 @@ point:
 function __wabou_dispatch_host_frame(frame: Uint8Array): HostFrameDisposition;
 ```
 
-The result of a guest-initiated mounted Rust function returns through that
-function as a value or native Promise; it is not turned into an unrelated Host
-event. JavaScript never runs re-entrantly during style resolution, layout, text
+The result of a guest-initiated JSON capability returns through that capability
+Promise; it is not turned into an unrelated Host event. JavaScript never runs
+re-entrantly during style resolution, layout, text
 measurement, painting, widget painting or scene submission. A frame is
 dispatched only from an event-loop delivery point or immediately before the JS
 tick. Mutations produced by its handlers are flushed after dispatch and applied
@@ -49,7 +49,7 @@ The guest owns application policy:
 - Solid signal updates;
 - `preventDefault` and propagation flags;
 - subscriptions to observations and application topics;
-- Promise reactions for mounted async capabilities.
+- Promise reactions for JSON capabilities.
 
 JSX/Solid node IDs are runtime-local handles. Every received ID is validated by
 the Host immediately before encoding. IDs must become generational before node
@@ -99,7 +99,7 @@ Unknown record kinds in a known version are skipped using `record_len`.
 ```text
 HostEventFrameHeader (32 bytes)
   u32 magic            = 0x31464857 ("WHF1")
-  u16 version          = 1
+  u16 version          = 2
   u16 flags
   u64 sequence
   u64 monotonic_time_ns
@@ -128,26 +128,22 @@ ordering assertions, not as a globally unique identifier.
 
 ## Record kinds and ordering
 
-Version 1 defines these records:
+Version 2 currently encodes these records:
 
 ```rust
 enum HostEvent {
-    Window(WindowEvent),
     Node(NodeEvent),
-    Widget(WidgetEvent),
     Resize(ResizeObservation),
     Application(ApplicationMessage),
 }
 ```
 
-Within a batch, records are sorted into the following stable phases while
-preserving producer order inside a phase:
+Within a batch, records preserve the producer order assembled by the runtime.
+Conceptually, producers are drained in these phases:
 
-1. `Window` — scale, size, focus, close-requested;
-2. `Node` — pointer, key, text, focus and scroll events;
-3. `Widget` — terminal title/bell/exit and custom widget semantics;
-4. `Resize` — final content-box observations after layout;
-5. `Application` — user-defined Host messages.
+1. `Node` — pointer, key, text, focus, widget and scroll events;
+2. `Resize` — final content-box observations after layout;
+3. `Application` — user-defined Host messages.
 
 Input sequences that have semantic ordering (`pointerdown`, focus changes,
 `pointerup`, `click`) are emitted in that order and never phase-sorted relative
@@ -156,26 +152,32 @@ to one another.
 ### Node event
 
 ```text
-u32 target
-u8  event_code         @wabou/protocol EVENT_CODE
+u32 target_lo
+u32 target_hi
+u8  event_code         @wabou/core/protocol EVENT_CODE
 u8  payload_kind       0 none, 1 numeric, 2 utf8-json
 u16 reserved
+u32 event_id           zero for non-cancellable events
 
 numeric payload:
   f64 client_x
   f64 client_y
+  f64 offset_x
+  f64 offset_y
   f64 button
   f64 buttons
   f64 modifiers
   f64 delta_x
   f64 delta_y
+  f64 scroll_x
+  f64 scroll_y
 
 json payload:
   u32 len + utf8 bytes
 ```
 
 Numeric input stays allocation-free on the Rust side and avoids JSON parsing in
-the guest. Keyboard/text payloads remain UTF-8 JSON in version 1; they may gain
+the guest. Keyboard/text payloads remain UTF-8 JSON in version 2; they may gain
 typed records in a later protocol version without changing the frame envelope.
 Propagation paths are not serialized: the guest renderer derives the path from
 its retained logical parent map after the Host has selected the target.
@@ -183,7 +185,8 @@ its retained logical parent map after the Host has selected the target.
 ### Resize observation
 
 ```text
-u32 target
+u32 target_lo
+u32 target_hi
 f32 content_width
 f32 content_height
 ```
@@ -218,7 +221,7 @@ adds an ID when `preventDefault()` was called. Rust performs the default action
 after dispatch unless that ID was returned. Propagation stopping is entirely a
 guest concern and is not returned.
 
-Version 1 cancellable defaults include link activation, context menus and
+Version 2 cancellable defaults include link activation, context menus and
 wheel/native scrolling. Focus selection and pointer capture are Host invariants,
 not arbitrary guest defaults. Non-cancellable frames return an empty
 disposition without allocating an array.
@@ -285,82 +288,13 @@ registration. Generated clients check its ABI version before the first call,
 so a stale frontend bundle reports `incompatibleHost` instead of failing later
 with an undefined native method.
 
-The lower-level path for a same-thread, bounded, synchronous operation is a
-direct typed QuickJS function, not a binary RPC. This follows PocketJS's
-`Guest::mount` model: a capability owns a namespace and populates it with
-`rquickjs::Function` values whose arguments and return value use the engine's
-native conversion.
-
-```rust
-HostBuilder::new().capability("workspace", |ctx, capability| {
-    capability.set("selection", rquickjs::Function::new(ctx.clone(), || current_selection())?)?;
-    capability.set("set_title", rquickjs::Function::new(ctx, |title: String| set_title(title))?)?;
-    Ok(())
-});
-```
-
-The mounted object remains private bridge machinery. `useHost()` exposes the
-typed application API, so user code does not depend on a public global:
-
-```ts
-const host = useHost();
-host.workspace.setTitle("wabou");
-const selection = host.workspace.selection();
-```
-
-A direct operation must satisfy all of these constraints:
-
-- completes synchronously with a small argument/result;
-- cannot block on filesystem, network, process or another thread;
-- cannot enter layout, paint or widget painting;
-- cannot call back into JS or recursively flush mutations;
-- has explicit runtime/window ownership instead of process-global state;
-- returns a typed value or throws a typed native error.
-
-This is namespaced rquickjs FFI, not one new ABI global per function. It is
-the natural path for getters, small setters, resource-handle operations and
-registration/configuration that must complete before the caller continues.
-
-## Async mounted operations
-
-An asynchronous or UI-command-queued operation remains a mounted capability
-function, but returns a native Promise through `rquickjs::Async`. Examples
-include open-file, popup menu, clipboard providers, Git/filesystem work and PTY
-creation. Its future may post a command to the winit thread and await a oneshot;
-Promise reactions run during the bounded QuickJS job turn.
-
-```rust
-capability.set("open_file", rquickjs::Function::new(
-    ctx,
-    rquickjs::Async(|options: OpenFileOptions| async move {
-        ui_commands.open_file(options).await
-    }),
-)?)?;
-```
-
-The application-facing API retains the same typed capability shape:
-
-```ts
-const host = useHost();
-const files = await host.dialog.openFile({ multiple: true, signal });
-const choice = await host.menu.popup(model, { x, y, signal });
-```
-
-Whether an operation is direct or async is part of its generated TypeScript
-contract. Direct functions return `T`; async functions return `Promise<T>`.
-Changing a published function from direct to async is therefore an API change,
-not a transparent implementation detail.
-
-Cancellation is capability-specific. The generated wrapper accepts an
-`AbortSignal`; its abort hook cancels a native operation handle/token owned by
-the mounted capability. Runtime shutdown cancels every outstanding operation and
-rejects its Promise. There is no generic public `invoke(string, unknown)` and no
-generic binary request envelope in the in-process runtime.
-
-A numeric request/response protocol is introduced only if a future capability
-lives across a process/plugin boundary where no native QuickJS call/future can
-span the boundary. That transport remains an adapter behind the same typed Host
-API, not the default model for user Rust functions.
+Application capabilities have one public registration path. They are
+asynchronous JSON methods with explicit request and response DTOs; applications
+cannot mount arbitrary `rquickjs::Function` values through `HostBuilder`.
+Framework-owned synchronous functions use the separately declared native host
+API, whose TypeScript signature is reviewed explicitly beside its Rust
+implementation. Numeric effects remain private framework ABI for replayable OS
+operations. There is no generic public `invoke(string, unknown)` entry point.
 
 ## Subscriptions and lifetime
 
@@ -377,7 +311,7 @@ Solid owner cleanup
 Rust stores numeric subscription/target IDs, never JS function handles. Node
 drop automatically removes resize, focus, capture and widget subscriptions.
 Queued records targeting a dropped node are filtered immediately before frame
-encoding. Runtime shutdown cancels mounted async operations, rejects their
+encoding. Runtime shutdown stops application producers and rejects pending
 Promises with `HostClosedError` and disconnects producer handles.
 
 ## Re-entrancy and frame boundary invariants
@@ -421,35 +355,15 @@ Required test cases:
 - pointer move, wheel and resize coalescing;
 - click/default-action cancellation exactly once;
 - resize callback mutations apply on the next turn, without recursive layout;
-- mounted async operations resolve/reject/cancel exactly once;
+- JSON capability operations resolve or reject exactly once;
 - dropped targets and late async completions are ignored safely;
 - bounded queues wake once and report backpressure;
 - recorded frame replay produces byte-identical mutation frames;
 - theme, resize and input sequences preserve expected layout snapshots.
 
-## Migration plan
+## Maintenance rule
 
-The core migration now has one guest callback. Remaining tooling is tracked in
-the later steps below.
-
-1. Add protocol constants, Rust codec and TS decoder with fixture-based
-   cross-language tests.
-2. Route existing `HostMessageHandle` batches through `ApplicationMessage` records.
-3. Route ResizeObserver changes through `Resize` records and delete
-   `__wabou_resize_dispatch`.
-4. Route JSON and numeric node events through `Node` records and delete the
-   shared numeric global plus `__wabou_dispatch_event`.
-5. Add disposition/default-action handling.
-6. Add mounted capabilities for synchronous and `rquickjs::Async` Rust
-   functions, with generated wrappers and cancellation handles. Fold the
-   existing `fetch`/`sleep` native async intrinsics into that registration model.
-7. Add recording/replay harness and make the required tests release gates.
-8. Delete the legacy callback declarations, generated prelude copies and
-   compatibility code.
-
-During migration, one subsystem must use exactly one route; dual delivery is a
-test failure. The legacy and unified callbacks may coexist temporarily only for
-different record kinds.
+One subsystem must use exactly one route; dual delivery is a test failure.
 
 ## Completion criteria
 
@@ -464,7 +378,7 @@ The design is implemented when all of the following are true:
 - no dispatch occurs inside layout/paint or recursively from a resize callback;
 - Rust and TypeScript codec fixtures are cross-compatible;
 - the required ordering/backpressure/replay tests pass;
-- public JS APIs are typed capabilities obtained from Host Context. Bounded
-  synchronous operations use mounted direct functions; async/cross-thread
-  operations use native Promises and operation cancellation handles. There is
-  no public global `Wabou` or generic stringly typed invocation surface.
+- application JS APIs use generated JSON capability clients; framework-owned
+  synchronous calls use the explicit native host contract. There is no public
+  global `Wabou`, raw QuickJS mount API, numeric effect dispatcher or generic
+  stringly typed invocation surface.

@@ -20,7 +20,7 @@ impl Applier {
 
     pub(super) fn handle_widget_event(
         &mut self,
-        target: u32,
+        target: NodeKey,
         input: &UiEvent,
     ) -> Option<EventResponse> {
         let node = *self.document.node_store.solid_to_node.get(&target)?;

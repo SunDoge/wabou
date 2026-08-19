@@ -1,11 +1,13 @@
+import { flush } from "solid-js";
 import {
   EVENT_DATA_LEN,
   HOST_FRAME,
   HOST_NODE_PAYLOAD,
   HOST_RECORD_KIND,
+  type NodeKey,
+  nodeKey,
 } from "../protocol";
 import { dispatchEvent } from "../renderer";
-import { flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
 import { dispatchResizeObservation } from "./resize-observer";
 
@@ -22,13 +24,13 @@ type DecodedRecord =
   | {
       kind: "node";
       flags: number;
-      target: number;
+      target: NodeKey;
       eventCode: number;
       eventId: number;
       json: string;
       numeric?: Float64Array;
     }
-  | { kind: "resize"; target: number; width: number; height: number }
+  | { kind: "resize"; target: NodeKey; width: number; height: number }
   | { kind: "message"; topic: string; payload: unknown }
   | { kind: "unknown" };
 
@@ -91,12 +93,15 @@ export function decodeAndDispatchHostFrame(
     offset += RECORD_HEADER_LEN;
 
     if (kind === HOST_RECORD_KIND.NodeEvent) {
-      requireBytes(12, end);
-      const target = view.getUint32(offset, true);
-      const eventCode = view.getUint8(offset + 4);
-      const payloadKind = view.getUint8(offset + 5);
-      const eventId = view.getUint32(offset + 8, true);
-      offset += 12;
+      requireBytes(16, end);
+      const target = nodeKey(
+        view.getUint32(offset, true),
+        view.getUint32(offset + 4, true),
+      );
+      const eventCode = view.getUint8(offset + 8);
+      const payloadKind = view.getUint8(offset + 9);
+      const eventId = view.getUint32(offset + 12, true);
+      offset += 16;
       if (payloadKind === HOST_NODE_PAYLOAD.None) {
         records.push({
           kind: "node",
@@ -141,14 +146,17 @@ export function decodeAndDispatchHostFrame(
         throw new TypeError(`unknown node payload kind ${payloadKind}`);
       }
     } else if (kind === HOST_RECORD_KIND.Resize) {
-      requireBytes(12, end);
+      requireBytes(16, end);
       records.push({
         kind: "resize",
-        target: view.getUint32(offset, true),
-        width: view.getFloat32(offset + 4, true),
-        height: view.getFloat32(offset + 8, true),
+        target: nodeKey(
+          view.getUint32(offset, true),
+          view.getUint32(offset + 4, true),
+        ),
+        width: view.getFloat32(offset + 8, true),
+        height: view.getFloat32(offset + 12, true),
       });
-      offset += 12;
+      offset += 16;
     } else if (kind === HOST_RECORD_KIND.ApplicationMessage) {
       requireBytes(2, end);
       const topicLen = view.getUint16(offset, true);

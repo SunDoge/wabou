@@ -34,13 +34,12 @@ pub use app::{
 };
 pub use app_dirs::{AppDirectories, AppDirectoryConfig};
 pub use effect::{
-    CapabilityDescriptor, CapabilityId, CapabilityRegistry, CapabilityRegistryError,
-    ContextMenuItem, ContextMenuRequest, DialogFilter, EFFECT_ABI_VERSION, EffectCompletion,
-    EffectDispatch, EffectErrorCode, EffectExecutor, EffectId, EffectOp, EffectPayload,
-    EffectRequest, EffectResult, EffectScope, EffectTapeEntry, MenuPosition, MessageDialogButtons,
-    MessageDialogLevel, MessageDialogRequest, MethodDescriptor, MethodId, NotificationRequest,
+    CapabilityId, ContextMenuItem, ContextMenuRequest, DialogFilter, EFFECT_ABI_VERSION,
+    EffectCompletion, EffectDispatch, EffectErrorCode, EffectExecutor, EffectId, EffectOp,
+    EffectPayload, EffectRequest, EffectResult, EffectScope, EffectTapeEntry, MenuPosition,
+    MessageDialogButtons, MessageDialogLevel, MessageDialogRequest, MethodId, NotificationRequest,
     OpenDialogRequest, PickDirectoryRequest, RecordingEffectExecutor, ReplayEffectExecutor,
-    ReplayPolicy, SaveDialogRequest, ThreadAffinity,
+    SaveDialogRequest,
 };
 pub use error::{Error, Result};
 pub use shell::Shell;

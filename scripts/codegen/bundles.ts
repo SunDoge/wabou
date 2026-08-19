@@ -44,7 +44,7 @@ const bundles: Bundle[] = [
   },
   {
     name: "motion test runtime",
-    entries: ["packages/animation/test/runtime-fixture.ts"],
+    entries: ["packages/ui/src/animation/runtime-fixture.ts"],
     output: "crates/wabou-runtime/src/gen/motion-test-runtime.js",
     format: "iife",
     minify: true,

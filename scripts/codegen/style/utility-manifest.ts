@@ -97,11 +97,11 @@ export type WabouDynamicUtility =
 export type WabouBaseUtility = WabouStaticUtility | WabouDynamicUtility;
 export type WabouUtility = WabouBaseUtility;
 `;
-await mkdir(resolve(root, "packages/style/generated"), {
+await mkdir(resolve(root, "packages/core/src/style/generated"), {
   recursive: true,
 });
 await writeFile(
-  resolve(root, "packages/style/generated/utility-types.ts"),
+  resolve(root, "packages/core/src/style/generated/utility-types.ts"),
   types,
 );
 const formatProcess = Bun.spawn(
@@ -111,7 +111,7 @@ const formatProcess = Bun.spawn(
     "biome",
     "format",
     "--write",
-    resolve(root, "packages/style/generated/utility-types.ts"),
+    resolve(root, "packages/core/src/style/generated/utility-types.ts"),
   ],
   { cwd: root, stdout: "inherit", stderr: "inherit" },
 );

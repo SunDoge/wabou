@@ -11,14 +11,6 @@
   "publishConfig": {
     "access": "public"
   },
-  "wabou": {
-    "bundles": [
-      "@wabou/animation",
-      "@wabou/components",
-      "@wabou/primitives",
-      "@wabou/router"
-    ]
-  },
   "files": [
     "dist"
   ],
@@ -29,7 +21,7 @@
       "import": "./dist/index.mjs"
     },
     "./primitives": {
-      "wabou-source": "./src/primitives.ts",
+      "wabou-source": "./src/primitives/index.ts",
       "types": "./dist/primitives.d.mts",
       "import": "./dist/primitives.mjs"
     },
@@ -59,11 +51,5 @@
     "motion-dom": "^12.43.0",
     "ts-pattern": "^5.9.0",
     "solid-js": "2.0.0-rc.0"
-  },
-  "devDependencies": {
-    "@wabou/animation": "workspace:*",
-    "@wabou/components": "workspace:*",
-    "@wabou/primitives": "workspace:*",
-    "@wabou/router": "workspace:*"
   }
 }

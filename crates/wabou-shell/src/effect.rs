@@ -5,7 +5,7 @@
 
 #![warn(missing_docs)]
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::VecDeque;
 
 use serde::{Deserialize, Serialize};
 
@@ -95,109 +95,6 @@ pub mod builtin {
     pub const DIALOG_MESSAGE: EffectOp = EffectOp::new(5, 4);
     /// Publish a desktop notification.
     pub const NOTIFICATION_SHOW: EffectOp = EffectOp::new(6, 1);
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Thread on which an effect implementation is allowed to execute.
-pub enum ThreadAffinity {
-    /// Native UI/event-loop thread only.
-    Ui,
-    /// Background worker only.
-    Worker,
-    /// Either thread, selected by the host.
-    Any,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Behavior used when deterministic sessions record or replay an effect.
-pub enum ReplayPolicy {
-    /// Execute the effect again during replay.
-    Execute,
-    /// Record and replay its completion without repeating the OS interaction.
-    RecordCompletion,
-    /// Exclude the effect from deterministic replay.
-    Ignore,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Registry metadata for one effect method.
-pub struct MethodDescriptor {
-    /// Stable method identifier.
-    pub id: MethodId,
-    /// Human-readable/generated binding name.
-    pub name: &'static str,
-    /// Required execution thread.
-    pub affinity: ThreadAffinity,
-    /// Deterministic replay behavior.
-    pub replay: ReplayPolicy,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Versioned capability registered by the application host.
-pub struct CapabilityDescriptor {
-    /// Stable capability identifier.
-    pub id: CapabilityId,
-    /// Human-readable/generated binding name.
-    pub name: &'static str,
-    /// Capability-specific schema version.
-    pub version: u16,
-    /// Methods supported by this version.
-    pub methods: &'static [MethodDescriptor],
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-/// Collision that prevents construction of an unambiguous registry.
-pub enum CapabilityRegistryError {
-    /// A capability numeric identifier is already registered.
-    DuplicateId(CapabilityId),
-    /// A capability name is already registered.
-    DuplicateName(&'static str),
-    /// A capability declares the same method identifier more than once.
-    DuplicateMethod {
-        /// Capability containing the duplicate.
-        capability: CapabilityId,
-        /// Duplicated method identifier.
-        method: MethodId,
-    },
-}
-
-#[derive(Default)]
-/// Validated lookup table for built-in and application effect capabilities.
-pub struct CapabilityRegistry {
-    by_id: BTreeMap<CapabilityId, CapabilityDescriptor>,
-    by_name: BTreeMap<&'static str, CapabilityId>,
-}
-
-impl CapabilityRegistry {
-    /// Register a descriptor, rejecting identifier/name/method collisions.
-    pub fn register(
-        &mut self,
-        descriptor: CapabilityDescriptor,
-    ) -> Result<(), CapabilityRegistryError> {
-        if self.by_id.contains_key(&descriptor.id) {
-            return Err(CapabilityRegistryError::DuplicateId(descriptor.id));
-        }
-        if self.by_name.contains_key(descriptor.name) {
-            return Err(CapabilityRegistryError::DuplicateName(descriptor.name));
-        }
-        let mut methods = BTreeMap::new();
-        for method in descriptor.methods {
-            if methods.insert(method.id, method.name).is_some() {
-                return Err(CapabilityRegistryError::DuplicateMethod {
-                    capability: descriptor.id,
-                    method: method.id,
-                });
-            }
-        }
-        self.by_name.insert(descriptor.name, descriptor.id);
-        self.by_id.insert(descriptor.id, descriptor);
-        Ok(())
-    }
-
-    /// Look up a capability by stable numeric identifier.
-    pub fn get(&self, id: CapabilityId) -> Option<&CapabilityDescriptor> {
-        self.by_id.get(&id)
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -678,31 +575,6 @@ mod tests {
         assert_eq!(builtin::DIALOG_OPEN, EffectOp::new(5, 1));
         assert_eq!(builtin::DIALOG_MESSAGE, EffectOp::new(5, 4));
         assert_eq!(builtin::NOTIFICATION_SHOW, EffectOp::new(6, 1));
-    }
-
-    #[test]
-    fn registry_accepts_external_capabilities_and_rejects_collisions() {
-        static METHODS: &[MethodDescriptor] = &[MethodDescriptor {
-            id: MethodId(1),
-            name: "pickColor",
-            affinity: ThreadAffinity::Ui,
-            replay: ReplayPolicy::RecordCompletion,
-        }];
-        let descriptor = CapabilityDescriptor {
-            id: CapabilityId(0x8000_0100),
-            name: "color-picker",
-            version: 1,
-            methods: METHODS,
-        };
-        let mut registry = CapabilityRegistry::default();
-        registry.register(descriptor.clone()).unwrap();
-        assert_eq!(registry.get(descriptor.id), Some(&descriptor));
-        assert_eq!(
-            registry.register(descriptor),
-            Err(CapabilityRegistryError::DuplicateId(CapabilityId(
-                0x8000_0100
-            )))
-        );
     }
 
     #[test]

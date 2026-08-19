@@ -38,8 +38,11 @@ function applicationFrame(topic: string, value: string): Uint8Array {
   return bytes;
 }
 
-function numericScrollFrame(target: number, scrollY: number): Uint8Array {
-  const recordLen = 8 + 12 + EVENT_DATA_LEN * 8;
+function numericScrollFrame(
+  target: { lo: number; hi: number },
+  scrollY: number,
+): Uint8Array {
+  const recordLen = 8 + 16 + EVENT_DATA_LEN * 8;
   const bytes = new Uint8Array(HOST_FRAME.HeaderLen + recordLen);
   const view = new DataView(bytes.buffer);
   view.setUint32(0, HOST_FRAME.Magic, true);
@@ -50,10 +53,11 @@ function numericScrollFrame(target: number, scrollY: number): Uint8Array {
   view.setUint8(offset, HOST_RECORD_KIND.NodeEvent);
   view.setUint32(offset + 4, recordLen, true);
   offset += 8;
-  view.setUint32(offset, target, true);
-  view.setUint8(offset + 4, EVENT_CODE.scroll);
-  view.setUint8(offset + 5, HOST_NODE_PAYLOAD.Numeric);
-  offset += 12;
+  view.setUint32(offset, target.lo, true);
+  view.setUint32(offset + 4, target.hi, true);
+  view.setUint8(offset + 8, EVENT_CODE.scroll);
+  view.setUint8(offset + 9, HOST_NODE_PAYLOAD.Numeric);
+  offset += 16;
   view.setFloat64(offset + EVENT_DATA_SLOT.scrollY * 8, scrollY, true);
   return bytes;
 }

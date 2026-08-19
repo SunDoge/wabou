@@ -27,44 +27,44 @@ fn shell_header_fixed_height_content_flex_1() {
     let content = h.alloc_id();
     h.apply(vec![
         Op::CreateElement {
-            id: shell,
+            id: nk(shell),
             tag: div,
         },
         Op::SetClassName {
-            id: shell,
+            id: nk(shell),
             classes: ["h-full", "min-h-0", "flex", "flex-col", "overflow-hidden"]
                 .map(|n| classes[n])
                 .to_vec(),
         },
         Op::CreateElement {
-            id: header,
+            id: nk(header),
             tag: div,
         },
         Op::SetClassName {
-            id: header,
+            id: nk(header),
             classes: ["h-16", "flex-none", "px-6"].map(|n| classes[n]).to_vec(),
         },
         Op::CreateElement {
-            id: content,
+            id: nk(content),
             tag: div,
         },
         Op::SetClassName {
-            id: content,
+            id: nk(content),
             classes: ["flex-1", "min-w-0", "min-h-0", "overflow-y-auto"]
                 .map(|n| classes[n])
                 .to_vec(),
         },
         Op::AppendChild {
-            parent: shell,
-            child: header,
+            parent: nk(shell),
+            child: nk(header),
         },
         Op::AppendChild {
-            parent: shell,
-            child: content,
+            parent: nk(shell),
+            child: nk(content),
         },
         Op::AppendChild {
-            parent: 1,
-            child: shell,
+            parent: NodeKey::ROOT,
+            child: nk(shell),
         },
     ]);
     h.queue_stylesheet(vec![
@@ -145,107 +145,113 @@ fn story_row_long_title_compresses_content_column_only() {
                       column without crushing the rank index or the action rail";
 
     h.apply(vec![
-        Op::CreateElement { id: row, tag: div },
+        Op::CreateElement {
+            id: nk(row),
+            tag: div,
+        },
         Op::SetClassName {
-            id: row,
+            id: nk(row),
             classes: vec![row_c],
         },
         // rank
         Op::CreateElement {
-            id: rank,
+            id: nk(rank),
             tag: span,
         },
         Op::SetClassName {
-            id: rank,
+            id: nk(rank),
             classes: vec![rank_c],
         },
         Op::CreateText {
-            id: rank_text,
+            id: nk(rank_text),
             text: "12",
         },
         Op::AppendChild {
-            parent: rank,
-            child: rank_text,
+            parent: nk(rank),
+            child: nk(rank_text),
         },
         // body / title
-        Op::CreateElement { id: body, tag: div },
+        Op::CreateElement {
+            id: nk(body),
+            tag: div,
+        },
         Op::SetClassName {
-            id: body,
+            id: nk(body),
             classes: vec![body_c],
         },
         Op::CreateElement {
-            id: title_wrap,
+            id: nk(title_wrap),
             tag: div,
         },
         Op::CreateElement {
-            id: title,
+            id: nk(title),
             tag: strong,
         },
         Op::SetClassName {
-            id: title,
+            id: nk(title),
             classes: vec![title_c],
         },
         Op::CreateText {
-            id: title_text,
+            id: nk(title_text),
             text: long_title,
         },
         Op::AppendChild {
-            parent: title,
-            child: title_text,
+            parent: nk(title),
+            child: nk(title_text),
         },
         Op::AppendChild {
-            parent: title_wrap,
-            child: title,
+            parent: nk(title_wrap),
+            child: nk(title),
         },
         Op::AppendChild {
-            parent: body,
-            child: title_wrap,
+            parent: nk(body),
+            child: nk(title_wrap),
         },
         // actions
         Op::CreateElement {
-            id: actions,
+            id: nk(actions),
             tag: span,
         },
         Op::SetClassName {
-            id: actions,
+            id: nk(actions),
             classes: vec![actions_c],
         },
         Op::CreateText {
-            id: actions_text,
+            id: nk(actions_text),
             text: "42",
         },
         Op::AppendChild {
-            parent: actions,
-            child: actions_text,
+            parent: nk(actions),
+            child: nk(actions_text),
         },
         // bookmark
         Op::CreateElement {
-            id: bookmark,
+            id: nk(bookmark),
             tag: span,
         },
         Op::SetClassName {
-            id: bookmark,
+            id: nk(bookmark),
             classes: vec![bookmark_c],
         },
         Op::AppendChild {
-            parent: row,
-            child: rank,
+            parent: nk(row),
+            child: nk(rank),
         },
         Op::AppendChild {
-            parent: row,
-            child: body,
+            parent: nk(row),
+            child: nk(body),
         },
         Op::AppendChild {
-            parent: row,
-            child: actions,
+            parent: nk(row),
+            child: nk(actions),
         },
         Op::AppendChild {
-            parent: row,
-            child: bookmark,
+            parent: nk(row),
+            child: nk(bookmark),
         },
         Op::AppendChild {
-            parent: 1,
-            child: row,
+            parent: NodeKey::ROOT,
+            child: nk(row),
         },
     ]);
 

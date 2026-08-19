@@ -7,16 +7,18 @@
 //! bytes enter the frame-local table; the table is discarded after decoding.
 //! Structural strings are runtime-scoped atom IDs (`u32`); dynamic
 //! values and text use inline UTF-8 plus frame-local references.
-//! Node ids are u32; 0 is the "none / append" sentinel.
+//! Node identities are `[lo: u32, hi: u32]` full-width generational keys.
 //!
 //! Decoder copied from blitz-js (host-agnostic); op constants are generated
-//! from `packages/protocol/src/index.ts` by `scripts/gen-rust-op.ts`.
+//! from `packages/core/src/protocol/index.ts` by `scripts/codegen/protocol/op.ts`.
+//! New records and resource handles follow `docs/runtime-contract.md`.
 
 #![allow(dead_code)]
 
 include!("gen/op.rs");
 
 use crate::atom::Atom;
+pub use wabou_host_api::NodeKey;
 
 pub const TEXT_BEHAVIOR_AGGREGATE_DIRECT: u8 = 0x01;
 pub const TEXT_BEHAVIOR_SINGLE_LINE: u8 = 0x02;
@@ -59,107 +61,107 @@ pub struct ShadowValue {
 #[derive(Debug)]
 pub enum Op<'a> {
     CreateElement {
-        id: u32,
+        id: NodeKey,
         tag: Atom,
     },
     CreateText {
-        id: u32,
+        id: NodeKey,
         text: &'a str,
     },
     AppendChild {
-        parent: u32,
-        child: u32,
+        parent: NodeKey,
+        child: NodeKey,
     },
     InsertBefore {
-        parent: u32,
-        child: u32,
-        ref_id: u32,
+        parent: NodeKey,
+        child: NodeKey,
+        ref_id: NodeKey,
     },
     RemoveChild {
-        parent: u32,
-        child: u32,
+        parent: NodeKey,
+        child: NodeKey,
     },
     SetText {
-        id: u32,
+        id: NodeKey,
         text: &'a str,
     },
     SetAttribute {
-        id: u32,
+        id: NodeKey,
         name: Atom,
         value: &'a str,
     },
     RemoveAttribute {
-        id: u32,
+        id: NodeKey,
         name: Atom,
     },
     SetWidgetConfig {
-        id: u32,
+        id: NodeKey,
         json: &'a str,
     },
     RemoveWidgetConfig {
-        id: u32,
+        id: NodeKey,
     },
     SetTextBehavior {
-        id: u32,
+        id: NodeKey,
         flags: u8,
     },
     SetInteractionPolicy {
-        id: u32,
+        id: NodeKey,
         flags: u8,
         focus_order: i32,
     },
     SetGraphicSource {
-        id: u32,
+        id: NodeKey,
         kind: u8,
         source: &'a str,
     },
     ClearGraphicSource {
-        id: u32,
+        id: NodeKey,
         kind: u8,
     },
     SetStyle {
-        id: u32,
+        id: NodeKey,
         prop: Atom,
         value: &'a str,
     },
     SetStyleValue {
-        id: u32,
+        id: NodeKey,
         prop: Atom,
         value: StyleValue,
     },
     SetShadows {
-        id: u32,
+        id: NodeKey,
         shadows: Vec<ShadowValue>,
     },
     RemoveStyle {
-        id: u32,
+        id: NodeKey,
         prop: Atom,
     },
     AddEventListener {
-        id: u32,
+        id: NodeKey,
         event_type: u8,
     },
     RemoveEventListener {
-        id: u32,
+        id: NodeKey,
         event_type: u8,
     },
     SetClassName {
-        id: u32,
+        id: NodeKey,
         classes: Vec<Atom>,
     },
     DropNode {
-        id: u32,
+        id: NodeKey,
     },
     SetTransform2D {
-        id: u32,
+        id: NodeKey,
         matrix: [f32; 6],
     },
     SetOverlayPlane {
-        id: u32,
+        id: NodeKey,
         plane: u8,
     },
     SetScrollbarStyle {
-        id: u32,
+        id: NodeKey,
         visibility: u8,
         hide_delay: f32,
         fade_duration: f32,
@@ -170,15 +172,15 @@ pub enum Op<'a> {
         colors: [u32; 4],
     },
     FocusNode {
-        id: u32,
+        id: NodeKey,
     },
     ScrollTo {
-        id: u32,
+        id: NodeKey,
         x: f32,
         y: f32,
     },
     ScrollBy {
-        id: u32,
+        id: NodeKey,
         x: f32,
         y: f32,
     },
@@ -197,6 +199,9 @@ pub enum DecodeError {
 
     #[snafu(display("unknown opcode 0x{opcode:02x}"))]
     BadOp { opcode: u8 },
+
+    #[snafu(display("invalid node key {lo}v{hi}"))]
+    BadNodeKey { lo: u32, hi: u32 },
 
     #[snafu(display("invalid UTF-8 in string operand: {source}"))]
     BadUtf8 { source: std::str::Utf8Error },
@@ -275,6 +280,17 @@ impl<'a> Reader<'a> {
         self.pos += 4;
         Ok(v)
     }
+
+    fn node_key(&mut self) -> Result<NodeKey, DecodeError> {
+        let key = NodeKey::new(self.u32()?, self.u32()?);
+        if !key.is_valid() {
+            return Err(DecodeError::BadNodeKey {
+                lo: key.lo,
+                hi: key.hi,
+            });
+        }
+        Ok(key)
+    }
     fn i32(&mut self) -> Result<i32, DecodeError> {
         self.u32().map(|value| value as i32)
     }
@@ -325,24 +341,24 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
     let code = r.u8()?;
     Ok(match code {
         op::CREATE_ELEMENT => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let tag = Atom::from_raw(r.u32()?);
             Op::CreateElement { id, tag }
         }
         op::CREATE_TEXT => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let text = r.str()?;
             Op::CreateText { id, text }
         }
         op::APPEND_CHILD => {
-            let parent = r.u32()?;
-            let child = r.u32()?;
+            let parent = r.node_key()?;
+            let child = r.node_key()?;
             Op::AppendChild { parent, child }
         }
         op::INSERT_BEFORE => {
-            let parent = r.u32()?;
-            let child = r.u32()?;
-            let ref_id = r.u32()?;
+            let parent = r.node_key()?;
+            let child = r.node_key()?;
+            let ref_id = r.node_key()?;
             Op::InsertBefore {
                 parent,
                 child,
@@ -350,37 +366,37 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             }
         }
         op::REMOVE_CHILD => {
-            let parent = r.u32()?;
-            let child = r.u32()?;
+            let parent = r.node_key()?;
+            let child = r.node_key()?;
             Op::RemoveChild { parent, child }
         }
         op::SET_TEXT => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let text = r.str()?;
             Op::SetText { id, text }
         }
         op::SET_ATTRIBUTE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let name = Atom::from_raw(r.u32()?);
             let value = r.str()?;
             Op::SetAttribute { id, name, value }
         }
         op::REMOVE_ATTRIBUTE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let name = Atom::from_raw(r.u32()?);
             Op::RemoveAttribute { id, name }
         }
         op::SET_WIDGET_CONFIG => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let json = r.str()?;
             Op::SetWidgetConfig { id, json }
         }
         op::REMOVE_WIDGET_CONFIG => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             Op::RemoveWidgetConfig { id }
         }
         op::SET_TEXT_BEHAVIOR => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let flags = r.u8()?;
             if flags & !TEXT_BEHAVIOR_MASK != 0 {
                 return Err(DecodeError::BadTextBehavior { flags });
@@ -388,7 +404,7 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::SetTextBehavior { id, flags }
         }
         op::SET_INTERACTION_POLICY => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let flags = r.u8()?;
             let focus_order = r.i32()?;
             if flags & !INTERACTION_POLICY_MASK != 0
@@ -403,7 +419,7 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             }
         }
         op::SET_GRAPHIC_SOURCE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let kind = r.u8()?;
             if !valid_graphic_source_kind(kind) {
                 return Err(DecodeError::BadGraphicSourceKind { kind });
@@ -412,7 +428,7 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::SetGraphicSource { id, kind, source }
         }
         op::CLEAR_GRAPHIC_SOURCE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let kind = r.u8()?;
             if !valid_graphic_source_kind(kind) {
                 return Err(DecodeError::BadGraphicSourceKind { kind });
@@ -420,13 +436,13 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::ClearGraphicSource { id, kind }
         }
         op::SET_STYLE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let prop = Atom::from_raw(r.u32()?);
             let value = r.str()?;
             Op::SetStyle { id, prop, value }
         }
         op::SET_STYLE_VALUE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let prop = Atom::from_raw(r.u32()?);
             let tag = r.u8()?;
             let value = match tag {
@@ -441,7 +457,7 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::SetStyleValue { id, prop, value }
         }
         op::SET_SHADOWS => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let count = r.u16()?;
             let mut shadows = Vec::with_capacity(count as usize);
             for _ in 0..count {
@@ -472,22 +488,22 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::SetShadows { id, shadows }
         }
         op::REMOVE_STYLE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let prop = Atom::from_raw(r.u32()?);
             Op::RemoveStyle { id, prop }
         }
         op::ADD_EVENT_LISTENER => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let event_type = r.u8()?;
             Op::AddEventListener { id, event_type }
         }
         op::REMOVE_EVENT_LISTENER => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let event_type = r.u8()?;
             Op::RemoveEventListener { id, event_type }
         }
         op::SET_CLASS_NAME => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let count = r.u16()?;
             let mut classes = Vec::with_capacity(count as usize);
             for _ in 0..count {
@@ -496,16 +512,16 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::SetClassName { id, classes }
         }
         op::DROP_NODE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             Op::DropNode { id }
         }
         op::SET_TRANSFORM2_D => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let matrix = [r.f32()?, r.f32()?, r.f32()?, r.f32()?, r.f32()?, r.f32()?];
             Op::SetTransform2D { id, matrix }
         }
         op::SET_OVERLAY_PLANE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let plane = r.u8()?;
             if plane > 2 {
                 return Err(DecodeError::BadOverlayPlane { plane });
@@ -513,7 +529,7 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             Op::SetOverlayPlane { id, plane }
         }
         op::SET_SCROLLBAR_STYLE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let visibility = r.u8()?;
             let hide_delay = r.f32()?;
             let fade_duration = r.f32()?;
@@ -549,17 +565,17 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
             }
         }
         op::FOCUS_NODE => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             Op::FocusNode { id }
         }
         op::SCROLL_TO => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let x = r.f32()?;
             let y = r.f32()?;
             Op::ScrollTo { id, x, y }
         }
         op::SCROLL_BY => {
-            let id = r.u32()?;
+            let id = r.node_key()?;
             let x = r.f32()?;
             let y = r.f32()?;
             Op::ScrollBy { id, x, y }
@@ -576,17 +592,23 @@ mod tests {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
 
+    fn push_node(bytes: &mut Vec<u8>, lo: u32) {
+        push_u32(bytes, lo);
+        push_u32(bytes, 1);
+    }
+
     #[test]
     fn decodes_frame_local_string_references() {
         let mut bytes = Vec::new();
         push_u32(&mut bytes, 1); // sequence
         push_u32(&mut bytes, 2); // op count
         bytes.push(op::CREATE_TEXT);
-        push_u32(&mut bytes, 1);
+        push_node(&mut bytes, 1);
         bytes.extend_from_slice(&4u16.to_le_bytes());
         bytes.extend_from_slice("🚀".as_bytes());
         bytes.push(op::CREATE_TEXT);
         push_u32(&mut bytes, 2);
+        push_u32(&mut bytes, 3);
         bytes.extend_from_slice(&u16::MAX.to_le_bytes());
         bytes.extend_from_slice(&0u16.to_le_bytes());
 
@@ -594,13 +616,15 @@ mod tests {
         assert!(matches!(
             &frame.ops[0],
             Op::CreateText {
-                id: 1, text: "🚀"
+                id: NodeKey { lo: 1, hi: 1 },
+                text: "🚀"
             }
         ));
         assert!(matches!(
             &frame.ops[1],
             Op::CreateText {
-                id: 2, text: "🚀"
+                id: NodeKey { lo: 2, hi: 3 },
+                text: "🚀"
             }
         ));
     }
@@ -611,13 +635,13 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);
         bytes.push(op::CREATE_ELEMENT);
-        push_u32(&mut bytes, 42);
+        push_node(&mut bytes, 42);
         push_u32(&mut bytes, 7);
 
         let frame = decode_frame(&bytes).unwrap();
         assert!(matches!(
             &frame.ops[0],
-            Op::CreateElement { id: 42, tag } if tag.get() == 7
+            Op::CreateElement { id: NodeKey { lo: 42, hi: 1 }, tag } if tag.get() == 7
         ));
 
         bytes.extend_from_slice(&0_u16.to_le_bytes());
@@ -657,7 +681,7 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);
         bytes.push(op::CREATE_TEXT);
-        push_u32(&mut bytes, 1);
+        push_node(&mut bytes, 1);
         bytes.extend_from_slice(&u16::MAX.to_le_bytes());
         bytes.extend_from_slice(&7u16.to_le_bytes());
 
@@ -673,10 +697,15 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);
         bytes.push(op::FOCUS_NODE);
-        push_u32(&mut bytes, 42);
+        push_node(&mut bytes, 42);
 
         let frame = decode_frame(&bytes).unwrap();
-        assert!(matches!(&frame.ops[0], Op::FocusNode { id: 42 }));
+        assert!(matches!(
+            &frame.ops[0],
+            Op::FocusNode {
+                id: NodeKey { lo: 42, hi: 1 }
+            }
+        ));
     }
 
     #[test]
@@ -685,7 +714,7 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);
         bytes.push(op::SET_SCROLLBAR_STYLE);
-        push_u32(&mut bytes, 42);
+        push_node(&mut bytes, 42);
         bytes.push(1);
         for value in [700.0_f32, 160.0, 14.0, 3.0, 40.0, 5.0] {
             bytes.extend_from_slice(&value.to_le_bytes());
@@ -698,7 +727,7 @@ mod tests {
         assert!(matches!(
             &frame.ops[0],
             Op::SetScrollbarStyle {
-                id: 42,
+                id: NodeKey { lo: 42, hi: 1 },
                 visibility: 1,
                 hide_delay: 700.0,
                 fade_duration: 160.0,
@@ -717,7 +746,7 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);
         bytes.push(op::SET_WIDGET_CONFIG);
-        push_u32(&mut bytes, 42);
+        push_node(&mut bytes, 42);
         let json = br##"{"caret":"#fff"}"##;
         bytes.extend_from_slice(&(json.len() as u16).to_le_bytes());
         bytes.extend_from_slice(json);
@@ -726,7 +755,7 @@ mod tests {
         assert!(matches!(
             &frame.ops[0],
             Op::SetWidgetConfig {
-                id: 42,
+                id: NodeKey { lo: 42, hi: 1 },
                 json: r##"{"caret":"#fff"}"##
             }
         ));
@@ -739,7 +768,7 @@ mod tests {
             push_u32(&mut bytes, 1);
             push_u32(&mut bytes, 1);
             bytes.push(op::SET_TEXT_BEHAVIOR);
-            push_u32(&mut bytes, 42);
+            push_node(&mut bytes, 42);
             bytes.push(flags);
             bytes
         };
@@ -749,7 +778,7 @@ mod tests {
         assert!(matches!(
             &frame.ops[0],
             Op::SetTextBehavior {
-                id: 42,
+                id: NodeKey { lo: 42, hi: 1 },
                 flags: 0x03
             }
         ));
@@ -766,7 +795,7 @@ mod tests {
             push_u32(&mut bytes, 1);
             push_u32(&mut bytes, 1);
             bytes.push(op::SET_INTERACTION_POLICY);
-            push_u32(&mut bytes, 42);
+            push_node(&mut bytes, 42);
             bytes.push(flags);
             push_u32(&mut bytes, focus_order as u32);
             bytes
@@ -777,7 +806,7 @@ mod tests {
         assert!(matches!(
             &frame.ops[0],
             Op::SetInteractionPolicy {
-                id: 42,
+                id: NodeKey { lo: 42, hi: 1 },
                 flags: INTERACTION_POLICY_FOCUSABLE,
                 focus_order: -1,
             }
@@ -804,20 +833,20 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 2);
         bytes.push(op::SET_GRAPHIC_SOURCE);
-        push_u32(&mut bytes, 42);
+        push_node(&mut bytes, 42);
         bytes.push(GRAPHIC_SOURCE_NETWORK_RASTER);
         let source = b"https://x.test/a.png";
         bytes.extend_from_slice(&(source.len() as u16).to_le_bytes());
         bytes.extend_from_slice(source);
         bytes.push(op::CLEAR_GRAPHIC_SOURCE);
-        push_u32(&mut bytes, 42);
+        push_node(&mut bytes, 42);
         bytes.push(GRAPHIC_SOURCE_NETWORK_RASTER);
 
         let frame = decode_frame(&bytes).unwrap();
         assert!(matches!(
             &frame.ops[0],
             Op::SetGraphicSource {
-                id: 42,
+                id: NodeKey { lo: 42, hi: 1 },
                 kind: GRAPHIC_SOURCE_NETWORK_RASTER,
                 source: "https://x.test/a.png",
             }
@@ -825,12 +854,12 @@ mod tests {
         assert!(matches!(
             &frame.ops[1],
             Op::ClearGraphicSource {
-                id: 42,
+                id: NodeKey { lo: 42, hi: 1 },
                 kind: GRAPHIC_SOURCE_NETWORK_RASTER,
             }
         ));
 
-        bytes[13] = 3;
+        bytes[17] = 3;
         assert!(matches!(
             decode_frame(&bytes),
             Err(DecodeError::BadGraphicSourceKind { kind: 3 })
@@ -843,7 +872,7 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);
         bytes.push(op::SET_STYLE_VALUE);
-        push_u32(&mut bytes, 7);
+        push_node(&mut bytes, 7);
         push_u32(&mut bytes, 9);
         bytes.push(1);
         push_u32(&mut bytes, 12.5f32.to_bits());
@@ -852,7 +881,7 @@ mod tests {
         assert!(matches!(
             &frame.ops[0],
             Op::SetStyleValue {
-                id: 7,
+                id: NodeKey { lo: 7, hi: 1 },
                 prop,
                 value: StyleValue::Px(value),
             } if prop.get() == 9 && *value == 12.5
@@ -865,7 +894,7 @@ mod tests {
         push_u32(&mut bytes, 1);
         push_u32(&mut bytes, 1);
         bytes.push(op::SET_SHADOWS);
-        push_u32(&mut bytes, 7);
+        push_node(&mut bytes, 7);
         bytes.extend_from_slice(&1u16.to_le_bytes());
         for value in [1.0_f32, 2.0, -3.0, 4.5] {
             push_u32(&mut bytes, value.to_bits());
@@ -876,7 +905,7 @@ mod tests {
         let frame = decode_frame(&bytes).unwrap();
         assert!(matches!(
             &frame.ops[0],
-            Op::SetShadows { id: 7, shadows }
+            Op::SetShadows { id: NodeKey { lo: 7, hi: 1 }, shadows }
                 if shadows == &[ShadowValue {
                     offset_x: 1.0,
                     offset_y: 2.0,

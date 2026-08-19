@@ -1,4 +1,4 @@
-import { $t as WabouStyle, A as ImageProps, An as AnimationType, B as ModalControls, Bn as RotationOptions, C as FocusResult, Ct as Pulse, D as Icon, Dn as AnimationOptions, Dt as ScrollAreaProps, En as AnimationControls, Et as ScrollArea, F as LinkProps, Fn as PulseOptions, Ft as Spin, Gn as createPulse, Gt as TextArea, Hn as animate, In as ReactiveAnimation, J as NetworkImageSource, Jt as TextInputProps, K as NetworkImage, Kn as createRotation, Kt as TextAreaProps, Ln as ReactiveTransition, M as LayoutProps, Mn as Easing, Nn as EasingFunction, O as IconProps, On as AnimationPlaybackControls, P as Link, Pn as LoopOptions, Qt as WabouClassList, Rn as RepeatType, Rt as Svg, T as FocusWithinResult, Tt as Row, Un as animateKeyframes, Ut as TabsResult, Vn as TransitionOptions, W as ModalProps, Wn as createLoop, Wt as Text, Xt as View, Yt as TextProps, Zt as ViewProps, _n as createTabs, a as Button$1, an as createAnimationFrame, cn as createFocusWithin, d as Center, dn as createNotifications, dt as PasswordInput$1, f as CodeEditor, fn as createOverlayLayer, ft as PasswordInputProps$1, g as Column, gn as createShortcuts, hn as createScrollReset, ht as PopoverProps, i as AnimationFrameCallback, in as createActive, j as ImageSource, jn as AnimationValue, k as Image, kn as AnimationState, l as ButtonProps$1, ln as createHover, lt as OverlayPlaneProvider, m as CollapsiblePresence, mn as createPress, mt as Popover, nt as NotificationRegionProps, on as createButton, ot as OverlayLayer, p as CodeEditorProps, pn as createPresence, q as NetworkImageProps, qn as createTransition, qt as TextInput, rt as Notifications, sn as createFocus, t as ActiveResult, tt as NotificationRegion, u as ButtonState, un as createMeasuredSize, xt as PressResult, yn as index_d_exports, z as Modal, zn as RotationAnimation, zt as SvgProps } from "./index-CK3JaUjz.mjs";
+import { $ as OverlayPlaneProvider, $t as Icon, An as AnimationValue, At as LayoutProps, Bn as TransitionOptions, Bt as Button$1, C as createActive, Ct as ModalProps, D as createPresence, Dn as AnimationOptions, Dt as createMeasuredSize, En as AnimationControls, Fn as ReactiveAnimation, Ft as FocusWithinResult, Gn as createRotation, Gt as ButtonState, Hn as animateKeyframes, In as ReactiveTransition, It as createFocus, Jt as LinkProps, Kn as createTransition, Ln as RepeatType, Lt as createFocusWithin, Mn as EasingFunction, Nn as LoopOptions, Nt as createHover, O as Popover, On as AnimationState, Ot as Center, Pn as PulseOptions, Pt as FocusResult, Qt as CodeEditorProps, Rn as RotationAnimation, Rt as CollapsiblePresence, S as PressResult, Tn as createAnimationFrame, Un as createLoop, Vn as animate, Wn as createPulse, Wt as ButtonProps$1, X as OverlayLayer, Yt as createButton, Zt as CodeEditor, _ as createScrollReset, _n as TextProps, an as NetworkImageProps, b as ActiveResult, bn as WabouClassList, c as createTabs, cn as PasswordInputProps$1, dn as SvgProps, dt as Notifications, en as IconProps, fn as Text, gn as TextInputProps, gt as Spin, hn as TextInput, in as NetworkImage, jn as Easing, jt as Row, k as PopoverProps, kn as AnimationType, kt as Column, lt as NotificationRegion, m as createShortcuts, mn as TextAreaProps, mt as Pulse, nn as ImageProps, on as NetworkImageSource, pn as TextArea, pt as createNotifications, qt as Link, rn as ImageSource, s as TabsResult, sn as PasswordInput$1, t as index_d_exports, tn as Image, tt as createOverlayLayer, un as Svg, ut as NotificationRegionProps, v as ScrollArea, vn as View, vt as Modal, w as createPress, wn as AnimationFrameCallback, xn as WabouStyle, y as ScrollAreaProps, yn as ViewProps, yt as ModalControls, zn as RotationOptions } from "./index-DC2dOetY.mjs";
 import { Shadow } from "@wabou/core/style";
 import { Accessor, JSX, ParentProps } from "solid-js";
 import { CalendarDate } from "@internationalized/date";
@@ -6,8 +6,7 @@ import { RouterHistory, createMemoryHistory } from "@tanstack/history";
 import { AnyRoute, AnyRouter, BaseRootRoute, BaseRoute, RouterConstructorOptions, RouterCore, TrailingSlashOption, notFound, redirect } from "@tanstack/router-core";
 export * from "@wabou/core";
 export * from "@wabou/core/i18n";
-//#region ../components/dist/index.d.mts
-//#region src/avatar.d.ts
+//#region src/components/avatar.d.ts
 type AvatarSize = "sm" | "default" | "lg";
 interface AvatarProps {
   src?: string;
@@ -26,7 +25,7 @@ declare function AvatarGroupCount(props: {
   class?: string;
 }): import("@wabou/core").JSX.Element;
 //#endregion
-//#region src/config-editor.d.ts
+//#region src/components/config-editor.d.ts
 interface ConfigEditorProps extends CodeEditorProps {
   class?: string;
 }
@@ -36,7 +35,7 @@ interface ConfigEditorProps extends CodeEditorProps {
  */
 declare function ConfigEditor(props: ConfigEditorProps): JSX.Element;
 //#endregion
-//#region src/date-picker.d.ts
+//#region src/components/date-picker.d.ts
 interface CalendarProps {
   value?: CalendarDate;
   defaultValue?: CalendarDate;
@@ -70,7 +69,7 @@ interface DatePickerProps extends Omit<CalendarProps, "aria-label"> {
 /** A shadcn-inspired date picker composed from Wabou Popover and Calendar. */
 declare function DatePicker(props: DatePickerProps): JSX.Element;
 //#endregion
-//#region src/dialog.d.ts
+//#region src/components/dialog.d.ts
 interface DialogProps extends Omit<ModalProps, "contentClass"> {
   contentClass?: string;
 }
@@ -92,7 +91,7 @@ declare function DialogDescription(props: {
   class?: string;
 }): import("@wabou/core").JSX.Element;
 //#endregion
-//#region src/disclosure.d.ts
+//#region src/components/disclosure.d.ts
 interface CollapsibleProps {
   children?: JSX.Element;
   open?: boolean;
@@ -141,7 +140,7 @@ declare function AccordionContent(props: {
   class?: string;
 }): import("@wabou/core").JSX.Element;
 //#endregion
-//#region src/display.d.ts
+//#region src/components/display.d.ts
 declare function Skeleton(props: {
   class?: string;
 }): JSX.Element;
@@ -158,7 +157,7 @@ declare function KbdGroup(props: {
   children?: JSX.Element;
 }): JSX.Element;
 //#endregion
-//#region src/forms.d.ts
+//#region src/components/forms.d.ts
 type FieldOrientation = "vertical" | "horizontal";
 declare function Field(props: {
   children?: JSX.Element;
@@ -200,7 +199,7 @@ declare function InputGroupTextArea(props: TextAreaProps & {
   class?: string;
 }): import("@wabou/core").JSX.Element;
 //#endregion
-//#region src/layout.d.ts
+//#region src/components/layout.d.ts
 declare function Empty(props: {
   children?: JSX.Element;
   class?: string;
@@ -253,7 +252,7 @@ declare function SplitPaneAside(props: {
   class?: string;
 }): import("@wabou/core").JSX.Element;
 //#endregion
-//#region src/select.d.ts
+//#region src/components/select.d.ts
 interface SelectOption {
   value: string;
   label: string;
@@ -277,7 +276,7 @@ interface SelectProps {
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
 declare function Select(props: SelectProps): JSX.Element;
 //#endregion
-//#region src/selection.d.ts
+//#region src/components/selection.d.ts
 interface CheckboxProps {
   checked?: boolean;
   defaultChecked?: boolean;
@@ -338,7 +337,7 @@ interface ToggleGroupItemProps {
 }
 declare function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element;
 //#endregion
-//#region src/slider.d.ts
+//#region src/components/slider.d.ts
 interface SliderProps {
   value?: number;
   defaultValue?: number;
@@ -353,7 +352,7 @@ interface SliderProps {
 }
 declare function Slider(props: SliderProps): JSX.Element;
 //#endregion
-//#region src/tabs.d.ts
+//#region src/components/tabs.d.ts
 interface TabsProps {
   value?: string;
   defaultValue?: string;
@@ -382,7 +381,7 @@ declare function TabsContent(props: {
   children?: JSX.Element;
 }): JSX.Element;
 //#endregion
-//#region src/theme.d.ts
+//#region src/components/theme.d.ts
 type ComponentsTheme = "light" | "dark";
 type ComponentsElevation = "raised" | "floating" | "modal";
 /**
@@ -398,7 +397,7 @@ type ComponentsProviderProps = ParentProps<{
 declare function ComponentsProvider(props: ComponentsProviderProps): JSX.Element;
 declare function useComponentsTheme(): () => ComponentsTheme;
 //#endregion
-//#region src/title-bar.d.ts
+//#region src/components/title-bar.d.ts
 declare const titleBarClass = "border-b border-subtle";
 interface TitleBarProps extends ViewProps {
   class?: string;
@@ -430,7 +429,7 @@ interface TitleBarDragRegionProps extends Omit<ViewProps, "onPointerDown" | "onD
 /** Explicit non-interactive region that moves the native window. */
 declare function TitleBarDragRegion(props: TitleBarDragRegionProps): JSX.Element;
 //#endregion
-//#region src/index.d.ts
+//#region src/components/index.d.ts
 type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
 type ButtonSize = "sm" | "default" | "lg" | "icon";
 interface ButtonProps extends Omit<ButtonProps$1, "variant" | "tone"> {
@@ -523,8 +522,7 @@ declare function Progress(props: {
   class?: string;
 }): JSX.Element;
 //#endregion
-//#region ../router/dist/index.d.mts
-//#region src/data.d.ts
+//#region src/router/data.d.ts
 type WabouDataRouter<TRouteTree extends AnyRoute = AnyRoute> = RouterCore<TRouteTree, TrailingSlashOption, boolean, RouterHistory>;
 /** Create a TanStack Router Core instance adapted to Solid 2 and native history. */
 declare function createDataRouter<TRouteTree extends AnyRoute, TTrailingSlash extends TrailingSlashOption = "never", TStructuralSharing extends boolean = false, THistory extends RouterHistory = RouterHistory, TDehydrated extends Record<string, any> = Record<string, any>>(options: RouterConstructorOptions<TRouteTree, TTrailingSlash, TStructuralSharing, THistory, TDehydrated>): RouterCore<TRouteTree, TTrailingSlash, TStructuralSharing, THistory, TDehydrated>;
@@ -541,5 +539,5 @@ declare function useLocation(): Accessor<AnyRouter["state"]["location"]>;
 declare function useParams<T extends Record<string, string> = Record<string, string>>(): Accessor<T>;
 declare function useLoaderData<T = unknown>(): Accessor<T | undefined>;
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, type ActiveResult, Alert, AnimationControls, type AnimationFrameCallback, AnimationOptions, AnimationPlaybackControls, AnimationState, AnimationType, AnimationValue, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, type CheckboxProps, CodeEditor, type CodeEditorProps, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleProps, CollapsibleTrigger, Column, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Easing, EasingFunction, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, type FocusResult, type FocusWithinResult, Fps, FpsProps, Icon, type IconProps, Image, type ImageProps, type ImageSource, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, type LayoutProps, LoopOptions, Modal, type ModalProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, NotificationRegion, type NotificationRegionProps, type Notifications, type OverlayLayer, OverlayPlaneProvider, PasswordInput, PasswordInputProps, Popover, type PopoverProps, type PressResult, Button$1 as PrimitiveButton, type ButtonProps$1 as PrimitiveButtonProps, type ButtonState as PrimitiveButtonState, Link as PrimitiveLink, type LinkProps as PrimitiveLinkProps, PasswordInput$1 as PrimitivePasswordInput, type PasswordInputProps$1 as PrimitivePasswordInputProps, TextArea as PrimitiveTextArea, type TextAreaProps as PrimitiveTextAreaProps, TextInput as PrimitiveTextInput, type TextInputProps as PrimitiveTextInputProps, Progress, Pulse, PulseOptions, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, ReactiveAnimation, ReactiveTransition, RepeatType, RotationAnimation, RotationOptions, RouterProvider, RouterProviderProps, Row, ScrollArea, type ScrollAreaProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, type SvgProps, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, type TabsResult, TabsTrigger, type TabsTriggerProps, Text, TextArea$1 as TextArea, TextAreaProps$1 as TextAreaProps, type TextProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, TransitionOptions, View, type ViewProps, type WabouClassList, WabouDataRouter, type WabouStyle, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createDataRouter, createFocus, createFocusWithin, createHover, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, nextAccordionValue, notFound, index_d_exports as primitives, redirect, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useRouter, useRouterState };
+export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, type ActiveResult, Alert, AnimationControls, type AnimationFrameCallback, AnimationOptions, AnimationState, AnimationType, AnimationValue, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, type CheckboxProps, CodeEditor, type CodeEditorProps, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleProps, CollapsibleTrigger, Column, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Easing, EasingFunction, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, type FocusResult, type FocusWithinResult, Fps, FpsProps, Icon, type IconProps, Image, type ImageProps, type ImageSource, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, type LayoutProps, LoopOptions, Modal, type ModalProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, NotificationRegion, type NotificationRegionProps, type Notifications, type OverlayLayer, OverlayPlaneProvider, PasswordInput, PasswordInputProps, Popover, type PopoverProps, type PressResult, Button$1 as PrimitiveButton, type ButtonProps$1 as PrimitiveButtonProps, type ButtonState as PrimitiveButtonState, Link as PrimitiveLink, type LinkProps as PrimitiveLinkProps, PasswordInput$1 as PrimitivePasswordInput, type PasswordInputProps$1 as PrimitivePasswordInputProps, TextArea as PrimitiveTextArea, type TextAreaProps as PrimitiveTextAreaProps, TextInput as PrimitiveTextInput, type TextInputProps as PrimitiveTextInputProps, Progress, Pulse, PulseOptions, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, ReactiveAnimation, ReactiveTransition, RepeatType, RotationAnimation, RotationOptions, RouterProvider, RouterProviderProps, Row, ScrollArea, type ScrollAreaProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, type SvgProps, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, type TabsResult, TabsTrigger, type TabsTriggerProps, Text, TextArea$1 as TextArea, TextAreaProps$1 as TextAreaProps, type TextProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, TransitionOptions, View, type ViewProps, type WabouClassList, WabouDataRouter, type WabouStyle, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createDataRouter, createFocus, createFocusWithin, createHover, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, nextAccordionValue, notFound, index_d_exports as primitives, redirect, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useRouter, useRouterState };
 //# sourceMappingURL=index.d.mts.map

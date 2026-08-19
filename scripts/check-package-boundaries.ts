@@ -3,22 +3,15 @@ import { join } from "node:path";
 import ts from "typescript";
 
 const root = new URL("..", import.meta.url).pathname;
-const internalPackages = new Set([
+// Retired implementation package names stay forbidden so new code cannot
+// accidentally recreate the package graph that @wabou/ui replaced.
+const retiredPackages = new Set([
   "@wabou/animation",
   "@wabou/components",
   "@wabou/primitives",
-  "@wabou/protocol",
-  "@wabou/router",
-  "@wabou/solid-renderer",
-  "@wabou/style",
-]);
-const applicationLayerPackages = new Set([
-  "@wabou/animation",
-  "@wabou/components",
-  "@wabou/core",
-  "@wabou/primitives",
   "@wabou/router",
 ]);
+const applicationLayerPackages = new Set(["@wabou/core"]);
 const applicationDependencyExceptions = new Map([
   ["@wabou/devtools-app", new Set(["@wabou/core"])],
   ["@wabou/gallery", new Set(["@wabou/core"])],
@@ -84,7 +77,6 @@ interface Manifest {
   repository?: { type?: string; url?: string; directory?: string };
   private?: boolean;
   publishConfig?: { access?: string };
-  wabou?: { stability?: string; bundles?: string[] };
   files?: string[];
   exports?: unknown;
   dependencies?: Record<string, string>;
@@ -107,13 +99,18 @@ async function manifest(path: string): Promise<Manifest> {
 const packageDirs = await readdir(join(root, "packages"), {
   withFileTypes: true,
 });
-const packageManifestPaths = packageDirs
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => join(root, "packages", entry.name, "package.json"));
+const packageManifestPaths = (
+  await Promise.all(
+    packageDirs
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry) => {
+        const path = join(root, "packages", entry.name, "package.json");
+        return (await Bun.file(path).exists()) ? path : undefined;
+      }),
+  )
+).filter((path): path is string => path !== undefined);
 const packages = await Promise.all(
-  packageManifestPaths
-    .filter((path) => Bun.file(path).size > 0)
-    .map((path) => manifest(path)),
+  packageManifestPaths.map((path) => manifest(path)),
 );
 const versions = new Set(packages.map((entry) => entry.version));
 if (versions.size !== 1) {
@@ -137,11 +134,15 @@ if (!changelog.includes(`## ${packageVersion} -`)) {
   throw new Error(`CHANGELOG.md has no ${packageVersion} release heading`);
 }
 for (const entry of packages) {
-  const internal = internalPackages.has(entry.name);
-  if (Boolean(entry.private) !== internal) {
-    throw new Error(`${entry.name} must be ${internal ? "private" : "public"}`);
+  if (retiredPackages.has(entry.name)) {
+    throw new Error(`${entry.name} was folded into @wabou/ui and must not return`);
   }
-  if (!internal && entry.publishConfig?.access !== "public") {
+  if (entry.private) {
+    throw new Error(
+      `${entry.name} is source-only; use a directory inside its owning public package`,
+    );
+  }
+  if (entry.publishConfig?.access !== "public") {
     throw new Error(`${entry.name} must publish with public npm access`);
   }
   if (!entry.description) {
@@ -157,37 +158,20 @@ for (const entry of packages) {
   ) {
     throw new Error(`${entry.name} must link to its repository directory`);
   }
-  if (!internal && !entry.files?.includes("dist")) {
+  if (!entry.files?.includes("dist")) {
     throw new Error(`${entry.name} must publish its dist directory`);
   }
-  if (!internal) {
-    const publishedDependencies = {
-      ...entry.dependencies,
-      ...entry.optionalDependencies,
-      ...entry.peerDependencies,
-    };
-    for (const dependency of internalPackages) {
-      if (dependency in publishedDependencies) {
-        throw new Error(
-          `${entry.name} cannot publish a dependency on private ${dependency}`,
-        );
-      }
-    }
-  }
-  for (const dependency of entry.wabou?.bundles ?? []) {
-    if (!internalPackages.has(dependency)) {
+  const publishedDependencies = {
+    ...entry.dependencies,
+    ...entry.optionalDependencies,
+    ...entry.peerDependencies,
+  };
+  for (const dependency of retiredPackages) {
+    if (dependency in publishedDependencies) {
       throw new Error(
-        `${entry.name} bundles non-internal package ${dependency}`,
+        `${entry.name} cannot depend on retired package ${dependency}`,
       );
     }
-    if (entry.devDependencies?.[dependency] !== "workspace:*") {
-      throw new Error(
-        `${entry.name} bundled package ${dependency} must be a workspace devDependency`,
-      );
-    }
-  }
-  if ((entry.wabou?.stability === "internal") !== internal) {
-    throw new Error(`${entry.name} has incorrect Wabou stability metadata`);
   }
 }
 
@@ -268,9 +252,6 @@ for (const manifestPath of packageManifestPaths) {
     ...entry.optionalDependencies,
     ...entry.peerDependencies,
   };
-  for (const dependency of entry.wabou?.bundles ?? []) {
-    declared[dependency] = entry.devDependencies?.[dependency] ?? "";
-  }
   const sourceGlob = new Bun.Glob("src/**/*.{ts,tsx,js,mjs}");
   for await (const path of sourceGlob.scan({
     cwd: packageRoot,
@@ -303,13 +284,13 @@ for (const manifestPath of packageManifestPaths) {
     onlyFiles: true,
   })) {
     const output = await Bun.file(join(packageRoot, path)).text();
-    for (const dependency of internalPackages) {
+    for (const dependency of retiredPackages) {
       if (
         output.includes(`"${dependency}`) ||
         output.includes(`'${dependency}`)
       ) {
         throw new Error(
-          `${entry.name} published output ${path} imports private ${dependency}`,
+          `${entry.name} published output ${path} imports retired ${dependency}`,
         );
       }
     }
@@ -322,10 +303,10 @@ for (const directory of appDirs.filter((entry) => entry.isDirectory())) {
     join(root, "apps", directory.name, "package.json"),
   );
   const declared = { ...entry.dependencies, ...entry.devDependencies };
-  for (const dependency of internalPackages) {
+  for (const dependency of retiredPackages) {
     if (dependency in declared) {
       throw new Error(
-        `${entry.name} directly depends on internal ${dependency}`,
+        `${entry.name} directly depends on retired ${dependency}`,
       );
     }
   }
@@ -355,12 +336,12 @@ for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
     continue;
   }
   const source = await Bun.file(join(root, path)).text();
-  for (const dependency of internalPackages) {
+  for (const dependency of retiredPackages) {
     if (
       source.includes(`"${dependency}`) ||
       source.includes(`'${dependency}`)
     ) {
-      throw new Error(`${path} directly imports internal ${dependency}`);
+      throw new Error(`${path} directly imports retired ${dependency}`);
     }
   }
   for (const dependency of applicationLayerPackages) {
@@ -374,5 +355,5 @@ for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
 }
 
 console.log(
-  `verified ${packages.filter((entry) => !entry.private).length} public and ${packages.filter((entry) => entry.private).length} private aligned packages and Rust workspace at ${packageVersion}, plus ${appDirs.length} app manifests`,
+  `verified ${packages.length} public packages and Rust workspace at ${packageVersion}, plus ${appDirs.length} app manifests`,
 );

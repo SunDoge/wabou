@@ -4,14 +4,7 @@
   "commit": false,
   "fixed": [
     [
-      "@wabou/animation",
-      "@wabou/components",
       "@wabou/core",
-      "@wabou/primitives",
-      "@wabou/protocol",
-      "@wabou/router",
-      "@wabou/solid-renderer",
-      "@wabou/style",
       "@wabou/terminal",
       "@wabou/test",
       "@wabou/ui",

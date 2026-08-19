@@ -1600,12 +1600,12 @@ out-dir = "dist/resources"
     #[test]
     fn workspace_package_preflight_reports_stale_generated_packages() {
         let root = tempfile::tempdir().unwrap();
-        let package = root.path().join("packages/router");
+        let package = root.path().join("packages/example");
         fs::create_dir_all(package.join("src")).unwrap();
         fs::create_dir_all(package.join("dist")).unwrap();
         fs::write(
             package.join("package.json"),
-            r#"{"name":"@wabou/router","exports":"./dist/index.mjs"}"#,
+            r#"{"name":"@wabou/example","exports":"./dist/index.mjs"}"#,
         )
         .unwrap();
         fs::write(package.join("src/index.ts"), "export const value = 1;\n").unwrap();
@@ -1613,7 +1613,7 @@ out-dir = "dist/resources"
         fs::write(
             root.path().join("packages/.wabou-source-hashes.json"),
             format!(
-                "{{\"@wabou/router\":\"{}\"}}\n",
+                "{{\"@wabou/example\":\"{}\"}}\n",
                 package_source_hash(&package).unwrap()
             ),
         )
@@ -1624,7 +1624,7 @@ out-dir = "dist/resources"
         let message = ensure_workspace_package_exports(root.path())
             .unwrap_err()
             .to_string();
-        assert!(message.contains("packages/router"));
+        assert!(message.contains("packages/example"));
         assert!(message.contains("bun run gen"));
     }
 

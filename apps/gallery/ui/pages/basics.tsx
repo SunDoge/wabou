@@ -612,7 +612,7 @@ function PlatformPage() {
             dark="text-xs font-mono text-slate-400"
             light="text-xs font-mono text-slate-600"
           >
-            c = {cx()} + {cy()}i · driven by @wabou/animation
+            c = {cx()} + {cy()}i · driven by Wabou animation
           </ThemeText>
         </View>
       </Preview>

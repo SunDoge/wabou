@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Clone, Copy)]
 struct FocusCandidate {
-    solid_id: u32,
+    solid_id: NodeKey,
     focus_order: i32,
     document_order: usize,
 }
@@ -256,7 +256,7 @@ impl Applier {
         }
     }
 
-    pub(super) fn pointer_focus_target(&self, target: Option<u32>) -> Option<u32> {
+    pub(super) fn pointer_focus_target(&self, target: Option<NodeKey>) -> Option<NodeKey> {
         let mut node =
             target.and_then(|target| self.document.node_store.solid_to_node.get(&target).copied());
         while let Some(current) = node {
@@ -275,7 +275,7 @@ impl Applier {
         None
     }
 
-    pub(super) fn advance_focus(&mut self, reverse: bool) -> Option<u32> {
+    pub(super) fn advance_focus(&mut self, reverse: bool) -> Option<NodeKey> {
         if self.interaction.input.focus_order.is_empty() {
             return None;
         }

@@ -10,7 +10,7 @@ pub(super) struct WidgetManager {
     pub(super) factories: HashMap<Atom, wabou_shell::WidgetFactory>,
     pub(super) host_action_routes: HashMap<u64, (NodeId, u64)>,
     pub(super) next_host_action_id: u64,
-    pub(super) pending_value_sync: HashSet<u32>,
+    pub(super) pending_value_sync: HashSet<NodeKey>,
 }
 
 impl WidgetManager {

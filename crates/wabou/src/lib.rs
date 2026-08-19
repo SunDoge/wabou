@@ -17,7 +17,11 @@
 #[cfg(feature = "bindings")]
 pub use wabou_bindgen::{Bindings, Capability, Type, specta};
 pub use wabou_bindgen::{JsonCapabilityContract, JsonMethod};
-pub use wabou_runtime::*;
+pub use wabou_runtime::{
+    AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
+    HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, Result,
+    ShellExtension, WindowMetrics, WindowOptions, widget_api,
+};
 
 #[cfg(test)]
 mod tests {
@@ -27,7 +31,7 @@ mod tests {
     fn facade_exposes_application_and_extension_entry_points() {
         let _builder = HostBuilder::new();
         let _window = WindowOptions::new().title("Facade test");
-        let _: Option<&dyn Widget> = None;
+        let _: Option<&dyn widget_api::Widget> = None;
         let _: Option<widget_api::UiEvent> = None;
         let _: JsonMethod<(), bool> = JsonMethod::no_request("ready");
     }

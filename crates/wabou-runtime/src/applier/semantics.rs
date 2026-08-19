@@ -162,7 +162,7 @@ fn semantic_focus(
             .document
             .node_store
             .solid_to_node
-            .get(&(solid as u32))
+            .get(&NodeKey::from_ffi(solid))
             .is_some_and(|node| {
                 applier
                     .document

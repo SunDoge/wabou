@@ -401,11 +401,15 @@ impl Applier {
         }
     }
 
-    pub(super) fn has_listener_in_chain(&self, solid_id: u32, code: u8) -> bool {
+    pub(super) fn has_listener_in_chain(&self, solid_id: NodeKey, code: u8) -> bool {
         self.listener_target_in_chain(solid_id, code).is_some()
     }
 
-    pub(super) fn listener_target_in_chain(&self, mut solid_id: u32, code: u8) -> Option<u32> {
+    pub(super) fn listener_target_in_chain(
+        &self,
+        mut solid_id: NodeKey,
+        code: u8,
+    ) -> Option<NodeKey> {
         loop {
             if self
                 .interaction
@@ -424,7 +428,7 @@ impl Applier {
 
     pub(super) fn dispatch_pointer(
         &mut self,
-        target: u32,
+        target: NodeKey,
         code: u8,
         button: Option<PointerButton>,
         modifiers: Modifiers,
@@ -454,7 +458,7 @@ impl Applier {
             payload: NodeEventPayload::Numeric(data),
         });
         if let Err(error) = self.runtime.js.dispatch_host_frame(&[event]) {
-            tracing::warn!(?error, target, code, "event dispatch failed");
+            tracing::warn!(?error, ?target, code, "event dispatch failed");
             return false;
         }
         true
@@ -462,7 +466,7 @@ impl Applier {
 
     pub(super) fn dispatch_cancellable_numeric(
         &mut self,
-        target: u32,
+        target: NodeKey,
         code: u8,
         data: [f64; event_data::LEN],
     ) -> (bool, bool) {
@@ -486,7 +490,7 @@ impl Applier {
         match self.runtime.js.dispatch_host_frame(&[event]) {
             Ok(disposition) => (true, disposition.is_prevented(event_id)),
             Err(error) => {
-                tracing::warn!(?error, target, code, "event dispatch failed");
+                tracing::warn!(?error, ?target, code, "event dispatch failed");
                 (false, false)
             }
         }
@@ -494,7 +498,7 @@ impl Applier {
 
     pub(super) fn dispatch_cancellable_json(
         &mut self,
-        target: u32,
+        target: NodeKey,
         code: u8,
         payload: String,
     ) -> (bool, bool) {
@@ -518,7 +522,7 @@ impl Applier {
         match self.runtime.js.dispatch_host_frame(&[event]) {
             Ok(disposition) => (true, disposition.is_prevented(event_id)),
             Err(error) => {
-                tracing::warn!(?error, target, code, "event dispatch failed");
+                tracing::warn!(?error, ?target, code, "event dispatch failed");
                 (false, false)
             }
         }
@@ -547,7 +551,7 @@ impl Applier {
         }
     }
 
-    pub(super) fn dispatch_json(&mut self, target: u32, code: u8, payload: &str) -> bool {
+    pub(super) fn dispatch_json(&mut self, target: NodeKey, code: u8, payload: &str) -> bool {
         if !self.has_listener_in_chain(target, code) {
             return false;
         }
@@ -559,13 +563,13 @@ impl Applier {
             payload: NodeEventPayload::Json(payload.to_owned()),
         });
         if let Err(error) = self.runtime.js.dispatch_host_frame(&[event]) {
-            tracing::warn!(?error, target, code, "event dispatch failed");
+            tracing::warn!(?error, ?target, code, "event dispatch failed");
             return false;
         }
         true
     }
 
-    pub(super) fn is_text_input_target(&self, target: u32) -> bool {
+    pub(super) fn is_text_input_target(&self, target: NodeKey) -> bool {
         let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
             return false;
         };
@@ -576,7 +580,7 @@ impl Applier {
             .is_some_and(|widget| widget.accepts_text_input())
     }
 
-    pub(super) fn set_focused_target(&mut self, target: Option<u32>) -> bool {
+    pub(super) fn set_focused_target(&mut self, target: Option<NodeKey>) -> bool {
         let old = self.interaction.input.focused_target;
         if old == target {
             return false;

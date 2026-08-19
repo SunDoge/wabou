@@ -5,12 +5,13 @@ edition = "2024"
 license.workspace = true
 
 [features]
-bindings = ["dep:specta", "dep:specta-typescript"]
+bindings = ["dep:specta", "dep:specta-typescript", "wabou-host-api/specta"]
 
 [dependencies]
 clap = { workspace = true, features = ["derive", "env"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+wabou-host-api = { workspace = true }
 specta = { workspace = true, optional = true }
 specta-typescript = { workspace = true, optional = true }
 base64 = "0.22"

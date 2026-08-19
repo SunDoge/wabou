@@ -18,6 +18,14 @@ reference external implementation of the same trait available to application
 authors. QuickJS only stores `WidgetFactory` values keyed by element tag; a
 built-in and an application widget enter the applier through the same path.
 
+Each mounted widget is owned by exactly one retained-tree node. The runtime
+stores widget instances by the already-generational Taffy `NodeId`; dropping
+the node calls `unmount`, drains permitted host actions, and removes every
+widget projection. An additional SlotMap would duplicate identity without
+improving stale-key safety. Independently shared native resources used by a
+widget, such as decoded images or fonts, belong in their own typed SlotMaps and
+are referenced by opaque resource handles.
+
 Applications normally depend on `wabou`, which re-exports the public SDK
 through `widget_api`:
 

@@ -27,7 +27,9 @@ use wabou_shell::{FrameSource, TextContext};
 use super::{Applier, ComputedNodeSnapshot, InvalidationFlags};
 use crate::atom::Atom;
 use crate::jsrt::JsRuntime;
-use crate::protocol::{Frame, Op, TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_SINGLE_LINE};
+use crate::protocol::{
+    Frame, NodeKey, Op, TEXT_BEHAVIOR_AGGREGATE_DIRECT, TEXT_BEHAVIOR_SINGLE_LINE,
+};
 use crate::style_ir::fixture::{
     auto, color, declaration, keyword, number, percent, px, record, rule, sheet,
 };
@@ -112,6 +114,7 @@ impl Harness {
     }
 
     fn rect(&self, placed: &[PlacedNode], solid_id: u32) -> [f32; 4] {
+        let solid_id = nk(solid_id);
         let node = self.applier.document.node_store.solid_to_node[&solid_id];
         placed
             .iter()
@@ -122,13 +125,17 @@ impl Harness {
 
     fn snapshot(&self, solid_id: u32) -> ComputedNodeSnapshot {
         self.applier
-            .computed_node_snapshot(solid_id)
+            .computed_node_snapshot(nk(solid_id))
             .unwrap_or_else(|| panic!("no snapshot for solid_id {solid_id}"))
     }
 
     fn solid_node(&self, solid_id: u32) -> taffy::NodeId {
-        self.applier.document.node_store.solid_to_node[&solid_id]
+        self.applier.document.node_store.solid_to_node[&nk(solid_id)]
     }
+}
+
+fn nk(lo: u32) -> NodeKey {
+    NodeKey::new(lo, 1)
 }
 
 fn width(r: [f32; 4]) -> f32 {

@@ -38,11 +38,11 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
     );
     set_focus_order(&mut applier, 2, 0);
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AddEventListener {
-        id: 2,
+        id: NodeKey::new(2, 1),
         event_type: event::INPUT,
     });
     let mut tcx = TextContext::new();
@@ -55,7 +55,7 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
     );
     applier.build_frame(&mut tcx, 800, 600);
 
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert!(
         applier.document.widget_manager.widgets[&node]
             .current_value()
@@ -82,7 +82,7 @@ fn password_input_keeps_secret_out_of_attrs_and_js_events() {
             .semantic_snapshot
             .nodes
             .iter()
-            .find(|node| node.id == 2)
+            .find(|node| node.id == sk(2))
             .and_then(|node| node.value.as_deref()),
         None
     );
@@ -115,23 +115,23 @@ fn text_input_updates_value_paints_and_dispatches_input() {
     create_element_with_attrs(&mut applier, 2, input, &[(value, "")]);
     set_focus_order(&mut applier, 2, 0);
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: width,
         value: "200px",
     });
     applier.apply_op(&Op::AddEventListener {
-        id: 2,
+        id: NodeKey::new(2, 1),
         event_type: event::INPUT,
     });
     let mut tcx = TextContext::new();
     // build_frame computes layout + paints widgets + drains value sync.
     applier.build_frame(&mut tcx, 800, 600);
     let focus = applier.handle_event(pointer(PointerPhase::Down, 10.0, 10.0, 1));
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert!(
         applier
             .document
@@ -144,7 +144,10 @@ fn text_input_updates_value_paints_and_dispatches_input() {
             > 0.0
     );
     assert_eq!(focus.text_input, Some(true));
-    assert_eq!(applier.interaction.input.focused_target, Some(2));
+    assert_eq!(
+        applier.interaction.input.focused_target,
+        Some(NodeKey::new(2, 1))
+    );
 
     // Widgets receive the complete captured pointer stream, including
     // moves/releases outside their hit-test bounds. Text selection relies
@@ -247,31 +250,34 @@ fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
-        id: 3,
+        id: NodeKey::new(3, 1),
         text: "Hello ",
     });
     applier.apply_op(&Op::CreateText {
-        id: 4,
+        id: NodeKey::new(4, 1),
         text: "world",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 4,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(4, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.rebuild_layout_boxes();
 
-    let parent = applier.document.node_store.solid_to_node[&2];
+    let parent = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert_eq!(applier.document.node_store.tree.child_count(parent), 0);
     assert_eq!(
         applier
@@ -286,7 +292,7 @@ fn text_only_element_uses_one_parley_leaf_instead_of_text_boxes() {
     );
 
     applier.apply_op(&Op::SetText {
-        id: 4,
+        id: NodeKey::new(4, 1),
         text: "Wabou",
     });
     applier.rebuild_layout_boxes();
@@ -309,22 +315,25 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     install_host_frame_test_hook(&js);
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
-        id: 3,
+        id: NodeKey::new(3, 1),
         text: "selectable text",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AddEventListener {
-        id: 2,
+        id: NodeKey::new(2, 1),
         event_type: event::TEXTSELECTIONCHANGE,
     });
     applier.rebuild_layout_boxes();
@@ -341,7 +350,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     );
     applier.rebuild_hit_geometry(&placed);
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    let origin = applier.interaction.text_selection.selectable[&2].origin;
+    let origin = applier.interaction.text_selection.selectable[&NodeKey::new(2, 1)].origin;
 
     assert!(
         applier
@@ -408,7 +417,8 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     assert!(
         !placed
             .iter()
-            .find(|node| node.node_id == applier.document.node_store.solid_to_node[&2])
+            .find(|node| node.node_id
+                == applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)])
             .unwrap()
             .paint
             .selection_rects
@@ -463,7 +473,12 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
 
     let word_x = f64::from(origin[0] + 10.0);
     for _ in 0..2 {
-        applier.begin_text_selection(2, word_x, f64::from(origin[1] + 5.0), Modifiers::empty());
+        applier.begin_text_selection(
+            NodeKey::new(2, 1),
+            word_x,
+            f64::from(origin[1] + 5.0),
+            Modifiers::empty(),
+        );
     }
     assert_eq!(applier.selected_text().as_deref(), Some("selectable"));
     assert!(applier.sync_text_selection_change());
@@ -485,12 +500,17 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     );
     let line_end = f64::from(
         origin[0]
-            + applier.interaction.text_selection.selectable[&2]
+            + applier.interaction.text_selection.selectable[&NodeKey::new(2, 1)]
                 .layout
                 .width()
             + 10.0,
     );
-    applier.begin_text_selection(2, line_end, f64::from(origin[1] + 5.0), Modifiers::SHIFT);
+    applier.begin_text_selection(
+        NodeKey::new(2, 1),
+        line_end,
+        f64::from(origin[1] + 5.0),
+        Modifiers::SHIFT,
+    );
     assert_eq!(
         applier.selected_text().as_deref(),
         Some("selectable text"),
@@ -503,7 +523,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
 
     let user_select = applier.document.atoms.borrow_mut().intern("user-select");
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: user_select,
         value: "all",
     });
@@ -528,7 +548,7 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
     applier.interaction.text_selection.next_scroll = Some(Instant::now());
 
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: user_select,
         value: "none",
     });
@@ -542,13 +562,18 @@ fn ordinary_text_drag_selects_highlights_and_copies() {
         &HashMap::new(),
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    assert!(!applier.computed_node_snapshot(2).unwrap().text_selectable);
+    assert!(
+        !applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .text_selectable
+    );
     assert!(
         !applier
             .interaction
             .text_selection
             .selectable
-            .contains_key(&2)
+            .contains_key(&NodeKey::new(2, 1))
     );
     assert!(applier.interaction.text_selection.active.is_none());
     assert!(applier.interaction.text_selection.next_scroll.is_none());
@@ -583,7 +608,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
         )
     };
     applier.apply_op(&Op::SetStyle {
-        id: 1,
+        id: NodeKey::new(1, 1),
         prop: flex_direction,
         value: "column",
     });
@@ -592,35 +617,38 @@ fn text_selection_crosses_hosts_in_both_directions() {
         (4, 5, "secret", false),
         (6, 7, "beta", true),
     ] {
-        applier.apply_op(&Op::CreateElement { id: host, tag: div });
+        applier.apply_op(&Op::CreateElement {
+            id: nk(host),
+            tag: div,
+        });
         set_text_behavior(&mut applier, host);
         applier.apply_op(&Op::SetStyle {
-            id: host,
+            id: nk(host),
             prop: height,
             value: "30px",
         });
         if !selectable {
             applier.apply_op(&Op::SetStyle {
-                id: host,
+                id: nk(host),
                 prop: user_select,
                 value: "none",
             });
         }
         applier.apply_op(&Op::CreateText {
-            id: text_node,
+            id: nk(text_node),
             text,
         });
         applier.apply_op(&Op::AppendChild {
-            parent: host,
-            child: text_node,
+            parent: nk(host),
+            child: nk(text_node),
         });
         applier.apply_op(&Op::AppendChild {
-            parent: 1,
-            child: host,
+            parent: NodeKey::new(1, 1),
+            child: nk(host),
         });
     }
     applier.apply_op(&Op::AddEventListener {
-        id: 2,
+        id: NodeKey::new(2, 1),
         event_type: event::TEXTSELECTIONCHANGE,
     });
     applier.rebuild_layout_boxes();
@@ -637,7 +665,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
     );
     applier.rebuild_hit_geometry(&placed);
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    assert_eq!(applier.interaction.text_selection.order, vec![2, 6]);
+    assert_eq!(applier.interaction.text_selection.order, vec![nk(2), nk(6)]);
 
     let select_all = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
@@ -685,21 +713,27 @@ fn text_selection_crosses_hosts_in_both_directions() {
             f64::from(text.origin[1]) + geometry.y0 + 2.0,
         )
     };
-    let first_start = point(&applier.interaction.text_selection.selectable[&2], 0);
-    let second_end = point(&applier.interaction.text_selection.selectable[&6], 4);
+    let first_start = point(
+        &applier.interaction.text_selection.selectable[&NodeKey::new(2, 1)],
+        0,
+    );
+    let second_end = point(
+        &applier.interaction.text_selection.selectable[&NodeKey::new(6, 1)],
+        4,
+    );
     assert_eq!(
         applier
             .interaction
             .input
             .hit_test(first_start.0, first_start.1),
-        Some(2)
+        Some(NodeKey::new(2, 1))
     );
     assert_eq!(
         applier
             .interaction
             .input
             .hit_test(second_end.0, second_end.1),
-        Some(6)
+        Some(NodeKey::new(6, 1))
     );
     applier.handle_event(pointer(PointerPhase::Down, first_start.0, first_start.1, 1));
     applier.handle_event(pointer(PointerPhase::Move, second_end.0, second_end.1, 1));
@@ -708,7 +742,7 @@ fn text_selection_crosses_hosts_in_both_directions() {
     assert!(applier.interaction.input.pointer_down_target.is_none());
     applier.prepare_text_selection(&mut placed, &mut tcx);
     for target in [2, 6] {
-        let node = applier.document.node_store.solid_to_node[&target];
+        let node = applier.document.node_store.solid_to_node[&nk(target)];
         assert!(
             !placed
                 .iter()
@@ -721,12 +755,17 @@ fn text_selection_crosses_hosts_in_both_directions() {
     }
 
     applier.interaction.text_selection.last_click = None;
-    applier.begin_text_selection(6, second_end.0, second_end.1, Modifiers::empty());
-    applier.extend_text_selection(Some(2), first_start.0, first_start.1);
+    applier.begin_text_selection(
+        NodeKey::new(6, 1),
+        second_end.0,
+        second_end.1,
+        Modifiers::empty(),
+    );
+    applier.extend_text_selection(Some(NodeKey::new(2, 1)), first_start.0, first_start.1);
     assert_eq!(applier.selected_text().as_deref(), Some("alpha\nbeta"));
 
     applier.apply_op(&Op::SetText {
-        id: 7,
+        id: NodeKey::new(7, 1),
         // Shorter multibyte replacement forces both endpoints through
         // Parley's UTF-8 cluster-boundary refresh path.
         text: "你",
@@ -744,10 +783,12 @@ fn text_selection_crosses_hosts_in_both_directions() {
     assert_eq!(applier.selected_text().as_deref(), Some("alpha\n你"));
 
     applier.apply_op(&Op::RemoveChild {
-        parent: 1,
-        child: 6,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(6, 1),
     });
-    applier.apply_op(&Op::DropNode { id: 6 });
+    applier.apply_op(&Op::DropNode {
+        id: NodeKey::new(6, 1),
+    });
     let mut placed = layout::compute_and_walk_with_scroll(
         &mut applier.document.node_store.tree,
         applier.document.node_store.root,
@@ -793,27 +834,34 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
         (align_items, "center"),
         (height, "60px"),
     ] {
-        applier.apply_op(&Op::SetStyle { id: 1, prop, value });
+        applier.apply_op(&Op::SetStyle {
+            id: NodeKey::new(1, 1),
+            prop,
+            value,
+        });
     }
     for (host, text_node, text, size) in [(2, 3, "small", "12px"), (4, 5, "BIG", "30px")] {
-        applier.apply_op(&Op::CreateElement { id: host, tag: div });
+        applier.apply_op(&Op::CreateElement {
+            id: nk(host),
+            tag: div,
+        });
         set_text_behavior(&mut applier, host);
         applier.apply_op(&Op::SetStyle {
-            id: host,
+            id: nk(host),
             prop: font_size,
             value: size,
         });
         applier.apply_op(&Op::CreateText {
-            id: text_node,
+            id: nk(text_node),
             text,
         });
         applier.apply_op(&Op::AppendChild {
-            parent: host,
-            child: text_node,
+            parent: nk(host),
+            child: nk(text_node),
         });
         applier.apply_op(&Op::AppendChild {
-            parent: 1,
-            child: host,
+            parent: NodeKey::new(1, 1),
+            child: nk(host),
         });
     }
     applier.rebuild_layout_boxes();
@@ -829,8 +877,8 @@ fn same_visual_line_with_different_font_metrics_copies_without_newline() {
     );
     applier.prepare_text_selection(&mut placed, &mut tcx);
 
-    let small = &applier.interaction.text_selection.selectable[&2];
-    let big = &applier.interaction.text_selection.selectable[&4];
+    let small = &applier.interaction.text_selection.selectable[&NodeKey::new(2, 1)];
+    let big = &applier.interaction.text_selection.selectable[&NodeKey::new(4, 1)];
     assert!((small.origin[1] - big.origin[1]).abs() > 1.0);
     assert!(small.visual_y.start < big.visual_y.end && big.visual_y.start < small.visual_y.end);
     assert!(applier.select_all_text());
@@ -850,48 +898,54 @@ fn explicit_text_flow_does_not_absorb_a_nested_element() {
             atoms.intern("color"),
         )
     };
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     set_text_behavior(&mut applier, 2);
     applier.apply_op(&Op::CreateText {
-        id: 3,
+        id: NodeKey::new(3, 1),
         text: "Hello ",
     });
-    applier.apply_op(&Op::CreateElement { id: 4, tag: strong });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(4, 1),
+        tag: strong,
+    });
     applier.apply_op(&Op::CreateText {
-        id: 5,
+        id: NodeKey::new(5, 1),
         text: "world",
     });
     applier.apply_op(&Op::SetStyle {
-        id: 4,
+        id: NodeKey::new(4, 1),
         prop: font_weight,
         value: "700",
     });
     applier.apply_op(&Op::SetStyle {
-        id: 4,
+        id: NodeKey::new(4, 1),
         prop: color,
         value: "#ff0000",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 4,
-        child: 5,
+        parent: NodeKey::new(4, 1),
+        child: NodeKey::new(5, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 4,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(4, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
 
     applier.rebuild_layout_boxes();
     applier.inherit();
 
-    let parent = applier.document.node_store.solid_to_node[&2];
+    let parent = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert_eq!(applier.document.node_store.tree.child_count(parent), 2);
     assert!(!applier.document.node_store.inline_roots.contains(&parent));
     assert!(

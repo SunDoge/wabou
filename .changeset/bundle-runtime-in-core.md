@@ -1,9 +1,5 @@
 ---
 "@wabou/core": minor
-"@wabou/animation": patch
-"@wabou/components": patch
-"@wabou/primitives": patch
-"@wabou/router": patch
 "@wabou/terminal": patch
 "@wabou/test": patch
 "@wabou/vite": patch

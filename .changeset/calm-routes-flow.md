@@ -1,6 +1,6 @@
 ---
 "@wabou/core": patch
-"@wabou/router": minor
+"@wabou/ui": minor
 ---
 
 Add standard Headers and Response globals for host-backed fetch, and an

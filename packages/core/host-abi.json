@@ -160,7 +160,7 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["solidId", "number"]],
+      "params": [["nodeLo", "number"], ["nodeHi", "number"]],
       "returns": "void"
     },
     {
@@ -168,7 +168,7 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["solidId", "number"]],
+      "params": [["nodeLo", "number"], ["nodeHi", "number"]],
       "returns": "void"
     },
     {

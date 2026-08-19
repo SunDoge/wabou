@@ -12,10 +12,7 @@
         "@tanstack/history": "1.162.1",
         "@tanstack/router-core": "1.171.24",
         "@types/bun": "^1.3.14",
-        "@wabou/components": "workspace:*",
         "@wabou/core": "workspace:*",
-        "@wabou/primitives": "workspace:*",
-        "@wabou/router": "workspace:*",
         "@wabou/ui": "workspace:*",
         "@wabou/vite": "workspace:*",
         "abort-controller": "3.0.0",
@@ -125,28 +122,6 @@
         "vite": "^6.0.0",
       },
     },
-    "packages/animation": {
-      "name": "@wabou/animation",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@wabou/core": "workspace:*",
-        "motion-dom": "^12.43.0",
-        "solid-js": "2.0.0-rc.0",
-      },
-    },
-    "packages/components": {
-      "name": "@wabou/components",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@internationalized/date": "^3.12.3",
-        "@wabou/animation": "workspace:*",
-        "@wabou/core": "workspace:*",
-        "@wabou/primitives": "workspace:*",
-        "lucide-static": "1.31.0",
-        "solid-js": "2.0.0-rc.0",
-        "ts-pattern": "^5.9.0",
-      },
-    },
     "packages/core": {
       "name": "@wabou/core",
       "version": "0.1.0-alpha.1",
@@ -156,57 +131,6 @@
         "abort-controller": "3.0.0",
         "solid-js": "2.0.0-rc.0",
         "whatwg-url": "^17.1.0",
-      },
-    },
-    "packages/primitives": {
-      "name": "@wabou/primitives",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@floating-ui/core": "^1.8.0",
-        "@wabou/animation": "workspace:*",
-        "@wabou/core": "workspace:*",
-        "solid-js": "2.0.0-rc.0",
-        "ts-pattern": "^5.9.0",
-      },
-    },
-    "packages/protocol": {
-      "name": "@wabou/protocol",
-      "version": "0.1.0-alpha.1",
-    },
-    "packages/router": {
-      "name": "@wabou/router",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@tanstack/history": "1.162.1",
-        "@tanstack/router-core": "1.171.24",
-        "solid-js": "2.0.0-rc.0",
-      },
-      "devDependencies": {
-        "@wabou/core": "workspace:*",
-      },
-    },
-    "packages/solid-renderer": {
-      "name": "@wabou/solid-renderer",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@solidjs/universal": "2.0.0-rc.0",
-        "@tanstack/virtual-core": "3.17.7",
-        "solid-js": "2.0.0-rc.0",
-        "ts-pattern": "^5.9.0",
-      },
-    },
-    "packages/style": {
-      "name": "@wabou/style",
-      "version": "0.1.0-alpha.1",
-    },
-    "packages/style-compiler": {
-      "name": "@wabou/style-compiler",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@unocss/core": "^66.7.5",
-        "@wabou/unocss-preset": "workspace:*",
-        "unocss": "^66.7.5",
-        "vite": "^6.0.0",
       },
     },
     "packages/terminal": {
@@ -237,19 +161,6 @@
         "motion-dom": "^12.43.0",
         "solid-js": "2.0.0-rc.0",
         "ts-pattern": "^5.9.0",
-      },
-      "devDependencies": {
-        "@wabou/animation": "workspace:*",
-        "@wabou/components": "workspace:*",
-        "@wabou/primitives": "workspace:*",
-        "@wabou/router": "workspace:*",
-      },
-    },
-    "packages/unocss-preset": {
-      "name": "@wabou/unocss-preset",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@unocss/core": "^66.7.5",
       },
     },
     "packages/vite": {
@@ -717,10 +628,6 @@
 
     "@wabou/7guis": ["@wabou/7guis@workspace:apps/7guis"],
 
-    "@wabou/animation": ["@wabou/animation@workspace:packages/animation"],
-
-    "@wabou/components": ["@wabou/components@workspace:packages/components"],
-
     "@wabou/core": ["@wabou/core@workspace:packages/core"],
 
     "@wabou/devtools-app": ["@wabou/devtools-app@workspace:apps/devtools"],
@@ -729,19 +636,7 @@
 
     "@wabou/hackernews": ["@wabou/hackernews@workspace:apps/hackernews"],
 
-    "@wabou/primitives": ["@wabou/primitives@workspace:packages/primitives"],
-
-    "@wabou/protocol": ["@wabou/protocol@workspace:packages/protocol"],
-
-    "@wabou/router": ["@wabou/router@workspace:packages/router"],
-
-    "@wabou/solid-renderer": ["@wabou/solid-renderer@workspace:packages/solid-renderer"],
-
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
-
-    "@wabou/style": ["@wabou/style@workspace:packages/style"],
-
-    "@wabou/style-compiler": ["@wabou/style-compiler@workspace:packages/style-compiler"],
 
     "@wabou/terminal": ["@wabou/terminal@workspace:packages/terminal"],
 
@@ -750,8 +645,6 @@
     "@wabou/test": ["@wabou/test@workspace:packages/test"],
 
     "@wabou/ui": ["@wabou/ui@workspace:packages/ui"],
-
-    "@wabou/unocss-preset": ["@wabou/unocss-preset@workspace:packages/unocss-preset"],
 
     "@wabou/vite": ["@wabou/vite@workspace:packages/vite"],
 

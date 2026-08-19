@@ -222,7 +222,7 @@ mod tests {
                 x: 1.0,
                 y: 2.0,
                 node: Some(DebugNode {
-                    id: 42,
+                    id: wabou_devtools::NodeKey::new(42, 1),
                     ..Default::default()
                 }),
                 ancestors: Vec::new(),

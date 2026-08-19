@@ -13,28 +13,28 @@ fn theme_switch_preserves_all_rects() {
     let panel = h.alloc_id();
     h.apply(vec![
         Op::CreateElement {
-            id: shell,
+            id: nk(shell),
             tag: div,
         },
         Op::SetClassName {
-            id: shell,
+            id: nk(shell),
             classes: vec![light],
         },
         Op::CreateElement {
-            id: panel,
+            id: nk(panel),
             tag: div,
         },
         Op::SetClassName {
-            id: panel,
+            id: nk(panel),
             classes: vec![box_c],
         },
         Op::AppendChild {
-            parent: shell,
-            child: panel,
+            parent: nk(shell),
+            child: nk(panel),
         },
         Op::AppendChild {
-            parent: 1,
-            child: shell,
+            parent: NodeKey::ROOT,
+            child: nk(shell),
         },
     ]);
     h.queue_stylesheet(vec![
@@ -73,7 +73,7 @@ fn theme_switch_preserves_all_rects() {
     let bg_before = h.snapshot(shell).background;
 
     h.apply(vec![Op::SetClassName {
-        id: shell,
+        id: nk(shell),
         classes: vec![dark],
     }]);
     let after = h.layout(800, 600);
@@ -86,7 +86,7 @@ fn theme_switch_preserves_all_rects() {
     assert_eq!(panel_before, panel_after);
     assert_eq!(
         h.solid_node(shell),
-        h.applier.document.node_store.solid_to_node[&shell],
+        h.applier.document.node_store.solid_to_node[&nk(shell)],
         "theme must not remount"
     );
 }
@@ -99,14 +99,17 @@ fn viewport_resize_relayouts_without_remount() {
     let fill = h.intern("fill");
     let id = h.alloc_id();
     h.apply(vec![
-        Op::CreateElement { id, tag: div },
+        Op::CreateElement {
+            id: nk(id),
+            tag: div,
+        },
         Op::SetClassName {
-            id,
+            id: nk(id),
             classes: vec![fill],
         },
         Op::AppendChild {
-            parent: 1,
-            child: id,
+            parent: NodeKey::ROOT,
+            child: nk(id),
         },
     ]);
     h.queue_stylesheet(vec![rule(
@@ -152,85 +155,88 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
 
     h.apply(vec![
         Op::CreateElement {
-            id: shell,
+            id: nk(shell),
             tag: div,
         },
         Op::SetClassName {
-            id: shell,
+            id: nk(shell),
             classes: vec![shell_c],
         },
         Op::CreateElement {
-            id: header,
+            id: nk(header),
             tag: div,
         },
         Op::SetClassName {
-            id: header,
+            id: nk(header),
             classes: vec![header_c],
         },
         Op::CreateElement {
-            id: scroller,
+            id: nk(scroller),
             tag: div,
         },
         Op::SetClassName {
-            id: scroller,
+            id: nk(scroller),
             classes: vec![scroller_c],
         },
         Op::CreateElement {
-            id: content,
+            id: nk(content),
             tag: div,
         },
         Op::SetClassName {
-            id: content,
+            id: nk(content),
             classes: vec![content_c],
         },
-        Op::CreateElement { id: tall, tag: div },
+        Op::CreateElement {
+            id: nk(tall),
+            tag: div,
+        },
         Op::SetClassName {
-            id: tall,
+            id: nk(tall),
             classes: vec![tall_c],
         },
         Op::CreateElement {
-            id: footer,
+            id: nk(footer),
             tag: div,
         },
         Op::SetClassName {
-            id: footer,
+            id: nk(footer),
             classes: vec![footer_c],
         },
         Op::CreateElement {
-            id: badge,
+            id: nk(badge),
             tag: div,
         },
         Op::SetClassName {
-            id: badge,
+            id: nk(badge),
             classes: vec![badge_c],
         },
         Op::AppendChild {
-            parent: content,
-            child: tall,
+            parent: nk(content),
+            child: nk(tall),
         },
         Op::AppendChild {
-            parent: scroller,
-            child: content,
+            parent: nk(scroller),
+            child: nk(content),
         },
         Op::AppendChild {
-            parent: footer,
-            child: badge,
+            parent: nk(footer),
+            child: nk(badge),
         },
         Op::AppendChild {
-            parent: shell,
-            child: header,
+            parent: nk(shell),
+            child: nk(header),
         },
         Op::AppendChild {
-            parent: shell,
-            child: scroller,
+            parent: nk(shell),
+            child: nk(scroller),
         },
         Op::AppendChild {
-            parent: shell,
-            child: footer,
+            parent: nk(shell),
+            child: nk(footer),
         },
         Op::AppendChild {
-            parent: 1,
-            child: shell,
+            parent: NodeKey::ROOT,
+            child: nk(shell),
         },
     ]);
     h.queue_stylesheet(vec![

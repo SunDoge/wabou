@@ -1,6 +1,5 @@
 ---
-"@wabou/components": minor
-"@wabou/primitives": minor
+"@wabou/ui": minor
 "@wabou/test": minor
 "@wabou/core": patch
 ---

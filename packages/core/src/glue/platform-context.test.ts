@@ -51,21 +51,23 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
   let receivedWindow: WindowState | undefined;
 
   createRoot((dispose) => {
-    resolve(createComponent(PlatformProvider, {
-      value: {
-        clipboard: fakeClipboard,
-        dialog: fakeDialog,
-        notification: fakeNotification,
-        window: fakeWindow,
-      },
-      get children() {
-        receivedClipboard = useClipboard();
-        receivedDialog = useDialog();
-        receivedNotification = useNotification();
-        receivedWindow = useWindow();
-        return null;
-      },
-    }));
+    resolve(
+      createComponent(PlatformProvider, {
+        value: {
+          clipboard: fakeClipboard,
+          dialog: fakeDialog,
+          notification: fakeNotification,
+          window: fakeWindow,
+        },
+        get children() {
+          receivedClipboard = useClipboard();
+          receivedDialog = useDialog();
+          receivedNotification = useNotification();
+          receivedWindow = useWindow();
+          return null;
+        },
+      }),
+    );
     dispose();
   });
 
@@ -112,19 +114,21 @@ test("nested partial providers inherit services they do not override", () => {
   let receivedWindow: WindowState | undefined;
 
   createRoot((dispose) => {
-    resolve(createComponent(PlatformProvider, {
-      value: { clipboard: parentClipboard, window: parentWindow },
-      get children() {
-        return createComponent(PlatformProvider, {
-          value: { clipboard: childClipboard },
-          get children() {
-            receivedClipboard = useClipboard();
-            receivedWindow = useWindow();
-            return null;
-          },
-        });
-      },
-    }));
+    resolve(
+      createComponent(PlatformProvider, {
+        value: { clipboard: parentClipboard, window: parentWindow },
+        get children() {
+          return createComponent(PlatformProvider, {
+            value: { clipboard: childClipboard },
+            get children() {
+              receivedClipboard = useClipboard();
+              receivedWindow = useWindow();
+              return null;
+            },
+          });
+        },
+      }),
+    );
     dispose();
   });
 

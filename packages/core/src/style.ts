@@ -1,1 +1,1 @@
-export * from "../../style/src/index";
+export * from "./style/index";

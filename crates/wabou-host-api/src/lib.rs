@@ -2,9 +2,76 @@
 
 #![warn(missing_docs)]
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 #[cfg(feature = "bindings")]
 use wabou_bindgen::{FunctionModule, NativeMethod};
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+/// Full-width generational identity for one retained node.
+pub struct NodeKey {
+    /// Slot index. Zero is reserved by the wire protocol.
+    pub lo: u32,
+    /// Non-zero odd generation, matching SlotMap's FFI representation.
+    pub hi: u32,
+}
+
+impl NodeKey {
+    /// Synthetic native window root.
+    pub const ROOT: Self = Self { lo: 1, hi: 1 };
+
+    /// Construct a key from its complete wire representation.
+    pub const fn new(lo: u32, hi: u32) -> Self {
+        Self { lo, hi }
+    }
+
+    /// Reconstruct a key from the two-u32 FFI representation packed in a u64.
+    pub const fn from_ffi(value: u64) -> Self {
+        Self {
+            lo: value as u32,
+            hi: (value >> 32) as u32,
+        }
+    }
+
+    /// Whether this is a valid retained-node wire identity.
+    pub const fn is_valid(self) -> bool {
+        self.lo != 0 && self.hi != 0 && self.hi % 2 == 1
+    }
+}
+
+impl<'de> Deserialize<'de> for NodeKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct WireNodeKey {
+            lo: u32,
+            hi: u32,
+        }
+
+        let wire = WireNodeKey::deserialize(deserializer)?;
+        let key = Self::new(wire.lo, wire.hi);
+        if !key.is_valid() {
+            return Err(de::Error::custom(
+                "invalid NodeKey: lo must be non-zero and hi must be non-zero and odd",
+            ));
+        }
+        Ok(key)
+    }
+}
+
+impl From<NodeKey> for u64 {
+    fn from(value: NodeKey) -> Self {
+        u64::from(value.lo) | (u64::from(value.hi) << 32)
+    }
+}
+
+impl std::fmt::Display for NodeKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{}v{}", self.lo, self.hi)
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 /// Timing and scene-size metrics for the most recently presented frame.
@@ -42,7 +109,7 @@ pub struct LayoutRect {
 /// Layout and effective clipping geometry for one Solid node.
 pub struct LayoutNodeMetrics {
     /// Solid-side node identifier.
-    pub id: u32,
+    pub id: NodeKey,
     /// Border box in logical window coordinates.
     pub rect: LayoutRect,
     /// Effective ancestor clip in logical window coordinates.
@@ -82,7 +149,7 @@ mod contract {
     pub const FRAME_STATS: NativeMethod =
         NativeMethod::sync("frameStats", &[], "FrameStats | null");
     pub const LAYOUT_SNAPSHOT: NativeMethod =
-        NativeMethod::sync("layoutSnapshot", &[("ids", "number[]")], "LayoutSnapshot");
+        NativeMethod::sync("layoutSnapshot", &[("ids", "NodeKey[]")], "LayoutSnapshot");
     pub const SYSTEM_LOCALE: NativeMethod = NativeMethod::sync("systemLocale", &[], "string");
     pub const SYSTEM_TIME_ZONE: NativeMethod = NativeMethod::sync("systemTimeZone", &[], "string");
     pub const SYSTEM_CALENDAR_DATE: NativeMethod =
@@ -108,8 +175,12 @@ mod contract {
   width: number;
   height: number;
 }"#;
+    pub const NODE_KEY: &str = r#"interface NodeKey {
+  readonly lo: number;
+  readonly hi: number;
+}"#;
     pub const LAYOUT_NODE_METRICS: &str = r#"interface LayoutNodeMetrics {
-  id: number;
+  id: NodeKey;
   rect: LayoutRect;
   clip: LayoutRect;
 }"#;
@@ -126,6 +197,7 @@ pub fn bindings() -> FunctionModule {
     FunctionModule::new("NativeHostApi")
         .declaration("CalendarDateInfo", contract::CALENDAR_DATE_INFO)
         .declaration("FrameStats", contract::FRAME_STATS_TYPE)
+        .declaration("NodeKey", contract::NODE_KEY)
         .declaration("LayoutRect", contract::LAYOUT_RECT)
         .declaration("LayoutNodeMetrics", contract::LAYOUT_NODE_METRICS)
         .declaration("LayoutSnapshot", contract::LAYOUT_SNAPSHOT_TYPE)
@@ -147,10 +219,25 @@ mod tests {
         let output = bindings().render();
         assert!(output.contains("openUrl(url: string): boolean"));
         assert!(output.contains("frameStats(): FrameStats | null"));
-        assert!(output.contains("layoutSnapshot(ids: number[]): LayoutSnapshot"));
+        assert!(output.contains("layoutSnapshot(ids: NodeKey[]): LayoutSnapshot"));
         assert!(output.contains("systemLocale(): string"));
         assert!(output.contains("systemTimeZone(): string"));
         assert!(output.contains("systemCalendarDate(): CalendarDateInfo"));
         assert!(!output.contains("Promise<"));
+    }
+
+    #[test]
+    fn json_rejects_malformed_node_key_halves() {
+        assert_eq!(
+            serde_json::from_str::<NodeKey>(r#"{"lo":7,"hi":3}"#).unwrap(),
+            NodeKey::new(7, 3)
+        );
+        for malformed in [
+            r#"{"lo":0,"hi":1}"#,
+            r#"{"lo":7,"hi":0}"#,
+            r#"{"lo":7,"hi":2}"#,
+        ] {
+            assert!(serde_json::from_str::<NodeKey>(malformed).is_err());
+        }
     }
 }

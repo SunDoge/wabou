@@ -506,7 +506,10 @@ impl FrameSource for Applier {
             SemanticAction::Click { target }
             | SemanticAction::Focus { target }
             | SemanticAction::Blur { target }
-            | SemanticAction::ScrollIntoView { target } => u32::try_from(target).ok(),
+            | SemanticAction::ScrollIntoView { target } => {
+                let key = NodeKey::from_ffi(target);
+                key.is_valid().then_some(key)
+            }
         };
         let Some(target) =
             target.filter(|target| self.document.node_store.solid_to_node.contains_key(target))
@@ -524,9 +527,12 @@ impl FrameSource for Applier {
             return false;
         }
         if let Some(modal) = self.frame.projections.semantic_snapshot.modal_root {
-            let Some(modal_node) = u32::try_from(modal)
-                .ok()
-                .and_then(|modal| self.document.node_store.solid_to_node.get(&modal).copied())
+            let Some(modal_node) = self
+                .document
+                .node_store
+                .solid_to_node
+                .get(&NodeKey::from_ffi(modal))
+                .copied()
             else {
                 return false;
             };

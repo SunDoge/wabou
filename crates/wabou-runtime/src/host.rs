@@ -36,21 +36,19 @@
 
 use snafu::ResultExt;
 use std::collections::HashMap;
-use std::fmt::Display;
-use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use vello::peniko::Color;
 
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use wabou_bindgen::{JsonCapabilityContract, JsonCapabilityErrorCode, JsonMethod};
+use wabou_bindgen::JsonCapabilityContract;
 
 use crate::HostMessageContext;
 use crate::applier::Applier;
 use crate::asset_cache::ResourceCache;
+use crate::bundle;
+use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
 use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
 use wabou_shell::{Widget, WidgetFactory};
@@ -59,114 +57,6 @@ use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
 type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
-
-/// A namespaced host capability that exposes structured asynchronous methods.
-///
-/// Generated Wabou clients JSON-encode their single request value. This adapter
-/// owns the matching decode, Promise installation, and result envelope so
-/// applications do not duplicate transport glue around ordinary Rust async
-/// functions.
-pub struct JsonCapability<'js> {
-    ctx: rquickjs::Ctx<'js>,
-    object: rquickjs::Object<'js>,
-}
-
-impl<'js> JsonCapability<'js> {
-    /// Install one async method accepting a JSON-encoded request and returning
-    /// Wabou's `{ ok, value | error }` envelope.
-    pub fn method<Request, Response, Error, Handler, HandlerFuture>(
-        &self,
-        method: JsonMethod<Request, Response>,
-        handler: Handler,
-    ) -> rquickjs::Result<()>
-    where
-        Request: DeserializeOwned + 'static,
-        Response: Serialize + 'static,
-        Error: Display + 'static,
-        Handler: Fn(Request) -> HandlerFuture + Clone + rquickjs::markers::ParallelSend + 'static,
-        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
-    {
-        if !wabou_bindgen::is_contract_identifier(method.name()) {
-            return Err(rquickjs::Exception::throw_type(
-                &self.ctx,
-                &format!(
-                    "invalid JSON capability method identifier `{}`",
-                    method.name()
-                ),
-            ));
-        }
-        if self.object.contains_key(method.name())? {
-            return Err(rquickjs::Exception::throw_type(
-                &self.ctx,
-                &format!("duplicate JSON capability method `{}`", method.name()),
-            ));
-        }
-        if method.has_request() {
-            let function = rquickjs::Function::new(
-                self.ctx.clone(),
-                rquickjs::prelude::Async(move |raw: String| {
-                    let handler = handler.clone();
-                    async move { invoke_json_method(&raw, handler).await }
-                }),
-            )?;
-            self.object.set(method.name(), function)
-        } else {
-            let function = rquickjs::Function::new(
-                self.ctx.clone(),
-                rquickjs::prelude::Async(move || {
-                    let handler = handler.clone();
-                    async move { invoke_json_method("null", handler).await }
-                }),
-            )?;
-            self.object.set(method.name(), function)
-        }
-    }
-}
-
-async fn invoke_json_method<Request, Response, Error, Handler, HandlerFuture>(
-    raw: &str,
-    handler: Handler,
-) -> String
-where
-    Request: DeserializeOwned,
-    Response: Serialize,
-    Error: Display,
-    Handler: Fn(Request) -> HandlerFuture,
-    HandlerFuture: Future<Output = Result<Response, Error>>,
-{
-    let request = match serde_json::from_str(raw) {
-        Ok(request) => request,
-        Err(error) => {
-            return json_capability_error(
-                JsonCapabilityErrorCode::InvalidRequest,
-                format!("invalid capability request: {error}"),
-            );
-        }
-    };
-    match handler(request).await {
-        Ok(value) => match serde_json::to_value(value) {
-            Ok(value) => serde_json::json!({ "ok": true, "value": value }).to_string(),
-            Err(error) => json_capability_error(
-                JsonCapabilityErrorCode::ResponseEncodingFailure,
-                format!("cannot encode capability response: {error}"),
-            ),
-        },
-        Err(error) => {
-            json_capability_error(JsonCapabilityErrorCode::HandlerFailure, error.to_string())
-        }
-    }
-}
-
-fn json_capability_error(code: JsonCapabilityErrorCode, message: String) -> String {
-    serde_json::json!({
-        "ok": false,
-        "error": {
-            "code": code.as_str(),
-            "message": message,
-        },
-    })
-    .to_string()
-}
 
 struct ResourceCacheShutdownGuard {
     cache: Arc<ResourceCache>,
@@ -240,6 +130,101 @@ enum EffectTraceConfig {
     Replay { path: PathBuf },
 }
 
+#[derive(Clone)]
+enum ApplicationSource {
+    Bundle {
+        code: Arc<str>,
+        source_map: Option<Arc<[u8]>>,
+    },
+    #[cfg(feature = "vite")]
+    Vite { url: Arc<str>, entry: Arc<str> },
+}
+
+#[derive(Clone)]
+struct RuntimeSourceConfig {
+    source: ApplicationSource,
+    capabilities: Vec<CapabilityInstaller>,
+    host_message_producers: Vec<HostMessageProducer>,
+    widget_factories: HashMap<String, WidgetFactory>,
+    base_color: Color,
+    debug_state: Option<wabou_devtools::SharedDebugState>,
+    effect_trace: Option<crate::effect_trace::EffectTrace>,
+    app_directories: Option<wabou_shell::AppDirectories>,
+    asset_cache: Arc<ResourceCache>,
+}
+
+impl RuntimeSourceConfig {
+    fn create(&self, window_id: u64) -> crate::Result<Applier> {
+        #[cfg(feature = "vite")]
+        let js = match &self.source {
+            ApplicationSource::Vite { url, .. } => {
+                JsRuntime::new_vite(url).context(crate::error::JavaScriptSnafu {
+                    operation: "create Vite JavaScript runtime",
+                })?
+            }
+            ApplicationSource::Bundle { .. } => {
+                JsRuntime::new().context(crate::error::JavaScriptSnafu {
+                    operation: "create JavaScript runtime",
+                })?
+            }
+        };
+        #[cfg(not(feature = "vite"))]
+        let js = JsRuntime::new().context(crate::error::JavaScriptSnafu {
+            operation: "create JavaScript runtime",
+        })?;
+
+        for capability in &self.capabilities {
+            capability(&js).context(crate::error::JavaScriptSnafu {
+                operation: "mount JavaScript capability",
+            })?;
+        }
+        let mut applier = Applier::from_runtime_with_factories_and_window(
+            js,
+            self.widget_factories.clone(),
+            self.base_color,
+            window_id,
+        );
+        install_host_message_producers(&self.host_message_producers, window_id, &applier);
+        applier.set_asset_cache(self.asset_cache.clone());
+        if let Some(directories) = &self.app_directories {
+            applier.set_app_directories(directories.clone());
+        }
+        if let Some(trace) = &self.effect_trace {
+            applier.set_effect_trace(trace.clone());
+        }
+        match &self.source {
+            ApplicationSource::Bundle { code, source_map } => applier
+                .boot_with_source_map(code, source_map.as_deref())
+                .context(crate::error::JavaScriptSnafu {
+                    operation: "boot JavaScript bundle",
+                })?,
+            #[cfg(feature = "vite")]
+            ApplicationSource::Vite { entry, .. } => {
+                applier
+                    .boot_vite(entry)
+                    .context(crate::error::JavaScriptSnafu {
+                        operation: "boot Vite entry module",
+                    })?
+            }
+        }
+        if let Some(state) = &self.debug_state {
+            applier.set_debug_state(state.clone());
+        }
+        Ok(applier)
+    }
+
+    #[cfg(feature = "vite")]
+    fn start_hmr(&self, applier: &mut Applier) -> crate::Result<Option<crate::HmrClient>> {
+        let ApplicationSource::Vite { url, entry } = &self.source else {
+            return Ok(None);
+        };
+        applier.set_vite_entry(entry.as_ref());
+        crate::start_hmr_client(url, applier.reload_handle())
+            .map(Some)
+            .context(crate::error::ViteSnafu)
+    }
+}
+
 /// Application-facing builder for windows, widgets, capabilities, and tooling.
 pub struct HostBuilder {
     base_color: Color,
@@ -299,10 +284,7 @@ impl HostBuilder {
         self
     }
 
-    /// Mount a namespaced capability object before the app bundle boots.
-    /// The closure may install synchronous functions or `rquickjs::Async`
-    /// functions, which QuickJS exposes as native Promises.
-    pub fn capability<F>(mut self, name: impl Into<String>, mount: F) -> Self
+    fn mount_capability<F>(mut self, name: impl Into<String>, mount: F) -> Self
     where
         F: for<'js> Fn(rquickjs::Ctx<'js>, rquickjs::Object<'js>) -> rquickjs::Result<()>
             + rquickjs::markers::ParallelSend
@@ -329,7 +311,7 @@ impl HostBuilder {
             + Sync
             + 'static,
     {
-        self.capability(contract.name(), move |ctx, object| {
+        self.mount_capability(contract.name(), move |ctx, object| {
             object.set("__wabouCapabilityVersion", contract.version())?;
             mount(JsonCapability { ctx, object })
         })
@@ -478,7 +460,7 @@ impl HostBuilder {
             .app_directory_config
             .as_ref()
             .map(|config| {
-                let resource = resource_directory()?;
+                let resource = bundle::resource_directory()?;
                 wabou_shell::AppDirectories::resolve(config, resource).ok_or_else(|| {
                     crate::Error::AppDirectories {
                         application: "configured application".into(),
@@ -512,13 +494,6 @@ impl HostBuilder {
         // and on every later `?` path, before the cache-owned runtime is dropped.
         let _asset_cache_shutdown = ResourceCacheShutdownGuard::new(asset_cache.clone());
 
-        #[cfg(feature = "vite")]
-        let vite = std::env::var("WABOU_VITE_URL").ok().map(|url| {
-            let entry =
-                std::env::var("WABOU_VITE_ENTRY").unwrap_or_else(|_| "src/index.tsx".to_string());
-            (url, entry)
-        });
-
         let mut devtools_server = None;
         let debug_state = self.devtools.then(wabou_devtools::DebugState::shared);
         if self.devtools {
@@ -530,79 +505,42 @@ impl HostBuilder {
             tracing::info!(target: "devtools", socket = %path.display(), "Wabou DevTools listening");
         }
 
-        #[cfg(not(feature = "vite"))]
-        let bundle = load_bundle()?;
         #[cfg(feature = "vite")]
-        let bundle = vite.is_none().then(load_bundle).transpose()?;
-        #[cfg(not(feature = "vite"))]
-        let bundle_source_map = load_bundle_source_map()?;
-        #[cfg(feature = "vite")]
-        let bundle_source_map = if vite.is_none() {
-            load_bundle_source_map()?
+        let source = if let Ok(url) = std::env::var("WABOU_VITE_URL") {
+            ApplicationSource::Vite {
+                url: url.into(),
+                entry: std::env::var("WABOU_VITE_ENTRY")
+                    .unwrap_or_else(|_| "src/index.tsx".to_string())
+                    .into(),
+            }
         } else {
-            None
+            ApplicationSource::Bundle {
+                code: bundle::load()?.into(),
+                source_map: bundle::load_source_map()?.map(Into::into),
+            }
+        };
+        #[cfg(not(feature = "vite"))]
+        let source = ApplicationSource::Bundle {
+            code: bundle::load()?.into(),
+            source_map: bundle::load_source_map()?.map(Into::into),
+        };
+        let runtime_sources = RuntimeSourceConfig {
+            source,
+            capabilities: self.capabilities.clone(),
+            host_message_producers: self.host_message_producers.clone(),
+            widget_factories: self.widget_factories.clone(),
+            base_color: self.base_color,
+            debug_state: debug_state.clone(),
+            effect_trace: effect_trace.clone(),
+            app_directories: app_directories.clone(),
+            asset_cache: asset_cache.clone(),
         };
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();
         let mut sources = Vec::with_capacity(windows.len());
         for (index, options) in windows.into_iter().enumerate() {
-            #[cfg(feature = "vite")]
-            let js = if let Some((url, _)) = vite.as_ref() {
-                JsRuntime::new_vite(url).context(crate::error::JavaScriptSnafu {
-                    operation: "create Vite JavaScript runtime",
-                })?
-            } else {
-                JsRuntime::new().context(crate::error::JavaScriptSnafu {
-                    operation: "create JavaScript runtime",
-                })?
-            };
-            #[cfg(not(feature = "vite"))]
-            let js = JsRuntime::new().context(crate::error::JavaScriptSnafu {
-                operation: "create JavaScript runtime",
-            })?;
-            for capability in &self.capabilities {
-                capability(&js).context(crate::error::JavaScriptSnafu {
-                    operation: "mount JavaScript capability",
-                })?;
-            }
-            let mut applier = Applier::from_runtime_with_factories_and_window(
-                js,
-                self.widget_factories.clone(),
-                self.base_color,
-                index as u64 + 1,
-            );
-            install_host_message_producers(
-                &self.host_message_producers,
-                index as u64 + 1,
-                &applier,
-            );
-            applier.set_asset_cache(asset_cache.clone());
-            if let Some(directories) = &app_directories {
-                applier.set_app_directories(directories.clone());
-            }
-            if let Some(trace) = &effect_trace {
-                applier.set_effect_trace(trace.clone());
-            }
-            #[cfg(feature = "vite")]
-            if let Some((_, entry)) = vite.as_ref() {
-                applier
-                    .boot_vite(entry)
-                    .context(crate::error::JavaScriptSnafu {
-                        operation: "boot Vite entry module",
-                    })?;
-            } else {
-                applier
-                    .boot_with_source_map(bundle.as_deref().unwrap(), bundle_source_map.as_deref())
-                    .context(crate::error::JavaScriptSnafu {
-                        operation: "boot JavaScript bundle",
-                    })?;
-            }
-            #[cfg(not(feature = "vite"))]
-            applier
-                .boot_with_source_map(&bundle, bundle_source_map.as_deref())
-                .context(crate::error::JavaScriptSnafu {
-                    operation: "boot JavaScript bundle",
-                })?;
+            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
+            let mut applier = runtime_sources.create(index as u64 + 1)?;
             if index == 0
                 && let Some(script) = &test_script
             {
@@ -612,16 +550,9 @@ impl HostBuilder {
                         operation: "evaluate test scenario",
                     })?;
             }
-            if let Some(state) = &debug_state {
-                applier.set_debug_state(state.clone());
-            }
             #[cfg(feature = "vite")]
-            if let Some((url, entry)) = vite.as_ref() {
-                applier.set_vite_entry(entry);
-                hmr_clients.push(
-                    crate::start_hmr_client(url, applier.reload_handle())
-                        .context(crate::error::ViteSnafu)?,
-                );
+            if let Some(client) = runtime_sources.start_hmr(&mut applier)? {
+                hmr_clients.push(client);
             }
             sources.push((Box::new(applier) as Box<dyn crate::FrameSource>, options));
         }
@@ -630,73 +561,22 @@ impl HostBuilder {
             return run_headless_test(controller, &mut sources, self.base_color);
         }
 
-        let capabilities = self.capabilities.clone();
-        let host_message_producers = self.host_message_producers.clone();
-        let widget_factories = self.widget_factories.clone();
-        let base_color = self.base_color;
-        let child_debug_state = debug_state.clone();
-        let child_effect_trace = effect_trace.clone();
-        let child_app_directories = app_directories.clone();
-        let child_asset_cache = asset_cache.clone();
-        #[cfg(feature = "vite")]
-        let child_vite = vite.clone();
-        #[cfg(feature = "vite")]
-        let child_bundle = bundle.clone();
-        #[cfg(not(feature = "vite"))]
-        let child_bundle = bundle.clone();
         #[cfg(feature = "vite")]
         let child_hmr_clients = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         #[cfg(feature = "vite")]
         let child_hmr_store = child_hmr_clients.clone();
+        let child_sources = runtime_sources.clone();
         #[allow(clippy::arc_with_non_send_sync)] // winit invokes this only on its event thread.
         let factory: crate::FrameSourceFactory = Arc::new(move |window_id, _options| {
+            #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
+            let mut applier = child_sources
+                .create(window_id)
+                .map_err(|error| error.to_string())?;
             #[cfg(feature = "vite")]
-            let js = if let Some((url, _)) = child_vite.as_ref() {
-                JsRuntime::new_vite(url).map_err(|error| format!("{error:?}"))?
-            } else {
-                JsRuntime::new().map_err(|error| format!("{error:?}"))?
-            };
-            #[cfg(not(feature = "vite"))]
-            let js = JsRuntime::new().map_err(|error| format!("{error:?}"))?;
-            for capability in &capabilities {
-                capability(&js).map_err(|error| format!("{error:?}"))?;
-            }
-            let mut applier = Applier::from_runtime_with_factories_and_window(
-                js,
-                widget_factories.clone(),
-                base_color,
-                window_id,
-            );
-            install_host_message_producers(&host_message_producers, window_id, &applier);
-            applier.set_asset_cache(child_asset_cache.clone());
-            if let Some(directories) = &child_app_directories {
-                applier.set_app_directories(directories.clone());
-            }
-            if let Some(trace) = &child_effect_trace {
-                applier.set_effect_trace(trace.clone());
-            }
-            #[cfg(feature = "vite")]
-            if let Some((_, entry)) = child_vite.as_ref() {
-                applier
-                    .boot_vite(entry)
-                    .map_err(|error| format!("{error:?}"))?;
-            } else {
-                applier
-                    .boot(child_bundle.as_deref().unwrap())
-                    .map_err(|error| format!("{error:?}"))?;
-            }
-            #[cfg(not(feature = "vite"))]
-            applier
-                .boot(&child_bundle)
-                .map_err(|error| format!("{error:?}"))?;
-            if let Some(state) = &child_debug_state {
-                applier.set_debug_state(state.clone());
-            }
-            #[cfg(feature = "vite")]
-            if let Some((url, entry)) = child_vite.as_ref() {
-                applier.set_vite_entry(entry);
-                let client = crate::start_hmr_client(url, applier.reload_handle())
-                    .map_err(|error| error.to_string())?;
+            if let Some(client) = child_sources
+                .start_hmr(&mut applier)
+                .map_err(|error| error.to_string())?
+            {
                 child_hmr_store.lock().unwrap().push(client);
             }
             Ok(Box::new(applier))
@@ -973,90 +853,18 @@ fn test_report_summary(value: &serde_json::Value, artifact_directory: Option<&Pa
     summary
 }
 
-fn load_bundle() -> crate::Result<String> {
-    let path = bundle_path()?;
-    std::fs::read_to_string(&path).context(crate::error::ReadFileSnafu {
-        kind: "JavaScript bundle",
-        path,
-    })
-}
-
-fn load_bundle_source_map() -> crate::Result<Option<Vec<u8>>> {
-    let path = bundle_path()?.with_extension("js.map");
-    if !path.is_file() {
-        return Ok(None);
-    }
-    std::fs::read(&path)
-        .map(Some)
-        .context(crate::error::ReadFileSnafu {
-            kind: "JavaScript source map",
-            path,
-        })
-}
-
-fn bundle_path() -> crate::Result<PathBuf> {
-    if let Some(path) = std::env::var_os("WABOU_BUNDLE_PATH") {
-        return Ok(PathBuf::from(path));
-    }
-    let executable = std::env::current_exe().context(crate::error::ReadFileSnafu {
-        kind: "current executable path",
-        path: PathBuf::from("<current executable>"),
-    })?;
-    Ok(resource_bundle_candidates(&executable)
-        .into_iter()
-        .find(|path| path.is_file())
-        .unwrap_or_else(|| resource_bundle_path(&executable)))
-}
-
-fn resource_directory() -> crate::Result<PathBuf> {
-    let bundle = bundle_path()?;
-    Ok(bundle.parent().unwrap_or_else(|| Path::new(".")).to_owned())
-}
-
-fn resource_bundle_path(executable: &Path) -> PathBuf {
-    executable
-        .parent()
-        .unwrap_or_else(|| Path::new("."))
-        .join("resources/bundle.js")
-}
-
-fn resource_bundle_candidates(executable: &Path) -> Vec<PathBuf> {
-    let adjacent = resource_bundle_path(executable);
-    let Some(directory) = executable.parent() else {
-        return vec![adjacent];
-    };
-    let mut candidates = vec![adjacent];
-
-    // cargo-packager places Debian resources under
-    // /usr/lib/<binary>/resources rather than next to /usr/bin/<binary>.
-    if directory.file_name().and_then(|name| name.to_str()) == Some("bin")
-        && let (Some(prefix), Some(binary)) = (directory.parent(), executable.file_stem())
-    {
-        candidates.push(prefix.join("lib").join(binary).join("resources/bundle.js"));
-    }
-
-    // A macOS .app keeps executables and resources in sibling directories.
-    if directory.file_name().and_then(|name| name.to_str()) == Some("MacOS")
-        && let Some(contents) = directory.parent()
-    {
-        candidates.push(contents.join("Resources/resources/bundle.js"));
-        candidates.push(contents.join("Resources/bundle.js"));
-    }
-    candidates
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        HostBuilder, JsonCapability, JsonCapabilityContract, JsonMethod,
-        install_host_message_producers, invoke_json_method, resource_bundle_candidates,
-        resource_bundle_path, test_environment, test_report_summary, test_trace_artifact,
-        write_test_artifact,
+        HostBuilder, JsonCapabilityContract, install_host_message_producers, test_environment,
+        test_report_summary, test_trace_artifact, write_test_artifact,
     };
     use crate::host_message::{HostMessagePayload, host_message_channel};
+    use crate::json_capability::{JsonCapability, invoke_json_method};
     use crate::{Applier, HostMessageContext, JsRuntime};
     use std::path::Path;
     use std::sync::{Arc, Mutex};
+    use wabou_bindgen::JsonMethod;
 
     #[derive(serde::Deserialize)]
     struct JsonRequest {
@@ -1274,37 +1082,6 @@ mod tests {
         assert!(trace.contains("nodes"));
         assert!(!trace.contains("must-not-appear"));
         assert!(!trace.contains("host.rs"));
-    }
-
-    #[test]
-    fn packaged_bundle_is_resolved_next_to_the_executable() {
-        assert_eq!(
-            resource_bundle_path(Path::new("/opt/demo/demo")),
-            Path::new("/opt/demo/resources/bundle.js")
-        );
-    }
-
-    #[test]
-    fn native_packages_expose_platform_resource_candidates() {
-        assert_eq!(
-            resource_bundle_candidates(Path::new("/usr/bin/warden-desktop")),
-            [
-                Path::new("/usr/bin/resources/bundle.js").to_path_buf(),
-                Path::new("/usr/lib/warden-desktop/resources/bundle.js").to_path_buf(),
-            ]
-        );
-        assert_eq!(
-            resource_bundle_candidates(Path::new(
-                "/Applications/Warden.app/Contents/MacOS/warden-desktop"
-            )),
-            [
-                Path::new("/Applications/Warden.app/Contents/MacOS/resources/bundle.js")
-                    .to_path_buf(),
-                Path::new("/Applications/Warden.app/Contents/Resources/resources/bundle.js")
-                    .to_path_buf(),
-                Path::new("/Applications/Warden.app/Contents/Resources/bundle.js").to_path_buf(),
-            ]
-        );
     }
 
     #[test]

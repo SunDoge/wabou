@@ -24,8 +24,8 @@ declare global {
   function __wabou_utf8_decode(bytes: Uint8Array): string;
   function __wabou_fetch(url: string, initJson: string): Promise<string>;
   function __wabou_sleep(delayMs: number): Promise<void>;
-  function __wabou_resize_observe(solidId: number): void;
-  function __wabou_resize_unobserve(solidId: number): void;
+  function __wabou_resize_observe(nodeLo: number, nodeHi: number): void;
+  function __wabou_resize_unobserve(nodeLo: number, nodeHi: number): void;
   const __wabou_effect_abi: number;
   function __wabou_effect_submit(
     capability: number,

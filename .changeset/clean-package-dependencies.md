@@ -1,6 +1,5 @@
 ---
-"@wabou/components": patch
-"@wabou/primitives": patch
+"@wabou/ui": patch
 ---
 
 Declare the Solid web type dependency used by public component APIs, and verify

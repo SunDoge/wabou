@@ -16,9 +16,10 @@ use std::thread;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+pub use wabou_host_api::NodeKey;
 
 /// Current newline-delimited JSON protocol version.
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 2;
 /// Default number of recent host frames retained in memory.
 pub const DEFAULT_TRACE_CAPACITY: usize = 128;
 /// Maximum accepted JSON request line size.
@@ -89,7 +90,7 @@ impl DebugClip {
 /// One rounded clip and its coordinate transform.
 pub struct DebugClip {
     /// Node establishing the clip.
-    pub node_id: u32,
+    pub node_id: NodeKey,
     /// Clip origin such as overflow or native widget.
     pub kind: String,
     /// Coordinate space in which [`Self::rect`] is expressed.
@@ -215,9 +216,9 @@ impl Default for DebugComputedStyle {
 /// Retained node projection published by the UI thread.
 pub struct DebugNode {
     /// Solid-side node identifier.
-    pub id: u32,
+    pub id: NodeKey,
     /// Logical parent identifier.
-    pub parent_id: Option<u32>,
+    pub parent_id: Option<NodeKey>,
     /// Intrinsic/JSX tag name.
     pub tag: String,
     /// Plain text content when present.
@@ -270,9 +271,9 @@ pub struct DebugStatus {
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub node_count: usize,
     /// Focused Solid node identifier.
-    pub focused_node: Option<u32>,
+    pub focused_node: Option<NodeKey>,
     /// Hovered Solid node identifier.
-    pub hovered_node: Option<u32>,
+    pub hovered_node: Option<NodeKey>,
 }
 
 fn default_device_scale() -> f64 {
@@ -389,7 +390,7 @@ fn default_query_limit() -> usize {
 /// Solid node identifier supplied to node-specific commands.
 pub struct NodeIdParams {
     /// Solid-side node identifier.
-    pub id: u32,
+    pub id: NodeKey,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -446,7 +447,7 @@ pub struct DebugOverlay {
     /// Draw the current hit target.
     pub hit_target: bool,
     /// Draw and retain one selected node identifier.
-    pub selected_node: Option<u32>,
+    pub selected_node: Option<NodeKey>,
 }
 
 impl DebugOverlay {

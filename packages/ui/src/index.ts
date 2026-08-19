@@ -2,14 +2,14 @@
 // implementation boundaries, but applications should not need to understand
 // that package graph for ordinary UI work.
 
-export * from "@wabou/animation";
-export * from "@wabou/components";
+export * from "./animation";
+export * from "./components";
 // Prefer the styled component where a high-level component and a host-service
 // type share a name. The lower-level host API remains available as `dialog`.
-export { Dialog } from "@wabou/components";
+export { Dialog } from "./components";
 export * from "@wabou/core";
 export * from "@wabou/core/i18n";
-export * as primitives from "@wabou/primitives";
+export * as primitives from "./primitives";
 
 // Foundational scene elements are common enough to belong at the main entry.
 // Headless controls with names shared by styled components stay available
@@ -82,5 +82,5 @@ export {
   type ViewProps,
   type WabouClassList,
   type WabouStyle,
-} from "@wabou/primitives";
-export * from "@wabou/router";
+} from "./primitives";
+export * from "./router";

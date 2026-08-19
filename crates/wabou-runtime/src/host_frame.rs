@@ -7,7 +7,7 @@
 use std::time::Duration;
 
 use crate::host_message::{HostMessage, HostMessagePayload};
-use crate::protocol::{host_frame, host_node_payload, host_record};
+use crate::protocol::{NodeKey, host_frame, host_node_payload, host_record};
 
 /// Maximum encoded bytes accepted for one atomic host frame.
 pub const MAX_HOST_FRAME_BYTES: usize = 4 * 1024 * 1024;
@@ -31,7 +31,7 @@ pub enum NodeEventPayload {
 /// Unsolicited event addressed to one retained Solid node.
 pub struct HostNodeEvent {
     /// Solid node identifier.
-    pub target: u32,
+    pub target: NodeKey,
     /// Generated event discriminator.
     pub event_code: u8,
     /// Per-runtime identifier used for cancellation routing.
@@ -46,7 +46,7 @@ pub struct HostNodeEvent {
 /// Content-box size observation for one retained Solid node.
 pub struct ResizeObservation {
     /// Solid node identifier.
-    pub target: u32,
+    pub target: NodeKey,
     /// Content-box width in logical pixels.
     pub width: f32,
     /// Content-box height in logical pixels.
@@ -179,7 +179,8 @@ pub fn encode_host_frame(
         let start = begin_record(&mut out, kind, flags);
         match event {
             HostEvent::Node(node) => {
-                push_u32(&mut out, node.target);
+                push_u32(&mut out, node.target.lo);
+                push_u32(&mut out, node.target.hi);
                 out.push(node.event_code);
                 out.push(match node.payload {
                     NodeEventPayload::None => host_node_payload::NONE,
@@ -202,7 +203,8 @@ pub fn encode_host_frame(
                 }
             }
             HostEvent::Resize(resize) => {
-                push_u32(&mut out, resize.target);
+                push_u32(&mut out, resize.target.lo);
+                push_u32(&mut out, resize.target.hi);
                 push_f32(&mut out, resize.width);
                 push_f32(&mut out, resize.height);
             }
@@ -237,7 +239,7 @@ mod tests {
             Duration::from_nanos(42),
             &[
                 HostEvent::Resize(ResizeObservation {
-                    target: 9,
+                    target: NodeKey::new(9, 3),
                     width: 80.0,
                     height: 24.0,
                 }),
@@ -249,6 +251,8 @@ mod tests {
         assert_eq!(u32_at(&frame, 24), 2);
         assert_eq!(u32_at(&frame, 28), frame.len() as u32);
         assert_eq!(frame[32], host_record::RESIZE);
+        assert_eq!(u32_at(&frame, 40), 9);
+        assert_eq!(u32_at(&frame, 44), 3);
         let second = 32 + u32_at(&frame, 36) as usize;
         assert_eq!(frame[second], host_record::APPLICATION_MESSAGE);
     }

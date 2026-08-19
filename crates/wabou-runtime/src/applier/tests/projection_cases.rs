@@ -19,7 +19,7 @@ fn host_layout_snapshot_reports_completed_rects_and_viewport() {
         .js
         .with(|ctx| {
             ctx.eval::<String, _>(
-                "JSON.stringify(__wabou_test_host_api.host.layout.snapshot([2, 999999]))",
+                "JSON.stringify(__wabou_test_host_api.host.layout.snapshot([{lo: 2, hi: 1}, {lo: 999999, hi: 1}]))",
             )
         })
         .expect("layout snapshot");
@@ -28,7 +28,10 @@ fn host_layout_snapshot_reports_completed_rects_and_viewport() {
     assert_eq!(snapshot["viewport"]["width"], 800.0);
     assert_eq!(snapshot["viewport"]["height"], 600.0);
     assert_eq!(snapshot["nodes"].as_array().unwrap().len(), 1);
-    assert_eq!(snapshot["nodes"][0]["id"], 2);
+    assert_eq!(
+        snapshot["nodes"][0]["id"],
+        serde_json::json!({"lo": 2, "hi": 1})
+    );
     assert_eq!(snapshot["nodes"][0]["rect"]["width"], 100.0);
     assert_eq!(snapshot["nodes"][0]["rect"]["height"], 50.0);
     assert_eq!(snapshot["nodes"][0]["clip"], snapshot["viewport"]);
@@ -71,7 +74,7 @@ fn stable_frames_do_not_republish_layout_or_empty_semantics() {
 
     let opacity = applier.document.atoms.borrow_mut().intern("opacity");
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: opacity,
         value: "0.5",
     });
@@ -104,7 +107,7 @@ fn hit_affecting_paint_still_invalidates_geometry() {
     let pointer_events = applier.document.atoms.borrow_mut().intern("pointer-events");
 
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: pointer_events,
         value: "none",
     });
@@ -128,7 +131,7 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
     let expanded = applier.document.atoms.borrow_mut().intern("aria-expanded");
 
     applier.apply_op(&Op::SetAttribute {
-        id: 2,
+        id: NodeKey::new(2, 1),
         name: expanded,
         value: "true",
     });
@@ -149,11 +152,17 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
 
     let class = applier.document.atoms.borrow_mut().intern("class");
     applier.apply_op(&Op::SetAttribute {
-        id: 2,
+        id: NodeKey::new(2, 1),
         name: class,
         value: "opacity-50",
     });
-    assert_eq!(applier.computed_node_snapshot(2).unwrap().opacity, 0.5);
+    assert_eq!(
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .opacity,
+        0.5
+    );
     assert!(
         !applier
             .document
@@ -168,7 +177,7 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
     );
 
     applier.apply_op(&Op::SetAttribute {
-        id: 2,
+        id: NodeKey::new(2, 1),
         name: class,
         value: "flex",
     });
@@ -184,7 +193,7 @@ fn semantic_attributes_do_not_invalidate_style_or_layout() {
         .invalidation
         .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
     applier.apply_op(&Op::SetAttribute {
-        id: 2,
+        id: NodeKey::new(2, 1),
         name: class,
         value: "text-xl",
     });
@@ -213,15 +222,21 @@ fn svg_descendant_attributes_still_refresh_the_svg_projection() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: svg },
-            Op::CreateElement { id: 3, tag: path },
-            Op::AppendChild {
-                parent: 2,
-                child: 3,
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: svg,
+            },
+            Op::CreateElement {
+                id: NodeKey::new(3, 1),
+                tag: path,
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(2, 1),
+                child: NodeKey::new(3, 1),
+            },
+            Op::AppendChild {
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -231,7 +246,7 @@ fn svg_descendant_attributes_still_refresh_the_svg_projection() {
         .remove(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
 
     applier.apply_op(&Op::SetAttribute {
-        id: 3,
+        id: NodeKey::new(3, 1),
         name: d,
         value: "M0 0L1 1",
     });
@@ -278,7 +293,10 @@ fn public_host_adapter_runs_in_embedded_quickjs() {
 #[test]
 fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
     let mut applier = interactive_applier();
-    assert_eq!(applier.interaction.input.hit_test(20.0, 20.0), Some(2));
+    assert_eq!(
+        applier.interaction.input.hit_test(20.0, 20.0),
+        Some(NodeKey::new(2, 1))
+    );
     assert!(
         applier
             .handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1))
@@ -352,7 +370,7 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let state = state.read().unwrap();
     let snapshot = state.snapshot();
     assert_eq!(snapshot.status.viewport_width, 800);
-    let button = snapshot.nodes.iter().find(|node| node.id == 2).unwrap();
+    let button = snapshot.nodes.iter().find(|node| node.id == nk(2)).unwrap();
     assert_eq!(button.tag, "button");
     assert_eq!(button.rect.width, 100.0);
     assert_eq!(button.rect.height, 50.0);
@@ -369,7 +387,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
     let mut applier = interactive_applier();
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
-    let widget_node = applier.document.node_store.solid_to_node[&2];
+    let widget_node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     applier
         .document
         .widget_manager
@@ -401,7 +419,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
         .snapshot()
         .nodes
         .iter()
-        .find(|node| node.id == 2)
+        .find(|node| node.id == nk(2))
         .unwrap();
     assert_eq!(widget.clip.widget_local.as_ref().unwrap().radius, 12.0);
     assert_eq!(
@@ -409,7 +427,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
         "content-local"
     );
     assert_eq!(widget.clip.chain.len(), 1);
-    assert_eq!(widget.clip.chain[0].node_id, 1);
+    assert_eq!(widget.clip.chain[0].node_id, nk(1));
     assert_eq!(widget.clip.effective.as_ref().unwrap().rect.width, 80.0);
     assert_eq!(widget.clip.device_scale, 1.0);
 }
@@ -437,7 +455,7 @@ fn resize_observer_reports_initial_content_box_once() {
         .with(|ctx| {
             ctx.eval::<(), _>(
                 r#"
-                __wabou_resize_observe(2);
+                __wabou_resize_observe(2, 1);
                 "#,
             )
         })
@@ -458,7 +476,7 @@ fn devtools_snapshot_exposes_layout_and_redacts_secrets() {
     let mut applier = interactive_applier();
     let password = applier.document.atoms.borrow_mut().intern("password");
     applier.apply_op(&Op::SetAttribute {
-        id: 2,
+        id: NodeKey::new(2, 1),
         name: password,
         value: "do-not-leak",
     });
@@ -475,7 +493,7 @@ fn devtools_snapshot_exposes_layout_and_redacts_secrets() {
     let state = state.read().unwrap();
     let snapshot = state.snapshot();
     assert_eq!(snapshot.status.viewport_width, 800);
-    let button = snapshot.nodes.iter().find(|node| node.id == 2).unwrap();
+    let button = snapshot.nodes.iter().find(|node| node.id == nk(2)).unwrap();
     assert_eq!(button.tag, "button");
     assert_eq!(button.rect.width, 100.0);
     assert_eq!(
@@ -497,7 +515,7 @@ fn runtime_transform_updates_paint_without_invalidating_layout() {
         .invalidation
         .remove(InvalidationFlags::LAYOUT);
     applier.apply_op(&Op::SetTransform2D {
-        id: 2,
+        id: NodeKey::new(2, 1),
         matrix: [1.0, 0.0, 0.0, 1.0, 12.5, -3.25],
     });
 
@@ -507,7 +525,7 @@ fn runtime_transform_updates_paint_without_invalidating_layout() {
             .invalidation
             .contains(InvalidationFlags::LAYOUT)
     );
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert_eq!(
         applier
             .document
@@ -524,12 +542,18 @@ fn runtime_transform_updates_paint_without_invalidating_layout() {
         &applier.interaction.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
-    assert_ne!(applier.interaction.input.hit_test(5.0, 20.0), Some(2));
-    assert_eq!(applier.interaction.input.hit_test(32.5, 16.75), Some(2));
+    assert_ne!(
+        applier.interaction.input.hit_test(5.0, 20.0),
+        Some(NodeKey::new(2, 1))
+    );
+    assert_eq!(
+        applier.interaction.input.hit_test(32.5, 16.75),
+        Some(NodeKey::new(2, 1))
+    );
 
     let transform = applier.document.atoms.borrow_mut().intern("transform");
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: transform,
         value: "translate(2px, 3px)",
     });
@@ -554,9 +578,12 @@ fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     applier.apply_op(&Op::SetShadows {
-        id: 2,
+        id: NodeKey::new(2, 1),
         shadows: vec![crate::protocol::ShadowValue {
             offset_x: 3.0,
             offset_y: 7.0,
@@ -567,7 +594,7 @@ fn protocol_shadows_apply_vello_parameters_without_string_parsing() {
         }],
     });
 
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     let paint = applier
         .document
         .node_store

@@ -29,7 +29,13 @@ fn default_query_limit() -> usize {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 struct NodeParams {
-    id: u32,
+    id: McpNodeKey,
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+struct McpNodeKey {
+    lo: u32,
+    hi: u32,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -54,7 +60,7 @@ struct OverlayParams {
     layout: bool,
     clips: bool,
     hit_target: bool,
-    selected_node: Option<u32>,
+    selected_node: Option<McpNodeKey>,
 }
 
 #[derive(Debug, Default, Deserialize, JsonSchema, Serialize)]

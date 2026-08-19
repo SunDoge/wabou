@@ -1,18 +1,19 @@
 use super::*;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use wabou_host_api::NodeKey;
 
 #[test]
 fn query_and_inspect_are_bounded_and_semantic() {
     let mut state = DebugState::default();
     state.publish(DebugSnapshot {
         status: DebugStatus {
-            protocol_version: 1,
+            protocol_version: PROTOCOL_VERSION,
             node_count: 1,
             ..Default::default()
         },
         nodes: vec![DebugNode {
-            id: 7,
+            id: NodeKey::new(7, 1),
             tag: "span".into(),
             text: Some("1 comments".into()),
             classes: vec!["metadata".into()],
@@ -24,7 +25,7 @@ fn query_and_inspect_are_bounded_and_semantic() {
         .unwrap();
     assert_eq!(result.as_array().unwrap().len(), 1);
     let result = state
-        .execute(&request(2, "inspectNode", json!({"id":7})).command)
+        .execute(&request(2, "inspectNode", json!({"id":{"lo":7,"hi":1}})).command)
         .unwrap();
     assert_eq!(result["tag"], "span");
 }
@@ -60,10 +61,10 @@ fn inspect_at_point_uses_paint_order_pointer_events_and_effective_clip() {
     };
     state.publish(DebugSnapshot {
         nodes: vec![
-            node(1, true, None),
-            node(2, false, None),
+            node(NodeKey::new(1, 1), true, None),
+            node(NodeKey::new(2, 1), false, None),
             node(
-                3,
+                NodeKey::new(3, 1),
                 true,
                 Some(Rect {
                     x: 0.0,
@@ -79,7 +80,7 @@ fn inspect_at_point_uses_paint_order_pointer_events_and_effective_clip() {
     let result = state
         .execute(&request(1, "inspectAtPoint", json!({"x": 50, "y": 50})).command)
         .unwrap();
-    assert_eq!(result["node"]["id"], 1);
+    assert_eq!(result["node"]["id"], json!({"lo":1,"hi":1}));
 }
 
 #[test]
@@ -121,20 +122,20 @@ fn overlay_command_updates_runtime_diagnostics() {
                     "layout": true,
                     "clips": true,
                     "hitTarget": true,
-                    "selectedNode": 42
+                    "selectedNode": {"lo":42,"hi":1}
                 }),
             )
             .command,
         )
         .expect("set overlay");
-    assert_eq!(value["selectedNode"], 42);
+    assert_eq!(value["selectedNode"], json!({"lo":42,"hi":1}));
     assert_eq!(
         state.overlay(),
         DebugOverlay {
             layout: true,
             clips: true,
             hit_target: true,
-            selected_node: Some(42),
+            selected_node: Some(NodeKey::new(42, 1)),
         }
     );
     assert!(state.take_overlay_change());

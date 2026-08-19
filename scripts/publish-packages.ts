@@ -16,12 +16,18 @@ const extraArguments = process.argv.slice(2);
 const dryRun = extraArguments.includes("--dry-run");
 const packageRoot = join(root, "packages");
 const packageEntries = (
-  await readdir(packageRoot, { withFileTypes: true })
-).filter(
-  (entry) =>
-    entry.isDirectory() &&
-    Bun.file(join(packageRoot, entry.name, "package.json")).size > 0,
-);
+  await Promise.all(
+    (await readdir(packageRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map(async (entry) =>
+        (await Bun.file(
+          join(packageRoot, entry.name, "package.json"),
+        ).exists())
+          ? entry
+          : undefined,
+      ),
+  )
+).filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
 const publicDirectories = (
   await Promise.all(
     packageEntries.map(async (entry) => ({

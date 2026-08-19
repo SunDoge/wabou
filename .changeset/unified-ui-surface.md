@@ -1,9 +1,5 @@
 ---
 "@wabou/ui": minor
-"@wabou/animation": patch
-"@wabou/components": patch
-"@wabou/primitives": patch
-"@wabou/router": patch
 ---
 
 Make `@wabou/ui` the single application-facing UI package. Bundle the

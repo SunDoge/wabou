@@ -1,1 +1,1 @@
-export * from "../../protocol/src/index";
+export * from "./protocol/index";

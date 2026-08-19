@@ -1,1 +1,1 @@
-export * from "../../solid-renderer/src/index";
+export * from "./renderer/index";

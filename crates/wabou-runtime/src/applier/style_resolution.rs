@@ -74,7 +74,7 @@ fn resolve_color_tokens(value: &IrValue, colors: &HashMap<String, u32>) -> IrVal
 }
 
 impl Applier {
-    pub(super) fn recompute_solid(&mut self, solid_id: u32) {
+    pub(super) fn recompute_solid(&mut self, solid_id: NodeKey) {
         if let Some(&n) = self.document.node_store.solid_to_node.get(&solid_id) {
             self.recompute_node(n);
         }

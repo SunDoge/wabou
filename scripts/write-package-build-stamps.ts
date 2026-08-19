@@ -36,8 +36,10 @@ const hashes: Record<string, string> = {};
 for (const entry of await readdir(packagesRoot, { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
   const root = resolve(packagesRoot, entry.name);
+  const manifestPath = resolve(root, "package.json");
+  if (!(await Bun.file(manifestPath).exists())) continue;
   const manifest = JSON.parse(
-    await readFile(resolve(root, "package.json"), "utf8"),
+    await readFile(manifestPath, "utf8"),
   );
   if (typeof manifest.name !== "string" || !manifest.name.startsWith("@wabou/"))
     continue;

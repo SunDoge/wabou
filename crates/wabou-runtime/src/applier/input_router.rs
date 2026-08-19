@@ -42,7 +42,7 @@ pub(super) struct HitClip {
 
 #[derive(Clone)]
 pub(super) struct HitNode {
-    pub(super) solid_id: u32,
+    pub(super) solid_id: NodeKey,
     pub(super) rect: [f32; 4],
     pub(super) transform: Affine,
     pub(super) clips: Vec<HitClip>,
@@ -88,19 +88,19 @@ pub(super) fn hit_contains(rect: [f32; 4], radius: f32, transform: Affine, point
 
 #[derive(Default)]
 pub(super) struct InputRouter {
-    pub(super) listeners: HashMap<u32, EventMask>,
+    pub(super) listeners: HashMap<NodeKey, EventMask>,
     pub(super) pointer_position: (f64, f64),
     pub(super) pointer_buttons: u32,
-    pub(super) pointer_down_target: Option<u32>,
+    pub(super) pointer_down_target: Option<NodeKey>,
     pub(super) pointer_down_position: Option<(f64, f64)>,
     pub(super) pointer_dragged: bool,
     pub(super) next_host_event_id: u32,
-    pub(super) hovered_target: Option<u32>,
-    pub(super) focused_target: Option<u32>,
+    pub(super) hovered_target: Option<NodeKey>,
+    pub(super) focused_target: Option<NodeKey>,
     /// Whether the current input modality should expose keyboard focus UI.
     pub(super) focus_visible: bool,
-    pub(super) focusable_targets: HashSet<u32>,
-    pub(super) focus_order: Vec<u32>,
+    pub(super) focusable_targets: HashSet<NodeKey>,
+    pub(super) focus_order: Vec<NodeKey>,
     pub(super) window_focused: bool,
     pub(super) hit_items: Vec<HitItem>,
 }
@@ -113,7 +113,7 @@ impl InputRouter {
         }
     }
 
-    pub(super) fn hit_test(&self, x: f64, y: f64) -> Option<u32> {
+    pub(super) fn hit_test(&self, x: f64, y: f64) -> Option<NodeKey> {
         let point = Point::new(x, y);
         for item in self.hit_items.iter().rev() {
             match item {
@@ -137,7 +137,7 @@ impl InputRouter {
         None
     }
 
-    pub(super) fn local_position(&self, target: u32, x: f64, y: f64) -> (f64, f64) {
+    pub(super) fn local_position(&self, target: NodeKey, x: f64, y: f64) -> (f64, f64) {
         let point = Point::new(x, y);
         self.hit_items
             .iter()
@@ -164,13 +164,16 @@ mod tests {
     fn local_position_uses_the_target_transform_and_rect_origin() {
         let mut router = InputRouter::new();
         router.hit_items.push(HitItem::Content(HitNode {
-            solid_id: 7,
+            solid_id: NodeKey::new(7, 1),
             rect: [20.0, 30.0, 120.0, 130.0],
             transform: Affine::translate((100.0, 50.0)),
             clips: Vec::new(),
             pointer_events: true,
         }));
 
-        assert_eq!(router.local_position(7, 145.0, 95.0), (25.0, 15.0));
+        assert_eq!(
+            router.local_position(NodeKey::new(7, 1), 145.0, 95.0),
+            (25.0, 15.0)
+        );
     }
 }

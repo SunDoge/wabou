@@ -15,7 +15,9 @@ let resolved: Promise<AppDirectories> | undefined;
 
 /** Resolve all app-private roots once and reuse the same native result. */
 export function resolveAppDirectories(): Promise<AppDirectories> {
-  return (resolved ??= dispatchEffect<AppDirectories>(effectOps.appDirsResolve));
+  return (resolved ??= dispatchEffect<AppDirectories>(
+    effectOps.appDirsResolve,
+  ));
 }
 
 export const appDirs = Object.freeze({

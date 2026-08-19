@@ -694,7 +694,104 @@
   }
   installFetchPolyfill();
 
-  // packages/protocol/src/index.ts
+  // packages/core/src/protocol/node-key.ts
+  var U32_MAX = 4294967295;
+  var ROOT_NODE_KEY = nodeKey(1, 1);
+  function u32(value, field) {
+    if (!Number.isInteger(value) || value < 0 || value > U32_MAX) {
+      throw new RangeError(`${field} must be an unsigned 32-bit integer`);
+    }
+    return value;
+  }
+  function nodeKey(lo, hi) {
+    lo = u32(lo, "NodeKey.lo");
+    hi = u32(hi, "NodeKey.hi");
+    if (lo === 0)
+      throw new RangeError("NodeKey slot zero is reserved");
+    if ((hi & 1) === 0) {
+      throw new RangeError("NodeKey generation must be a non-zero odd u32");
+    }
+    return { lo, hi };
+  }
+  function isNodeKey(value) {
+    if (value === null || typeof value !== "object")
+      return false;
+    const candidate = value;
+    const { lo, hi } = candidate;
+    return typeof lo === "number" && Number.isInteger(lo) && lo > 0 && lo <= U32_MAX && typeof hi === "number" && Number.isInteger(hi) && hi > 0 && hi <= U32_MAX && (hi & 1) === 1;
+  }
+  function nodeKeyEquals(left, right) {
+    return left === right || !!left && !!right && left.lo === right.lo && left.hi === right.hi;
+  }
+  function formatNodeKey(key) {
+    return `${key.lo}v${key.hi}`;
+  }
+  class NodeKeyAllocator {
+    #generations = [];
+    #live = [];
+    #free = [];
+    #nextSlot;
+    constructor(firstSlot = 2) {
+      this.#nextSlot = u32(firstSlot, "firstSlot");
+      if (firstSlot === 0)
+        throw new RangeError("slot zero is reserved");
+    }
+    allocate() {
+      const recycled = this.#free.pop();
+      const lo = recycled ?? this.#allocateSlot();
+      const hi = this.#generations[lo] ?? 1;
+      this.#generations[lo] = hi;
+      this.#live[lo] = true;
+      return nodeKey(lo, hi);
+    }
+    release(key) {
+      if (!this.isLive(key))
+        return false;
+      this.#live[key.lo] = false;
+      const next = key.hi + 2;
+      if (next <= U32_MAX) {
+        this.#generations[key.lo] = next;
+        this.#free.push(key.lo);
+      }
+      return true;
+    }
+    isLive(key) {
+      return this.#live[key.lo] === true && this.#generations[key.lo] === key.hi;
+    }
+    #allocateSlot() {
+      if (this.#nextSlot > U32_MAX) {
+        throw new RangeError("NodeKey slot space exhausted");
+      }
+      return this.#nextSlot++;
+    }
+  }
+
+  class NodeKeyTable {
+    #entries = [];
+    set(key, value) {
+      this.#entries[key.lo] = { hi: key.hi, value };
+      return this;
+    }
+    get(key) {
+      const entry = this.#entries[key.lo];
+      return entry?.hi === key.hi ? entry.value : undefined;
+    }
+    has(key) {
+      return this.#entries[key.lo]?.hi === key.hi;
+    }
+    delete(key) {
+      const entry = this.#entries[key.lo];
+      if (entry?.hi !== key.hi)
+        return false;
+      this.#entries[key.lo] = undefined;
+      return true;
+    }
+    clear() {
+      this.#entries.length = 0;
+    }
+  }
+
+  // packages/core/src/protocol/index.ts
   var OP = {
     CreateElement: 1,
     CreateText: 2,
@@ -794,7 +891,7 @@
   var EVENT_DATA_LEN = Object.keys(EVENT_DATA_SLOT).length;
   var HOST_FRAME = {
     Magic: 826689623,
-    Version: 1,
+    Version: 2,
     HeaderLen: 32
   };
   var HOST_RECORD_KIND = {
@@ -888,6 +985,10 @@
       this.buf[c + 3] = v >> 24 & 255;
       this.cursor += 4;
     }
+    key(value) {
+      this.u32(value.lo);
+      this.u32(value.hi);
+    }
     f32(v) {
       FLOAT_VIEW.setFloat32(0, v, true);
       this.u32(FLOAT_VIEW.getUint32(0, true));
@@ -931,49 +1032,49 @@
     }
     createElement(id, tag) {
       this.emit(OP.CreateElement);
-      this.u32(id);
+      this.key(id);
       this.atom(tag);
     }
     createText(id, text) {
       this.emit(OP.CreateText);
-      this.u32(id);
+      this.key(id);
       this.str(text);
     }
     appendChild(parent, child) {
       this.emit(OP.AppendChild);
-      this.u32(parent);
-      this.u32(child);
+      this.key(parent);
+      this.key(child);
     }
     insertBefore(parent, child, ref) {
       this.emit(OP.InsertBefore);
-      this.u32(parent);
-      this.u32(child);
-      this.u32(ref);
+      this.key(parent);
+      this.key(child);
+      this.key(ref);
     }
     removeChild(parent, child) {
       this.emit(OP.RemoveChild);
-      this.u32(parent);
-      this.u32(child);
+      this.key(parent);
+      this.key(child);
     }
     setText(id, text) {
       this.emit(OP.SetText);
-      this.u32(id);
+      this.key(id);
       this.str(text);
     }
     setAttribute(id, name, value) {
       this.emit(OP.SetAttribute);
-      this.u32(id);
+      this.key(id);
       this.atom(name);
       this.str(value);
     }
     removeAttribute(id, name) {
       this.emit(OP.RemoveAttribute);
-      this.u32(id);
+      this.key(id);
       this.atom(name);
     }
     setWidgetConfig(id, json) {
       this.emit(OP.SetWidgetConfig);
-      this.u32(id);
+      this.key(id);
       this.str(json);
     }
     setTextBehavior(id, flags) {
@@ -981,7 +1082,7 @@
         throw new RangeError(`invalid text behavior flags ${flags}`);
       }
       this.emit(OP.SetTextBehavior);
-      this.u32(id);
+      this.key(id);
       this.u8(flags);
     }
     setInteractionPolicy(id, flags, focusOrder) {
@@ -995,7 +1096,7 @@
         throw new RangeError("a non-focusable policy must encode focus order 0");
       }
       this.emit(OP.SetInteractionPolicy);
-      this.u32(id);
+      this.key(id);
       this.u8(flags);
       this.u32(focusOrder >>> 0);
     }
@@ -1004,7 +1105,7 @@
         throw new RangeError(`invalid graphic source kind ${kind}`);
       }
       this.emit(OP.SetGraphicSource);
-      this.u32(id);
+      this.key(id);
       this.u8(kind);
       this.str(source);
     }
@@ -1013,22 +1114,22 @@
         throw new RangeError(`invalid graphic source kind ${kind}`);
       }
       this.emit(OP.ClearGraphicSource);
-      this.u32(id);
+      this.key(id);
       this.u8(kind);
     }
     removeWidgetConfig(id) {
       this.emit(OP.RemoveWidgetConfig);
-      this.u32(id);
+      this.key(id);
     }
     setStyle(id, prop, value) {
       this.emit(OP.SetStyle);
-      this.u32(id);
+      this.key(id);
       this.atom(prop);
       this.str(value);
     }
     setStyleValue(id, prop, kind, value) {
       this.emit(OP.SetStyleValue);
-      this.u32(id);
+      this.key(id);
       this.atom(prop);
       this.u8(kind);
       if (kind !== 6) {
@@ -1045,7 +1146,7 @@
         throw new RangeError("a node cannot have more than 65535 shadow layers");
       }
       this.emit(OP.SetShadows);
-      this.u32(id);
+      this.key(id);
       this.u16(shadows.length);
       for (const shadow of shadows) {
         this.f32(shadow.offsetX);
@@ -1058,18 +1159,18 @@
     }
     setTransform2D(id, matrix) {
       this.emit(OP.SetTransform2D);
-      this.u32(id);
+      this.key(id);
       for (const part of matrix)
         this.f32(part);
     }
     setOverlayPlane(id, plane) {
       this.emit(OP.SetOverlayPlane);
-      this.u32(id);
+      this.key(id);
       this.u8(plane);
     }
     setScrollbarStyle(id, style) {
       this.emit(OP.SetScrollbarStyle);
-      this.u32(id);
+      this.key(id);
       this.u8(style.visibility);
       this.f32(style.hideDelay);
       this.f32(style.fadeDuration);
@@ -1084,22 +1185,22 @@
     }
     removeStyle(id, prop) {
       this.emit(OP.RemoveStyle);
-      this.u32(id);
+      this.key(id);
       this.atom(prop);
     }
     addEventListener(id, eventCode) {
       this.emit(OP.AddEventListener);
-      this.u32(id);
+      this.key(id);
       this.u8(eventCode);
     }
     removeEventListener(id, eventCode) {
       this.emit(OP.RemoveEventListener);
-      this.u32(id);
+      this.key(id);
       this.u8(eventCode);
     }
     setClassName(id, value) {
       this.emit(OP.SetClassName);
-      this.u32(id);
+      this.key(id);
       const classes = value.split(/\s+/).filter(Boolean);
       if (classes.length > 65535) {
         throw new RangeError("class list cannot contain more than 65535 tokens");
@@ -1110,21 +1211,21 @@
     }
     dropNode(id) {
       this.emit(OP.DropNode);
-      this.u32(id);
+      this.key(id);
     }
     focusNode(id) {
       this.emit(OP.FocusNode);
-      this.u32(id);
+      this.key(id);
     }
     scrollTo(id, x, y) {
       this.emit(OP.ScrollTo);
-      this.u32(id);
+      this.key(id);
       this.f32(x);
       this.f32(y);
     }
     scrollBy(id, x, y) {
       this.emit(OP.ScrollBy);
-      this.u32(id);
+      this.key(id);
       this.f32(x);
       this.f32(y);
     }
@@ -1148,376 +1249,6 @@
       return out;
     }
   }
-  // packages/style/generated/style-properties.ts
-  var INLINE_STYLE_CONTRACT = {
-    "align-content": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "align-items": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "align-self": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "aspect-ratio": {
-      string: true,
-      number: true,
-      typed: [3]
-    },
-    background: {
-      string: true,
-      number: false,
-      typed: [5]
-    },
-    "background-color": {
-      string: true,
-      number: false,
-      typed: [5]
-    },
-    "border-bottom-width": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "border-color": {
-      string: true,
-      number: false,
-      typed: [5]
-    },
-    "border-left-width": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "border-radius": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "border-right-width": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "border-top-width": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "border-width": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    bottom: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "box-sizing": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    color: {
-      string: true,
-      number: false,
-      typed: [5]
-    },
-    "column-gap": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    cursor: {
-      string: true,
-      number: false,
-      typed: []
-    },
-    display: {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "flex-basis": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "flex-direction": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "flex-grow": {
-      string: true,
-      number: true,
-      typed: [3]
-    },
-    "flex-shrink": {
-      string: true,
-      number: true,
-      typed: [3]
-    },
-    "flex-wrap": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "font-family": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "font-size": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "font-weight": {
-      string: true,
-      number: true,
-      typed: [3]
-    },
-    gap: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    height: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "justify-content": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    left: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "line-height": {
-      string: true,
-      number: true,
-      typed: [1, 3]
-    },
-    margin: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "margin-bottom": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "margin-inline-end": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "margin-inline-start": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "margin-left": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "margin-right": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "margin-top": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "max-height": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "max-width": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "min-height": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "min-width": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    opacity: {
-      string: true,
-      number: true,
-      typed: [3]
-    },
-    "outline-color": {
-      string: true,
-      number: false,
-      typed: [5]
-    },
-    "outline-offset": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    "outline-style": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "outline-width": {
-      string: true,
-      number: true,
-      typed: [1]
-    },
-    overflow: {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "overflow-x": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "overflow-y": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    padding: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    "padding-bottom": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    "padding-left": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    "padding-right": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    "padding-top": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    "pointer-events": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    position: {
-      string: true,
-      number: false,
-      typed: []
-    },
-    right: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "row-gap": {
-      string: true,
-      number: true,
-      typed: [1, 2, 3]
-    },
-    "text-align": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "text-overflow": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    top: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "user-select": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    "white-space": {
-      string: true,
-      number: false,
-      typed: []
-    },
-    width: {
-      string: true,
-      number: true,
-      typed: [1, 2, 3, 6]
-    },
-    "z-index": {
-      string: true,
-      number: true,
-      typed: [3]
-    }
-  };
-  // packages/style/src/index.ts
-  var STYLE_VALUE = "__wabou_style_value__";
-  function isTypedStyleValue(value) {
-    return typeof value === "object" && value !== null && value[STYLE_VALUE] === true;
-  }
-  function assertInlineStyleValue(property, value) {
-    const contract = INLINE_STYLE_CONTRACT[property];
-    if (!contract) {
-      const kebab = property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
-      const suggestion = kebab !== property && kebab in INLINE_STYLE_CONTRACT ? `; use ${kebab}` : "";
-      throw new TypeError(`unsupported inline style property ${property}${suggestion}`);
-    }
-    if (isTypedStyleValue(value)) {
-      if (!Number.isFinite(value.value)) {
-        throw new TypeError(`inline style ${property} must be finite`);
-      }
-      if (!contract.typed.includes(value.kind)) {
-        throw new TypeError(`typed style kind ${value.kind} is invalid for ${property}`);
-      }
-      return;
-    }
-    if (typeof value === "string" && contract.string)
-      return;
-    if (typeof value === "number" && contract.number) {
-      if (!Number.isFinite(value)) {
-        throw new TypeError(`inline style ${property} must be finite`);
-      }
-      return;
-    }
-    throw new TypeError(`invalid inline style value for ${property}`);
-  }
-
   // node_modules/.bun/@solidjs+signals@2.0.0-rc.0/node_modules/@solidjs/signals/dist/dev.js
   class NotReadyError extends Error {
     source;
@@ -4835,6 +4566,375 @@
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
 
+  // packages/core/src/style/generated/style-properties.ts
+  var INLINE_STYLE_CONTRACT = {
+    "align-content": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "align-items": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "align-self": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "aspect-ratio": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    background: {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "background-color": {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "border-bottom-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-color": {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "border-left-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-radius": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-right-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-top-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "border-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    bottom: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "box-sizing": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    color: {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "column-gap": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    cursor: {
+      string: true,
+      number: false,
+      typed: []
+    },
+    display: {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "flex-basis": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "flex-direction": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "flex-grow": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    "flex-shrink": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    "flex-wrap": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "font-family": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "font-size": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "font-weight": {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    gap: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    height: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "justify-content": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    left: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "line-height": {
+      string: true,
+      number: true,
+      typed: [1, 3]
+    },
+    margin: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-bottom": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-inline-end": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-inline-start": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-left": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-right": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "margin-top": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "max-height": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "max-width": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "min-height": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "min-width": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    opacity: {
+      string: true,
+      number: true,
+      typed: [3]
+    },
+    "outline-color": {
+      string: true,
+      number: false,
+      typed: [5]
+    },
+    "outline-offset": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "outline-style": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "outline-width": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    overflow: {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "overflow-x": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "overflow-y": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    padding: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-bottom": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-left": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-right": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "padding-top": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "pointer-events": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    position: {
+      string: true,
+      number: false,
+      typed: []
+    },
+    right: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "row-gap": {
+      string: true,
+      number: true,
+      typed: [1, 2, 3]
+    },
+    "text-align": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "text-overflow": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    top: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "user-select": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    "white-space": {
+      string: true,
+      number: false,
+      typed: []
+    },
+    width: {
+      string: true,
+      number: true,
+      typed: [1, 2, 3, 6]
+    },
+    "z-index": {
+      string: true,
+      number: true,
+      typed: [3]
+    }
+  };
+  // packages/core/src/style/index.ts
+  var STYLE_VALUE = "__wabou_style_value__";
+  function isTypedStyleValue(value) {
+    return typeof value === "object" && value !== null && value[STYLE_VALUE] === true;
+  }
+  function assertInlineStyleValue(property, value) {
+    const contract = INLINE_STYLE_CONTRACT[property];
+    if (!contract) {
+      const kebab = property.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+      const suggestion = kebab !== property && kebab in INLINE_STYLE_CONTRACT ? `; use ${kebab}` : "";
+      throw new TypeError(`unsupported inline style property ${property}${suggestion}`);
+    }
+    if (isTypedStyleValue(value)) {
+      if (!Number.isFinite(value.value)) {
+        throw new TypeError(`inline style ${property} must be finite`);
+      }
+      if (!contract.typed.includes(value.kind)) {
+        throw new TypeError(`typed style kind ${value.kind} is invalid for ${property}`);
+      }
+      return;
+    }
+    if (typeof value === "string" && contract.string)
+      return;
+    if (typeof value === "number" && contract.number) {
+      if (!Number.isFinite(value)) {
+        throw new TypeError(`inline style ${property} must be finite`);
+      }
+      return;
+    }
+    throw new TypeError(`invalid inline style value for ${property}`);
+  }
   // node_modules/.bun/@solidjs+universal@2.0.0-rc.0+6b48b9f3356e564b/node_modules/@solidjs/universal/dist/dev.js
   var transparentOptions = {
     transparent: true,
@@ -5189,12 +5289,12 @@
     };
   }
 
-  // packages/solid-renderer/src/host.tsx
+  // packages/core/src/renderer/host.tsx
   var nativeHost = {
     openUrl: (url) => __wabou_open_url(url),
     loadFont: (path) => __wabou_load_font(path),
     frameStats: () => JSON.parse(__wabou_frame_stats()),
-    layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids))),
+    layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids.flatMap((id) => [id.lo, id.hi])))),
     systemLocale: () => __wabou_system_locale(),
     systemTimeZone: () => __wabou_system_time_zone(),
     systemCalendarDate: () => JSON.parse(__wabou_system_calendar_date())
@@ -5209,7 +5309,7 @@
       today: nativeHost.systemCalendarDate
     },
     layout: {
-      snapshot: (targets) => nativeHost.layoutSnapshot(targets.map((target) => typeof target === "number" ? target : target.id)),
+      snapshot: (targets) => nativeHost.layoutSnapshot(targets.map((target) => isNodeKey(target) ? target : target.id)),
       measure: (target) => {
         const snapshot2 = builtinHost.layout.snapshot([target]);
         return snapshot2.nodes[0]?.rect ?? null;
@@ -5223,12 +5323,10 @@
   };
   var defaultHost = Object.assign(builtinHost, typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities);
   var HostContext = createContext(defaultHost);
-  // packages/solid-renderer/src/index.ts
-  var FREE_LIST = [];
-  var GENERATIONS = [];
-  var nextSlot = 2;
-  var listenersBySlot = [];
-  var nodesBySlot = [];
+  // packages/core/src/renderer/index.ts
+  var nodeKeys = new NodeKeyAllocator;
+  var listenersByNode = new NodeKeyTable;
+  var nodesByKey = new NodeKeyTable;
   var classesByNode = new WeakMap;
   var interactionByNode = new WeakMap;
   function emitInteractionPolicy(writer, node) {
@@ -5262,14 +5360,12 @@
     writer.setClassName(node.id, [...tokens].join(" "));
   }
   var finalizationRegistry = typeof FinalizationRegistry !== "undefined" ? new FinalizationRegistry((id) => {
-    const slot = id & 1048575;
-    const expectedGen = id >>> 20;
-    if (GENERATIONS[slot] !== expectedGen)
+    if (!nodeKeys.isLive(id))
       return;
-    nodesBySlot[slot] = undefined;
-    listenersBySlot[slot] = undefined;
+    nodesByKey.delete(id);
+    listenersByNode.delete(id);
     writer.dropNode(id);
-    freeId(id);
+    nodeKeys.release(id);
   }) : null;
   var sweepSet = new Set;
   function runSweep() {
@@ -5279,14 +5375,13 @@
       if (node.parent !== null)
         continue;
       const destroy = (n) => {
-        const slot = n.id & 1048575;
-        if (nodesBySlot[slot] === undefined)
+        if (!nodesByKey.has(n.id))
           return;
         finalizationRegistry?.unregister(n);
-        nodesBySlot[slot] = undefined;
-        listenersBySlot[slot] = undefined;
+        nodesByKey.delete(n.id);
+        listenersByNode.delete(n.id);
         writer.dropNode(n.id);
-        freeId(n.id);
+        nodeKeys.release(n.id);
         let c = n.firstChild;
         while (c) {
           destroy(c);
@@ -5296,22 +5391,6 @@
       destroy(node);
     }
     sweepSet.clear();
-  }
-  function newId() {
-    let slot;
-    if (FREE_LIST.length > 0) {
-      slot = FREE_LIST.pop();
-    } else {
-      slot = nextSlot++;
-      GENERATIONS[slot] = 0;
-    }
-    const gen = GENERATIONS[slot];
-    return (gen << 20 | slot) >>> 0;
-  }
-  function freeId(id) {
-    const slot = id & 1048575;
-    GENERATIONS[slot] = GENERATIONS[slot] + 1 & 4095;
-    FREE_LIST.push(slot);
   }
   function imperativeMethods(id) {
     const coordinates = (first, second) => typeof first === "number" ? [first, second ?? Number.NaN] : [first.left ?? Number.NaN, first.top ?? Number.NaN];
@@ -5330,7 +5409,7 @@
     };
   }
   function makeHandle(tag) {
-    const id = newId();
+    const id = nodeKeys.allocate();
     const h = {
       id,
       tag,
@@ -5347,7 +5426,7 @@
       contained: false
     });
     if (typeof WeakRef !== "undefined") {
-      nodesBySlot[id & 1048575] = new WeakRef(h);
+      nodesByKey.set(id, new WeakRef(h));
     }
     if (finalizationRegistry) {
       finalizationRegistry.register(h, h.id, h);
@@ -5411,19 +5490,19 @@
       return;
     }
     if (name === "scrollbar") {
-      const style = value && typeof value === "object" ? value : {};
+      const style2 = value && typeof value === "object" ? value : {};
       writer.setScrollbarStyle(node.id, {
-        visibility: style.visibility === "always" ? 1 : style.visibility === "hidden" ? 2 : 0,
-        hideDelay: style.hideDelay ?? 500,
-        fadeDuration: style.fadeDuration ?? 200,
-        thickness: style.thickness ?? 10,
-        margin: style.margin ?? 2,
-        minThumbLength: style.minThumbLength ?? 32,
-        radius: style.radius ?? -1,
-        trackColor: style.trackColor ?? 0,
-        thumbColor: style.thumbColor ?? 1685360574,
-        hoverColor: style.hoverColor ?? 1685360609,
-        activeColor: style.activeColor ?? 1196780031
+        visibility: style2.visibility === "always" ? 1 : style2.visibility === "hidden" ? 2 : 0,
+        hideDelay: style2.hideDelay ?? 500,
+        fadeDuration: style2.fadeDuration ?? 200,
+        thickness: style2.thickness ?? 10,
+        margin: style2.margin ?? 2,
+        minThumbLength: style2.minThumbLength ?? 32,
+        radius: style2.radius ?? -1,
+        trackColor: style2.trackColor ?? 0,
+        thumbColor: style2.thumbColor ?? 1685360574,
+        hoverColor: style2.hoverColor ?? 1685360609,
+        activeColor: style2.activeColor ?? 1196780031
       });
       return;
     }
@@ -5501,9 +5580,8 @@
       if (name.startsWith("on") && name.length > 2) {
         const t = EVENT_CODE[name.slice(2).toLowerCase()] ?? null;
         if (t != null) {
-          const slot = node.id & 1048575;
           writer.removeEventListener(node.id, t);
-          listenersBySlot[slot]?.delete(t);
+          listenersByNode.get(node.id)?.delete(t);
         }
         return;
       }
@@ -5542,11 +5620,10 @@
       if (t == null)
         return;
       writer.addEventListener(node.id, t);
-      const slot = node.id & 1048575;
-      let m = listenersBySlot[slot];
+      let m = listenersByNode.get(node.id);
       if (!m) {
         m = new Map;
-        listenersBySlot[slot] = m;
+        listenersByNode.set(node.id, m);
       }
       m.set(t, value);
       return;
@@ -5664,7 +5741,7 @@
   var ref = renderer.ref;
   function registerRoot(root) {
     if (typeof WeakRef !== "undefined") {
-      nodesBySlot[root.id & 1048575] = new WeakRef(root);
+      nodesByKey.set(root.id, new WeakRef(root));
     }
   }
   var activeMountDispose = null;
@@ -5680,14 +5757,14 @@
       activeMountDispose = null;
     }
     const root = {
-      id: 1,
+      id: ROOT_NODE_KEY,
       tag: "#root",
       parent: null,
       firstChild: null,
       lastChild: null,
       prev: null,
       next: null,
-      ...imperativeMethods(1)
+      ...imperativeMethods(ROOT_NODE_KEY)
     };
     mountedRoot = root;
     overlayRoots.clear();
@@ -5766,22 +5843,20 @@
     return defaultPrevented;
   }
   function derefHandle(id) {
-    const stored = nodesBySlot[id & 1048575];
-    return stored instanceof WeakRef ? stored.deref() : stored;
+    return nodesByKey.get(id)?.deref();
   }
   function bubble(nodeId, code, ev) {
     let cur = nodeId;
     while (cur != null) {
-      const slot = cur & 1048575;
-      ev.currentTarget = cur === nodeId ? ev.target : { id: cur };
-      const m = listenersBySlot[slot];
+      ev.currentTarget = nodeKeyEquals(cur, nodeId) ? ev.target : { id: cur };
+      const m = listenersByNode.get(cur);
       const fn = m?.get(code);
       if (fn) {
         try {
           fn(ev);
         } catch (e) {
           const detail = e && typeof e === "object" && "stack" in e ? String(e.stack ?? e) : String(e);
-          __wabou_log("error", `[wabou-event] ${eventName(code)} handler failed at node ${cur} (target ${nodeId})
+          __wabou_log("error", `[wabou-event] ${eventName(code)} handler failed at node ${formatNodeKey(cur)} (target ${formatNodeKey(nodeId)})
 ${detail}`);
         }
       }
@@ -5885,7 +5960,7 @@ ${detail}`);
   globalThis.clearInterval = clearTimer;
 
   // packages/core/src/glue/resize-observer.ts
-  var observers = new Map;
+  var observers = new NodeKeyTable;
 
   class WabouResizeObserver {
     callback;
@@ -5902,7 +5977,7 @@ ${detail}`);
       if (!observed) {
         observed = { target, callbacks: new Set };
         observers.set(id, observed);
-        __wabou_resize_observe(id);
+        __wabou_resize_observe(id.lo, id.hi);
       }
       observed.callbacks.add(this.callback);
     }
@@ -5920,7 +5995,7 @@ ${detail}`);
       observed?.callbacks.delete(this.callback);
       if (observed?.callbacks.size === 0) {
         observers.delete(id);
-        __wabou_resize_unobserve(id);
+        __wabou_resize_unobserve(id.lo, id.hi);
       }
     }
   }
@@ -5974,6 +6049,7 @@ ${detail}`);
       }
     }
   }
+
   // packages/core/src/glue/host-frame.ts
   var RECORD_HEADER_LEN = 8;
   var FLAG_CANCELLABLE = 1;
@@ -6021,12 +6097,12 @@ ${detail}`);
       const end = offset + recordLen;
       offset += RECORD_HEADER_LEN;
       if (kind === HOST_RECORD_KIND.NodeEvent) {
-        requireBytes(12, end);
-        const target = view.getUint32(offset, true);
-        const eventCode = view.getUint8(offset + 4);
-        const payloadKind = view.getUint8(offset + 5);
-        const eventId = view.getUint32(offset + 8, true);
-        offset += 12;
+        requireBytes(16, end);
+        const target = nodeKey(view.getUint32(offset, true), view.getUint32(offset + 4, true));
+        const eventCode = view.getUint8(offset + 8);
+        const payloadKind = view.getUint8(offset + 9);
+        const eventId = view.getUint32(offset + 12, true);
+        offset += 16;
         if (payloadKind === HOST_NODE_PAYLOAD.None) {
           records.push({
             kind: "node",
@@ -6071,14 +6147,14 @@ ${detail}`);
           throw new TypeError(`unknown node payload kind ${payloadKind}`);
         }
       } else if (kind === HOST_RECORD_KIND.Resize) {
-        requireBytes(12, end);
+        requireBytes(16, end);
         records.push({
           kind: "resize",
-          target: view.getUint32(offset, true),
-          width: view.getFloat32(offset + 4, true),
-          height: view.getFloat32(offset + 8, true)
+          target: nodeKey(view.getUint32(offset, true), view.getUint32(offset + 4, true)),
+          width: view.getFloat32(offset + 8, true),
+          height: view.getFloat32(offset + 12, true)
         });
-        offset += 12;
+        offset += 16;
       } else if (kind === HOST_RECORD_KIND.ApplicationMessage) {
         requireBytes(2, end);
         const topicLen = view.getUint16(offset, true);

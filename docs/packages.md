@@ -16,14 +16,13 @@ The 0.1 developer preview targets the exact `solid-js@2.0.0-rc.0` line. Keep
 Solid and Wabou packages pinned together until Solid 2 and the universal
 renderer publish stable releases; minor RC changes may alter renderer behavior.
 
-The following layered workspaces remain useful internal source boundaries, but
-are compiled into `@wabou/ui` rather than published independently:
+The following directories remain useful internal source boundaries inside
+`packages/ui/src`, but are not package or publication boundaries:
 
-- `@wabou/components` — styled application components.
-- `@wabou/primitives` — unstyled components plus renderer-independent behavior
-  available from `@wabou/primitives/interactions`.
-- `@wabou/router` — native application routing.
-- `@wabou/animation` — Motion-backed animation helpers.
+- `components` — styled application components.
+- `primitives` — unstyled components plus renderer-independent interactions.
+- `router` — native application routing.
+- `animation` — Motion-backed animation helpers.
 
 Their public capabilities are available from `@wabou/ui` and
 `@wabou/ui/primitives`. This keeps implementation ownership and tests modular
@@ -33,12 +32,9 @@ without making source topology part of the installation contract.
 the native terminal widget. `@wabou/test` is the public behavior-test package,
 normally installed as a dev dependency.
 
-The source workspaces `@wabou/animation`, `@wabou/components`,
-`@wabou/primitives`, `@wabou/router`, `@wabou/protocol`,
-`@wabou/solid-renderer` and `@wabou/style` are private implementation details.
-The UI workspaces are bundled into `@wabou/ui`; the runtime workspaces are
-bundled into `@wabou/core` and exposed, when an advanced import is useful, as
-`@wabou/core/protocol`, `@wabou/core/renderer` and `@wabou/core/style`.
+The protocol, Solid renderer, and style value model are ordinary source modules
+inside `@wabou/core`, not separate packages. Their advanced entry points are
+`@wabou/core/protocol`, `@wabou/core/renderer`, and `@wabou/core/style`.
 Applications normally use `@wabou/ui`; `@wabou/core` remains the lower-level
 runtime boundary.
 
@@ -59,9 +55,9 @@ packages expose `dist` artifacts; consumers do not need to compile Wabou's
 TypeScript or TSX source. These artifacts are tracked in Git as well as npm so
 applications pinned to an immutable Wabou Git revision consume exactly the
 same package surface as registry installations.
-`bun run packages:check` verifies aligned versions, publication metadata and
-that public artifacts and application manifests do not depend on private
-workspace packages.
+`bun run packages:check` verifies aligned versions, publication metadata, and
+that public artifacts and applications do not revive retired implementation
+package names.
 
 The component source remains layered: primitive interactions provide headless
 behavior, primitives connect it to the native host, and components supply

@@ -1,20 +1,22 @@
+import { type NodeKey, NodeKeyTable } from "../protocol";
+
 interface WabouResizeObserverEntry {
-  target: { id: number };
+  target: { id: NodeKey };
   contentRect: { width: number; height: number };
 }
 
 type ResizeCallback = (entries: WabouResizeObserverEntry[]) => void;
-const observers = new Map<
-  number,
-  { target: { id: number }; callbacks: Set<ResizeCallback> }
->();
+const observers = new NodeKeyTable<{
+  target: { id: NodeKey };
+  callbacks: Set<ResizeCallback>;
+}>();
 
 class WabouResizeObserver {
-  private readonly targets = new Set<number>();
+  private readonly targets = new Set<NodeKey>();
 
   constructor(private readonly callback: ResizeCallback) {}
 
-  observe(target: { id: number }): void {
+  observe(target: { id: NodeKey }): void {
     const id = target.id;
     if (this.targets.has(id)) return;
     this.targets.add(id);
@@ -22,12 +24,12 @@ class WabouResizeObserver {
     if (!observed) {
       observed = { target, callbacks: new Set() };
       observers.set(id, observed);
-      __wabou_resize_observe(id);
+      __wabou_resize_observe(id.lo, id.hi);
     }
     observed.callbacks.add(this.callback);
   }
 
-  unobserve(target: { id: number }): void {
+  unobserve(target: { id: NodeKey }): void {
     this.remove(target.id);
   }
 
@@ -35,19 +37,19 @@ class WabouResizeObserver {
     for (const id of this.targets) this.remove(id);
   }
 
-  private remove(id: number): void {
+  private remove(id: NodeKey): void {
     if (!this.targets.delete(id)) return;
     const observed = observers.get(id);
     observed?.callbacks.delete(this.callback);
     if (observed?.callbacks.size === 0) {
       observers.delete(id);
-      __wabou_resize_unobserve(id);
+      __wabou_resize_unobserve(id.lo, id.hi);
     }
   }
 }
 
 export function dispatchResizeObservation(
-  solidId: number,
+  solidId: NodeKey,
   width: number,
   height: number,
 ): void {
@@ -64,5 +66,3 @@ export function dispatchResizeObservation(
 }
 
 (globalThis as any).ResizeObserver = WabouResizeObserver;
-
-export {};

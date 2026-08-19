@@ -105,7 +105,7 @@ impl Applier {
     fn debug_clip_info(
         &self,
         placed_node: &PlacedNode,
-        id: u32,
+        id: NodeKey,
         placed_by_id: &HashMap<NodeId, &PlacedNode>,
         css_transforms: &HashMap<NodeId, Affine>,
     ) -> wabou_devtools::DebugClipInfo {
@@ -128,7 +128,7 @@ impl Applier {
                         .node_to_solid
                         .get(&node_id)
                         .copied()
-                        .unwrap_or(0),
+                        .unwrap_or(NodeKey::ROOT),
                     kind: "ancestor-overflow".into(),
                     coordinate_space: "layout-window-logical".into(),
                     rect: debug_rect(rect),
@@ -215,7 +215,7 @@ impl Applier {
         }
     }
 
-    fn debug_listeners(&self, id: u32) -> Vec<u8> {
+    fn debug_listeners(&self, id: NodeKey) -> Vec<u8> {
         let mut listeners: Vec<_> = self
             .interaction
             .input
@@ -274,7 +274,11 @@ impl Applier {
             let tag = declared
                 .and_then(|declared| declared.tag)
                 .and_then(|tag| atoms.resolve(tag))
-                .unwrap_or(if id == 1 { "#root" } else { "#text" })
+                .unwrap_or(if id == NodeKey::ROOT {
+                    "#root"
+                } else {
+                    "#text"
+                })
                 .to_owned();
             let attrs = debug_attrs(declared, &atoms);
             let listeners = self.debug_listeners(id);

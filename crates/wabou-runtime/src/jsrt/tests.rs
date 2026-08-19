@@ -377,3 +377,26 @@ fn motion_value_animations_run_inside_quickjs() {
         )
     }));
 }
+
+#[test]
+fn node_intrinsics_reject_malformed_key_halves() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let rejected = runtime
+        .with(|ctx| {
+            ctx.eval::<Vec<bool>, _>(
+                r#"
+                [
+                  () => __wabou_resize_observe(0, 1),
+                  () => __wabou_resize_observe(2, 2),
+                  () => __wabou_resize_unobserve(2, 0),
+                  () => __wabou_layout_snapshot(new Uint32Array([2, 2])),
+                  () => __wabou_layout_snapshot(new Uint32Array([2])),
+                ].map(call => {
+                  try { call(); return false; } catch { return true; }
+                })
+                "#,
+            )
+        })
+        .expect("evaluate malformed node keys");
+    assert_eq!(rejected, vec![true; 5]);
+}

@@ -2,6 +2,7 @@ use super::effect_bridge::decode_effect_payload;
 use super::*;
 
 fn set_text_behavior(applier: &mut Applier, id: u32) {
+    let id = nk(id);
     applier.apply_op(&Op::SetTextBehavior {
         id,
         flags: crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT
@@ -10,6 +11,7 @@ fn set_text_behavior(applier: &mut Applier, id: u32) {
 }
 
 fn set_focus_order(applier: &mut Applier, id: u32, focus_order: i32) {
+    let id = nk(id);
     applier.apply_op(&Op::SetInteractionPolicy {
         id,
         flags: crate::protocol::INTERACTION_POLICY_FOCUSABLE,
@@ -18,6 +20,7 @@ fn set_focus_order(applier: &mut Applier, id: u32, focus_order: i32) {
 }
 
 fn set_interaction_blocked(applier: &mut Applier, id: u32, blocked: bool) {
+    let id = nk(id);
     applier.apply_op(&Op::SetInteractionPolicy {
         id,
         flags: if blocked {
@@ -30,6 +33,7 @@ fn set_interaction_blocked(applier: &mut Applier, id: u32, blocked: bool) {
 }
 
 fn set_focus_contained(applier: &mut Applier, id: u32) {
+    let id = nk(id);
     applier.apply_op(&Op::SetInteractionPolicy {
         id,
         flags: crate::protocol::INTERACTION_POLICY_CONTAIN_FOCUS,
@@ -38,6 +42,7 @@ fn set_focus_contained(applier: &mut Applier, id: u32) {
 }
 
 fn create_element_with_attrs(applier: &mut Applier, id: u32, tag: Atom, attrs: &[(Atom, &str)]) {
+    let id = nk(id);
     applier.apply_op(&Op::CreateElement { id, tag });
     for &(name, value) in attrs {
         applier.apply_op(&Op::SetAttribute { id, name, value });
@@ -49,13 +54,16 @@ fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let text = applier.document.atoms.borrow_mut().intern("text");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: text });
-    let unconfigured = applier.computed_node_snapshot(2).unwrap();
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: text,
+    });
+    let unconfigured = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert!(unconfigured.wrap_text);
     assert_ne!(unconfigured.layout.flex_shrink, 0.0);
 
     set_text_behavior(&mut applier, 2);
-    let configured = applier.computed_node_snapshot(2).unwrap();
+    let configured = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert!(!configured.wrap_text);
     assert_eq!(configured.layout.flex_shrink, 0.0);
 }
@@ -65,14 +73,17 @@ fn graphic_sources_are_stored_as_typed_state() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let svg = applier.document.atoms.borrow_mut().intern("svg");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: svg });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: svg,
+    });
 
     applier.apply_op(&Op::SetGraphicSource {
-        id: 2,
+        id: NodeKey::new(2, 1),
         kind: crate::protocol::GRAPHIC_SOURCE_SVG,
         source: "<svg viewBox='0 0 1 1'/>",
     });
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert_eq!(
         applier.document.node_store.declared[&node]
             .svg_source
@@ -81,7 +92,7 @@ fn graphic_sources_are_stored_as_typed_state() {
     );
 
     applier.apply_op(&Op::ClearGraphicSource {
-        id: 2,
+        id: NodeKey::new(2, 1),
         kind: crate::protocol::GRAPHIC_SOURCE_SVG,
     });
     assert!(
@@ -98,10 +109,13 @@ fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
     let view = applier.document.atoms.borrow_mut().intern("view");
     let mut ops = Vec::with_capacity(8192);
     for id in 2..=4097 {
-        ops.push(Op::CreateElement { id, tag: view });
+        ops.push(Op::CreateElement {
+            id: nk(id),
+            tag: view,
+        });
         ops.push(Op::AppendChild {
-            parent: 1,
-            child: id,
+            parent: NodeKey::new(1, 1),
+            child: nk(id),
         });
     }
 
@@ -126,7 +140,7 @@ fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
     applier.apply_frame(&Frame {
         seq: 2,
         ops: vec![Op::SetTransform2D {
-            id: 2,
+            id: NodeKey::new(2, 1),
             matrix: [1.0, 0.0, 0.0, 1.0, 8.0, 4.0],
         }],
     });
@@ -142,7 +156,7 @@ fn large_sibling_tree_only_reprojects_when_ifc_inputs_change() {
     applier.apply_frame(&Frame {
         seq: 4,
         ops: vec![Op::SetStyle {
-            id: 2,
+            id: NodeKey::new(2, 1),
             prop: display,
             value: "none",
         }],
@@ -420,7 +434,7 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
             r#"
             globalThis.__wabou_dispatch_host_frame = (bytes) => {
                 const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                const eventId = view.getUint32(48, true);
+                const eventId = view.getUint32(52, true);
                 return { needsTick: true, preventedEventIds: new Uint32Array([eventId]) };
             };
             "#,
@@ -429,19 +443,22 @@ fn prevented_keydown_never_reaches_the_focused_widget() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     applier.apply_op(&Op::AddEventListener {
-        id: 2,
+        id: NodeKey::new(2, 1),
         event_type: event::KEYDOWN,
     });
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     let received = Arc::new(std::sync::Mutex::new(0));
     applier
         .document
         .widget_manager
         .widgets
         .insert(node, Box::new(KeyCaptureWidget(received.clone())));
-    applier.interaction.input.focused_target = Some(2);
+    applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
 
     let response = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
@@ -500,15 +517,25 @@ fn imperative_focus_uses_the_same_host_focus_state_as_pointer_input() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
 
-    applier.apply_op(&Op::FocusNode { id: 2 });
-    assert_eq!(applier.interaction.input.focused_target, Some(2));
-
-    applier.apply_op(&Op::FocusNode { id: 999 });
+    applier.apply_op(&Op::FocusNode {
+        id: NodeKey::new(2, 1),
+    });
     assert_eq!(
         applier.interaction.input.focused_target,
-        Some(2),
+        Some(NodeKey::new(2, 1))
+    );
+
+    applier.apply_op(&Op::FocusNode {
+        id: NodeKey::new(999, 1),
+    });
+    assert_eq!(
+        applier.interaction.input.focused_target,
+        Some(NodeKey::new(2, 1)),
         "a stale JS handle must not clear valid native focus"
     );
 }
@@ -525,19 +552,25 @@ fn widget_measurements_refresh_intrinsic_layout_before_paint() {
     .unwrap();
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
     });
-    let node = applier.document.node_store.solid_to_node[&2];
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
+    });
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     applier
         .document
         .widget_manager
         .widgets
         .insert(node, Box::new(MeasuringWidget([123.0, 45.0])));
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().intrinsic_size,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .intrinsic_size,
         None
     );
 
@@ -545,7 +578,10 @@ fn widget_measurements_refresh_intrinsic_layout_before_paint() {
     applier.measure_widgets(&mut tcx);
 
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().intrinsic_size,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .intrinsic_size,
         Some([123.0, 45.0])
     );
     assert!(
@@ -575,12 +611,12 @@ fn widget_mount_and_visibility_are_delivered_before_first_paint() {
         Arc::new(move || Box::new(VisibilityLifecycleWidget(factory_calls.clone()))),
     );
     applier.apply_op(&Op::CreateElement {
-        id: 2,
+        id: NodeKey::new(2, 1),
         tag: widget_tag,
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
 
     let mut tcx = TextContext::new();
@@ -588,7 +624,8 @@ fn widget_mount_and_visibility_are_delivered_before_first_paint() {
     assert!(
         placed
             .iter()
-            .any(|node| node.node_id == applier.document.node_store.solid_to_node[&2])
+            .any(|node| node.node_id
+                == applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)])
     );
 
     assert_eq!(*calls.lock().unwrap(), ["mount", "visible", "paint"]);
@@ -639,7 +676,7 @@ fn wheel_routing_preserves_pointer_position_for_widgets() {
         applier.document.node_store.root,
         Box::new(WheelCaptureWidget(received.clone())),
     );
-    applier.interaction.input.hovered_target = Some(1);
+    applier.interaction.input.hovered_target = Some(NodeKey::new(1, 1));
     applier.interaction.input.pointer_position = (42.0, 73.0);
 
     let response = applier.handle_event(UiEvent::Wheel(wabou_shell::WheelEvent {
@@ -678,29 +715,32 @@ fn pointer_dispatch_resolves_a_listener_on_the_native_parent_chain() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     applier.apply_op(&Op::CreateText {
-        id: 3,
+        id: NodeKey::new(3, 1),
         text: "option",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.apply_op(&Op::AddEventListener {
-        id: 2,
+        id: NodeKey::new(2, 1),
         event_type: event::POINTERMOVE,
     });
 
     assert_eq!(
-        applier.listener_target_in_chain(3, event::POINTERMOVE),
-        Some(2)
+        applier.listener_target_in_chain(nk(3), event::POINTERMOVE),
+        Some(NodeKey::new(2, 1))
     );
-    assert_eq!(applier.listener_target_in_chain(3, event::CLICK), None);
+    assert_eq!(applier.listener_target_in_chain(nk(3), event::CLICK), None);
 }
 
 #[test]
@@ -711,7 +751,7 @@ fn native_scroll_observations_coalesce_by_target() {
         .interaction
         .input
         .listeners
-        .entry(1)
+        .entry(nk(1))
         .or_default()
         .insert(event::SCROLL);
     applier
@@ -728,7 +768,10 @@ fn native_scroll_observations_coalesce_by_target() {
     applier.queue_scroll_event(applier.document.node_store.root);
 
     assert_eq!(applier.interaction.scroll.pending_events.len(), 1);
-    assert_eq!(applier.interaction.scroll.pending_events[&1], [0.0, 48.0]);
+    assert_eq!(
+        applier.interaction.scroll.pending_events[&nk(1)],
+        [0.0, 48.0]
+    );
 }
 
 #[test]
@@ -756,10 +799,10 @@ fn widget_host_actions_reach_the_frame_source() {
 fn asynchronous_widget_events_are_routed_to_the_owning_solid_node() {
     let mut applier = interactive_applier();
     applier.apply_op(&Op::AddEventListener {
-        id: 2,
+        id: NodeKey::new(2, 1),
         event_type: event::TERMINALEXIT,
     });
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     applier.document.widget_manager.widgets.insert(
         node,
         Box::new(NodeEventWidget(Some(crate::widget::WidgetNodeEvent::json(
@@ -796,7 +839,7 @@ fn widget_event_host_actions_are_available_without_an_async_poll() {
     );
 
     let response = applier
-        .handle_widget_event(1, &UiEvent::Focus(true))
+        .handle_widget_event(nk(1), &UiEvent::Focus(true))
         .expect("widget handled event");
     assert!(response.handled);
     assert_eq!(
@@ -812,15 +855,20 @@ fn dropping_a_widget_drains_unmount_host_actions_before_routing_is_removed() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.document.node_store.solid_to_node[&2];
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     applier
         .document
         .widget_manager
         .widgets
         .insert(node, Box::new(UnmountActionWidget(None)));
 
-    applier.apply_op(&Op::DropNode { id: 2 });
+    applier.apply_op(&Op::DropNode {
+        id: NodeKey::new(2, 1),
+    });
 
     assert_eq!(
         FrameSource::take_host_action(&mut applier),
@@ -834,20 +882,25 @@ fn dropping_a_focused_captured_widget_releases_input_before_unmount() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.document.node_store.solid_to_node[&2];
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
     applier
         .document
         .widget_manager
         .widgets
         .insert(node, Box::new(LifecycleWidget(lifecycle.clone())));
-    applier.interaction.input.focused_target = Some(2);
-    applier.interaction.input.pointer_down_target = Some(2);
+    applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
+    applier.interaction.input.pointer_down_target = Some(NodeKey::new(2, 1));
     applier.interaction.input.pointer_down_position = Some((10.0, 20.0));
     applier.interaction.input.pointer_dragged = true;
 
-    applier.apply_op(&Op::DropNode { id: 2 });
+    applier.apply_op(&Op::DropNode {
+        id: NodeKey::new(2, 1),
+    });
 
     assert_eq!(
         *lifecycle.lock().unwrap(),
@@ -864,27 +917,33 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.document.node_store.solid_to_node[&2];
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     let lifecycle = Arc::new(std::sync::Mutex::new(Vec::new()));
     applier
         .document
         .widget_manager
         .widgets
         .insert(node, Box::new(LifecycleWidget(lifecycle.clone())));
-    applier.interaction.input.focused_target = Some(2);
-    applier.interaction.input.pointer_down_target = Some(2);
+    applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
+    applier.interaction.input.pointer_down_target = Some(NodeKey::new(2, 1));
     applier.interaction.input.pointer_down_position = Some((10.0, 20.0));
     applier.interaction.input.pointer_position = (15.0, 25.0);
     applier.interaction.input.pointer_buttons = 1;
     applier.interaction.input.pointer_dragged = true;
-    applier.interaction.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
+    applier.interaction.text_selection.last_click = Some((Instant::now(), nk(2), 15.0, 25.0, 1));
 
     let blurred = applier.handle_event(UiEvent::Focus(false));
 
     assert_eq!(*lifecycle.lock().unwrap(), ["pointer-cancel", "focus-out"]);
     assert_eq!(blurred.text_input, Some(false));
-    assert_eq!(applier.interaction.input.focused_target, Some(2));
+    assert_eq!(
+        applier.interaction.input.focused_target,
+        Some(NodeKey::new(2, 1))
+    );
     assert!(!applier.interaction.input.window_focused);
     assert_eq!(applier.interaction.input.pointer_down_target, None);
     assert_eq!(applier.interaction.input.pointer_down_position, None);
@@ -898,10 +957,13 @@ fn window_focus_loss_cancels_the_captured_pointer_before_blur() {
         *lifecycle.lock().unwrap(),
         ["pointer-cancel", "focus-out", "focus-in"]
     );
-    assert_eq!(applier.interaction.input.focused_target, Some(2));
+    assert_eq!(
+        applier.interaction.input.focused_target,
+        Some(NodeKey::new(2, 1))
+    );
     assert!(applier.interaction.input.window_focused);
 
-    applier.interaction.text_selection.last_click = Some((Instant::now(), 2, 15.0, 25.0, 1));
+    applier.interaction.text_selection.last_click = Some((Instant::now(), nk(2), 15.0, 25.0, 1));
     applier.handle_event(UiEvent::TextInput("x".into()));
     assert!(
         applier.interaction.text_selection.last_click.is_none(),
@@ -914,8 +976,11 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let second_node = applier.document.node_store.solid_to_node[&2];
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
+    let second_node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     let first_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
     let second_completed = Arc::new(std::sync::Mutex::new(Vec::new()));
     applier.document.widget_manager.widgets.insert(
@@ -1000,8 +1065,8 @@ fn install_host_frame_test_hook(js: &JsRuntime) {
           const start = o, kind = view.getUint8(o), len = view.getUint32(o + 4, true);
           o += 8;
           if (kind === 1) {
-            const id = view.getUint32(o, true), code = view.getUint8(o + 4);
-            const payloadKind = view.getUint8(o + 5); o += 12;
+            const id = view.getUint32(o, true), code = view.getUint8(o + 8);
+            const payloadKind = view.getUint8(o + 9); o += 16;
             let payload = "";
             if (payloadKind === 2) {
               const size = view.getUint32(o, true); o += 4;
@@ -1010,7 +1075,7 @@ fn install_host_frame_test_hook(js: &JsRuntime) {
             globalThis.dispatched.push([id, code, payload]);
           } else if (kind === 2) {
             globalThis.resizeChanges.push([
-              view.getUint32(o, true), view.getFloat32(o + 4, true), view.getFloat32(o + 8, true)
+              view.getUint32(o, true), view.getFloat32(o + 8, true), view.getFloat32(o + 12, true)
             ]);
           } else if (kind === 3) {
             const tl = view.getUint16(o, true); o += 2;
@@ -1046,24 +1111,27 @@ fn interactive_applier() -> Applier {
             atoms.intern("height"),
         )
     };
-    applier.apply_op(&Op::CreateElement { id: 2, tag: button });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: button,
+    });
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: width,
         value: "100px",
     });
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: height,
         value: "50px",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     for code in [event::POINTERDOWN, event::POINTERUP, event::CLICK] {
         applier.apply_op(&Op::AddEventListener {
-            id: 2,
+            id: NodeKey::new(2, 1),
             event_type: code,
         });
     }
@@ -1125,18 +1193,21 @@ fn focus_order_is_explicit_without_inferring_disabled_policy() {
         )
     };
     for id in 2..=6 {
-        applier.apply_op(&Op::CreateElement { id, tag: button });
+        applier.apply_op(&Op::CreateElement {
+            id: nk(id),
+            tag: button,
+        });
         applier.apply_op(&Op::AppendChild {
-            parent: 1,
-            child: id,
+            parent: NodeKey::new(1, 1),
+            child: nk(id),
         });
         applier.apply_op(&Op::SetStyle {
-            id,
+            id: nk(id),
             prop: width,
             value: "100px",
         });
         applier.apply_op(&Op::SetStyle {
-            id,
+            id: nk(id),
             prop: height,
             value: "20px",
         });
@@ -1147,7 +1218,7 @@ fn focus_order_is_explicit_without_inferring_disabled_policy() {
     set_focus_order(&mut applier, 5, 1);
     set_focus_order(&mut applier, 6, -1);
     applier.apply_op(&Op::SetAttribute {
-        id: 6,
+        id: NodeKey::new(6, 1),
         name: disabled,
         value: "",
     });
@@ -1155,12 +1226,12 @@ fn focus_order_is_explicit_without_inferring_disabled_policy() {
     let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
     assert!(placed.len() >= 6, "placed node count: {}", placed.len());
 
-    assert_eq!(applier.interaction.input.focus_order, [5, 3, 2]);
-    assert!(applier.interaction.input.focusable_targets.contains(&4));
-    assert!(applier.interaction.input.focusable_targets.contains(&6));
-    assert_eq!(applier.advance_focus(false), Some(5));
-    assert_eq!(applier.advance_focus(false), Some(3));
-    assert_eq!(applier.advance_focus(true), Some(5));
+    assert_eq!(applier.interaction.input.focus_order, [nk(5), nk(3), nk(2)]);
+    assert!(applier.interaction.input.focusable_targets.contains(&nk(4)));
+    assert!(applier.interaction.input.focusable_targets.contains(&nk(6)));
+    assert_eq!(applier.advance_focus(false), Some(NodeKey::new(5, 1)));
+    assert_eq!(applier.advance_focus(false), Some(NodeKey::new(3, 1)));
+    assert_eq!(applier.advance_focus(true), Some(NodeKey::new(5, 1)));
 }
 
 #[test]
@@ -1188,32 +1259,32 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
         )
     };
     for (id, tag) in [(2, view), (3, view), (4, button), (5, view)] {
-        applier.apply_op(&Op::CreateElement { id, tag });
+        applier.apply_op(&Op::CreateElement { id: nk(id), tag });
         applier.apply_op(&Op::AppendChild {
-            parent: 1,
-            child: id,
+            parent: NodeKey::new(1, 1),
+            child: nk(id),
         });
         applier.apply_op(&Op::SetStyle {
-            id,
+            id: nk(id),
             prop: width,
             value: "100px",
         });
         applier.apply_op(&Op::SetStyle {
-            id,
+            id: nk(id),
             prop: height,
             value: "20px",
         });
     }
     for id in [2, 3, 5] {
         applier.apply_op(&Op::SetAttribute {
-            id,
+            id: nk(id),
             name: role,
             value: if id == 5 { "textbox" } else { "button" },
         });
     }
     set_focus_order(&mut applier, 3, 0);
     applier.apply_op(&Op::SetAttribute {
-        id: 3,
+        id: NodeKey::new(3, 1),
         name: aria_disabled,
         value: "true",
     });
@@ -1221,12 +1292,12 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
     // Native behavior props are not accessibility policy. JS must publish
     // semantic state explicitly through the semantic contract.
     applier.apply_op(&Op::SetAttribute {
-        id: 5,
+        id: NodeKey::new(5, 1),
         name: disabled,
         value: "",
     });
     applier.apply_op(&Op::SetAttribute {
-        id: 4,
+        id: NodeKey::new(4, 1),
         name: aria_hidden,
         value: "true",
     });
@@ -1236,14 +1307,26 @@ fn accessibility_attributes_do_not_create_or_remove_focus_behavior() {
     let placed = FrameSource::build_frame(&mut applier, &mut tcx, 800, 600);
     applier.rebuild_semantic_snapshot(&placed);
 
-    assert_eq!(applier.interaction.input.focus_order, [3, 4]);
-    assert!(!applier.interaction.input.focusable_targets.contains(&2));
-    assert!(applier.interaction.input.focusable_targets.contains(&3));
-    assert!(applier.interaction.input.focusable_targets.contains(&4));
-    assert!(applier.interaction.input.focusable_targets.contains(&5));
+    assert_eq!(applier.interaction.input.focus_order, [nk(3), nk(4)]);
+    assert!(!applier.interaction.input.focusable_targets.contains(&nk(2)));
+    assert!(applier.interaction.input.focusable_targets.contains(&nk(3)));
+    assert!(applier.interaction.input.focusable_targets.contains(&nk(4)));
+    assert!(applier.interaction.input.focusable_targets.contains(&nk(5)));
     let semantic = &applier.frame.projections.semantic_snapshot.nodes;
-    assert!(semantic.iter().find(|node| node.id == 3).unwrap().disabled);
-    assert!(!semantic.iter().find(|node| node.id == 5).unwrap().disabled);
+    assert!(
+        semantic
+            .iter()
+            .find(|node| node.id == sk(3))
+            .unwrap()
+            .disabled
+    );
+    assert!(
+        !semantic
+            .iter()
+            .find(|node| node.id == sk(5))
+            .unwrap()
+            .disabled
+    );
 }
 
 #[test]
@@ -1260,28 +1343,34 @@ fn interaction_blocking_isolates_an_entire_subtree() {
             atoms.intern("height"),
         )
     };
-    applier.apply_op(&Op::CreateElement { id: 2, tag: view });
-    applier.apply_op(&Op::CreateElement { id: 3, tag: button });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: view,
+    });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(3, 1),
+        tag: button,
+    });
     set_focus_order(&mut applier, 3, 0);
     for id in [2, 3] {
         applier.apply_op(&Op::SetStyle {
-            id,
+            id: nk(id),
             prop: width,
             value: "100px",
         });
         applier.apply_op(&Op::SetStyle {
-            id,
+            id: nk(id),
             prop: height,
             value: "50px",
         });
     }
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.rebuild_layout_boxes();
     let mut root_style = applier
@@ -1320,8 +1409,11 @@ fn interaction_blocking_isolates_an_entire_subtree() {
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
-    assert_eq!(applier.interaction.input.hit_test(10.0, 10.0), Some(3));
-    assert_eq!(applier.interaction.input.focus_order, [3]);
+    assert_eq!(
+        applier.interaction.input.hit_test(10.0, 10.0),
+        Some(NodeKey::new(3, 1))
+    );
+    assert_eq!(applier.interaction.input.focus_order, [nk(3)]);
     assert!(
         applier
             .frame
@@ -1329,14 +1421,17 @@ fn interaction_blocking_isolates_an_entire_subtree() {
             .semantic_snapshot
             .nodes
             .iter()
-            .any(|node| node.id == 3)
+            .any(|node| node.id == sk(3))
     );
 
     set_interaction_blocked(&mut applier, 2, true);
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
-    assert_eq!(applier.interaction.input.hit_test(10.0, 10.0), Some(1));
+    assert_eq!(
+        applier.interaction.input.hit_test(10.0, 10.0),
+        Some(NodeKey::new(1, 1))
+    );
     assert!(applier.interaction.input.focus_order.is_empty());
     assert!(
         applier
@@ -1347,20 +1442,23 @@ fn interaction_blocking_isolates_an_entire_subtree() {
             .iter()
             .all(|node| node.id != 2 && node.id != 3)
     );
-    assert!(!applier.handle_semantic_action(SemanticAction::Click { target: 3 }));
-    assert!(!applier.handle_semantic_action(SemanticAction::Focus { target: 3 }));
+    assert!(!applier.handle_semantic_action(SemanticAction::Click { target: sk(3) }));
+    assert!(!applier.handle_semantic_action(SemanticAction::Focus { target: sk(3) }));
 
     set_interaction_blocked(&mut applier, 2, false);
     applier.apply_op(&Op::SetAttribute {
-        id: 2,
+        id: NodeKey::new(2, 1),
         name: aria_hidden,
         value: "true",
     });
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
     applier.rebuild_semantic_snapshot(&placed);
-    assert_eq!(applier.interaction.input.hit_test(10.0, 10.0), Some(3));
-    assert_eq!(applier.interaction.input.focus_order, [3]);
+    assert_eq!(
+        applier.interaction.input.hit_test(10.0, 10.0),
+        Some(NodeKey::new(3, 1))
+    );
+    assert_eq!(applier.interaction.input.focus_order, [nk(3)]);
     assert!(
         applier
             .frame
@@ -1377,16 +1475,19 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let div = applier.document.atoms.borrow_mut().intern("div");
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
-    let node = applier.document.node_store.solid_to_node[&2];
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     let received = Arc::new(std::sync::Mutex::new(0));
     applier
         .document
         .widget_manager
         .widgets
         .insert(node, Box::new(KeyCaptureWidget(received.clone())));
-    applier.interaction.input.focused_target = Some(2);
-    applier.interaction.input.focus_order = vec![2, 3];
+    applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
+    applier.interaction.input.focus_order = vec![nk(2), nk(3)];
 
     let response = applier.handle_event(UiEvent::Key(wabou_shell::KeyEvent {
         phase: KeyPhase::Down,
@@ -1401,7 +1502,10 @@ fn focused_widget_can_consume_tab_before_default_focus_traversal() {
     }));
 
     assert!(response.handled);
-    assert_eq!(applier.interaction.input.focused_target, Some(2));
+    assert_eq!(
+        applier.interaction.input.focused_target,
+        Some(NodeKey::new(2, 1))
+    );
     assert_eq!(*received.lock().unwrap(), 1);
 }
 
@@ -1409,3 +1513,10 @@ mod overlay_cases;
 mod projection_cases;
 mod runtime_cases;
 mod text_cases;
+fn nk(lo: u32) -> NodeKey {
+    NodeKey::new(lo, 1)
+}
+
+fn sk(lo: u32) -> u64 {
+    nk(lo).into()
+}

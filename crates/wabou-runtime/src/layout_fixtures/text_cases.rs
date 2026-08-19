@@ -14,36 +14,36 @@ fn hn_comments_badge_does_not_wrap() {
     let text_id = h.alloc_id();
     h.apply(vec![
         Op::CreateElement {
-            id: row_id,
+            id: nk(row_id),
             tag: div,
         },
         Op::SetClassName {
-            id: row_id,
+            id: nk(row_id),
             classes: vec![row],
         },
         Op::CreateElement {
-            id: badge_id,
+            id: nk(badge_id),
             tag: span,
         },
         Op::SetClassName {
-            id: badge_id,
+            id: nk(badge_id),
             classes: vec![badge],
         },
         Op::CreateText {
-            id: text_id,
+            id: nk(text_id),
             text: "128 comments",
         },
         Op::AppendChild {
-            parent: badge_id,
-            child: text_id,
+            parent: nk(badge_id),
+            child: nk(text_id),
         },
         Op::AppendChild {
-            parent: row_id,
-            child: badge_id,
+            parent: nk(row_id),
+            child: nk(badge_id),
         },
         Op::AppendChild {
-            parent: 1,
-            child: row_id,
+            parent: NodeKey::ROOT,
+            child: nk(row_id),
         },
     ]);
     h.queue_stylesheet(vec![
@@ -94,16 +94,16 @@ fn adaptive_sidebar_width_is_clamped() {
     let sidebar_id = h.alloc_id();
     h.apply(vec![
         Op::CreateElement {
-            id: sidebar_id,
+            id: nk(sidebar_id),
             tag: aside,
         },
         Op::SetClassName {
-            id: sidebar_id,
+            id: nk(sidebar_id),
             classes: vec![sidebar],
         },
         Op::AppendChild {
-            parent: 1,
-            child: sidebar_id,
+            parent: NodeKey::ROOT,
+            child: nk(sidebar_id),
         },
     ]);
     h.queue_stylesheet(vec![rule(
@@ -137,36 +137,36 @@ fn changing_numeric_text_keeps_footer_label_on_one_line() {
     let text_id = h.alloc_id();
     h.apply(vec![
         Op::CreateElement {
-            id: footer_id,
+            id: nk(footer_id),
             tag: div,
         },
         Op::SetClassName {
-            id: footer_id,
+            id: nk(footer_id),
             classes: vec![footer],
         },
         Op::CreateElement {
-            id: label_id,
+            id: nk(label_id),
             tag: span,
         },
         Op::SetClassName {
-            id: label_id,
+            id: nk(label_id),
             classes: vec![label],
         },
         Op::CreateText {
-            id: text_id,
+            id: nk(text_id),
             text: "c = 0.788500 + 0.000000i",
         },
         Op::AppendChild {
-            parent: label_id,
-            child: text_id,
+            parent: nk(label_id),
+            child: nk(text_id),
         },
         Op::AppendChild {
-            parent: footer_id,
-            child: label_id,
+            parent: nk(footer_id),
+            child: nk(label_id),
         },
         Op::AppendChild {
-            parent: 1,
-            child: footer_id,
+            parent: NodeKey::ROOT,
+            child: nk(footer_id),
         },
     ]);
     h.queue_stylesheet(vec![
@@ -190,7 +190,7 @@ fn changing_numeric_text_keeps_footer_label_on_one_line() {
     let before = h.layout(200, 100);
     let before_height = height(h.rect(&before, text_id));
     h.apply(vec![Op::SetText {
-        id: text_id,
+        id: nk(text_id),
         text: "c = -0.788500 + -0.000000i",
     }]);
     let after = h.layout(200, 100);
@@ -218,40 +218,40 @@ fn text_host_aggregates_reactive_footer_label() {
     let suffix_id = h.alloc_id();
     h.apply(vec![
         Op::CreateElement {
-            id: footer_id,
+            id: nk(footer_id),
             tag: view,
         },
         Op::SetClassName {
-            id: footer_id,
+            id: nk(footer_id),
             classes: vec![footer_class],
         },
         Op::CreateElement {
-            id: label_id,
+            id: nk(label_id),
             tag: text,
         },
         Op::CreateText {
-            id: count_id,
+            id: nk(count_id),
             text: "0",
         },
         Op::CreateText {
-            id: suffix_id,
+            id: nk(suffix_id),
             text: " stories",
         },
         Op::AppendChild {
-            parent: label_id,
-            child: count_id,
+            parent: nk(label_id),
+            child: nk(count_id),
         },
         Op::AppendChild {
-            parent: label_id,
-            child: suffix_id,
+            parent: nk(label_id),
+            child: nk(suffix_id),
         },
         Op::AppendChild {
-            parent: footer_id,
-            child: label_id,
+            parent: nk(footer_id),
+            child: nk(label_id),
         },
         Op::AppendChild {
-            parent: 1,
-            child: footer_id,
+            parent: NodeKey::ROOT,
+            child: nk(footer_id),
         },
     ]);
     h.queue_stylesheet(vec![rule(
@@ -271,7 +271,7 @@ fn text_host_aggregates_reactive_footer_label() {
     assert!(before.iter().all(|item| item.node_id != suffix_node));
 
     h.apply(vec![Op::SetText {
-        id: count_id,
+        id: nk(count_id),
         text: "1000",
     }]);
     let after = h.layout(240, 100);
@@ -291,9 +291,12 @@ fn metadata_gap_2_is_exactly_8px() {
 
     let row = h.alloc_id();
     let mut ops = vec![
-        Op::CreateElement { id: row, tag: div },
+        Op::CreateElement {
+            id: nk(row),
+            tag: div,
+        },
         Op::SetClassName {
-            id: row,
+            id: nk(row),
             classes: vec![flex, gap2],
         },
     ];
@@ -303,24 +306,27 @@ fn metadata_gap_2_is_exactly_8px() {
         let text = h.alloc_id();
         item_ids.push(el);
         ops.extend([
-            Op::CreateElement { id: el, tag: span },
+            Op::CreateElement {
+                id: nk(el),
+                tag: span,
+            },
             Op::CreateText {
-                id: text,
+                id: nk(text),
                 text: value,
             },
             Op::AppendChild {
-                parent: el,
-                child: text,
+                parent: nk(el),
+                child: nk(text),
             },
             Op::AppendChild {
-                parent: row,
-                child: el,
+                parent: nk(row),
+                child: nk(el),
             },
         ]);
     }
     ops.extend([Op::AppendChild {
-        parent: 1,
-        child: row,
+        parent: NodeKey::ROOT,
+        child: nk(row),
     }]);
     h.apply(ops);
     h.queue_stylesheet(vec![

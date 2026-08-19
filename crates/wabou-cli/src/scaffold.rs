@@ -166,7 +166,7 @@ mod tests {
         assert!(cargo.contains("vendor/wabou/crates/wabou"));
         assert!(package.contains("vendor/wabou/packages/*"));
         assert!(package.contains("\"@wabou/ui\": \"workspace:*\""));
-        assert!(!package.contains("@wabou/solid-renderer"));
+        assert!(!package.contains("@wabou/core/renderer"));
         assert!(root.join("ui/index.tsx").is_file());
         assert!(root.join("tests/app.behavior.ts").is_file());
         for (relative, _) in TEMPLATE_FILES {

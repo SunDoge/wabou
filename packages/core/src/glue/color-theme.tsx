@@ -16,7 +16,7 @@ export type ColorThemeEasing =
   | ((progress: number) => number);
 
 export interface ColorThemeAnimationOptions {
-  /** Animation duration in seconds, matching @wabou/animation. */
+  /** Animation duration in seconds, matching Wabou animation helpers. */
   duration?: number;
   easing?: ColorThemeEasing;
   colorSpace?: "oklab" | "srgb";
@@ -241,11 +241,11 @@ export function ColorThemeProvider(props: {
   createEffect(
     () => [props.theme, props.transition] as const,
     ([theme, transition]) => {
-    const animation =
-      initialized && transition
-        ? colorTheme.animateTo(theme, transition)
-        : (colorTheme.set(theme), undefined);
-    initialized = true;
+      const animation =
+        initialized && transition
+          ? colorTheme.animateTo(theme, transition)
+          : (colorTheme.set(theme), undefined);
+      initialized = true;
       return animation ? () => animation.cancel() : undefined;
     },
   );

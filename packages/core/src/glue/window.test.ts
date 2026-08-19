@@ -33,7 +33,17 @@ test("createWindow returns a handle that targets the created window", async () =
   currentWindow().close();
 
   expect(calls).toEqual([
-    [2, 1, { title: "Inspector", width: 640, height: 480, decorations: false, transparent: true }],
+    [
+      2,
+      1,
+      {
+        title: "Inspector",
+        width: 640,
+        height: 480,
+        decorations: false,
+        transparent: true,
+      },
+    ],
     [2, 4, { windowId: 42, title: "Details" }],
     [2, 5, { windowId: 42 }],
     [2, 3, { windowId: 42, value: true }],

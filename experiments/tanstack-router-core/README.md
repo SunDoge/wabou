@@ -45,6 +45,6 @@ typed search, loaders, caching, preloading, guards, pending/error states, and
 blockers without importing TanStack's DOM-facing Solid components or
 maintaining a second lightweight router.
 
-The experiment informed `@wabou/router`'s native `createDataRouter`,
+The experiment informed `@wabou/ui`'s native `createDataRouter`,
 `RouterProvider`, and hooks. Links, navigation-blocker UI, and native scroll
 restoration remain Wabou-owned presentation concerns.

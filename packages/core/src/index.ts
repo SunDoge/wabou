@@ -77,14 +77,6 @@ export {
   type SaveDialogOptions,
   useDialog,
 } from "./glue/dialog";
-export {
-  dispatchEffect,
-  dispatchFireAndForget,
-  dispatchResourceEffect,
-  EFFECT_ABI_VERSION,
-  type EffectOp,
-  effectOps,
-} from "./glue/effects";
 export type {
   HostMessage,
   HostMessageAllHandler,

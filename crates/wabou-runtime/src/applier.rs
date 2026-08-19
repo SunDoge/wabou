@@ -47,6 +47,7 @@ use wabou_shell::{
 
 use crate::asset_cache::ResourceCache;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
+use crate::protocol::NodeKey;
 
 mod debug_projection;
 mod effect_bridge;
@@ -237,7 +238,7 @@ impl Declared {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComputedNodeSnapshot {
     /// Solid-side retained node identifier.
-    pub solid_id: u32,
+    pub solid_id: NodeKey,
     /// Resolved class names in authored order.
     pub classes: Vec<String>,
     /// Final Taffy layout style.
@@ -418,7 +419,7 @@ impl DocumentState {
         }
     }
 
-    fn computed_node_snapshot(&self, solid_id: u32) -> Option<ComputedNodeSnapshot> {
+    fn computed_node_snapshot(&self, solid_id: NodeKey) -> Option<ComputedNodeSnapshot> {
         let &node = self.node_store.solid_to_node.get(&solid_id)?;
         let paint = self.node_store.tree.get_node_context(node)?;
         let declared = self.node_store.declared.get(&node)?;
@@ -646,7 +647,7 @@ impl Applier {
     ///
     /// Call this after the relevant op frame/build tick. It performs no style
     /// recomputation and cannot mutate renderer state.
-    pub fn computed_node_snapshot(&self, solid_id: u32) -> Option<ComputedNodeSnapshot> {
+    pub fn computed_node_snapshot(&self, solid_id: NodeKey) -> Option<ComputedNodeSnapshot> {
         self.document.computed_node_snapshot(solid_id)
     }
 }

@@ -15,52 +15,55 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         )
     };
     for id in [2, 3] {
-        applier.apply_op(&Op::CreateElement { id, tag: div });
+        applier.apply_op(&Op::CreateElement {
+            id: nk(id),
+            tag: div,
+        });
         if id == 3 {
             set_text_behavior(&mut applier, id);
         }
         applier.apply_op(&Op::SetStyle {
-            id,
+            id: nk(id),
             prop: width,
             value: "100px",
         });
     }
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: height,
         value: "100px",
     });
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: overflow_y,
         value: "auto",
     });
     applier.apply_op(&Op::SetStyle {
-        id: 3,
+        id: NodeKey::new(3, 1),
         prop: height,
         value: "300px",
     });
     applier.apply_op(&Op::SetStyle {
-        id: 3,
+        id: NodeKey::new(3, 1),
         prop: flex_shrink,
         value: "0",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
 
     applier.apply_op(&Op::CreateText {
-        id: 4,
+        id: NodeKey::new(4, 1),
         text: "scroll selectable",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 3,
-        child: 4,
+        parent: NodeKey::new(3, 1),
+        child: NodeKey::new(4, 1),
     });
     applier.rebuild_layout_boxes();
     applier.inherit();
@@ -103,7 +106,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         .collect();
     applier.rebuild_hit_geometry(&placed);
 
-    let container = applier.document.node_store.solid_to_node[&2];
+    let container = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     applier
         .document
         .invalidation
@@ -121,11 +124,11 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     );
     assert_ne!(
         applier.interaction.input.hit_test(10.0, 150.0),
-        Some(3),
+        Some(NodeKey::new(3, 1)),
         "overflow must clip hits"
     );
     applier.apply_op(&Op::SetTransform2D {
-        id: 2,
+        id: NodeKey::new(2, 1),
         matrix: [1.0, 0.0, 0.0, 1.0, 200.0, 0.0],
     });
     let placed = layout::flatten_with_scroll(
@@ -134,10 +137,16 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         &applier.interaction.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
-    assert_eq!(applier.interaction.input.hit_test(210.0, 50.0), Some(3));
-    assert_ne!(applier.interaction.input.hit_test(210.0, 150.0), Some(3));
+    assert_eq!(
+        applier.interaction.input.hit_test(210.0, 50.0),
+        Some(NodeKey::new(3, 1))
+    );
+    assert_ne!(
+        applier.interaction.input.hit_test(210.0, 150.0),
+        Some(NodeKey::new(3, 1))
+    );
     applier.apply_op(&Op::SetTransform2D {
-        id: 2,
+        id: NodeKey::new(2, 1),
         matrix: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
     });
     let placed = layout::flatten_with_scroll(
@@ -146,7 +155,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         &applier.interaction.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
-    assert!(applier.scroll_into_view(3));
+    assert!(applier.scroll_into_view(nk(3)));
     assert_eq!(applier.interaction.scroll.offsets[&container], [0.0, 100.0]);
     applier
         .interaction
@@ -170,19 +179,19 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     );
 
     applier.apply_op(&Op::ScrollTo {
-        id: 2,
+        id: NodeKey::new(2, 1),
         x: f32::NAN,
         y: 120.0,
     });
     assert_eq!(applier.interaction.scroll.offsets[&container], [0.0, 120.0]);
     applier.apply_op(&Op::ScrollBy {
-        id: 2,
+        id: NodeKey::new(2, 1),
         x: 0.0,
         y: -20.0,
     });
     assert_eq!(applier.interaction.scroll.offsets[&container], [0.0, 100.0]);
     applier.apply_op(&Op::ScrollTo {
-        id: 2,
+        id: NodeKey::new(2, 1),
         x: f32::NAN,
         y: -100.0,
     });
@@ -264,9 +273,9 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         .map(|placed| (placed.node_id, placed.rect))
         .collect();
     applier.prepare_text_selection(&mut placed, &mut tcx);
-    let origin = applier.interaction.text_selection.selectable[&3].origin;
+    let origin = applier.interaction.text_selection.selectable[&NodeKey::new(3, 1)].origin;
     applier.begin_text_selection(
-        3,
+        nk(3),
         f64::from(origin[0] + 1.0),
         f64::from(origin[1] + 5.0),
         Modifiers::empty(),
@@ -282,7 +291,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         .active
         .as_mut()
         .unwrap()
-        .anchor_target = 1;
+        .anchor_target = nk(1);
     applier.arm_text_selection_autoscroll();
     assert!(applier.animation_deadline().is_some());
     applier.interaction.text_selection.next_scroll =
@@ -305,7 +314,7 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         .active
         .as_mut()
         .unwrap()
-        .anchor_target = 3;
+        .anchor_target = nk(3);
     assert_eq!(
         applier.selected_text().as_deref(),
         Some("scroll selectable")
@@ -318,10 +327,13 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
     let mut applier = Applier::from_runtime(js, Color::BLACK);
     let view = applier.document.atoms.borrow_mut().intern("view");
     for id in [2, 3] {
-        applier.apply_op(&Op::CreateElement { id, tag: view });
+        applier.apply_op(&Op::CreateElement {
+            id: nk(id),
+            tag: view,
+        });
     }
-    let owner = applier.document.node_store.solid_to_node[&2];
-    let overlay = applier.document.node_store.solid_to_node[&3];
+    let owner = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    let overlay = applier.document.node_store.solid_to_node[&NodeKey::new(3, 1)];
     let root = applier.document.node_store.root;
     let placed = |node_id, scroll| PlacedNode {
         node_id,
@@ -354,7 +366,10 @@ fn later_overlay_content_blocks_an_underlying_scrollbar_attachment() {
     let overlay_placed = placed(overlay, layout::ScrollMetrics::default());
     applier.rebuild_hit_geometry(&[owner_placed, overlay_placed]);
     assert_eq!(applier.scrollbar_at(95.0, 16.0), None);
-    assert_eq!(applier.interaction.input.hit_test(95.0, 16.0), Some(3));
+    assert_eq!(
+        applier.interaction.input.hit_test(95.0, 16.0),
+        Some(NodeKey::new(3, 1))
+    );
 }
 
 #[test]
@@ -371,29 +386,32 @@ fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
         )
     };
     for (id, tag) in [(2, button), (3, view), (4, button), (5, view), (6, button)] {
-        applier.apply_op(&Op::CreateElement { id, tag });
+        applier.apply_op(&Op::CreateElement { id: nk(id), tag });
     }
     set_focus_contained(&mut applier, 3);
     for (parent, child) in [(1, 2), (1, 3), (3, 4), (1, 5), (5, 6)] {
-        applier.apply_op(&Op::AppendChild { parent, child });
+        applier.apply_op(&Op::AppendChild {
+            parent: nk(parent),
+            child: nk(child),
+        });
     }
     for id in [2, 4] {
         set_focus_order(&mut applier, id, 0);
     }
     applier.apply_op(&Op::SetAttribute {
-        id: 4,
+        id: NodeKey::new(4, 1),
         name: disabled,
         value: "",
     });
     applier.apply_op(&Op::SetAttribute {
-        id: 6,
+        id: NodeKey::new(6, 1),
         name: lowercase_tabindex,
         value: "0",
     });
 
     let root = applier.document.node_store.root;
     let node = |solid: u32, parent_node_id, plane| PlacedNode {
-        node_id: applier.document.node_store.solid_to_node[&solid],
+        node_id: applier.document.node_store.solid_to_node[&nk(solid)],
         parent_node_id,
         depth: 1,
         rect: [0.0, 0.0, 100.0, 100.0],
@@ -411,8 +429,8 @@ fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
             ..Paint::default()
         },
     };
-    let modal = applier.document.node_store.solid_to_node[&3];
-    let portal = applier.document.node_store.solid_to_node[&5];
+    let modal = applier.document.node_store.solid_to_node[&NodeKey::new(3, 1)];
+    let portal = applier.document.node_store.solid_to_node[&NodeKey::new(5, 1)];
     let placed = vec![
         node(2, Some(root), OverlayPlane::Content),
         node(3, Some(root), OverlayPlane::Modal),
@@ -424,8 +442,8 @@ fn focus_uses_explicit_wabou_contract_inside_modal_portals() {
     applier.rebuild_focus_order(&placed);
     // Rust executes only the typed focus policy; it neither treats `disabled`
     // as focus policy nor accepts browser spelling aliases.
-    assert_eq!(applier.interaction.input.focus_order, [4]);
-    assert!(!applier.interaction.input.focusable_targets.contains(&2));
+    assert_eq!(applier.interaction.input.focus_order, [nk(4)]);
+    assert!(!applier.interaction.input.focusable_targets.contains(&nk(2)));
 }
 
 #[test]
@@ -459,25 +477,28 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     set_focus_order(&mut applier, 2, 0);
     set_focus_order(&mut applier, 4, 0);
     applier.apply_op(&Op::AppendChild {
-        parent: 3,
-        child: 4,
+        parent: NodeKey::new(3, 1),
+        child: NodeKey::new(4, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 3,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.rebuild_layout_boxes();
-    applier.apply_op(&Op::SetOverlayPlane { id: 3, plane: 2 });
-    applier.interaction.input.focused_target = Some(4);
+    applier.apply_op(&Op::SetOverlayPlane {
+        id: NodeKey::new(3, 1),
+        plane: 2,
+    });
+    applier.interaction.input.focused_target = Some(NodeKey::new(4, 1));
 
     let root = applier.document.node_store.root;
-    let background = applier.document.node_store.solid_to_node[&2];
-    let modal = applier.document.node_store.solid_to_node[&3];
-    let save = applier.document.node_store.solid_to_node[&4];
+    let background = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    let modal = applier.document.node_store.solid_to_node[&NodeKey::new(3, 1)];
+    let save = applier.document.node_store.solid_to_node[&NodeKey::new(4, 1)];
     let paint = |plane| Paint {
         overlay_plane: plane,
         ..Paint::default()
@@ -507,8 +528,8 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     ];
     applier.rebuild_hit_geometry(&placed);
     applier.rebuild_focus_order(&placed);
-    assert_eq!(applier.interaction.input.focus_order, [4]);
-    assert!(!applier.interaction.input.focusable_targets.contains(&2));
+    assert_eq!(applier.interaction.input.focus_order, [nk(4)]);
+    assert!(!applier.interaction.input.focusable_targets.contains(&nk(2)));
     // Semantic source order must not inherit the paint list's z/plane order.
     // This keeps indexed locators stable when presentation order changes.
     let semantic_placed = vec![placed[1].clone(), placed[2].clone(), placed[0].clone()];
@@ -520,13 +541,13 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
             .iter()
             .map(|node| node.id)
             .collect::<Vec<_>>(),
-        [2, 3, 4]
+        [sk(2), sk(3), sk(4)]
     );
-    assert_eq!(snapshot.root_children, vec![2, 3]);
-    assert_eq!(snapshot.modal_root, Some(3));
-    assert_eq!(snapshot.focus, Some(4));
+    assert_eq!(snapshot.root_children, vec![sk(2), sk(3)]);
+    assert_eq!(snapshot.modal_root, Some(sk(3)));
+    assert_eq!(snapshot.focus, Some(sk(4)));
     assert!(snapshot.nodes.iter().any(|node| {
-        node.id == 3
+        node.id == sk(3)
             && node.role == SemanticRole::Dialog
             && node.label.as_deref() == Some("Settings")
     }));
@@ -534,20 +555,23 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
         snapshot
             .nodes
             .iter()
-            .find(|node| node.id == 4)
+            .find(|node| node.id == sk(4))
             .unwrap()
             .bounds,
         [10.0, 5.0, 110.0, 105.0]
     );
     applier.apply_op(&Op::AddEventListener {
-        id: 4,
+        id: NodeKey::new(4, 1),
         event_type: event::CLICK,
     });
-    assert!(!applier.handle_semantic_action(SemanticAction::Click { target: 2 }));
-    assert!(applier.handle_semantic_action(SemanticAction::Click { target: 4 }));
+    assert!(!applier.handle_semantic_action(SemanticAction::Click { target: sk(2) }));
+    assert!(applier.handle_semantic_action(SemanticAction::Click { target: sk(4) }));
     applier.interaction.input.focused_target = None;
-    assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 4 }));
-    assert_eq!(applier.interaction.input.focused_target, Some(4));
+    assert!(applier.handle_semantic_action(SemanticAction::Focus { target: sk(4) }));
+    assert_eq!(
+        applier.interaction.input.focused_target,
+        Some(NodeKey::new(4, 1))
+    );
 
     create_element_with_attrs(
         &mut applier,
@@ -563,16 +587,19 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     );
     create_element_with_attrs(&mut applier, 6, button, &[(aria_label, "Continue")]);
     applier.apply_op(&Op::AppendChild {
-        parent: 5,
-        child: 6,
+        parent: NodeKey::new(5, 1),
+        child: NodeKey::new(6, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 5,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(5, 1),
     });
-    applier.apply_op(&Op::SetOverlayPlane { id: 5, plane: 2 });
-    let confirm = applier.document.node_store.solid_to_node[&5];
-    let continue_button = applier.document.node_store.solid_to_node[&6];
+    applier.apply_op(&Op::SetOverlayPlane {
+        id: NodeKey::new(5, 1),
+        plane: 2,
+    });
+    let confirm = applier.document.node_store.solid_to_node[&NodeKey::new(5, 1)];
+    let continue_button = applier.document.node_store.solid_to_node[&NodeKey::new(6, 1)];
     let mut continue_paint = paint(OverlayPlane::Content);
     continue_paint.runtime_transform = Some([1.0, 0.0, 0.0, 1.0, 20.0, 10.0]);
     let placed = vec![
@@ -586,14 +613,17 @@ fn semantic_snapshot_promotes_modal_plane_and_keeps_focus_inside() {
     applier.rebuild_semantic_snapshot(&placed);
     assert_eq!(
         applier.frame.projections.semantic_snapshot.modal_root,
-        Some(5)
+        Some(sk(5))
     );
-    assert_eq!(applier.frame.projections.semantic_snapshot.focus, Some(5));
+    assert_eq!(
+        applier.frame.projections.semantic_snapshot.focus,
+        Some(sk(5))
+    );
     assert!(
-        !applier.handle_semantic_action(SemanticAction::Focus { target: 4 }),
+        !applier.handle_semantic_action(SemanticAction::Focus { target: sk(4) }),
         "an older modal must be inert while a newer modal is topmost"
     );
-    assert!(applier.handle_semantic_action(SemanticAction::Focus { target: 6 }));
+    assert!(applier.handle_semantic_action(SemanticAction::Focus { target: sk(6) }));
 }
 
 #[test]
@@ -626,23 +656,23 @@ fn presentation_role_flattens_its_semantic_children_without_changing_paint() {
         create_element_with_attrs(&mut applier, id, tag, &attrs);
     }
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 3,
-        child: 4,
+        parent: NodeKey::new(3, 1),
+        child: NodeKey::new(4, 1),
     });
     applier.rebuild_layout_boxes();
 
     let root = applier.document.node_store.root;
-    let presentation = applier.document.node_store.solid_to_node[&2];
-    let dialog = applier.document.node_store.solid_to_node[&3];
-    let close = applier.document.node_store.solid_to_node[&4];
+    let presentation = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    let dialog = applier.document.node_store.solid_to_node[&NodeKey::new(3, 1)];
+    let close = applier.document.node_store.solid_to_node[&NodeKey::new(4, 1)];
     let placed = [
         (presentation, Some(root), 1),
         (dialog, Some(presentation), 2),
@@ -674,35 +704,35 @@ fn presentation_role_flattens_its_semantic_children_without_changing_paint() {
 
     applier.rebuild_semantic_snapshot(&placed);
     let snapshot = &applier.frame.projections.semantic_snapshot;
-    assert_eq!(snapshot.root_children, [3]);
-    assert_eq!(snapshot.modal_root, Some(3));
+    assert_eq!(snapshot.root_children, [sk(3)]);
+    assert_eq!(snapshot.modal_root, Some(sk(3)));
     assert_eq!(
         snapshot
             .nodes
             .iter()
             .map(|node| node.id)
             .collect::<Vec<_>>(),
-        [3, 4]
+        [sk(3), sk(4)]
     );
-    assert_eq!(snapshot.nodes[0].children, [4]);
+    assert_eq!(snapshot.nodes[0].children, [sk(4)]);
     assert!(placed.iter().any(|node| node.node_id == presentation));
 
     applier.apply_op(&Op::SetAttribute {
-        id: 2,
+        id: NodeKey::new(2, 1),
         name: role,
         value: "none",
     });
     applier.rebuild_semantic_snapshot(&placed);
     let snapshot = &applier.frame.projections.semantic_snapshot;
-    assert_eq!(snapshot.root_children, [3]);
-    assert_eq!(snapshot.modal_root, Some(3));
+    assert_eq!(snapshot.root_children, [sk(3)]);
+    assert_eq!(snapshot.modal_root, Some(sk(3)));
     assert_eq!(
         snapshot
             .nodes
             .iter()
             .map(|node| node.id)
             .collect::<Vec<_>>(),
-        [3, 4]
+        [sk(3), sk(4)]
     );
 }
 
@@ -751,23 +781,23 @@ fn semantic_idrefs_resolve_to_live_native_nodes() {
         create_element_with_attrs(&mut applier, node, view, &attrs);
     }
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 3,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 3,
-        child: 4,
+        parent: NodeKey::new(3, 1),
+        child: NodeKey::new(4, 1),
     });
     applier.rebuild_layout_boxes();
 
     let root = applier.document.node_store.root;
-    let combo = applier.document.node_store.solid_to_node[&2];
-    let listbox = applier.document.node_store.solid_to_node[&3];
-    let option = applier.document.node_store.solid_to_node[&4];
+    let combo = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    let listbox = applier.document.node_store.solid_to_node[&NodeKey::new(3, 1)];
+    let option = applier.document.node_store.solid_to_node[&NodeKey::new(4, 1)];
     let placed = [
         (combo, Some(root), 1),
         (listbox, Some(root), 1),
@@ -797,10 +827,10 @@ fn semantic_idrefs_resolve_to_live_native_nodes() {
         .semantic_snapshot
         .nodes
         .iter()
-        .find(|node| node.id == 2)
+        .find(|node| node.id == sk(2))
         .expect("combobox semantic node");
-    assert_eq!(combo.controls, [3]);
-    assert_eq!(combo.active_descendant, Some(4));
+    assert_eq!(combo.controls, [sk(3)]);
+    assert_eq!(combo.active_descendant, Some(sk(4)));
 }
 
 #[test]
@@ -831,22 +861,22 @@ fn semantic_projection_separates_explicit_roles_from_text_content() {
         ],
     );
     applier.apply_op(&Op::CreateText {
-        id: 3,
+        id: NodeKey::new(3, 1),
         text: "unowned text",
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 1,
-        child: 2,
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
     });
     applier.apply_op(&Op::AppendChild {
-        parent: 2,
-        child: 3,
+        parent: NodeKey::new(2, 1),
+        child: NodeKey::new(3, 1),
     });
     applier.rebuild_layout_boxes();
 
     let root = applier.document.node_store.root;
-    let input = applier.document.node_store.solid_to_node[&2];
-    let text = applier.document.node_store.solid_to_node[&3];
+    let input = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    let text = applier.document.node_store.solid_to_node[&NodeKey::new(3, 1)];
     let placed = [input, text].map(|node_id| PlacedNode {
         node_id,
         parent_node_id: Some(if node_id == text { input } else { root }),
@@ -874,7 +904,7 @@ fn semantic_projection_separates_explicit_roles_from_text_content() {
     let input = snapshot
         .nodes
         .iter()
-        .find(|node| node.id == 2)
+        .find(|node| node.id == sk(2))
         .expect("explicit button");
     assert_eq!(input.role, SemanticRole::Button);
     assert_eq!(input.value, None);
@@ -885,7 +915,7 @@ fn semantic_projection_separates_explicit_roles_from_text_content() {
     let text = snapshot
         .nodes
         .iter()
-        .find(|node| node.id == 3)
+        .find(|node| node.id == sk(3))
         .expect("unowned text node");
     assert_eq!(text.role, SemanticRole::Generic);
 }

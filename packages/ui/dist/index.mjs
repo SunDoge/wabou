@@ -1,4 +1,4 @@
-import { $ as createPulse, A as NetworkImage, B as createMeasuredSize, C as Center, D as CodeEditor, E as CollapsiblePresence, F as TextInput, G as createPress, H as Link, I as View, J as createFocusWithin, K as createHover, L as rotate2d$1, M as Svg, N as Text, O as Icon, P as TextArea, Q as createLoop, R as translate2d, T as Row, U as createButton, V as Button$1, W as createActive, X as animate, Y as createAnimationFrame, Z as animateKeyframes, _ as Pulse, a as ScrollArea, b as OverlayPlaneProvider, et as createRotation, g as createNotifications, h as NotificationRegion, i as createScrollReset, j as PasswordInput$1, k as Image, n as createTabs, o as Popover, q as createFocus, r as createShortcuts, t as src_exports, tt as createTransition, v as Spin, w as Column, x as createOverlayLayer, y as Modal, z as createPresence } from "./src-48pDQCKg.mjs";
+import { $ as createPulse, A as NetworkImage, B as createMeasuredSize, C as Center, D as CodeEditor, E as CollapsiblePresence, F as TextInput, G as createPress, H as Link, I as View, J as createFocusWithin, K as createHover, L as rotate2d$1, M as Svg, N as Text, O as Icon, P as TextArea, Q as createLoop, R as translate2d, T as Row, U as createButton, V as Button$1, W as createActive, X as animate, Y as createAnimationFrame, Z as animateKeyframes, _ as Pulse, a as ScrollArea, b as OverlayPlaneProvider, et as createRotation, g as createNotifications, h as NotificationRegion, i as createScrollReset, j as PasswordInput$1, k as Image, n as createTabs, o as Popover, q as createFocus, r as createShortcuts, t as primitives_exports, tt as createTransition, v as Spin, w as Column, x as createOverlayLayer, y as Modal, z as createPresence } from "./primitives-DuHpwH4P.mjs";
 import { rgba, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -15,12 +15,12 @@ import { createMemoryHistory, createMemoryHistory as createMemoryHistory$1 } fro
 import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanstack/router-core";
 export * from "@wabou/core";
 export * from "@wabou/core/i18n";
-//#region ../components/src/class-names.ts
+//#region src/components/class-names.ts
 function join(...values) {
 	return values.filter(Boolean).join(" ");
 }
 //#endregion
-//#region ../components/src/range.ts
+//#region src/components/range.ts
 function finiteOr(value, fallback) {
 	return value !== void 0 && Number.isFinite(value) ? value : fallback;
 }
@@ -44,7 +44,7 @@ function decimalPlaces(value) {
 	return Math.max(0, Math.min(100, fractionLength - exponent));
 }
 //#endregion
-//#region ../components/src/theme.ts
+//#region src/components/theme.ts
 /**
 * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
 * pass standard deviation directly to their renderer, so these values should
@@ -102,7 +102,7 @@ function useComponentsTheme() {
 	return (getOwner() ? useContext(ThemeContext) : defaultTheme).theme;
 }
 //#endregion
-//#region ../components/src/avatar.tsx
+//#region src/components/avatar.tsx
 function Avatar(props) {
 	const size = () => match(props.size ?? "default").with("sm", () => "w-8 h-8 text-xs").with("default", () => "w-10 h-10 text-sm").with("lg", () => "w-12 h-12 text-base").exhaustive();
 	return createComponent$1(Center, {
@@ -160,7 +160,7 @@ function AvatarGroupCount(props) {
 	});
 }
 //#endregion
-//#region ../components/src/config-editor.tsx
+//#region src/components/config-editor.tsx
 /**
 * Experimental native configuration editor. Its Wabou-owned props deliberately
 * hide the editor-core implementation so the backend can evolve independently.
@@ -174,7 +174,7 @@ function ConfigEditor(props) {
 	}));
 }
 //#endregion
-//#region ../components/src/date-picker.tsx
+//#region src/components/date-picker.tsx
 function dayOfWeek(value) {
 	return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
 }
@@ -510,7 +510,7 @@ function DatePicker(props) {
 	});
 }
 //#endregion
-//#region ../components/src/dialog.tsx
+//#region src/components/dialog.tsx
 function Dialog(props) {
 	const theme = useComponentsTheme();
 	return createComponent$1(Modal, mergeProps(props, {
@@ -574,7 +574,7 @@ function DialogDescription(props) {
 	});
 }
 //#endregion
-//#region ../primitives/src/interactions/collection.ts
+//#region src/primitives/interactions/collection.ts
 function createCollection(source) {
 	const enabled = () => source().filter((item) => !item.disabled);
 	const adjacent = (id, delta, loop) => {
@@ -596,7 +596,7 @@ function createCollection(source) {
 	};
 }
 //#endregion
-//#region ../primitives/src/interactions/machine.ts
+//#region src/primitives/interactions/machine.ts
 function unchanged(state) {
 	return {
 		state,
@@ -604,7 +604,7 @@ function unchanged(state) {
 	};
 }
 //#endregion
-//#region ../primitives/src/interactions/state.ts
+//#region src/primitives/interactions/state.ts
 function createControllableState(options) {
 	const [local, setLocal] = createSignal(() => options.defaultValue);
 	const value = () => options.value() ?? local();
@@ -619,7 +619,7 @@ function createControllableState(options) {
 	};
 }
 //#endregion
-//#region ../primitives/src/interactions/disclosure.ts
+//#region src/primitives/interactions/disclosure.ts
 function updateDisclosure(state, event) {
 	return match(event).with({ type: "DISABLED" }, ({ disabled }) => ({
 		state: {
@@ -671,7 +671,7 @@ function createDisclosure(options = {}) {
 	};
 }
 //#endregion
-//#region ../primitives/src/interactions/roving-focus.ts
+//#region src/primitives/interactions/roving-focus.ts
 function createRovingFocus(options = {}) {
 	const items = [];
 	const enabled = () => items.filter((item) => !item.disabled?.());
@@ -714,7 +714,7 @@ function createRovingFocus(options = {}) {
 	};
 }
 //#endregion
-//#region ../primitives/src/interactions/selection.ts
+//#region src/primitives/interactions/selection.ts
 function toggleSelection(current, item, mode, allowEmpty = false) {
 	return match(mode).with("single", () => current === item && allowEmpty ? void 0 : item).with("multiple", () => {
 		const values = Array.isArray(current) ? current : [];
@@ -725,7 +725,7 @@ function isSelected(selection, item) {
 	return Array.isArray(selection) ? selection.includes(item) : selection === item;
 }
 //#endregion
-//#region ../primitives/src/interactions/typeahead.ts
+//#region src/primitives/interactions/typeahead.ts
 function createTypeahead(options = {}) {
 	let keys = "";
 	let timer;
@@ -756,7 +756,7 @@ function createTypeahead(options = {}) {
 	};
 }
 //#endregion
-//#region ../primitives/src/interactions/select.ts
+//#region src/primitives/interactions/select.ts
 function updateSelect(state, event, options) {
 	const collection = createCollection(() => options.items);
 	const openAt = (id) => ({
@@ -882,7 +882,7 @@ function createSelectInteraction(options) {
 	};
 }
 //#endregion
-//#region ../components/src/disclosure.tsx
+//#region src/components/disclosure.tsx
 function DisclosureIndicator(props) {
 	const rotation = createTransition(() => props.open() ? Math.PI : 0, {
 		duration: .2,
@@ -1108,7 +1108,7 @@ function AccordionContent(props) {
 	});
 }
 //#endregion
-//#region ../components/src/display.tsx
+//#region src/components/display.tsx
 function Skeleton(props) {
 	return createComponent$1(Pulse, {
 		"aria-hidden": "true",
@@ -1178,7 +1178,7 @@ function KbdGroup(props) {
 	});
 }
 //#endregion
-//#region ../components/src/forms.tsx
+//#region src/components/forms.tsx
 function Field(props) {
 	const layout = () => match(props.orientation ?? "vertical").with("vertical", () => "flex-col gap-2").with("horizontal", () => "flex-row items-start gap-4").exhaustive();
 	return createComponent$1(View, {
@@ -1288,7 +1288,7 @@ function InputGroupTextArea(props) {
 	} }));
 }
 //#endregion
-//#region ../components/src/layout.tsx
+//#region src/components/layout.tsx
 function Empty(props) {
 	return createComponent$1(Column, {
 		get ["class"]() {
@@ -1408,7 +1408,7 @@ function SplitPaneAside(props) {
 	});
 }
 //#endregion
-//#region ../components/src/select.tsx
+//#region src/components/select.tsx
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
@@ -1607,7 +1607,7 @@ function Select(props) {
 	});
 }
 //#endregion
-//#region ../components/src/selection.tsx
+//#region src/components/selection.tsx
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 function Checkbox(props) {
 	const state = createControllableState({
@@ -1894,7 +1894,7 @@ function ToggleGroupItem(props) {
 	});
 }
 //#endregion
-//#region ../components/src/slider.tsx
+//#region src/components/slider.tsx
 function Slider(props) {
 	const range = () => normalizeRange(props.min, props.max, props.step);
 	const min = () => range().min;
@@ -2016,7 +2016,7 @@ function Slider(props) {
 	});
 }
 //#endregion
-//#region ../components/src/tabs.tsx
+//#region src/components/tabs.tsx
 const orientationClass = (orientation, horizontal, vertical) => match(orientation).with("horizontal", () => horizontal).with("vertical", () => vertical).exhaustive();
 const TabsContext = createContext();
 function Tabs(props) {
@@ -2136,7 +2136,7 @@ function TabsContent(props) {
 	}) : null;
 }
 //#endregion
-//#region ../components/src/title-bar.tsx
+//#region src/components/title-bar.tsx
 const titleBarClass = "border-b border-subtle";
 const titleBarLayoutStyle = {
 	display: "flex",
@@ -2188,7 +2188,7 @@ function TitleBarDragRegion(props) {
 	}));
 }
 //#endregion
-//#region ../components/src/index.tsx
+//#region src/components/index.tsx
 function buttonColors(variant, state) {
 	const focus = state.focusVisible ? "border-focus" : "";
 	const passiveBorder = (variant) => match(variant).with("outline", () => "border-strong").with(P.union("default", "secondary", "ghost", "destructive"), () => "border-transparent").exhaustive();
@@ -2516,7 +2516,7 @@ function Progress(props) {
 	});
 }
 //#endregion
-//#region ../router/src/data.tsx
+//#region src/router/data.tsx
 globalThis.scrollTo ??= () => {};
 function createMutableStore(initial) {
 	const [read, write] = createSignal(() => initial);
@@ -2646,6 +2646,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, View, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createDataRouter, createFocus, createFocusWithin, createHover, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, nextAccordionValue, notFound, src_exports as primitives, redirect, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useRouter, useRouterState };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, View, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createDataRouter, createFocus, createFocusWithin, createHover, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, nextAccordionValue, notFound, primitives_exports as primitives, redirect, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useRouter, useRouterState };
 
 //# sourceMappingURL=index.mjs.map

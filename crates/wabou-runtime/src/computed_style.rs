@@ -20,6 +20,7 @@ use wabou_shell::FrameSource;
 
 use super::{Applier, InvalidationFlags};
 use crate::jsrt::JsRuntime;
+use crate::protocol::NodeKey;
 use crate::protocol::{Frame, Op};
 use crate::style_ir::StylesheetUpdate;
 use crate::style_ir::fixture::{color, color_token, declaration, edges, keyword, px, rule, sheet};
@@ -48,10 +49,13 @@ fn repeated_inline_updates_reuse_property_metadata() {
         let mut atoms = applier.document.atoms.borrow_mut();
         (atoms.intern("div"), atoms.intern("width"))
     };
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     for value in ["10px", "20px"] {
         applier.apply_op(&Op::SetStyle {
-            id: 2,
+            id: NodeKey::new(2, 1),
             prop: width,
             value,
         });
@@ -73,14 +77,17 @@ fn class_cascade_resolves_into_computed_snapshot() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![card],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -99,7 +106,7 @@ fn class_cascade_resolves_into_computed_snapshot() {
 
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
-    let snapshot = applier.computed_node_snapshot(2).unwrap();
+    let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
 
     assert_eq!(snapshot.classes, ["card"]);
     assert_eq!(snapshot.layout.size.width, taffy::Dimension::length(160.0));
@@ -126,14 +133,17 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![surface],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -169,7 +179,10 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().background,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .background,
         Some(Color::from_rgb8(0x0f, 0x17, 0x2a))
     );
 
@@ -181,7 +194,10 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
         .borrow_mut() = Some("light".into());
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().background,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .background,
         Some(Color::WHITE)
     );
 
@@ -193,7 +209,10 @@ fn explicit_color_theme_switch_re_resolves_semantic_tokens() {
         .borrow_mut() = Some(vec![0x808080ff]);
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().background,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .background,
         Some(Color::from_rgb8(0x80, 0x80, 0x80))
     );
     assert!(
@@ -222,21 +241,24 @@ fn native_utility_fallback_resolves_without_a_stylesheet() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![flex, padding, width, background, transform],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
 
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
-    let snapshot = applier.computed_node_snapshot(2).unwrap();
+    let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snapshot.layout.display, taffy::Display::Flex);
     assert_eq!(
         snapshot.layout.padding.left,
@@ -269,28 +291,37 @@ fn identical_ordered_class_lists_reuse_resolved_declarations() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: classes.clone(),
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
-            Op::CreateElement { id: 3, tag: div },
-            Op::SetClassName { id: 3, classes },
+            Op::CreateElement {
+                id: NodeKey::new(3, 1),
+                tag: div,
+            },
+            Op::SetClassName {
+                id: NodeKey::new(3, 1),
+                classes,
+            },
             Op::AppendChild {
-                parent: 1,
-                child: 3,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(3, 1),
             },
         ],
     });
 
     assert_eq!(applier.document.style.class_resolution_cache.len(), 1);
     assert!(applier.document.style.class_resolution_cache_hits >= 1);
-    let left = applier.computed_node_snapshot(2).unwrap();
-    let right = applier.computed_node_snapshot(3).unwrap();
+    let left = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
+    let right = applier.computed_node_snapshot(NodeKey::new(3, 1)).unwrap();
     assert_eq!(left.layout.display, right.layout.display);
     assert_eq!(left.layout.padding, right.layout.padding);
 }
@@ -305,14 +336,17 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![brand],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -326,7 +360,10 @@ fn runtime_utility_fallback_uses_the_stylesheet_theme() {
     applier.build_frame(&mut text, 800, 600);
 
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().background,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .background,
         Some(Color::from_rgb8(0x33, 0x66, 0x99))
     );
 }
@@ -350,9 +387,12 @@ fn utility_order_is_last_wins_and_transform_components_compose() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![
                     width_4,
                     width_8,
@@ -364,15 +404,15 @@ fn utility_order_is_last_wins_and_transform_components_compose() {
                 ],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
 
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
-    let snapshot = applier.computed_node_snapshot(2).unwrap();
+    let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snapshot.layout.size.width, taffy::Dimension::length(32.0));
     assert_eq!(
         snapshot.transforms,
@@ -401,18 +441,21 @@ fn typed_inline_style_reaches_layout_without_string_parsing() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
             Op::SetStyleValue {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 prop: width,
                 value: crate::protocol::StyleValue::Px(123.5),
             },
             Op::SetStyleValue {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 prop: opacity,
                 value: crate::protocol::StyleValue::Number(0.4),
             },
@@ -421,7 +464,7 @@ fn typed_inline_style_reaches_layout_without_string_parsing() {
 
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
-    let snapshot = applier.computed_node_snapshot(2).unwrap();
+    let snapshot = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snapshot.layout.size.width, taffy::Dimension::length(123.5));
     assert_eq!(snapshot.opacity, 0.4);
 }
@@ -436,14 +479,17 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![unknown],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -462,7 +508,7 @@ fn unknown_runtime_utility_is_recorded_for_diagnostics() {
             .warned_utility_classes
             .contains(&unknown)
     );
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert_eq!(applier.document.style.diagnostics[&node].len(), 1);
     assert!(applier.document.style.diagnostics[&node][0].contains("stateful-magic"));
 }
@@ -477,14 +523,17 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![lucide],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -505,7 +554,7 @@ fn ignored_runtime_class_never_becomes_a_utility_diagnostic() {
             .warned_utility_classes
             .contains(&lucide)
     );
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     assert!(applier.document.style.diagnostics[&node].is_empty());
 }
 
@@ -519,14 +568,17 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![success],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -563,7 +615,10 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
             .contains(&success)
     );
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().background,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .background,
         Some(Color::from_rgb8(0x06, 0x4e, 0x3b))
     );
 
@@ -575,7 +630,10 @@ fn runtime_utility_fallback_resolves_semantic_theme_colors_as_tokens() {
         .borrow_mut() = Some("light".into());
     applier.build_frame(&mut text, 800, 600);
     assert_eq!(
-        applier.computed_node_snapshot(2).unwrap().background,
+        applier
+            .computed_node_snapshot(NodeKey::new(2, 1))
+            .unwrap()
+            .background,
         Some(Color::from_rgb8(0xec, 0xfd, 0xf5))
     );
 }
@@ -591,19 +649,22 @@ fn unsupported_inline_css_never_enters_cascade_state() {
             atoms.intern("transform"),
         )
     };
-    applier.apply_op(&Op::CreateElement { id: 2, tag: div });
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: div,
+    });
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: transition,
         value: "all 1s",
     });
     applier.apply_op(&Op::SetStyle {
-        id: 2,
+        id: NodeKey::new(2, 1),
         prop: transform,
         value: "translate(10px, 0px)",
     });
 
-    let node = applier.document.node_store.solid_to_node[&2];
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
     let inline = &applier.document.node_store.declared[&node].inline;
     assert!(!inline.contains_key(&transition));
     assert!(!inline.contains_key(&transform));
@@ -642,14 +703,17 @@ fn replacing_class_resets_previous_declarations() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![compact],
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -657,7 +721,7 @@ fn replacing_class_resets_previous_declarations() {
     applier.build_frame(&mut text, 200, 100);
     assert_eq!(
         applier
-            .computed_node_snapshot(2)
+            .computed_node_snapshot(NodeKey::new(2, 1))
             .unwrap()
             .layout
             .padding
@@ -668,11 +732,11 @@ fn replacing_class_resets_previous_declarations() {
     applier.apply_frame(&Frame {
         seq: 2,
         ops: vec![Op::SetClassName {
-            id: 2,
+            id: NodeKey::new(2, 1),
             classes: vec![spacious],
         }],
     });
-    let snap = applier.computed_node_snapshot(2).unwrap();
+    let snap = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snap.classes, ["spacious"]);
     assert_eq!(
         snap.layout.padding.left,
@@ -705,25 +769,28 @@ fn inline_style_wins_over_class_for_same_property() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![card],
             },
             Op::SetStyle {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 prop: width,
                 value: "200px",
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 800, 600);
-    let snap = applier.computed_node_snapshot(2).unwrap();
+    let snap = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert_eq!(snap.layout.size.width, taffy::Dimension::length(200.0));
     assert_eq!(snap.layout.size.height, taffy::Dimension::length(40.0));
 }
@@ -742,27 +809,33 @@ fn white_space_nowrap_inherits_to_text_computed_style() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
-            Op::CreateElement { id: 3, tag: span },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
+            Op::CreateElement {
+                id: NodeKey::new(3, 1),
+                tag: span,
+            },
             Op::SetClassName {
-                id: 3,
+                id: NodeKey::new(3, 1),
                 classes: vec![badge],
             },
             Op::CreateText {
-                id: 4,
+                id: NodeKey::new(4, 1),
                 text: "1 comments",
             },
             Op::AppendChild {
-                parent: 3,
-                child: 4,
+                parent: NodeKey::new(3, 1),
+                child: NodeKey::new(4, 1),
             },
             Op::AppendChild {
-                parent: 2,
-                child: 3,
+                parent: NodeKey::new(2, 1),
+                child: NodeKey::new(3, 1),
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -775,8 +848,18 @@ fn white_space_nowrap_inherits_to_text_computed_style() {
     );
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 200, 100);
-    assert!(!applier.computed_node_snapshot(4).unwrap().wrap_text);
-    assert!(!applier.computed_node_snapshot(3).unwrap().wrap_text);
+    assert!(
+        !applier
+            .computed_node_snapshot(NodeKey::new(4, 1))
+            .unwrap()
+            .wrap_text
+    );
+    assert!(
+        !applier
+            .computed_node_snapshot(NodeKey::new(3, 1))
+            .unwrap()
+            .wrap_text
+    );
 }
 
 #[test]
@@ -789,22 +872,25 @@ fn font_color_inherits_from_parent_class() {
     applier.apply_frame(&Frame {
         seq: 1,
         ops: vec![
-            Op::CreateElement { id: 2, tag: div },
+            Op::CreateElement {
+                id: NodeKey::new(2, 1),
+                tag: div,
+            },
             Op::SetClassName {
-                id: 2,
+                id: NodeKey::new(2, 1),
                 classes: vec![parent_c],
             },
             Op::CreateText {
-                id: 3,
+                id: NodeKey::new(3, 1),
                 text: "hello",
             },
             Op::AppendChild {
-                parent: 2,
-                child: 3,
+                parent: NodeKey::new(2, 1),
+                child: NodeKey::new(3, 1),
             },
             Op::AppendChild {
-                parent: 1,
-                child: 2,
+                parent: NodeKey::new(1, 1),
+                child: NodeKey::new(2, 1),
             },
         ],
     });
@@ -820,7 +906,7 @@ fn font_color_inherits_from_parent_class() {
     );
     let mut text = wabou_shell::TextContext::new();
     applier.build_frame(&mut text, 400, 200);
-    let child = applier.computed_node_snapshot(3).unwrap();
+    let child = applier.computed_node_snapshot(NodeKey::new(3, 1)).unwrap();
     assert_eq!(child.text_color, Color::from_rgb8(0xff, 0x00, 0x00));
     assert_eq!(child.font_size, 20.0);
 }

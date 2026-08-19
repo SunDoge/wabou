@@ -67,7 +67,7 @@ impl Applier {
         }
     }
 
-    fn set_inline_ir(&mut self, id: u32, prop: Atom, ir: IrValue) {
+    fn set_inline_ir(&mut self, id: NodeKey, prop: Atom, ir: IrValue) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
@@ -93,7 +93,7 @@ impl Applier {
         }
     }
 
-    fn create_element(&mut self, id: u32, tag: Atom) {
+    fn create_element(&mut self, id: NodeKey, tag: Atom) {
         let declared = Declared {
             tag: Some(tag),
             ..Declared::default()
@@ -120,7 +120,7 @@ impl Applier {
         self.recompute_node(node);
     }
 
-    fn set_shadows(&mut self, id: u32, shadows: &[crate::protocol::ShadowValue]) {
+    fn set_shadows(&mut self, id: NodeKey, shadows: &[crate::protocol::ShadowValue]) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
@@ -161,7 +161,7 @@ impl Applier {
         }
     }
 
-    fn drop_node(&mut self, id: u32) {
+    fn drop_node(&mut self, id: NodeKey) {
         if self.interaction.input.pointer_down_target == Some(id) {
             self.cancel_active_pointer_gesture();
         }
@@ -220,7 +220,7 @@ impl Applier {
         self.document.ifc_dirty = true;
     }
 
-    fn set_attribute(&mut self, id: u32, name: Atom, value: &str) {
+    fn set_attribute(&mut self, id: NodeKey, name: Atom, value: &str) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
@@ -259,7 +259,7 @@ impl Applier {
         }
     }
 
-    fn set_widget_config(&mut self, id: u32, json: &str) {
+    fn set_widget_config(&mut self, id: NodeKey, json: &str) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
@@ -267,13 +267,13 @@ impl Applier {
             match widget.config_changed(json) {
                 Ok(changes) => self.invalidate_widget_changes(changes),
                 Err(error) => {
-                    tracing::warn!(solid_id = id, %error, "widget rejected widgetConfig");
+                    tracing::warn!(?id, %error, "widget rejected widgetConfig");
                 }
             }
         }
     }
 
-    fn remove_widget_config(&mut self, id: u32) {
+    fn remove_widget_config(&mut self, id: NodeKey) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
@@ -380,7 +380,7 @@ impl Applier {
         }
     }
 
-    fn set_graphic_source(&mut self, id: u32, kind: u8, source: &str) {
+    fn set_graphic_source(&mut self, id: NodeKey, kind: u8, source: &str) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
@@ -401,7 +401,7 @@ impl Applier {
         self.recompute_node(node);
     }
 
-    fn clear_graphic_source(&mut self, id: u32, kind: u8) {
+    fn clear_graphic_source(&mut self, id: NodeKey, kind: u8) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };
@@ -422,7 +422,7 @@ impl Applier {
         self.recompute_node(node);
     }
 
-    fn remove_attribute(&mut self, id: u32, name: Atom) {
+    fn remove_attribute(&mut self, id: NodeKey, name: Atom) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
         };

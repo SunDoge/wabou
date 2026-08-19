@@ -24,11 +24,11 @@ pub(super) struct ScrollState {
     pub(super) hovered: Option<(NodeId, ScrollAxis)>,
     pub(super) activity: HashMap<NodeId, Instant>,
     pub(super) offsets: HashMap<NodeId, [f32; 2]>,
-    pub(super) pending_events: HashMap<u32, [f32; 2]>,
+    pub(super) pending_events: HashMap<NodeKey, [f32; 2]>,
 }
 
 impl Applier {
-    pub(super) fn scroll_into_view(&mut self, target: u32) -> bool {
+    pub(super) fn scroll_into_view(&mut self, target: NodeKey) -> bool {
         let Some(mut node) = self.document.node_store.solid_to_node.get(&target).copied() else {
             return false;
         };
@@ -256,7 +256,7 @@ impl Applier {
         changed
     }
 
-    pub(super) fn scroll_nearest(&mut self, target: u32, delta_x: f32, delta_y: f32) -> bool {
+    pub(super) fn scroll_nearest(&mut self, target: NodeKey, delta_x: f32, delta_y: f32) -> bool {
         let Some(mut node) = self.document.node_store.solid_to_node.get(&target).copied() else {
             return false;
         };
@@ -317,7 +317,7 @@ impl Applier {
         }
     }
 
-    pub(super) fn scroll_node(&mut self, target: u32, x: f32, y: f32, relative: bool) -> bool {
+    pub(super) fn scroll_node(&mut self, target: NodeKey, x: f32, y: f32, relative: bool) -> bool {
         let Some(&node) = self.document.node_store.solid_to_node.get(&target) else {
             return false;
         };
@@ -430,7 +430,7 @@ impl Applier {
         !changed.is_empty()
     }
 
-    pub(super) fn text_selection_scroll_delta(&self) -> Option<(u32, f32, f32)> {
+    pub(super) fn text_selection_scroll_delta(&self) -> Option<(NodeKey, f32, f32)> {
         if self.interaction.input.pointer_buttons & 1 == 0 {
             return None;
         }

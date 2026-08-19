@@ -10,6 +10,7 @@
 mod applier;
 mod asset_cache;
 mod atom;
+mod bundle;
 mod clock;
 mod config;
 mod effect_trace;
@@ -21,6 +22,7 @@ mod host_ffi;
 mod host_frame;
 mod host_message;
 mod inline_context;
+mod json_capability;
 mod jsrt;
 mod protocol;
 mod source_map;

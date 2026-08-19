@@ -6,10 +6,15 @@ license.workspace = true
 
 [features]
 bindings = ["dep:wabou-bindgen", "wabou-bindgen/generate"]
+specta = ["dep:specta"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
+specta = { workspace = true, optional = true }
 wabou-bindgen = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [[example]]
 name = "native-host-bindings"

@@ -37,9 +37,9 @@ capabilities. `PlatformProvider` replaces application-facing, window-scoped
 services such as clipboard and window state. A partial nested
 `PlatformProvider` inherits services it does not override.
 
-`useFps` previously created a requestAnimationFrame loop and interval, so it
-violated this rule. The canonical name is `createFps`; `useFps` remains only as
-a deprecated compatibility alias.
+The FPS primitive creates a requestAnimationFrame loop and interval, so its
+canonical name is `createFps`; Wabou does not retain a hook-shaped compatibility
+alias for an API that owns scheduled work.
 
 `useWindow`, `useClipboard`, `useDialog`, and `useNotification` return the
 native service for the current QuickJS window. `PlatformProvider` can override these services for a Solid
@@ -172,8 +172,8 @@ an async capability client. Its `NativeMethod` signatures and supporting
 TypeScript declarations are written explicitly beside the Rust host types;
 Specta does not infer FFI semantics. This deliberately makes the author review
 argument conversion, sync/async behavior and error policy, while generated-file
-drift checks still keep the committed adapter declaration reproducible. Users
-may use the same builder or maintain a `.d.ts` directly. Per-frame binary
-rendering operations and guest callbacks remain a separate, versioned ABI
-because routing those through JSON RPC would add cost and erase useful protocol
-constraints.
+drift checks still keep the committed adapter declaration reproducible. This is
+a framework-internal path; application APIs use `JsonMethod` contracts. Per-frame
+binary rendering operations and guest callbacks remain a separate, versioned
+ABI because routing those through JSON RPC would add cost and erase useful
+protocol constraints.

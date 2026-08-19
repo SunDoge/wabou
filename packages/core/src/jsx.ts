@@ -1,1 +1,1 @@
-export * from "../../solid-renderer/src/jsx";
+export * from "./renderer/jsx";

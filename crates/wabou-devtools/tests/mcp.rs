@@ -11,7 +11,7 @@ fn mcp_lists_tools_and_forwards_status_to_the_runtime_socket() {
     let state = DebugState::shared();
     state.write().unwrap().publish(DebugSnapshot {
         status: DebugStatus {
-            protocol_version: 1,
+            protocol_version: wabou_devtools::PROTOCOL_VERSION,
             pid: 77,
             revision: 12,
             node_count: 3,

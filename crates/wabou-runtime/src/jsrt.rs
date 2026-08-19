@@ -23,9 +23,22 @@ use rquickjs::{
     context::EvalOptions,
 };
 pub(crate) use wabou_host_api::LayoutRect;
-use wabou_host_api::{FrameStats as HostFrameStats, LayoutNodeMetrics, LayoutSnapshot};
+use wabou_host_api::{FrameStats as HostFrameStats, LayoutNodeMetrics, LayoutSnapshot, NodeKey};
 type JsResult<T> = rquickjs::Result<T>;
-pub(crate) type ResizeTargets = Rc<RefCell<HashMap<u32, Option<(f32, f32)>>>>;
+pub(crate) type ResizeTargets = Rc<RefCell<HashMap<NodeKey, Option<(f32, f32)>>>>;
+
+fn checked_node_key(lo: u32, hi: u32, boundary: &'static str) -> JsResult<NodeKey> {
+    let key = NodeKey::new(lo, hi);
+    if key.is_valid() {
+        Ok(key)
+    } else {
+        Err(rquickjs::Error::new_from_js_message(
+            boundary,
+            "NodeKey",
+            format!("invalid node key {lo}v{hi}"),
+        ))
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct LayoutMetric {
@@ -37,7 +50,7 @@ pub(crate) struct LayoutMetric {
 pub(crate) struct LayoutMetricsSnapshot {
     pub revision: u64,
     pub viewport: LayoutRect,
-    pub nodes: HashMap<u32, LayoutMetric>,
+    pub nodes: HashMap<NodeKey, LayoutMetric>,
 }
 
 use crate::atom::AtomPool;
@@ -266,7 +279,7 @@ impl JsRuntime {
             globals.set("performance", perf)?;
 
             // Private native ABI. Application code reaches these capabilities
-            // through @wabou/solid-renderer's typed Host context.
+            // through @wabou/core's typed Host context.
             let atoms = self.atoms.clone();
             globals.set(
                 "__wabou_intern",
@@ -322,16 +335,20 @@ impl JsRuntime {
             let targets = self.resize_targets.clone();
             globals.set(
                 "__wabou_resize_observe",
-                rquickjs::Function::new(ctx.clone(), move |solid_id: u32| {
-                    targets.borrow_mut().entry(solid_id).or_insert(None);
+                rquickjs::Function::new(ctx.clone(), move |lo: u32, hi: u32| -> JsResult<()> {
+                    let key = checked_node_key(lo, hi, "resize observer")?;
+                    targets.borrow_mut().entry(key).or_insert(None);
+                    Ok(())
                 })?
                 .with_name("__wabou_resize_observe")?,
             )?;
             let targets = self.resize_targets.clone();
             globals.set(
                 "__wabou_resize_unobserve",
-                rquickjs::Function::new(ctx.clone(), move |solid_id: u32| {
-                    targets.borrow_mut().remove(&solid_id);
+                rquickjs::Function::new(ctx.clone(), move |lo: u32, hi: u32| -> JsResult<()> {
+                    let key = checked_node_key(lo, hi, "resize observer")?;
+                    targets.borrow_mut().remove(&key);
+                    Ok(())
                 })?
                 .with_name("__wabou_resize_unobserve")?,
             )?;
@@ -476,10 +493,24 @@ impl JsRuntime {
                 move |ids: TypedArray<u32>| -> JsResult<String> {
                     let snapshot = metrics.borrow();
                     let requested = ids.as_bytes().map_or(&[][..], |bytes| bytes);
-                    let ids = requested
-                        .chunks_exact(std::mem::size_of::<u32>())
-                        .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()));
+                    let mut chunks = requested.chunks_exact(std::mem::size_of::<u32>() * 2);
+                    if !chunks.remainder().is_empty() {
+                        return Err(rquickjs::Error::new_from_js_message(
+                            "layout snapshot",
+                            "NodeKey[]",
+                            "node key buffer must contain complete lo/hi pairs",
+                        ));
+                    }
+                    let ids = chunks.by_ref().map(|bytes| {
+                        checked_node_key(
+                            u32::from_ne_bytes(bytes[0..4].try_into().unwrap()),
+                            u32::from_ne_bytes(bytes[4..8].try_into().unwrap()),
+                            "layout snapshot",
+                        )
+                    });
                     let nodes = ids
+                        .collect::<JsResult<Vec<_>>>()?
+                        .into_iter()
                         .filter_map(|id| snapshot.nodes.get(&id).map(|node| (id, node)))
                         .map(|(id, node)| LayoutNodeMetrics {
                             id,

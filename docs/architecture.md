@@ -2,9 +2,9 @@
 
 Wabou is internally modular but presents one application model. Ordinary
 applications use `@wabou/ui`, `@wabou/vite`, `@wabou/test`, and the Rust
-`wabou` facade. Component, primitive, animation, and router workspaces remain
-separate in source but are bundled into the UI facade; repository topology is
-not an installation contract.
+`wabou` facade. Components, primitives, animation, and routing are source
+directories inside the UI package rather than additional workspace packages;
+repository topology is not an installation contract.
 
 ```text
 Application (Solid state and explicit UI intent)
@@ -49,14 +49,48 @@ an already-declared tree; they do not invent interaction behavior.
   and widget crates can remain separate for compile-time and ownership reasons
   without becoming normal application dependencies. Optional extension crates,
   such as the terminal widget or bindgen tooling, are explicit additions rather
-  than alternate runtime entry points.
+  than alternate runtime entry points. The facade exports its application API
+  explicitly; renderer internals such as `Applier`, `JsRuntime`, protocol
+  decoders, and HMR machinery remain implementation details. Native widget
+  authors use the deliberate `wabou::widget_api` extension surface.
+
+## Physical boundaries
+
+A source ownership boundary does not automatically become a package or crate.
+JavaScript has five installable units because each has a distinct consumer or
+lifecycle: application UI (`@wabou/ui`), embedded runtime (`@wabou/core`),
+build integration (`@wabou/vite`), behavior tests (`@wabou/test`), and the
+optional terminal widget (`@wabou/terminal`). Component, primitive, animation,
+routing, protocol, renderer, and style code remain directories inside their
+owning package. The package check rejects retired implementation package names
+so this graph cannot grow back accidentally.
+
+Rust crates may remain narrower when they isolate a large dependency family,
+an optional extension, a platform/tooling target, or a dependency direction
+that prevents cycles. For example, `wabou-shell` owns the widget contract,
+`wabou-widgets` implements it without depending on the runtime, and
+`wabou-host-api` is shared by runtime and binding generation. A new crate must
+demonstrate one of those compile or dependency boundaries; ordinary subsystem
+ownership belongs in a module. Applications still see the `wabou` facade.
 
 ## Cross-language contract
 
-Per-frame mutations use the generated binary operation protocol. Structured
-application host capabilities use generated typed bindings. New cross-language
-features must have one authoritative declaration and generated Rust/TypeScript
-views; handwritten parallel enums or registration lists are drift bugs.
+Wabou has three communication mechanisms. Their normative selection and
+resource-lifetime rules live in [the runtime boundary contract](runtime-contract.md).
+
+| Mechanism | Purpose |
+| --- | --- |
+| frame protocol | high-frequency, batched mutation and host-event data |
+| native intrinsics | private synchronous runtime and engine primitives |
+| JSON capability | low-frequency application request/response APIs |
+
+Long-running application producers publish through the host event frame; they
+do not invent another callback ABI. Native effects are not an application
+plugin mechanism: raw numeric effect operations remain internal to
+`@wabou/core`, while applications use generated JSON capabilities and host
+messages. New cross-language features must have one authoritative declaration
+and generated Rust/TypeScript views; handwritten parallel enums or registration
+lists are drift bugs.
 
 The runtime and default `wabou` facade consume only the lightweight
 `JsonMethod` contract. Specta and the TypeScript exporter are behind
@@ -93,3 +127,5 @@ When adding a feature:
 3. Does cross-language data have one source of truth?
 4. Can `wabou test <app>` discover and verify it without another registry?
 5. Is visual or platform behavior verified at the layer where it can fail?
+6. Does cross-language work follow the frame/intrinsic/capability selection
+   rule, with Rust-owned resources using typed generational handles?
