@@ -6438,6 +6438,12 @@ ${detail}`);
   }
   globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 
+  // packages/core/src/glue/platform-context.ts
+  var PlatformContext = createContext({});
+  function usePlatformServices() {
+    return getOwner() ? useContext(PlatformContext) : {};
+  }
+
   // packages/core/src/generated/effect-abi.ts
   var EFFECT_ABI_VERSION = 4;
   var effectOps = Object.freeze({
@@ -6532,12 +6538,6 @@ ${detail}`);
     return handle(windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi));
   }
 
-  // packages/core/src/glue/platform-context.ts
-  var PlatformContext = createContext({});
-  function usePlatformServices() {
-    return getOwner() ? useContext(PlatformContext) : {};
-  }
-
   // packages/core/src/glue/window-metrics.ts
   var initial = {
     windowId: windowKeyFromJSON({
@@ -6550,7 +6550,8 @@ ${detail}`);
     physicalHeight: 0,
     scaleFactor: 1,
     maximized: false,
-    focused: false
+    focused: false,
+    colorScheme: "light"
   };
   var [metrics, setMetrics] = createSignal2(initial, { equals: false });
   subscribe("wabou:window-metrics", (payload) => {
@@ -6573,7 +6574,8 @@ ${detail}`);
     height: () => metrics().logicalHeight,
     scaleFactor: () => metrics().scaleFactor,
     maximized: () => metrics().maximized,
-    focused: () => metrics().focused
+    focused: () => metrics().focused,
+    colorScheme: () => metrics().colorScheme ?? "light"
   };
   function useWindow() {
     return usePlatformServices().window ?? state;

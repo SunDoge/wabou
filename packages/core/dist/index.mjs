@@ -474,6 +474,35 @@ function __wabou_dispatch_host_frame(frame) {
 }
 globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 //#endregion
+//#region src/glue/platform-context.ts
+const PlatformContext = createContext({});
+/** Override native services for one Solid subtree, primarily for tests and previews. */
+function PlatformProvider(props) {
+	const parent = useContext(PlatformContext) ?? {};
+	return createComponent$1(PlatformContext, {
+		value: {
+			get clipboard() {
+				return props.value.clipboard ?? parent.clipboard;
+			},
+			get dialog() {
+				return props.value.dialog ?? parent.dialog;
+			},
+			get notification() {
+				return props.value.notification ?? parent.notification;
+			},
+			get window() {
+				return props.value.window ?? parent.window;
+			}
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function usePlatformServices() {
+	return getOwner() ? useContext(PlatformContext) : {};
+}
+//#endregion
 //#region src/generated/effect-abi.ts
 const effectOps = Object.freeze({
 	clipboardRead: {
@@ -619,35 +648,6 @@ function currentWindow() {
 	return handle(windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi));
 }
 //#endregion
-//#region src/glue/platform-context.ts
-const PlatformContext = createContext({});
-/** Override native services for one Solid subtree, primarily for tests and previews. */
-function PlatformProvider(props) {
-	const parent = useContext(PlatformContext) ?? {};
-	return createComponent$1(PlatformContext, {
-		value: {
-			get clipboard() {
-				return props.value.clipboard ?? parent.clipboard;
-			},
-			get dialog() {
-				return props.value.dialog ?? parent.dialog;
-			},
-			get notification() {
-				return props.value.notification ?? parent.notification;
-			},
-			get window() {
-				return props.value.window ?? parent.window;
-			}
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function usePlatformServices() {
-	return getOwner() ? useContext(PlatformContext) : {};
-}
-//#endregion
 //#region src/glue/window-metrics.ts
 /**
 * Create a reactive native-window size query without CSS media-query semantics.
@@ -681,7 +681,8 @@ const initial = {
 	physicalHeight: 0,
 	scaleFactor: 1,
 	maximized: false,
-	focused: false
+	focused: false,
+	colorScheme: "light"
 };
 const [metrics, setMetrics] = createSignal(initial, { equals: false });
 subscribe("wabou:window-metrics", (payload) => {
@@ -706,7 +707,8 @@ const state = {
 	height: () => metrics().logicalHeight,
 	scaleFactor: () => metrics().scaleFactor,
 	maximized: () => metrics().maximized,
-	focused: () => metrics().focused
+	focused: () => metrics().focused,
+	colorScheme: () => metrics().colorScheme ?? "light"
 };
 /** Reactive state and controls for the native window owning this JS runtime. */
 function useWindow() {

@@ -119,7 +119,7 @@ test("Motrix exposes trackers, notifications and engine settings", async ({
     .waitFor();
   await page.getByRole("button", { name: "Configure Appearance" }).click();
   await page.getByRole("button", { name: "Save settings" }).waitFor();
-  await page.getByRole("button", { name: "Use Dark theme" }).click();
+  await page.getByRole("button", { name: "Use System theme" }).click();
   await page.getByRole("button", { name: "Save settings" }).click();
   await page
     .getByRole("label", {

@@ -4,8 +4,8 @@ import { type Clipboard, useClipboard } from "./clipboard";
 import { type Dialog, useDialog } from "./dialog";
 import { type Notification, useNotification } from "./notification";
 import { PlatformProvider } from "./platform-context";
-import { useWindow, type WindowState } from "./window-metrics";
 import { windowKeyFromJSON } from "./window";
+import { useWindow, type WindowState } from "./window-metrics";
 
 const resolve = (value: unknown): unknown =>
   typeof value === "function" ? resolve(value()) : value;
@@ -25,6 +25,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     scaleFactor: 2,
     maximized: false,
     focused: true,
+    colorScheme: "light" as const,
   });
   const fakeWindow: WindowState = {
     id: windowKey,
@@ -39,6 +40,7 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     scaleFactor: () => metrics().scaleFactor,
     maximized: () => metrics().maximized,
     focused: () => metrics().focused,
+    colorScheme: () => metrics().colorScheme,
   };
   const fakeDialog: Dialog = {
     open: async () => null,
@@ -98,6 +100,7 @@ test("nested partial providers inherit services they do not override", () => {
     scaleFactor: 1,
     maximized: false,
     focused: false,
+    colorScheme: "light" as const,
   });
   const parentWindow: WindowState = {
     id: windowKey,
@@ -112,6 +115,7 @@ test("nested partial providers inherit services they do not override", () => {
     scaleFactor: () => 1,
     maximized: () => false,
     focused: () => false,
+    colorScheme: () => "light",
   };
   let receivedClipboard: Clipboard | undefined;
   let receivedWindow: WindowState | undefined;

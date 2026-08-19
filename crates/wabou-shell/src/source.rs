@@ -122,6 +122,17 @@ pub struct WindowMetrics {
     pub maximized: bool,
     /// Whether the native window owns keyboard focus.
     pub focused: bool,
+    /// Current native light/dark preference, when reported by the platform.
+    pub color_scheme: Option<ColorScheme>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Platform color preference associated with a native window.
+pub enum ColorScheme {
+    /// Prefer a light application palette.
+    Light,
+    /// Prefer a dark application palette.
+    Dark,
 }
 
 impl Default for WindowMetrics {
@@ -135,6 +146,7 @@ impl Default for WindowMetrics {
             scale_factor: 1.0,
             maximized: false,
             focused: false,
+            color_scheme: Some(ColorScheme::Light),
         }
     }
 }

@@ -1,12 +1,12 @@
-import { createSignal, type Accessor } from "solid-js";
+import { type Accessor, createSignal } from "solid-js";
 import { subscribe } from "./host-messages";
+import { usePlatformServices } from "./platform-context";
 import {
   currentWindow,
   type WindowHandle,
   type WindowKey,
   windowKeyFromJSON,
 } from "./window";
-import { usePlatformServices } from "./platform-context";
 
 export interface WindowMetrics {
   windowId: WindowKey;
@@ -17,6 +17,7 @@ export interface WindowMetrics {
   scaleFactor: number;
   maximized: boolean;
   focused: boolean;
+  colorScheme: "light" | "dark" | null;
 }
 
 export interface WindowState extends WindowHandle {
@@ -26,6 +27,7 @@ export interface WindowState extends WindowHandle {
   scaleFactor: Accessor<number>;
   maximized: Accessor<boolean>;
   focused: Accessor<boolean>;
+  colorScheme: Accessor<"light" | "dark">;
 }
 
 /** Inclusive logical-pixel constraints evaluated against the native client area. */
@@ -99,6 +101,7 @@ const initial: WindowMetrics = {
   scaleFactor: 1,
   maximized: false,
   focused: false,
+  colorScheme: "light",
 };
 
 const [metrics, setMetrics] = createSignal(initial, { equals: false });
@@ -126,6 +129,7 @@ const state: WindowState = {
   scaleFactor: () => metrics().scaleFactor,
   maximized: () => metrics().maximized,
   focused: () => metrics().focused,
+  colorScheme: () => metrics().colorScheme ?? "light",
 };
 
 /** Reactive state and controls for the native window owning this JS runtime. */

@@ -44,6 +44,10 @@ impl Applier {
             "scaleFactor": metrics.scale_factor,
             "maximized": metrics.maximized,
             "focused": metrics.focused,
+            "colorScheme": metrics.color_scheme.map(|scheme| match scheme {
+                wabou_shell::ColorScheme::Light => "light",
+                wabou_shell::ColorScheme::Dark => "dark",
+            }),
         })
         .to_string();
         let event = HostEvent::Application(crate::host_message::HostMessage::str(

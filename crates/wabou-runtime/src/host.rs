@@ -727,6 +727,7 @@ fn run_headless_test(
                 scale_factor: 1.0,
                 maximized: false,
                 focused: true,
+                color_scheme: Some(wabou_shell::ColorScheme::Light),
             }));
             last_nodes[index] = source.build_frame(&mut text, WIDTH, HEIGHT);
             controller.poll_headless_source(window_key, source.as_mut());

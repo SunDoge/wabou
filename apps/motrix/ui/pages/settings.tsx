@@ -83,7 +83,9 @@ export function SettingsPage() {
   const [warnBeforeQuit, setWarnBeforeQuit] = createSignal(
     initialConfig.warnBeforeQuit,
   );
-  const [theme, setTheme] = createSignal<"light" | "dark">(initialConfig.theme);
+  const [theme, setTheme] = createSignal<"light" | "dark" | "system">(
+    initialConfig.theme,
+  );
   const [message, setMessage] = createSignal("");
   const [busy, setBusy] = createSignal(false);
 
@@ -256,7 +258,13 @@ export function SettingsPage() {
               title="Appearance"
               detail="Select the application color theme. The choice is saved for the next launch."
             />
-            <View class="w-full min-w-0 grid grid-cols-2 gap-4">
+            <View class="w-full min-w-0 grid grid-cols-3 gap-4">
+              <ThemeChoice
+                name="System"
+                detail="Follow the native window preference"
+                selected={theme() === "system"}
+                onSelect={() => setTheme("system")}
+              />
               <ThemeChoice
                 name="Light"
                 detail="Bright surfaces with high-contrast text"

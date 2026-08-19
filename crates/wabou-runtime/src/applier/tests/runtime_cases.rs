@@ -118,6 +118,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         scale_factor: 2.0,
         maximized: true,
         focused: true,
+        color_scheme: Some(wabou_shell::ColorScheme::Dark),
     }));
     assert!(response.request_redraw);
     let payload = applier
@@ -132,6 +133,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
     assert!(payload.contains("logicalWidth"));
     assert!(payload.contains("\"windowId\":{\"hi\":1,\"lo\":1}"));
     assert!(payload.contains("\"scaleFactor\":2.0"));
+    assert!(payload.contains("\"colorScheme\":\"dark\""));
 }
 
 #[test]

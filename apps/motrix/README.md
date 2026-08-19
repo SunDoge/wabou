@@ -11,7 +11,7 @@ search, status filters, task inspection with file/tracker/peer details, batch
 actions, task-row native context menus, and optional system-Trash removal of
 downloaded files; revisioned Rust-to-JavaScript task patches; live RPC speed
 charts; a persistent 84-day transfer heatmap; tracker synchronization; native
-completion/error notifications; light/dark themes; and an optional in-app
+completion/error notifications; light/dark/follow-system themes; and an optional in-app
 confirmation before terminating active downloads.
 
 ## Run

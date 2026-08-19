@@ -105,7 +105,7 @@ export interface Aria2TaskPeer {
 }
 
 export interface MotrixConfig {
-  theme: "light" | "dark";
+  theme: "light" | "dark" | "system";
   engineMode: "managed" | "external";
   externalEndpoint: string;
   externalSecret: string;

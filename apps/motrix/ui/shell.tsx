@@ -14,6 +14,7 @@ import {
   useFileDrop,
   useLocation,
   useNavigate,
+  useWindow,
   View,
 } from "@wabou/ui";
 import bell from "lucide-static/icons/bell.svg?raw";
@@ -46,6 +47,7 @@ export function AppShell(props: { children?: JSX.Element }) {
   const location = useLocation();
   const navigate = useNavigate();
   const aria2 = useAria2();
+  const window = useWindow();
   const initialConfig = untrack(aria2.config);
   const [adding, setAdding] = createSignal(false);
   const [sidebarOpen, setSidebarOpen] = createSignal(true);
@@ -126,12 +128,16 @@ export function AppShell(props: { children?: JSX.Element }) {
     "Primary+B": () => setSidebarOpen((open) => !open),
     "Primary+Q": requestQuit,
   });
+  const resolvedTheme = () => {
+    const configured = aria2.config().theme;
+    return configured === "system" ? window.colorScheme() : configured;
+  };
   return (
     <ColorThemeProvider
-      theme={aria2.config().theme}
+      theme={resolvedTheme()}
       transition={{ duration: 0.18, easing: "ease-out" }}
     >
-      <ComponentsProvider theme={aria2.config().theme}>
+      <ComponentsProvider theme={resolvedTheme()}>
         <View
           {...shortcuts.bindings}
           class="w-full h-full p-3 flex gap-4 bg-canvas text-primary"

@@ -32,6 +32,7 @@ pub enum ThemeMode {
     #[default]
     Light,
     Dark,
+    System,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
@@ -131,6 +132,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!("motrix-config-{}", uuid::Uuid::new_v4()));
         let store = ConfigStore::new(&root);
         let config = AppConfig {
+            theme: ThemeMode::System,
             engine_mode: EngineMode::External,
             external_endpoint: "ws://host:6800/jsonrpc".into(),
             split: 8,

@@ -260,6 +260,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         scale_factor: *scale_factor,
         maximized: false,
         focused: true,
+        color_scheme: Some(wabou_shell::ColorScheme::Light),
     }));
     let mut text_context = TextContext::new();
     let mut nodes = applier.build_frame(&mut text_context, *width, *height);

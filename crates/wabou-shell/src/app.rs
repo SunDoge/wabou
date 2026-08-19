@@ -244,6 +244,10 @@ impl App {
             scale_factor: shell.scale_factor(),
             maximized: shell.window().is_maximized(),
             focused: shell.window().has_focus(),
+            color_scheme: shell.window().theme().map(|theme| match theme {
+                winit::window::Theme::Light => crate::ColorScheme::Light,
+                winit::window::Theme::Dark => crate::ColorScheme::Dark,
+            }),
         };
         if next != self.window_metrics {
             self.window_metrics = next;
@@ -943,6 +947,12 @@ impl ApplicationHandler for App {
                 self.sync_window_metrics();
             }
             WindowEvent::ScaleFactorChanged { .. } => {
+                self.sync_window_metrics();
+                if let Some(shell) = self.state.as_ref() {
+                    shell.window().request_redraw();
+                }
+            }
+            WindowEvent::ThemeChanged(_) => {
                 self.sync_window_metrics();
                 if let Some(shell) = self.state.as_ref() {
                     shell.window().request_redraw();
@@ -1818,7 +1828,9 @@ impl ApplicationHandler for MultiWindowApp {
         }
         let metrics_changed = matches!(
             &event,
-            WindowEvent::SurfaceResized(_) | WindowEvent::ScaleFactorChanged { .. }
+            WindowEvent::SurfaceResized(_)
+                | WindowEvent::ScaleFactorChanged { .. }
+                | WindowEvent::ThemeChanged(_)
         );
         if let WindowEvent::PointerButton { state, button, .. } = &event {
             let Some(window_key) = self.windows.get(&window_id).map(|app| app.window_key) else {
