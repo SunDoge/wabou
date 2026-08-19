@@ -179,7 +179,7 @@ pub struct EngineActionRequest {
     action: EngineAction,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 enum EngineAction {
     Start,
@@ -552,6 +552,9 @@ impl Aria2Service {
             }
         }?;
         *self.client.lock().await = None;
+        if !matches!(action, EngineAction::Stop) {
+            self.apply_config_to_engine().await?;
+        }
         Ok(())
     }
 
@@ -608,32 +611,41 @@ impl Aria2Service {
             .config
             .write()
             .map_err(|_| "configuration lock poisoned")? = config.clone();
-        if let Ok(client) = self.client().await {
-            let mut options = TaskOptions::default();
-            options.extra_options.insert(
-                "max-concurrent-downloads".to_owned(),
-                serde_json::Value::String(config.max_concurrent_downloads.to_string()),
-            );
-            options.extra_options.insert(
-                "bt-tracker".to_owned(),
-                serde_json::Value::String(config.bt_trackers.join(",")),
-            );
-            options.extra_options.insert(
-                "max-overall-download-limit".to_owned(),
-                serde_json::Value::String(config.max_overall_download_limit.clone()),
-            );
-            options.extra_options.insert(
-                "max-overall-upload-limit".to_owned(),
-                serde_json::Value::String(config.max_overall_upload_limit.clone()),
-            );
-            options.extra_options.insert(
-                "user-agent".to_owned(),
-                serde_json::Value::String(config.user_agent.clone()),
-            );
-            change_global_options(&client, options).await?;
+        if self.client().await.is_ok() {
+            self.apply_config_to_engine().await?;
         }
         Ok(config)
     }
+
+    async fn apply_config_to_engine(&self) -> Result<(), String> {
+        let config = self.config()?;
+        change_global_options(&self.client().await?, global_task_options(&config)).await
+    }
+}
+
+fn global_task_options(config: &AppConfig) -> TaskOptions {
+    let mut options = TaskOptions::default();
+    for (name, value) in [
+        (
+            "max-concurrent-downloads",
+            config.max_concurrent_downloads.to_string(),
+        ),
+        ("bt-tracker", config.bt_trackers.join(",")),
+        (
+            "max-overall-download-limit",
+            config.max_overall_download_limit.clone(),
+        ),
+        (
+            "max-overall-upload-limit",
+            config.max_overall_upload_limit.clone(),
+        ),
+        ("user-agent", config.user_agent.clone()),
+    ] {
+        options
+            .extra_options
+            .insert(name.to_owned(), serde_json::Value::String(value));
+    }
+    options
 }
 
 async fn fetch_all_pages<T, E, C, Fetch, FetchFuture>(client: C, fetch: Fetch) -> Result<Vec<T>, E>
@@ -863,6 +875,32 @@ mod tests {
         assert_eq!(patch.task_order, ["changed", "unchanged", "new"]);
     }
 
+    #[test]
+    fn persisted_download_preferences_map_to_aria2_global_options() {
+        let config = AppConfig {
+            max_concurrent_downloads: 7,
+            bt_trackers: vec![
+                "udp://one.example/announce".into(),
+                "https://two.example/announce".into(),
+            ],
+            max_overall_download_limit: "12M".into(),
+            max_overall_upload_limit: "3M".into(),
+            user_agent: "Motrix-Test/1".into(),
+            ..AppConfig::default()
+        };
+
+        assert_eq!(
+            serde_json::to_value(global_task_options(&config)).unwrap(),
+            serde_json::json!({
+                "max-concurrent-downloads": "7",
+                "bt-tracker": "udp://one.example/announce,https://two.example/announce",
+                "max-overall-download-limit": "12M",
+                "max-overall-upload-limit": "3M",
+                "user-agent": "Motrix-Test/1"
+            })
+        );
+    }
+
     #[tokio::test]
     async fn pagination_does_not_truncate_large_task_histories() {
         let total = Arc::new(600_usize);
@@ -907,6 +945,52 @@ mod tests {
         managed.start().expect("start aria2c");
         let snapshot = service.read_snapshot().await.expect("authenticated RPC");
         assert!(snapshot.connected);
+        managed.shutdown();
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[tokio::test]
+    async fn persisted_preferences_are_applied_to_a_fresh_managed_engine() {
+        let root = std::env::temp_dir().join(format!(
+            "motrix-aria2-options-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let config = AppConfig {
+            max_concurrent_downloads: 7,
+            max_overall_download_limit: "12M".into(),
+            max_overall_upload_limit: "3M".into(),
+            user_agent: "Motrix-Startup-Test/1".into(),
+            ..AppConfig::default()
+        };
+        let (service, managed) =
+            Aria2Service::from_config(config, ConfigStore::new(&root)).expect("configuration");
+        let managed = managed.expect("managed service");
+        managed.start().expect("start aria2c");
+
+        service
+            .apply_config_to_engine()
+            .await
+            .expect("apply persisted settings");
+        let options = service
+            .client()
+            .await
+            .expect("connect to aria2c")
+            .get_global_option()
+            .await
+            .expect("read aria2 global options");
+        for (name, expected) in [
+            ("max-concurrent-downloads", "7"),
+            ("max-overall-download-limit", "12582912"),
+            ("max-overall-upload-limit", "3145728"),
+            ("user-agent", "Motrix-Startup-Test/1"),
+        ] {
+            assert_eq!(
+                options.extra_options.get(name),
+                Some(&serde_json::Value::String(expected.to_owned())),
+                "aria2 did not retain {name}"
+            );
+        }
+
         managed.shutdown();
         let _ = std::fs::remove_dir_all(root);
     }
@@ -1549,6 +1633,9 @@ async fn retry_task(client: &Client, gid: &str) -> Result<(), String> {
 pub fn stream_snapshots(context: HostMessageContext, service: Aria2Service) {
     let task_context = context.clone();
     context.spawn(async move {
+        if let Err(error) = service.apply_config_to_engine().await {
+            tracing::warn!(%error, "could not apply persisted Motrix settings to aria2");
+        }
         if service
             .config()
             .is_ok_and(|config| config.resume_all_when_app_launched)
