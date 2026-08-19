@@ -6,7 +6,7 @@
 //!
 //! ```ignore
 //! use serde::{Deserialize, Serialize};
-//! use wabou_bindgen::JsonMethod;
+//! use wabou_bindgen::{JsonCapabilityContract, JsonMethod};
 //! use wabou_runtime::{HostBuilder, Widget};
 //!
 //! #[derive(Deserialize)]
@@ -19,9 +19,11 @@
 //!     contents: String,
 //! }
 //!
+//! const WORKSPACE: JsonCapabilityContract = JsonCapabilityContract::new("workspace", 1);
+//!
 //! HostBuilder::new()
 //!     .widget("chart", || Box::new(MyChart::new()))
-//!     .json_capability("workspace", |capability| {
+//!     .json_capability(WORKSPACE, |capability| {
 //!         capability.method(JsonMethod::new("readFile"), |request: ReadFileRequest| async move {
 //!             let contents = std::fs::read_to_string(request.path)
 //!                 .map_err(|error| error.to_string())?;
@@ -44,7 +46,7 @@ use vello::peniko::Color;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use wabou_bindgen::JsonMethod;
+use wabou_bindgen::{JsonCapabilityContract, JsonCapabilityErrorCode, JsonMethod};
 
 use crate::HostMessageContext;
 use crate::applier::Applier;
@@ -132,21 +134,38 @@ where
     Handler: Fn(Request) -> HandlerFuture,
     HandlerFuture: Future<Output = Result<Response, Error>>,
 {
-    let result = match serde_json::from_str(raw) {
-        Ok(request) => handler(request).await.map_err(|error| error.to_string()),
-        Err(error) => Err(format!("invalid capability request: {error}")),
+    let request = match serde_json::from_str(raw) {
+        Ok(request) => request,
+        Err(error) => {
+            return json_capability_error(
+                JsonCapabilityErrorCode::InvalidRequest,
+                format!("invalid capability request: {error}"),
+            );
+        }
     };
-    match result {
+    match handler(request).await {
         Ok(value) => match serde_json::to_value(value) {
             Ok(value) => serde_json::json!({ "ok": true, "value": value }).to_string(),
-            Err(error) => serde_json::json!({
-                "ok": false,
-                "error": format!("cannot encode capability response: {error}"),
-            })
-            .to_string(),
+            Err(error) => json_capability_error(
+                JsonCapabilityErrorCode::ResponseEncodingFailure,
+                format!("cannot encode capability response: {error}"),
+            ),
         },
-        Err(error) => serde_json::json!({ "ok": false, "error": error }).to_string(),
+        Err(error) => {
+            json_capability_error(JsonCapabilityErrorCode::HandlerFailure, error.to_string())
+        }
     }
+}
+
+fn json_capability_error(code: JsonCapabilityErrorCode, message: String) -> String {
+    serde_json::json!({
+        "ok": false,
+        "error": {
+            "code": code.as_str(),
+            "message": message,
+        },
+    })
+    .to_string()
 }
 
 struct ResourceCacheShutdownGuard {
@@ -302,7 +321,7 @@ impl HostBuilder {
 
     /// Mount structured async methods without exposing QuickJS transport
     /// details to application code.
-    pub fn json_capability<F>(self, name: impl Into<String>, mount: F) -> Self
+    pub fn json_capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
     where
         F: for<'js> Fn(JsonCapability<'js>) -> rquickjs::Result<()>
             + rquickjs::markers::ParallelSend
@@ -310,7 +329,8 @@ impl HostBuilder {
             + Sync
             + 'static,
     {
-        self.capability(name, move |ctx, object| {
+        self.capability(contract.name(), move |ctx, object| {
+            object.set("__wabouCapabilityVersion", contract.version())?;
             mount(JsonCapability { ctx, object })
         })
     }
@@ -1028,9 +1048,10 @@ fn resource_bundle_candidates(executable: &Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        HostBuilder, JsonCapability, JsonMethod, install_host_message_producers,
-        invoke_json_method, resource_bundle_candidates, resource_bundle_path, test_environment,
-        test_report_summary, test_trace_artifact, write_test_artifact,
+        HostBuilder, JsonCapability, JsonCapabilityContract, JsonMethod,
+        install_host_message_producers, invoke_json_method, resource_bundle_candidates,
+        resource_bundle_path, test_environment, test_report_summary, test_trace_artifact,
+        write_test_artifact,
     };
     use crate::host_message::{HostMessagePayload, host_message_channel};
     use crate::{Applier, HostMessageContext, JsRuntime};
@@ -1075,7 +1096,13 @@ mod tests {
 
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(&response).unwrap(),
-            serde_json::json!({ "ok": false, "error": "palette unavailable" })
+            serde_json::json!({
+                "ok": false,
+                "error": {
+                    "code": "handlerFailure",
+                    "message": "palette unavailable",
+                },
+            })
         );
     }
 
@@ -1092,11 +1119,39 @@ mod tests {
         let response = serde_json::from_str::<serde_json::Value>(&response).unwrap();
 
         assert_eq!(response["ok"], false);
+        assert_eq!(response["error"]["code"], "invalidRequest");
         assert!(
-            response["error"]
+            response["error"]["message"]
                 .as_str()
                 .unwrap()
                 .starts_with("invalid capability request:")
+        );
+    }
+
+    #[test]
+    fn json_capability_classifies_response_encoding_failures() {
+        struct InvalidResponse;
+
+        impl serde::Serialize for InvalidResponse {
+            fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: serde::Serializer,
+            {
+                Err(serde::ser::Error::custom("fixture cannot be encoded"))
+            }
+        }
+
+        let response = futures_lite::future::block_on(invoke_json_method(
+            r#"{"value":7}"#,
+            |_request: JsonRequest| async move { Ok::<_, String>(InvalidResponse) },
+        ));
+        let response = serde_json::from_str::<serde_json::Value>(&response).unwrap();
+
+        assert_eq!(response["ok"], false);
+        assert_eq!(response["error"]["code"], "responseEncodingFailure");
+        assert_eq!(
+            response["error"]["message"],
+            "cannot encode capability response: fixture cannot be encoded"
         );
     }
 
@@ -1145,6 +1200,26 @@ mod tests {
                 { "ok": true, "value": "pong" },
             ])
         );
+    }
+
+    #[test]
+    fn json_capability_publishes_the_shared_abi_version() {
+        const CONTRACT: JsonCapabilityContract = JsonCapabilityContract::new("versioned", 7);
+        let host = HostBuilder::new().json_capability(CONTRACT, |_capability| Ok(()));
+        let runtime = JsRuntime::new().expect("runtime");
+
+        for install in host.capabilities {
+            install(&runtime).expect("install capability");
+        }
+
+        let version = runtime
+            .with(|ctx| {
+                ctx.eval::<u32, _>(
+                    "globalThis.__wabou_capabilities.versioned.__wabouCapabilityVersion",
+                )
+            })
+            .expect("read capability version");
+        assert_eq!(version, CONTRACT.version());
     }
 
     #[test]

@@ -273,11 +273,17 @@ owns request decoding, Promise creation, and result-envelope encoding:
 ```rust
 const READ_FILE: JsonMethod<ReadFileRequest, ReadFileResponse> =
     JsonMethod::new("readFile");
+const WORKSPACE: JsonCapabilityContract = JsonCapabilityContract::new("workspace", 1);
 
-HostBuilder::new().json_capability("workspace", |capability| {
+HostBuilder::new().json_capability(WORKSPACE, |capability| {
     capability.method(READ_FILE, read_file)
 });
 ```
+
+The same `JsonCapabilityContract` is consumed by binding generation and host
+registration. Generated clients check its ABI version before the first call,
+so a stale frontend bundle reports `incompatibleHost` instead of failing later
+with an undefined native method.
 
 The lower-level path for a same-thread, bounded, synchronous operation is a
 direct typed QuickJS function, not a binary RPC. This follows PocketJS's

@@ -26,17 +26,118 @@ message: string };
 
 interface NativeHostCapabilities {
   readonly bindingsDemo: {
+    readonly __wabouCapabilityVersion: number;
     describePalette(request: string): NativeResult<string>;
   };
 }
 
+type NativeHostCapabilityErrorCode =
+  | "invalidRequest"
+  | "handlerFailure"
+  | "responseEncodingFailure"
+;
+
+export type NativeCapabilityErrorCode =
+  | NativeHostCapabilityErrorCode
+  | "invalidResponse"
+  | "incompatibleHost"
+  | "invocationFailure"
+  | "requestEncodingFailure";
+
+const nativeCapabilityErrorCodes = new Set<unknown>([
+  "invalidRequest",
+  "handlerFailure",
+  "responseEncodingFailure",
+]);
+
+function isNativeHostCapabilityErrorCode(value: unknown): value is NativeHostCapabilityErrorCode {
+  return nativeCapabilityErrorCodes.has(value);
+}
+
 export class NativeCapabilityError extends Error {
   readonly operation: string;
+  readonly code: NativeCapabilityErrorCode;
 
-  constructor(operation: string, message: string) {
+  constructor(operation: string, code: NativeCapabilityErrorCode, message: string) {
     super(`${operation}: ${message}`);
     this.name = "NativeCapabilityError";
     this.operation = operation;
+    this.code = code;
+  }
+}
+
+function invalidNativeResponse(operation: string, message: string): never {
+  throw new NativeCapabilityError(operation, "invalidResponse", message);
+}
+
+function encodeNativeRequest(value: unknown, operation: string): string {
+  try {
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) {
+      throw new TypeError("JSON.stringify returned undefined");
+    }
+    return encoded;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new NativeCapabilityError(
+      operation,
+      "requestEncodingFailure",
+      `cannot encode native request: ${detail}`,
+    );
+  }
+}
+
+function assertNativeCapability(
+  capability: unknown,
+  name: string,
+  expected: number,
+): asserts capability is { readonly __wabouCapabilityVersion: number } & Record<string, unknown> {
+  if (typeof capability !== "object" || capability === null) {
+    throw new NativeCapabilityError(name, "incompatibleHost", "native capability is unavailable");
+  }
+  const actual = (capability as { __wabouCapabilityVersion?: unknown }).__wabouCapabilityVersion;
+  if (actual !== expected) {
+    throw new NativeCapabilityError(
+      name,
+      "incompatibleHost",
+      `native capability ABI mismatch: bundle=${expected}, host=${String(actual)}`,
+    );
+  }
+}
+
+function nativeCapabilityMethod(
+  capability: Record<string, unknown>,
+  name: string,
+  method: string,
+): (...args: string[]) => NativeResult<string> {
+  const value = capability[method];
+  if (typeof value !== "function") {
+    throw new NativeCapabilityError(
+      name,
+      "incompatibleHost",
+      `native capability is missing method ${method}`,
+    );
+  }
+  return value.bind(capability) as (...args: string[]) => NativeResult<string>;
+}
+
+async function invokeNativeCapability(
+  capability: Record<string, unknown>,
+  name: string,
+  method: string,
+  ...args: string[]
+): Promise<string> {
+  const invoke = nativeCapabilityMethod(capability, name, method);
+  const operation = `${name}.${method}`;
+  try {
+    return await invoke(...args);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new NativeCapabilityError(
+      operation,
+      "invocationFailure",
+      `native invocation failed: ${detail}`,
+    );
   }
 }
 
@@ -46,18 +147,27 @@ function decodeNativeResult<T>(raw: string, operation: string): T {
     result = JSON.parse(raw);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw new NativeCapabilityError(operation, `invalid JSON response: ${detail}`);
+    return invalidNativeResponse(operation, `invalid JSON response: ${detail}`);
   }
   if (typeof result !== "object" || result === null || typeof (result as { ok?: unknown }).ok !== "boolean") {
-    throw new NativeCapabilityError(operation, "invalid response envelope");
+    return invalidNativeResponse(operation, "invalid response envelope");
   }
   const envelope = result as { ok: true; value?: T } | { ok: false; error?: unknown };
   if (!envelope.ok) {
-    const detail = typeof envelope.error === "string" ? envelope.error : "native capability failed";
-    throw new NativeCapabilityError(operation, detail);
+    if (typeof envelope.error !== "object" || envelope.error === null) {
+      return invalidNativeResponse(operation, "failed response is missing an error object");
+    }
+    const error = envelope.error as { code?: unknown; message?: unknown };
+    if (
+      !isNativeHostCapabilityErrorCode(error.code) ||
+      typeof error.message !== "string"
+    ) {
+      return invalidNativeResponse(operation, "failed response contains an invalid error");
+    }
+    throw new NativeCapabilityError(operation, error.code, error.message);
   }
   if (!("value" in envelope)) {
-    throw new NativeCapabilityError(operation, "successful response is missing `value`");
+    return invalidNativeResponse(operation, "successful response is missing `value`");
   }
   return envelope.value as T;
 }
@@ -68,8 +178,10 @@ export interface BindingsDemoClient {
 
 export function createBindingsDemoClient(host: Host): BindingsDemoClient {
   const nativeHost = host as Host & NativeHostCapabilities;
+  const nativeCapability = nativeHost.bindingsDemo;
+  assertNativeCapability(nativeCapability, "bindingsDemo", 1);
   return {
-    describePalette: async (request) => decodeNativeResult<DescribePaletteResponse>(await nativeHost.bindingsDemo.describePalette(JSON.stringify(request)), "bindingsDemo.describePalette"),
+    describePalette: async (request) => decodeNativeResult<DescribePaletteResponse>(await invokeNativeCapability(nativeCapability, "bindingsDemo", "describePalette", encodeNativeRequest(request, "bindingsDemo.describePalette")), "bindingsDemo.describePalette"),
   };
 }
 

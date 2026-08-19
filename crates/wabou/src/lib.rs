@@ -14,9 +14,9 @@
 //! # }
 //! ```
 
-pub use wabou_bindgen::JsonMethod;
 #[cfg(feature = "bindings")]
 pub use wabou_bindgen::{Bindings, Capability, Type, specta};
+pub use wabou_bindgen::{JsonCapabilityContract, JsonMethod};
 pub use wabou_runtime::*;
 
 #[cfg(test)]
@@ -41,7 +41,8 @@ mod tests {
             ready: bool,
         }
 
-        let _ = Bindings::new().capability(Capability::new("workspace"));
+        let _ = Bindings::new()
+            .capability(Capability::new(JsonCapabilityContract::new("workspace", 1)));
         let mut types = specta::Types::default();
         let _ = Payload::definition(&mut types);
     }

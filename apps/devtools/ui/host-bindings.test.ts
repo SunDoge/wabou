@@ -6,6 +6,7 @@ test("generated DevTools client sends one structured request", async () => {
   const calls: unknown[][] = [];
   const client = createDevtoolsClient({
     devtools: {
+      __wabouCapabilityVersion: 1,
       setOverlay: (...args: unknown[]) => {
         calls.push(args);
         return JSON.stringify({
@@ -45,6 +46,7 @@ test("generated no-request methods are argument-free at the native boundary", as
   const calls: unknown[][] = [];
   const client = createDevtoolsClient({
     devtools: {
+      __wabouCapabilityVersion: 1,
       status: (...args: unknown[]) => {
         calls.push(args);
         return JSON.stringify({

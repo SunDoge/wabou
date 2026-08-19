@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
-use wabou::{Bindings, Capability, JsonMethod, Type, specta};
+use wabou::{Bindings, Capability, JsonCapabilityContract, JsonMethod, Type, specta};
 
 /// Capability containing the gallery's binding demonstration.
-pub const CAPABILITY: &str = "bindingsDemo";
+pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("bindingsDemo", 1);
 /// Input accepted by the palette-description example.
 #[derive(Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -59,7 +59,7 @@ mod tests {
     #[test]
     fn registered_method_and_manifest_share_names() {
         let output = manifest().render();
-        assert!(output.contains(&format!("readonly {CAPABILITY}")));
+        assert!(output.contains(&format!("readonly {}", CAPABILITY.name())));
         assert!(output.contains(&format!("{}(request: string)", DESCRIBE_PALETTE.name())));
         assert!(output.contains(
             "describePalette(request: DescribePaletteRequest): Promise<DescribePaletteResponse>"

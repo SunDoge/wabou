@@ -251,7 +251,7 @@ Applications that do not generate Rust-owned TypeScript capabilities leave the
 feature disabled and do not compile Specta or the TypeScript exporter.
 
 ```rust
-use wabou::{Capability, JsonMethod, Type, specta};
+use wabou::{Capability, JsonCapabilityContract, JsonMethod, Type, specta};
 
 #[derive(serde::Deserialize, Type)]
 struct RenameRequest {
@@ -260,8 +260,9 @@ struct RenameRequest {
 
 const RENAME: JsonMethod<RenameRequest, bool> = JsonMethod::new("rename");
 const STATUS: JsonMethod<(), WorkspaceStatus> = JsonMethod::no_request("status");
+const WORKSPACE: JsonCapabilityContract = JsonCapabilityContract::new("workspace", 1);
 
-let capability = Capability::new("workspace")
+let capability = Capability::new(WORKSPACE)
     .method(RENAME)
     .method(STATUS);
 ```
@@ -283,7 +284,7 @@ adapter. It owns JSON decoding, native Promise creation and the standard result
 envelope, so application code does not repeat the wire protocol:
 
 ```rust
-HostBuilder::new().json_capability("workspace", |capability| {
+HostBuilder::new().json_capability(WORKSPACE, |capability| {
     capability.method(RENAME, rename)
 });
 ```

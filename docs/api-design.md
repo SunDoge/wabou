@@ -123,6 +123,28 @@ that the raw JSON methods merged into `Host` are the typed public API. Each meth
 request value, encoded as JSON (`null` when absent); sync and Promise-like
 native results are normalized at the client boundary.
 
+Failed capability envelopes contain a stable `{ code, message }` object rather
+than an unclassified string. `invalidRequest` means Rust rejected the JSON DTO
+before invoking application code, `handlerFailure` means the registered Rust
+handler returned an error, and `responseEncodingFailure` means its success
+value could not be serialized. Generated clients add `invalidResponse` for
+malformed JSON or envelopes and expose the classification on
+`NativeCapabilityError.code`; callers may branch on the code while retaining a
+human-readable diagnostic. A native function that throws or rejects before it
+can return an envelope is classified separately as `invocationFailure`, so raw
+bridge exceptions do not leak through the generated client API.
+Likewise, values that cannot be serialized as JSON are rejected locally as
+`requestEncodingFailure` before the native method is invoked.
+
+Each generated namespace also uses one shared `JsonCapabilityContract` for its
+name and ABI version. The Rust host publishes that version on the mounted
+capability object, and generated clients validate it when constructed. Missing
+or stale native implementations fail deterministically with
+`incompatibleHost`, which is especially important when Vite HMR can refresh
+JavaScript but cannot replace changed Rust code. Individual native methods are
+validated when called, so partial test hosts remain easy to construct while a
+stale or incomplete real host still produces the same classified diagnostic.
+
 Specta 2 deliberately exports unconstrained Rust floats as `number | null`,
 matching `serde_json` for NaN and infinity. A DTO may opt into
 `specta_typescript::Number` only when its producer enforces a finite-value
@@ -145,10 +167,13 @@ an explicit `write` operation; the corresponding `check` operation generates
 in memory and fails when the committed output differs. Ordinary compilation
 and build scripts must not rewrite the source tree.
 
-Framework-owned synchronous host calls use the same Rust/Specta source but a
-flat `FunctionModule` rather than an async capability client. The generated
-`NativeHostApi` checks the TypeScript adapter for URL opening, font loading,
-frame diagnostics and layout snapshots while preserving their synchronous
-semantics. Per-frame binary rendering operations and guest callbacks remain a
-separate, versioned ABI because routing those through JSON RPC would add cost
-and erase useful protocol constraints.
+Framework-owned synchronous host calls use a flat `FunctionModule` rather than
+an async capability client. Its `NativeMethod` signatures and supporting
+TypeScript declarations are written explicitly beside the Rust host types;
+Specta does not infer FFI semantics. This deliberately makes the author review
+argument conversion, sync/async behavior and error policy, while generated-file
+drift checks still keep the committed adapter declaration reproducible. Users
+may use the same builder or maintain a `.d.ts` directly. Per-frame binary
+rendering operations and guest callbacks remain a separate, versioned ABI
+because routing those through JSON RPC would add cost and erase useful protocol
+constraints.

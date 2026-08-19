@@ -7955,8 +7955,6 @@ name = "wabou-host-api"
 version = "0.1.0-alpha.1"
 dependencies = [
  "serde",
- "specta",
- "specta-typescript",
  "wabou-bindgen",
 ]
 
