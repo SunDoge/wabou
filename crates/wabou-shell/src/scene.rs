@@ -9,7 +9,7 @@ use vello::peniko::{Color, Fill};
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
 use crate::style::{IrLength, PaintTransform, Shadow};
-use crate::text::TextContext;
+use crate::text::{IS_APPLE_PLATFORM, TextContext};
 
 /// Resolve the node-local static CSS and runtime affine transforms separately.
 pub fn resolve_local_transforms(node: &PlacedNode) -> (Affine, Affine) {
@@ -357,6 +357,24 @@ fn draw_text(
         );
     }
     let text_transform = transform * origin;
+    if !tcx.uses_swash_raster() {
+        if IS_APPLE_PLATFORM {
+            tcx.draw_apple_layout_into(
+                scene,
+                &layout,
+                text_transform * Affine::scale(device_scale.recip()),
+                device_scale,
+            );
+        } else {
+            let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
+            append_fragment(
+                scene,
+                &glyph_scene,
+                Some(text_transform * Affine::scale(device_scale.recip())),
+            );
+        }
+        return;
+    }
     let [a, b, c, d, tx, ty] = text_transform.as_coeffs();
     let raster_eligible = b.abs() < 1e-6
         && c.abs() < 1e-6
@@ -379,6 +397,18 @@ fn draw_text(
             );
             return;
         }
+    }
+    if IS_APPLE_PLATFORM {
+        // The Swash A/B path cannot represent faux bold/italic and transformed
+        // raster text. Keep those fallbacks on Apple's synthesis-free outline
+        // policy so the diagnostic switch changes only the rasterizer.
+        tcx.draw_apple_layout_into(
+            scene,
+            &layout,
+            text_transform * Affine::scale(device_scale.recip()),
+            device_scale,
+        );
+        return;
     }
     let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
     append_fragment(
@@ -824,7 +854,9 @@ mod tests {
         }
 
         let image = render_nodes(&nodes, "text-followed-by-fill");
-        assert_eq!(image.get_pixel(20, 35).0, [51, 65, 85, 255]);
+        // Sample the second option outside its text. Direct outline rendering
+        // legitimately covers the old (20, 35) sample with the letter `o`.
+        assert_eq!(image.get_pixel(80, 35).0, [51, 65, 85, 255]);
     }
 
     #[test]

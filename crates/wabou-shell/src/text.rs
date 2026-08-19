@@ -19,7 +19,7 @@ use parley::{
 use unicode_segmentation::UnicodeSegmentation;
 use vello::Glyph as VelloGlyph;
 use vello::Scene;
-use vello::kurbo::Affine;
+use vello::kurbo::{Affine, Diagonal2};
 use vello::peniko::Fill;
 
 use crate::style::TextAlign;
@@ -79,9 +79,36 @@ pub struct TextContext {
     glyph_cache: LruCache<(usize, u64), GlyphSceneEntry>,
     raster_cache: LruCache<(usize, u64, u8, u8), GlyphSceneEntry>,
     raster_scale_cx: swash::scale::ScaleContext,
+    use_swash_raster: bool,
 }
 
 type GlyphSceneEntry = (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>);
+
+pub(crate) const IS_APPLE_PLATFORM: bool = cfg!(any(target_os = "macos", target_os = "ios"));
+
+fn use_swash_raster_for(backend: Option<&str>) -> bool {
+    match backend {
+        Some(value) if value.eq_ignore_ascii_case("swash") => true,
+        Some(value) if value.eq_ignore_ascii_case("vello") => false,
+        _ => true,
+    }
+}
+
+fn synthetic_embolden(
+    requested: bool,
+    allowed: bool,
+    font_size: f32,
+    device_scale: f64,
+) -> vello::FontEmbolden {
+    if requested && allowed {
+        // Match the conventional FreeType synthetic-bold strength of roughly
+        // one twenty-fourth of an em on raster-oriented platforms.
+        let amount = f64::from(font_size) * device_scale / 24.0;
+        vello::FontEmbolden::new(Diagonal2::new(amount, amount))
+    } else {
+        vello::FontEmbolden::default()
+    }
+}
 
 impl Default for TextContext {
     fn default() -> Self {
@@ -100,7 +127,15 @@ impl TextContext {
             glyph_cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
             raster_cache: LruCache::new(NonZeroUsize::new(256).unwrap()),
             raster_scale_cx: swash::scale::ScaleContext::new(),
+            use_swash_raster: use_swash_raster_for(
+                std::env::var("WABOU_TEXT_BACKEND").ok().as_deref(),
+            ),
         }
+    }
+
+    /// Whether ordinary axis-aligned text should use Swash rasterization.
+    pub(crate) fn uses_swash_raster(&self) -> bool {
+        self.use_swash_raster
     }
 
     /// Register a raw font file (TTF/OTF) from its bytes so it becomes
@@ -158,6 +193,45 @@ impl TextContext {
         let _guard = span.enter();
 
         let mut scene = Scene::new();
+        Self::draw_layout_into(
+            &mut scene,
+            layout,
+            device_scale,
+            Affine::IDENTITY,
+            true,
+            true,
+        );
+        let scene = Arc::new(scene);
+        self.glyph_cache
+            .put(key, (Arc::downgrade(layout), scene.clone()));
+        scene
+    }
+
+    /// Draw an Apple-style glyph layout directly into the destination scene.
+    ///
+    /// Direct encoding avoids the retained glyph-fragment issue observed with
+    /// Vello/Metal. Apple platforms render unhinted outlines at the font's
+    /// native weight and do not geometrically synthesize missing weights;
+    /// Linux and Windows retain the Swash raster path selected by the painter.
+    pub(crate) fn draw_apple_layout_into(
+        &self,
+        scene: &mut Scene,
+        layout: &Layout<[u8; 4]>,
+        transform: Affine,
+        device_scale: f64,
+    ) {
+        Self::draw_layout_into(scene, layout, device_scale, transform, false, false);
+    }
+
+    fn draw_layout_into(
+        scene: &mut Scene,
+        layout: &Layout<[u8; 4]>,
+        device_scale: f64,
+        transform: Affine,
+        hint: bool,
+        allow_synthetic_embolden: bool,
+    ) {
+        let device_scale = device_scale.max(f64::EPSILON);
         for line in layout.lines() {
             for item in line.items() {
                 if let PositionedLayoutItem::GlyphRun(gr) = item {
@@ -168,14 +242,12 @@ impl TextContext {
                         .skew()
                         .map(|angle| Affine::skew(angle.to_radians().tan() as f64, 0.0));
                     let synthesis = run.synthesis();
-                    let embolden = if synthesis.embolden() {
-                        // Match the conventional FreeType synthetic-bold
-                        // strength of roughly one twenty-fourth of an em.
-                        let amount = f64::from(run.font_size()) * device_scale / 24.0;
-                        vello::FontEmbolden::new(vello::kurbo::Diagonal2::new(amount, amount))
-                    } else {
-                        vello::FontEmbolden::default()
-                    };
+                    let embolden = synthetic_embolden(
+                        synthesis.embolden(),
+                        allow_synthetic_embolden,
+                        run.font_size(),
+                        device_scale,
+                    );
                     let glyphs: Vec<VelloGlyph> = gr
                         .positioned_glyphs()
                         .map(|g| VelloGlyph {
@@ -191,28 +263,19 @@ impl TextContext {
                             .normalized_coords(run.normalized_coords())
                             .glyph_transform(glyph_transform)
                             .font_embolden(embolden)
-                            // Vello defaults glyph hinting to false. Request it
-                            // here so uniform device-scale transforms are folded
-                            // into the physical font size and stems align to the
-                            // device pixel grid. Vello safely disables hinting
-                            // for rotated, skewed, or non-uniform transforms.
-                            .hint(true)
+                            .hint(hint)
                             .brush(Color::from_rgba8(
                                 gr.style().brush[0],
                                 gr.style().brush[1],
                                 gr.style().brush[2],
                                 gr.style().brush[3],
                             ))
-                            .transform(Affine::IDENTITY)
+                            .transform(transform)
                             .draw(Fill::NonZero, glyphs.into_iter());
                     }
                 }
             }
         }
-        let scene = Arc::new(scene);
-        self.glyph_cache
-            .put(key, (Arc::downgrade(layout), scene.clone()));
-        scene
     }
 
     /// Rasterize a text layout into a device-pixel-aligned retained fragment.
@@ -499,6 +562,24 @@ pub fn layout_text_styled_overflow(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn apple_outline_policy_suppresses_synthetic_bold() {
+        let suppressed = synthetic_embolden(true, false, 16.0, 2.0);
+        let raster = synthetic_embolden(true, true, 16.0, 2.0);
+
+        assert_eq!(suppressed.amount, Diagonal2::new(0.0, 0.0));
+        assert_eq!(raster.amount, Diagonal2::new(4.0 / 3.0, 4.0 / 3.0));
+    }
+
+    #[test]
+    fn text_backend_defaults_to_swash_and_keeps_vello_override() {
+        assert!(use_swash_raster_for(None));
+        assert!(use_swash_raster_for(Some("swash")));
+        assert!(use_swash_raster_for(Some("SWASH")));
+        assert!(!use_swash_raster_for(Some("vello")));
+        assert!(!use_swash_raster_for(Some("VELLO")));
+    }
 
     #[test]
     fn identical_text_layouts_are_shared() {
