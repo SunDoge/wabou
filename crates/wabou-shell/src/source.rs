@@ -353,6 +353,30 @@ pub struct KeyEvent {
     pub repeat: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Phase of a file drag entering, leaving, or being dropped on a window.
+pub enum FileDropPhase {
+    /// One or more native files entered the window.
+    Entered,
+    /// A native file drag moved within the window.
+    Moved,
+    /// The native file drag left the window without dropping.
+    Left,
+    /// A native file was dropped on the window.
+    Dropped,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+/// Window-level native file drag-and-drop event.
+pub struct FileDropEvent {
+    /// Drag lifecycle phase reported by the window system.
+    pub phase: FileDropPhase,
+    /// Native paths supplied when the drag enters or drops.
+    pub paths: Vec<std::path::PathBuf>,
+    /// Pointer position in logical window pixels, when supplied by the platform.
+    pub position: Option<Point>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// Input and window-state events delivered to a [`FrameSource`] or widget.
 pub enum UiEvent {
@@ -370,6 +394,8 @@ pub enum UiEvent {
     Paste(String),
     /// Element-level focus transition.
     Focus(bool),
+    /// A native file was dragged over, away from, or dropped on the window.
+    FileDrop(FileDropEvent),
     /// Native window size, scale, or focus state changed.
     WindowMetrics(WindowMetrics),
 }

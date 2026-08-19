@@ -135,6 +135,34 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
 }
 
 #[test]
+fn native_file_drop_reaches_js_with_paths_and_logical_position() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let response = applier.handle_event(UiEvent::FileDrop(wabou_shell::FileDropEvent {
+        phase: wabou_shell::FileDropPhase::Dropped,
+        paths: vec!["/tmp/one.yaml".into(), "/tmp/two.torrent".into()],
+        position: Some(wabou_shell::Point { x: 24.5, y: 31.0 }),
+    }));
+    assert!(response.request_redraw);
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                "globalThis.__host_got.find((x) => x.topic === 'wabou:file-drop').payload",
+            )
+        })
+        .unwrap();
+    let payload: serde_json::Value = serde_json::from_str(&payload).unwrap();
+    assert_eq!(payload["phase"], "dropped");
+    assert_eq!(payload["paths"][0], "/tmp/one.yaml");
+    assert_eq!(payload["paths"][1], "/tmp/two.torrent");
+    assert_eq!(payload["position"]["x"], 24.5);
+    assert_eq!(payload["position"]["y"], 31.0);
+}
+
+#[test]
 fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let js = JsRuntime::new().expect("runtime");

@@ -24,6 +24,7 @@ import "./glue/resize-observer";
 import "./glue/host-messages";
 import "./glue/host-frame";
 import "./glue/window-metrics";
+import "./glue/file-drop";
 import "./glue/effects";
 import "./glue/clipboard";
 import "./glue/app-dirs";
@@ -54,6 +55,14 @@ export {
   tempDir,
 } from "./glue/app-dirs";
 export { type Clipboard, clipboard, useClipboard } from "./glue/clipboard";
+export {
+  type FileDropEvent,
+  type FileDropHandler,
+  type FileDropPhase,
+  type FileDropPosition,
+  subscribeFileDrop,
+  useFileDrop,
+} from "./glue/file-drop";
 export {
   type ColorPalette,
   type ColorThemeAnimation,

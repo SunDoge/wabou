@@ -28,10 +28,10 @@ use crate::WindowResourceKey;
 use crate::scene as scene_builder;
 use crate::shell::Shell;
 use crate::source::{
-    ClipboardRequest, EventResponse, FrameSource, FrameStats, HostAction, HostActionResult,
-    ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
-    PointerPhase, SemanticAction, SemanticRole, UiEvent, WakeCallback, WheelEvent, WindowCommand,
-    WindowMetrics, WindowOptions,
+    ClipboardRequest, EventResponse, FileDropEvent, FileDropPhase, FrameSource, FrameStats,
+    HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point,
+    PointerButton, PointerEvent, PointerPhase, SemanticAction, SemanticRole, UiEvent, WakeCallback,
+    WheelEvent, WindowCommand, WindowMetrics, WindowOptions,
 };
 use crate::style::CursorStyle;
 use crate::window_lifecycle::{WindowCapabilities, WindowEffect, WindowIntent, WindowLifecycle};
@@ -1006,6 +1006,34 @@ impl ApplicationHandler for App {
             WindowEvent::Focused(focused) => {
                 self.dispatch_focus_change(focused);
                 self.sync_window_metrics();
+            }
+            WindowEvent::DragEntered { paths, position } => {
+                self.dispatch_event(UiEvent::FileDrop(FileDropEvent {
+                    phase: FileDropPhase::Entered,
+                    paths,
+                    position: Some(self.logical_pointer_position(position)),
+                }));
+            }
+            WindowEvent::DragMoved { position } => {
+                self.dispatch_event(UiEvent::FileDrop(FileDropEvent {
+                    phase: FileDropPhase::Moved,
+                    paths: Vec::new(),
+                    position: Some(self.logical_pointer_position(position)),
+                }));
+            }
+            WindowEvent::DragLeft { position } => {
+                self.dispatch_event(UiEvent::FileDrop(FileDropEvent {
+                    phase: FileDropPhase::Left,
+                    paths: Vec::new(),
+                    position: position.map(|position| self.logical_pointer_position(position)),
+                }));
+            }
+            WindowEvent::DragDropped { paths, position } => {
+                self.dispatch_event(UiEvent::FileDrop(FileDropEvent {
+                    phase: FileDropPhase::Dropped,
+                    paths,
+                    position: Some(self.logical_pointer_position(position)),
+                }));
             }
             _ => {}
         }

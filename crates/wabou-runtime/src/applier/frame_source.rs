@@ -893,6 +893,9 @@ impl FrameSource for Applier {
         if let UiEvent::WindowMetrics(metrics) = &input {
             return self.handle_window_metrics(*metrics);
         }
+        if let UiEvent::FileDrop(event) = input {
+            return self.handle_file_drop(event);
+        }
         if matches!(
             &input,
             UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
@@ -930,6 +933,7 @@ impl FrameSource for Applier {
             | UiEvent::TextInput(_)
             | UiEvent::Ime(_)
             | UiEvent::Paste(_)
+            | UiEvent::FileDrop(_)
             | UiEvent::WindowMetrics(_) => EventResponse::IGNORED,
         }
     }

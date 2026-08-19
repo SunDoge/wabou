@@ -125,6 +125,29 @@ declare function createWindowMatch(query: WindowSizeQuery, window?: WindowState)
 /** Reactive state and controls for the native window owning this JS runtime. */
 declare function useWindow(): WindowState;
 //#endregion
+//#region src/glue/file-drop.d.ts
+type FileDropPhase = "entered" | "moved" | "left" | "dropped";
+interface FileDropPosition {
+  x: number;
+  y: number;
+}
+/** One native path event reported by the window system. */
+interface FileDropEvent {
+  phase: FileDropPhase;
+  /** Native filesystem paths supplied on enter and drop events. */
+  paths: string[];
+  /** Logical window coordinates, or `null` when unavailable on the platform. */
+  position: FileDropPosition | null;
+}
+type FileDropHandler = (event: FileDropEvent) => void;
+/** Subscribe to native file drag-and-drop events for the current window. */
+declare function subscribeFileDrop(handler: FileDropHandler): () => void;
+/**
+ * Subscribe for the lifetime of the current Solid owner.
+ * Use `subscribeFileDrop` when no Solid owner is active.
+ */
+declare function useFileDrop(handler: FileDropHandler): void;
+//#endregion
 //#region src/glue/clipboard.d.ts
 interface Clipboard {
   readText(): Promise<string | null>;
@@ -302,5 +325,5 @@ interface PlatformProviderProps {
 /** Override native services for one Solid subtree, primarily for tests and previews. */
 declare function PlatformProvider(props: PlatformProviderProps): JSX$1.Element;
 //#endregion
-export { Affine2D, type AppDirectories, type CalendarDateFields, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type FrameStats, GRAPHIC_SOURCE, Handle, type Host, HostCapabilities, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type LayoutNodeMetrics, type LayoutRect, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouImageProps, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouUtility, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useHost, useNotification, useWindow, writer };
+export { Affine2D, type AppDirectories, type CalendarDateFields, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, type FrameStats, GRAPHIC_SOURCE, Handle, type Host, HostCapabilities, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type LayoutNodeMetrics, type LayoutRect, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouImageProps, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouUtility, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
 //# sourceMappingURL=index.d.mts.map

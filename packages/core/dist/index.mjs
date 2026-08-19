@@ -3,7 +3,7 @@ import { a as bool, c as number, d as rgba, f as rotate2d, h as INLINE_STYLE_CON
 import { A as Portal, C as runSweep, D as writer, E as spread, M as defaultHost, N as useHost, O as VirtualList, S as render, T as setTransform2D, _ as mount, a as createElement, b as releaseOverlayRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as mergeProps, h as memo, i as createComponent, j as HostProvider, k as createFps, l as effect, m as isServer, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as ref, w as setProp, x as removeNode, y as registerRoot } from "./renderer-aT76Sl0b.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
-import { createComponent as createComponent$1, createContext, createEffect, createSignal, flush, getOwner, useContext } from "solid-js";
+import { createComponent as createComponent$1, createContext, createEffect, createSignal, flush, getOwner, onCleanup, useContext } from "solid-js";
 //#region src/polyfills/abort-controller.ts
 /** Install cancellation primitives when the embedding runtime lacks them. */
 function installAbortControllerPolyfill() {
@@ -709,6 +709,35 @@ function useWindow() {
 	return usePlatformServices().window ?? state;
 }
 //#endregion
+//#region src/glue/file-drop.ts
+function decodeFileDrop(payload) {
+	if (typeof payload !== "string") return null;
+	const value = JSON.parse(payload);
+	if (value.phase !== "entered" && value.phase !== "moved" && value.phase !== "left" && value.phase !== "dropped") return null;
+	if (!Array.isArray(value.paths) || !value.paths.every((path) => typeof path === "string")) return null;
+	const position = value.position;
+	if (position !== null && (typeof position !== "object" || typeof position.x !== "number" || typeof position.y !== "number")) return null;
+	return {
+		phase: value.phase,
+		paths: value.paths,
+		position: position ?? null
+	};
+}
+/** Subscribe to native file drag-and-drop events for the current window. */
+function subscribeFileDrop(handler) {
+	return subscribe("wabou:file-drop", (payload) => {
+		const event = decodeFileDrop(payload);
+		if (event) handler(event);
+	});
+}
+/**
+* Subscribe for the lifetime of the current Solid owner.
+* Use `subscribeFileDrop` when no Solid owner is active.
+*/
+function useFileDrop(handler) {
+	onCleanup(subscribeFileDrop(handler));
+}
+//#endregion
 //#region src/glue/clipboard.ts
 const clipboard = Object.freeze({
 	readText: () => dispatchEffect(effectOps.clipboardRead),
@@ -983,6 +1012,6 @@ function showNativeMenu(options) {
 	});
 }
 //#endregion
-export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useHost, useNotification, useWindow, writer };
+export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
 
 //# sourceMappingURL=index.mjs.map

@@ -1,6 +1,36 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_file_drop(&mut self, event: wabou_shell::FileDropEvent) -> EventResponse {
+        let phase = match event.phase {
+            wabou_shell::FileDropPhase::Entered => "entered",
+            wabou_shell::FileDropPhase::Moved => "moved",
+            wabou_shell::FileDropPhase::Left => "left",
+            wabou_shell::FileDropPhase::Dropped => "dropped",
+        };
+        let payload = serde_json::json!({
+            "phase": phase,
+            "paths": event.paths.into_iter()
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            "position": event.position.map(|position| serde_json::json!({
+                "x": position.x,
+                "y": position.y,
+            })),
+        })
+        .to_string();
+        let event = HostEvent::Application(crate::host_message::HostMessage::str(
+            "wabou:file-drop",
+            payload,
+        ));
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
     pub(super) fn handle_window_metrics(
         &mut self,
         metrics: wabou_shell::WindowMetrics,
