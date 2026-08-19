@@ -194,6 +194,19 @@ fn app_directory_effect_uses_host_configuration_only() {
 }
 
 #[test]
+fn application_exit_effect_is_process_scoped_and_payload_free() {
+    assert_eq!(
+        decode_effect_payload(
+            wabou_shell::effect::builtin::APPLICATION_EXIT,
+            wabou_shell::initial_window_resource_key(0),
+            "null".into(),
+            None,
+        ),
+        wabou_shell::EffectPayload::ApplicationExit
+    );
+}
+
+#[test]
 fn key_payload_keeps_physical_modifiers_separate_from_primary() {
     let platform_primary = if cfg!(target_os = "macos") {
         Modifiers::META

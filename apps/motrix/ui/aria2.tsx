@@ -116,6 +116,7 @@ export interface MotrixConfig {
   notifyOnError: boolean;
   resumeAllWhenAppLaunched: boolean;
   newTaskShowDownloading: boolean;
+  warnBeforeQuit: boolean;
   btTrackers: string[];
   maxOverallDownloadLimit: string;
   maxOverallUploadLimit: string;
@@ -160,6 +161,7 @@ interface Aria2ContextValue {
   downloadHistory(): readonly number[];
   uploadHistory(): readonly number[];
   events(): readonly TaskEvent[];
+  quitRequests(): number;
   clearEvents(): void;
   config(): MotrixConfig;
   addUris(request: AddUrisRequest): Promise<string[]>;
@@ -222,6 +224,7 @@ const defaultConfig: MotrixConfig = {
   notifyOnError: true,
   resumeAllWhenAppLaunched: false,
   newTaskShowDownloading: true,
+  warnBeforeQuit: true,
   btTrackers: [
     "udp://tracker.opentrackr.org:1337/announce",
     "udp://open.stealth.si:80/announce",
@@ -253,6 +256,7 @@ export function Aria2Provider(props: ParentProps) {
     Array(30).fill(0),
   );
   const [events, setEvents] = createSignal<readonly TaskEvent[]>([]);
+  const [quitRequests, setQuitRequests] = createSignal(0);
   const previousStatuses = new Map<string, string>();
   const [config, setConfig] = createSignal(defaultConfig);
   const call = async <T,>(
@@ -281,6 +285,7 @@ export function Aria2Provider(props: ParentProps) {
     downloadHistory,
     uploadHistory,
     events,
+    quitRequests,
     clearEvents: () => setEvents([]),
     config,
     refresh,
@@ -383,9 +388,13 @@ export function Aria2Provider(props: ParentProps) {
       }
     },
   );
+  const unsubscribeQuit = hostMessages.subscribe("motrix.quitRequested", () =>
+    setQuitRequests((value) => value + 1),
+  );
   onCleanup(() => {
     unsubscribeSnapshot();
     unsubscribePatch();
+    unsubscribeQuit();
   });
   return createComponent(Aria2Context, {
     value,

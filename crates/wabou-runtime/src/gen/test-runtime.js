@@ -6439,7 +6439,7 @@ ${detail}`);
   globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 
   // packages/core/src/generated/effect-abi.ts
-  var EFFECT_ABI_VERSION = 3;
+  var EFFECT_ABI_VERSION = 4;
   var effectOps = Object.freeze({
     clipboardRead: { capability: 1, method: 1 },
     clipboardWrite: { capability: 1, method: 2 },
@@ -6455,7 +6455,8 @@ ${detail}`);
     dialogSave: { capability: 5, method: 2 },
     dialogPickDirectory: { capability: 5, method: 3 },
     dialogMessage: { capability: 5, method: 4 },
-    notificationShow: { capability: 6, method: 1 }
+    notificationShow: { capability: 6, method: 1 },
+    applicationExit: { capability: 7, method: 1 }
   });
   // packages/core/src/glue/effects.ts
   var pending = new Map;
@@ -6608,6 +6609,11 @@ ${detail}`);
   var appLogDir = appDirs.log;
   var resourceDir = appDirs.resource;
   var tempDir = appDirs.temp;
+
+  // packages/core/src/glue/application.ts
+  var application = Object.freeze({
+    exit: () => dispatchFireAndForget(effectOps.applicationExit)
+  });
 
   // packages/core/src/glue/dialog.ts
   function normalizeFilters(filters) {

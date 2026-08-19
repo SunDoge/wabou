@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "abiVersion": 3,
+  "abiVersion": 4,
   "operations": [
     { "name": "clipboardRead", "capability": 1, "method": 1, "description": "Read text from the system clipboard." },
     { "name": "clipboardWrite", "capability": 1, "method": 2, "description": "Write text to the system clipboard." },
@@ -16,6 +16,7 @@
     { "name": "dialogSave", "capability": 5, "method": 2, "description": "Show a save-file dialog." },
     { "name": "dialogPickDirectory", "capability": 5, "method": 3, "description": "Show a directory picker." },
     { "name": "dialogMessage", "capability": 5, "method": 4, "description": "Show a platform message dialog." },
-    { "name": "notificationShow", "capability": 6, "method": 1, "description": "Publish a desktop notification." }
+    { "name": "notificationShow", "capability": 6, "method": 1, "description": "Publish a desktop notification." },
+    { "name": "applicationExit", "capability": 7, "method": 1, "description": "Request orderly application termination." }
   ]
 }

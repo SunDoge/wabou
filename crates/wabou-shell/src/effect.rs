@@ -298,6 +298,8 @@ pub enum EffectPayload {
     DialogMessage(MessageDialogRequest),
     /// Publish a desktop notification.
     NotificationShow(NotificationRequest),
+    /// Request orderly termination of the complete application.
+    ApplicationExit,
     /// Opaque application-defined payload interpreted by a registered executor.
     Extension {
         /// Registered extension operation.
@@ -348,6 +350,7 @@ impl EffectPayload {
             Self::DialogPickDirectory(_) => builtin::DIALOG_PICK_DIRECTORY,
             Self::DialogMessage(_) => builtin::DIALOG_MESSAGE,
             Self::NotificationShow(_) => builtin::NOTIFICATION_SHOW,
+            Self::ApplicationExit => builtin::APPLICATION_EXIT,
             Self::Extension { op, .. } | Self::Invalid { op, .. } => *op,
         }
     }
@@ -560,6 +563,7 @@ mod tests {
         assert_eq!(builtin::DIALOG_OPEN, EffectOp::new(5, 1));
         assert_eq!(builtin::DIALOG_MESSAGE, EffectOp::new(5, 4));
         assert_eq!(builtin::NOTIFICATION_SHOW, EffectOp::new(6, 1));
+        assert_eq!(builtin::APPLICATION_EXIT, EffectOp::new(7, 1));
     }
 
     #[test]

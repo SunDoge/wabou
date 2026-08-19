@@ -46,6 +46,26 @@ test("Motrix closes to its tray and restores the native window", async ({
   await page.getByRole("button", { name: "Downloads" }).waitFor();
 });
 
+test("Motrix warns before quitting with an unfinished task", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "New task" }).click();
+  await page.getByRole("dialog", { name: "Add download task" }).waitFor();
+  await page
+    .getByRole("textbox", { name: "Download URLs" })
+    .type("magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567");
+  await page.getByRole("button", { name: "Create task" }).click();
+  await page
+    .getByRole("button", { name: "Pause all" })
+    .click({ timeout: 5_000 });
+  await page
+    .getByRole("button", { name: "Downloads" })
+    .press("q", { control: true });
+  await page.getByRole("dialog", { name: "Confirm quit" }).waitFor();
+  await page.getByRole("button", { name: "Keep running" }).click();
+  await expect(page.getByRole("dialog", { name: "Confirm quit" })).toBeAbsent();
+});
+
 test(
   "Motrix inspects and safely removes a real aria2 task",
   async ({ page }) => {

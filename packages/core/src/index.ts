@@ -28,6 +28,7 @@ import "./glue/file-drop";
 import "./glue/effects";
 import "./glue/clipboard";
 import "./glue/app-dirs";
+import "./glue/application";
 import "./glue/dialog";
 import "./glue/notification";
 import "./glue/intl";
@@ -39,6 +40,7 @@ export * from "./renderer";
 export * from "./registry";
 export * from "./style";
 export * from "./vector-path";
+export { type Application, application } from "./glue/application";
 export {
   type CalendarDateFields,
   intl,

@@ -11,7 +11,8 @@ search, status filters, task inspection with file/tracker/peer details, batch
 actions, task-row native context menus, and optional system-Trash removal of
 downloaded files; revisioned Rust-to-JavaScript task patches; live RPC speed
 charts; a persistent 84-day transfer heatmap; tracker synchronization; native
-completion/error notifications; and light/dark themes.
+completion/error notifications; light/dark themes; and an optional in-app
+confirmation before terminating active downloads.
 
 ## Run
 
@@ -39,8 +40,10 @@ and performs `saveSession` followed by a graceful RPC shutdown before falling
 back to terminating the owned process group.
 
 Closing the main window keeps managed downloads running in the system tray.
-Use **Open Motrix** to restore the window or **Quit Motrix** to save the aria2
-session and stop the managed process cleanly.
+Use **Open Motrix** to restore the window. **Quit Motrix** restores the window
+when necessary, asks before interrupting unfinished work, saves the aria2
+session, and stops the managed process cleanly. The same flow is available via
+`Primary+Q` and can be disabled in General settings.
 
 Daily transfer totals are derived from completed-byte deltas rather than UI
 frame timing and are saved as `activity.json` in the same platform-native

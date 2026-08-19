@@ -33,6 +33,7 @@ use wabou::{
 pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("aria2", 1);
 const SNAPSHOT: &str = "aria2.snapshot";
 const SNAPSHOT_PATCH: &str = "aria2.snapshot.patch";
+const QUIT_REQUESTED: &str = "motrix.quitRequested";
 
 const GET_SNAPSHOT: JsonMethod<(), Snapshot> = JsonMethod::no_request("getSnapshot");
 const ADD_URI: JsonMethod<AddUriRequest, Vec<String>> = JsonMethod::new("addUri");
@@ -69,6 +70,7 @@ pub struct Aria2Service {
     stream_revision: Arc<AtomicU64>,
     activity: Arc<StdMutex<ActivityLog>>,
     stopped_cache: Arc<Mutex<StoppedTaskCache>>,
+    quit_requested: Arc<AtomicBool>,
 }
 
 struct StoppedTaskCache {
@@ -360,6 +362,7 @@ impl Aria2Service {
                 stream_revision: Arc::new(AtomicU64::new(0)),
                 activity: Arc::new(StdMutex::new(activity)),
                 stopped_cache: Arc::new(Mutex::new(StoppedTaskCache::default())),
+                quit_requested: Arc::new(AtomicBool::new(false)),
             },
             Some(managed),
         ))
@@ -392,6 +395,7 @@ impl Aria2Service {
             stream_revision: Arc::new(AtomicU64::new(0)),
             activity: Arc::new(StdMutex::new(ActivityLog::load(Path::new(".")))),
             stopped_cache: Arc::new(Mutex::new(StoppedTaskCache::default())),
+            quit_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -528,6 +532,10 @@ impl Aria2Service {
 
     async fn invalidate_stopped_cache(&self) {
         *self.stopped_cache.lock().await = StoppedTaskCache::default();
+    }
+
+    pub fn request_quit(&self) {
+        self.quit_requested.store(true, Ordering::Release);
     }
 
     async fn engine_action(&self, action: EngineAction) -> Result<(), String> {
@@ -745,6 +753,8 @@ impl HostService for ManagedAria2 {
             return Ok(());
         }
         self.prepare_session_file()?;
+        let dht_path = self.session_path.with_file_name("dht.dat");
+        let dht6_path = self.session_path.with_file_name("dht6.dat");
         let mut command =
             Command::new(env::var_os("WABOU_ARIA2_BIN").unwrap_or_else(|| "aria2c".into()));
         command.args([
@@ -754,6 +764,8 @@ impl HostService for ManagedAria2 {
             &format!("--rpc-secret={}", self.secret),
             &format!("--input-file={}", self.session_path.display()),
             &format!("--save-session={}", self.session_path.display()),
+            &format!("--dht-file-path={}", dht_path.display()),
+            &format!("--dht-file-path6={}", dht6_path.display()),
             "--save-session-interval=10",
             "--continue=true",
             "--console-log-level=warn",
@@ -1632,6 +1644,19 @@ async fn retry_task(client: &Client, gid: &str) -> Result<(), String> {
 
 pub fn stream_snapshots(context: HostMessageContext, service: Aria2Service) {
     let task_context = context.clone();
+    let quit_context = context.clone();
+    let quit_service = service.clone();
+    context.spawn(async move {
+        loop {
+            if quit_service.quit_requested.swap(false, Ordering::AcqRel) {
+                let _ = quit_context.messages().emit_str(QUIT_REQUESTED, "null");
+            }
+            tokio::select! {
+                () = quit_context.cancelled() => break,
+                () = tokio::time::sleep(Duration::from_millis(50)) => {}
+            }
+        }
+    });
     context.spawn(async move {
         if let Err(error) = service.apply_config_to_engine().await {
             tracing::warn!(%error, "could not apply persisted Motrix settings to aria2");

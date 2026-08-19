@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
+import { EFFECT_ABI_VERSION } from "../generated/effect-abi";
 
 test("createWindow returns a handle that targets the created window", async () => {
   const calls: unknown[][] = [];
   let nextRequest = 42;
   Object.assign(globalThis, {
-  __wabou_effect_abi: 3,
+    __wabou_effect_abi: EFFECT_ABI_VERSION,
     __wabou_window_id_lo: 3,
     __wabou_window_id_hi: 1,
     __wabou_effect_submit: (
@@ -16,7 +17,13 @@ test("createWindow returns a handle that targets the created window", async () =
       const request = nextRequest++;
       if (capability === 2 && method === 1) {
         queueMicrotask(() =>
-          __wabou_effect_complete(request, capability, method, 0, '{"lo":42,"hi":1}'),
+          __wabou_effect_complete(
+            request,
+            capability,
+            method,
+            0,
+            '{"lo":42,"hi":1}',
+          ),
         );
       }
       return request;

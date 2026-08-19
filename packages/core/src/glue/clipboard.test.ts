@@ -1,10 +1,11 @@
 import { expect, test } from "bun:test";
+import { EFFECT_ABI_VERSION } from "../generated/effect-abi";
 
 let nextRequest = 1;
 const calls: Array<[number, number, unknown]> = [];
 
 Object.assign(globalThis, {
-  __wabou_effect_abi: 3,
+  __wabou_effect_abi: EFFECT_ABI_VERSION,
   __wabou_effect_submit: (capability: number, method: number, json: string) => {
     const requestId = nextRequest++;
     calls.push([capability, method, JSON.parse(json)]);

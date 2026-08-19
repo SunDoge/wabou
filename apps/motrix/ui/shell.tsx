@@ -1,4 +1,5 @@
 import {
+  application,
   Button,
   ColorThemeProvider,
   ComponentsProvider,
@@ -53,6 +54,7 @@ export function AppShell(props: { children?: JSX.Element }) {
   const [torrentPath, setTorrentPath] = createSignal("");
   const [addError, setAddError] = createSignal("");
   const [draggingFile, setDraggingFile] = createSignal(false);
+  const [confirmingQuit, setConfirmingQuit] = createSignal(false);
   const [directory, setDirectory] = createSignal(initialConfig.downloadDir);
   const [filename, setFilename] = createSignal("");
   const [split, setSplit] = createSignal(String(initialConfig.split));
@@ -101,9 +103,28 @@ export function AppShell(props: { children?: JSX.Element }) {
       {label}
     </Button>
   );
+  const requestQuit = () => {
+    const running = aria2
+      .snapshot()
+      .tasks.some((task) =>
+        ["active", "waiting", "paused", "seeding"].includes(task.status),
+      );
+    if (aria2.config().warnBeforeQuit && running) {
+      setConfirmingQuit(true);
+      return;
+    }
+    application.exit();
+  };
+  createEffect(
+    () => aria2.quitRequests(),
+    (requests) => {
+      if (requests > 0) requestQuit();
+    },
+  );
   const shortcuts = createShortcuts({
     "Primary+N": () => setAdding(true),
     "Primary+B": () => setSidebarOpen((open) => !open),
+    "Primary+Q": requestQuit,
   });
   return (
     <ColorThemeProvider
@@ -329,6 +350,33 @@ export function AppShell(props: { children?: JSX.Element }) {
                     }}
                   >
                     Create task
+                  </Button>
+                </View>
+              </>
+            )}
+          </Modal>
+          <Modal
+            aria-label="Confirm quit"
+            open={confirmingQuit()}
+            onOpenChange={setConfirmingQuit}
+            contentClass="w-96 max-w-full p-6 flex flex-col gap-4 rounded-xl border border-subtle bg-surface shadow-xl"
+          >
+            {({ close }) => (
+              <>
+                <Text class="text-xl font-semibold">Quit Motrix?</Text>
+                <Text class="text-sm text-muted">
+                  Downloads are still running. Their session will be saved and
+                  restored the next time Motrix starts.
+                </Text>
+                <View class="flex justify-end gap-2">
+                  <Button variant="ghost" onClick={close}>
+                    Keep running
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => application.exit()}
+                  >
+                    Quit Motrix
                   </Button>
                 </View>
               </>

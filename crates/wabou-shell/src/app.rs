@@ -132,6 +132,7 @@ pub struct App {
     effect_completion_rx: Receiver<crate::EffectCompletion>,
     wake_callback: Option<WakeCallback>,
     close_requested: bool,
+    application_exit_requested: bool,
     lifecycle: WindowLifecycle,
     force_semantics: bool,
 }
@@ -217,6 +218,7 @@ impl App {
             effect_completion_rx,
             wake_callback: None,
             close_requested: false,
+            application_exit_requested: false,
             lifecycle: WindowLifecycle::visible(),
             force_semantics: false,
         }
@@ -647,6 +649,14 @@ impl App {
                             }
                         });
                     }
+                }
+                crate::EffectPayload::ApplicationExit => {
+                    self.application_exit_requested = true;
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::Unit,
+                    });
                 }
                 payload @ (crate::EffectPayload::ContextMenuShow(_)
                 | crate::EffectPayload::Extension { .. }) => {
@@ -1681,6 +1691,15 @@ impl MultiWindowApp {
                 continue;
             };
             apply_window_command(app, command);
+        }
+        if self
+            .windows
+            .values()
+            .any(|app| app.application_exit_requested)
+        {
+            self.shutdown_extensions(event_loop);
+            event_loop.exit();
+            return;
         }
         let closed = self
             .windows

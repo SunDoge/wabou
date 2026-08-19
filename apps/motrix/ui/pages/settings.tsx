@@ -80,6 +80,9 @@ export function SettingsPage() {
   const [showDownloadsAfterAdding, setShowDownloadsAfterAdding] = createSignal(
     initialConfig.newTaskShowDownloading,
   );
+  const [warnBeforeQuit, setWarnBeforeQuit] = createSignal(
+    initialConfig.warnBeforeQuit,
+  );
   const [theme, setTheme] = createSignal<"light" | "dark">(initialConfig.theme);
   const [message, setMessage] = createSignal("");
   const [busy, setBusy] = createSignal(false);
@@ -101,6 +104,7 @@ export function SettingsPage() {
         notifyOnError: notifyError(),
         resumeAllWhenAppLaunched: resumeOnLaunch(),
         newTaskShowDownloading: showDownloadsAfterAdding(),
+        warnBeforeQuit: warnBeforeQuit(),
         maxOverallDownloadLimit: downloadLimit().trim() || "0",
         maxOverallUploadLimit: uploadLimit().trim() || "0",
         userAgent: userAgent().trim() || "Motrix-Wabou/0.1",
@@ -240,6 +244,11 @@ export function SettingsPage() {
                 onCheckedChange={setShowDownloadsAfterAdding}
               />
             </View>
+            <Switch
+              label="Warn before quitting while downloads are running"
+              checked={warnBeforeQuit()}
+              onCheckedChange={setWarnBeforeQuit}
+            />
           </Show>
 
           <Show when={section() === "appearance"}>

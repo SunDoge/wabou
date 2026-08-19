@@ -72,6 +72,7 @@ fn main() -> Result<(), Whatever> {
         .whatever_context("failed to configure aria2")?;
     let capability_service = aria2.clone();
     let stream_service = aria2.clone();
+    let tray_service = aria2.clone();
     let main_window = initial_window_resource_key(0);
     let tray = SystemTray::new(tray_icon())
         .tooltip("Motrix")
@@ -79,7 +80,10 @@ fn main() -> Result<(), Whatever> {
             context.show_window(main_window);
         })
         .separator()
-        .item("motrix.quit", "Quit Motrix", |context| context.exit())
+        .item("motrix.quit", "Quit Motrix", move |context| {
+            context.show_window(main_window);
+            tray_service.request_quit();
+        })
         .hide_window_on_close(main_window);
     let mut host = HostBuilder::new()
         .app_directory_config(directory_config)

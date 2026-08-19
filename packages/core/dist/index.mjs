@@ -535,13 +535,17 @@ const effectOps = Object.freeze({
 	notificationShow: {
 		capability: 6,
 		method: 1
+	},
+	applicationExit: {
+		capability: 7,
+		method: 1
 	}
 });
 //#endregion
 //#region src/glue/effects.ts
 const pending = /* @__PURE__ */ new Map();
 function assertAbi() {
-	if (__wabou_effect_abi !== 3) throw new Error(`Wabou effect ABI mismatch: bundle=3, host=${__wabou_effect_abi}`);
+	if (__wabou_effect_abi !== 4) throw new Error(`Wabou effect ABI mismatch: bundle=4, host=${__wabou_effect_abi}`);
 }
 function submit(op, payload) {
 	assertAbi();
@@ -771,6 +775,9 @@ const appCacheDir = appDirs.cache;
 const appLogDir = appDirs.log;
 const resourceDir = appDirs.resource;
 const tempDir = appDirs.temp;
+//#endregion
+//#region src/glue/application.ts
+const application = Object.freeze({ exit: () => dispatchFireAndForget(effectOps.applicationExit) });
 //#endregion
 //#region src/glue/dialog.ts
 function normalizeFilters(filters) {
@@ -1018,6 +1025,6 @@ function showNativeMenu(options) {
 	});
 }
 //#endregion
-export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PathBuilder, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
+export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PathBuilder, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
 
 //# sourceMappingURL=index.mjs.map

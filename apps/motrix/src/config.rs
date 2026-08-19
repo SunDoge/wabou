@@ -19,6 +19,7 @@ pub struct AppConfig {
     pub notify_on_error: bool,
     pub resume_all_when_app_launched: bool,
     pub new_task_show_downloading: bool,
+    pub warn_before_quit: bool,
     pub bt_trackers: Vec<String>,
     pub max_overall_download_limit: String,
     pub max_overall_upload_limit: String,
@@ -61,6 +62,7 @@ impl Default for AppConfig {
             notify_on_error: true,
             resume_all_when_app_launched: false,
             new_task_show_downloading: true,
+            warn_before_quit: true,
             bt_trackers: vec![
                 "udp://tracker.opentrackr.org:1337/announce".to_owned(),
                 "udp://open.stealth.si:80/announce".to_owned(),
@@ -149,5 +151,11 @@ mod tests {
             );
         }
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn older_configs_enable_quit_warning_by_default() {
+        let config: AppConfig = serde_json::from_str(r#"{"theme":"light"}"#).unwrap();
+        assert!(config.warn_before_quit);
     }
 }
