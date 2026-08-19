@@ -25,9 +25,7 @@ test("selection controls expose semantic interaction state", async ({
   ).toBeUnpressed();
 
   await page.getByRole("button", { name: "Radio group" }).click();
-  await page
-    .getByRole("radiogroup", { name: "Subscription plan" })
-    .waitFor();
+  await page.getByRole("radiogroup", { name: "Subscription plan" }).waitFor();
   const free = page.getByRole("radio", { name: "Free — local projects" });
   const pro = page.getByRole("radio", { name: "Pro — team collaboration" });
   await expect(free).toBeUnchecked();

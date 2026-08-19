@@ -4,7 +4,7 @@
 //! Run with `wabou dev vlist` or package with `wabou build vlist`.
 
 use snafu::{ResultExt, Whatever};
-use wabou_runtime::{HostBuilder, WindowOptions};
+use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {

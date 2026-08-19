@@ -1,4 +1,7 @@
-# @wabou/components
+# Wabou component implementation
+
+This is a private source workspace bundled into the public `@wabou/ui`
+package. Applications import styled components from `@wabou/ui`.
 
 Opinionated native components for Wabou applications. The visual language is
 inspired by shadcn: useful defaults, straightforward source, and composition

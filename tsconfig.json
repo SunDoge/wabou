@@ -6,7 +6,7 @@
     "customConditions": ["wabou-source"],
     "strict": true,
     "jsx": "preserve",
-    "jsxImportSource": "@wabou/core",
+    "jsxImportSource": "@wabou/ui",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

@@ -56,7 +56,7 @@ pub(super) fn command(workspace: &Path) -> Result<Command> {
     if source.join("Cargo.toml").is_file() && source.join("package.json").is_file() {
         let app = load_app(workspace, workspace, Some(&source))?;
         ensure(
-            frontend::run(workspace, &app, "build", &[], BuildProfile::Debug, true)?,
+            frontend::build(workspace, &app, &[], BuildProfile::Debug, true)?,
             "DevTools Vite build",
         )?;
         let manifest = app.root.join("Cargo.toml");

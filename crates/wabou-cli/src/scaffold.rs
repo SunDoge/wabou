@@ -35,6 +35,10 @@ const TEMPLATE_FILES: &[(&str, &str)] = &[
         include_str!("../../../templates/basic/tsconfig.json"),
     ),
     (
+        "tests/app.behavior.ts",
+        include_str!("../../../templates/basic/tests/app.behavior.ts"),
+    ),
+    (
         "ui/index.tsx",
         include_str!("../../../templates/basic/ui/index.tsx"),
     ),
@@ -161,7 +165,10 @@ mod tests {
         let package = fs::read_to_string(root.join("package.json")).unwrap();
         assert!(cargo.contains("vendor/wabou/crates/wabou"));
         assert!(package.contains("vendor/wabou/packages/*"));
+        assert!(package.contains("\"@wabou/ui\": \"workspace:*\""));
+        assert!(!package.contains("@wabou/solid-renderer"));
         assert!(root.join("ui/index.tsx").is_file());
+        assert!(root.join("tests/app.behavior.ts").is_file());
         for (relative, _) in TEMPLATE_FILES {
             let rendered = fs::read_to_string(root.join(relative)).unwrap();
             assert!(!rendered.contains("__WABOU_PROJECT_NAME__"));

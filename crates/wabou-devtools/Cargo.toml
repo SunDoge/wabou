@@ -5,13 +5,14 @@ edition = "2024"
 license.workspace = true
 
 [features]
-bindings = ["dep:specta"]
+bindings = ["dep:specta", "dep:specta-typescript"]
 
 [dependencies]
 clap = { workspace = true, features = ["derive", "env"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 specta = { workspace = true, optional = true }
+specta-typescript = { workspace = true, optional = true }
 base64 = "0.22"
 rmcp = { version = "2.2", features = ["server", "macros", "schemars", "transport-io"] }
 schemars = "1"

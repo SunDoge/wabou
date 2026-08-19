@@ -1,6 +1,7 @@
-import { type AnimationControls, animate } from "@wabou/animation";
 import {
   Alert,
+  type AnimationControls,
+  animate,
   Badge,
   Button,
   Card,
@@ -11,22 +12,28 @@ import {
   CardTitle,
   Checkbox,
   ConfigEditor,
+  createHover,
+  createWindow,
   Fps,
   Input,
   Kbd,
   KbdGroup,
   Progress,
+  px,
   RadioGroup,
   RadioGroupItem,
+  ScrollArea,
   Separator,
   Skeleton,
   Slider,
   Spinner,
   Switch,
+  number as styleNumber,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
+  Text,
   TextArea,
   TitleBar,
   TitleBarDragRegion,
@@ -34,14 +41,9 @@ import {
   ToggleGroup,
   ToggleGroupItem,
   useComponentsTheme,
-} from "@wabou/components";
-import {
-  createWindow,
-  px,
-  number as styleNumber,
   useWindow,
-} from "@wabou/core";
-import { createHover, ScrollArea, Text, View } from "@wabou/primitives";
+  View,
+} from "@wabou/ui";
 import { createSignal, For, onCleanup } from "solid-js";
 import "virtual:wabou-stylesheet";
 

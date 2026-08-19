@@ -1,6 +1,15 @@
 import { expect, test } from "bun:test";
-import type { Host } from "@wabou/core";
-import { createBindingsDemoClient } from "./generated/host-bindings";
+import { type Host, HostProvider } from "@wabou/core";
+import { createComponent, createRoot } from "solid-js";
+import {
+  type BindingsDemoClient,
+  NativeCapabilityError,
+  createBindingsDemoClient,
+  useBindingsDemoClient,
+} from "./generated/host-bindings";
+
+const resolve = (value: unknown): unknown =>
+  typeof value === "function" ? resolve(value()) : value;
 
 test("generated client owns the JSON capability boundary", async () => {
   let encoded = "";
@@ -31,4 +40,63 @@ test("generated client owns the JSON capability boundary", async () => {
     title: "Ocean palette",
     swatches: ["Ocean-1", "Ocean-2"],
   });
+});
+
+test("generated client identifies malformed native responses", async () => {
+  const client = createBindingsDemoClient({
+    bindingsDemo: {
+      describePalette: () => "not JSON",
+    },
+  } as unknown as Host);
+
+  const error = await client
+    .describePalette({ name: "broken", swatchCount: 1 })
+    .catch((reason: unknown) => reason);
+
+  expect(error).toBeInstanceOf(NativeCapabilityError);
+  expect(error).toMatchObject({ operation: "bindingsDemo.describePalette" });
+  expect(String(error)).toContain(
+    "bindingsDemo.describePalette: invalid JSON response",
+  );
+});
+
+test("generated client rejects malformed native envelopes", async () => {
+  const client = createBindingsDemoClient({
+    bindingsDemo: {
+      describePalette: () => JSON.stringify({ status: "missing envelope" }),
+    },
+  } as unknown as Host);
+
+  await expect(
+    client.describePalette({ name: "broken", swatchCount: 1 }),
+  ).rejects.toThrow(
+    "bindingsDemo.describePalette: invalid response envelope",
+  );
+});
+
+test("generated hook reads the current host context", async () => {
+  const host = {
+    bindingsDemo: {
+      describePalette: () =>
+        JSON.stringify({ ok: false, error: "context host reached" }),
+    },
+  } as unknown as Host;
+  let client: BindingsDemoClient | undefined;
+
+  createRoot((dispose) => {
+    resolve(
+      createComponent(HostProvider, {
+        value: host,
+        get children() {
+          client = useBindingsDemoClient();
+          return null;
+        },
+      }),
+    );
+    dispose();
+  });
+
+  await expect(
+    client?.describePalette({ name: "context", swatchCount: 1 }),
+  ).rejects.toThrow("context host reached");
 });

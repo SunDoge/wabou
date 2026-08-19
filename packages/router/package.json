@@ -1,5 +1,6 @@
 {
   "name": "@wabou/router",
+  "private": true,
   "version": "0.1.0-alpha.1",
   "description": "A Solid 2 native router for Wabou applications, backed by TanStack Router Core.",
   "license": "Apache-2.0",
@@ -8,8 +9,8 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/router"
   },
-  "publishConfig": {
-    "access": "public"
+  "wabou": {
+    "stability": "internal"
   },
   "files": [
     "dist"

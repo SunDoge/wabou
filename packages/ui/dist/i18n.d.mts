@@ -1,0 +1,1 @@
+export * from "@wabou/core/i18n";

@@ -1,5 +1,4 @@
-import { Button, Progress, Slider } from "@wabou/components";
-import { Text, View } from "@wabou/primitives";
+import { Button, Progress, Slider, Text, View } from "@wabou/ui";
 import { createSignal, onCleanup } from "solid-js";
 import { TaskPage } from "../shared";
 

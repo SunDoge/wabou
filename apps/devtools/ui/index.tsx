@@ -1,8 +1,14 @@
 // Wabou DevTools UI entry.
-import "@wabou/core";
+import "@wabou/ui";
 import "virtual:wabou-stylesheet";
-import { Button, Popover, Text, TextInput, View } from "@wabou/primitives";
-import { mount, useHost } from "@wabou/core";
+import {
+  PrimitiveButton as Button,
+  mount,
+  Popover,
+  Text,
+  PrimitiveTextInput as TextInput,
+  View,
+} from "@wabou/ui";
 import {
   createEffect,
   createMemo,
@@ -14,7 +20,7 @@ import {
   Show,
 } from "solid-js";
 import {
-  createDevtoolsClient,
+  useDevtoolsClient,
   type DebugClip,
   type DebugFrame,
   type DebugNode,
@@ -45,7 +51,7 @@ function optionalClipLabel(
 }
 
 function App() {
-  const devtools = createDevtoolsClient(useHost());
+  const devtools = useDevtoolsClient();
   const [status, setStatus] = createSignal<DebugStatus>();
   const [nodes, setNodes] = createSignal<DebugNode[]>([]);
   const [selected, setSelected] = createSignal<DebugNode>();
@@ -82,7 +88,7 @@ function App() {
 
   async function refreshNodes(): Promise<void> {
     try {
-      const value = await devtools.queryNodes(query(), 150);
+      const value = await devtools.queryNodes({ query: query(), limit: 150 });
       setNodes(value);
       const id = selected()?.id;
       if (id) {
@@ -97,7 +103,7 @@ function App() {
 
   async function refreshFrames(): Promise<void> {
     try {
-      const next = await devtools.recentFrames(20);
+      const next = await devtools.recentFrames({ limit: 20 });
       const current = frames();
       if (
         current.length === next.length &&
@@ -124,10 +130,15 @@ function App() {
 
   async function inspect(id: number): Promise<void> {
     try {
-      const node = await devtools.inspectNode(id);
+      const node = await devtools.inspectNode({ id });
       setSelected(node);
       if (layoutOverlay()) {
-        await devtools.setOverlay(true, true, true, node.id);
+        await devtools.setOverlay({
+          layout: true,
+          clips: true,
+          hitTarget: true,
+          selectedNode: node.id,
+        });
       }
       setError(undefined);
     } catch (cause) {
@@ -141,7 +152,7 @@ function App() {
       return;
     }
     try {
-      const result = await devtools.connect(socket().trim());
+      const result = await devtools.connect({ path: socket().trim() });
       setSocket(result.path);
       setConnectedSocket(result.path);
       setSelected(undefined);
@@ -170,7 +181,12 @@ function App() {
   async function toggleLayoutOverlay(): Promise<void> {
     const enabled = !layoutOverlay();
     try {
-      await devtools.setOverlay(enabled, enabled, enabled, selected()?.id);
+      await devtools.setOverlay({
+        layout: enabled,
+        clips: enabled,
+        hitTarget: enabled,
+        selectedNode: selected()?.id ?? null,
+      });
       setLayoutOverlay(enabled);
       setError(undefined);
     } catch (cause) {
@@ -474,7 +490,7 @@ function App() {
                   />
                   <Row
                     label="static transform"
-                    value={node().clip?.staticTransform.join(", ") ?? "—"}
+                    value={node().clip?.staticTransform?.join(", ") ?? "—"}
                   />
                   <Row
                     label="runtime transform"
@@ -482,11 +498,11 @@ function App() {
                   />
                   <Row
                     label="border → window"
-                    value={node().clip?.borderTransform.join(", ") ?? "—"}
+                    value={node().clip?.borderTransform?.join(", ") ?? "—"}
                   />
                   <Row
                     label="content → window"
-                    value={node().clip?.sceneTransform.join(", ") ?? "—"}
+                    value={node().clip?.sceneTransform?.join(", ") ?? "—"}
                   />
                   <Row
                     label="device scale"

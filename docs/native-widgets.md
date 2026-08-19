@@ -101,7 +101,7 @@ window; protocol tests are still needed when JS routing itself matters.
 If this contract eventually needs its own crate, its intended name is
 `wabou-widget-trait`; `wabou-widgets` remains the plural implementation crate.
 
-`@wabou/components` also exposes an experimental `ConfigEditor`. It is backed
+`@wabou/ui` also exposes an experimental `ConfigEditor`. It is backed
 by the native `code-editor` widget and editor-core, supports Unicode-aware
 editing, selection and pointer dragging, undo/redo, IME, soft wrapping,
 scrolling, and JSON highlighting. Its public API intentionally exposes only

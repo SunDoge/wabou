@@ -1,4 +1,4 @@
-import { Text, View } from "@wabou/primitives";
+import { Text, View } from "@wabou/ui";
 import type { JSX } from "solid-js";
 
 export function Preview(props: { title?: string; children: JSX.Element }) {

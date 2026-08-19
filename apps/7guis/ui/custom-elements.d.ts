@@ -1,4 +1,4 @@
-import type { WabouIntrinsicElements } from "@wabou/core/registry";
+import type { WabouIntrinsicElements } from "@wabou/ui";
 
 declare module "solid-js" {
   namespace JSX {

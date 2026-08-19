@@ -5,15 +5,28 @@
 //! (Canvas) are pre-registered; users override or add their own.
 //!
 //! ```ignore
+//! use serde::{Deserialize, Serialize};
+//! use wabou_bindgen::JsonMethod;
 //! use wabou_runtime::{HostBuilder, Widget};
+//!
+//! #[derive(Deserialize)]
+//! struct ReadFileRequest {
+//!     path: String,
+//! }
+//!
+//! #[derive(Serialize)]
+//! struct ReadFileResponse {
+//!     contents: String,
+//! }
 //!
 //! HostBuilder::new()
 //!     .widget("chart", || Box::new(MyChart::new()))
-//!     .capability("workspace", |ctx, capability| {
-//!         capability.set("readFile", rquickjs::Function::new(ctx, |p: String| {
-//!             std::fs::read_to_string(&p).unwrap_or_default()
-//!         })?)?;
-//!         Ok(())
+//!     .json_capability("workspace", |capability| {
+//!         capability.method(JsonMethod::new("readFile"), |request: ReadFileRequest| async move {
+//!             let contents = std::fs::read_to_string(request.path)
+//!                 .map_err(|error| error.to_string())?;
+//!             Ok::<_, String>(ReadFileResponse { contents })
+//!         })
 //!     })
 //!     .run()
 //!     .unwrap();
@@ -21,11 +34,17 @@
 
 use snafu::ResultExt;
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use vello::peniko::Color;
+
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use wabou_bindgen::JsonMethod;
 
 use crate::HostMessageContext;
 use crate::applier::Applier;
@@ -38,6 +57,97 @@ use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
 type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
+
+/// A namespaced host capability that exposes structured asynchronous methods.
+///
+/// Generated Wabou clients JSON-encode their single request value. This adapter
+/// owns the matching decode, Promise installation, and result envelope so
+/// applications do not duplicate transport glue around ordinary Rust async
+/// functions.
+pub struct JsonCapability<'js> {
+    ctx: rquickjs::Ctx<'js>,
+    object: rquickjs::Object<'js>,
+}
+
+impl<'js> JsonCapability<'js> {
+    /// Install one async method accepting a JSON-encoded request and returning
+    /// Wabou's `{ ok, value | error }` envelope.
+    pub fn method<Request, Response, Error, Handler, HandlerFuture>(
+        &self,
+        method: JsonMethod<Request, Response>,
+        handler: Handler,
+    ) -> rquickjs::Result<()>
+    where
+        Request: DeserializeOwned + 'static,
+        Response: Serialize + 'static,
+        Error: Display + 'static,
+        Handler: Fn(Request) -> HandlerFuture + Clone + rquickjs::markers::ParallelSend + 'static,
+        HandlerFuture: Future<Output = Result<Response, Error>> + 'static,
+    {
+        if !wabou_bindgen::is_contract_identifier(method.name()) {
+            return Err(rquickjs::Exception::throw_type(
+                &self.ctx,
+                &format!(
+                    "invalid JSON capability method identifier `{}`",
+                    method.name()
+                ),
+            ));
+        }
+        if self.object.contains_key(method.name())? {
+            return Err(rquickjs::Exception::throw_type(
+                &self.ctx,
+                &format!("duplicate JSON capability method `{}`", method.name()),
+            ));
+        }
+        if method.has_request() {
+            let function = rquickjs::Function::new(
+                self.ctx.clone(),
+                rquickjs::prelude::Async(move |raw: String| {
+                    let handler = handler.clone();
+                    async move { invoke_json_method(&raw, handler).await }
+                }),
+            )?;
+            self.object.set(method.name(), function)
+        } else {
+            let function = rquickjs::Function::new(
+                self.ctx.clone(),
+                rquickjs::prelude::Async(move || {
+                    let handler = handler.clone();
+                    async move { invoke_json_method("null", handler).await }
+                }),
+            )?;
+            self.object.set(method.name(), function)
+        }
+    }
+}
+
+async fn invoke_json_method<Request, Response, Error, Handler, HandlerFuture>(
+    raw: &str,
+    handler: Handler,
+) -> String
+where
+    Request: DeserializeOwned,
+    Response: Serialize,
+    Error: Display,
+    Handler: Fn(Request) -> HandlerFuture,
+    HandlerFuture: Future<Output = Result<Response, Error>>,
+{
+    let result = match serde_json::from_str(raw) {
+        Ok(request) => handler(request).await.map_err(|error| error.to_string()),
+        Err(error) => Err(format!("invalid capability request: {error}")),
+    };
+    match result {
+        Ok(value) => match serde_json::to_value(value) {
+            Ok(value) => serde_json::json!({ "ok": true, "value": value }).to_string(),
+            Err(error) => serde_json::json!({
+                "ok": false,
+                "error": format!("cannot encode capability response: {error}"),
+            })
+            .to_string(),
+        },
+        Err(error) => serde_json::json!({ "ok": false, "error": error }).to_string(),
+    }
+}
 
 struct ResourceCacheShutdownGuard {
     cache: Arc<ResourceCache>,
@@ -188,6 +298,21 @@ impl HostBuilder {
             js.mount_capability(&name, move |ctx, capability| mount(ctx, capability))
         }));
         self
+    }
+
+    /// Mount structured async methods without exposing QuickJS transport
+    /// details to application code.
+    pub fn json_capability<F>(self, name: impl Into<String>, mount: F) -> Self
+    where
+        F: for<'js> Fn(JsonCapability<'js>) -> rquickjs::Result<()>
+            + rquickjs::markers::ParallelSend
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.capability(name, move |ctx, object| {
+            mount(JsonCapability { ctx, object })
+        })
     }
 
     /// Register a producer for application-level Rust → JavaScript messages.
@@ -903,14 +1028,153 @@ fn resource_bundle_candidates(executable: &Path) -> Vec<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::{
-        HostBuilder, install_host_message_producers, resource_bundle_candidates,
-        resource_bundle_path, test_environment, test_report_summary, test_trace_artifact,
-        write_test_artifact,
+        HostBuilder, JsonCapability, JsonMethod, install_host_message_producers,
+        invoke_json_method, resource_bundle_candidates, resource_bundle_path, test_environment,
+        test_report_summary, test_trace_artifact, write_test_artifact,
     };
     use crate::host_message::{HostMessagePayload, host_message_channel};
     use crate::{Applier, HostMessageContext, JsRuntime};
     use std::path::Path;
     use std::sync::{Arc, Mutex};
+
+    #[derive(serde::Deserialize)]
+    struct JsonRequest {
+        value: u32,
+    }
+
+    #[derive(serde::Serialize)]
+    struct JsonResponse {
+        doubled: u32,
+    }
+
+    #[test]
+    fn json_capability_encodes_successful_results() {
+        let response = futures_lite::future::block_on(invoke_json_method(
+            r#"{"value":21}"#,
+            |request: JsonRequest| async move {
+                Ok::<_, String>(JsonResponse {
+                    doubled: request.value * 2,
+                })
+            },
+        ));
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&response).unwrap(),
+            serde_json::json!({ "ok": true, "value": { "doubled": 42 } })
+        );
+    }
+
+    #[test]
+    fn json_capability_encodes_handler_errors() {
+        let response = futures_lite::future::block_on(invoke_json_method(
+            r#"{"value":7}"#,
+            |_request: JsonRequest| async move {
+                Err::<JsonResponse, _>("palette unavailable".to_owned())
+            },
+        ));
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&response).unwrap(),
+            serde_json::json!({ "ok": false, "error": "palette unavailable" })
+        );
+    }
+
+    #[test]
+    fn json_capability_rejects_malformed_requests_before_calling_the_handler() {
+        let response = futures_lite::future::block_on(invoke_json_method(
+            r#"{"value":"wrong"}"#,
+            |_request: JsonRequest| async move {
+                panic!("malformed requests must not reach the handler");
+                #[allow(unreachable_code)]
+                Ok::<_, String>(JsonResponse { doubled: 0 })
+            },
+        ));
+        let response = serde_json::from_str::<serde_json::Value>(&response).unwrap();
+
+        assert_eq!(response["ok"], false);
+        assert!(
+            response["error"]
+                .as_str()
+                .unwrap()
+                .starts_with("invalid capability request:")
+        );
+    }
+
+    #[test]
+    fn json_capability_mounts_structured_and_empty_requests_in_quickjs() {
+        let runtime = JsRuntime::new().expect("runtime");
+        runtime
+            .mount_capability("typed", |ctx, object| {
+                let capability = JsonCapability { ctx, object };
+                capability.method(
+                    JsonMethod::new("double"),
+                    |request: JsonRequest| async move {
+                        Ok::<_, String>(JsonResponse {
+                            doubled: request.value * 2,
+                        })
+                    },
+                )?;
+                capability.method(JsonMethod::no_request("ping"), |(): ()| async move {
+                    Ok::<_, String>("pong")
+                })
+            })
+            .expect("mount JSON capability");
+        runtime
+            .with(|ctx| {
+                ctx.eval::<(), _>(
+                    r#"
+                    globalThis.capabilityResult = undefined;
+                    Promise.all([
+                      __wabou_capabilities.typed.double(JSON.stringify({ value: 9 })),
+                      __wabou_capabilities.typed.ping(),
+                    ]).then(values => globalThis.capabilityResult = JSON.stringify(values.map(JSON.parse)));
+                    "#,
+                )
+            })
+            .expect("invoke JSON capability");
+        runtime.poll_async_runtime();
+        let result = runtime
+            .with(|ctx| ctx.eval::<Option<String>, _>("globalThis.capabilityResult"))
+            .expect("read JSON capability result")
+            .expect("capability promise settled");
+
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&result).unwrap(),
+            serde_json::json!([
+                { "ok": true, "value": { "doubled": 18 } },
+                { "ok": true, "value": "pong" },
+            ])
+        );
+    }
+
+    #[test]
+    fn json_capability_rejects_duplicate_method_registration() {
+        let runtime = JsRuntime::new().expect("runtime");
+        let result = runtime.mount_capability("typed", |ctx, object| {
+            let capability = JsonCapability { ctx, object };
+            capability.method(JsonMethod::no_request("ping"), |(): ()| async move {
+                Ok::<_, String>("first")
+            })?;
+            capability.method(JsonMethod::no_request("ping"), |(): ()| async move {
+                Ok::<_, String>("second")
+            })
+        });
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn json_capability_uses_the_shared_method_identifier_rules() {
+        let runtime = JsRuntime::new().expect("runtime");
+        let result = runtime.mount_capability("typed", |ctx, object| {
+            JsonCapability { ctx, object }
+                .method(JsonMethod::no_request("1ping"), |(): ()| async move {
+                    Ok::<_, String>("pong")
+                })
+        });
+
+        assert!(result.is_err());
+    }
 
     #[cfg(feature = "profiling")]
     #[test]

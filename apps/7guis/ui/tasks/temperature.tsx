@@ -1,5 +1,4 @@
-import { Input } from "@wabou/components";
-import { Text, View } from "@wabou/primitives";
+import { Input, Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { FieldLabel, TaskPage } from "../shared";
 

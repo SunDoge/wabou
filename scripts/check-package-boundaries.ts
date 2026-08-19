@@ -4,10 +4,77 @@ import ts from "typescript";
 
 const root = new URL("..", import.meta.url).pathname;
 const internalPackages = new Set([
+  "@wabou/animation",
+  "@wabou/components",
+  "@wabou/primitives",
   "@wabou/protocol",
+  "@wabou/router",
   "@wabou/solid-renderer",
   "@wabou/style",
 ]);
+const applicationLayerPackages = new Set([
+  "@wabou/animation",
+  "@wabou/components",
+  "@wabou/core",
+  "@wabou/primitives",
+  "@wabou/router",
+]);
+const applicationDependencyExceptions = new Map([
+  ["@wabou/devtools-app", new Set(["@wabou/core"])],
+  ["@wabou/gallery", new Set(["@wabou/core"])],
+]);
+const rustApplicationDependencyExceptions = new Map([
+  ["devtools", new Set(["wabou-devtools"])],
+  ["terminal", new Set(["wabou-terminal"])],
+]);
+
+function cargoDependencies(source: string): Set<string> {
+  const dependencies = new Set<string>();
+  let dependencySection = false;
+  for (const line of source.split(/\r?\n/)) {
+    const section = line.match(/^\s*\[([^\]]+)]\s*$/)?.[1];
+    if (section) {
+      dependencySection =
+        section === "dependencies" ||
+        section === "dev-dependencies" ||
+        section === "build-dependencies" ||
+        section.endsWith(".dependencies") ||
+        section.endsWith(".dev-dependencies") ||
+        section.endsWith(".build-dependencies");
+      const tableDependency = section.match(
+        /^(?:dev-|build-)?dependencies\.([A-Za-z0-9_-]+)$/,
+      )?.[1];
+      if (tableDependency) dependencies.add(tableDependency);
+      continue;
+    }
+    if (!dependencySection) continue;
+    const dependency = line.match(/^\s*([A-Za-z0-9_-]+)\s*=/)?.[1];
+    if (dependency) dependencies.add(dependency);
+  }
+  return dependencies;
+}
+
+async function verifyRustApplication(
+  directory: string,
+  allowed: Set<string>,
+): Promise<void> {
+  const manifestPath = join(directory, "Cargo.toml");
+  const dependencies = cargoDependencies(await Bun.file(manifestPath).text());
+  if (!dependencies.has("wabou")) {
+    throw new Error(`${manifestPath} must depend on the wabou facade`);
+  }
+  for (const dependency of dependencies) {
+    if (
+      dependency.startsWith("wabou-") &&
+      dependency !== "wabou" &&
+      !allowed.has(dependency)
+    ) {
+      throw new Error(
+        `${manifestPath} directly depends on internal ${dependency}; use wabou`,
+      );
+    }
+  }
+}
 
 interface Manifest {
   name: string;
@@ -17,7 +84,7 @@ interface Manifest {
   repository?: { type?: string; url?: string; directory?: string };
   private?: boolean;
   publishConfig?: { access?: string };
-  wabou?: { stability?: string };
+  wabou?: { stability?: string; bundles?: string[] };
   files?: string[];
   exports?: unknown;
   dependencies?: Record<string, string>;
@@ -107,6 +174,18 @@ for (const entry of packages) {
       }
     }
   }
+  for (const dependency of entry.wabou?.bundles ?? []) {
+    if (!internalPackages.has(dependency)) {
+      throw new Error(
+        `${entry.name} bundles non-internal package ${dependency}`,
+      );
+    }
+    if (entry.devDependencies?.[dependency] !== "workspace:*") {
+      throw new Error(
+        `${entry.name} bundled package ${dependency} must be a workspace devDependency`,
+      );
+    }
+  }
   if ((entry.wabou?.stability === "internal") !== internal) {
     throw new Error(`${entry.name} has incorrect Wabou stability metadata`);
   }
@@ -189,6 +268,9 @@ for (const manifestPath of packageManifestPaths) {
     ...entry.optionalDependencies,
     ...entry.peerDependencies,
   };
+  for (const dependency of entry.wabou?.bundles ?? []) {
+    declared[dependency] = entry.devDependencies?.[dependency] ?? "";
+  }
   const sourceGlob = new Bun.Glob("src/**/*.{ts,tsx,js,mjs}");
   for await (const path of sourceGlob.scan({
     cwd: packageRoot,
@@ -247,11 +329,29 @@ for (const directory of appDirs.filter((entry) => entry.isDirectory())) {
       );
     }
   }
+  const allowed = applicationDependencyExceptions.get(entry.name) ?? new Set();
+  for (const dependency of applicationLayerPackages) {
+    if (dependency in declared && !allowed.has(dependency)) {
+      throw new Error(
+        `${entry.name} directly depends on layered ${dependency}; use @wabou/ui`,
+      );
+    }
+  }
+  await verifyRustApplication(
+    join(root, "apps", directory.name),
+    rustApplicationDependencyExceptions.get(directory.name) ?? new Set(),
+  );
 }
+
+await verifyRustApplication(join(root, "templates/basic"), new Set());
 
 const sourceGlob = new Bun.Glob("apps/**/*.{ts,tsx}");
 for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
-  if (path.includes("/generated/") || path.endsWith("custom-elements.d.ts")) {
+  if (
+    path.includes("/generated/") ||
+    path.includes(".test.") ||
+    path.endsWith("custom-elements.d.ts")
+  ) {
     continue;
   }
   const source = await Bun.file(join(root, path)).text();
@@ -261,6 +361,14 @@ for await (const path of sourceGlob.scan({ cwd: root, onlyFiles: true })) {
       source.includes(`'${dependency}`)
     ) {
       throw new Error(`${path} directly imports internal ${dependency}`);
+    }
+  }
+  for (const dependency of applicationLayerPackages) {
+    if (
+      source.includes(`"${dependency}`) ||
+      source.includes(`'${dependency}`)
+    ) {
+      throw new Error(`${path} directly imports ${dependency}; use @wabou/ui`);
     }
   }
 }

@@ -34,12 +34,16 @@ fn identity_transform() -> [f64; 6] {
 /// Axis-aligned rectangle in logical window coordinates.
 pub struct Rect {
     /// Left edge.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub x: f32,
     /// Top edge.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub y: f32,
     /// Non-negative width.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub width: f32,
     /// Non-negative height.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub height: f32,
 }
 
@@ -93,9 +97,14 @@ pub struct DebugClip {
     /// Clip rectangle.
     pub rect: Rect,
     /// Uniform corner radius.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub radius: f32,
     /// Affine coefficients mapping the clip into window coordinates.
     #[serde(default = "identity_transform")]
+    #[cfg_attr(
+        feature = "bindings",
+        specta(type = [specta_typescript::Number; 6])
+    )]
     pub transform: [f64; 6],
 }
 
@@ -112,14 +121,31 @@ pub struct DebugClipInfo {
     /// Final intersected clip used for hit testing.
     pub effective: Option<DebugClip>,
     /// Authored CSS transform.
+    #[cfg_attr(
+        feature = "bindings",
+        specta(type = [specta_typescript::Number; 6])
+    )]
     pub static_transform: [f64; 6],
     /// Host-driven transform composed after static CSS.
+    #[cfg_attr(
+        feature = "bindings",
+        specta(type = Option<[specta_typescript::Number; 6]>)
+    )]
     pub runtime_transform: Option<[f64; 6]>,
     /// Transform from border-local to logical window coordinates.
+    #[cfg_attr(
+        feature = "bindings",
+        specta(type = [specta_typescript::Number; 6])
+    )]
     pub border_transform: [f64; 6],
     /// Transform used when appending content to the final scene.
+    #[cfg_attr(
+        feature = "bindings",
+        specta(type = [specta_typescript::Number; 6])
+    )]
     pub scene_transform: [f64; 6],
     /// Physical pixels per logical pixel.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub device_scale: f64,
 }
 
@@ -137,12 +163,15 @@ pub struct DebugComputedStyle {
     /// Vertical overflow mode.
     pub overflow_y: Option<String>,
     /// Font size in logical pixels.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub font_size: f32,
     /// Numeric font weight.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub font_weight: f32,
     /// Whether normal inline wrapping is enabled.
     pub wrap_text: bool,
     /// Resolved opacity.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub opacity: f32,
     /// Whether the node itself participates in hit testing.
     pub pointer_events: bool,
@@ -151,6 +180,7 @@ pub struct DebugComputedStyle {
     /// Host-owned stacking plane.
     pub overlay_plane: String,
     /// Current host-owned scrollbar opacity.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub scrollbar_opacity: f32,
     /// Resolved text color in diagnostic notation.
     pub text_color: String,
@@ -226,6 +256,7 @@ pub struct DebugStatus {
     /// Inspected native process identifier.
     pub pid: u32,
     /// Monotonic retained-tree revision.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub revision: u64,
     /// Logical viewport width.
     pub viewport_width: u32,
@@ -233,8 +264,10 @@ pub struct DebugStatus {
     pub viewport_height: u32,
     /// Physical pixels per logical pixel.
     #[serde(default = "default_device_scale")]
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub device_scale: f64,
     /// Number of retained nodes.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub node_count: usize,
     /// Focused Solid node identifier.
     pub focused_node: Option<u32>,
@@ -254,10 +287,13 @@ pub struct DebugFrame {
     /// `jsToHost` or `hostToJs` direction.
     pub direction: String,
     /// Direction-local monotonic sequence.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub sequence: u64,
     /// Encoded frame length.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub byte_len: usize,
     /// Number of records in the frame.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub record_count: usize,
     /// Optional raw bytes when explicitly enabled for diagnostics.
     #[serde(skip_serializing_if = "Option::is_none")]

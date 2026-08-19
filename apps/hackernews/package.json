@@ -10,9 +10,7 @@
     "build:live": "VITE_HN_LIVE=1 vite build"
   },
   "dependencies": {
-    "@wabou/core": "workspace:*",
-    "@wabou/primitives": "workspace:*",
-    "@wabou/router": "workspace:*",
+    "@wabou/ui": "workspace:*",
     "lucide-static": "1.31.0",
     "solid-js": "2.0.0-rc.0"
   },

@@ -1,12 +1,8 @@
 use serde::{Deserialize, Serialize};
-use specta::Type;
-use wabou_bindgen::{Bindings, Capability};
+use wabou::{Bindings, Capability, JsonMethod, Type, specta};
 
 /// Capability containing the gallery's binding demonstration.
 pub const CAPABILITY: &str = "bindingsDemo";
-/// Wire name of the palette-description endpoint.
-pub const DESCRIBE_PALETTE: &str = "describePalette";
-
 /// Input accepted by the palette-description example.
 #[derive(Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -35,15 +31,15 @@ pub enum DescribePaletteResponse {
     },
 }
 
+/// Typed contract of the palette-description endpoint.
+pub const DESCRIBE_PALETTE: JsonMethod<DescribePaletteRequest, DescribePaletteResponse> =
+    JsonMethod::new("describePalette");
+
 /// Builds the gallery's typed binding manifest.
 pub fn manifest() -> Bindings {
-    Bindings::new().capability(Capability::from_specta(
-        CAPABILITY,
-        specta::functions::collect_types![describe_palette],
-    ))
+    Bindings::new().capability(Capability::new(CAPABILITY).method(DESCRIBE_PALETTE))
 }
 
-#[specta::specta]
 /// Generates a small palette description for the binding demonstration.
 pub async fn describe_palette(
     request: DescribePaletteRequest,
@@ -56,18 +52,6 @@ pub async fn describe_palette(
     })
 }
 
-/// Decodes a raw request and encodes the binding envelope returned to JS.
-pub async fn invoke_describe_palette(raw: &str) -> String {
-    let result = match serde_json::from_str::<DescribePaletteRequest>(raw) {
-        Ok(request) => describe_palette(request).await,
-        Err(error) => Err(format!("invalid palette request: {error}")),
-    };
-    match result {
-        Ok(value) => serde_json::json!({ "ok": true, "value": value }).to_string(),
-        Err(error) => serde_json::json!({ "ok": false, "error": error }).to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -76,7 +60,7 @@ mod tests {
     fn registered_method_and_manifest_share_names() {
         let output = manifest().render();
         assert!(output.contains(&format!("readonly {CAPABILITY}")));
-        assert!(output.contains(&format!("{DESCRIBE_PALETTE}(request: string)")));
+        assert!(output.contains(&format!("{}(request: string)", DESCRIBE_PALETTE.name())));
         assert!(output.contains(
             "describePalette(request: DescribePaletteRequest): Promise<DescribePaletteResponse>"
         ));

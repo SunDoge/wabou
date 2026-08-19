@@ -6,21 +6,26 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "bindings")]
 use specta::Type;
 #[cfg(feature = "bindings")]
-use wabou_bindgen::FunctionModule;
+use wabou_bindgen::{FunctionModule, NativeMethod};
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[cfg_attr(feature = "bindings", derive(Type))]
 /// Timing and scene-size metrics for the most recently presented frame.
 pub struct FrameStats {
     /// Total Rust frame construction time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub build_frame_ms: f64,
     /// QuickJS animation-frame callback time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub js_tick_ms: f64,
     /// Vello scene construction time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub scene_ms: f64,
     /// Surface rendering and presentation time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub present_ms: f64,
     /// Number of retained nodes in the frame.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub node_count: usize,
     /// Logical viewport width.
     pub viewport_w: u32,
@@ -33,12 +38,16 @@ pub struct FrameStats {
 /// Axis-aligned rectangle in logical window coordinates.
 pub struct LayoutRect {
     /// Left edge.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub x: f32,
     /// Top edge.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub y: f32,
     /// Non-negative width.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub width: f32,
     /// Non-negative height.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub height: f32,
 }
 
@@ -59,6 +68,7 @@ pub struct LayoutNodeMetrics {
 /// Immutable layout projection returned by the synchronous host API.
 pub struct LayoutSnapshot {
     /// Monotonic layout revision used to detect stale snapshots.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub revision: u64,
     /// Current logical viewport.
     pub viewport: LayoutRect,
@@ -78,62 +88,34 @@ pub struct CalendarDateInfo {
     pub day: u8,
 }
 
-#[allow(unused_variables)]
 #[cfg(feature = "bindings")]
 mod contract {
     use super::*;
 
-    #[specta::specta]
-    pub fn open_url(url: String) -> bool {
-        unreachable!("binding contract functions are not invoked")
-    }
-
-    #[specta::specta]
-    pub fn load_font(path: String) -> bool {
-        unreachable!("binding contract functions are not invoked")
-    }
-
-    #[specta::specta]
-    pub fn frame_stats() -> Option<FrameStats> {
-        unreachable!("binding contract functions are not invoked")
-    }
-
-    #[specta::specta]
-    pub fn layout_snapshot(ids: Vec<u32>) -> LayoutSnapshot {
-        unreachable!("binding contract functions are not invoked")
-    }
-
-    #[specta::specta]
-    pub fn system_locale() -> String {
-        unreachable!("binding contract functions are not invoked")
-    }
-
-    #[specta::specta]
-    pub fn system_time_zone() -> String {
-        unreachable!("binding contract functions are not invoked")
-    }
-
-    #[specta::specta]
-    pub fn system_calendar_date() -> CalendarDateInfo {
-        unreachable!("binding contract functions are not invoked")
-    }
+    pub const OPEN_URL: NativeMethod<(String,), bool> = NativeMethod::sync("openUrl", &["url"]);
+    pub const LOAD_FONT: NativeMethod<(String,), bool> = NativeMethod::sync("loadFont", &["path"]);
+    pub const FRAME_STATS: NativeMethod<(), Option<FrameStats>> =
+        NativeMethod::sync("frameStats", &[]);
+    pub const LAYOUT_SNAPSHOT: NativeMethod<(Vec<u32>,), LayoutSnapshot> =
+        NativeMethod::sync("layoutSnapshot", &["ids"]);
+    pub const SYSTEM_LOCALE: NativeMethod<(), String> = NativeMethod::sync("systemLocale", &[]);
+    pub const SYSTEM_TIME_ZONE: NativeMethod<(), String> =
+        NativeMethod::sync("systemTimeZone", &[]);
+    pub const SYSTEM_CALENDAR_DATE: NativeMethod<(), CalendarDateInfo> =
+        NativeMethod::sync("systemCalendarDate", &[]);
 }
 
 #[cfg(feature = "bindings")]
 /// Generate the TypeScript contract for the synchronous native host API.
 pub fn bindings() -> FunctionModule {
-    FunctionModule::from_specta(
-        "NativeHostApi",
-        specta::functions::collect_types![
-            contract::open_url,
-            contract::load_font,
-            contract::frame_stats,
-            contract::layout_snapshot,
-            contract::system_locale,
-            contract::system_time_zone,
-            contract::system_calendar_date,
-        ],
-    )
+    FunctionModule::new("NativeHostApi")
+        .method(contract::OPEN_URL)
+        .method(contract::LOAD_FONT)
+        .method(contract::FRAME_STATS)
+        .method(contract::LAYOUT_SNAPSHOT)
+        .method(contract::SYSTEM_LOCALE)
+        .method(contract::SYSTEM_TIME_ZONE)
+        .method(contract::SYSTEM_CALENDAR_DATE)
 }
 
 #[cfg(all(test, feature = "bindings"))]

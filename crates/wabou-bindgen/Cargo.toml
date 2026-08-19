@@ -5,7 +5,18 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-specta = { workspace = true }
+serde = { workspace = true }
+specta = { workspace = true, optional = true }
+specta-serde = { workspace = true, optional = true }
+specta-typescript = { workspace = true, optional = true }
+
+[features]
+default = ["generate"]
+generate = [
+  "dep:specta",
+  "dep:specta-serde",
+  "dep:specta-typescript",
+]
 
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }

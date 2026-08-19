@@ -2,22 +2,24 @@
   "name": "__WABOU_PROJECT_NAME__",
   "private": true,
   "type": "module",
-  "workspaces": ["vendor/wabou/packages/*"],
+  "workspaces": [
+    "vendor/wabou/packages/*"
+  ],
   "scripts": {
     "wabou": "wabou",
     "dev": "wabou dev",
-    "build": "vite build",
-    "check": "tsc --noEmit"
+    "build": "wabou build",
+    "check": "wabou check",
+    "test:behavior": "wabou test ."
   },
   "dependencies": {
     "@solidjs/web": "2.0.0-rc.0",
-    "@wabou/core": "workspace:*",
-    "@wabou/primitives": "workspace:*",
-    "@wabou/solid-renderer": "workspace:*",
+    "@wabou/ui": "workspace:*",
     "solid-js": "2.0.0-rc.0"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",
+    "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
     "typescript": "^5.9.0",
     "vite": "^6.0.0"

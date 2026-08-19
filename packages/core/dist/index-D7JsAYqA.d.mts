@@ -35,33 +35,53 @@ declare const Fragment: (props: WabouElementProps) => JSX$1.Element;
 //#endregion
 //#region ../solid-renderer/src/generated/native-host.d.ts
 type CalendarDateInfo = {
+  /**  Proleptic Gregorian year. */
   year: number;
+  /**  One-based month. */
   month: number;
+  /**  One-based day of month. */
   day: number;
 };
 type FrameStats = {
+  /**  Total Rust frame construction time in milliseconds. */
   build_frame_ms: number;
+  /**  QuickJS animation-frame callback time in milliseconds. */
   js_tick_ms: number;
+  /**  Vello scene construction time in milliseconds. */
   scene_ms: number;
+  /**  Surface rendering and presentation time in milliseconds. */
   present_ms: number;
+  /**  Number of retained nodes in the frame. */
   node_count: number;
+  /**  Logical viewport width. */
   viewport_w: number;
+  /**  Logical viewport height. */
   viewport_h: number;
 };
 type LayoutNodeMetrics = {
+  /**  Solid-side node identifier. */
   id: number;
+  /**  Border box in logical window coordinates. */
   rect: LayoutRect;
+  /**  Effective ancestor clip in logical window coordinates. */
   clip: LayoutRect;
 };
 type LayoutRect = {
+  /**  Left edge. */
   x: number;
+  /**  Top edge. */
   y: number;
+  /**  Non-negative width. */
   width: number;
+  /**  Non-negative height. */
   height: number;
 };
 type LayoutSnapshot = {
+  /**  Monotonic layout revision used to detect stale snapshots. */
   revision: number;
+  /**  Current logical viewport. */
   viewport: LayoutRect;
+  /**  Metrics for the requested node identifiers that still exist. */
   nodes: LayoutNodeMetrics[];
 };
 //#endregion
@@ -384,4 +404,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: number, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { PortalProps as $, dispatchEvent as A, ref as B, WabouWheelEvent as C, createElement as D, createComponent$1 as E, insertNode as F, runSweep as G, releaseOverlayRoot as H, isServer as I, spread as J, setProp as K, memo as L, getMountRoot as M, getRequestEvent as N, createTextNode as O, insert as P, Portal as Q, mergeProps as R, WabouSvgShapeProps as S, applyRef as T, removeNode as U, registerRoot as V, render as W, VirtualList as X, writer as Y, VirtualListProps as Z, WabouPointerEvent as _, WabouBuiltinIntrinsicElements as a, useHost as at, WabouSemanticRole as b, WabouEventTarget as c, LayoutRect as ct, WabouInputEvent as d, JSX$1 as dt, Host as et, WabouInputProps as f, jsx as ft, WabouNodeEvent as g, WabouNativeTag as h, NativeScrollbarStyle as i, defaultHost as it, effect as j, delegateEvents as k, WabouExposedSemanticRole as l, LayoutSnapshot as lt, WabouNativeElements as m, jsxs as mt, DynamicProps as n, HostProviderProps as nt, WabouControlProps as o, FrameStats as ot, WabouKeyEvent as p, jsxDEV as pt, setTransform2D as q, Handle as r, LayoutTarget as rt, WabouElementProps as s, LayoutNodeMetrics as st, Dynamic as t, HostProvider as tt, WabouImageProps as u, Fragment as ut, WabouPositionedEvent as v, acquireOverlayRoot as w, WabouSvgProps as x, WabouScrollEvent as y, mount as z };
-//# sourceMappingURL=index-DpIBuJdF.d.mts.map
+//# sourceMappingURL=index-D7JsAYqA.d.mts.map

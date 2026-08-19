@@ -9,8 +9,13 @@ publish = false
 license.workspace = true
 
 [dependencies]
+wabou-bindgen = { workspace = true }
 wabou-runtime = { workspace = true }
 
 [features]
+bindings = ["wabou-bindgen/generate"]
 profiling = ["wabou-runtime/profiling"]
 vite = ["wabou-runtime/vite"]
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }

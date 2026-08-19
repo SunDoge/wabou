@@ -9,10 +9,10 @@ import {
   Button,
   ButtonGroup,
   ButtonGroupText,
+  CalendarDate,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-  CalendarDate,
   DatePicker,
   Dialog,
   DialogDescription,
@@ -31,14 +31,16 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  Icon,
   Input,
   InputGroup,
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
   Select,
-} from "@wabou/components";
-import { Icon, Text, View } from "@wabou/primitives";
+  Text,
+  View,
+} from "@wabou/ui";
 import rocket from "lucide-static/icons/rocket.svg?raw";
 import { createSignal } from "solid-js";
 import { Preview } from "../preview";

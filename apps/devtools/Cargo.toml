@@ -15,8 +15,6 @@ path = "examples/wabou-bindgen.rs"
 serde = { workspace = true, features = ["derive"] }
 snafu = { workspace = true }
 serde_json = { workspace = true }
-specta = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
-wabou-bindgen = { workspace = true }
 wabou-devtools = { workspace = true, features = ["bindings"] }
-wabou-runtime = { workspace = true }
+wabou = { workspace = true, features = ["bindings"] }

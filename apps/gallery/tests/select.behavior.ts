@@ -8,9 +8,7 @@ test("select exposes one combobox and listbox semantic model", async ({
   await combobox.click();
   await expect(combobox).toBeExpanded();
   await page.getByRole("listbox", { name: "UI framework" }).waitFor();
-  await expect(
-    page.getByRole("dialog", { name: "UI framework" }),
-  ).toBeAbsent();
+  await expect(page.getByRole("dialog", { name: "UI framework" })).toBeAbsent();
   await page.getByRole("option", { name: "SolidJS" }).click();
   await expect(combobox).toBeCollapsed();
   await expect(

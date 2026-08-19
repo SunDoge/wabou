@@ -8,8 +8,7 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/table-core";
-import { Badge, Button, Input } from "@wabou/components";
-import { Button as PrimitiveButton, Text, View } from "@wabou/primitives";
+import { Badge, Button, Input, PrimitiveButton, Text, View } from "@wabou/ui";
 import { createMemo, createSignal, For, Show } from "solid-js";
 
 interface Project {

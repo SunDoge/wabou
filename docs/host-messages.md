@@ -30,7 +30,7 @@ HostBuilder::new()
 Subscribe in JavaScript:
 
 ```ts
-import { hostMessages } from "@wabou/core";
+import { hostMessages } from "@wabou/ui";
 
 const unsubscribe = hostMessages.subscribe("demo:value", (value) => {
   console.log(value);

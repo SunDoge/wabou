@@ -6,9 +6,9 @@ import {
   createHover,
   Icon,
   Text,
+  useNavigate,
   View,
-} from "@wabou/primitives";
-import { useNavigate } from "@wabou/router";
+} from "@wabou/ui";
 import award from "lucide-static/icons/award.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import clock from "lucide-static/icons/clock.svg?raw";

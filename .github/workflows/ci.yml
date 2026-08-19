@@ -52,7 +52,19 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Check workspace
-        run: cargo check --workspace --all-targets
+        run: |
+          cargo check --workspace --all-targets
+          # Gallery and DevTools enable the Specta exporter. Check the ordinary
+          # runtime/facade dependency path independently of workspace features.
+          cargo check -p wabou-bindgen --no-default-features
+          cargo check -p wabou-runtime --no-default-features
+          cargo check -p wabou --no-default-features
+          for package in wabou-runtime wabou; do
+            if cargo tree -p "$package" -e normal | grep -Fq 'specta v'; then
+              echo "$package default dependency graph unexpectedly contains Specta" >&2
+              exit 1
+            fi
+          done
 
       - name: Check TypeScript bindings
         run: |
@@ -68,12 +80,12 @@ jobs:
 
       - name: Test native application behavior
         run: |
-          cargo run -p wabou-cli -- test apps/gallery/tests/behavior.ts --app apps/gallery
+          cargo run -p wabou-cli -- test apps/gallery
           cargo run -p wabou-cli -- test \
             --replay target/wabou-test/gallery/artifacts/trace.json \
             --app apps/gallery
-          cargo run -p wabou-cli -- test apps/7guis/tests/behavior.ts --app apps/7guis
-          cargo run -p wabou-cli -- test apps/vlist/tests/behavior.ts --app apps/vlist
+          cargo run -p wabou-cli -- test apps/7guis
+          cargo run -p wabou-cli -- test apps/vlist
 
       - name: Upload behavior-test diagnostics
         if: failure()
@@ -97,7 +109,8 @@ jobs:
             echo "standalone scaffold has invalid peer dependencies" >&2
             exit 1
           fi
-          bun run --cwd "$scaffold_root" check
+          PATH="$GITHUB_WORKSPACE/target/debug:$PATH" \
+            bun run --cwd "$scaffold_root" check
           bun run --cwd "$scaffold_root" build
           CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" \
             cargo check --manifest-path "$scaffold_root/Cargo.toml"

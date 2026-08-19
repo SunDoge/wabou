@@ -1,5 +1,5 @@
 // Loading-state list component.
-import { Text, View } from "@wabou/primitives";
+import { Text, View } from "@wabou/ui";
 import { For, type JSX } from "solid-js";
 import { useTheme } from "../contexts/ThemeContext";
 

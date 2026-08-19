@@ -6,7 +6,7 @@ the same application bundle; branch on the current window ID when a secondary
 window needs different content.
 
 ```tsx
-import { createWindow, useWindow } from "@wabou/core";
+import { createWindow, useWindow } from "@wabou/ui";
 
 function App() {
   const window = useWindow();
@@ -45,13 +45,13 @@ HostBuilder::new()
 ```
 
 ```tsx
-import { useWindow } from "@wabou/core";
+import { useWindow } from "@wabou/ui";
 import {
   Button,
   Text,
   TitleBar,
   TitleBarDragRegion,
-} from "@wabou/components";
+} from "@wabou/ui";
 
 function TitleBar() {
   const window = useWindow();

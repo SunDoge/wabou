@@ -5,7 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "jsx": "preserve",
-    "jsxImportSource": "@wabou/solid-renderer",
+    "jsxImportSource": "@wabou/ui",
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "skipLibCheck": true,

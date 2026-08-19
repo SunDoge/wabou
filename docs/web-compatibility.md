@@ -17,7 +17,7 @@ platform-independent implementation.
 | Text input | Native input and textarea widgets support IME preedit, commit, surrounding-text deletion, and candidate-window positioning. Registered widgets receive the same IME lifecycle and may expose their own local caret rectangle. |
 | Layout/style | Utilities and typed inline properties listed by the generated Wabou utility manifest. Unsupported candidates are build errors. |
 | Async/runtime | `fetch`, timers, `requestAnimationFrame`, URL APIs, text encoding, resize observation and the typed Wabou Host APIs. |
-| Navigation | `@wabou/router` memory history. There is no browser address bar or implicit `window.history`. |
+| Navigation | `@wabou/ui` exposes memory-backed routing. There is no browser address bar or implicit `window.history`. |
 | Portals | Wabou overlay planes through `Portal`; no browser document/body target. |
 
 ## Deliberate differences

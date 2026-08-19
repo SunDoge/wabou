@@ -1,4 +1,8 @@
-# `@wabou/primitives`
+# Wabou primitive implementation
+
+This is a private source workspace bundled into the public `@wabou/ui`
+package. Applications use `@wabou/ui/primitives` for the lower-level escape
+hatch.
 
 Solid primitives for Wabou applications.
 

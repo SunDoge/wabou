@@ -91,3 +91,41 @@ export function ButtonGroupText(props: {
     </Text>
   );
 }
+
+/**
+ * A horizontal primary/aside boundary with explicit flex shrink semantics.
+ * Use `SplitPaneMain` for the elastic region and `SplitPaneAside` for a
+ * class-sized fixed rail. Both regions clip at their own boundary, so content
+ * cannot paint across the divider or a rounded parent clip.
+ */
+export function SplitPane(props: { children?: JSX.Element; class?: string }) {
+  return (
+    <View
+      class={join("w-full min-w-0 flex flex-row overflow-hidden", props.class)}
+    >
+      {props.children}
+    </View>
+  );
+}
+
+export function SplitPaneMain(props: {
+  children?: JSX.Element;
+  class?: string;
+}) {
+  return (
+    <View class={join("flex-1 min-w-0 overflow-hidden", props.class)}>
+      {props.children}
+    </View>
+  );
+}
+
+export function SplitPaneAside(props: {
+  children?: JSX.Element;
+  class?: string;
+}) {
+  return (
+    <View class={join("flex-none min-w-0 overflow-hidden", props.class)}>
+      {props.children}
+    </View>
+  );
+}

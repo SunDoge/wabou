@@ -4,7 +4,7 @@
 //! then `cargo run -p hackernews`.
 
 use snafu::{ResultExt, Whatever};
-use wabou_runtime::{HostBuilder, WindowOptions};
+use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {

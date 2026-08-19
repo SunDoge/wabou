@@ -1,0 +1,86 @@
+// Application-facing Wabou API. The packages re-exported here remain useful
+// implementation boundaries, but applications should not need to understand
+// that package graph for ordinary UI work.
+
+export * from "@wabou/animation";
+export * from "@wabou/components";
+// Prefer the styled component where a high-level component and a host-service
+// type share a name. The lower-level host API remains available as `dialog`.
+export { Dialog } from "@wabou/components";
+export * from "@wabou/core";
+export * from "@wabou/core/i18n";
+export * as primitives from "@wabou/primitives";
+
+// Foundational scene elements are common enough to belong at the main entry.
+// Headless controls with names shared by styled components stay available
+// from `@wabou/ui/primitives` and through the `primitives` namespace.
+export {
+  type ActiveResult,
+  type AnimationFrameCallback,
+  Button as PrimitiveButton,
+  type ButtonProps as PrimitiveButtonProps,
+  type ButtonState as PrimitiveButtonState,
+  Center,
+  CodeEditor,
+  type CodeEditorProps,
+  CollapsiblePresence,
+  Column,
+  createActive,
+  createAnimationFrame,
+  createButton,
+  createFocus,
+  createFocusWithin,
+  createHover,
+  createMeasuredSize,
+  createNotifications,
+  createOverlayLayer,
+  createPresence,
+  createPress,
+  createScrollReset,
+  createShortcuts,
+  createTabs,
+  type FocusResult,
+  type FocusWithinResult,
+  Icon,
+  type IconProps,
+  Image,
+  type ImageProps,
+  type ImageSource,
+  type LayoutProps,
+  Link as PrimitiveLink,
+  type LinkProps as PrimitiveLinkProps,
+  Modal,
+  type ModalProps,
+  NetworkImage,
+  type NetworkImageProps,
+  type NetworkImageSource,
+  NotificationRegion,
+  type NotificationRegionProps,
+  type Notifications,
+  type OverlayLayer,
+  OverlayPlaneProvider,
+  PasswordInput as PrimitivePasswordInput,
+  type PasswordInputProps as PrimitivePasswordInputProps,
+  Popover,
+  type PopoverProps,
+  type PressResult,
+  Pulse,
+  Row,
+  ScrollArea,
+  type ScrollAreaProps,
+  Spin,
+  Svg,
+  type SvgProps,
+  type TabsResult,
+  Text,
+  TextArea as PrimitiveTextArea,
+  type TextAreaProps as PrimitiveTextAreaProps,
+  TextInput as PrimitiveTextInput,
+  type TextInputProps as PrimitiveTextInputProps,
+  type TextProps,
+  View,
+  type ViewProps,
+  type WabouClassList,
+  type WabouStyle,
+} from "@wabou/primitives";
+export * from "@wabou/router";

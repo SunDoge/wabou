@@ -229,6 +229,24 @@ declare function ButtonGroupText(props: {
   children?: JSX.Element;
   class?: string;
 }): import("@wabou/core").JSX.Element;
+/**
+ * A horizontal primary/aside boundary with explicit flex shrink semantics.
+ * Use `SplitPaneMain` for the elastic region and `SplitPaneAside` for a
+ * class-sized fixed rail. Both regions clip at their own boundary, so content
+ * cannot paint across the divider or a rounded parent clip.
+ */
+declare function SplitPane(props: {
+  children?: JSX.Element;
+  class?: string;
+}): import("@wabou/core").JSX.Element;
+declare function SplitPaneMain(props: {
+  children?: JSX.Element;
+  class?: string;
+}): import("@wabou/core").JSX.Element;
+declare function SplitPaneAside(props: {
+  children?: JSX.Element;
+  class?: string;
+}): import("@wabou/core").JSX.Element;
 //#endregion
 //#region src/select.d.ts
 interface SelectOption {
@@ -500,5 +518,5 @@ declare function Progress(props: {
   class?: string;
 }): JSX.Element;
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, PasswordInput, PasswordInputProps, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spinner, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, componentsElevation, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
+export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, Alert, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, type CheckboxProps, Collapsible, CollapsibleContent, CollapsibleProps, CollapsibleTrigger, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, Fps, FpsProps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, PasswordInput, PasswordInputProps, Progress, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, TabsTrigger, type TabsTriggerProps, TextArea, TextAreaProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, componentsElevation, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
 //# sourceMappingURL=index.d.mts.map

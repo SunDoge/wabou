@@ -654,18 +654,21 @@ impl JsRuntime {
     where
         F: for<'js> FnOnce(Ctx<'js>, Object<'js>) -> JsResult<()> + rquickjs::markers::ParallelSend,
     {
-        if name.is_empty()
-            || !name
-                .bytes()
-                .all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
-        {
-            return Err(rquickjs::Error::Unknown);
+        if !wabou_bindgen::is_contract_identifier(name) {
+            return Err(rquickjs::Error::new_into_js_message(
+                "Rust capability name",
+                "JavaScript identifier",
+                format!("invalid capability identifier `{name}`"),
+            ));
         }
         let name = name.to_owned();
         self.with(move |ctx| {
             let root: Object = ctx.globals().get("__wabou_capabilities")?;
             if root.contains_key(name.as_str())? {
-                return Err(rquickjs::Error::Unknown);
+                return Err(rquickjs::Exception::throw_type(
+                    &ctx,
+                    &format!("duplicate capability namespace `{name}`"),
+                ));
             }
             let capability = Object::new(ctx.clone())?;
             mount(ctx, capability.clone())?;

@@ -9,5 +9,5 @@ path = "src/main.rs"
 
 [dependencies]
 snafu = { workspace = true }
-wabou-runtime = { workspace = true }
+wabou = { workspace = true }
 wabou-terminal = { workspace = true }

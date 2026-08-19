@@ -1,7 +1,14 @@
 // Story detail page.
 
-import { Button, Icon, Link, Text, View } from "@wabou/primitives";
-import { useParams, useRouter } from "@wabou/router";
+import {
+  Button,
+  Icon,
+  PrimitiveLink as Link,
+  Text,
+  useParams,
+  useRouter,
+  View,
+} from "@wabou/ui";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import externalLink from "lucide-static/icons/external-link.svg?raw";

@@ -378,12 +378,23 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
             .map(|value| value.to_string())
             .or_else(|| placed_node.paint.text.as_deref().map(str::to_owned));
         let explicit_role = declared.attribute(&atoms, "role");
+        let role = if explicit_role.is_some() {
+            SemanticRole::from_name(explicit_role.as_deref().unwrap_or_default())
+                .unwrap_or(SemanticRole::Generic)
+        } else {
+            widget_semantics.role.unwrap_or(SemanticRole::Generic)
+        };
         let value = (!widget_semantics.value_is_sensitive)
             .then(|| {
                 declared
                     .attribute(&atoms, "aria-valuetext")
                     .map(|value| value.to_string())
                     .or(widget_semantics.value)
+                    .or_else(|| {
+                        (role == SemanticRole::Status)
+                            .then(|| placed_node.paint.text.as_deref().map(str::to_owned))
+                            .flatten()
+                    })
             })
             .flatten();
         let numeric_attribute = |name| {
@@ -414,12 +425,7 @@ pub(super) fn rebuild(applier: &mut Applier, placed: &[PlacedNode]) {
         let bounds = transformed_bounds(placed_node.rect, semantic_transforms.get(&solid_id));
         nodes.push(SemanticNode {
             id: u64::from(solid_id),
-            role: if explicit_role.is_some() {
-                SemanticRole::from_name(explicit_role.as_deref().unwrap_or_default())
-                    .unwrap_or(SemanticRole::Generic)
-            } else {
-                widget_semantics.role.unwrap_or(SemanticRole::Generic)
-            },
+            role,
             label: label.or(widget_semantics.label),
             value,
             numeric_value: numeric_attribute("aria-valuenow"),

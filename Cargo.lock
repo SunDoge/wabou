@@ -2389,11 +2389,9 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
- "specta",
  "tracing",
  "tracing-subscriber",
  "wabou",
- "wabou-bindgen",
 ]
 
 [[package]]
@@ -2796,7 +2794,7 @@ dependencies = [
  "snafu",
  "tracing",
  "tracing-subscriber",
- "wabou-runtime",
+ "wabou",
 ]
 
 [[package]]
@@ -3312,12 +3310,6 @@ dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
 ]
-
-[[package]]
-name = "indoc"
-version = "1.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfa799dd5ed20a7e349f3b4639aa80d74549c81716d9ec4f994c9b5815598306"
 
 [[package]]
 name = "inout"
@@ -6511,32 +6503,43 @@ dependencies = [
 
 [[package]]
 name = "specta"
-version = "1.0.5"
+version = "2.0.0-rc.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2240c3aa020aa61d2c569087d213baafbb212f4ceb9de9dd162376ea6aa0fe3"
+checksum = "38f9a30cbcbb7011f1da7d73483983bf838af123883e45f2b36ed76328df9c50"
 dependencies = [
- "document-features",
- "indoc",
- "once_cell",
- "paste",
- "serde",
- "serde_json",
+ "rustc_version",
  "specta-macros",
- "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "specta-macros"
-version = "1.0.5"
+version = "2.0.0-rc.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4605306321c356e03873b8ee71d7592a5e7c508add325c3ed0677c16fdf1bcfb"
+checksum = "2ce14957ecc2897f1f848b8255b6531d13ddf49cbcf506b7c2c9fb1d005593bb"
 dependencies = [
  "Inflector",
- "itertools 0.10.5",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
- "termcolor",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "specta-serde"
+version = "0.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee8a72b755ddb8949fd8f17c5db43f0e8a806ea587d9bc602ee3f73240c00029"
+dependencies = [
+ "specta",
+ "specta-macros",
+]
+
+[[package]]
+name = "specta-typescript"
+version = "0.0.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "639404ee95557f2f8b7e4cb773ffefd45304c7ab8ba21ac83b69051595e083c0"
+dependencies = [
+ "specta",
 ]
 
 [[package]]
@@ -6573,7 +6576,7 @@ dependencies = [
  "snafu",
  "tracing",
  "tracing-subscriber",
- "wabou-runtime",
+ "wabou",
 ]
 
 [[package]]
@@ -6648,7 +6651,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
 dependencies = [
  "proc-macro2",
- "quote",
  "unicode-ident",
 ]
 
@@ -6817,7 +6819,7 @@ name = "terminal-demo"
 version = "0.1.0"
 dependencies = [
  "snafu",
- "wabou-runtime",
+ "wabou",
  "wabou-terminal",
 ]
 
@@ -7854,7 +7856,7 @@ dependencies = [
  "snafu",
  "tracing",
  "tracing-subscriber",
- "wabou-runtime",
+ "wabou",
 ]
 
 [[package]]
@@ -7867,6 +7869,8 @@ checksum = "5c3082ca00d5a5ef149bb8b555a72ae84c9c59f7250f013ac822ac2e49b19c64"
 name = "wabou"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "serde",
+ "wabou-bindgen",
  "wabou-runtime",
 ]
 
@@ -7886,6 +7890,8 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "serde",
  "specta",
+ "specta-serde",
+ "specta-typescript",
 ]
 
 [[package]]
@@ -7928,6 +7934,7 @@ dependencies = [
  "serde",
  "serde_json",
  "specta",
+ "specta-typescript",
  "tokio",
 ]
 
@@ -7938,11 +7945,9 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
- "specta",
  "tokio",
- "wabou-bindgen",
+ "wabou",
  "wabou-devtools",
- "wabou-runtime",
 ]
 
 [[package]]
@@ -7951,6 +7956,7 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "serde",
  "specta",
+ "specta-typescript",
  "wabou-bindgen",
 ]
 
@@ -7984,6 +7990,7 @@ dependencies = [
  "ureq 3.3.0",
  "url",
  "vello",
+ "wabou-bindgen",
  "wabou-devtools",
  "wabou-host-api",
  "wabou-shell",

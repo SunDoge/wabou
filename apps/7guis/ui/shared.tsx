@@ -1,5 +1,4 @@
-import { Badge, Card } from "@wabou/components";
-import { Text, View } from "@wabou/primitives";
+import { Badge, Card, Text, View } from "@wabou/ui";
 import type { JSX } from "solid-js";
 
 export function TaskPage(props: {

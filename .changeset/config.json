@@ -14,6 +14,7 @@
       "@wabou/style",
       "@wabou/terminal",
       "@wabou/test",
+      "@wabou/ui",
       "@wabou/vite"
     ]
   ],

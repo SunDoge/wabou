@@ -1,5 +1,4 @@
-import { mount } from "@wabou/core";
-import { Column, Text } from "@wabou/primitives";
+import { Column, mount, Text } from "@wabou/ui";
 import "virtual:wabou-stylesheet";
 
 mount(() => (

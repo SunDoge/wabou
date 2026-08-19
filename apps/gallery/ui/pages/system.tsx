@@ -1,6 +1,4 @@
-import { Button } from "@wabou/components";
-import { dialog, notification } from "@wabou/core";
-import { Text, View } from "@wabou/primitives";
+import { Button, dialog, notification, Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import "virtual:wabou-stylesheet";
 

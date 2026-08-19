@@ -27,7 +27,7 @@ mod scaffold;
 
 use artifact::{
     app_binary, app_bindings_target, app_profiling_feature, app_vite_feature,
-    artifact_from_metadata, cargo_metadata,
+    artifact_from_metadata, cargo_metadata, optional_app_bindings_target,
 };
 #[cfg(test)]
 use artifact::{binary_target, bindings_target, framework_feature, vite_feature};
@@ -37,7 +37,7 @@ use config::{
     profile_application_dir,
 };
 use devtools::InspectCommand;
-use frontend::run as frontend;
+use frontend::build as build_frontend;
 use headless_render::{
     RenderOptions, actions_from_matches as render_actions_from_matches,
     legacy_actions as legacy_render_actions, run as render,
@@ -75,6 +75,14 @@ enum Commands {
     Doctor {
         #[arg(value_name = "APP")]
         app: Option<PathBuf>,
+    },
+    /// Verify an application's Rust, TypeScript, bindings, and behavior contracts.
+    Check {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+        /// Skip discovered `tests/**/*.behavior.ts` scenarios.
+        #[arg(long)]
+        skip_behavior: bool,
     },
     /// Start Vite, the Rust host, and live HMR.
     Dev {
@@ -119,9 +127,11 @@ enum Commands {
         #[arg(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
     },
-    /// Run a bundled TypeScript behavior scenario against the native host.
+    /// Run TypeScript behavior tests against the native host.
     Test {
-        #[arg(value_name = "SCENARIO", required_unless_present = "replay")]
+        /// Scenario file, test directory, or Wabou application directory.
+        /// Defaults to the current application's tests directory.
+        #[arg(value_name = "TARGET", conflicts_with = "replay")]
         scenario: Option<PathBuf>,
         /// Run the scenario against an application outside the current directory.
         #[arg(long, value_name = "PATH")]
@@ -253,6 +263,10 @@ fn main() -> Result<()> {
             wabou_ref,
         } => scaffold::create(&cwd.join(path), &wabou_repository, &wabou_ref),
         Commands::Doctor { app } => doctor::run(&cwd, app.as_deref()),
+        Commands::Check { app, skip_behavior } => {
+            let (workspace, app) = resolve_app(app.as_deref())?;
+            check(&workspace, &app, skip_behavior)
+        }
         Commands::Dev {
             app,
             port,
@@ -300,9 +314,17 @@ fn main() -> Result<()> {
             failure_screenshot,
             native,
         } => {
-            let (workspace, app) = resolve_app(app.as_deref())?;
+            let target = scenario.map(|path| cwd.join(path));
+            let positional_app =
+                app.is_none() && target.as_deref().is_some_and(is_wabou_app_directory);
+            let app_path = if positional_app {
+                target.as_deref()
+            } else {
+                app.as_deref()
+            };
+            let (workspace, app) = resolve_app(app_path)?;
             let options = TestOptions {
-                scenario: scenario.map(|path| cwd.join(path)),
+                scenario: if positional_app { None } else { target },
                 replay: replay.map(|path| cwd.join(path)),
                 replay_test,
                 artifacts,
@@ -363,6 +385,79 @@ fn manifest(app: &App) -> String {
     app.root.join("Cargo.toml").to_string_lossy().into_owned()
 }
 
+fn check(workspace: &Path, app: &App, skip_behavior: bool) -> Result<()> {
+    ensure_workspace_package_exports(workspace)?;
+
+    let tsconfig = app
+        .root
+        .ancestors()
+        .map(|directory| directory.join("tsconfig.json"))
+        .find(|path| path.is_file())
+        .ok_or_else(|| format!("{} has no tsconfig.json", app.root.display()))?;
+    println!("[wabou check] TypeScript");
+    let mut typescript = Command::new("bun");
+    typescript
+        .current_dir(&app.root)
+        .args(["x", "tsc", "--noEmit", "--project"])
+        .arg(tsconfig);
+    let status = typescript
+        .status()
+        .map_err(|error| format!("failed to start Bun for TypeScript check: {error}"))?;
+    ensure(status, "TypeScript check")?;
+
+    let ui_dir = app.root.join("ui");
+    if has_unit_tests(&ui_dir)? {
+        println!("[wabou check] JavaScript unit tests");
+        let mut tests = Command::new("bun");
+        tests.current_dir(&app.root).args([
+            "--conditions=browser",
+            "test",
+            ui_dir.to_string_lossy().as_ref(),
+        ]);
+        let status = tests
+            .status()
+            .map_err(|error| format!("failed to start Bun unit tests: {error}"))?;
+        ensure(status, "JavaScript unit tests")?;
+    }
+
+    println!("[wabou check] Rust");
+    let manifest = manifest(app);
+    let mut cargo = Command::new("cargo");
+    cargo
+        .current_dir(workspace)
+        .args(["check", "--manifest-path", &manifest, "--all-targets"]);
+    let status = cargo
+        .status()
+        .map_err(|error| format!("failed to start Cargo check: {error}"))?;
+    ensure(status, "Cargo check")?;
+
+    if let Some(target) = optional_app_bindings_target(workspace, app)? {
+        println!("[wabou check] generated bindings");
+        run_bindings_target(workspace, app, &target, "check")?;
+    }
+
+    let behavior_dir = app.root.join("tests");
+    if !skip_behavior && has_behavior_scenarios(&behavior_dir)? {
+        println!("[wabou check] behavior scenarios");
+        test_scenario(
+            workspace,
+            app,
+            &TestOptions {
+                scenario: None,
+                replay: None,
+                replay_test: None,
+                artifacts: None,
+                mode: None,
+                failure_screenshot: false,
+                native: false,
+            },
+        )?;
+    }
+
+    println!("[wabou check] all application checks passed");
+    Ok(())
+}
+
 fn build(
     workspace: &Path,
     app: &App,
@@ -381,7 +476,7 @@ fn build(
     }
     ensure(cargo.status()?, "Cargo build")?;
     ensure(
-        frontend(workspace, app, "build", &[], profile, source_map)?,
+        build_frontend(workspace, app, &[], profile, source_map)?,
         "Vite build",
     )?;
     package_executable(workspace, app, release)
@@ -403,7 +498,7 @@ fn run(
     let profile = BuildProfile::from_release(release);
     let source_map = source_map_override.unwrap_or(configured_source_map(app, profile)?);
     ensure(
-        frontend(workspace, app, "build", &[], profile, source_map)?,
+        build_frontend(workspace, app, &[], profile, source_map)?,
         "Vite build",
     )?;
     let manifest = manifest(app);
@@ -445,20 +540,17 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
             &generated_replay,
             format!(
                 "import {{ replay }} from {};\nreplay({});\n",
-                serde_json::to_string(
-                    &workspace
-                        .join("packages/test/src/index.ts")
-                        .to_string_lossy()
-                )?,
+                serde_json::to_string(&behavior_test_runtime(workspace)?.to_string_lossy())?,
                 serde_json::to_string(&parsed)?
             ),
         )?;
-        generated_replay.as_path()
+        generated_replay.clone()
     } else {
-        options
+        let target = options
             .scenario
             .as_deref()
-            .ok_or("a scenario or --replay trace is required")?
+            .map_or_else(|| app.root.join("tests"), Path::to_path_buf);
+        prepare_behavior_scenario(&target, &test_dir)?
     };
     if !scenario.is_file() {
         return Err(format!("test scenario {} does not exist", scenario.display()).into());
@@ -466,10 +558,9 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
 
     let mode_args = options.mode.as_deref().map(|mode| ["--mode", mode]);
     ensure(
-        frontend(
+        build_frontend(
             workspace,
             app,
-            "build",
             mode_args.as_ref().map_or(&[], |args| args),
             BuildProfile::Debug,
             true,
@@ -515,6 +606,105 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     ctrlc::set_handler(move || signal.store(true, Ordering::Release))?;
     let status = wait_for_managed_child(host, HOST_TIMEOUT, &stopped)?;
     ensure(status, "Wabou behavior test")
+}
+
+fn behavior_test_runtime(workspace: &Path) -> Result<PathBuf> {
+    for path in [
+        workspace.join("packages/test/src/index.ts"),
+        workspace.join("vendor/wabou/packages/test/src/index.ts"),
+    ] {
+        if path.is_file() {
+            return Ok(path);
+        }
+    }
+    Err(format!(
+        "cannot find @wabou/test source under {} or its vendor/wabou submodule",
+        workspace.display()
+    )
+    .into())
+}
+
+fn is_wabou_app_directory(path: &Path) -> bool {
+    path.is_dir() && path.join("Cargo.toml").is_file() && path.join("package.json").is_file()
+}
+
+fn prepare_behavior_scenario(target: &Path, test_dir: &Path) -> Result<PathBuf> {
+    if target.is_file() {
+        return Ok(target.to_path_buf());
+    }
+    if !target.is_dir() {
+        return Err(format!("test target {} does not exist", target.display()).into());
+    }
+
+    fn collect(directory: &Path, scenarios: &mut Vec<PathBuf>) -> Result<()> {
+        for entry in fs::read_dir(directory)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                collect(&path, scenarios)?;
+            } else if path.is_file()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.ends_with(".behavior.ts"))
+            {
+                scenarios.push(path);
+            }
+        }
+        Ok(())
+    }
+
+    let mut scenarios = Vec::new();
+    collect(target, &mut scenarios)?;
+    scenarios.sort();
+    if scenarios.is_empty() {
+        return Err(format!(
+            "no *.behavior.ts scenarios found under {}",
+            target.display()
+        )
+        .into());
+    }
+
+    let generated = test_dir.join("discovered-scenarios.ts");
+    let source = scenarios
+        .iter()
+        .map(|scenario| {
+            serde_json::to_string(&scenario.to_string_lossy())
+                .map(|path| format!("import {path};\n"))
+        })
+        .collect::<std::result::Result<String, _>>()?;
+    fs::write(&generated, source)?;
+    Ok(generated)
+}
+
+fn has_behavior_scenarios(directory: &Path) -> Result<bool> {
+    has_file_matching(directory, |name| name.ends_with(".behavior.ts"))
+}
+
+fn has_unit_tests(directory: &Path) -> Result<bool> {
+    has_file_matching(directory, |name| {
+        name.ends_with(".test.ts") || name.ends_with(".test.tsx")
+    })
+}
+
+fn has_file_matching(directory: &Path, matches: impl Copy + Fn(&str) -> bool) -> Result<bool> {
+    if !directory.is_dir() {
+        return Ok(false);
+    }
+    for entry in fs::read_dir(directory)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            if has_file_matching(&path, matches)? {
+                return Ok(true);
+            }
+        } else if path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(matches)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn build_behavior_host(workspace: &Path, manifest: &str, binary: &str) -> Result<PathBuf> {
@@ -568,12 +758,16 @@ fn behavior_host_executable(messages: &[u8], binary: &str) -> Result<Option<Path
 }
 
 fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
-    let manifest = manifest(app);
     let target = app_bindings_target(workspace, app)?;
     let mode = match mode {
         BindingsCommand::Write { .. } => "write",
         BindingsCommand::Check { .. } => "check",
     };
+    run_bindings_target(workspace, app, &target, mode)
+}
+
+fn run_bindings_target(workspace: &Path, app: &App, target: &str, mode: &str) -> Result<()> {
+    let manifest = manifest(app);
     let mut cargo = Command::new("cargo");
     cargo.current_dir(workspace).args([
         "run",
@@ -581,7 +775,7 @@ fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
         "--manifest-path",
         &manifest,
         "--example",
-        &target,
+        target,
         "--",
         mode,
     ]);
@@ -600,7 +794,15 @@ fn dev(
     let mut vite_command = Command::new("bun");
     vite_command
         .current_dir(&app.frontend)
-        .args(["run", "dev", "--", "--port", &port_text, "--strictPort"])
+        .args([
+            "x",
+            "vite",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            &port_text,
+            "--strictPort",
+        ])
         .stdin(Stdio::null());
     if let Some(mode) = mode {
         vite_command.args(["--mode", mode]);
@@ -684,6 +886,18 @@ mod tests {
             panic!("expected doctor command");
         };
         assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
+    }
+
+    #[test]
+    fn parses_application_check_options() {
+        let Cli {
+            command: Commands::Check { app, skip_behavior },
+        } = Cli::try_parse_from(["wabou", "check", "apps/gallery", "--skip-behavior"]).unwrap()
+        else {
+            panic!("expected check command");
+        };
+        assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
+        assert!(skip_behavior);
     }
 
     #[test]
@@ -928,6 +1142,71 @@ mod tests {
         assert_eq!(replay_test.as_deref(), Some("submits form"));
         assert!(!native);
         assert!(Cli::try_parse_from(["wabou", "test", "--replay-test", "orphan"]).is_err());
+
+        let Cli {
+            command: Commands::Test { scenario, .. },
+        } = Cli::try_parse_from(["wabou", "test"]).unwrap()
+        else {
+            panic!("expected test command");
+        };
+        assert!(scenario.is_none());
+    }
+
+    #[test]
+    fn discovers_behavior_scenarios_recursively_without_an_aggregate_entry() {
+        let root = tempfile::tempdir().unwrap();
+        let tests = root.path().join("tests");
+        let nested = tests.join("nested");
+        fs::create_dir_all(&nested).unwrap();
+        fs::write(tests.join("behavior.ts"), "import './one.behavior';").unwrap();
+        fs::write(tests.join("one.behavior.ts"), "test('one', () => {});").unwrap();
+        fs::write(nested.join("two.behavior.ts"), "test('two', () => {});").unwrap();
+        fs::write(nested.join("helper.ts"), "export const helper = true;").unwrap();
+
+        let generated = prepare_behavior_scenario(&tests, root.path()).unwrap();
+        let source = fs::read_to_string(generated).unwrap();
+        assert_eq!(source.matches("import ").count(), 2);
+        assert!(source.contains("one.behavior.ts"));
+        assert!(source.contains("two.behavior.ts"));
+        assert!(!source.contains(
+            &serde_json::to_string(&tests.join("behavior.ts").to_string_lossy()).unwrap()
+        ));
+        assert!(!source.contains("helper.ts"));
+    }
+
+    #[test]
+    fn detects_optional_behavior_scenarios_recursively() {
+        let temp = tempfile::tempdir().unwrap();
+        let nested = temp.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        assert!(!has_behavior_scenarios(temp.path()).unwrap());
+        fs::write(nested.join("input.behavior.ts"), "").unwrap();
+        assert!(has_behavior_scenarios(temp.path()).unwrap());
+    }
+
+    #[test]
+    fn detects_application_unit_tests_without_confusing_behavior_scenarios() {
+        let temp = tempfile::tempdir().unwrap();
+        let nested = temp.path().join("components");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("input.behavior.ts"), "").unwrap();
+        assert!(!has_unit_tests(temp.path()).unwrap());
+        fs::write(nested.join("input.test.tsx"), "").unwrap();
+        assert!(has_unit_tests(temp.path()).unwrap());
+    }
+
+    #[test]
+    fn resolves_behavior_runtime_in_workspace_and_vendored_projects() {
+        for relative in [
+            "packages/test/src/index.ts",
+            "vendor/wabou/packages/test/src/index.ts",
+        ] {
+            let temp = tempfile::tempdir().unwrap();
+            let runtime = temp.path().join(relative);
+            fs::create_dir_all(runtime.parent().unwrap()).unwrap();
+            fs::write(&runtime, "").unwrap();
+            assert_eq!(behavior_test_runtime(temp.path()).unwrap(), runtime);
+        }
     }
 
     #[test]

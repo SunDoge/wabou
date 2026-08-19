@@ -1,10 +1,10 @@
-import { mount } from "@wabou/core";
 import {
   BaseRootRoute,
   BaseRoute,
   createDataRouter,
+  mount,
   RouterProvider,
-} from "@wabou/router";
+} from "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import { App } from "./app";
 

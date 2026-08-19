@@ -1,6 +1,4 @@
-import { useComponentsTheme } from "@wabou/components";
-import { rgba, shadow } from "@wabou/core";
-import { Text, View } from "@wabou/primitives";
+import { rgba, shadow, Text, useComponentsTheme, View } from "@wabou/ui";
 import wabouUtilityManifest from "@wabou/vite/utility-manifest";
 import { For } from "solid-js";
 import "virtual:wabou-stylesheet";

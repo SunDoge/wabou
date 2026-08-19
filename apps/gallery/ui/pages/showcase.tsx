@@ -1,5 +1,4 @@
-import { useComponentsTheme } from "@wabou/components";
-import { Text, View } from "@wabou/primitives";
+import { Text, useComponentsTheme, View } from "@wabou/ui";
 import type { JSX } from "solid-js";
 import "virtual:wabou-stylesheet";
 

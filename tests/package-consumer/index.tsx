@@ -1,14 +1,16 @@
-import { Button } from "@wabou/components";
-import { mount } from "@wabou/core";
-import { createLocale } from "@wabou/core/i18n";
-import { Button as PrimitiveButton, View } from "@wabou/primitives";
 import {
   BaseRootRoute,
+  Button,
   createDataRouter,
   createMemoryHistory,
-} from "@wabou/router";
+  Dynamic,
+  mount,
+  Portal,
+  View,
+} from "@wabou/ui";
+import { createLocale } from "@wabou/ui/i18n";
+import { Button as PrimitiveButton } from "@wabou/ui/primitives";
 import { defineWabouConfig } from "@wabou/vite";
-import { Dynamic, Portal } from "@wabou/core/renderer";
 import { createSignal } from "solid-js";
 
 const [enabled, setEnabled] = createSignal(false);

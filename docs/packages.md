@@ -1,38 +1,48 @@
 # JavaScript packages
 
-Most applications install the runtime entry point and the Vite integration:
+Most applications install one UI entry point and the Vite integration:
 
 ```bash
-bun add @wabou/core solid-js
+bun add @wabou/ui solid-js
 bun add -d @wabou/vite vite
 ```
 
-`@wabou/core` exports the renderer, native host APIs and typed inline-style
-helpers. Applications should not import renderer, protocol or style
-implementation packages directly.
+`@wabou/ui` is the application-facing facade. It exports the renderer and host
+APIs, styled components, common scene primitives, animation, and routing.
+Applications should not need to understand Wabou's internal package graph and
+should set `jsxImportSource` to `@wabou/ui`.
 
 The 0.1 developer preview targets the exact `solid-js@2.0.0-rc.0` line. Keep
 Solid and Wabou packages pinned together until Solid 2 and the universal
 renderer publish stable releases; minor RC changes may alter renderer behavior.
 
-Install the following public packages only when the application uses them:
+The following layered workspaces remain useful internal source boundaries, but
+are compiled into `@wabou/ui` rather than published independently:
 
 - `@wabou/components` — styled application components.
 - `@wabou/primitives` — unstyled components plus renderer-independent behavior
   available from `@wabou/primitives/interactions`.
 - `@wabou/router` — native application routing.
 - `@wabou/animation` — Motion-backed animation helpers.
-- `@wabou/terminal` — native terminal component.
-- `@wabou/test` — TypeScript behavior tests, normally a dev dependency.
 
-The source workspaces `@wabou/protocol`, `@wabou/solid-renderer` and
-`@wabou/style` are private implementation details. Their release artifacts are
+Their public capabilities are available from `@wabou/ui` and
+`@wabou/ui/primitives`. This keeps implementation ownership and tests modular
+without making source topology part of the installation contract.
+
+`@wabou/terminal` remains an optional public package for applications that use
+the native terminal widget. `@wabou/test` is the public behavior-test package,
+normally installed as a dev dependency.
+
+The source workspaces `@wabou/animation`, `@wabou/components`,
+`@wabou/primitives`, `@wabou/router`, `@wabou/protocol`,
+`@wabou/solid-renderer` and `@wabou/style` are private implementation details.
+The UI workspaces are bundled into `@wabou/ui`; the runtime workspaces are
 bundled into `@wabou/core` and exposed, when an advanced import is useful, as
 `@wabou/core/protocol`, `@wabou/core/renderer` and `@wabou/core/style`.
-Applications normally use the root `@wabou/core` export and set
-`jsxImportSource` to `@wabou/core`.
+Applications normally use `@wabou/ui`; `@wabou/core` remains the lower-level
+runtime boundary.
 
-`@wabou/core/i18n` is a separate tree-shakeable entry for reactive locale
+`@wabou/ui/i18n` is a separate tree-shakeable entry for reactive locale
 state and compiler-neutral message functions. The Gallery uses it with
 Paraglide: translation catalogs are compiled during the Vite build, while
 Wabou passes the selected locale explicitly instead of emulating browser URL,
@@ -53,14 +63,15 @@ same package surface as registry installations.
 that public artifacts and application manifests do not depend on private
 workspace packages.
 
-The component stack remains layered inside `@wabou/primitives`: its
-`interactions` subpath provides headless behavior, the root connects behavior
-to the native host, and `@wabou/components` supplies themed,
-shadcn-inspired recipes.
+The component source remains layered: primitive interactions provide headless
+behavior, primitives connect it to the native host, and components supply
+themed, shadcn-inspired recipes. Those are development boundaries, while
+`@wabou/ui` is the supported application boundary.
 
 On the Rust side, applications use the `wabou` facade from a pinned Git tag.
 The facade is deliberately not on crates.io for the first preview, allowing
 internal crates to be merged or renamed without reserving permanent public
 crate names. `wabou-runtime`, `wabou-shell`, `wabou-widgets`, and the remaining
 workspace crates are implementation details; the preview tag and the facade
-are the supported Rust boundary.
+are the supported Rust boundary. Optional widget and code-generation crates may
+be added alongside `wabou`, but must not replace it as the application runtime.

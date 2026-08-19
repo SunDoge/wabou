@@ -5,7 +5,7 @@
     "moduleResolution": "bundler",
     "strict": true,
     "jsx": "preserve",
-    "jsxImportSource": "@wabou/core",
+    "jsxImportSource": "@wabou/ui",
     "noEmit": true,
     "skipLibCheck": true
   },

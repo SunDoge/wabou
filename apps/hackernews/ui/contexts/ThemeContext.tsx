@@ -1,4 +1,6 @@
 // Solid context owns application theme state.
+
+import { View } from "@wabou/ui";
 import {
   createContext,
   createSignal,
@@ -6,7 +8,6 @@ import {
   type Setter,
   useContext,
 } from "solid-js";
-import { View } from "@wabou/primitives";
 
 export type Theme = "light" | "dark";
 

@@ -5,17 +5,21 @@
 // animation scheduler overhead directly comparable. Bounce bounds come from
 // host diagnostics (so the app self-sizes without a window-size API).
 
-import "@wabou/core";
+import "@wabou/ui";
 import "virtual:wabou-stylesheet";
-import { type AnimationControls, animate } from "@wabou/animation";
-import { Button, Text, translate2d, View } from "@wabou/primitives";
 import {
+  type AnimationControls,
+  animate,
+  PrimitiveButton as Button,
+  createFps,
   type Handle,
   mount,
   setTransform2D,
-  createFps,
+  Text,
+  translate2d,
   useHost,
-} from "@wabou/core";
+  View,
+} from "@wabou/ui";
 import { createEffect, createSignal, For, Show } from "solid-js";
 
 const PRESETS = [100, 1_000, 5_000, 10_000, 25_000];

@@ -97,6 +97,22 @@ fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
 }
 
 #[test]
+fn capability_names_use_the_generated_contract_identifier_rules() {
+    let runtime = JsRuntime::new().expect("runtime");
+    for invalid in ["", "1workspace", "work-space", "工作区"] {
+        assert!(
+            runtime
+                .mount_capability(invalid, |_ctx, _capability| Ok(()))
+                .is_err(),
+            "accepted invalid capability name {invalid:?}"
+        );
+    }
+    runtime
+        .mount_capability("_workspace2", |_ctx, _capability| Ok(()))
+        .expect("shared identifier grammar accepts valid names");
+}
+
+#[test]
 fn sleep_uses_rquickjs_async_scheduler_and_wakes_host() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 

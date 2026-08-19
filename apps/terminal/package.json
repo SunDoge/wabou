@@ -8,8 +8,7 @@
     "dev": "vite --host 127.0.0.1"
   },
   "dependencies": {
-    "@wabou/core": "workspace:*",
-    "@wabou/primitives": "workspace:*",
+    "@wabou/ui": "workspace:*",
     "@wabou/terminal": "workspace:*",
     "solid-js": "2.0.0-rc.0"
   },

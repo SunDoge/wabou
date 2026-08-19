@@ -56,7 +56,7 @@ Host-facing APIs need evidence at three distinct boundaries:
    `packages/core/host-abi.json` and compare it with the globals installed in a
    real QuickJS `Applier`. Adding or renaming one side without regenerating or
    implementing it fails.
-3. Embedded integration tests bundle the real public `@wabou/core` entry into
+3. Embedded integration tests bundle the lower-level `@wabou/core` runtime entry into
    `gen/test-runtime.js`, execute it in QuickJS, inspect emitted Rust
    native effects, complete them as the shell would, run Promise jobs, and assert
    the public JavaScript result.
@@ -85,11 +85,11 @@ OS rather than only on routing and serialization.
 
 ## TypeScript declarations for application capabilities
 
-`HostCapabilities` and `WabouIntrinsicElements` are renderer extension
-registries. Generated application bindings manage the internal augmentation;
-ordinary application code imports `Host`, `useHost`, and renderer types from
-`@wabou/core`. Native widget packages that add low-level intrinsic tags are the
-one supported exception and augment the stable registry subpath directly:
+`HostCapabilities` and `WabouIntrinsicElements` are low-level renderer
+extension registries. Ordinary application code imports `Host`, `useHost`, and
+renderer types from `@wabou/ui`. Native widget packages that add intrinsic tags
+or deliberately expose direct synchronous host functions may augment the
+stable registry subpath:
 
 ```ts
 declare module "@wabou/core/registry" {
@@ -106,12 +106,28 @@ declare module "@wabou/core/registry" {
 ```
 
 Rust remains the source of truth for serialized request, response, event DTOs
-and exported function signatures. Wabou uses Specta to reflect explicitly
-annotated Rust DTOs and functions. `wabou-bindgen` adds the capability
-namespace and Wabou wire policy, then generates the `HostCapabilities`
-augmentation and typed client. Primitive arguments remain native QuickJS
-arguments; structured values are JSON encoded; sync and Promise-like native
-results are normalized at the client boundary.
+and exported method contracts. Every application capability method is one
+`JsonMethod<Request, Response>` constant shared by bindgen and runtime
+registration. Wabou pins the validated Specta 2 RC and uses `specta-serde`
+only to reflect its explicitly annotated bridge DTOs; it does not maintain
+fake contract-only functions. Request types are exported using their serde
+deserialization shape,
+while response types use their serialization shape. This preserves directional
+attributes such as `skip_serializing_if` instead of silently publishing an
+incorrect symmetric contract. The generator omits the opposite phase and
+Specta's synthetic two-phase wrapper unless that direction is actually used by
+another method. `wabou-bindgen` adds the capability namespace and Wabou wire
+policy, then generates a module-local raw contract, an injectable typed client
+factory, and a `useXClient()` context consumer. It intentionally does not claim
+that the raw JSON methods merged into `Host` are the typed public API. Each method has zero or one
+request value, encoded as JSON (`null` when absent); sync and Promise-like
+native results are normalized at the client boundary.
+
+Specta 2 deliberately exports unconstrained Rust floats as `number | null`,
+matching `serde_json` for NaN and infinity. A DTO may opt into
+`specta_typescript::Number` only when its producer enforces a finite-value
+invariant. Framework metrics and geometry do this explicitly; bindgen does not
+globally weaken user DTO contracts.
 
 Do not infer the public API by parsing arbitrary `rquickjs::Function` closures.
 Their captured state, argument conversion, error policy, and Promise behavior

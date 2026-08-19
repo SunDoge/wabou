@@ -41,14 +41,17 @@ pub(super) fn app_profiling_feature(workspace: &Path, app: &App) -> Result<Strin
 }
 
 pub(super) fn app_bindings_target(workspace: &Path, app: &App) -> Result<String> {
+    optional_app_bindings_target(workspace, app)?.ok_or_else(|| {
+        "application must define one example sourced from `examples/wabou-bindgen.rs`".into()
+    })
+}
+
+pub(super) fn optional_app_bindings_target(workspace: &Path, app: &App) -> Result<Option<String>> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    bindings_target(&metadata, &manifest_path)
+    Ok(bindings_target(&metadata, &manifest_path)
         .and_then(|target| target["name"].as_str())
-        .map(str::to_owned)
-        .ok_or_else(|| {
-            "application must define one example sourced from `examples/wabou-bindgen.rs`".into()
-        })
+        .map(str::to_owned))
 }
 
 pub(super) fn framework_feature(

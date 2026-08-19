@@ -183,10 +183,20 @@ the suite before application state is mutated. Unexpected runner errors are
 also converted into a `test runner` result instead of waiting for the host
 watchdog with no diagnostic.
 
-Run a scenario with the deterministic backend:
+Name behavior files `*.behavior.ts`. Run every discovered scenario in an
+application with the deterministic backend:
 
 ```bash
-bun run wabou test /path/to/app/tests/window-lifecycle.test.ts \
+bun run wabou test /path/to/app
+```
+
+Wabou recursively discovers files beneath the application's `tests/`
+directory and generates the bundle entry itself; no aggregate file containing
+manual imports is required. To debug only one scenario, pass its path and the
+application explicitly:
+
+```bash
+bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts \
   --app /path/to/app
 ```
 

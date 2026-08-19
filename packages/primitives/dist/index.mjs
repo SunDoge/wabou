@@ -1192,14 +1192,17 @@ function Popover(props) {
 }
 //#endregion
 //#region src/scroll-area.tsx
-const scrollAreaViewportClass = (className) => join("min-h-0 overflow-y-auto", className);
+const scrollAreaViewportClass = (className) => join("min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", className);
 /**
 * Vertical native scroll viewport with explicit sizing.
 *
 * The inner wrapper deliberately cannot shrink. This makes its intrinsic
 * height become the viewport's scroll extent instead of allowing a flex
 * parent to compress overflowing sections until no scroll range remains.
-* The viewport itself deliberately does not grow: implicit `flex-1` makes a
+* The viewport also locks its cross axis. Otherwise focus reveal can move a
+* nominally vertical viewport sideways when a descendant is slightly wider,
+* making split-pane edges appear clipped. It deliberately does not grow:
+* implicit `flex-1` makes a
 * nested scroll area expand with an ancestor's intrinsic content instead of
 * establishing its own scroll range.
 */

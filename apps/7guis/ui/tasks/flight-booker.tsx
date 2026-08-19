@@ -4,8 +4,9 @@ import {
   CalendarDate,
   DatePicker,
   Select,
-} from "@wabou/components";
-import { Text, View } from "@wabou/primitives";
+  Text,
+  View,
+} from "@wabou/ui";
 import { createMemo, createSignal, Show } from "solid-js";
 import { FieldLabel, TaskPage } from "../shared";
 
@@ -18,8 +19,7 @@ export function FlightBookerTask() {
   const [confirmation, setConfirmation] = createSignal("");
   const returnEnabled = () => kind() === "return";
   const valid = createMemo(
-    () =>
-      !returnEnabled() || returnDate().compare(depart()) >= 0,
+    () => !returnEnabled() || returnDate().compare(depart()) >= 0,
   );
   const book = () => {
     if (!valid()) return;

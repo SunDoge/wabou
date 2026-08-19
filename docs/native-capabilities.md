@@ -28,12 +28,12 @@ API exposes typed wrappers such as `clipboard.readText()`, `createWindow()`,
 
 ## System dialogs and notifications
 
-`@wabou/core` exposes native dialogs as Promise-based effects. Cancellation is
+`@wabou/ui` exposes native dialogs as Promise-based effects. Cancellation is
 a normal result rather than an exception: file and directory methods resolve
 to `null`. Platform or permission failures reject the Promise.
 
 ```ts
-import { dialog, notification } from "@wabou/core";
+import { dialog, notification } from "@wabou/ui";
 
 const files = await dialog.open({
   multiple: true,

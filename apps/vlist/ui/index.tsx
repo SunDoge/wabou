@@ -3,10 +3,8 @@
 // the host clips with `overflow: hidden`. Pure SolidJS-as-DSL: no Rust widget,
 // no native scroll container.
 
-import "@wabou/core";
 import "virtual:wabou-stylesheet";
-import { createFps, mount, VirtualList } from "@wabou/core";
-import { Text, View } from "@wabou/primitives";
+import { createFps, mount, Text, View, VirtualList } from "@wabou/ui";
 
 const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
   const tag = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta"][

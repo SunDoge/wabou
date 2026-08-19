@@ -1,11 +1,11 @@
-import { Input } from "@wabou/components";
-import type { Handle } from "@wabou/core";
+import type { Handle } from "@wabou/ui";
 import {
+  Input,
   Button as PrimitiveButton,
   Text,
   translate2d,
   View,
-} from "@wabou/primitives";
+} from "@wabou/ui";
 import { createMemo, createSignal, For } from "solid-js";
 import { TaskPage } from "../shared";
 import {

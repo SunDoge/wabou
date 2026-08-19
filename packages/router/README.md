@@ -1,4 +1,7 @@
-# `@wabou/router`
+# Wabou router implementation
+
+This is a private source workspace bundled into the public `@wabou/ui`
+package. Applications import router APIs from `@wabou/ui`.
 
 Solid 2 routing for Wabou applications, backed by TanStack Router Core. Wabou
 owns the reactive store adapter, memory history, component rendering, and

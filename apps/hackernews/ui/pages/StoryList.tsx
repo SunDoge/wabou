@@ -5,10 +5,10 @@ import {
   createHover,
   Icon,
   Text,
-  TextInput,
+  PrimitiveTextInput as TextInput,
+  useNavigate,
   View,
-} from "@wabou/primitives";
-import { useNavigate } from "@wabou/router";
+} from "@wabou/ui";
 import bookmark from "lucide-static/icons/bookmark.svg?raw";
 import messageSquare from "lucide-static/icons/message-square.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
@@ -107,7 +107,6 @@ export function StoryList(): JSX.Element {
                   {(story, index) => {
                     const { hovered, bindings } = createHover();
                     return (
-                      // biome-ignore lint/a11y/useSemanticElements: wabou currently mislays out flex button elements.
                       <View
                         {...bindings}
                         class="min-h-20 px-3 py-3 flex items-center gap-3 border-b"

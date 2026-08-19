@@ -1,5 +1,6 @@
 {
   "name": "@wabou/components",
+  "private": true,
   "version": "0.1.0-alpha.1",
   "description": "Accessible, themeable components for Wabou applications.",
   "license": "Apache-2.0",
@@ -8,8 +9,8 @@
     "url": "git+https://github.com/SunDoge/wabou.git",
     "directory": "packages/components"
   },
-  "publishConfig": {
-    "access": "public"
+  "wabou": {
+    "stability": "internal"
   },
   "files": [
     "dist"

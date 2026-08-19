@@ -1,12 +1,13 @@
-import { Button, Select } from "@wabou/components";
-import { rgba } from "@wabou/core";
 import {
+  Button,
   createNotifications,
   Modal,
   NotificationRegion,
+  rgba,
+  Select,
   Text,
   View,
-} from "@wabou/primitives";
+} from "@wabou/ui";
 import { createSignal } from "solid-js";
 
 import { Preview } from "../preview";

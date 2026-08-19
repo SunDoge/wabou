@@ -101,7 +101,7 @@ the palette selected for that native window.
 Theme selection is explicit Solid state rather than a CSS selector or variant:
 
 ```tsx
-import { ColorThemeProvider, colorTheme } from "@wabou/core";
+import { ColorThemeProvider, colorTheme } from "@wabou/ui";
 
 <ColorThemeProvider theme={settings.theme}>
   <App />
@@ -157,10 +157,10 @@ can use `Theme`, `parse_utility_with_theme`, and `manifest_with_theme` directly.
 
 ## Typed dynamic styles
 
-Import value constructors from `@wabou/core` when a value changes at runtime:
+Import value constructors from `@wabou/ui` when a value changes at runtime:
 
 ```tsx
-import { number, percent, px } from "@wabou/core";
+import { number, percent, px } from "@wabou/ui";
 
 <View
   style={{ width: px(width()), height: percent(0.5), opacity: number(0.8) }}
@@ -178,7 +178,7 @@ Each layer maps to one Vello blurred rounded rectangle, and layers paint in
 array order:
 
 ```tsx
-import { shadow } from "@wabou/core";
+import { shadow } from "@wabou/ui";
 
 <View
   shadows={[

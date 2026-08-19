@@ -1,29 +1,28 @@
 import {
   Badge,
-  Button,
-  ComponentsProvider,
-  Fps,
-  Separator,
-} from "@wabou/components";
-import { ColorThemeProvider, type Handle, mount, useWindow } from "@wabou/core";
-import {
-  createScrollReset,
-  Button as PrimitiveButton,
-  ScrollArea,
-  Text,
-  View,
-} from "@wabou/primitives";
-import {
   BaseRootRoute,
   BaseRoute,
+  Button,
+  ColorThemeProvider,
+  ComponentsProvider,
   createDataRouter,
   createMemoryHistory,
+  createScrollReset,
+  Fps,
+  type Handle,
+  mount,
+  PrimitiveButton,
   RouterProvider,
+  ScrollArea,
+  Separator,
+  Text,
   useLocation,
   useNavigate,
   useParams,
-} from "@wabou/router";
-import { createSignal, For, Match, Switch as ShowCase } from "solid-js";
+  useWindow,
+  View,
+} from "@wabou/ui";
+import { createSignal, For, Match, Show, Switch as ShowCase } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { OverlayPage } from "./pages/overlay";
@@ -222,6 +221,7 @@ import {
 import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
+import { OverviewPage } from "./pages/overview";
 import {
   AccordionPage,
   AvatarPage,
@@ -252,19 +252,28 @@ function App() {
     key: () => location().pathname,
   });
   const navigate = useNavigate();
-  const selected = (): ComponentId =>
+  const selected = (): ComponentId | null =>
     groups.some((group) =>
       group.items.some((item) => item.id === params().component),
     )
       ? (params().component as ComponentId)
-      : "button";
+      : null;
   const selectedName = () =>
-    groups
-      .flatMap((group) => group.items)
-      .find((item) => item.id === selected())?.name ?? "Component";
+    selected() === null
+      ? "Overview"
+      : (groups
+          .flatMap((group) => group.items)
+          .find((item) => item.id === selected())?.name ?? "Component");
+  const selectedDescription = () => {
+    const component = selected();
+    return component === null ? "" : descriptions[component];
+  };
 
   return (
-    <ColorThemeProvider theme={theme()} transition={false}>
+    <ColorThemeProvider
+      theme={theme()}
+      transition={{ duration: 0.32, easing: "ease-out", colorSpace: "oklab" }}
+    >
       <ComponentsProvider theme={dark() ? "dark" : "light"}>
         <View class="w-full h-full flex overflow-hidden bg-canvas text-primary font-sans">
           <View class="w-56 h-full flex-none flex flex-col border-r border-subtle bg-surface-muted">
@@ -278,6 +287,25 @@ function App() {
               </View>
             </View>
             <ScrollArea class="flex-1" contentClass="px-2 py-3">
+              <PrimitiveButton
+                unstyled
+                aria-label="Overview"
+                selected={selected() === null}
+                class={(state) =>
+                  classes(
+                    "w-full h-8 px-3 mb-3 justify-start rounded-md text-sm",
+                    selected() === null
+                      ? "bg-selected text-primary"
+                      : state.hovered
+                        ? "bg-control-hover text-primary"
+                        : "bg-transparent text-secondary",
+                    state.focusVisible && "border border-focus",
+                  )
+                }
+                onClick={() => void navigate({ to: "/" })}
+              >
+                Overview
+              </PrimitiveButton>
               <For each={groups}>
                 {(group) => (
                   <View class="flex-none flex flex-col gap-0.5 mb-4">
@@ -298,7 +326,7 @@ function App() {
                                 : state.hovered
                                   ? "bg-control-hover text-primary"
                                   : "bg-transparent text-secondary",
-                              state.focused && "border border-focus",
+                              state.focusVisible && "border border-focus",
                             )
                           }
                           onClick={() =>
@@ -351,7 +379,9 @@ function App() {
                   </PrimitiveButton>
                 </View>
                 <Text class="text-sm text-muted">
-                  Components / {selectedName()}
+                  {selected() === null
+                    ? "Wabou / Overview"
+                    : `Components / ${selectedName()}`}
                 </Text>
               </View>
               <View class="flex items-center gap-2">
@@ -365,19 +395,33 @@ function App() {
             </View>
             <View
               ref={(node) => (contentViewport = node)}
-              class="flex-1 min-h-0 overflow-y-auto"
+              class="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto"
             >
               <View class="w-full max-w-5xl mx-auto px-10 py-8 flex flex-col gap-6">
-                <View class="flex flex-col gap-2">
-                  <Text role="heading" class="text-2xl font-bold text-primary">
-                    {selectedName()}
-                  </Text>
-                  <Text class="text-sm text-secondary">
-                    {descriptions[selected()]}
-                  </Text>
-                </View>
-                <Separator />
+                <Show when={selected() !== null}>
+                  <View class="flex flex-col gap-2">
+                    <Text
+                      role="heading"
+                      class="text-2xl font-bold text-primary"
+                    >
+                      {selectedName()}
+                    </Text>
+                    <Text class="text-sm text-secondary">
+                      {selectedDescription()}
+                    </Text>
+                  </View>
+                  <Separator />
+                </Show>
                 <ShowCase>
+                  <Match when={selected() === null}>
+                    <OverviewPage
+                      theme={themeLabel()}
+                      onCycleTheme={cycleTheme}
+                      onExplore={() =>
+                        void navigate({ to: "/components/button" })
+                      }
+                    />
+                  </Match>
                   <Match when={selected() === "button"}>
                     <ButtonPage />
                   </Match>

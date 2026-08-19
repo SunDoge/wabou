@@ -1,17 +1,18 @@
 // Terminal UI entry.
-import "@wabou/core";
+import "@wabou/ui";
 import "virtual:wabou-stylesheet";
+import { Terminal } from "@wabou/terminal";
 import {
   Button,
   createActive,
   createHover,
   createShortcuts,
   createTabs,
+  type Handle,
+  mount,
   Text,
   View,
-} from "@wabou/primitives";
-import { type Handle, mount } from "@wabou/core";
-import { Terminal } from "@wabou/terminal";
+} from "@wabou/ui";
 import { For } from "solid-js";
 
 interface ShellTab {

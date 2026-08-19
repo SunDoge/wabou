@@ -40,6 +40,7 @@ tracing-chrome = { version = "0.7.2", optional = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url = { workspace = true }
 vello = { workspace = true }
+wabou-bindgen = { workspace = true }
 wabou-devtools = { workspace = true }
 wabou-host-api = { workspace = true }
 wabou-shell = { workspace = true }

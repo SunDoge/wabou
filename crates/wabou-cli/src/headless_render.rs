@@ -209,10 +209,9 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     let frontend_lock = frontend::lock(workspace, app)?;
     let mode_args = mode.as_deref().map(|mode| ["--mode", mode]);
     ensure(
-        frontend::run_unlocked(
+        frontend::build_unlocked(
             workspace,
             app,
-            "build",
             mode_args.as_ref().map_or(&[], |args| args),
             BuildProfile::Debug,
             true,

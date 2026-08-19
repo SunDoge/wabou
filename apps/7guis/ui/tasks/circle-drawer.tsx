@@ -5,8 +5,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@wabou/components";
-import { Text, View } from "@wabou/primitives";
+  Text,
+  View,
+} from "@wabou/ui";
 import { createSignal, For, Show } from "solid-js";
 import { type LocalPointerEvent, TaskPage } from "../shared";
 

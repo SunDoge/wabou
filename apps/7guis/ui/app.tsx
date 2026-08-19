@@ -1,12 +1,16 @@
-import { Badge, Button, ComponentsProvider, Fps } from "@wabou/components";
-import { ColorThemeProvider } from "@wabou/core";
 import {
+  Badge,
+  Button,
+  ColorThemeProvider,
+  ComponentsProvider,
+  Fps,
   Button as PrimitiveButton,
   ScrollArea,
   Text,
+  useNavigate,
+  useParams,
   View,
-} from "@wabou/primitives";
-import { useNavigate, useParams } from "@wabou/router";
+} from "@wabou/ui";
 import { createSignal, For, Match, Switch } from "solid-js";
 import { CellsTask } from "./tasks/cells";
 import { CircleDrawerTask } from "./tasks/circle-drawer";

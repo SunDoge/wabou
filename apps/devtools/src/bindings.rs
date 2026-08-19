@@ -1,10 +1,34 @@
 use serde::{Deserialize, Serialize};
-use specta::Type;
-use wabou_bindgen::{Bindings, Capability};
+use wabou::{Bindings, Capability, JsonMethod, Type, specta};
 use wabou_devtools::{DebugFrame, DebugNode, DebugOverlay, DebugStatus};
 
 /// Host capability containing the DevTools example endpoints.
 pub const CAPABILITY: &str = "devtools";
+
+/// Wire name of each DevTools endpoint.
+pub mod method {
+    use super::*;
+
+    /// Select an inspected runtime socket.
+    pub const CONNECT: JsonMethod<ConnectRequest, PathResult> = JsonMethod::new("connect");
+    /// Read inspected runtime status.
+    pub const STATUS: JsonMethod<(), DebugStatus> = JsonMethod::no_request("status");
+    /// Query retained nodes.
+    pub const QUERY_NODES: JsonMethod<QueryNodesRequest, Vec<DebugNode>> =
+        JsonMethod::new("queryNodes");
+    /// Inspect one retained node.
+    pub const INSPECT_NODE: JsonMethod<InspectNodeRequest, DebugNode> =
+        JsonMethod::new("inspectNode");
+    /// Read recent bridge frames.
+    pub const RECENT_FRAMES: JsonMethod<RecentFramesRequest, Vec<DebugFrame>> =
+        JsonMethod::new("recentFrames");
+    /// Capture a native screenshot.
+    pub const CAPTURE_SCREENSHOT: JsonMethod<(), PathResult> =
+        JsonMethod::no_request("captureScreenshot");
+    /// Configure the inspected runtime overlay.
+    pub const SET_OVERLAY: JsonMethod<SetOverlayRequest, DebugOverlay> =
+        JsonMethod::new("setOverlay");
+}
 
 /// Filesystem path returned by socket and screenshot operations.
 #[derive(Clone, Debug, Deserialize, Serialize, Type)]
@@ -13,53 +37,62 @@ pub struct PathResult {
     pub path: String,
 }
 
-#[allow(unused_variables)]
-mod contract {
-    use super::*;
+/// Request selecting the inspected runtime socket.
+#[derive(Deserialize, Type)]
+pub struct ConnectRequest {
+    /// Native DevTools socket path.
+    pub path: String,
+}
 
-    macro_rules! endpoint {
-        ($name:ident() -> $response:ty) => {
-            #[specta::specta]
-            pub async fn $name() -> Result<$response, String> {
-                unreachable!("binding contract functions are not invoked")
-            }
-        };
-        ($name:ident($($argument:ident: $request:ty),+ $(,)?) -> $response:ty) => {
-            #[specta::specta]
-            pub async fn $name($($argument: $request),+) -> Result<$response, String> {
-                unreachable!("binding contract functions are not invoked")
-            }
-        };
-    }
+/// Request filtering the retained node tree.
+#[derive(Deserialize, Type)]
+pub struct QueryNodesRequest {
+    /// Text matched against node metadata.
+    pub query: String,
+    /// Maximum number of results.
+    pub limit: u32,
+}
 
-    endpoint!(connect(path: String) -> PathResult);
-    endpoint!(status() -> DebugStatus);
-    endpoint!(query_nodes(query: String, limit: u32) -> Vec<DebugNode>);
-    endpoint!(inspect_node(id: u32) -> DebugNode);
-    endpoint!(recent_frames(limit: u32) -> Vec<DebugFrame>);
-    endpoint!(capture_screenshot() -> PathResult);
-    endpoint!(set_overlay(
-        layout: bool,
-        clips: bool,
-        hit_target: bool,
-        selected_node: Option<u32>,
-    ) -> DebugOverlay);
+/// Request selecting one retained node.
+#[derive(Deserialize, Type)]
+pub struct InspectNodeRequest {
+    /// Retained node identifier.
+    pub id: u32,
+}
+
+/// Request selecting recent protocol frames.
+#[derive(Deserialize, Type)]
+pub struct RecentFramesRequest {
+    /// Maximum number of frames.
+    pub limit: u32,
+}
+
+/// Request configuring the inspected runtime overlay.
+#[derive(Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SetOverlayRequest {
+    /// Show layout boxes.
+    pub layout: bool,
+    /// Show clip chains.
+    pub clips: bool,
+    /// Show the current hit target.
+    pub hit_target: bool,
+    /// Optionally highlight one retained node.
+    pub selected_node: Option<u32>,
 }
 
 /// Builds the binding manifest consumed by TypeScript code generation.
 pub fn manifest() -> Bindings {
-    Bindings::new().capability(Capability::from_specta(
-        CAPABILITY,
-        specta::functions::collect_types![
-            contract::connect,
-            contract::status,
-            contract::query_nodes,
-            contract::inspect_node,
-            contract::recent_frames,
-            contract::capture_screenshot,
-            contract::set_overlay,
-        ],
-    ))
+    Bindings::new().capability(
+        Capability::new(CAPABILITY)
+            .method(method::CONNECT)
+            .method(method::STATUS)
+            .method(method::QUERY_NODES)
+            .method(method::INSPECT_NODE)
+            .method(method::RECENT_FRAMES)
+            .method(method::CAPTURE_SCREENSHOT)
+            .method(method::SET_OVERLAY),
+    )
 }
 
 #[cfg(test)]
@@ -67,10 +100,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn exports_devtools_from_rust_functions() {
+    fn exports_stateful_devtools_methods_from_dto_contracts() {
         let output = manifest().render();
-        assert!(output.contains("queryNodes(query: string, limit: number): Promise<DebugNode[]>"));
-        assert!(output.contains("selectedNode?: number | null"));
+        assert!(output.contains("queryNodes(request: QueryNodesRequest): Promise<DebugNode[]>"));
+        assert!(output.contains("selectedNode: number | null"));
         assert!(output.contains("captureScreenshot(): Promise<PathResult>"));
+        assert!(output.contains("captureScreenshot(request: string): NativeResult<string>"));
     }
 }

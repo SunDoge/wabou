@@ -43,7 +43,8 @@ The obsolete standalone `solid-refresh` package is intentionally not used.
 
 ## Renderer ABI changes found
 
-- JSX types are owned by `@wabou/core/jsx-runtime` rather than `solid-js`.
+- JSX types are exposed to applications by `@wabou/ui/jsx-runtime` rather than
+  `solid-js`; `@wabou/core/jsx-runtime` remains the lower-level implementation.
 - The universal runtime moved to `@solidjs/universal`.
 - Compiled refs use the renderer's `ref` and `applyRef` helpers.
 - Static JSX properties are passed to `createElement(tag, staticProps)` and

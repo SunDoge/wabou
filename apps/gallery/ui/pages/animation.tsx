@@ -2,9 +2,11 @@ import {
   type AnimationControls,
   animate,
   animateKeyframes,
-} from "@wabou/animation";
-import { Button } from "@wabou/components";
-import { Text, translate2d, View } from "@wabou/primitives";
+  Button,
+  Text,
+  translate2d,
+  View,
+} from "@wabou/ui";
 import { createSignal, onCleanup, onSettled } from "solid-js";
 import "virtual:wabou-stylesheet";
 

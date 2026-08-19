@@ -1,4 +1,7 @@
-# @wabou/animation
+# Wabou animation implementation
+
+This is a private source workspace bundled into the public `@wabou/ui`
+package. Applications import animation APIs from `@wabou/ui`.
 
 Motion's value animation engine adapted to Wabou's QuickJS runtime. It supports
 numbers, colors, springs and playback controls without pulling in React or DOM

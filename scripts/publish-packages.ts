@@ -6,10 +6,7 @@ const root = new URL("..", import.meta.url).pathname;
 // soon as each public package reaches the registry.
 const packageDirectories = [
   "core",
-  "animation",
-  "primitives",
-  "components",
-  "router",
+  "ui",
   "terminal",
   "test",
   "vite",

@@ -1,6 +1,5 @@
-import { Button } from "@wabou/components";
-import { createLocale } from "@wabou/core/i18n";
-import { Text, View } from "@wabou/primitives";
+import { Button, Text, View } from "@wabou/ui";
+import { createLocale } from "@wabou/ui/i18n";
 import { createSignal } from "solid-js";
 import "virtual:wabou-stylesheet";
 

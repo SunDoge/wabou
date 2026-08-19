@@ -1061,6 +1061,42 @@ function ButtonGroupText(props) {
 		}
 	});
 }
+/**
+* A horizontal primary/aside boundary with explicit flex shrink semantics.
+* Use `SplitPaneMain` for the elastic region and `SplitPaneAside` for a
+* class-sized fixed rail. Both regions clip at their own boundary, so content
+* cannot paint across the divider or a rounded parent clip.
+*/
+function SplitPane(props) {
+	return createComponent(View, {
+		get ["class"]() {
+			return join("w-full min-w-0 flex flex-row overflow-hidden", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function SplitPaneMain(props) {
+	return createComponent(View, {
+		get ["class"]() {
+			return join("flex-1 min-w-0 overflow-hidden", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function SplitPaneAside(props) {
+	return createComponent(View, {
+		get ["class"]() {
+			return join("flex-none min-w-0 overflow-hidden", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
 //#endregion
 //#region src/select.tsx
 const ITEM_HEIGHT = 40;
@@ -2170,6 +2206,6 @@ function Progress(props) {
 	});
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, Collapsible, CollapsibleContent, CollapsibleTrigger, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, PasswordInput, Progress, RadioGroup, RadioGroupItem, Select, Separator, Skeleton, Slider, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, componentsElevation, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Checkbox, Collapsible, CollapsibleContent, CollapsibleTrigger, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, PasswordInput, Progress, RadioGroup, RadioGroupItem, Select, Separator, Skeleton, Slider, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, componentsElevation, nextAccordionValue, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme };
 
 //# sourceMappingURL=index.mjs.map
