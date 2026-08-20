@@ -10,7 +10,12 @@ import {
   writer,
 } from "@wabou/core/renderer";
 import { createComponent, createRoot, createSignal, flush } from "solid-js";
-import { Modal, type ModalControls, type ModalTriggerProps } from "./modal";
+import {
+  Modal,
+  type ModalControls,
+  type ModalTriggerProps,
+  modalMotionTransform,
+} from "./modal";
 import { useOverlayPlane } from "./overlay-layer";
 import { View } from "./view";
 
@@ -175,6 +180,18 @@ test("Modal motion keeps a closed visual subtree mounted for exit", () => {
 
   expect(root.lastChild).toBeNull();
   disposeMount();
+});
+
+test("Modal motion composes scale and logical-pixel translation", () => {
+  expect(
+    modalMotionTransform({ fromScale: 0.9, fromX: 32, fromY: -16 }, 0),
+  ).toEqual([0.9, 0, 0, 0.9, 32, -16]);
+  expect(
+    modalMotionTransform({ fromScale: 0.9, fromX: 32, fromY: -16 }, 0.5),
+  ).toEqual([0.95, 0, 0, 0.95, 16, -8]);
+  expect(
+    modalMotionTransform({ fromScale: 0.9, fromX: 32, fromY: -16 }, 1),
+  ).toEqual([1, 0, 0, 1, 0, 0]);
 });
 
 test("Modal content makes nested overlays inherit the modal plane", () => {

@@ -1252,6 +1252,22 @@ function createTransitionPresence(open, options = {}) {
 }
 //#endregion
 //#region src/primitives/modal.tsx
+function modalMotionTransform(options, progress) {
+	const scale = (options?.fromScale ?? 1) + progress * (1 - (options?.fromScale ?? 1));
+	const remaining = 1 - progress;
+	const offset = (value) => {
+		const result = value * remaining;
+		return result === 0 ? 0 : result;
+	};
+	return [
+		scale,
+		0,
+		0,
+		scale,
+		offset(options?.fromX ?? 0),
+		offset(options?.fromY ?? 0)
+	];
+}
 /**
 * A native modal plane with host-enforced focus, hit-test, and accessibility
 * isolation. Visual styling remains explicit so applications can own it.
@@ -1268,7 +1284,6 @@ function Modal(props) {
 		ease: motionOptions?.ease ?? (motionEnabled ? "easeOut" : "linear"),
 		reducedMotion: () => !motionEnabled || reducedMotion()
 	});
-	const motionFromScale = () => motionOptions?.fromScale ?? 1;
 	let trigger;
 	let focusFrame = 0;
 	let wasOpenForInitialFocus = false;
@@ -1376,7 +1391,7 @@ function Modal(props) {
 							return props.contentShadows;
 						},
 						get transform() {
-							return scale2d(motionFromScale() + presence.progress() * (1 - motionFromScale()));
+							return modalMotionTransform(motionOptions, presence.progress());
 						},
 						get interactionBlocked() {
 							return !open();
@@ -2239,4 +2254,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createActive as $, toggleSelection as A, Svg as B, createOverlayLayer as C, Row as D, Column as E, Image as F, rotate2d$1 as G, TextArea as H, NetworkImage as I, createContainerMatch as J, translate2d$1 as K, PasswordInput as L, CollapsiblePresence as M, CodeEditor as N, createKeyedSelection as O, Icon as P, createButton as Q, Path as R, OverlayPlaneProvider as S, Center as T, TextInput as U, Text as V, View as W, Button as X, createMeasuredSize as Y, Link as Z, Pulse as _, ScrollArea as a, animate as at, Modal as b, autoPlacement as c, createPulse as ct, flip as d, createTransition as dt, createPress as et, offset as f, normalizeSweepGeometry as ft, createNotifications as g, NotificationRegion as h, useReducedMotion as ht, createScrollReset as i, createAnimationFrame as it, createFormDraft as j, isSelected as k, computeFloatingPosition as l, createRotation as lt, size as m, useMotionConfig as mt, createTabs as n, createFocus as nt, Popover as o, animateKeyframes as ot, shift as p, MotionConfigProvider as pt, createPresence as q, createShortcuts as r, createFocusWithin as rt, arrow as s, createLoop as st, primitives_exports as t, createHover as tt, computeHostFloatingPosition as u, createSweep as ut, Ripple as v, useOverlayPlane as w, createTransitionPresence as x, Spin as y, PathBuilder as z };
 
-//# sourceMappingURL=primitives-Dy2ya9C4.mjs.map
+//# sourceMappingURL=primitives-CargzKeQ.mjs.map

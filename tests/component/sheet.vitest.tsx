@@ -22,6 +22,7 @@ test("opens an edge panel and closes through its controls", () => {
   const sheet = screen.getByRole("dialog", { name: "Preferences" });
   expect(sheet.className).toContain("w-[400px]");
   expect(sheet.className).toContain("border-l");
+  expect(sheet.transform).toEqual([1, 0, 0, 1, 32, 0]);
   screen.getByRole("button", { name: "Done" }).click();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
@@ -35,7 +36,9 @@ test("supports top and bottom placement without a separate overlay primitive", (
     />
   ));
   top.getByRole("button", { name: "Open top" }).click();
-  expect(top.getByRole("dialog").className).toContain("border-b");
+  const topSheet = top.getByRole("dialog");
+  expect(topSheet.className).toContain("border-b");
+  expect(topSheet.transform).toEqual([1, 0, 0, 1, 0, -32]);
   top.dispose();
 
   const bottom = renderComponent(() => (
@@ -46,5 +49,7 @@ test("supports top and bottom placement without a separate overlay primitive", (
     />
   ));
   bottom.getByRole("button", { name: "Open bottom" }).click();
-  expect(bottom.getByRole("dialog").className).toContain("border-t");
+  const bottomSheet = bottom.getByRole("dialog");
+  expect(bottomSheet.className).toContain("border-t");
+  expect(bottomSheet.transform).toEqual([1, 0, 0, 1, 0, 32]);
 });

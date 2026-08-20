@@ -1,7 +1,7 @@
 import { rgba } from "@wabou/core";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
-import { Modal, type ModalProps } from "../primitives";
+import { Modal, type ModalMotionOptions, type ModalProps } from "../primitives";
 import { join } from "./class-names";
 import {
   DialogDescription,
@@ -39,13 +39,23 @@ const geometry = (side: SheetSide) =>
     }))
     .exhaustive();
 
+const sheetMotion = (side: SheetSide): ModalMotionOptions =>
+  match(side)
+    .with("left", () => ({ duration: 0.18, fromX: -32 }))
+    .with("right", () => ({ duration: 0.18, fromX: 32 }))
+    .with("top", () => ({ duration: 0.18, fromY: -32 }))
+    .with("bottom", () => ({ duration: 0.18, fromY: 32 }))
+    .exhaustive();
+
 /** A modal edge panel that shares native focus isolation with Dialog. */
 export function Sheet(props: SheetProps): JSX.Element {
   const theme = useComponentsTheme();
-  const placement = () => geometry(props.side ?? "right");
+  const side = () => props.side ?? "right";
+  const placement = () => geometry(side());
   return (
     <Modal
       {...props}
+      motion={props.motion === undefined ? sheetMotion(side()) : props.motion}
       backdropStyle={{
         "background-color": rgba(0x00000033),
         ...placement().backdrop,

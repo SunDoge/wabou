@@ -1,5 +1,5 @@
 import { type Handle, Portal } from "@wabou/core/renderer";
-import { number, type Shadow, scale2d } from "@wabou/core/style";
+import { type Affine2D, number, type Shadow } from "@wabou/core/style";
 import {
   createComponent,
   createEffect,
@@ -47,6 +47,31 @@ export interface ModalMotionOptions {
   ease?: Easing;
   /** Initial content scale around its center. Defaults to 1. */
   fromScale?: number;
+  /** Initial horizontal offset in logical pixels. Defaults to 0. */
+  fromX?: number;
+  /** Initial vertical offset in logical pixels. Defaults to 0. */
+  fromY?: number;
+}
+
+export function modalMotionTransform(
+  options: ModalMotionOptions | undefined,
+  progress: number,
+): Affine2D {
+  const scale =
+    (options?.fromScale ?? 1) + progress * (1 - (options?.fromScale ?? 1));
+  const remaining = 1 - progress;
+  const offset = (value: number) => {
+    const result = value * remaining;
+    return result === 0 ? 0 : result;
+  };
+  return [
+    scale,
+    0,
+    0,
+    scale,
+    offset(options?.fromX ?? 0),
+    offset(options?.fromY ?? 0),
+  ];
 }
 
 export interface ModalProps {
@@ -92,7 +117,6 @@ export function Modal(props: ModalProps): JSX.Element {
     ease: motionOptions?.ease ?? (motionEnabled ? "easeOut" : "linear"),
     reducedMotion: () => !motionEnabled || reducedMotion(),
   });
-  const motionFromScale = () => motionOptions?.fromScale ?? 1;
   let trigger: Handle | undefined;
   let focusFrame = 0;
   let wasOpenForInitialFocus = false;
@@ -214,10 +238,7 @@ export function Modal(props: ModalProps): JSX.Element {
                 return props.contentShadows;
               },
               get transform() {
-                return scale2d(
-                  motionFromScale() +
-                    presence.progress() * (1 - motionFromScale()),
-                );
+                return modalMotionTransform(motionOptions, presence.progress());
               },
               get interactionBlocked() {
                 return !open();
