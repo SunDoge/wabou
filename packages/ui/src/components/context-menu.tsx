@@ -2,6 +2,7 @@ import type { Handle, WabouPointerEvent } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
 import { createSignal, type JSX } from "solid-js";
 import { DropdownMenu, type DropdownMenuItem } from "./dropdown-menu";
+import type { PopupMotionProps } from "./popover";
 
 export interface ContextMenuTriggerProps {
   ref(node: Handle): void;
@@ -15,7 +16,7 @@ export interface ContextMenuTriggerProps {
   "aria-expanded": boolean;
 }
 
-export interface ContextMenuProps {
+export interface ContextMenuProps extends PopupMotionProps {
   trigger(props: ContextMenuTriggerProps): JSX.Element;
   items: readonly DropdownMenuItem[];
   "aria-label": string;
@@ -39,6 +40,7 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
       anchorPoint={point}
       contentClass={props.contentClass}
       contentShadows={props.contentShadows}
+      motion={props.motion}
       trigger={(menu) =>
         props.trigger({
           ref: menu.ref,

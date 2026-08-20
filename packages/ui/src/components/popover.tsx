@@ -1,6 +1,7 @@
 import type { JSX } from "solid-js";
 import {
   Popover as HeadlessPopover,
+  type PopoverMotionOptions,
   type PopoverProps as HeadlessPopoverProps,
   Text,
   View,
@@ -9,6 +10,12 @@ import { join } from "./class-names";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export type PopoverProps = HeadlessPopoverProps;
+
+/** Shared visual-motion contract for components backed by a popup surface. */
+export interface PopupMotionProps {
+  /** Override the default popup transition, or disable it without changing presence semantics. */
+  motion?: false | PopoverMotionOptions;
+}
 
 /** A ready-to-use floating surface backed by Wabou's collision-aware overlay. */
 export function Popover(props: PopoverProps): JSX.Element {

@@ -14,6 +14,7 @@ import {
   type DropdownMenuKeyEvent,
 } from "./dropdown-menu";
 import { Toolbar, ToolbarButton } from "./toolbar";
+import type { PopupMotionProps } from "./popover";
 
 interface MenubarEntry {
   value: string;
@@ -93,7 +94,7 @@ export function Menubar(props: MenubarProps): JSX.Element {
   });
 }
 
-export interface MenubarMenuProps {
+export interface MenubarMenuProps extends PopupMotionProps {
   value: string;
   label: string;
   items: readonly DropdownMenuItem[];
@@ -126,6 +127,7 @@ export function MenubarMenu(props: MenubarMenuProps): JSX.Element {
       open={menubar.openValue() === props.value}
       onOpenChange={(open) => menubar.setOpenValue(open ? props.value : null)}
       onAction={props.onAction}
+      motion={props.motion}
       placement="bottom-start"
       outsidePointerStrategy="passthrough"
       restoreFocus={

@@ -17,6 +17,7 @@ import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createUniqueId, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { join } from "./class-names";
+import type { PopupMotionProps } from "./popover";
 import { selectControlsId } from "./select-semantics";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
@@ -29,7 +30,7 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
-export interface SelectProps {
+export interface SelectProps extends PopupMotionProps {
   options: readonly SelectOption[];
   value?: string;
   defaultValue?: string;
@@ -133,6 +134,7 @@ export function Select(props: SelectProps): JSX.Element {
           ? componentsElevation(theme(), "floating")
           : props.contentShadows
       }
+      motion={props.motion}
       trigger={(popover) => (
         <HeadlessButton
           unstyled

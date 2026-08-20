@@ -62,3 +62,27 @@ test("opens at the last action with ArrowUp and closes with Escape", () => {
   screen.getByRole("menu").press("Escape");
   expect(screen.queryByRole("menu")).toBeNull();
 });
+
+test("forwards popup motion configuration", () => {
+  const screen = renderComponent(
+    () => (
+      <DropdownMenu
+        aria-label="Animated actions"
+        items={[{ id: "open", label: "Open" }]}
+        motion={{ duration: 10, fromScale: 0.9 }}
+        trigger={(trigger) => (
+          <Button aria-label="Animated" {...trigger}>
+            Animated
+          </Button>
+        )}
+      />
+    ),
+    { clock: "fake" },
+  );
+
+  screen.getByRole("button", { name: "Animated" }).click();
+  const panel = screen
+    .getAllByRole("presentation")
+    .find((node) => node.transform !== null);
+  expect(panel?.transform).toEqual([0.9, 0, 0, 0.9, 0, 0]);
+});

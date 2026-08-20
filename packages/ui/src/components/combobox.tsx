@@ -4,6 +4,7 @@ import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import { createSignal, type JSX } from "solid-js";
 import { Button as HeadlessButton, Icon, Popover, Text } from "../primitives";
 import { join } from "./class-names";
+import type { PopupMotionProps } from "./popover";
 import { Command, type CommandItem } from "./command";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
@@ -11,7 +12,7 @@ export interface ComboboxOption extends CommandItem {
   value: string;
 }
 
-export interface ComboboxProps {
+export interface ComboboxProps extends PopupMotionProps {
   options: readonly ComboboxOption[];
   "aria-label": string;
   value?: string;
@@ -78,6 +79,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           ? componentsElevation(theme(), "floating")
           : props.contentShadows
       }
+      motion={props.motion}
       trigger={(popover) => (
         <HeadlessButton
           unstyled

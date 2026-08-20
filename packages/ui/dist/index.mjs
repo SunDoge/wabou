@@ -539,6 +539,9 @@ function Combobox(props) {
 				return props.contentShadows === void 0;
 			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
 		},
+		get motion() {
+			return props.motion;
+		},
 		trigger: (popover) => createComponent$1(Button$1, {
 			unstyled: true,
 			role: "combobox",
@@ -1004,6 +1007,9 @@ function DropdownMenu(props) {
 				return props.contentShadows === void 0;
 			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
 		},
+		get motion() {
+			return props.motion;
+		},
 		trigger: (popover) => props.trigger({
 			ref: (node) => {
 				trigger = node;
@@ -1114,6 +1120,9 @@ function ContextMenu(props) {
 		},
 		get contentShadows() {
 			return props.contentShadows;
+		},
+		get motion() {
+			return props.motion;
 		},
 		trigger: (menu) => props.trigger({
 			ref: menu.ref,
@@ -1440,6 +1449,9 @@ function DatePicker(props) {
 			return memo(() => {
 				return props.contentShadows === void 0;
 			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
+		},
+		get motion() {
+			return props.motion;
 		},
 		trigger: (trigger) => createComponent$1(Button$1, mergeProps({ unstyled: true }, trigger, {
 			get ["aria-label"]() {
@@ -2058,6 +2070,9 @@ function HoverCard(props) {
 				return props.contentShadows === void 0;
 			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
 		},
+		get motion() {
+			return props.motion;
+		},
 		get onContentPointerEnter() {
 			return delay.openNow;
 		},
@@ -2583,6 +2598,9 @@ function MenubarMenu(props) {
 		onOpenChange: (open) => menubar.setOpenValue(open ? props.value : null),
 		get onAction() {
 			return props.onAction;
+		},
+		get motion() {
+			return props.motion;
 		},
 		placement: "bottom-start",
 		outsidePointerStrategy: "passthrough",
@@ -3943,6 +3961,9 @@ function Select(props) {
 				return props.contentShadows === void 0;
 			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
 		},
+		get motion() {
+			return props.motion;
+		},
 		trigger: (popover) => createComponent$1(Button$1, {
 			unstyled: true,
 			role: "combobox",
@@ -5120,6 +5141,9 @@ function Tooltip(props) {
 		restoreFocus: false,
 		get contentClass() {
 			return join("max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md", props.contentClass);
+		},
+		get motion() {
+			return props.motion;
 		},
 		trigger: (popover) => props.trigger({
 			ref: popover.ref,

@@ -3,6 +3,7 @@ import { createSignal, type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
 import { Popover, Text } from "../primitives";
 import { join } from "./class-names";
+import type { PopupMotionProps } from "./popover";
 import { createTooltipDelayController } from "./tooltip-state";
 
 export interface TooltipTriggerProps {
@@ -18,7 +19,7 @@ export interface TooltipTriggerProps {
   }): void;
 }
 
-export interface TooltipProps {
+export interface TooltipProps extends PopupMotionProps {
   trigger(props: TooltipTriggerProps): JSX.Element;
   children?: JSX.Element;
   open?: boolean;
@@ -67,6 +68,7 @@ export function Tooltip(props: TooltipProps): JSX.Element {
         "max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md",
         props.contentClass,
       )}
+      motion={props.motion}
       trigger={(popover) =>
         props.trigger({
           ref: popover.ref,

@@ -7,6 +7,7 @@ import { createTypeahead } from "../primitives/interactions";
 import type { Placement, PointAnchor } from "../primitives/positioner";
 import { join } from "./class-names";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
+import type { PopupMotionProps } from "./popover";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export interface DropdownMenuItem extends MenuStateItem {
@@ -16,7 +17,7 @@ export interface DropdownMenuItem extends MenuStateItem {
   onSelect?: () => void;
 }
 
-export interface DropdownMenuProps {
+export interface DropdownMenuProps extends PopupMotionProps {
   trigger(props: {
     ref(node: Handle): void;
     onClick(event: { stopPropagation(): void }): void;
@@ -144,6 +145,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
           ? componentsElevation(theme(), "floating")
           : props.contentShadows
       }
+      motion={props.motion}
       trigger={(popover) =>
         props.trigger({
           ref: (node) => {

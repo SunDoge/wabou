@@ -4,6 +4,7 @@ import { type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
 import { Popover as HeadlessPopover } from "../primitives";
 import { join } from "./class-names";
+import type { PopupMotionProps } from "./popover";
 import { createDelayedOpenController } from "./delayed-open";
 import { createControllableState } from "./state";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -23,7 +24,7 @@ export interface HoverCardTriggerProps {
   "aria-expanded": boolean;
 }
 
-export interface HoverCardProps {
+export interface HoverCardProps extends PopupMotionProps {
   "aria-label": string;
   trigger(props: HoverCardTriggerProps): JSX.Element;
   children?: JSX.Element;
@@ -76,6 +77,7 @@ export function HoverCard(props: HoverCardProps): JSX.Element {
           ? componentsElevation(theme(), "floating")
           : props.contentShadows
       }
+      motion={props.motion}
       onContentPointerEnter={delay.openNow}
       onContentPointerLeave={delay.scheduleClose}
       onContentFocusIn={delay.openNow}

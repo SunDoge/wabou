@@ -99,3 +99,22 @@ test("keeps controlled open state owned by the application", () => {
   expect(screen.getByRole("status").text).toBe("closed");
   expect(trigger.expanded).toBe(false);
 });
+
+test("can disable popup motion without changing selection behavior", () => {
+  const screen = renderComponent(() => (
+    <Select
+      aria-label="Technology"
+      options={options}
+      defaultValue="solid"
+      motion={false}
+    />
+  ));
+
+  screen.getByRole("combobox", { name: "Technology" }).click();
+  const panel = screen
+    .getAllByRole("presentation")
+    .find((node) => node.transform !== null);
+  expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
+  screen.getByRole("option", { name: "Rust" }).click();
+  expect(screen.getByRole("combobox").text).toContain("Rust");
+});

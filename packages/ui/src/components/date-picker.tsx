@@ -19,6 +19,7 @@ import {
   View,
 } from "../primitives";
 import { join } from "./class-names";
+import type { PopupMotionProps } from "./popover";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 function dayOfWeek(value: CalendarDate): number {
@@ -305,7 +306,9 @@ export function Calendar(props: CalendarProps): JSX.Element {
   );
 }
 
-export interface DatePickerProps extends Omit<CalendarProps, "aria-label"> {
+export interface DatePickerProps
+  extends Omit<CalendarProps, "aria-label">,
+    PopupMotionProps {
   "aria-label": string;
   placeholder?: string;
   class?: string;
@@ -359,6 +362,7 @@ export function DatePicker(props: DatePickerProps): JSX.Element {
           ? componentsElevation(theme(), "floating")
           : props.contentShadows
       }
+      motion={props.motion}
       trigger={(trigger) => (
         <HeadlessButton
           unstyled
