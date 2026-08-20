@@ -33,6 +33,7 @@ pub mod op {
     pub const CLEAR_GRAPHIC_SOURCE: u8 = 0x1f;
     pub const SET_GRAPHIC_DATA: u8 = 0x20;
     pub const CLEAR_GRAPHIC_DATA: u8 = 0x21;
+    pub const SET_TEXT_MAX_LINES: u8 = 0x22;
 }
 
 #[allow(missing_docs)]

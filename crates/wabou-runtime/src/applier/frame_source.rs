@@ -481,7 +481,7 @@ impl FrameSource for Applier {
             self.flush_value_sync();
             #[cfg(any(feature = "devtools", test))]
             if projection_dirty || self.frame.projections.debug_dirty {
-                self.publish_debug_snapshot(&placed);
+                self.publish_debug_snapshot(&placed, tcx);
                 self.frame.projections.debug_dirty = false;
             }
             self.document
@@ -805,6 +805,14 @@ impl FrameSource for Applier {
     fn poll_async(&mut self) -> bool {
         let was_woken = self.runtime.js.take_async_wake();
         self.runtime.js.poll_async_runtime();
+        // Host messages are application events, not render events. Drain them
+        // on the event-loop wake path as well as at the next frame boundary so
+        // tray/background applications keep responding while their native
+        // surface is hidden or has been released.
+        let host_messages_pending = self.runtime.host_message_inbox.has_pending();
+        if host_messages_pending {
+            self.drain_host_messages();
+        }
         let mut widget_woken = false;
         let mut host_actions = Vec::new();
         let mut node_events = Vec::new();
@@ -846,7 +854,7 @@ impl FrameSource for Applier {
             .is_some_and(|mut state| state.take_overlay_change());
         #[cfg(not(any(feature = "devtools", test)))]
         let overlay_changed = false;
-        widget_woken || was_woken || screenshot_pending || overlay_changed
+        widget_woken || was_woken || host_messages_pending || screenshot_pending || overlay_changed
     }
 
     fn take_host_action(&mut self) -> Option<wabou_shell::HostAction> {

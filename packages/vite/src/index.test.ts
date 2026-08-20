@@ -106,6 +106,7 @@ describe("@wabou/vite", () => {
     expect(aliases["solid-js/web"]).toBe(renderer);
     expect(renderer).toMatch(/core\/(?:src|dist)\/renderer(?:\.ts|\.mjs)$/);
     expect(existsSync(renderer)).toBe(true);
+    expect(config.resolve?.dedupe).toEqual(["solid-js"]);
     expect(config.optimizeDeps).toMatchObject({
       noDiscovery: true,
       include: ["@tanstack/router-core"],

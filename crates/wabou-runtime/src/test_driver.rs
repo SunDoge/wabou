@@ -12,8 +12,8 @@ use serde::Deserialize;
 use tokio::sync::oneshot;
 use wabou_shell::window_lifecycle::{WindowCapabilities, WindowLifecycle, WindowPresence};
 use wabou_shell::{
-    ExtensionContext, ImeEvent, KeyEvent, KeyLocation, KeyPhase, ShellExtension, WakeCallback,
-    WheelEvent,
+    ExtensionContext, FileDropEvent, FileDropPhase, ImeEvent, KeyEvent, KeyLocation, KeyPhase,
+    ShellExtension, WakeCallback, WheelEvent,
 };
 use wabou_shell::{
     FrameSource, Modifiers, Point, PointerButton, PointerEvent, PointerPhase, SemanticRole,
@@ -41,6 +41,11 @@ enum TestActionKind {
         window_key: WindowKey,
         width: u32,
         height: u32,
+    },
+    FileDrop {
+        window_key: WindowKey,
+        phase: FileDropPhase,
+        paths: Vec<PathBuf>,
     },
     ClickByRole {
         window_key: WindowKey,
@@ -351,6 +356,41 @@ impl TestController {
                 })?,
             )?;
 
+            let file_drop = controller.clone();
+            capability.set(
+                "fileDrop",
+                Function::new(
+                    ctx.clone(),
+                    Async(move |lo: u32, hi: u32, phase: String, paths_json: String| {
+                        let phase = match phase.as_str() {
+                            "entered" => Some(FileDropPhase::Entered),
+                            "moved" => Some(FileDropPhase::Moved),
+                            "left" => Some(FileDropPhase::Left),
+                            "dropped" => Some(FileDropPhase::Dropped),
+                            _ => None,
+                        };
+                        let paths = serde_json::from_str::<Vec<PathBuf>>(&paths_json).ok();
+                        let receiver = window_key(lo, hi).zip(phase).zip(paths).map(
+                            |((window_key, phase), paths)| {
+                                file_drop.request(TestActionKind::FileDrop {
+                                    window_key,
+                                    phase,
+                                    paths,
+                                })
+                            },
+                        );
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
+                    }),
+                )?,
+            )?;
+
             let query = controller.clone();
             capability.set(
                 "windowViewport",
@@ -620,6 +660,14 @@ impl TestController {
         };
         let handled = match (&action.kind, snapshot.as_deref()) {
             (TestActionKind::WaitForIdle(_), _) => true,
+            (TestActionKind::FileDrop { phase, paths, .. }, _) => {
+                source.handle_event(UiEvent::FileDrop(FileDropEvent {
+                    phase: *phase,
+                    paths: paths.clone(),
+                    position: None,
+                }));
+                true
+            }
             (
                 TestActionKind::ClickByRole {
                     role, label, index, ..
@@ -855,6 +903,7 @@ fn apply_headless_action(state: &mut TestState, action: TestAction) {
                 *viewport = (width, height);
                 true
             }),
+        TestActionKind::FileDrop { .. } => false,
         TestActionKind::WaitForIdle(_) => false,
         TestActionKind::ClickByRole { .. } => false,
         TestActionKind::InputByRole { .. } => false,
@@ -873,13 +922,17 @@ fn action_requires_semantics(kind: &TestActionKind) -> bool {
 }
 
 fn action_requires_source_poll(kind: &TestActionKind) -> bool {
-    matches!(kind, TestActionKind::WaitForIdle(_)) || action_requires_semantics(kind)
+    matches!(
+        kind,
+        TestActionKind::WaitForIdle(_) | TestActionKind::FileDrop { .. }
+    ) || action_requires_semantics(kind)
 }
 
 fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
     match kind {
         TestActionKind::WaitForIdle(window_key)
         | TestActionKind::ResizeWindow { window_key, .. }
+        | TestActionKind::FileDrop { window_key, .. }
         | TestActionKind::ClickByRole { window_key, .. }
         | TestActionKind::InputByRole { window_key, .. }
         | TestActionKind::QueryByRole { window_key, .. } => Some(*window_key),
@@ -890,6 +943,7 @@ fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
 fn action_ready(kind: &TestActionKind, snapshot: Option<&SemanticSnapshot>) -> bool {
     match (kind, snapshot) {
         (TestActionKind::WaitForIdle(_), _) => true,
+        (TestActionKind::FileDrop { .. }, _) => true,
         (kind, Some(_)) if action_requires_semantics(kind) => true,
         _ => false,
     }
@@ -1082,6 +1136,18 @@ impl ShellExtension for TestDriver {
                     width,
                     height,
                 } => TestActionResult::Handled(context.resize_window(window_key, width, height)),
+                TestActionKind::FileDrop {
+                    window_key,
+                    phase,
+                    paths,
+                } => TestActionResult::Handled(context.dispatch_event(
+                    window_key,
+                    UiEvent::FileDrop(FileDropEvent {
+                        phase,
+                        paths,
+                        position: None,
+                    }),
+                )),
                 TestActionKind::ClickByRole {
                     window_key,
                     role,

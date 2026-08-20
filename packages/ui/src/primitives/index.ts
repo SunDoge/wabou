@@ -25,8 +25,23 @@ export {
   type FocusWithinResult,
 } from "./focus";
 export { createHover, type HoverResult } from "./hover";
+export {
+  createFormDraft,
+  type FormDraft,
+  type FormDraftErrors,
+  type FormDraftFieldUpdater,
+  type FormDraftOptions,
+} from "./interactions/form-draft";
+export {
+  createKeyedSelection,
+  type KeyedSelection,
+  type KeyedSelectionOptions,
+} from "./interactions/selection";
 export { Center, Column, type LayoutProps, Row } from "./layout";
 export {
+  type ContainerMatch,
+  type ContainerSizeQuery,
+  createContainerMatch,
   createMeasuredSize,
   type MeasuredSize,
   type MeasuredSizeOptions,
@@ -109,18 +124,6 @@ export {
   type PressResult,
 } from "./press";
 export { ScrollArea, type ScrollAreaProps } from "./scroll-area";
-export {
-  createFormDraft,
-  type FormDraft,
-  type FormDraftErrors,
-  type FormDraftFieldUpdater,
-  type FormDraftOptions,
-} from "./interactions/form-draft";
-export {
-  createKeyedSelection,
-  type KeyedSelection,
-  type KeyedSelectionOptions,
-} from "./interactions/selection";
 export {
   createScrollReset,
   type ScrollResetOptions,

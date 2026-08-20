@@ -112,11 +112,12 @@ function BadgePage() {
 function CardPage() {
   return (
     <Preview title="Example">
-      <Card class="w-96">
+      <Card class="w-72">
         <CardHeader>
           <CardTitle>Create project</CardTitle>
-          <CardDescription>
-            Deploy a new Wabou application from a template.
+          <CardDescription maxLines={2}>
+            Deploy a new Wabou application from a reusable project template with
+            predictable native text truncation.
           </CardDescription>
         </CardHeader>
         <CardContent>

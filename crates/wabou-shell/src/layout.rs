@@ -180,8 +180,7 @@ pub fn compute_and_walk_with_scroll_and_widgets(
             }
             if let Some(paint) = ctx {
                 if let Some(text) = &paint.text {
-                    let max_width = paint
-                        .wrap_text
+                    let max_width = (paint.wrap_text || paint.text_max_lines > 0)
                         .then(|| {
                             known.width.or(match avail.width {
                                 AvailableSpace::Definite(width) => Some(width),
@@ -189,7 +188,7 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                             })
                         })
                         .flatten();
-                    let l = crate::text::layout_text_styled(
+                    let l = crate::text::layout_text_styled_clamped(
                         measure.text(),
                         text.clone(),
                         paint.font_size,
@@ -200,6 +199,7 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                         paint.text_runs.clone(),
                         paint.font_family.as_ref(),
                         max_width,
+                        paint.text_max_lines,
                     );
                     return Size {
                         width: known.width.unwrap_or(l.width()),

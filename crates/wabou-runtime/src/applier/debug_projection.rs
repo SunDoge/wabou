@@ -1,3 +1,4 @@
+use super::style_resolution::{StyleCascadeEntry, StyleDeclarationSource};
 use super::*;
 
 fn debug_rect([x0, y0, x1, y1]: [f32; 4]) -> wabou_devtools::Rect {
@@ -46,6 +47,35 @@ fn debug_classes(declared: Option<&Declared>, atoms: &AtomPool) -> Vec<String> {
         .into_iter()
         .flat_map(|declared| declared.classes.iter())
         .filter_map(|class| atoms.resolve(*class).map(str::to_owned))
+        .collect()
+}
+
+fn debug_style_source(source: StyleDeclarationSource, atoms: &AtomPool) -> String {
+    match source {
+        StyleDeclarationSource::Universal => "*".to_owned(),
+        StyleDeclarationSource::Class(class) => {
+            format!(".{}", atoms.resolve(class).unwrap_or("<unknown>"))
+        }
+        StyleDeclarationSource::Inline => "inline".to_owned(),
+    }
+}
+
+fn debug_style_cascade(
+    entries: Option<&Vec<StyleCascadeEntry>>,
+    atoms: &AtomPool,
+) -> Vec<wabou_devtools::DebugStyleCascade> {
+    entries
+        .into_iter()
+        .flatten()
+        .map(|entry| wabou_devtools::DebugStyleCascade {
+            property: entry.property.clone(),
+            source: debug_style_source(entry.source, atoms),
+            overridden_sources: entry
+                .overridden_sources
+                .iter()
+                .map(|source| debug_style_source(*source, atoms))
+                .collect(),
+        })
         .collect()
 }
 
@@ -214,7 +244,11 @@ impl Applier {
             .collect()
     }
 
-    pub(super) fn publish_debug_snapshot(&mut self, placed: &[PlacedNode]) {
+    pub(super) fn publish_debug_snapshot(
+        &mut self,
+        placed: &[PlacedNode],
+        text_context: &mut TextContext,
+    ) {
         let Some(state) = self.frame.projections.debug_state.clone() else {
             return;
         };
@@ -257,6 +291,10 @@ impl Applier {
                 .style(placed_node.node_id)
                 .ok();
             let clip = self.debug_clip_info(placed_node, id, &placed_by_id, &css_transforms);
+            let synthesis = wabou_shell::scene::layout_node_text(text_context, placed_node)
+                .as_deref()
+                .map(wabou_shell::text::text_synthesis)
+                .unwrap_or_default();
             nodes.push(wabou_devtools::DebugNode {
                 id,
                 parent_id: placed_node.parent_node_id.and_then(|parent| {
@@ -277,6 +315,10 @@ impl Applier {
                     .get(&placed_node.node_id)
                     .cloned()
                     .unwrap_or_default(),
+                style_cascade: debug_style_cascade(
+                    self.document.style.cascade.get(&placed_node.node_id),
+                    &atoms,
+                ),
                 attrs,
                 rect: wabou_devtools::Rect {
                     x: x0,
@@ -305,6 +347,9 @@ impl Applier {
                     overflow_y: layout.map(|style| format!("{:?}", style.overflow.y)),
                     font_size: placed_node.paint.font_size,
                     font_weight: placed_node.paint.font_weight,
+                    font_family: placed_node.paint.font_family.as_deref().map(str::to_owned),
+                    synthetic_bold: synthesis.embolden,
+                    synthetic_italic: synthesis.skew,
                     wrap_text: placed_node.paint.wrap_text,
                     opacity: placed_node.paint.opacity,
                     pointer_events: placed_node.paint.pointer_events,
@@ -328,6 +373,8 @@ impl Applier {
                 viewport_height: self.frame.last_viewport.1,
                 device_scale: self.frame.device_scale,
                 node_count: nodes.len(),
+                text_backend: text_context.raster_backend_name().to_owned(),
+                text_outline_fallback: text_context.outline_fallback_name().to_owned(),
                 focused_node: self.interaction.input.focused_target,
                 hovered_node: self.interaction.input.hovered_target,
             },

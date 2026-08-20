@@ -179,6 +179,31 @@ await expect(page.getByRole("textbox", { name: "Search" })).toBeWithinBounds({
 });
 ```
 
+Relational layout contracts should keep both elements live during polling.
+`toNotOverlap` snapshots both locators after each native frame barrier and
+records the second locator in the replay trace:
+
+```ts
+const identity = page.getByRole("group", { name: "Task identity" });
+const status = page.getByRole("group", { name: "Task status" });
+await expect(identity).toNotOverlap(status, { tolerance: 1 });
+```
+
+Touching edges do not overlap. `tolerance` permits that many logical pixels of
+intersection, and both locators must belong to the same window.
+
+Use `toHaveSameBoundsAs` for alignment and equal-size contracts without
+freezing absolute coordinates:
+
+```ts
+await expect(filesTab).toHaveSameBoundsAs(overviewTab, ["y", "height"]);
+await expect(secondCard).toHaveSameBoundsAs(firstCard, ["width"]);
+```
+
+The field list is non-empty and may contain `x`, `y`, `width`, or `height`.
+Selected values are compared within the same logical-pixel tolerance and the
+relationship remains live during polling and replay.
+
 Containment assertions use the same logical-pixel tolerance, native-frame
 polling, trace recording, and strict replay validation as `toHaveBounds`.
 When the containing rectangle is the current native client area, prefer

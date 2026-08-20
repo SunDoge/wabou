@@ -7,6 +7,7 @@ import {
   createEffect,
   createRoot,
   flush,
+  type JSX,
   useContext,
 } from "solid-js";
 import {
@@ -38,11 +39,11 @@ test.skipIf(isServer)(
     let projectsActive: (() => boolean) | undefined;
     let settingsActive: (() => boolean) | undefined;
 
-    function Layout(props: { children?: unknown }) {
+    function Layout(props: { children?: JSX.Element }) {
       rootMounts++;
       projectsActive = useRouteActive("/projects");
       settingsActive = useRouteActive("/settings", { exact: true });
-      return props.children as never;
+      return props.children;
     }
 
     function Project() {
@@ -144,7 +145,7 @@ test.skipIf(isServer)(
     // `{props.children}` is visible to leaf routes.
     const Ctx = createContext<string>("none");
     const seen: string[] = [];
-    function Root(props: { children?: unknown }) {
+    function Root(props: { children?: JSX.Element }) {
       return createComponent(Ctx, {
         value: "inside-root",
         get children() {
@@ -189,8 +190,8 @@ test.skipIf(isServer)(
   async () => {
     const Ctx = createContext<string>("none");
     const seen: string[] = [];
-    function Root(props: { children?: unknown }) {
-      return props.children as never;
+    function Root(props: { children?: JSX.Element }) {
+      return props.children;
     }
     function Leaf() {
       seen.push(useContext(Ctx));

@@ -204,7 +204,8 @@ const OP = {
 	SetGraphicSource: 30,
 	ClearGraphicSource: 31,
 	SetGraphicData: 32,
-	ClearGraphicData: 33
+	ClearGraphicData: 33,
+	SetTextMaxLines: 34
 };
 const TEXT_BEHAVIOR = {
 	AggregateDirectText: 1,
@@ -458,6 +459,12 @@ var Writer = class {
 		this.key(id);
 		this.u8(flags);
 	}
+	setTextMaxLines(id, maxLines) {
+		if (!Number.isInteger(maxLines) || maxLines < 0 || maxLines > 4294967295) throw new RangeError(`invalid text max lines ${maxLines}`);
+		this.emit(OP.SetTextMaxLines);
+		this.key(id);
+		this.u32(maxLines);
+	}
 	setInteractionPolicy(id, flags, focusOrder) {
 		if (!Number.isInteger(flags) || flags < 0 || (flags & ~INTERACTION_POLICY_MASK) !== 0) throw new RangeError(`invalid interaction policy flags ${flags}`);
 		if (!Number.isInteger(focusOrder) || focusOrder < -2147483648 || focusOrder > 2147483647) throw new RangeError(`invalid focus order ${focusOrder}`);
@@ -623,4 +630,4 @@ var Writer = class {
 //#endregion
 export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-B5PLhBe8.mjs.map
+//# sourceMappingURL=protocol-BkE2Fvea.mjs.map

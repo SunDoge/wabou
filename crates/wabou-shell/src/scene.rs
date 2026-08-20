@@ -1,6 +1,7 @@
 //! Build a `vello::Scene` from the flattened layout list.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use vello::Scene;
 use vello::kurbo::{Affine, Rect, Stroke};
@@ -9,7 +10,7 @@ use vello::peniko::{Color, Fill};
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
 use crate::style::{IrLength, PaintTransform, Shadow};
-use crate::text::{IS_APPLE_PLATFORM, TextContext};
+use crate::text::{OUTLINE_FALLBACK, OutlineFallback, TextContext};
 
 /// Resolve the node-local static CSS and runtime affine transforms separately.
 pub fn resolve_local_transforms(node: &PlacedNode) -> (Affine, Affine) {
@@ -326,23 +327,10 @@ fn draw_text(
     transform: Affine,
     device_scale: f64,
 ) {
-    let Some(text) = &node.paint.text else {
+    let Some(layout) = layout_node_text(tcx, node) else {
         return;
     };
-    let layout = crate::text::layout_text_styled_overflow(
-        tcx,
-        text.clone(),
-        node.paint.font_size,
-        node.paint.font_weight,
-        node.paint.line_height,
-        node.paint.text_align,
-        crate::text::brush_for_color(node.paint.text_color),
-        node.paint.text_runs.clone(),
-        node.paint.font_family.as_ref(),
-        (node.paint.wrap_text || node.paint.text_ellipsis)
-            .then_some((node.rect[2] - node.rect[0]).max(0.0)),
-        node.paint.text_ellipsis,
-    );
+
     let origin = Affine::translate((
         f64::from(node.content_origin[0]),
         f64::from(node.content_origin[1]),
@@ -358,21 +346,7 @@ fn draw_text(
     }
     let text_transform = transform * origin;
     if !tcx.uses_swash_raster() {
-        if IS_APPLE_PLATFORM {
-            tcx.draw_apple_layout_into(
-                scene,
-                &layout,
-                text_transform * Affine::scale(device_scale.recip()),
-                device_scale,
-            );
-        } else {
-            let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
-            append_fragment(
-                scene,
-                &glyph_scene,
-                Some(text_transform * Affine::scale(device_scale.recip())),
-            );
-        }
+        draw_outline_fallback(scene, tcx, &layout, text_transform, device_scale);
         return;
     }
     let [a, b, c, d, tx, ty] = text_transform.as_coeffs();
@@ -398,24 +372,71 @@ fn draw_text(
             return;
         }
     }
-    if IS_APPLE_PLATFORM {
-        // The Swash A/B path cannot represent faux bold/italic and transformed
-        // raster text. Keep those fallbacks on Apple's synthesis-free outline
-        // policy so the diagnostic switch changes only the rasterizer.
-        tcx.draw_apple_layout_into(
-            scene,
-            &layout,
-            text_transform * Affine::scale(device_scale.recip()),
-            device_scale,
-        );
-        return;
+    draw_outline_fallback(scene, tcx, &layout, text_transform, device_scale);
+}
+
+/// Build the exact text layout used to paint one placed node.
+///
+/// DevTools uses this same cached path so diagnostics describe the glyph runs
+/// that painting will consume rather than independently approximating them.
+pub fn layout_node_text(
+    tcx: &mut TextContext,
+    node: &PlacedNode,
+) -> Option<Arc<parley::Layout<[u8; 4]>>> {
+    let text = node.paint.text.as_ref()?;
+    Some(if node.paint.text_max_lines > 0 {
+        crate::text::layout_text_styled_clamped(
+            tcx,
+            text.clone(),
+            node.paint.font_size,
+            node.paint.font_weight,
+            node.paint.line_height,
+            node.paint.text_align,
+            crate::text::brush_for_color(node.paint.text_color),
+            node.paint.text_runs.clone(),
+            node.paint.font_family.as_ref(),
+            (node.paint.wrap_text || node.paint.text_ellipsis || node.paint.text_max_lines > 0)
+                .then_some((node.rect[2] - node.rect[0]).max(0.0)),
+            node.paint.text_max_lines,
+        )
+    } else {
+        crate::text::layout_text_styled_overflow(
+            tcx,
+            text.clone(),
+            node.paint.font_size,
+            node.paint.font_weight,
+            node.paint.line_height,
+            node.paint.text_align,
+            crate::text::brush_for_color(node.paint.text_color),
+            node.paint.text_runs.clone(),
+            node.paint.font_family.as_ref(),
+            (node.paint.wrap_text || node.paint.text_ellipsis)
+                .then_some((node.rect[2] - node.rect[0]).max(0.0)),
+            node.paint.text_ellipsis,
+        )
+    })
+}
+
+fn draw_outline_fallback(
+    scene: &mut Scene,
+    tcx: &mut TextContext,
+    layout: &Arc<parley::Layout<[u8; 4]>>,
+    text_transform: Affine,
+    device_scale: f64,
+) {
+    let transform = text_transform * Affine::scale(device_scale.recip());
+    match OUTLINE_FALLBACK {
+        OutlineFallback::DirectNativeWeight => {
+            // Direct encoding avoids a retained-fragment issue on Metal. It
+            // also keeps transformed/faux-style fallback text at the native
+            // font weight instead of geometrically emboldening it.
+            tcx.draw_native_weight_layout_into(scene, layout, transform, device_scale);
+        }
+        OutlineFallback::RetainedSyntheticWeight => {
+            let glyph_scene = tcx.glyph_scene_scaled(layout, device_scale);
+            append_fragment(scene, &glyph_scene, Some(transform));
+        }
     }
-    let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
-    append_fragment(
-        scene,
-        &glyph_scene,
-        Some(text_transform * Affine::scale(device_scale.recip())),
-    );
 }
 
 enum Layer {

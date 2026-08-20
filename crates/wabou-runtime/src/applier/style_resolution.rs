@@ -15,6 +15,8 @@ pub(super) struct StyleState {
     pub(super) warned_ir_properties: HashSet<Atom>,
     pub(super) inline_properties: HashMap<Atom, InlineProperty>,
     pub(super) diagnostics: HashMap<NodeId, Vec<String>>,
+    #[cfg(any(feature = "devtools", test))]
+    pub(super) cascade: HashMap<NodeId, Vec<StyleCascadeEntry>>,
 }
 
 impl Default for StyleState {
@@ -34,6 +36,8 @@ impl Default for StyleState {
             warned_ir_properties: HashSet::new(),
             inline_properties: HashMap::new(),
             diagnostics: HashMap::new(),
+            #[cfg(any(feature = "devtools", test))]
+            cascade: HashMap::new(),
         }
     }
 }
@@ -45,6 +49,45 @@ struct ResolvedNodeStyle {
     host_intrinsic: Option<[f32; 2]>,
     display_explicit: bool,
     diagnostics: Vec<String>,
+    #[cfg(any(feature = "devtools", test))]
+    cascade: Vec<StyleCascadeEntry>,
+}
+
+#[cfg(any(feature = "devtools", test))]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum StyleDeclarationSource {
+    Universal,
+    Class(Atom),
+    Inline,
+}
+
+#[cfg(any(feature = "devtools", test))]
+#[derive(Clone)]
+pub(super) struct StyleCascadeEntry {
+    pub(super) property: String,
+    pub(super) source: StyleDeclarationSource,
+    pub(super) overridden_sources: Vec<StyleDeclarationSource>,
+}
+
+#[cfg(any(feature = "devtools", test))]
+fn record_style_source(
+    cascade: &mut Vec<StyleCascadeEntry>,
+    property: &str,
+    source: StyleDeclarationSource,
+) {
+    if let Some(entry) = cascade.iter_mut().find(|entry| entry.property == property) {
+        if entry.source != source {
+            entry
+                .overridden_sources
+                .push(std::mem::replace(&mut entry.source, source));
+        }
+        return;
+    }
+    cascade.push(StyleCascadeEntry {
+        property: property.to_owned(),
+        source,
+        overridden_sources: Vec::new(),
+    });
 }
 
 fn resolve_color_tokens(value: &IrValue, colors: &HashMap<String, u32>) -> IrValue {
@@ -349,6 +392,7 @@ impl Applier {
             selection_rects: prev
                 .map(|p| p.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
+            text_max_lines: decl.text_max_lines,
             svg: None,
             vector_path: decl.vector_path.clone(),
             image: prev.and_then(|p| p.image.clone()),
@@ -527,6 +571,12 @@ impl Applier {
         if !style::apply_ir(&mut layout, &mut decl.paint, prop, ir) {
             return false;
         }
+        #[cfg(any(feature = "devtools", test))]
+        record_style_source(
+            self.document.style.cascade.entry(node).or_default(),
+            prop,
+            StyleDeclarationSource::Inline,
+        );
         self.document.ifc_dirty |= display_changed;
         let declared = decl.paint.clone();
         let layout_changed = existing != &layout;
@@ -595,6 +645,8 @@ impl Applier {
             .style
             .diagnostics
             .insert(node, resolved.diagnostics);
+        #[cfg(any(feature = "devtools", test))]
+        self.document.style.cascade.insert(node, resolved.cascade);
         if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
             declared.paint = resolved.paint.clone();
             declared.display_explicit = resolved.display_explicit;
@@ -643,6 +695,12 @@ impl Applier {
                 .as_ref()
                 .map(|paint| paint.selection_rects.clone())
                 .unwrap_or_else(|| Arc::from([])),
+            text_max_lines: self
+                .document
+                .node_store
+                .declared
+                .get(&node)
+                .map_or(0, |declared| declared.text_max_lines),
             svg: previous.as_ref().and_then(|paint| paint.svg.clone()),
             vector_path: self
                 .document
@@ -681,6 +739,7 @@ impl Applier {
                 || previous.line_height != paint.line_height
                 || previous.wrap_text != paint.wrap_text
                 || previous.text_ellipsis != paint.text_ellipsis
+                || previous.text_max_lines != paint.text_max_lines
                 || previous.text_align != paint.text_align
                 || previous.font_family != paint.font_family
         });
@@ -754,6 +813,7 @@ impl Applier {
                         index,
                         declaration.property.clone(),
                         declaration.value.clone(),
+                        None,
                     ));
                 }
             }
@@ -772,6 +832,7 @@ impl Applier {
                             index,
                             declaration.property.clone(),
                             declaration.value.clone(),
+                            Some(*class),
                         ));
                     }
                 }
@@ -851,18 +912,26 @@ impl Applier {
                     index,
                     declaration.property.clone(),
                     value,
+                    Some(*class),
                 ));
             }
         }
         declarations.sort_by_key(
-            |(important, specificity, class_position, order, index, _, _)| {
+            |(important, specificity, class_position, order, index, _, _, _)| {
                 (*important, *specificity, *class_position, *order, *index)
             },
         );
         let cached = Arc::new(CachedClassResolution {
             declarations: declarations
                 .into_iter()
-                .map(|(_, _, _, _, _, property, value)| (property, value))
+                .map(
+                    |(_, _, _, _, _, property, value, _source)| ResolvedClassDeclaration {
+                        property,
+                        value,
+                        #[cfg(any(feature = "devtools", test))]
+                        source: _source,
+                    },
+                )
                 .collect(),
             diagnostics,
         });
@@ -911,6 +980,8 @@ impl Applier {
             let mut paint = DeclaredPaint::default();
             let mut display_explicit = false;
             let mut diagnostics = Vec::new();
+            #[cfg(any(feature = "devtools", test))]
+            let mut cascade = Vec::new();
             // JS primitives author host defaults. Authored class and inline
             // declarations below may still opt into wrapping and shrinking.
             if decl.text_behavior & crate::protocol::TEXT_BEHAVIOR_SINGLE_LINE != 0 {
@@ -918,10 +989,22 @@ impl Applier {
                 paint.wrap_text = Some(false);
             }
             diagnostics.extend(cached.diagnostics.iter().cloned());
-            for (property, value) in &cached.declarations {
+            for declaration in &cached.declarations {
+                let property = declaration.property.as_str();
+                let value = &declaration.value;
                 display_explicit |= property == "display";
                 let value = resolve_color_tokens(value, &active_theme_colors);
-                if !style::apply_ir(&mut layout, &mut paint, property, &value) {
+                if style::apply_ir(&mut layout, &mut paint, property, &value) {
+                    #[cfg(any(feature = "devtools", test))]
+                    record_style_source(
+                        &mut cascade,
+                        property,
+                        declaration.source.map_or(
+                            StyleDeclarationSource::Universal,
+                            StyleDeclarationSource::Class,
+                        ),
+                    );
+                } else {
                     diagnostics.push(format!(
                         "{property}: unsupported Style IR property or value"
                     ));
@@ -936,11 +1019,21 @@ impl Applier {
                 if let Some(property) = atoms.resolve(*property) {
                     display_explicit |= property == "display";
                     let ir = value.ir();
-                    if !style::apply_ir(&mut layout, &mut paint, property, &ir) {
+                    if style::apply_ir(&mut layout, &mut paint, property, &ir) {
+                        #[cfg(any(feature = "devtools", test))]
+                        record_style_source(&mut cascade, property, StyleDeclarationSource::Inline);
+                    } else {
                         diagnostics
                             .push(format!("inline {property}: unsupported property or value"));
                     }
                 }
+            }
+            // A growing native region is explicitly asking its parent for the
+            // remaining width, so its contents must not silently impose CSS's
+            // automatic min-content floor. Intrinsic/fixed controls keep the
+            // Taffy default, while an authored min-width still wins.
+            if layout.flex_grow > 0.0 && layout.min_size.width == taffy::Dimension::auto() {
+                layout.min_size.width = taffy::Dimension::length(0.0);
             }
             let mut host_intrinsic = None;
             if decl.tag.and_then(|tag| atoms.resolve(tag)) == Some("svg") {
@@ -1022,6 +1115,11 @@ impl Applier {
                 host_intrinsic,
                 display_explicit,
                 diagnostics,
+                #[cfg(any(feature = "devtools", test))]
+                cascade: {
+                    cascade.sort_by(|left, right| left.property.cmp(&right.property));
+                    cascade
+                },
             }
         };
         self.install_resolved_style(node, resolved);

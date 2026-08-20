@@ -1,16 +1,47 @@
-import { createContext, type JSX, Show, useContext } from "solid-js";
+import {
+  type Accessor,
+  createContext,
+  createMemo,
+  For,
+  type JSX,
+  omit,
+  Show,
+  useContext,
+} from "solid-js";
 import { match } from "ts-pattern";
-import { Center, Column, Text, View } from "../primitives";
+import {
+  Center,
+  Column,
+  createMeasuredSize,
+  Text,
+  View,
+  type ViewProps,
+} from "../primitives";
 import { join } from "./class-names";
 import { Dialog } from "./dialog";
-export function Empty(props: { children?: JSX.Element; class?: string }) {
+
+export type EmptyVariant = "surface" | "plain";
+
+export const emptyClass = (
+  variant: EmptyVariant = "surface",
+  className?: string,
+) =>
+  join(
+    "w-full min-w-0 p-8 items-center justify-center gap-4",
+    variant === "surface"
+      ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs"
+      : "min-h-0 bg-transparent",
+    className,
+  );
+
+export function Empty(props: {
+  children?: JSX.Element;
+  class?: string;
+  /** `plain` embeds inside an existing Card without creating a nested surface. */
+  variant?: EmptyVariant;
+}) {
   return (
-    <Column
-      class={join(
-        "w-full min-h-64 p-8 items-center justify-center gap-4 rounded-lg border border-subtle bg-surface shadow-xs",
-        props.class,
-      )}
-    >
+    <Column class={emptyClass(props.variant, props.class)}>
       {props.children}
     </Column>
   );
@@ -36,7 +67,10 @@ export function EmptyMedia(props: { children?: JSX.Element; class?: string }) {
 }
 export function EmptyTitle(props: { children?: JSX.Element; class?: string }) {
   return (
-    <Text class={join("text-base font-semibold text-primary", props.class)}>
+    <Text
+      role="heading"
+      class={join("text-base font-semibold text-primary", props.class)}
+    >
       {props.children}
     </Text>
   );
@@ -90,6 +124,150 @@ export function ButtonGroupText(props: {
     <Text class={join("px-2 text-sm text-muted", props.class)}>
       {props.children}
     </Text>
+  );
+}
+
+export type ResponsiveGridColumnCount = 1 | 2 | 3 | 4;
+
+export interface ResponsiveGridState {
+  columns: Accessor<ResponsiveGridColumnCount>;
+  width: Accessor<number>;
+  height: Accessor<number>;
+}
+
+const ResponsiveGridContext = createContext<ResponsiveGridState>();
+
+/** Read the completed native size and active column count of the nearest grid. */
+export function useResponsiveGrid(): ResponsiveGridState {
+  const context = useContext(ResponsiveGridContext);
+  if (!context) {
+    throw new Error("useResponsiveGrid must be used inside ResponsiveGrid");
+  }
+  return context;
+}
+
+const responsiveGridColumnClass = (
+  columns: ResponsiveGridColumnCount,
+): string =>
+  match(columns)
+    .with(1, () => "grid-cols-1")
+    .with(2, () => "grid-cols-2")
+    .with(3, () => "grid-cols-3")
+    .with(4, () => "grid-cols-4")
+    .exhaustive();
+
+export function responsiveGridColumnCount(options: {
+  width: number;
+  minColumnWidth: number;
+  gap?: number;
+  maxColumns?: ResponsiveGridColumnCount;
+  initialColumns?: ResponsiveGridColumnCount;
+}): ResponsiveGridColumnCount {
+  const maxColumns = options.maxColumns ?? 4;
+  if (!Number.isFinite(options.width) || options.width <= 0) {
+    return Math.min(
+      options.initialColumns ?? 1,
+      maxColumns,
+    ) as ResponsiveGridColumnCount;
+  }
+  const gap = Math.max(0, options.gap ?? 16);
+  const minColumnWidth = Math.max(1, options.minColumnWidth);
+  return Math.min(
+    maxColumns,
+    Math.max(1, Math.floor((options.width + gap) / (minColumnWidth + gap))),
+  ) as ResponsiveGridColumnCount;
+}
+
+export function responsiveGridRemainderCount(
+  itemCount: number,
+  columns: ResponsiveGridColumnCount,
+): number {
+  const remainder = Math.max(0, Math.floor(itemCount)) % columns;
+  return remainder === 0 ? 0 : columns - remainder;
+}
+
+export interface ResponsiveGridProps
+  extends Omit<ViewProps, "children" | "class" | "ref"> {
+  children?: JSX.Element;
+  /** Minimum usable content width for one item, in logical pixels. */
+  minColumnWidth: number;
+  /** Native row/column gap in logical pixels; also used to select the column count. */
+  gap?: number;
+  maxColumns?: ResponsiveGridColumnCount;
+  /** Safe column count used until the native container has been measured. */
+  initialColumns?: ResponsiveGridColumnCount;
+  class?: string;
+  ref?: ViewProps["ref"];
+}
+
+/**
+ * A grid that responds to its own native content box instead of the window.
+ *
+ * This is important inside sidebars, split panes and dialogs: window media
+ * queries do not know how much width the component actually receives.
+ */
+export function ResponsiveGrid(props: ResponsiveGridProps): JSX.Element {
+  const measured = createMeasuredSize();
+  const columns = createMemo(() =>
+    responsiveGridColumnCount({
+      width: measured.width(),
+      minColumnWidth: props.minColumnWidth,
+      gap: props.gap,
+      maxColumns: props.maxColumns,
+      initialColumns: props.initialColumns,
+    }),
+  );
+  const rest = omit(
+    props,
+    "children",
+    "minColumnWidth",
+    "gap",
+    "maxColumns",
+    "initialColumns",
+    "class",
+    "ref",
+  );
+  const state: ResponsiveGridState = {
+    columns,
+    width: measured.width,
+    height: measured.height,
+  };
+  return (
+    <ResponsiveGridContext value={state}>
+      <View
+        {...rest}
+        ref={(node) => {
+          measured.ref(node);
+          props.ref?.(node);
+        }}
+        style={{ gap: props.gap ?? 16, ...props.style }}
+        class={join(
+          "w-full min-w-0 grid",
+          responsiveGridColumnClass(columns()),
+          props.class,
+        )}
+      >
+        {props.children}
+      </View>
+    </ResponsiveGridContext>
+  );
+}
+
+/** Fill the unused cells in the final row using the grid's measured columns. */
+export function ResponsiveGridRemainder(props: {
+  itemCount: number;
+  class?: string;
+}): JSX.Element {
+  const context = useResponsiveGrid();
+  const cells = createMemo(() =>
+    Array.from({
+      length: responsiveGridRemainderCount(props.itemCount, context.columns()),
+    }),
+  );
+  return (
+    <For each={cells()}>
+      {() => <View aria-hidden class={join("min-w-0", props.class)} />}
+    </For>
   );
 }
 

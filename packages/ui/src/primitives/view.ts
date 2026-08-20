@@ -11,7 +11,7 @@ import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
 import type { VectorPath } from "@wabou/core";
 export { PathBuilder } from "@wabou/core";
 export type { VectorPath, VectorPathPaint } from "@wabou/core";
-import { type JSX, omit } from "solid-js";
+import { type JSX, omit, untrack } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/core/style";
 export { rotate2d, translate2d } from "@wabou/core/style";
@@ -43,7 +43,10 @@ export interface PrimitiveProps
 
 export interface ViewProps extends PrimitiveProps {}
 
-export interface TextProps extends PrimitiveProps {}
+export interface TextProps extends PrimitiveProps {
+  /** Maximum rendered lines. Overflow on the final line is replaced by an ellipsis. */
+  maxLines?: number;
+}
 
 export interface SvgProps extends Omit<PrimitiveProps, "children"> {
   /** Trusted inline SVG source parsed and cached by the native host. */
@@ -199,6 +202,18 @@ export function View(props: ViewProps): JSX.Element {
   return primitive("view", props);
 }
 
+function resolvedTextBehavior(maxLines: number | undefined) {
+  if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) {
+    throw new RangeError("Text maxLines must be a positive integer");
+  }
+  return {
+    flags:
+      TEXT_BEHAVIOR.AggregateDirectText |
+      (maxLines == null || maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
+    maxLines: maxLines ?? 0,
+  };
+}
+
 /**
  * A single measured text run.
  *
@@ -206,14 +221,19 @@ export function View(props: ViewProps): JSX.Element {
  * participate in the parent layout as one item.
  */
 export function Text(props: TextProps): JSX.Element {
+  // Validate the initial value before Solid owns the reactive spread. An
+  // exception thrown from inside a render effect becomes a StatusError and
+  // intentionally halts the owner, which would obscure this public API error.
+  resolvedTextBehavior(untrack(() => props.maxLines));
   const node = createElement("text");
-  spread(node, props, false);
+  spread(node, omit(props, "maxLines"), false);
   spread(
     node,
     {
       role: props.role ?? "label",
-      textBehavior:
-        TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine,
+      get textBehavior() {
+        return resolvedTextBehavior(props.maxLines);
+      },
     },
     false,
   );

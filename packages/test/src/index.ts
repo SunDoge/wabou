@@ -4,7 +4,11 @@ import {
   defaultHost,
   type WabouExposedSemanticRole,
 } from "@wabou/core/renderer";
-import { containmentDiagnostic } from "./locator-bounds";
+import {
+  containmentDiagnostic,
+  matchingBoundsDiagnostic,
+  overlapDiagnostic,
+} from "./locator-bounds";
 import {
   decodeLocatorQuery,
   decodeNativeLocatorQuery,
@@ -57,6 +61,12 @@ interface NativeTestCapability {
     hi: number,
     width: number,
     height: number,
+  ): Promise<boolean>;
+  fileDrop(
+    lo: number,
+    hi: number,
+    phase: TestFileDropPhase,
+    paths: string,
   ): Promise<boolean>;
   windowState(lo: number, hi: number): string;
   windowViewport(lo: number, hi: number): string;
@@ -118,6 +128,7 @@ export interface TestEffectResponseMap {
   dialogPickDirectory: string[] | null;
   dialogMessage: "ok" | "cancel" | "yes" | "no" | "custom";
   notificationShow: null;
+  windowClose: null;
 }
 
 export type TestEffectOperation = keyof TestEffectResponseMap;
@@ -140,8 +151,16 @@ export interface TestWindow {
   show(windowId: WindowKey): Promise<void>;
   /** Resize a visible window in logical pixels through the native surface path. */
   resize(windowId: WindowKey, width: number, height: number): Promise<void>;
+  /** Dispatch one native file-drag lifecycle event to a window. */
+  fileDrop(
+    windowId: WindowKey,
+    phase: TestFileDropPhase,
+    paths?: readonly string[],
+  ): Promise<void>;
   state(windowId: WindowKey): NativeWindowState | null;
 }
+
+export type TestFileDropPhase = "entered" | "moved" | "left" | "dropped";
 
 export interface TestPage {
   readonly effects: TestEffects;
@@ -220,6 +239,8 @@ export interface LocatorBounds {
   height: number;
 }
 
+export type LocatorBoundsField = keyof LocatorBounds;
+
 export interface LocatorNumericRange {
   value: number;
   min: number;
@@ -263,6 +284,17 @@ export type LocatorAssertion =
   | {
       type: "withinBounds";
       expected: LocatorBounds;
+      tolerance: number;
+    }
+  | {
+      type: "notOverlap";
+      other: Pick<Locator, "role" | "name" | "index">;
+      tolerance: number;
+    }
+  | {
+      type: "sameBounds";
+      other: Pick<Locator, "role" | "name" | "index">;
+      fields: LocatorBoundsField[];
       tolerance: number;
     }
   | { type: "viewport"; tolerance: number };
@@ -322,6 +354,12 @@ export type TestAction =
       windowId: WindowKey;
       width: number;
       height: number;
+    }
+  | {
+      action: "fileDrop";
+      windowId: WindowKey;
+      phase: TestFileDropPhase;
+      paths: string[];
     }
   | {
       action: "clickByRole";
@@ -804,6 +842,30 @@ const context: TestContext = {
       }
       await createPage(windowId).waitForIdle();
     },
+    async fileDrop(windowId, phase, paths = []) {
+      validateWindowKey(windowId);
+      if (!["entered", "moved", "left", "dropped"].includes(phase))
+        throw new RangeError(
+          `unsupported file-drop phase ${JSON.stringify(phase)}`,
+        );
+      if (!paths.every((path) => typeof path === "string" && path.length > 0))
+        throw new TypeError("file-drop paths must be non-empty strings");
+      const recordedPaths = [...paths];
+      trace.push({ action: "fileDrop", windowId, phase, paths: recordedPaths });
+      if (
+        !(await capability().fileDrop(
+          windowId.lo,
+          windowId.hi,
+          phase,
+          JSON.stringify(recordedPaths),
+        ))
+      ) {
+        throw new Error(
+          `failed to dispatch ${phase} file-drop event to window ${windowLabel(windowId)}`,
+        );
+      }
+      await createPage(windowId).waitForIdle();
+    },
     state(windowId) {
       validateWindowKey(windowId);
       return JSON.parse(
@@ -941,6 +1003,11 @@ function locatorAssertionDiagnostic(
       "inside viewport",
     );
   }
+  if (assertion.type === "notOverlap" || assertion.type === "sameBounds") {
+    throw new Error(
+      `${assertion.type} assertions require two locator snapshots`,
+    );
+  }
   return state.focused === assertion.expected
     ? null
     : `expected locator to be ${assertion.expected ? "focused" : "blurred"}`;
@@ -1010,6 +1077,34 @@ async function assertLocatorEventually(
         return locatorCountDiagnostic(target, assertion.expected);
       }
       try {
+        if (
+          assertion.type === "notOverlap" ||
+          assertion.type === "sameBounds"
+        ) {
+          const other = createPage(target.windowId).getByRole(
+            assertion.other.role,
+            {
+              name: assertion.other.name,
+              index: assertion.other.index,
+            },
+          );
+          const [first, second] = await Promise.all([
+            target.snapshot(),
+            other.snapshot(),
+          ]);
+          return assertion.type === "notOverlap"
+            ? overlapDiagnostic(
+                first.bounds,
+                second.bounds,
+                assertion.tolerance,
+              )
+            : matchingBoundsDiagnostic(
+                first.bounds,
+                second.bounds,
+                assertion.fields,
+                assertion.tolerance,
+              );
+        }
         const viewport =
           assertion.type === "viewport"
             ? decodeWindowViewport(target.windowId)
@@ -1105,6 +1200,22 @@ async function assertWindowStateEventually(
     throw new Error(
       `expected window ${windowId} state ${JSON.stringify(result.value)} to be ${JSON.stringify(recorded)} after ${wait.timeout}ms`,
     );
+  }
+}
+
+function validateRelatedLocator(
+  target: Locator,
+  other: Locator,
+  matcher: string,
+): void {
+  if (!other || typeof other !== "object" || !("snapshot" in other)) {
+    throw new Error(`${matcher} requires a Wabou locator`);
+  }
+  if (
+    target.windowId.lo !== other.windowId.lo ||
+    target.windowId.hi !== other.windowId.hi
+  ) {
+    throw new Error(`${matcher} locators must belong to the same window`);
   }
 }
 
@@ -1360,6 +1471,63 @@ export function expect<T>(actual: T) {
       return assertLocatorEventually(
         locator(),
         { type: "withinBounds", expected: { ...expected }, tolerance },
+        options,
+      );
+    },
+    toNotOverlap(
+      other: Locator,
+      options: BoundsAssertionOptions = {},
+    ): Promise<void> {
+      const target = locator();
+      validateRelatedLocator(target, other, "toNotOverlap");
+      const tolerance = options.tolerance ?? 0.5;
+      validateTolerance("locator overlap", tolerance);
+      return assertLocatorEventually(
+        target,
+        {
+          type: "notOverlap",
+          other: { role: other.role, name: other.name, index: other.index },
+          tolerance,
+        },
+        options,
+      );
+    },
+    toHaveSameBoundsAs(
+      other: Locator,
+      fields: readonly LocatorBoundsField[] = ["x", "y", "width", "height"],
+      options: BoundsAssertionOptions = {},
+    ): Promise<void> {
+      const target = locator();
+      validateRelatedLocator(target, other, "toHaveSameBoundsAs");
+      const supported = new Set<LocatorBoundsField>([
+        "x",
+        "y",
+        "width",
+        "height",
+      ]);
+      if (
+        fields.length === 0 ||
+        fields.some((field) => !supported.has(field))
+      ) {
+        throw new RangeError(
+          "matching bounds fields must contain x, y, width, or height",
+        );
+      }
+      if (new Set(fields).size !== fields.length) {
+        throw new RangeError(
+          "matching bounds fields cannot contain duplicates",
+        );
+      }
+      const tolerance = options.tolerance ?? 0.5;
+      validateTolerance("matching locator bounds", tolerance);
+      return assertLocatorEventually(
+        target,
+        {
+          type: "sameBounds",
+          other: { role: other.role, name: other.name, index: other.index },
+          fields: [...fields],
+          tolerance,
+        },
         options,
       );
     },

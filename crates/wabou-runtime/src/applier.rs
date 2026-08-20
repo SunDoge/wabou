@@ -160,8 +160,16 @@ const HOST_ACTION_SEQUENCE_MASK: u64 = JS_HOST_ACTION_NAMESPACE - 1;
 const CLASS_RESOLUTION_CACHE_CAPACITY: usize = 1024;
 
 #[derive(Clone)]
+struct ResolvedClassDeclaration {
+    property: String,
+    value: wabou_shell::style::IrValue,
+    #[cfg(any(feature = "devtools", test))]
+    source: Option<Atom>,
+}
+
+#[derive(Clone)]
 struct CachedClassResolution {
-    declarations: Vec<(String, wabou_shell::style::IrValue)>,
+    declarations: Vec<ResolvedClassDeclaration>,
     diagnostics: Vec<String>,
 }
 
@@ -217,6 +225,8 @@ struct Declared {
     display_explicit: bool,
     /// Typed host behavior authored by the JS Text primitive.
     text_behavior: u8,
+    /// Maximum rendered text lines; zero means unlimited.
+    text_max_lines: u32,
     /// Explicit native focus order; `None` means this node cannot receive focus.
     focus_order: Option<i32>,
     /// Excludes this node and its logical subtree from input and semantics.
@@ -285,6 +295,8 @@ pub struct ComputedNodeSnapshot {
     pub wrap_text: bool,
     /// Whether overflowing single-line text uses an ellipsis.
     pub text_ellipsis: bool,
+    /// Maximum rendered text lines; zero means unlimited.
+    pub text_max_lines: u32,
     /// Whether pointer selection is enabled.
     pub text_selectable: bool,
     /// Whether one selection gesture selects all text.
@@ -466,6 +478,7 @@ impl DocumentState {
             line_height: paint.line_height,
             wrap_text: paint.wrap_text,
             text_ellipsis: paint.text_ellipsis,
+            text_max_lines: paint.text_max_lines,
             text_selectable: paint.text_selectable,
             text_select_all: paint.text_select_all,
             text_align: paint.text_align,

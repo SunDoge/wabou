@@ -190,6 +190,9 @@ enum Commands {
         /// Write non-blocking headless build/scene timing samples as JSON.
         #[arg(long, value_name = "JSON")]
         metrics: Option<PathBuf>,
+        /// Write the DevTools tree snapshot represented by the rendered frame.
+        #[arg(long, value_name = "JSON", conflicts_with = "with_host")]
+        snapshot: Option<PathBuf>,
         /// Number of headless frames sampled for --metrics.
         #[arg(long, default_value_t = 20, requires = "metrics")]
         samples: usize,
@@ -373,6 +376,7 @@ fn main() -> Result<()> {
             scenario,
             wait_ms,
             metrics,
+            snapshot,
             samples,
             click,
             wheel,
@@ -394,6 +398,7 @@ fn main() -> Result<()> {
                     scenario,
                     wait_ms,
                     metrics,
+                    snapshot,
                     samples,
                     actions: render_actions
                         .unwrap_or_else(|| legacy_render_actions(click, wheel, text, key)),
@@ -1098,6 +1103,40 @@ mod tests {
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
         assert_eq!(wheel, [100.0, 200.0, 0.0, 360.0]);
         assert_eq!(key, ["Enter", "Escape"]);
+    }
+
+    #[test]
+    fn render_accepts_a_bundle_only_debug_snapshot() {
+        let Cli {
+            command: Commands::Render { snapshot, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "render",
+            "apps/gallery",
+            "--out",
+            "capture.png",
+            "--snapshot",
+            "tree.json",
+        ])
+        .unwrap()
+        else {
+            panic!("expected render command");
+        };
+        assert_eq!(snapshot, Some(PathBuf::from("tree.json")));
+
+        assert!(
+            Cli::try_parse_from([
+                "wabou",
+                "render",
+                "apps/gallery",
+                "--out",
+                "capture.png",
+                "--snapshot",
+                "tree.json",
+                "--with-host",
+            ])
+            .is_err()
+        );
     }
 
     #[test]

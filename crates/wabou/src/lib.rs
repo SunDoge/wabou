@@ -18,6 +18,7 @@
 pub use wabou_bindgen::{Bindings, Capability, FunctionModule, NativeMethod, Type, specta};
 pub use wabou_bindgen::{HostMethod, JsonCapabilityContract, JsonMethod};
 pub use wabou_runtime::rquickjs;
+pub use wabou_runtime::vello::peniko::Color;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
     HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter,
@@ -37,6 +38,7 @@ mod tests {
     fn facade_exposes_application_and_extension_entry_points() {
         let _builder = HostBuilder::new();
         let _window = WindowOptions::new().title("Facade test");
+        let _transparent = Color::TRANSPARENT;
         let _: Option<&dyn widget_api::Widget> = None;
         let _: Option<widget_api::UiEvent> = None;
         let _: JsonMethod<(), bool> = JsonMethod::no_request("ready");

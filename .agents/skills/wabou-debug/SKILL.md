@@ -67,6 +67,7 @@ Use `scripts/capture-png.sh` for a deterministic offscreen render:
 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/platform.png 1440 900 80 825
 WABOU_CAPTURE_SCALE_FACTOR=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery@2x.png 1440 900
 WABOU_CAPTURE_WINDOW_ID=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/child.png 800 600
+mise exec -- bun run wabou render apps/gallery --out /tmp/gallery.png --snapshot /tmp/gallery-tree.json
 ```
 
 The script uses the real application host by default, so registered services,
@@ -83,6 +84,10 @@ Limitations:
 - `wabou render` can replay multiple `--click X Y` arguments in order and
   commits `--text` to the element focused by the final click.
 - A coordinate click is suitable only after first capturing the current layout.
+- `--snapshot` writes the DevTools tree from the exact final logical frame used
+  by the PNG, so text and layout diagnostics remain available without a display
+  server. Rebuild workspace package artifacts before using it against package
+  source changes.
 
 Do not patch app logic merely to obtain a screenshot and accidentally commit the patch. If a temporary diagnostic edit is unavoidable, revert it immediately and verify `git diff`.
 
@@ -107,6 +112,32 @@ When behavior differs only on macOS:
 3. Reduce the scene to one solid widget rectangle plus one rounded clip.
 4. Compare local-fragment clipping with parent-scene clipping.
 5. Search current Vello/wgpu issues only after the minimal case proves the framework geometry is correct.
+
+### Diagnose text weight and raster differences
+
+Do not infer double bolding from pixels alone. Restart the native process, then
+inspect the suspect text node and runtime status:
+
+```bash
+mise exec -- bun run wabou inspect status
+mise exec -- bun run wabou inspect query '<visible text>'
+mise exec -- bun run wabou inspect node <id>
+```
+
+Compare these fields between platforms:
+
+- `status.textBackend`: `swash` or `vello-outline`;
+- `status.textOutlineFallback`: the platform outline fallback policy;
+- `node.computed.fontFamily` and `fontWeight`: the requested style;
+- `node.computed.syntheticBold` and `syntheticItalic`: Parley's resolved glyph
+  runs, obtained from the exact cached layout used by paint.
+
+If `syntheticBold` is false, the renderer did not geometrically embolden the
+run; investigate typography tokens, the resolved system face, hinting, and
+device scale instead. If it is true, first verify whether the requested family
+actually provides that weight. Keep ordinary Swash rasterization shared across
+platforms. Platform-specific outline behavior belongs in the single
+`OutlineFallback` policy, not in scene call sites or component styles.
 
 ## Choose the right test
 

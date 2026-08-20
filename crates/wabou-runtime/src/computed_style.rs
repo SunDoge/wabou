@@ -23,7 +23,9 @@ use crate::jsrt::JsRuntime;
 use crate::protocol::NodeKey;
 use crate::protocol::{Frame, Op};
 use crate::style_ir::StylesheetUpdate;
-use crate::style_ir::fixture::{color, color_token, declaration, edges, keyword, px, rule, sheet};
+use crate::style_ir::fixture::{
+    color, color_token, declaration, edges, keyword, number, px, rule, sheet,
+};
 use crate::style_ir::{Appearance, ColorTheme, ColorThemes, StyleSheet};
 
 fn idle_runtime() -> JsRuntime {
@@ -40,6 +42,86 @@ fn idle_runtime() -> JsRuntime {
 fn queue_stylesheet(applier: &Applier, rules: Vec<crate::style_ir::StyleRule>) {
     *applier.runtime.pending_css.as_ref().unwrap().borrow_mut() =
         Some(StylesheetUpdate::Ir(sheet(rules)));
+}
+
+#[test]
+fn growing_regions_shrink_by_default_without_changing_intrinsic_controls() {
+    let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
+    let (div, grow, control, constrained) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (
+            atoms.intern("div"),
+            atoms.intern("grow"),
+            atoms.intern("control"),
+            atoms.intern("constrained"),
+        )
+    };
+    let ids = [NodeKey::new(2, 1), NodeKey::new(3, 1), NodeKey::new(4, 1)];
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: ids
+            .into_iter()
+            .zip([grow, control, constrained])
+            .flat_map(|(id, class)| {
+                [
+                    Op::CreateElement { id, tag: div },
+                    Op::SetClassName {
+                        id,
+                        classes: vec![class],
+                    },
+                    Op::AppendChild {
+                        parent: NodeKey::ROOT,
+                        child: id,
+                    },
+                ]
+            })
+            .collect(),
+    });
+    queue_stylesheet(
+        &applier,
+        vec![
+            rule("grow", vec![declaration("flex-grow", number(1.0))]),
+            rule("control", vec![]),
+            rule(
+                "constrained",
+                vec![
+                    declaration("flex-grow", number(1.0)),
+                    declaration("min-width", px(48.0)),
+                ],
+            ),
+        ],
+    );
+
+    let mut text = wabou_shell::TextContext::new();
+    applier.build_frame(&mut text, 800, 600);
+
+    assert_eq!(
+        applier
+            .computed_node_snapshot(ids[0])
+            .unwrap()
+            .layout
+            .min_size
+            .width,
+        taffy::Dimension::length(0.0)
+    );
+    assert_eq!(
+        applier
+            .computed_node_snapshot(ids[1])
+            .unwrap()
+            .layout
+            .min_size
+            .width,
+        taffy::Dimension::auto()
+    );
+    assert_eq!(
+        applier
+            .computed_node_snapshot(ids[2])
+            .unwrap()
+            .layout
+            .min_size
+            .width,
+        taffy::Dimension::length(48.0)
+    );
 }
 
 #[test]

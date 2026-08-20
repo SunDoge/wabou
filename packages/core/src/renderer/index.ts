@@ -491,8 +491,20 @@ function applyProperty(
     return;
   }
   if (name === "textBehavior") {
-    const flags = value == null || value === false ? 0 : Number(value);
+    const behavior =
+      value && typeof value === "object"
+        ? (value as { flags?: unknown; maxLines?: unknown })
+        : { flags: value, maxLines: 0 };
+    const flags =
+      behavior.flags == null || behavior.flags === false
+        ? 0
+        : Number(behavior.flags);
+    const maxLines =
+      behavior.maxLines == null || behavior.maxLines === false
+        ? 0
+        : Number(behavior.maxLines);
     writer.setTextBehavior(node.id, flags);
+    writer.setTextMaxLines(node.id, maxLines);
     return;
   }
   if (

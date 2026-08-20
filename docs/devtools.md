@@ -42,7 +42,7 @@ The CLI discovers the newest live Wabou process in `$XDG_RUNTIME_DIR`. Set
 ```bash
 mise exec -- cargo run -p wabou-cli -- inspect status
 mise exec -- cargo run -p wabou-cli -- inspect query comments
-mise exec -- cargo run -p wabou-cli -- inspect node 42
+mise exec -- cargo run -p wabou-cli -- inspect node 42:1
 mise exec -- cargo run -p wabou-cli -- inspect at 820 600
 mise exec -- cargo run -p wabou-cli -- inspect frames --limit 20
 mise exec -- cargo run -p wabou-cli -- inspect screenshot
@@ -51,6 +51,15 @@ mise exec -- cargo run -p wabou-cli -- inspect capture --x 820 --y 600 --output 
 
 `query` searches tags, text and classes. `node` returns structure, attributes,
 listeners, border/content rectangles and a compact computed-style summary.
+Node identities are generational and are printed as `{ "lo": 42, "hi": 1 }`;
+pass them to `inspect node` as `42:1`. A bare `42` remains shorthand for the
+initial generation `42:1`, but an exact key should be copied after remounts.
+Its `styleCascade` entries identify the winning source for every applied Style
+IR property and list the lower-priority sources it replaced. For example,
+`font-medium font-normal` reports `.font-normal` as the `font-weight` source
+and `.font-medium` in `overriddenSources`; inline style is reported as
+`inline`. This reflects Wabou's real class-token-order cascade rather than
+trying to reproduce it with a separate class-merging heuristic.
 `frames` returns the bounded trace of both `hostToJs` HostEventFrames and
 `jsToHost` mutation frames. Raw bytes are omitted because they may contain
 application data. Set `WABOU_DEVTOOLS_RAW_FRAMES=1` to opt in; previews are
@@ -114,6 +123,20 @@ finite entry and layout transitions settle before capture:
 wabou render apps/gallery --out /tmp/gallery.png
 ```
 
+Add `--snapshot` to write the DevTools tree represented by the same final
+logical frame as the PNG. This works without a display server and includes
+resolved layout, font family/weight, text backend, outline policy, and Parley
+synthetic-style diagnostics:
+
+```sh
+wabou render apps/gallery --out /tmp/gallery.png \
+  --snapshot /tmp/gallery-tree.json
+```
+
+The option currently belongs to the bundle-only renderer. Use a live
+`captureCase` when application-owned Rust services must participate and both
+pixels and a frame-matched tree are required.
+
 Use `--with-host` when the rendered state depends on registrations in the
 application's `HostBuilder`. Wabou starts the real application binary on its
 deterministic headless backend, including services, capabilities, host-message
@@ -143,8 +166,8 @@ permanent animations such as spinners or status ripples. Override the capture
 settling window with `--wait-ms`; pass `--wait-ms 0` when the earliest frame is
 the state under test.
 
-Host-backed capture currently does not accept coordinate/key actions or
-`--metrics`; those remain on the bundle-only path.
+Host-backed capture currently does not accept coordinate/key actions,
+`--metrics`, or `--snapshot`; those remain on the bundle-only path.
 
 Multi-window and HiDPI states can be selected explicitly. Width, height, and
 interaction coordinates remain logical pixels; the PNG dimensions are scaled:

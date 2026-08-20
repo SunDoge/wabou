@@ -310,6 +310,7 @@ impl DeclaredPaint {
             line_height: inherited.line_height,
             wrap_text: inherited.wrap_text,
             text_ellipsis: self.text_ellipsis,
+            text_max_lines: host.text_max_lines,
             text_selectable: inherited.text_selectable,
             text_select_all: inherited.text_select_all,
             text_align: inherited.text_align,
@@ -408,6 +409,8 @@ pub struct HostPaint {
     pub text_runs: Arc<[crate::text::TextRun]>,
     /// Selection highlights in text-layout-local coordinates.
     pub selection_rects: Arc<[[f32; 4]]>,
+    /// Maximum rendered text lines; zero means unlimited.
+    pub text_max_lines: u32,
     /// Parsed SVG retained by an SVG root node.
     pub svg: Option<Arc<crate::svg::SvgImage>>,
     /// Typed vector path retained by a `<vector-path>` node.
@@ -478,6 +481,8 @@ pub struct Paint {
     pub wrap_text: bool,
     /// Whether a constrained single line is shortened with an ellipsis.
     pub text_ellipsis: bool,
+    /// Maximum rendered text lines; zero means unlimited.
+    pub text_max_lines: u32,
     /// Whether pointer text selection is allowed.
     pub text_selectable: bool,
     /// Whether one selection gesture selects the complete text node.

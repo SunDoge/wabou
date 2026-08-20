@@ -382,10 +382,13 @@ function resolveWabouConfig(options, environment) {
 	const defaults = {
 		define: { "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? (environment.command === "serve" ? "development" : "production")) },
 		plugins: wabouPlugins(root, options.theme, options.ignoreClasses, options.intl, options.entry ?? "ui/index.tsx"),
-		resolve: { alias: {
-			"@wabou/core/renderer": renderer,
-			"solid-js/web": renderer
-		} },
+		resolve: {
+			dedupe: ["solid-js"],
+			alias: {
+				"@wabou/core/renderer": renderer,
+				"solid-js/web": renderer
+			}
+		},
 		optimizeDeps: {
 			noDiscovery: true,
 			include: ["@tanstack/router-core"]

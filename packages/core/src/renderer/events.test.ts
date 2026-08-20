@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { JSX } from "solid-js";
+import { createSignal, flush, type JSX } from "solid-js";
 import { GRAPHIC_DATA } from "../protocol";
 import { px, shadow } from "../style";
 import { PathBuilder } from "../vector-path";
@@ -14,6 +14,7 @@ import {
   OP,
   runSweep,
   setProp,
+  spread,
   type WabouNodeEvent,
   writer,
 } from "./index";
@@ -439,4 +440,26 @@ test("classList explicitly merges interaction classes with static class", () => 
   );
   const second = writer.flush();
   expect(second).not.toBeNull();
+});
+
+test("spread tracks reactive class getters across a host flush", () => {
+  writer.flush();
+  const node = createElement("view");
+  const [compact, setCompact] = createSignal(false, { ownedWrite: true });
+  spread(
+    node,
+    {
+      get class() {
+        return compact() ? "grid grid-cols-2" : "flex h-40";
+      },
+    },
+    false,
+  );
+  flush();
+  writer.flush();
+
+  flush(() => setCompact(true));
+  const frame = writer.flush();
+  expect(frame).not.toBeNull();
+  expect(Array.from(frame!)).toContain(OP.SetClassName);
 });

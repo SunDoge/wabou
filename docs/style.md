@@ -13,6 +13,13 @@ Button primitive. Wabou deliberately does not implement CSS/UnoCSS state
 variants because native hover, focus and active behavior cannot promise browser
 equivalence.
 
+Wabou also avoids CSS's automatic min-content width for growing flex regions.
+An element with positive `flex-grow` can shrink to the width assigned by its
+parent without repeating `min-w-0`; explicit `min-w-*` declarations still set a
+real lower bound. Intrinsic and `flex-none` controls retain their content width.
+Grid items and other non-growing regions remain explicit because their sizing
+contract is not implied by `flex-grow`.
+
 ## Wabou utilities
 
 `wabou-style` is the semantic source of truth. Its Winnow parsers accept a

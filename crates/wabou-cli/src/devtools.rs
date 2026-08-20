@@ -3,10 +3,11 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str::FromStr;
 
 use clap::Subcommand;
 use serde_json::{Value, json};
-use wabou_devtools::{DebugCaptureCase, call, discover_socket, empty_params, request};
+use wabou_devtools::{DebugCaptureCase, NodeKey, call, discover_socket, empty_params, request};
 
 use super::artifact::built_executable;
 use super::config::{BuildProfile, bundle_path};
@@ -23,7 +24,8 @@ pub(super) enum InspectCommand {
         limit: usize,
     },
     Node {
-        id: u32,
+        /// Node key as `slot:generation`; bare slots use generation 1.
+        id: NodeKeyArg,
     },
     At {
         x: f32,
@@ -42,6 +44,31 @@ pub(super) enum InspectCommand {
         #[arg(long, value_name = "DIR")]
         output: PathBuf,
     },
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) struct NodeKeyArg(NodeKey);
+
+impl FromStr for NodeKeyArg {
+    type Err = String;
+
+    fn from_str(value: &str) -> std::result::Result<Self, Self::Err> {
+        let (lo, hi) = value.split_once(':').unwrap_or((value, "1"));
+        let key = NodeKey::new(
+            lo.parse().map_err(|_| {
+                format!("invalid node key `{value}`; expected SLOT or SLOT:GENERATION")
+            })?,
+            hi.parse().map_err(|_| {
+                format!("invalid node key `{value}`; expected SLOT or SLOT:GENERATION")
+            })?,
+        );
+        if !key.is_valid() {
+            return Err(format!(
+                "invalid node key `{value}`; slot must be non-zero and generation must be non-zero and odd"
+            ));
+        }
+        Ok(Self(key))
+    }
 }
 
 pub(super) fn run(workspace: &Path) -> Result<()> {
@@ -112,7 +139,7 @@ pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Resul
         InspectCommand::Query { query, limit } => {
             ("queryNodes", json!({ "query": query, "limit": limit }))
         }
-        InspectCommand::Node { id } => ("inspectNode", json!({ "id": id })),
+        InspectCommand::Node { id } => ("inspectNode", json!({ "id": id.0 })),
         InspectCommand::At { x, y } => ("inspectAtPoint", json!({ "x": x, "y": y })),
         InspectCommand::Frames { limit } => ("recentFrames", json!({ "limit": limit })),
         InspectCommand::Screenshot => ("captureScreenshot", empty_params()),
@@ -168,6 +195,18 @@ mod tests {
     use wabou_devtools::{DebugNode, DebugPointInspection, DebugSnapshot};
 
     use super::*;
+
+    #[test]
+    fn node_key_argument_preserves_the_full_generation() {
+        assert_eq!(
+            serde_json::to_value(NodeKeyArg::from_str("42:3").unwrap().0).unwrap(),
+            json!({"lo": 42, "hi": 3})
+        );
+        assert_eq!(NodeKeyArg::from_str("42").unwrap().0, NodeKey::new(42, 1));
+        for invalid in ["0", "42:0", "42:2", "x:1", "1:x", "1:3:5"] {
+            assert!(NodeKeyArg::from_str(invalid).is_err(), "{invalid}");
+        }
+    }
 
     #[test]
     fn sibling_helper_precedes_path() {

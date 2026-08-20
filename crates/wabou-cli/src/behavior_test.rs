@@ -252,9 +252,36 @@ enum ReplayLocatorAssertion {
         expected: ReplayContainingBounds,
         tolerance: f64,
     },
+    NotOverlap {
+        other: ReplayLocatorReference,
+        tolerance: f64,
+    },
+    SameBounds {
+        other: ReplayLocatorReference,
+        fields: Vec<ReplayBoundsField>,
+        tolerance: f64,
+    },
     Viewport {
         tolerance: f64,
     },
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReplayLocatorReference {
+    role: ReplayRole,
+    name: String,
+    #[serde(default)]
+    index: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum ReplayBoundsField {
+    X,
+    Y,
+    Width,
+    Height,
 }
 
 #[derive(Debug, Deserialize)]
@@ -597,6 +624,37 @@ impl ReplayLocatorAssertion {
                 if !tolerance.is_finite() || *tolerance < 0.0 {
                     return Err(
                         "locator containing bounds tolerance must be a finite non-negative number"
+                            .into(),
+                    );
+                }
+            }
+            Self::NotOverlap { other, tolerance } => {
+                let _ = (&other.role, &other.name);
+                validate_index(other.index)?;
+                if !tolerance.is_finite() || *tolerance < 0.0 {
+                    return Err(
+                        "locator overlap tolerance must be a finite non-negative number".into(),
+                    );
+                }
+            }
+            Self::SameBounds {
+                other,
+                fields,
+                tolerance,
+            } => {
+                let _ = (&other.role, &other.name);
+                validate_index(other.index)?;
+                if fields.is_empty() {
+                    return Err("matching bounds fields cannot be empty".into());
+                }
+                for (index, field) in fields.iter().enumerate() {
+                    if fields[..index].contains(field) {
+                        return Err("matching bounds fields cannot contain duplicates".into());
+                    }
+                }
+                if !tolerance.is_finite() || *tolerance < 0.0 {
+                    return Err(
+                        "matching locator bounds tolerance must be a finite non-negative number"
                             .into(),
                     );
                 }

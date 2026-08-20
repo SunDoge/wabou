@@ -21,6 +21,32 @@ use std::task::Waker;
 use winit::keyboard::NamedKey;
 use winit::raw_window_handle::WaylandWindowHandle;
 
+#[test]
+fn custom_decoration_edges_map_to_native_resize_directions() {
+    let direction = |x, y| {
+        resize_direction_at(
+            Point { x, y },
+            900.0,
+            600.0,
+            CUSTOM_DECORATION_RESIZE_BORDER,
+        )
+    };
+
+    assert_eq!(direction(0.0, 0.0), Some(ResizeDirection::NorthWest));
+    assert_eq!(direction(899.0, 0.0), Some(ResizeDirection::NorthEast));
+    assert_eq!(direction(0.0, 599.0), Some(ResizeDirection::SouthWest));
+    assert_eq!(direction(899.0, 599.0), Some(ResizeDirection::SouthEast));
+    assert_eq!(direction(3.0, 300.0), Some(ResizeDirection::West));
+    assert_eq!(direction(897.0, 300.0), Some(ResizeDirection::East));
+    assert_eq!(direction(450.0, 3.0), Some(ResizeDirection::North));
+    assert_eq!(direction(450.0, 597.0), Some(ResizeDirection::South));
+    assert_eq!(direction(11.0, 300.0), Some(ResizeDirection::West));
+    assert_eq!(direction(889.0, 300.0), Some(ResizeDirection::East));
+    assert_eq!(direction(13.0, 300.0), None);
+    assert_eq!(direction(450.0, 300.0), None);
+    assert_eq!(direction(-1.0, 300.0), None);
+}
+
 struct EventActionSource {
     pending: bool,
     drained: Arc<AtomicUsize>,
@@ -29,6 +55,49 @@ struct EventActionSource {
 struct EventRecordingSource(Arc<Mutex<Vec<UiEvent>>>);
 
 struct EffectRecordingSource(Arc<Mutex<Vec<crate::EffectCompletion>>>);
+
+struct BackgroundExitSource {
+    pending: bool,
+}
+
+impl FrameSource for BackgroundExitSource {
+    fn build_frame(
+        &mut self,
+        _tcx: &mut TextContext,
+        _width: u32,
+        _height: u32,
+    ) -> Vec<PlacedNode> {
+        Vec::new()
+    }
+
+    fn base_color(&self) -> Color {
+        Color::BLACK
+    }
+
+    fn poll_async(&mut self) -> bool {
+        self.pending
+    }
+
+    fn take_effect(&mut self) -> Option<crate::EffectRequest> {
+        self.pending.then(|| {
+            self.pending = false;
+            crate::EffectRequest {
+                id: crate::EffectId(9),
+                scope: crate::EffectScope::Window(crate::initial_window_resource_key(0)),
+                payload: crate::EffectPayload::ApplicationExit,
+            }
+        })
+    }
+}
+
+#[test]
+fn background_wake_drains_exit_effect_without_a_native_surface() {
+    let mut app = App::new(Box::new(BackgroundExitSource { pending: true }));
+
+    assert!(app.state.is_none());
+    assert!(app.poll_background_work());
+    assert!(app.application_exit_requested);
+}
 
 impl FrameSource for EffectRecordingSource {
     fn build_frame(

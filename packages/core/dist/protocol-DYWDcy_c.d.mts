@@ -118,6 +118,7 @@ declare const OP: {
   readonly ClearGraphicSource: 31;
   readonly SetGraphicData: 32;
   readonly ClearGraphicData: 33;
+  readonly SetTextMaxLines: 34;
 };
 type OpCode = (typeof OP)[keyof typeof OP];
 declare const TEXT_BEHAVIOR: {
@@ -239,6 +240,7 @@ declare class Writer {
   removeAttribute(id: NodeKey, name: string): void;
   setWidgetConfig(id: NodeKey, json: string): void;
   setTextBehavior(id: NodeKey, flags: number): void;
+  setTextMaxLines(id: NodeKey, maxLines: number): void;
   setInteractionPolicy(id: NodeKey, flags: number, focusOrder: number): void;
   setGraphicSource(id: NodeKey, kind: number, source: string): void;
   clearGraphicSource(id: NodeKey, kind: number): void;
@@ -283,4 +285,4 @@ declare class Writer {
 }
 //#endregion
 export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventType as a, formatNodeKey as b, HOST_FRAME as c, INTERACTION_POLICY as d, OP as f, NodeKey as g, Writer as h, EventDataSlot as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_NODE_PAYLOAD as l, TEXT_BEHAVIOR as m, EVENT_DATA_LEN as n, GRAPHIC_DATA as o, OpCode as p, EVENT_DATA_SLOT as r, GRAPHIC_SOURCE as s, EVENT_CODE as t, HOST_RECORD_KIND as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
-//# sourceMappingURL=protocol-Cb5z35fp.d.mts.map
+//# sourceMappingURL=protocol-DYWDcy_c.d.mts.map

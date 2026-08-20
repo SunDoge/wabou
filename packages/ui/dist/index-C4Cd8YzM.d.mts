@@ -141,7 +141,10 @@ interface PrimitiveProps extends Omit<WabouElementProps, "children" | "ref" | "s
   onTextSelectionChange?: (event: TextSelectionChangeEvent) => void;
 }
 interface ViewProps extends PrimitiveProps {}
-interface TextProps extends PrimitiveProps {}
+interface TextProps extends PrimitiveProps {
+  /** Maximum rendered lines. Overflow on the final line is replaced by an ellipsis. */
+  maxLines?: number;
+}
 interface SvgProps extends Omit<PrimitiveProps, "children"> {
   /** Trusted inline SVG source parsed and cached by the native host. */
   source: string;
@@ -404,6 +407,63 @@ interface HoverResult {
 /** Reactive hover state and event bindings for a single target. */
 declare function createHover(): HoverResult;
 //#endregion
+//#region src/primitives/interactions/form-draft.d.ts
+type FormDraftFieldUpdater<Value> = Value | ((previous: Value) => Value);
+type FormDraftErrors<T> = Partial<Record<keyof T, string>>;
+interface FormDraft<T extends Record<PropertyKey, unknown>> {
+  value: Accessor<Readonly<T>>;
+  dirty: Accessor<boolean>;
+  /** Validation errors derived from the current immutable draft. */
+  errors: Accessor<Readonly<FormDraftErrors<T>>>;
+  valid: Accessor<boolean>;
+  fieldError<Key extends keyof T>(key: Key): string | undefined;
+  field<Key extends keyof T>(key: Key): T[Key];
+  control<Key extends keyof T>(key: Key): readonly [Accessor<T[Key]>, (value: FormDraftFieldUpdater<T[Key]>) => void];
+  set<Key extends keyof T>(key: Key, value: FormDraftFieldUpdater<T[Key]>): void;
+  patch(value: Partial<T>): void;
+  /** Restore the last baseline. */
+  reset(): void;
+  /** Replace both the baseline and current value. */
+  resetTo(value: T): void;
+  /** Make the current value the new baseline. */
+  commit(): void;
+}
+interface FormDraftOptions<T> {
+  equals?: (left: Readonly<T>, right: Readonly<T>) => boolean;
+  validate?: (value: Readonly<T>) => FormDraftErrors<T>;
+}
+/**
+ * A small immutable draft for form fields with explicit reset and commit
+ * semantics. Transient request/error state belongs outside this model.
+ */
+declare function createFormDraft<T extends Record<PropertyKey, unknown>>(initial: T, options?: FormDraftOptions<T>): FormDraft<T>;
+//#endregion
+//#region src/primitives/interactions/selection.d.ts
+type SelectionMode = "single" | "multiple";
+interface KeyedSelectionOptions<T, Key> {
+  items: Accessor<readonly T[]>;
+  key: (item: T) => Key;
+  mode: SelectionMode;
+  initialKeys?: Iterable<Key>;
+}
+interface KeyedSelection<T, Key> {
+  keys: Accessor<ReadonlySet<Key>>;
+  items: Accessor<readonly T[]>;
+  item: Accessor<T | undefined>;
+  isSelected(key: Key): boolean;
+  select(key: Key): void;
+  deselect(key: Key): void;
+  toggle(key: Key): void;
+  set(keys: Iterable<Key>): void;
+  clear(): void;
+}
+/**
+ * Selection state owned by stable keys while values remain host-owned.
+ * Selected items always resolve to the latest objects from `items`; keys that
+ * disappear from the source are removed instead of becoming ghost selections.
+ */
+declare function createKeyedSelection<T, Key>(options: KeyedSelectionOptions<T, Key>): KeyedSelection<T, Key>;
+//#endregion
 //#region src/primitives/layout.d.ts
 interface LayoutProps extends ViewProps {
   class?: string;
@@ -429,8 +489,24 @@ interface MeasuredSizeOptions {
     height: number;
   }) => void;
 }
+/** Inclusive logical-pixel constraints evaluated against a host node's content box. */
+interface ContainerSizeQuery {
+  minWidth?: number;
+  maxWidth?: number;
+  minHeight?: number;
+  maxHeight?: number;
+}
+interface ContainerMatch extends MeasuredSize {
+  matches: Accessor<boolean>;
+}
 /** Observe the completed native content-box size of a host node. */
 declare function createMeasuredSize(options?: MeasuredSizeOptions): MeasuredSize;
+/**
+ * Match constraints against a component's completed native content-box size.
+ * The result remains false until the first measurement, avoiding a compact
+ * layout flash during boot.
+ */
+declare function createContainerMatch(query: ContainerSizeQuery, options?: MeasuredSizeOptions): ContainerMatch;
 //#endregion
 //#region src/primitives/modal.d.ts
 interface ModalEvent {
@@ -725,63 +801,6 @@ interface ScrollAreaProps {
  */
 declare function ScrollArea(props: ScrollAreaProps): JSX.Element;
 //#endregion
-//#region src/primitives/interactions/form-draft.d.ts
-type FormDraftFieldUpdater<Value> = Value | ((previous: Value) => Value);
-type FormDraftErrors<T> = Partial<Record<keyof T, string>>;
-interface FormDraft<T extends Record<PropertyKey, unknown>> {
-  value: Accessor<Readonly<T>>;
-  dirty: Accessor<boolean>;
-  /** Validation errors derived from the current immutable draft. */
-  errors: Accessor<Readonly<FormDraftErrors<T>>>;
-  valid: Accessor<boolean>;
-  fieldError<Key extends keyof T>(key: Key): string | undefined;
-  field<Key extends keyof T>(key: Key): T[Key];
-  control<Key extends keyof T>(key: Key): readonly [Accessor<T[Key]>, (value: FormDraftFieldUpdater<T[Key]>) => void];
-  set<Key extends keyof T>(key: Key, value: FormDraftFieldUpdater<T[Key]>): void;
-  patch(value: Partial<T>): void;
-  /** Restore the last baseline. */
-  reset(): void;
-  /** Replace both the baseline and current value. */
-  resetTo(value: T): void;
-  /** Make the current value the new baseline. */
-  commit(): void;
-}
-interface FormDraftOptions<T> {
-  equals?: (left: Readonly<T>, right: Readonly<T>) => boolean;
-  validate?: (value: Readonly<T>) => FormDraftErrors<T>;
-}
-/**
- * A small immutable draft for form fields with explicit reset and commit
- * semantics. Transient request/error state belongs outside this model.
- */
-declare function createFormDraft<T extends Record<PropertyKey, unknown>>(initial: T, options?: FormDraftOptions<T>): FormDraft<T>;
-//#endregion
-//#region src/primitives/interactions/selection.d.ts
-type SelectionMode = "single" | "multiple";
-interface KeyedSelectionOptions<T, Key> {
-  items: Accessor<readonly T[]>;
-  key: (item: T) => Key;
-  mode: SelectionMode;
-  initialKeys?: Iterable<Key>;
-}
-interface KeyedSelection<T, Key> {
-  keys: Accessor<ReadonlySet<Key>>;
-  items: Accessor<readonly T[]>;
-  item: Accessor<T | undefined>;
-  isSelected(key: Key): boolean;
-  select(key: Key): void;
-  deselect(key: Key): void;
-  toggle(key: Key): void;
-  set(keys: Iterable<Key>): void;
-  clear(): void;
-}
-/**
- * Selection state owned by stable keys while values remain host-owned.
- * Selected items always resolve to the latest objects from `items`; keys that
- * disappear from the source are removed instead of becoming ghost selections.
- */
-declare function createKeyedSelection<T, Key>(options: KeyedSelectionOptions<T, Key>): KeyedSelection<T, Key>;
-//#endregion
 //#region src/primitives/scroll-reset.d.ts
 interface ScrollResetTarget {
   scrollTo(options: {
@@ -879,8 +898,8 @@ interface TabKeyEvent {
  */
 declare function createTabs<T, K extends TabKey>(options: TabsOptions<T, K>): TabsResult<T, K>;
 declare namespace index_d_exports {
-  export { ActiveResult, AddTabOptions, Affine2D$1 as Affine2D, AnimationFrameCallback, Button, ButtonEvent, ButtonKeyEvent, ButtonPrimitive, ButtonProps, ButtonState, Center, CodeEditor, CodeEditorProps, CollapsiblePresence, CollapsiblePresenceProps, Column, ComputeFloatingPositionOptions, ComputeHostFloatingPositionOptions, ComputePositionReturn$1 as ComputePositionReturn, CreateButtonOptions, DismissEvent, DismissKeyEvent, FocusResult, FocusTarget, FocusWithinResult, FormDraft, FormDraftErrors, FormDraftFieldUpdater, FormDraftOptions, HoverResult, Icon, IconProps, Image, ImageProps, ImageSource, KeyedSelection, KeyedSelectionOptions, LayoutProps, LayoutRect$1 as LayoutRect, Link, LinkProps, MeasuredSize, MeasuredSizeOptions, Middleware$1 as Middleware, Modal, ModalControls, ModalEvent, ModalKeyEvent, ModalOpenChangeReason, ModalProps, ModalTriggerProps, NetworkImage, NetworkImageProps, NetworkImageSource, NotificationControls, NotificationDismissReason, NotificationInput, NotificationItem, NotificationPlacement, NotificationPriority, NotificationRegion, NotificationRegionProps, Notifications, NotificationsOptions, OverlayDismissReason, OverlayLayer, OverlayLayerOptions, OverlayPlane, OverlayPlaneProvider, OverlayPlaneProviderProps, PasswordInput, PasswordInputProps, Path, PathBuilder, PathProps, Placement$1 as Placement, Popover, PopoverProps, PopoverTriggerProps, PositionPlatform, Presence, PresencePhase, PressOptions, PressResult, PrimitiveProps, Pulse, PulseProps, Ripple, RippleProps, Row, ScrollArea, ScrollAreaProps, ScrollResetOptions, ScrollResetTarget, ShortcutDefinition, ShortcutEvent, ShortcutHandler, ShortcutMap, ShortcutsResult, Spin, SpinProps, Strategy$1 as Strategy, Svg, SvgProps, TabKey, TabKeyEvent, TabsOptions, TabsResult, Text, TextArea, TextAreaProps, TextInput, TextInputProps, TextProps, VectorPath$1 as VectorPath, VectorPathPaint, View, ViewProps, WabouClassList, WabouStyle$1 as WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d$1 as rotate2d, shift, size, translate2d, useOverlayPlane };
+  export { ActiveResult, AddTabOptions, Affine2D$1 as Affine2D, AnimationFrameCallback, Button, ButtonEvent, ButtonKeyEvent, ButtonPrimitive, ButtonProps, ButtonState, Center, CodeEditor, CodeEditorProps, CollapsiblePresence, CollapsiblePresenceProps, Column, ComputeFloatingPositionOptions, ComputeHostFloatingPositionOptions, ComputePositionReturn$1 as ComputePositionReturn, ContainerMatch, ContainerSizeQuery, CreateButtonOptions, DismissEvent, DismissKeyEvent, FocusResult, FocusTarget, FocusWithinResult, FormDraft, FormDraftErrors, FormDraftFieldUpdater, FormDraftOptions, HoverResult, Icon, IconProps, Image, ImageProps, ImageSource, KeyedSelection, KeyedSelectionOptions, LayoutProps, LayoutRect$1 as LayoutRect, Link, LinkProps, MeasuredSize, MeasuredSizeOptions, Middleware$1 as Middleware, Modal, ModalControls, ModalEvent, ModalKeyEvent, ModalOpenChangeReason, ModalProps, ModalTriggerProps, NetworkImage, NetworkImageProps, NetworkImageSource, NotificationControls, NotificationDismissReason, NotificationInput, NotificationItem, NotificationPlacement, NotificationPriority, NotificationRegion, NotificationRegionProps, Notifications, NotificationsOptions, OverlayDismissReason, OverlayLayer, OverlayLayerOptions, OverlayPlane, OverlayPlaneProvider, OverlayPlaneProviderProps, PasswordInput, PasswordInputProps, Path, PathBuilder, PathProps, Placement$1 as Placement, Popover, PopoverProps, PopoverTriggerProps, PositionPlatform, Presence, PresencePhase, PressOptions, PressResult, PrimitiveProps, Pulse, PulseProps, Ripple, RippleProps, Row, ScrollArea, ScrollAreaProps, ScrollResetOptions, ScrollResetTarget, ShortcutDefinition, ShortcutEvent, ShortcutHandler, ShortcutMap, ShortcutsResult, Spin, SpinProps, Strategy$1 as Strategy, Svg, SvgProps, TabKey, TabKeyEvent, TabsOptions, TabsResult, Text, TextArea, TextAreaProps, TextInput, TextInputProps, TextProps, VectorPath$1 as VectorPath, VectorPathPaint, View, ViewProps, WabouClassList, WabouStyle$1 as WabouStyle, arrow, autoPlacement, computeFloatingPosition, computeHostFloatingPosition, createActive, createAnimationFrame, createButton, createContainerMatch, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createMeasuredSize, createNotifications, createOverlayLayer, createPresence, createPress, createScrollReset, createShortcuts, createTabs, flip, offset, rotate2d$1 as rotate2d, shift, size, translate2d, useOverlayPlane };
 }
 //#endregion
-export { shift as $, RotationAnimation as $n, ButtonPrimitive as $t, PressResult as A, TextProps as An, ModalEvent as At, ComputeHostFloatingPositionOptions as B, createAnimationFrame as Bn, LayoutProps as Bt, FormDraftFieldUpdater as C, Svg as Cn, PulseProps as Ct, ScrollAreaProps as D, TextAreaProps as Dn, SpinProps as Dt, ScrollArea as E, TextArea as En, Spin as Et, createPresence as F, WabouClassList as Fn, MeasuredSize as Ft, PositionPlatform as G, AnimationValue as Gn, FocusWithinResult as Gt, LayoutRect$1 as H, AnimationOptions as Hn, HoverResult as Ht, Popover as I, WabouStyle$1 as In, MeasuredSizeOptions as It, autoPlacement as J, LoopOptions as Jn, CollapsiblePresence as Jt, Strategy$1 as K, Easing as Kn, createFocus as Kt, PopoverProps as L, rotate2d$1 as Ln, createMeasuredSize as Lt, createPress as M, VectorPathPaint as Mn, ModalOpenChangeReason as Mt, Presence as N, View as Nn, ModalProps as Nt, ActiveResult as O, TextInput as On, Modal as Ot, PresencePhase as P, ViewProps as Pn, ModalTriggerProps as Pt, offset as Q, RepeatType as Qn, ButtonKeyEvent as Qt, PopoverTriggerProps as R, translate2d as Rn, Center as Rt, FormDraftErrors as S, PrimitiveProps as Sn, Pulse as St, createFormDraft as T, Text as Tn, RippleProps as Tt, Middleware$1 as U, AnimationState as Un, createHover as Ut, ComputePositionReturn$1 as V, AnimationControls as Vn, Row as Vt, Placement$1 as W, AnimationType as Wn, FocusResult as Wt, computeHostFloatingPosition as X, ReactiveAnimation as Xn, Button as Xt, computeFloatingPosition as Y, PulseOptions as Yn, CollapsiblePresenceProps as Yt, flip as Z, ReactiveTransition as Zn, ButtonEvent as Zt, createScrollReset as _, PasswordInput as _n, NotificationRegion as _t, TabKeyEvent as a, createButton as an, createPulse as ar, OverlayLayerOptions as at, createKeyedSelection as b, PathBuilder as bn, NotificationsOptions as bt, createTabs as c, CodeEditorProps as cn, OverlayPlaneProviderProps as ct, ShortcutHandler as d, Image as dn, NotificationControls as dt, ButtonProps as en, RotationOptions as er, size as et, ShortcutMap as f, ImageProps as fn, NotificationDismissReason as ft, ScrollResetTarget as g, NetworkImageSource as gn, NotificationPriority as gt, ScrollResetOptions as h, NetworkImageProps as hn, NotificationPlacement as ht, TabKey as i, LinkProps as in, createLoop as ir, OverlayLayer as it, createActive as j, VectorPath$1 as jn, ModalKeyEvent as jt, PressOptions as k, TextInputProps as kn, ModalControls as kt, ShortcutDefinition as l, Icon as ln, createOverlayLayer as lt, createShortcuts as m, NetworkImage as mn, NotificationItem as mt, AddTabOptions as n, CreateButtonOptions as nn, animate as nr, DismissKeyEvent as nt, TabsOptions as o, Affine2D$1 as on, createRotation as or, OverlayPlane as ot, ShortcutsResult as p, ImageSource as pn, NotificationInput as pt, arrow as q, EasingFunction as qn, createFocusWithin as qt, FocusTarget as r, Link as rn, animateKeyframes as rr, OverlayDismissReason as rt, TabsResult as s, CodeEditor as sn, createTransition as sr, OverlayPlaneProvider as st, index_d_exports as t, ButtonState as tn, TransitionOptions as tr, DismissEvent as tt, ShortcutEvent as u, IconProps as un, useOverlayPlane as ut, KeyedSelection as v, PasswordInputProps as vn, NotificationRegionProps as vt, FormDraftOptions as w, SvgProps as wn, Ripple as wt, FormDraft as x, PathProps as xn, createNotifications as xt, KeyedSelectionOptions as y, Path as yn, Notifications as yt, ComputeFloatingPositionOptions as z, AnimationFrameCallback as zn, Column as zt };
-//# sourceMappingURL=index-CEJfP5ea.d.mts.map
+export { OverlayPlaneProvider as $, ReactiveAnimation as $n, Button as $t, PopoverTriggerProps as A, TextAreaProps as An, MeasuredSizeOptions as At, autoPlacement as B, rotate2d$1 as Bn, FormDraft as Bt, createActive as C, PathBuilder as Cn, ModalKeyEvent as Ct, createPresence as D, SvgProps as Dn, ContainerMatch as Dt, PresencePhase as E, Svg as En, ModalTriggerProps as Et, Middleware$1 as F, VectorPathPaint as Fn, LayoutProps as Ft, shift as G, AnimationOptions as Gn, HoverResult as Gt, computeHostFloatingPosition as H, AnimationFrameCallback as Hn, FormDraftFieldUpdater as Ht, Placement$1 as I, View as In, Row as It, DismissKeyEvent as J, AnimationValue as Jn, FocusWithinResult as Jt, size as K, AnimationState as Kn, createHover as Kt, PositionPlatform as L, ViewProps as Ln, KeyedSelection as Lt, ComputeHostFloatingPositionOptions as M, TextInputProps as Mn, createMeasuredSize as Mt, ComputePositionReturn$1 as N, TextProps as Nn, Center as Nt, Popover as O, Text as On, ContainerSizeQuery as Ot, LayoutRect$1 as P, VectorPath$1 as Pn, Column as Pt, OverlayPlane as Q, PulseOptions as Qn, CollapsiblePresenceProps as Qt, Strategy$1 as R, WabouClassList as Rn, KeyedSelectionOptions as Rt, PressResult as S, Path as Sn, ModalEvent as St, Presence as T, PrimitiveProps as Tn, ModalProps as Tt, flip as U, createAnimationFrame as Un, FormDraftOptions as Ut, computeFloatingPosition as V, translate2d as Vn, FormDraftErrors as Vt, offset as W, AnimationControls as Wn, createFormDraft as Wt, OverlayLayer as X, EasingFunction as Xn, createFocusWithin as Xt, OverlayDismissReason as Y, Easing as Yn, createFocus as Yt, OverlayLayerOptions as Z, LoopOptions as Zn, CollapsiblePresence as Zt, createScrollReset as _, NetworkImage as _n, RippleProps as _t, TabKeyEvent as a, CreateButtonOptions as an, animate as ar, NotificationInput as at, ActiveResult as b, PasswordInput as bn, Modal as bt, createTabs as c, createButton as cn, createPulse as cr, NotificationPriority as ct, ShortcutHandler as d, CodeEditorProps as dn, Notifications as dt, ButtonEvent as en, ReactiveTransition as er, OverlayPlaneProviderProps as et, ShortcutMap as f, Icon as fn, NotificationsOptions as ft, ScrollResetTarget as g, ImageSource as gn, Ripple as gt, ScrollResetOptions as h, ImageProps as hn, PulseProps as ht, TabKey as i, ButtonState as in, TransitionOptions as ir, NotificationDismissReason as it, ComputeFloatingPositionOptions as j, TextInput as jn, createContainerMatch as jt, PopoverProps as k, TextArea as kn, MeasuredSize as kt, ShortcutDefinition as l, Affine2D$1 as ln, createRotation as lr, NotificationRegion as lt, createShortcuts as m, Image as mn, Pulse as mt, AddTabOptions as n, ButtonPrimitive as nn, RotationAnimation as nr, useOverlayPlane as nt, TabsOptions as o, Link as on, animateKeyframes as or, NotificationItem as ot, ShortcutsResult as p, IconProps as pn, createNotifications as pt, DismissEvent as q, AnimationType as qn, FocusResult as qt, FocusTarget as r, ButtonProps as rn, RotationOptions as rr, NotificationControls as rt, TabsResult as s, LinkProps as sn, createLoop as sr, NotificationPlacement as st, index_d_exports as t, ButtonKeyEvent as tn, RepeatType as tr, createOverlayLayer as tt, ShortcutEvent as u, CodeEditor as un, createTransition as ur, NotificationRegionProps as ut, ScrollArea as v, NetworkImageProps as vn, Spin as vt, createPress as w, PathProps as wn, ModalOpenChangeReason as wt, PressOptions as x, PasswordInputProps as xn, ModalControls as xt, ScrollAreaProps as y, NetworkImageSource as yn, SpinProps as yt, arrow as z, WabouStyle$1 as zn, createKeyedSelection as zt };
+//# sourceMappingURL=index-C4Cd8YzM.d.mts.map

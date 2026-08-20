@@ -1,4 +1,4 @@
-import { g as NodeKey$1, h as Writer } from "./protocol-Cb5z35fp.mjs";
+import { g as NodeKey$1, h as Writer } from "./protocol-DYWDcy_c.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
 import { D as WabouStyle, t as Affine2D } from "./style-COVvh6aZ.mjs";
 import { Accessor, Element as Element$1, JSX } from "solid-js";
@@ -76,40 +76,62 @@ declare const jsxDEV: typeof jsx;
 declare const Fragment: (props: WabouElementProps) => JSX$1.Element;
 //#endregion
 //#region src/renderer/generated/native-host.d.ts
-interface CalendarDateInfo {
+type CalendarDateInfo = {
+  /**  Proleptic Gregorian year. */
   year: number;
+  /**  One-based month. */
   month: number;
+  /**  One-based day of month. */
   day: number;
-}
-interface FrameStats {
+};
+type FrameStats = {
+  /**  Total Rust frame construction time in milliseconds. */
   build_frame_ms: number;
+  /**  QuickJS animation-frame callback time in milliseconds. */
   js_tick_ms: number;
+  /**  Vello scene construction time in milliseconds. */
   scene_ms: number;
+  /**  Surface rendering and presentation time in milliseconds. */
   present_ms: number;
+  /**  Number of retained nodes in the frame. */
   node_count: number;
+  /**  Logical viewport width. */
   viewport_w: number;
+  /**  Logical viewport height. */
   viewport_h: number;
-}
-interface LayoutNodeMetrics {
+};
+type LayoutNodeMetrics = {
+  /**  Solid-side node identifier. */
   id: NodeKey;
+  /**  Border box in logical window coordinates. */
   rect: LayoutRect;
+  /**  Effective ancestor clip in logical window coordinates. */
   clip: LayoutRect;
-}
-interface LayoutRect {
+};
+type LayoutRect = {
+  /**  Left edge. */
   x: number;
+  /**  Top edge. */
   y: number;
+  /**  Non-negative width. */
   width: number;
+  /**  Non-negative height. */
   height: number;
-}
-interface LayoutSnapshot {
+};
+type LayoutSnapshot = {
+  /**  Monotonic layout revision used to detect stale snapshots. */
   revision: number;
+  /**  Current logical viewport. */
   viewport: LayoutRect;
+  /**  Metrics for the requested node identifiers that still exist. */
   nodes: LayoutNodeMetrics[];
-}
-interface NodeKey {
-  readonly lo: number;
-  readonly hi: number;
-}
+};
+type NodeKey = {
+  /**  Slot index. Zero is reserved by the wire protocol. */
+  lo: number;
+  /**  Non-zero odd generation, matching SlotMap's FFI representation. */
+  hi: number;
+};
 //#endregion
 //#region src/renderer/host.d.ts
 type LayoutTarget = NodeKey$1 | {
@@ -445,4 +467,4 @@ declare function mount(code: () => JSX$1.Element): () => void;
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
 export { VirtualListProps as $, delegateEvents as A, mergeProps as B, WabouVectorPathProps as C, VectorPathPaint as Ct, createComponent$1 as D, applyRef as E, insert as F, removeNode as G, ref as H, insertNode as I, setProp as J, render as K, isDirectEvent as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualList as Q, isServer as R, WabouSvgShapeProps as S, VectorPath as St, acquireOverlayRoot as T, registerRoot as U, mount as V, releaseOverlayRoot as W, spread as X, setTransform2D as Y, writer as Z, WabouPointerEvent as _, PathBuilder as _t, WabouBuiltinIntrinsicElements as a, LayoutTarget as at, WabouSemanticRole as b, PathLineJoin as bt, WabouEventTarget as c, FrameStats as ct, WabouInputEvent as d, LayoutSnapshot as dt, Portal as et, WabouInputProps as f, Fragment as ft, WabouNodeEvent as g, jsxs as gt, WabouNativeTag as h, jsxDEV as ht, NativeScrollbarStyle as i, HostProviderProps as it, dispatchEvent as j, createTextNode as k, WabouExposedSemanticRole as l, LayoutNodeMetrics as lt, WabouNativeElements as m, jsx as mt, DynamicProps as n, Host as nt, WabouControlProps as o, defaultHost as ot, WabouKeyEvent as p, JSX$1 as pt, runSweep as q, Handle as r, HostProvider as rt, WabouElementProps as s, useHost as st, Dynamic as t, PortalProps as tt, WabouImageProps as u, LayoutRect as ut, WabouPositionedEvent as v, PathFillRule as vt, WabouWheelEvent as w, isVectorPath as wt, WabouSvgProps as x, PathPoint as xt, WabouScrollEvent as y, PathLineCap as yt, memo as z };
-//# sourceMappingURL=index-CzHIENwX.d.mts.map
+//# sourceMappingURL=index-C0fhEiFi.d.mts.map

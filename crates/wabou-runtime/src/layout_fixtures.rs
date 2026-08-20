@@ -103,6 +103,7 @@ impl Harness {
                     id,
                     flags: TEXT_BEHAVIOR_AGGREGATE_DIRECT | TEXT_BEHAVIOR_SINGLE_LINE,
                 });
+                expanded.push(Op::SetTextMaxLines { id, max_lines: 0 });
             }
         }
         let seq = 1;

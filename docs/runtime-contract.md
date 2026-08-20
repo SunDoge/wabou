@@ -26,6 +26,22 @@ Binary formats use explicit little-endian fields, fixed-width integers,
 declared limits, and whole-frame validation. Unknown versions fail atomically;
 record formats that permit skipping include their encoded length.
 
+### Protocol evolution
+
+An opcode number and its payload layout become immutable once checked in.
+Adding a field to an existing behavior must use a new opcode or a separately
+versioned, length-delimited record; it must not append bytes to the old payload.
+Removed opcode numbers remain tombstones and are never reused. Increment the
+whole-frame version only for an intentional protocol-wide break, not as a way
+to hide an otherwise avoidable operation-level incompatibility.
+
+Every payload affected by an evolution must retain at least one checked-in
+golden frame under `fixtures/protocol`. The TypeScript writer must reproduce
+the exact bytes and the Rust decoder must decode those same bytes. Unit tests
+that independently construct equivalent-looking frames are useful for input
+validation, but do not by themselves prove that the two implementations share
+one stable wire contract.
+
 ### Native intrinsics
 
 Native intrinsics are the small private FFI surface required to boot and drive

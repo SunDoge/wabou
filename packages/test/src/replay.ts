@@ -27,6 +27,8 @@ export async function replayActions(
       await window.show(action.windowId);
     } else if (action.action === "resizeWindow") {
       await window.resize(action.windowId, action.width, action.height);
+    } else if (action.action === "fileDrop") {
+      await window.fileDrop(action.windowId, action.phase, action.paths);
     } else if (action.action === "clickByRole") {
       await page
         .forWindow(action.windowId)

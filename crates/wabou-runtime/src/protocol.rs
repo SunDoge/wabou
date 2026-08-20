@@ -108,6 +108,10 @@ pub enum Op<'a> {
         id: NodeKey,
         flags: u8,
     },
+    SetTextMaxLines {
+        id: NodeKey,
+        max_lines: u32,
+    },
     SetInteractionPolicy {
         id: NodeKey,
         flags: u8,
@@ -428,6 +432,11 @@ fn decode_op<'a>(r: &mut Reader<'a>) -> Result<Op<'a>, DecodeError> {
                 return Err(DecodeError::BadTextBehavior { flags });
             }
             Op::SetTextBehavior { id, flags }
+        }
+        op::SET_TEXT_MAX_LINES => {
+            let id = r.node_key()?;
+            let max_lines = r.u32()?;
+            Op::SetTextMaxLines { id, max_lines }
         }
         op::SET_INTERACTION_POLICY => {
             let id = r.node_key()?;
@@ -826,12 +835,61 @@ mod tests {
             &frame.ops[0],
             Op::SetTextBehavior {
                 id: NodeKey { lo: 42, hi: 1 },
-                flags: 0x03
+                flags: 0x03,
             }
         ));
         assert!(matches!(
             decode_frame(&frame_bytes(0x04)),
             Err(DecodeError::BadTextBehavior { flags: 0x04 })
+        ));
+    }
+
+    #[test]
+    fn decodes_the_shared_text_behavior_v1_golden_frame() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../fixtures/protocol/set-text-behavior-v1.json"
+        ))
+        .unwrap();
+        assert_eq!(fixture["name"], "set-text-behavior-v1");
+        let bytes = fixture["bytes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| {
+                value
+                    .as_u64()
+                    .and_then(|value| u8::try_from(value).ok())
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert_eq!(frame.seq, 1);
+        assert!(matches!(
+            &frame.ops[..],
+            [Op::SetTextBehavior {
+                id: NodeKey { lo: 42, hi: 1 },
+                flags: 0x03,
+            }]
+        ));
+    }
+
+    #[test]
+    fn decodes_text_max_lines_without_extending_text_behavior() {
+        let mut bytes = Vec::new();
+        push_u32(&mut bytes, 1);
+        push_u32(&mut bytes, 1);
+        bytes.push(op::SET_TEXT_MAX_LINES);
+        push_node(&mut bytes, 42);
+        push_u32(&mut bytes, 2);
+
+        let frame = decode_frame(&bytes).unwrap();
+        assert!(matches!(
+            &frame.ops[0],
+            Op::SetTextMaxLines {
+                id: NodeKey { lo: 42, hi: 1 },
+                max_lines: 2,
+            }
         ));
     }
 

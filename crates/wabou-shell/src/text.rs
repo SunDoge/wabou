@@ -45,6 +45,30 @@ pub struct TextRun {
     pub color: [u8; 4],
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+/// Synthetic styles requested by Parley after resolving the available fonts.
+pub struct TextSynthesis {
+    /// At least one glyph run requires geometric emboldening.
+    pub embolden: bool,
+    /// At least one glyph run requires a synthetic skew.
+    pub skew: bool,
+}
+
+/// Inspect the resolved glyph runs without reshaping or rasterizing them.
+pub fn text_synthesis(layout: &Layout<[u8; 4]>) -> TextSynthesis {
+    let mut result = TextSynthesis::default();
+    for line in layout.lines() {
+        for item in line.items() {
+            let PositionedLayoutItem::GlyphRun(run) = item else {
+                continue;
+            };
+            result.embolden |= run.run().synthesis().embolden();
+            result.skew |= run.run().synthesis().skew().is_some();
+        }
+    }
+    result
+}
+
 #[derive(Clone, Hash, PartialEq, Eq)]
 struct TextRunKey {
     start: usize,
@@ -76,6 +100,7 @@ pub struct TextContext {
     pub layout_cx: LayoutContext,
     cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
     ellipsis_cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
+    clamp_cache: LruCache<(TextLayoutKey, u32), Arc<Layout<[u8; 4]>>>,
     glyph_cache: LruCache<(usize, u64), GlyphSceneEntry>,
     raster_cache: LruCache<(usize, u64, u8, u8), GlyphSceneEntry>,
     raster_scale_cx: swash::scale::ScaleContext,
@@ -84,7 +109,22 @@ pub struct TextContext {
 
 type GlyphSceneEntry = (std::sync::Weak<Layout<[u8; 4]>>, Arc<Scene>);
 
-pub(crate) const IS_APPLE_PLATFORM: bool = cfg!(any(target_os = "macos", target_os = "ios"));
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OutlineFallback {
+    DirectNativeWeight,
+    RetainedSyntheticWeight,
+}
+
+const fn outline_fallback_for(is_apple_platform: bool) -> OutlineFallback {
+    if is_apple_platform {
+        OutlineFallback::DirectNativeWeight
+    } else {
+        OutlineFallback::RetainedSyntheticWeight
+    }
+}
+
+pub(crate) const OUTLINE_FALLBACK: OutlineFallback =
+    outline_fallback_for(cfg!(any(target_os = "macos", target_os = "ios")));
 
 fn use_swash_raster_for(backend: Option<&str>) -> bool {
     match backend {
@@ -124,6 +164,7 @@ impl TextContext {
             layout_cx: LayoutContext::new(),
             cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
             ellipsis_cache: LruCache::new(NonZeroUsize::new(1024).unwrap()),
+            clamp_cache: LruCache::new(NonZeroUsize::new(1024).unwrap()),
             glyph_cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
             raster_cache: LruCache::new(NonZeroUsize::new(256).unwrap()),
             raster_scale_cx: swash::scale::ScaleContext::new(),
@@ -138,6 +179,23 @@ impl TextContext {
         self.use_swash_raster
     }
 
+    /// Stable diagnostic name for the active ordinary-text raster backend.
+    pub fn raster_backend_name(&self) -> &'static str {
+        if self.use_swash_raster {
+            "swash"
+        } else {
+            "vello-outline"
+        }
+    }
+
+    /// Stable diagnostic name for the platform outline fallback policy.
+    pub fn outline_fallback_name(&self) -> &'static str {
+        match OUTLINE_FALLBACK {
+            OutlineFallback::DirectNativeWeight => "direct-native-weight",
+            OutlineFallback::RetainedSyntheticWeight => "retained-synthetic-weight",
+        }
+    }
+
     /// Register a raw font file (TTF/OTF) from its bytes so it becomes
     /// available to parley's font matching. WOFF/WOFF2 are not decoded here —
     /// decode upstream if needed. The text layout cache is cleared because
@@ -147,6 +205,7 @@ impl TextContext {
         self.font_cx.collection.register_fonts(blob, None);
         self.cache.clear();
         self.ellipsis_cache.clear();
+        self.clamp_cache.clear();
         self.glyph_cache.clear();
         self.raster_cache.clear();
     }
@@ -207,13 +266,13 @@ impl TextContext {
         scene
     }
 
-    /// Draw an Apple-style glyph layout directly into the destination scene.
+    /// Draw a synthesis-free glyph layout directly into the destination scene.
     ///
     /// Direct encoding avoids the retained glyph-fragment issue observed with
     /// Vello/Metal. Apple platforms render unhinted outlines at the font's
     /// native weight and do not geometrically synthesize missing weights;
     /// Linux and Windows retain the Swash raster path selected by the painter.
-    pub(crate) fn draw_apple_layout_into(
+    pub(crate) fn draw_native_weight_layout_into(
         &self,
         scene: &mut Scene,
         layout: &Layout<[u8; 4]>,
@@ -466,6 +525,120 @@ pub fn layout_text_styled(
     layout
 }
 
+/// Shape text and limit the visible result to `max_lines` using an ellipsis.
+///
+/// `max_lines == 0` means unlimited. The truncation point follows grapheme
+/// boundaries and is derived from Parley's actual line breaking rather than
+/// an estimated character count.
+#[allow(clippy::too_many_arguments)]
+pub fn layout_text_styled_clamped(
+    tcx: &mut TextContext,
+    text: Arc<str>,
+    font_size: f32,
+    font_weight: f32,
+    line_height: Option<(f32, bool)>,
+    alignment: TextAlign,
+    color: [u8; 4],
+    runs: Arc<[TextRun]>,
+    font_family: Option<&Arc<str>>,
+    max_width: Option<f32>,
+    max_lines: u32,
+) -> Arc<Layout<[u8; 4]>> {
+    let base = layout_text_styled(
+        tcx,
+        text.clone(),
+        font_size,
+        font_weight,
+        line_height,
+        alignment,
+        color,
+        runs.clone(),
+        font_family,
+        max_width,
+    );
+    let Ok(line_limit) = usize::try_from(max_lines) else {
+        return base;
+    };
+    if line_limit == 0 || base.len() <= line_limit {
+        return base;
+    }
+
+    let key = text_layout_key(
+        text.clone(),
+        font_size,
+        font_weight,
+        line_height,
+        alignment,
+        color,
+        &runs,
+        font_family,
+        max_width,
+    );
+    if let Some(layout) = tcx.clamp_cache.get(&(key.clone(), max_lines)) {
+        return layout.clone();
+    }
+    let final_line_end = base
+        .lines()
+        .nth(line_limit - 1)
+        .map(|line| line.text_range().end.min(text.len()))
+        .unwrap_or(0);
+    let boundaries = std::iter::once(0)
+        .chain(
+            text[..final_line_end]
+                .grapheme_indices(true)
+                .map(|(index, grapheme)| index + grapheme.len()),
+        )
+        .collect::<Vec<_>>();
+    let mut low = 0;
+    let mut high = boundaries.len();
+    let mut best = layout_text_styled(
+        tcx,
+        Arc::from("…"),
+        font_size,
+        font_weight,
+        line_height,
+        alignment,
+        color,
+        Arc::from([]),
+        font_family,
+        max_width,
+    );
+    while low < high {
+        let middle = usize::midpoint(low, high);
+        let prefix_end = boundaries[middle];
+        let candidate: Arc<str> = Arc::from(format!("{}…", &text[..prefix_end]));
+        let candidate_runs: Arc<[TextRun]> = runs
+            .iter()
+            .filter(|run| run.range.start < prefix_end)
+            .map(|run| TextRun {
+                range: run.range.start..run.range.end.min(prefix_end),
+                ..run.clone()
+            })
+            .collect::<Vec<_>>()
+            .into();
+        let candidate_layout = layout_text_styled(
+            tcx,
+            candidate,
+            font_size,
+            font_weight,
+            line_height,
+            alignment,
+            color,
+            candidate_runs,
+            font_family,
+            max_width,
+        );
+        if candidate_layout.len() <= line_limit {
+            best = candidate_layout;
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    tcx.clamp_cache.put((key, max_lines), best.clone());
+    best
+}
+
 /// Layout text with CSS-style single-line ellipsis when it exceeds `max_width`.
 /// Truncation follows grapheme boundaries, so emoji sequences and combining
 /// marks are never split in the middle.
@@ -573,12 +746,31 @@ mod tests {
     }
 
     #[test]
+    fn platform_outline_policy_is_the_only_platform_specific_text_fallback() {
+        assert_eq!(
+            outline_fallback_for(true),
+            OutlineFallback::DirectNativeWeight
+        );
+        assert_eq!(
+            outline_fallback_for(false),
+            OutlineFallback::RetainedSyntheticWeight
+        );
+    }
+
+    #[test]
     fn text_backend_defaults_to_swash_and_keeps_vello_override() {
         assert!(use_swash_raster_for(None));
         assert!(use_swash_raster_for(Some("swash")));
         assert!(use_swash_raster_for(Some("SWASH")));
         assert!(!use_swash_raster_for(Some("vello")));
         assert!(!use_swash_raster_for(Some("VELLO")));
+
+        let context = TextContext::new();
+        assert_eq!(context.raster_backend_name(), "swash");
+        assert!(matches!(
+            context.outline_fallback_name(),
+            "direct-native-weight" | "retained-synthetic-weight"
+        ));
     }
 
     #[test]
@@ -612,6 +804,14 @@ mod tests {
 
         assert!(Arc::ptr_eq(&first, &second));
         assert_eq!(context.cache.len(), 1);
+    }
+
+    #[test]
+    fn resolved_text_synthesis_is_inspectable_without_rasterizing() {
+        let mut context = TextContext::new();
+        let layout = layout_text(&mut context, "ordinary text", 16.0);
+
+        assert_eq!(text_synthesis(&layout), TextSynthesis::default());
     }
 
     #[test]
@@ -662,6 +862,57 @@ mod tests {
         assert!(truncated.width() <= 120.0);
         assert_eq!(truncated.lines().count(), 1);
         assert!(Arc::ptr_eq(&truncated, &cached));
+    }
+
+    #[test]
+    fn clamped_layout_uses_actual_line_breaks_and_is_cached() {
+        let mut context = TextContext::new();
+        let text: Arc<str> = Arc::from(
+            "A long native UI description with emoji 👨‍👩‍👧‍👦 that needs several wrapped lines",
+        );
+        let full = layout_text_styled(
+            &mut context,
+            text.clone(),
+            16.0,
+            400.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            Some(120.0),
+        );
+        let clamped = layout_text_styled_clamped(
+            &mut context,
+            text.clone(),
+            16.0,
+            400.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            Some(120.0),
+            2,
+        );
+        let cached = layout_text_styled_clamped(
+            &mut context,
+            text,
+            16.0,
+            400.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            Some(120.0),
+            2,
+        );
+
+        assert!(full.len() > 2);
+        assert_eq!(clamped.len(), 2);
+        assert!(clamped.height() < full.height());
+        assert!(Arc::ptr_eq(&clamped, &cached));
     }
 
     #[test]

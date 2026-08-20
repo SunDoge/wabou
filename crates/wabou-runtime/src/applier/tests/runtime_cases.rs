@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn host_messages_dispatch_without_waiting_for_a_render_frame() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.__wabou_dispatch_host_frame = () => {
+                  __wabou_effect_submit(7, 1, "null");
+                  return { needsTick: false };
+                };
+                "#,
+            )
+        })
+        .expect("install host-frame fixture");
+
+    applier
+        .host_message_handle()
+        .emit_null("application.quit")
+        .expect("enqueue host message");
+
+    assert!(FrameSource::poll_async(&mut applier));
+    assert!(matches!(
+        FrameSource::take_effect(&mut applier).map(|request| request.payload),
+        Some(wabou_shell::EffectPayload::ApplicationExit)
+    ));
+}
+
+#[test]
 fn solid_resources_settle_native_promises_and_return_runtime_to_idle() {
     const RESOURCE_FIXTURE: &str = include_str!("../../gen/resource-test-runtime.js");
     let js = JsRuntime::new().expect("runtime");

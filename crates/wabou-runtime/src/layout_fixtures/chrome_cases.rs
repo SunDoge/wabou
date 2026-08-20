@@ -276,13 +276,7 @@ fn story_row_long_title_compresses_content_column_only() {
                 declaration("flex", flex_none()),
             ],
         ),
-        rule(
-            "body",
-            vec![
-                declaration("flex", flex_one()),
-                declaration("min-width", px(0.0)),
-            ],
-        ),
+        rule("body", vec![declaration("flex", flex_one())]),
         rule(
             "title",
             vec![

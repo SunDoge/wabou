@@ -16,6 +16,7 @@ import {
   TextArea as PrimitiveTextArea,
   type TextAreaProps as PrimitiveTextAreaProps,
   Text,
+  type TextProps,
   translate2d,
   View,
   type ViewProps,
@@ -35,6 +36,7 @@ export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
 export * from "./forms";
 export * from "./input";
 export * from "./layout";
+export * from "./page";
 export * from "./select";
 export {
   Checkbox,
@@ -72,6 +74,8 @@ export * from "./title-bar";
 export interface BadgeProps {
   children?: JSX.Element;
   variant?: "default" | "secondary" | "outline" | "success" | "destructive";
+  /** Typography weight selected without competing utility declarations. */
+  weight?: "normal" | "medium";
   class?: string;
 }
 
@@ -95,7 +99,8 @@ export function Badge(props: BadgeProps): JSX.Element {
   return (
     <Text
       class={join(
-        "flex-none whitespace-nowrap px-2 py-0.5 rounded-md border text-xs font-medium",
+        "flex-none whitespace-nowrap px-2 py-0.5 rounded-md border text-xs",
+        props.weight === "normal" ? "font-normal" : "font-medium",
         badgeColors(props.variant ?? "default"),
         props.class,
       )}
@@ -135,7 +140,11 @@ export function Fps(props: FpsProps): JSX.Element {
       )
       .otherwise(() => "secondary");
   return (
-    <Badge variant={variant()} class={join("font-mono", props.class)}>
+    <Badge
+      variant={variant()}
+      weight="normal"
+      class={join("font-mono", props.class)}
+    >
       {value()}
       {props.label === "" ? "" : ` ${props.label ?? "fps"}`}
     </Badge>
@@ -145,6 +154,7 @@ export function Fps(props: FpsProps): JSX.Element {
 export function Card(props: {
   children?: JSX.Element;
   class?: string;
+  ref?: ViewProps["ref"];
   shadows?: readonly import("@wabou/core/style").Shadow[] | null;
   role?: ViewProps["role"];
   "aria-label"?: string;
@@ -153,11 +163,12 @@ export function Card(props: {
   const theme = useComponentsTheme();
   return (
     <View
+      ref={props.ref}
       role={props.role}
       aria-label={props["aria-label"]}
       aria-hidden={props["aria-hidden"]}
       class={join(
-        "flex flex-col overflow-hidden rounded-lg border",
+        "min-w-0 min-h-0 flex flex-col overflow-hidden rounded-lg border",
         "border-subtle bg-surface",
         props.class,
       )}
@@ -176,27 +187,33 @@ export function CardHeader(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("flex flex-col gap-1 px-4 pt-4", props.class)}>
+    <View class={join("min-w-0 flex flex-col gap-1 px-4 pt-4", props.class)}>
       {props.children}
     </View>
   );
 }
-export function CardTitle(props: {
-  children?: JSX.Element;
-  class?: string;
-}): JSX.Element {
+export interface CardTitleProps extends TextProps {}
+
+export function CardTitle(props: CardTitleProps): JSX.Element {
   return (
-    <Text class={join("text-base font-semibold", "text-primary", props.class)}>
+    <Text
+      {...props}
+      class={join(
+        "min-w-0 text-base font-semibold",
+        "text-primary",
+        props.class,
+      )}
+    >
       {props.children}
     </Text>
   );
 }
-export function CardDescription(props: {
-  children?: JSX.Element;
-  class?: string;
-}): JSX.Element {
+export interface CardDescriptionProps extends TextProps {}
+
+export function CardDescription(props: CardDescriptionProps): JSX.Element {
   return (
     <Text
+      {...props}
       class={join(
         "w-full min-w-0 whitespace-normal text-sm",
         "text-muted",
@@ -212,7 +229,7 @@ export function CardContent(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("flex flex-col gap-3 p-4", props.class)}>
+    <View class={join("min-w-0 min-h-0 flex flex-col gap-3 p-4", props.class)}>
       {props.children}
     </View>
   );
@@ -222,7 +239,9 @@ export function CardFooter(props: {
   class?: string;
 }): JSX.Element {
   return (
-    <View class={join("flex items-center gap-2 px-4 pb-4", props.class)}>
+    <View
+      class={join("min-w-0 flex items-center gap-2 px-4 pb-4", props.class)}
+    >
       {props.children}
     </View>
   );
@@ -330,6 +349,7 @@ export interface SwitchProps {
   onCheckedChange?: (checked: boolean) => void;
   label?: string;
   "aria-label"?: string;
+  class?: string;
 }
 
 function switchColors(checked: boolean, state: ButtonState): string {
@@ -367,7 +387,7 @@ export function Switch(props: SwitchProps): JSX.Element {
     props.onCheckedChange?.(next);
   };
   return (
-    <View class="flex items-center gap-3">
+    <View class={join("w-full min-w-0 flex items-center gap-3", props.class)}>
       <HeadlessButton
         unstyled
         role="switch"
@@ -392,7 +412,11 @@ export function Switch(props: SwitchProps): JSX.Element {
           transform={translate2d(thumbX(), 0)}
         />
       </HeadlessButton>
-      {props.label && <Text class="text-sm text-secondary">{props.label}</Text>}
+      {props.label && (
+        <Text class="min-w-0 flex-1 whitespace-normal text-sm text-secondary">
+          {props.label}
+        </Text>
+      )}
     </View>
   );
 }

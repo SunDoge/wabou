@@ -258,6 +258,8 @@ impl Applier {
         self.document.overlay_planes.clear();
         self.interaction.scroll.styles.clear();
         self.document.style.diagnostics.clear();
+        #[cfg(any(feature = "devtools", test))]
+        self.document.style.cascade.clear();
         self.document.widget_manager.widgets.clear();
         self.document.widget_manager.styles.clear();
         self.interaction.input.listeners.clear();

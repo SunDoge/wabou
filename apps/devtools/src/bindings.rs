@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use wabou::{Bindings, Capability, JsonCapabilityContract, JsonMethod, Type, specta};
-use wabou_devtools::{DebugFrame, DebugNode, DebugOverlay, DebugStatus};
+use wabou_devtools::{DebugFrame, DebugNode, DebugOverlay, DebugStatus, NodeKey};
 
 /// Host capability containing the DevTools example endpoints.
 pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("devtools", 1);
@@ -57,7 +57,7 @@ pub struct QueryNodesRequest {
 #[derive(Deserialize, Type)]
 pub struct InspectNodeRequest {
     /// Retained node identifier.
-    pub id: u32,
+    pub id: NodeKey,
 }
 
 /// Request selecting recent protocol frames.
@@ -78,7 +78,7 @@ pub struct SetOverlayRequest {
     /// Show the current hit target.
     pub hit_target: bool,
     /// Optionally highlight one retained node.
-    pub selected_node: Option<u32>,
+    pub selected_node: Option<NodeKey>,
 }
 
 /// Builds the binding manifest consumed by TypeScript code generation.
@@ -103,7 +103,7 @@ mod tests {
     fn exports_stateful_devtools_methods_from_dto_contracts() {
         let output = manifest().render();
         assert!(output.contains("queryNodes(request: QueryNodesRequest): Promise<DebugNode[]>"));
-        assert!(output.contains("selectedNode: number | null"));
+        assert!(output.contains("selectedNode: NodeKey | null"));
         assert!(output.contains("captureScreenshot(): Promise<PathResult>"));
         assert!(output.contains("captureScreenshot(): NativeResult<string>"));
     }

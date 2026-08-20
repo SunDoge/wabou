@@ -59,6 +59,7 @@ impl Applier {
             };
             if !node.paint.text_selectable
                 || node.paint.text_ellipsis
+                || node.paint.text_max_lines > 0
                 || self
                     .document
                     .widget_manager

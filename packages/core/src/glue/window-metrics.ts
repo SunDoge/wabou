@@ -1,4 +1,4 @@
-import { type Accessor, createSignal } from "solid-js";
+import { type Accessor, createMemo, createSignal } from "solid-js";
 import { subscribeJson } from "./host-messages";
 import { usePlatformServices } from "./platform-context";
 import {
@@ -72,17 +72,20 @@ export function createWindowMatch(
     throw new RangeError("minHeight cannot exceed maxHeight");
   }
 
-  return () => {
-    const width = window.width();
-    const height = window.height();
-    if (width <= 0 || height <= 0) return false;
-    return (
-      (query.minWidth === undefined || width >= query.minWidth) &&
-      (query.maxWidth === undefined || width <= query.maxWidth) &&
-      (query.minHeight === undefined || height >= query.minHeight) &&
-      (query.maxHeight === undefined || height <= query.maxHeight)
-    );
-  };
+  return createMemo(
+    () => {
+      const width = window.width();
+      const height = window.height();
+      if (width <= 0 || height <= 0) return false;
+      return (
+        (query.minWidth === undefined || width >= query.minWidth) &&
+        (query.maxWidth === undefined || width <= query.maxWidth) &&
+        (query.minHeight === undefined || height >= query.minHeight) &&
+        (query.maxHeight === undefined || height <= query.maxHeight)
+      );
+    },
+    { sync: true },
+  );
 }
 
 const initial: WindowMetrics = {
@@ -104,7 +107,31 @@ const initial: WindowMetrics = {
   colorScheme: "light",
 };
 
-const [metrics, setMetrics] = createSignal(initial, { equals: false });
+// Native window events can arrive while an unrelated component, behavior-test
+// action, or event handler is the current Solid owner. The metrics store is a
+// process-level host signal, so those writes are intentional cross-owner writes.
+function sameMetrics(previous: WindowMetrics, next: WindowMetrics): boolean {
+  return (
+    previous.windowId.lo === next.windowId.lo &&
+    previous.windowId.hi === next.windowId.hi &&
+    previous.logicalWidth === next.logicalWidth &&
+    previous.logicalHeight === next.logicalHeight &&
+    previous.physicalWidth === next.physicalWidth &&
+    previous.physicalHeight === next.physicalHeight &&
+    previous.scaleFactor === next.scaleFactor &&
+    previous.maximized === next.maximized &&
+    previous.focused === next.focused &&
+    previous.colorScheme === next.colorScheme
+  );
+}
+
+const [metrics, setMetrics] = createSignal(initial, {
+  // Headless hosts and some platforms can publish an unchanged metrics
+  // snapshot on consecutive frames. Do not repeatedly invalidate the entire
+  // responsive tree for an object that is only referentially new.
+  equals: sameMetrics,
+  ownedWrite: true,
+});
 
 function decodeWindowMetrics(value: unknown): WindowMetrics {
   if (typeof value !== "object" || value === null)

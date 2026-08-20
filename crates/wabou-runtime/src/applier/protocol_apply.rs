@@ -310,6 +310,8 @@ impl Applier {
         self.interaction.scroll.offsets.remove(&node);
         self.document.resources.svg.remove(&node);
         self.document.style.diagnostics.remove(&node);
+        #[cfg(any(feature = "devtools", test))]
+        self.document.style.cascade.remove(&node);
         if let Some(widget) = self.document.widget_manager.widgets.get_mut(&node) {
             widget.unmount();
         }
@@ -665,6 +667,14 @@ impl Applier {
                         declared.text_behavior = *flags;
                     }
                     self.document.ifc_dirty = true;
+                    self.recompute_node(node);
+                }
+            }
+            Op::SetTextMaxLines { id, max_lines } => {
+                if let Some(&node) = self.document.node_store.solid_to_node.get(id) {
+                    if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
+                        declared.text_max_lines = *max_lines;
+                    }
                     self.recompute_node(node);
                 }
             }

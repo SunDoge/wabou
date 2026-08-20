@@ -197,7 +197,7 @@ export function OverviewPage(props: {
               </View>
               <View class="flex items-center justify-between pt-3 border-t border-subtle">
                 <Text class="text-xs text-muted">Headroom</Text>
-                <Text class="font-mono text-xs font-medium text-success-primary">
+                <Text class="font-mono text-xs text-success-primary">
                   36 percent
                 </Text>
               </View>
@@ -359,9 +359,7 @@ function Property(props: { label: string; value: string }) {
   return (
     <View class="p-3 flex flex-col gap-1 rounded-md border border-subtle bg-surface-muted">
       <Text class="text-xs text-muted">{props.label}</Text>
-      <Text class="font-mono text-xs font-medium text-primary">
-        {props.value}
-      </Text>
+      <Text class="font-mono text-xs text-primary">{props.value}</Text>
     </View>
   );
 }

@@ -235,6 +235,26 @@ fn input_validation_reports_actionable_errors() {
         &json!({
             "version": 1,
             "actions": [{
+                "action": "assertByRole",
+                "windowId": 1,
+                "role": "tab",
+                "label": "Overview",
+                "assertion": {
+                    "type": "sameBounds",
+                    "other": { "role": "tab", "name": "Files" },
+                    "fields": [],
+                    "tolerance": 0.5
+                },
+                "wait": { "timeout": 1000, "interval": 16 }
+            }]
+        }),
+        None,
+        "matching bounds fields cannot be empty",
+    );
+    assert_error_contains(
+        &json!({
+            "version": 1,
+            "actions": [{
                 "action": "clickByRole",
                 "windowId": 1,
                 "role": "button",
@@ -401,6 +421,31 @@ fn validation_accepts_every_version_one_action_family() {
             "assertion": {
                 "type": "withinBounds",
                 "expected": { "x": 0, "y": 0, "width": 900, "height": 600 },
+                "tolerance": 0.5
+            },
+            "wait": { "timeout": 1000, "interval": 16 }
+        },
+        {
+            "action": "assertByRole",
+            "windowId": 1,
+            "role": "group",
+            "label": "Task identity",
+            "assertion": {
+                "type": "notOverlap",
+                "other": { "role": "group", "name": "Task status", "index": 0 },
+                "tolerance": 1
+            },
+            "wait": { "timeout": 1000, "interval": 16 }
+        },
+        {
+            "action": "assertByRole",
+            "windowId": 1,
+            "role": "tab",
+            "label": "Overview",
+            "assertion": {
+                "type": "sameBounds",
+                "other": { "role": "tab", "name": "Files" },
+                "fields": ["y", "height"],
                 "tolerance": 0.5
             },
             "wait": { "timeout": 1000, "interval": 16 }

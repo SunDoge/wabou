@@ -890,7 +890,8 @@
     SetGraphicSource: 30,
     ClearGraphicSource: 31,
     SetGraphicData: 32,
-    ClearGraphicData: 33
+    ClearGraphicData: 33,
+    SetTextMaxLines: 34
   };
   var TEXT_BEHAVIOR = {
     AggregateDirectText: 1,
@@ -1156,6 +1157,14 @@
       this.emit(OP.SetTextBehavior);
       this.key(id);
       this.u8(flags);
+    }
+    setTextMaxLines(id, maxLines) {
+      if (!Number.isInteger(maxLines) || maxLines < 0 || maxLines > 4294967295) {
+        throw new RangeError(`invalid text max lines ${maxLines}`);
+      }
+      this.emit(OP.SetTextMaxLines);
+      this.key(id);
+      this.u32(maxLines);
     }
     setInteractionPolicy(id, flags, focusOrder) {
       if (!Number.isInteger(flags) || flags < 0 || (flags & ~INTERACTION_POLICY_MASK) !== 0) {
@@ -5705,8 +5714,11 @@
       return;
     }
     if (name === "textBehavior") {
-      const flags = value == null || value === false ? 0 : Number(value);
+      const behavior = value && typeof value === "object" ? value : { flags: value, maxLines: 0 };
+      const flags = behavior.flags == null || behavior.flags === false ? 0 : Number(behavior.flags);
+      const maxLines = behavior.maxLines == null || behavior.maxLines === false ? 0 : Number(behavior.maxLines);
       writer.setTextBehavior(node.id, flags);
+      writer.setTextMaxLines(node.id, maxLines);
       return;
     }
     if (name === "focusOrder" || name === "interactionBlocked" || name === "focusContained") {
@@ -6622,7 +6634,13 @@ ${detail}`);
     focused: false,
     colorScheme: "light"
   };
-  var [metrics, setMetrics] = createSignal2(initial, { equals: false });
+  function sameMetrics(previous, next) {
+    return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.colorScheme === next.colorScheme;
+  }
+  var [metrics, setMetrics] = createSignal2(initial, {
+    equals: sameMetrics,
+    ownedWrite: true
+  });
   function decodeWindowMetrics(value) {
     if (typeof value !== "object" || value === null)
       throw new TypeError("window metrics must be an object");

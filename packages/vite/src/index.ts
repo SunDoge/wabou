@@ -205,6 +205,10 @@ function resolveWabouConfig(
       options.entry ?? "ui/index.tsx",
     ),
     resolve: {
+      // Published Wabou packages and application source must share one Solid
+      // reactive graph. Package-manager store paths otherwise allow Vite to
+      // bundle duplicate runtimes that cannot observe each other's signals.
+      dedupe: ["solid-js"],
       alias: {
         "@wabou/core/renderer": renderer,
         "solid-js/web": renderer,

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { flush } from "solid-js";
+import { createEffect, createRoot, flush } from "solid-js";
 import { dispatchHostMessage } from "./host-messages";
 import { createWindowMatch, useWindow } from "./window-metrics";
 
@@ -44,6 +44,46 @@ test("native window size queries are reactive and reject invalid ranges", () => 
   expect(() =>
     createWindowMatch({ minWidth: 900, maxWidth: 800 }, window),
   ).toThrow("minWidth cannot exceed maxWidth");
+});
+
+test("native metrics can publish while an unrelated Solid owner is current", () => {
+  const window = useWindow();
+  let observedWidth = 0;
+  let widthRuns = 0;
+  let compact = false;
+  const dispose = createRoot((dispose) => {
+    const matchesCompact = createWindowMatch({ maxWidth: 1050 }, window);
+    createEffect(
+      () => window.width(),
+      (width) => {
+        widthRuns++;
+        observedWidth = width;
+      },
+    );
+    createEffect(matchesCompact, (matches) => {
+      compact = matches;
+    });
+    flush();
+    return dispose;
+  });
+
+  dispatchHostMessage(
+    "wabou:window-metrics",
+    JSON.stringify({
+      ...window.metrics(),
+      logicalWidth: 936,
+      physicalWidth: 936,
+    }),
+  );
+  flush();
+
+  expect(observedWidth).toBe(936);
+  expect(compact).toBe(true);
+  const runsAfterChange = widthRuns;
+  dispatchHostMessage("wabou:window-metrics", JSON.stringify(window.metrics()));
+  flush();
+  expect(widthRuns).toBe(runsAfterChange);
+  dispose();
 });
 
 test("invalid native metrics do not replace the last valid snapshot", () => {

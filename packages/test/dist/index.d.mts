@@ -24,6 +24,7 @@ interface NativeTestCapability {
   nativeClose(lo: number, hi: number, mutableVisibility: boolean): Promise<boolean>;
   showWindow(lo: number, hi: number): Promise<boolean>;
   resizeWindow(lo: number, hi: number, width: number, height: number): Promise<boolean>;
+  fileDrop(lo: number, hi: number, phase: TestFileDropPhase, paths: string): Promise<boolean>;
   windowState(lo: number, hi: number): string;
   windowViewport(lo: number, hi: number): string;
   clickByRole(lo: number, hi: number, role: string, label: string, index: number | null): Promise<boolean>;
@@ -57,6 +58,7 @@ interface TestEffectResponseMap {
   dialogPickDirectory: string[] | null;
   dialogMessage: "ok" | "cancel" | "yes" | "no" | "custom";
   notificationShow: null;
+  windowClose: null;
 }
 type TestEffectOperation = keyof TestEffectResponseMap;
 interface TestEffects {
@@ -70,8 +72,11 @@ interface TestWindow {
   show(windowId: WindowKey): Promise<void>;
   /** Resize a visible window in logical pixels through the native surface path. */
   resize(windowId: WindowKey, width: number, height: number): Promise<void>;
+  /** Dispatch one native file-drag lifecycle event to a window. */
+  fileDrop(windowId: WindowKey, phase: TestFileDropPhase, paths?: readonly string[]): Promise<void>;
   state(windowId: WindowKey): NativeWindowState | null;
 }
+type TestFileDropPhase = "entered" | "moved" | "left" | "dropped";
 interface TestPage {
   readonly effects: TestEffects;
   /** Bind subsequent locators and frame barriers to one logical window. */
@@ -125,6 +130,7 @@ interface LocatorBounds {
   width: number;
   height: number;
 }
+type LocatorBoundsField = keyof LocatorBounds;
 interface LocatorNumericRange {
   value: number;
   min: number;
@@ -201,6 +207,15 @@ type LocatorAssertion = {
   expected: LocatorBounds;
   tolerance: number;
 } | {
+  type: "notOverlap";
+  other: Pick<Locator, "role" | "name" | "index">;
+  tolerance: number;
+} | {
+  type: "sameBounds";
+  other: Pick<Locator, "role" | "name" | "index">;
+  fields: LocatorBoundsField[];
+  tolerance: number;
+} | {
   type: "viewport";
   tolerance: number;
 };
@@ -252,6 +267,11 @@ type TestAction = {
   windowId: WindowKey;
   width: number;
   height: number;
+} | {
+  action: "fileDrop";
+  windowId: WindowKey;
+  phase: TestFileDropPhase;
+  paths: string[];
 } | {
   action: "clickByRole";
   windowId: WindowKey;
@@ -322,6 +342,8 @@ declare function expect<T>(actual: T): {
   toBeBlurred(options?: LocatorAssertionOptions): Promise<void>;
   toHaveBounds(expected: Partial<LocatorBounds>, options?: BoundsAssertionOptions): Promise<void>;
   toBeWithinBounds(expected: LocatorBounds, options?: BoundsAssertionOptions): Promise<void>;
+  toNotOverlap(other: Locator, options?: BoundsAssertionOptions): Promise<void>;
+  toHaveSameBoundsAs(other: Locator, fields?: readonly LocatorBoundsField[], options?: BoundsAssertionOptions): Promise<void>;
   toBeInViewport(options?: BoundsAssertionOptions): Promise<void>;
 };
 declare namespace expect {
@@ -333,5 +355,5 @@ declare namespace expect {
   };
 }
 //#endregion
-export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorCurrent, LocatorNumericRange, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
+export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorBoundsField, LocatorCurrent, LocatorNumericRange, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFileDropPhase, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
 //# sourceMappingURL=index.d.mts.map

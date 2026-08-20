@@ -370,6 +370,7 @@ describe("host primitives", () => {
     const semantics: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     const setTextBehavior = writer.setTextBehavior.bind(writer);
+    const setTextMaxLines = writer.setTextMaxLines.bind(writer);
     writer.setAttribute = (_id, name, value) => {
       if (name === "role") {
         semantics.push([name, value]);
@@ -378,8 +379,12 @@ describe("host primitives", () => {
     writer.setTextBehavior = (_id, flags) => {
       semantics.push(["textBehavior", String(flags)]);
     };
+    writer.setTextMaxLines = (_id, maxLines) => {
+      semantics.push(["textMaxLines", String(maxLines)]);
+    };
     try {
       Text({});
+      Text({ maxLines: 2 });
       Svg({ source: "<svg/>" });
       NetworkImage({
         url: "https://example.test/avatar.png",
@@ -389,13 +394,23 @@ describe("host primitives", () => {
     } finally {
       writer.setAttribute = setAttribute;
       writer.setTextBehavior = setTextBehavior;
+      writer.setTextMaxLines = setTextMaxLines;
     }
     expect(semantics).toEqual([
       ["role", "label"],
       ["textBehavior", "3"],
+      ["textMaxLines", "0"],
+      ["role", "label"],
+      ["textBehavior", "1"],
+      ["textMaxLines", "2"],
       ["role", "img"],
       ["role", "img"],
     ]);
+  });
+
+  test("rejects invalid text line limits before crossing the bridge", () => {
+    expect(() => Text({ maxLines: 0 })).toThrow(RangeError);
+    expect(() => Text({ maxLines: 1.5 })).toThrow(RangeError);
   });
 
   test("authors native editor focus policy in JavaScript", () => {

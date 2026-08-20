@@ -66,6 +66,18 @@ fn text_layout_defaults_require_an_explicit_js_contract() {
     let configured = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
     assert!(!configured.wrap_text);
     assert_eq!(configured.layout.flex_shrink, 0.0);
+
+    applier.apply_op(&Op::SetTextBehavior {
+        id: NodeKey::new(2, 1),
+        flags: crate::protocol::TEXT_BEHAVIOR_AGGREGATE_DIRECT,
+    });
+    applier.apply_op(&Op::SetTextMaxLines {
+        id: NodeKey::new(2, 1),
+        max_lines: 2,
+    });
+    let clamped = applier.computed_node_snapshot(NodeKey::new(2, 1)).unwrap();
+    assert!(clamped.wrap_text);
+    assert_eq!(clamped.text_max_lines, 2);
 }
 
 #[test]

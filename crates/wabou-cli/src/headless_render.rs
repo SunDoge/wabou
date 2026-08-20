@@ -35,6 +35,7 @@ pub(super) struct RenderOptions {
     pub(super) scenario: Option<PathBuf>,
     pub(super) wait_ms: u64,
     pub(super) metrics: Option<PathBuf>,
+    pub(super) snapshot: Option<PathBuf>,
     pub(super) samples: usize,
     pub(super) actions: Vec<RenderAction>,
 }
@@ -251,6 +252,11 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     );
     let mut applier =
         Applier::from_runtime_with_factories_and_window(js, factories, base_color, window_key);
+    let debug_state = options.snapshot.as_ref().map(|_| {
+        let state = wabou_devtools::DebugState::shared();
+        applier.set_debug_state(state.clone());
+        state
+    });
     applier
         .boot(&source)
         .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
@@ -300,6 +306,24 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
             &mut text_context,
         )?;
         nodes = applier.build_frame(&mut text_context, *width, *height);
+    }
+
+    if let (Some(path), Some(state)) = (&options.snapshot, debug_state.as_ref()) {
+        // Publish after every action, settling interval, and metrics sample.
+        // The resulting nodes are passed unchanged into scene construction, so
+        // the JSON and PNG describe one final logical frame.
+        applier.set_debug_state(state.clone());
+        nodes = applier.build_frame(&mut text_context, *width, *height);
+        if let Some(parent) = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+        {
+            fs::create_dir_all(parent)?;
+        }
+        let state = state
+            .read()
+            .map_err(|_| "headless debug snapshot lock was poisoned")?;
+        fs::write(path, serde_json::to_vec_pretty(state.snapshot())?)?;
     }
 
     if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {

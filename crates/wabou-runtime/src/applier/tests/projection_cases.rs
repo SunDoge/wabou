@@ -356,6 +356,12 @@ fn coalesced_release_distance_also_suppresses_click() {
 #[test]
 fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let mut applier = interactive_applier();
+    let class = applier.document.atoms.borrow_mut().intern("class");
+    applier.apply_op(&Op::SetAttribute {
+        id: NodeKey::new(2, 1),
+        name: class,
+        value: "font-medium font-normal",
+    });
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
     let placed = layout::flatten_with_scroll(
@@ -364,16 +370,38 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
         &applier.interaction.scroll.offsets,
     );
     applier.frame.last_viewport = (800, 600);
-    applier.publish_debug_snapshot(&placed);
+    applier.publish_debug_snapshot(&placed, &mut TextContext::new());
     applier.handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1));
 
     let state = state.read().unwrap();
     let snapshot = state.snapshot();
     assert_eq!(snapshot.status.viewport_width, 800);
+    assert_eq!(snapshot.status.text_backend, "swash");
+    assert!(matches!(
+        snapshot.status.text_outline_fallback.as_str(),
+        "direct-native-weight" | "retained-synthetic-weight"
+    ));
+    let json = serde_json::to_value(&snapshot).unwrap();
+    assert_eq!(json["status"]["textBackend"], "swash");
+    assert!(json["nodes"].as_array().unwrap().iter().any(|node| {
+        node["id"]["lo"] == 2
+            && node["computed"]["syntheticBold"] == false
+            && node["computed"]["syntheticItalic"] == false
+            && node["computed"].get("fontFamily").is_some()
+    }));
     let button = snapshot.nodes.iter().find(|node| node.id == nk(2)).unwrap();
     assert_eq!(button.tag, "button");
     assert_eq!(button.rect.width, 100.0);
     assert_eq!(button.rect.height, 50.0);
+    assert!(!button.computed.synthetic_bold);
+    assert!(!button.computed.synthetic_italic);
+    let font_weight = button
+        .style_cascade
+        .iter()
+        .find(|entry| entry.property == "font-weight")
+        .expect("font weight cascade entry");
+    assert_eq!(font_weight.source, ".font-normal");
+    assert_eq!(font_weight.overridden_sources, [".font-medium"]);
     assert!(
         state
             .frames()
@@ -412,7 +440,7 @@ fn devtools_snapshot_exposes_widget_local_and_ancestor_clip_coordinates() {
     widget.clip_radius = 6.0;
     widget.paint.border_radius = 12.0;
 
-    applier.publish_debug_snapshot(&placed);
+    applier.publish_debug_snapshot(&placed, &mut TextContext::new());
 
     let state = state.read().unwrap();
     let widget = state
@@ -488,7 +516,7 @@ fn devtools_snapshot_exposes_layout_and_redacts_secrets() {
         &applier.interaction.scroll.offsets,
     );
     applier.frame.last_viewport = (800, 600);
-    applier.publish_debug_snapshot(&placed);
+    applier.publish_debug_snapshot(&placed, &mut TextContext::new());
 
     let state = state.read().unwrap();
     let snapshot = state.snapshot();

@@ -67,6 +67,35 @@ function Workspace() {
 }
 ```
 
+Window width is the right input for application-wide navigation changes. A
+component inside a sidebar, split pane, card, or dialog should instead respond
+to its own completed native content box:
+
+```tsx
+import { createContainerMatch, View } from "@wabou/ui";
+
+function Results() {
+  const compact = createContainerMatch({ maxWidth: 639 });
+  return (
+    <View
+      ref={compact.ref}
+      class={compact.matches() ? "grid-cols-1" : "grid-cols-2"}
+    >
+      {/* results */}
+    </View>
+  );
+}
+```
+
+The match remains false until the first native measurement. Resize observations
+are delivered after layout and update Solid on the following turn, avoiding a
+recursive layout pass.
+
+`ResponsiveGrid` packages the common measured-column calculation. Descendant
+components can call `useResponsiveGrid()` to read its reactive `columns`,
+`width`, and `height`; this keeps card density and internal arrangement tied to
+the space the grid actually received rather than a second window breakpoint.
+
 Persisted sizes live under the configured application-local data directory.
 Wabou records only a valid non-maximized logical size, clamps it to the current
 minimum, and restores it before creating the native surface, so startup does

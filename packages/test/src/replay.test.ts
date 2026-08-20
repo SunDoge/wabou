@@ -78,6 +78,8 @@ test("replay preserves the logical window for every action", async () => {
     show: async (windowId) => record(keyLabel(windowId), "show"),
     resize: async (windowId, width, height) =>
       record(keyLabel(windowId), "resize", width, height),
+    fileDrop: async (windowId, phase, paths) =>
+      record(keyLabel(windowId), "fileDrop", phase, paths),
     state: () => null,
   };
   const actions: TestAction[] = [
@@ -91,6 +93,12 @@ test("replay preserves the logical window for every action", async () => {
       windowId: key(8),
       width: 900,
       height: 600,
+    },
+    {
+      action: "fileDrop",
+      windowId: key(9),
+      phase: "dropped",
+      paths: ["/tmp/example.torrent"],
     },
     {
       action: "clickByRole",
@@ -152,6 +160,7 @@ test("replay preserves the logical window for every action", async () => {
   expect(observed).toEqual([
     ["effect", "dialogPickDirectory", ["/tmp/downloads"]],
     ["8v1", "resize", 900, 600],
+    ["9v1", "fileDrop", "dropped", ["/tmp/example.torrent"]],
     [
       "2v3",
       "button",

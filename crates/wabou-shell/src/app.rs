@@ -22,7 +22,7 @@ use winit::keyboard::{Key, KeyLocation as WinitKeyLocation, ModifiersState};
 use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use winit::window::{
     ImeCapabilities, ImeEnableRequest, ImeHint, ImePurpose, ImeRequest, ImeRequestData,
-    UserAttentionType, WindowId,
+    ResizeDirection, UserAttentionType, WindowId,
 };
 
 use crate::WindowResourceKey;
@@ -61,6 +61,44 @@ fn update_present_retry(presented: bool, retry_pending: &mut bool) -> bool {
 fn window_capabilities(handle: Option<RawWindowHandle>) -> WindowCapabilities {
     WindowCapabilities {
         mutable_visibility: !matches!(handle, Some(RawWindowHandle::Wayland(_))),
+    }
+}
+
+// Undecorated windows have no compositor-drawn border to grab. Keep this in
+// logical pixels so the target remains usable at every display scale; the
+// outer few pixels are otherwise surprisingly difficult to hit on touchpads.
+const CUSTOM_DECORATION_RESIZE_BORDER: f64 = 12.0;
+
+fn resize_direction_at(
+    position: Point,
+    width: f64,
+    height: f64,
+    border: f64,
+) -> Option<ResizeDirection> {
+    if width <= 0.0
+        || height <= 0.0
+        || position.x < 0.0
+        || position.y < 0.0
+        || position.x > width
+        || position.y > height
+    {
+        return None;
+    }
+    let border = border.max(0.0).min(width * 0.5).min(height * 0.5);
+    let west = position.x <= border;
+    let east = position.x >= width - border;
+    let north = position.y <= border;
+    let south = position.y >= height - border;
+    match (west, east, north, south) {
+        (true, _, true, _) => Some(ResizeDirection::NorthWest),
+        (_, true, true, _) => Some(ResizeDirection::NorthEast),
+        (true, _, _, true) => Some(ResizeDirection::SouthWest),
+        (_, true, _, true) => Some(ResizeDirection::SouthEast),
+        (true, _, _, _) => Some(ResizeDirection::West),
+        (_, true, _, _) => Some(ResizeDirection::East),
+        (_, _, true, _) => Some(ResizeDirection::North),
+        (_, _, _, true) => Some(ResizeDirection::South),
+        _ => None,
     }
 }
 
@@ -140,21 +178,39 @@ pub struct App {
 }
 
 impl App {
+    fn custom_resize_direction(&self) -> Option<ResizeDirection> {
+        (self.window_options.resizable
+            && !self.window_options.decorations
+            && !self.window_metrics.maximized)
+            .then(|| {
+                resize_direction_at(
+                    self.pointer_position,
+                    f64::from(self.window_metrics.logical_width),
+                    f64::from(self.window_metrics.logical_height),
+                    CUSTOM_DECORATION_RESIZE_BORDER,
+                )
+            })
+            .flatten()
+    }
+
     fn sync_pointer_cursor(&self) {
         let Some(shell) = self.state.as_ref() else {
             return;
         };
-        let cursor = match self.source.pointer_cursor() {
-            CursorStyle::Default => CursorIcon::Default,
-            CursorStyle::Pointer => CursorIcon::Pointer,
-            CursorStyle::Text => CursorIcon::Text,
-            CursorStyle::Crosshair => CursorIcon::Crosshair,
-            CursorStyle::Move => CursorIcon::Move,
-            CursorStyle::Wait => CursorIcon::Wait,
-            CursorStyle::NotAllowed => CursorIcon::NotAllowed,
-            CursorStyle::EwResize => CursorIcon::EwResize,
-            CursorStyle::NsResize => CursorIcon::NsResize,
-        };
+        let cursor = self.custom_resize_direction().map_or_else(
+            || match self.source.pointer_cursor() {
+                CursorStyle::Default => CursorIcon::Default,
+                CursorStyle::Pointer => CursorIcon::Pointer,
+                CursorStyle::Text => CursorIcon::Text,
+                CursorStyle::Crosshair => CursorIcon::Crosshair,
+                CursorStyle::Move => CursorIcon::Move,
+                CursorStyle::Wait => CursorIcon::Wait,
+                CursorStyle::NotAllowed => CursorIcon::NotAllowed,
+                CursorStyle::EwResize => CursorIcon::EwResize,
+                CursorStyle::NsResize => CursorIcon::NsResize,
+            },
+            CursorIcon::from,
+        );
         shell.window().set_cursor(Cursor::Icon(cursor));
     }
     fn unconsumed_key_text(text: Option<String>, response: &EventResponse) -> Option<String> {
@@ -833,6 +889,7 @@ impl App {
             buttons: self.pointer_buttons,
             modifiers: self.modifiers,
         }));
+        self.sync_pointer_cursor();
     }
 
     fn handle_pointer_button(
@@ -843,6 +900,28 @@ impl App {
     ) {
         let button = Self::pointer_button(&source);
         self.pointer_position = self.logical_pointer_position(position);
+        if state == ElementState::Pressed
+            && button == PointerButton::Primary
+            && let Some(direction) = self.custom_resize_direction()
+            && let Some(shell) = self.state.as_ref()
+        {
+            match shell.window().drag_resize_window(direction) {
+                Ok(()) => {
+                    // The compositor owns the gesture until release. Do not
+                    // also dispatch it into the UI tree or leave a pressed
+                    // button bit set.
+                    self.pointer_buttons = 0;
+                    return;
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        ?direction,
+                        ?error,
+                        "native window manager rejected custom window resize"
+                    );
+                }
+            }
+        }
         let phase = match state {
             ElementState::Pressed => {
                 self.pointer_buttons |= Self::button_mask(button);
@@ -887,6 +966,16 @@ impl App {
             modifiers: self.modifiers,
         }));
     }
+
+    /// Drain work which does not require a native surface. This remains active
+    /// for close-to-tray windows whose frame source is intentionally retained.
+    fn poll_background_work(&mut self) -> bool {
+        self.poll_modal_effects()
+            | self.poll_effect_completions()
+            | self.source.poll_async()
+            | self.drain_host_actions()
+            | self.drain_effects()
+    }
 }
 
 impl ApplicationHandler for App {
@@ -919,12 +1008,8 @@ impl ApplicationHandler for App {
     }
 
     fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
-        let changed =
-            self.poll_modal_effects() | self.poll_effect_completions() | self.source.poll_async();
-        let host_action = self.drain_host_actions();
-        if (changed || host_action)
-            && let Some(shell) = self.state.as_ref()
-        {
+        let changed = self.poll_background_work();
+        if changed && let Some(shell) = self.state.as_ref() {
             shell.window().request_redraw();
         }
     }
@@ -1245,7 +1330,12 @@ impl ExtensionContext<'_> {
         let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) else {
             return false;
         };
-        app.source.handle_event(event);
+        let response = app.dispatch_event(event);
+        if response.request_redraw
+            && let Some(shell) = app.state.as_ref()
+        {
+            shell.window().request_redraw();
+        }
         true
     }
 
@@ -1305,20 +1395,25 @@ impl ExtensionContext<'_> {
             x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
             y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
         };
-        app.source.handle_event(UiEvent::Pointer(PointerEvent {
+        app.dispatch_event(UiEvent::Pointer(PointerEvent {
             phase: PointerPhase::Down,
             position,
             button: Some(PointerButton::Primary),
             buttons: 1,
             modifiers: Modifiers::default(),
         }));
-        app.source.handle_event(UiEvent::Pointer(PointerEvent {
+        let response = app.dispatch_event(UiEvent::Pointer(PointerEvent {
             phase: PointerPhase::Up,
             position,
             button: Some(PointerButton::Primary),
             buttons: 0,
             modifiers: Modifiers::default(),
         }));
+        if response.request_redraw
+            && let Some(shell) = app.state.as_ref()
+        {
+            shell.window().request_redraw();
+        }
         true
     }
 
@@ -1626,6 +1721,38 @@ impl MultiWindowApp {
         self.window_resources.remove(key);
     }
 
+    /// Route every close request through extensions before releasing the
+    /// logical window. Native decorations and custom titlebars must have the
+    /// same close-to-tray and persistence semantics.
+    fn request_window_close(
+        &mut self,
+        window_key: WindowResourceKey,
+        event_loop: &dyn ActiveEventLoop,
+    ) {
+        let mut context =
+            Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
+        if self
+            .extensions
+            .iter_mut()
+            .any(|extension| extension.close_requested(window_key, &mut context))
+        {
+            return;
+        }
+
+        if let Some(window_id) = self
+            .windows
+            .iter()
+            .find_map(|(id, app)| (app.window_key == window_key).then_some(*id))
+        {
+            self.windows.remove(&window_id);
+            self.release_window_resource(window_key);
+            return;
+        }
+        if self.hidden_windows.remove(&window_key).is_some() {
+            self.release_window_resource(window_key);
+        }
+    }
+
     fn poll_extensions(&mut self, event_loop: &dyn ActiveEventLoop) {
         let mut context =
             Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
@@ -1775,15 +1902,18 @@ impl MultiWindowApp {
             event_loop.exit();
             return;
         }
-        let closed = self
+        let close_requests = self
             .windows
-            .iter()
-            .filter_map(|(id, app)| app.close_requested.then_some(*id))
+            .values_mut()
+            .filter_map(|app| {
+                app.close_requested.then(|| {
+                    app.close_requested = false;
+                    app.window_key
+                })
+            })
             .collect::<Vec<_>>();
-        for id in closed {
-            if let Some(app) = self.windows.remove(&id) {
-                self.release_window_resource(app.window_key);
-            }
+        for window_key in close_requests {
+            self.request_window_close(window_key, event_loop);
         }
         if self.windows.is_empty() && self.hidden_windows.is_empty() {
             self.shutdown_extensions(event_loop);
@@ -1872,18 +2002,7 @@ impl ApplicationHandler for MultiWindowApp {
             let Some(window_key) = self.windows.get(&window_id).map(|app| app.window_key) else {
                 return;
             };
-            let mut context =
-                Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop);
-            if self
-                .extensions
-                .iter_mut()
-                .any(|extension| extension.close_requested(window_key, &mut context))
-            {
-                return;
-            }
-            if let Some(app) = self.windows.remove(&window_id) {
-                self.release_window_resource(app.window_key);
-            }
+            self.request_window_close(window_key, event_loop);
             if self.windows.is_empty() && self.hidden_windows.is_empty() {
                 self.shutdown_extensions(event_loop);
                 event_loop.exit();

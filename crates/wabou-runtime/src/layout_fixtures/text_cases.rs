@@ -1,5 +1,95 @@
 use super::*;
 
+#[test]
+fn text_max_lines_clamps_measured_height_from_real_line_breaks() {
+    let mut h = Harness::new();
+    let text_tag = h.intern("text");
+    let wrapped = h.intern("wrapped-copy");
+    let clamped_id = h.alloc_id();
+    let clamped_copy = h.alloc_id();
+    let full_id = h.alloc_id();
+    let full_copy = h.alloc_id();
+    let copy = "A long native description with emoji 👨‍👩‍👧‍👦 that wraps across several lines";
+    h.apply(vec![
+        Op::CreateElement {
+            id: nk(clamped_id),
+            tag: text_tag,
+        },
+        Op::SetClassName {
+            id: nk(clamped_id),
+            classes: vec![wrapped],
+        },
+        Op::SetTextBehavior {
+            id: nk(clamped_id),
+            flags: TEXT_BEHAVIOR_AGGREGATE_DIRECT,
+        },
+        Op::SetTextMaxLines {
+            id: nk(clamped_id),
+            max_lines: 2,
+        },
+        Op::CreateText {
+            id: nk(clamped_copy),
+            text: copy,
+        },
+        Op::AppendChild {
+            parent: nk(clamped_id),
+            child: nk(clamped_copy),
+        },
+        Op::CreateElement {
+            id: nk(full_id),
+            tag: text_tag,
+        },
+        Op::SetClassName {
+            id: nk(full_id),
+            classes: vec![wrapped],
+        },
+        Op::SetTextBehavior {
+            id: nk(full_id),
+            flags: TEXT_BEHAVIOR_AGGREGATE_DIRECT,
+        },
+        Op::SetTextMaxLines {
+            id: nk(full_id),
+            max_lines: 0,
+        },
+        Op::CreateText {
+            id: nk(full_copy),
+            text: copy,
+        },
+        Op::AppendChild {
+            parent: nk(full_id),
+            child: nk(full_copy),
+        },
+        Op::AppendChild {
+            parent: NodeKey::ROOT,
+            child: nk(clamped_id),
+        },
+        Op::AppendChild {
+            parent: NodeKey::ROOT,
+            child: nk(full_id),
+        },
+    ]);
+    h.queue_stylesheet(vec![rule(
+        "wrapped-copy",
+        vec![
+            declaration("width", px(120.0)),
+            declaration("white-space", keyword("normal")),
+            declaration("align-self", keyword("flex-start")),
+        ],
+    )]);
+
+    let placed = h.layout(400, 400);
+    let clamped_height = height(h.rect(&placed, clamped_id));
+    let full_height = height(h.rect(&placed, full_id));
+    assert_eq!(h.snapshot(clamped_id).text_max_lines, 2);
+    assert!(
+        clamped_height < full_height,
+        "clamped={clamped_height} full={full_height} clamped_snapshot={:?} full_snapshot={:?}",
+        h.snapshot(clamped_id),
+        h.snapshot(full_id),
+    );
+    assert!(clamped_height > 20.0, "two lines must remain visible");
+}
+
 /// HN comments badge: nowrap text must not wrap inside a narrow flex parent.
 #[test]
 fn hn_comments_badge_does_not_wrap() {

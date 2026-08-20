@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import {
   GRAPHIC_DATA,
   GRAPHIC_SOURCE,
@@ -9,6 +10,16 @@ import {
 } from "./index";
 
 const k = (lo: number) => nodeKey(lo, 1);
+
+const textBehaviorV1 = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../../fixtures/protocol/set-text-behavior-v1.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+) as { name: string; bytes: number[] };
 
 describe("Writer limits", () => {
   test("rejects strings that cannot be represented by the wire format", () => {
@@ -172,17 +183,31 @@ describe("Writer limits", () => {
     expect(frame[17]).toBe(2);
   });
 
-  test("encodes text behavior as one typed operation", () => {
+  test("preserves the text behavior v1 golden frame", () => {
     const writer = new Writer();
     writer.setTextBehavior(k(42), 0x03);
     const frame = writer.flush()!;
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
 
-    expect(frame.byteLength).toBe(18);
+    expect(textBehaviorV1.name).toBe("set-text-behavior-v1");
+    expect(Array.from(frame)).toEqual(textBehaviorV1.bytes);
     expect(frame[8]).toBe(OP.SetTextBehavior);
     expect(view.getUint32(9, true)).toBe(42);
     expect(frame[17]).toBe(0x03);
     expect(() => writer.setTextBehavior(k(42), 0x04)).toThrow(RangeError);
+  });
+
+  test("encodes text line limits without changing the text behavior ABI", () => {
+    const writer = new Writer();
+    writer.setTextMaxLines(k(42), 2);
+    const frame = writer.flush()!;
+    const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+
+    expect(frame.byteLength).toBe(21);
+    expect(frame[8]).toBe(OP.SetTextMaxLines);
+    expect(view.getUint32(9, true)).toBe(42);
+    expect(view.getUint32(17, true)).toBe(2);
+    expect(() => writer.setTextMaxLines(k(42), -1)).toThrow(RangeError);
   });
 
   test("encodes explicit focus and subtree interaction policy", () => {
@@ -243,7 +268,11 @@ describe("Writer limits", () => {
 
   test("encodes opaque length-delimited graphic data", () => {
     const writer = new Writer();
-    writer.setGraphicData(k(42), GRAPHIC_DATA.VectorPath, new Uint8Array([7, 8, 9]));
+    writer.setGraphicData(
+      k(42),
+      GRAPHIC_DATA.VectorPath,
+      new Uint8Array([7, 8, 9]),
+    );
     writer.clearGraphicData(k(42), GRAPHIC_DATA.VectorPath);
     const frame = writer.flush()!;
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);

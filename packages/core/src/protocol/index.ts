@@ -62,6 +62,7 @@ export const OP = {
   ClearGraphicSource: 0x1f,
   SetGraphicData: 0x20,
   ClearGraphicData: 0x21,
+  SetTextMaxLines: 0x22,
 } as const;
 
 export type OpCode = (typeof OP)[keyof typeof OP];
@@ -388,6 +389,14 @@ export class Writer {
     this.emit(OP.SetTextBehavior);
     this.key(id);
     this.u8(flags);
+  }
+  setTextMaxLines(id: NodeKey, maxLines: number): void {
+    if (!Number.isInteger(maxLines) || maxLines < 0 || maxLines > 0xffffffff) {
+      throw new RangeError(`invalid text max lines ${maxLines}`);
+    }
+    this.emit(OP.SetTextMaxLines);
+    this.key(id);
+    this.u32(maxLines);
   }
   setInteractionPolicy(id: NodeKey, flags: number, focusOrder: number): void {
     if (

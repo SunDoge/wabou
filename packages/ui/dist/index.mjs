@@ -1,4 +1,4 @@
-import { $ as createHover, A as Row, B as Text, C as Spin, E as createOverlayLayer, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as Button$1, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as Center, P as Image, Q as createPress, R as PathBuilder, S as Ripple, T as OverlayPlaneProvider, U as View, V as TextArea, W as rotate2d$1, X as createButton, Y as Link, Z as createActive, a as createKeyedSelection, at as createLoop, b as createNotifications, c as createFormDraft, ct as createTransition, et as createFocus, i as createScrollReset, it as animateKeyframes, j as CollapsiblePresence, k as Column, l as ScrollArea, n as createTabs, nt as createAnimationFrame, o as isSelected, ot as createPulse, q as createMeasuredSize, r as createShortcuts, rt as animate, s as toggleSelection, st as createRotation, t as primitives_exports, tt as createFocusWithin, u as Popover, w as Modal, x as Pulse, y as NotificationRegion, z as Svg } from "./primitives-BoIsDtYR.mjs";
+import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-C1LSQiBw.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -1419,10 +1419,11 @@ function InputGroupTextArea(props) {
 }
 //#endregion
 //#region src/components/layout.tsx
+const emptyClass = (variant = "surface", className) => join("w-full min-w-0 p-8 items-center justify-center gap-4", variant === "surface" ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs" : "min-h-0 bg-transparent", className);
 function Empty(props) {
 	return createComponent$1(Column, {
 		get ["class"]() {
-			return join("w-full min-h-64 p-8 items-center justify-center gap-4 rounded-lg border border-subtle bg-surface shadow-xs", props.class);
+			return emptyClass(props.variant, props.class);
 		},
 		get children() {
 			return props.children;
@@ -1451,6 +1452,7 @@ function EmptyMedia(props) {
 }
 function EmptyTitle(props) {
 	return createComponent$1(Text, {
+		role: "heading",
 		get ["class"]() {
 			return join("text-base font-semibold text-primary", props.class);
 		},
@@ -1499,6 +1501,86 @@ function ButtonGroupText(props) {
 		get children() {
 			return props.children;
 		}
+	});
+}
+const ResponsiveGridContext = createContext();
+/** Read the completed native size and active column count of the nearest grid. */
+function useResponsiveGrid() {
+	const context = useContext(ResponsiveGridContext);
+	if (!context) throw new Error("useResponsiveGrid must be used inside ResponsiveGrid");
+	return context;
+}
+const responsiveGridColumnClass = (columns) => match(columns).with(1, () => "grid-cols-1").with(2, () => "grid-cols-2").with(3, () => "grid-cols-3").with(4, () => "grid-cols-4").exhaustive();
+function responsiveGridColumnCount(options) {
+	const maxColumns = options.maxColumns ?? 4;
+	if (!Number.isFinite(options.width) || options.width <= 0) return Math.min(options.initialColumns ?? 1, maxColumns);
+	const gap = Math.max(0, options.gap ?? 16);
+	const minColumnWidth = Math.max(1, options.minColumnWidth);
+	return Math.min(maxColumns, Math.max(1, Math.floor((options.width + gap) / (minColumnWidth + gap))));
+}
+function responsiveGridRemainderCount(itemCount, columns) {
+	const remainder = Math.max(0, Math.floor(itemCount)) % columns;
+	return remainder === 0 ? 0 : columns - remainder;
+}
+/**
+* A grid that responds to its own native content box instead of the window.
+*
+* This is important inside sidebars, split panes and dialogs: window media
+* queries do not know how much width the component actually receives.
+*/
+function ResponsiveGrid(props) {
+	const measured = createMeasuredSize();
+	const columns = createMemo(() => responsiveGridColumnCount({
+		width: measured.width(),
+		minColumnWidth: props.minColumnWidth,
+		gap: props.gap,
+		maxColumns: props.maxColumns,
+		initialColumns: props.initialColumns
+	}));
+	const rest = omit(props, "children", "minColumnWidth", "gap", "maxColumns", "initialColumns", "class", "ref");
+	const state = {
+		columns,
+		width: measured.width,
+		height: measured.height
+	};
+	return createComponent$1(ResponsiveGridContext, {
+		value: state,
+		get children() {
+			return createComponent$1(View, mergeProps(rest, {
+				ref: (node) => {
+					measured.ref(node);
+					props.ref?.(node);
+				},
+				get style() {
+					return {
+						gap: props.gap ?? 16,
+						...props.style
+					};
+				},
+				get ["class"]() {
+					return join("w-full min-w-0 grid", responsiveGridColumnClass(columns()), props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			}));
+		}
+	});
+}
+/** Fill the unused cells in the final row using the grid's measured columns. */
+function ResponsiveGridRemainder(props) {
+	const context = useResponsiveGrid();
+	const cells = createMemo(() => Array.from({ length: responsiveGridRemainderCount(props.itemCount, context.columns()) }));
+	return createComponent$1(For, {
+		get each() {
+			return cells();
+		},
+		children: () => createComponent$1(View, {
+			"aria-hidden": true,
+			get ["class"]() {
+				return join("min-w-0", props.class);
+			}
+		})
 	});
 }
 /**
@@ -1599,6 +1681,101 @@ function AdaptiveSplitPaneDetail(props) {
 					return props.children;
 				}
 			});
+		}
+	});
+}
+//#endregion
+//#region src/components/page.tsx
+const pageViewportClass = (className) => join("min-w-0 min-h-0 flex-1", className);
+const pageViewportContentClass = (className) => join("w-full h-full", className);
+/**
+* A full-height application page boundary.
+*
+* This composes native scrolling with an explicitly sized content wrapper and
+* optional identity-based scroll reset. Page implementations can therefore
+* focus on their own layout instead of reconstructing flex/overflow rules.
+*/
+function PageViewport(props) {
+	let viewport;
+	createScrollReset({
+		target: () => viewport,
+		key: () => props.resetKey
+	});
+	return createComponent$1(ScrollArea, {
+		get ["class"]() {
+			return pageViewportClass(props.class);
+		},
+		get contentClass() {
+			return pageViewportContentClass(props.contentClass);
+		},
+		get style() {
+			return props.style;
+		},
+		get scrollbar() {
+			return props.scrollbar;
+		},
+		get onScroll() {
+			return props.onScroll;
+		},
+		ref: (node) => {
+			viewport = node;
+			props.ref?.(node);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+const pageHeaderClass = (className, stacked = false) => join("min-w-0 min-h-14 flex-none flex justify-between gap-4", stacked ? "flex-col items-stretch" : "flex-row items-center", className);
+/** Consistent page title, supporting text and trailing application actions. */
+function PageHeader(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return pageHeaderClass(props.class, props.stacked);
+		},
+		get children() {
+			return [createComponent$1(View, {
+				class: "min-w-0 flex-1 flex flex-row items-center gap-3",
+				get children() {
+					return [createComponent$1(View, {
+						class: "min-w-0 flex flex-col gap-1",
+						get children() {
+							return [createComponent$1(Text, {
+								role: "heading",
+								class: "whitespace-nowrap text-4xl font-bold",
+								get children() {
+									return props.title;
+								}
+							}), createComponent$1(Show, {
+								get when() {
+									return props.description;
+								},
+								children: (description) => createComponent$1(Text, {
+									class: "truncate text-sm text-muted",
+									get children() {
+										return description();
+									}
+								})
+							})];
+						}
+					}), memo(() => {
+						return props.titleAdornment;
+					})];
+				}
+			}), createComponent$1(Show, {
+				get when() {
+					return props.actions;
+				},
+				children: (actions) => createComponent$1(View, {
+					class: "flex-none flex flex-row items-center gap-2",
+					get classList() {
+						return { "w-full": props.stacked };
+					},
+					get children() {
+						return actions();
+					}
+				})
+			})];
 		}
 	});
 }
@@ -2337,6 +2514,72 @@ function TabsContent(props) {
 }
 //#endregion
 //#region src/components/title-bar.tsx
+function windowFrameBackdropClassList(maximized, rounded = true) {
+	return { "p-3": rounded && !maximized };
+}
+function windowFrameClientClassList(maximized, rounded = true, classList = {}) {
+	const decorated = rounded && !maximized;
+	return {
+		...classList,
+		"rounded-xl": decorated,
+		border: decorated,
+		"border-subtle": decorated,
+		"overflow-hidden": decorated
+	};
+}
+/** Two restrained client-decoration layers sized to fit the 12px backdrop. */
+function windowFrameShadows(theme) {
+	const ambient = theme === "dark" ? 77 : 36;
+	const contact = theme === "dark" ? 82 : 46;
+	return [shadow({
+		offsetY: 2,
+		spread: -1,
+		stdDev: 3,
+		color: ambient,
+		radius: 12
+	}), shadow({
+		offsetY: 1,
+		spread: 0,
+		stdDev: 1.5,
+		color: contact,
+		radius: 12
+	})];
+}
+/**
+* Root frame for an application-owned title bar and window chrome.
+*
+* Rounded outer corners require the native window to preserve alpha and the
+* Rust host to clear with a transparent base color. Maximized windows are
+* intentionally square so their content reaches every display edge.
+*/
+function WindowFrame(props) {
+	const window = useWindow();
+	const theme = useComponentsTheme();
+	const decorated = () => props.rounded !== false && !window.maximized();
+	return createComponent$1(View, {
+		class: "w-full h-full bg-transparent",
+		get classList() {
+			return windowFrameBackdropClassList(window.maximized(), props.rounded !== false);
+		},
+		get children() {
+			return createComponent$1(View, mergeProps(props, {
+				get ["class"]() {
+					return join("w-full h-full", props.class);
+				},
+				get classList() {
+					return windowFrameClientClassList(window.maximized(), props.rounded !== false, props.classList);
+				},
+				get shadows() {
+					return memo(() => {
+						return props.shadows !== void 0;
+					})() ? props.shadows : memo(() => {
+						return !!decorated();
+					})() ? windowFrameShadows(theme()) : null;
+				}
+			}));
+		}
+	});
+}
 const titleBarClass = "border-b border-subtle";
 const titleBarLayoutStyle = {
 	display: "flex",
@@ -2395,7 +2638,7 @@ function badgeColors(variant) {
 function Badge(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("flex-none whitespace-nowrap px-2 py-0.5 rounded-md border text-xs font-medium", badgeColors(props.variant ?? "default"), props.class);
+			return join("flex-none whitespace-nowrap px-2 py-0.5 rounded-md border text-xs", props.weight === "normal" ? "font-normal" : "font-medium", badgeColors(props.variant ?? "default"), props.class);
 		},
 		get children() {
 			return props.children;
@@ -2411,6 +2654,7 @@ function Fps(props) {
 		get variant() {
 			return variant();
 		},
+		weight: "normal",
 		get ["class"]() {
 			return join("font-mono", props.class);
 		},
@@ -2428,6 +2672,10 @@ function Fps(props) {
 function Card(props) {
 	const theme = useComponentsTheme();
 	return createComponent$1(View, {
+		ref(r$) {
+			var _ref$ = props.ref;
+			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.ref = r$;
+		},
 		get role() {
 			return props.role;
 		},
@@ -2438,7 +2686,7 @@ function Card(props) {
 			return props["aria-hidden"];
 		},
 		get ["class"]() {
-			return join("flex flex-col overflow-hidden rounded-lg border", "border-subtle bg-surface", props.class);
+			return join("min-w-0 min-h-0 flex flex-col overflow-hidden rounded-lg border", "border-subtle bg-surface", props.class);
 		},
 		get shadows() {
 			return memo(() => {
@@ -2453,7 +2701,7 @@ function Card(props) {
 function CardHeader(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex flex-col gap-1 px-4 pt-4", props.class);
+			return join("min-w-0 flex flex-col gap-1 px-4 pt-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2461,29 +2709,29 @@ function CardHeader(props) {
 	});
 }
 function CardTitle(props) {
-	return createComponent$1(Text, {
+	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
-			return join("text-base font-semibold", "text-primary", props.class);
+			return join("min-w-0 text-base font-semibold", "text-primary", props.class);
 		},
 		get children() {
 			return props.children;
 		}
-	});
+	}));
 }
 function CardDescription(props) {
-	return createComponent$1(Text, {
+	return createComponent$1(Text, mergeProps(props, {
 		get ["class"]() {
 			return join("w-full min-w-0 whitespace-normal text-sm", "text-muted", props.class);
 		},
 		get children() {
 			return props.children;
 		}
-	});
+	}));
 }
 function CardContent(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex flex-col gap-3 p-4", props.class);
+			return join("min-w-0 min-h-0 flex flex-col gap-3 p-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2493,7 +2741,7 @@ function CardContent(props) {
 function CardFooter(props) {
 	return createComponent$1(View, {
 		get ["class"]() {
-			return join("flex items-center gap-2 px-4 pb-4", props.class);
+			return join("min-w-0 flex items-center gap-2 px-4 pb-4", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2605,7 +2853,9 @@ function Switch(props) {
 		props.onCheckedChange?.(next);
 	};
 	return createComponent$1(View, {
-		class: "flex items-center gap-3",
+		get ["class"]() {
+			return join("w-full min-w-0 flex items-center gap-3", props.class);
+		},
 		get children() {
 			return [createComponent$1(Button$1, {
 				unstyled: true,
@@ -2635,7 +2885,7 @@ function Switch(props) {
 				return memo(() => {
 					return !!props.label;
 				})() ? createComponent$1(Text, {
-					class: "text-sm text-secondary",
+					class: "min-w-0 flex-1 whitespace-normal text-sm text-secondary",
 					get children() {
 						return props.label;
 					}
@@ -2832,6 +3082,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogScrollBody, DialogTitle, DirectoryPicker, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, View, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, nextAccordionValue, notFound, primitives_exports as primitives, redirect, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useRouteActive, useRouter, useRouterState };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogScrollBody, DialogTitle, DirectoryPicker, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, emptyClass, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

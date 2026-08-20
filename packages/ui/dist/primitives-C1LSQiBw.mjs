@@ -510,6 +510,17 @@ function Link(props) {
 }
 //#endregion
 //#region src/primitives/measure.ts
+function validateSizeQuery(query) {
+	const entries = [
+		["minWidth", query.minWidth],
+		["maxWidth", query.maxWidth],
+		["minHeight", query.minHeight],
+		["maxHeight", query.maxHeight]
+	];
+	for (const [name, value] of entries) if (value !== void 0 && (!Number.isFinite(value) || value < 0)) throw new RangeError(`${name} must be a finite non-negative number`);
+	if (query.minWidth !== void 0 && query.maxWidth !== void 0 && query.minWidth > query.maxWidth) throw new RangeError("minWidth cannot exceed maxWidth");
+	if (query.minHeight !== void 0 && query.maxHeight !== void 0 && query.minHeight > query.maxHeight) throw new RangeError("minHeight cannot exceed maxHeight");
+}
 /** Observe the completed native content-box size of a host node. */
 function createMeasuredSize(options = {}) {
 	const [width, setWidth] = createSignal(0);
@@ -537,6 +548,20 @@ function createMeasuredSize(options = {}) {
 		width,
 		height,
 		measured
+	};
+}
+/**
+* Match constraints against a component's completed native content-box size.
+* The result remains false until the first measurement, avoiding a compact
+* layout flash during boot.
+*/
+function createContainerMatch(query, options = {}) {
+	validateSizeQuery(query);
+	const size = createMeasuredSize(options);
+	const matches = () => size.measured() && (query.minWidth === void 0 || size.width() >= query.minWidth) && (query.maxWidth === void 0 || size.width() <= query.maxWidth) && (query.minHeight === void 0 || size.height() >= query.minHeight) && (query.maxHeight === void 0 || size.height() <= query.maxHeight);
+	return {
+		...size,
+		matches
 	};
 }
 //#endregion
@@ -603,6 +628,13 @@ function semanticPrimitive(tag, role, props) {
 function View(props) {
 	return primitive("view", props);
 }
+function resolvedTextBehavior(maxLines) {
+	if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) throw new RangeError("Text maxLines must be a positive integer");
+	return {
+		flags: TEXT_BEHAVIOR.AggregateDirectText | (maxLines == null || maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
+		maxLines: maxLines ?? 0
+	};
+}
 /**
 * A single measured text run.
 *
@@ -610,11 +642,14 @@ function View(props) {
 * participate in the parent layout as one item.
 */
 function Text(props) {
+	resolvedTextBehavior(untrack(() => props.maxLines));
 	const node = createElement("text");
-	spread(node, props, false);
+	spread(node, omit(props, "maxLines"), false);
 	spread(node, {
 		role: props.role ?? "label",
-		textBehavior: TEXT_BEHAVIOR.AggregateDirectText | TEXT_BEHAVIOR.SingleLine
+		get textBehavior() {
+			return resolvedTextBehavior(props.maxLines);
+		}
 	}, false);
 	return node;
 }
@@ -797,6 +832,149 @@ function CollapsiblePresence(props) {
 			});
 		}
 	});
+}
+//#endregion
+//#region src/primitives/interactions/form-draft.ts
+/**
+* A small immutable draft for form fields with explicit reset and commit
+* semantics. Transient request/error state belongs outside this model.
+*/
+function createFormDraft(initial, options = {}) {
+	const [baselineBox, setBaselineBox] = createSignal({ value: { ...initial } });
+	const [box, setBox] = createSignal({ value: { ...initial } });
+	const value = () => box().value;
+	const equals = options.equals ?? shallowEqual;
+	const dirty = createMemo(() => !equals(value(), baselineBox().value));
+	const errors = createMemo(() => options.validate?.(value()) ?? {});
+	const valid = createMemo(() => Reflect.ownKeys(errors()).length === 0);
+	const replace = (next) => setBox({ value: next });
+	const resetTo = (next) => {
+		setBaselineBox({ value: { ...next } });
+		replace({ ...next });
+	};
+	const setField = (key, updater) => {
+		setBox((currentBox) => {
+			const current = currentBox.value;
+			const previous = current[key];
+			const next = typeof updater === "function" ? updater(previous) : updater;
+			return Object.is(previous, next) ? currentBox : { value: {
+				...current,
+				[key]: next
+			} };
+		});
+	};
+	return {
+		value,
+		dirty,
+		errors,
+		valid,
+		fieldError: (key) => errors()[key],
+		field: (key) => value()[key],
+		control: (key) => [() => value()[key], (next) => setField(key, next)],
+		set: setField,
+		patch: (patch) => {
+			setBox((currentBox) => {
+				const current = currentBox.value;
+				for (const key of Reflect.ownKeys(patch)) if (!Object.is(current[key], patch[key])) return { value: {
+					...current,
+					...patch
+				} };
+				return currentBox;
+			});
+		},
+		reset: () => replace({ ...baselineBox().value }),
+		resetTo,
+		commit: () => {
+			setBox((currentBox) => {
+				setBaselineBox({ value: { ...currentBox.value } });
+				return currentBox;
+			});
+		}
+	};
+}
+function shallowEqual(left, right) {
+	const keys = Reflect.ownKeys(left);
+	if (keys.length !== Reflect.ownKeys(right).length) return false;
+	return keys.every((key) => Object.is(left[key], right[key]));
+}
+//#endregion
+//#region src/primitives/interactions/selection.ts
+function toggleSelection(current, item, mode, allowEmpty = false) {
+	return match(mode).with("single", () => current === item && allowEmpty ? void 0 : item).with("multiple", () => {
+		const values = Array.isArray(current) ? current : [];
+		return values.includes(item) ? values.filter((value) => value !== item) : [...values, item];
+	}).exhaustive();
+}
+function isSelected(selection, item) {
+	return Array.isArray(selection) ? selection.includes(item) : selection === item;
+}
+/**
+* Selection state owned by stable keys while values remain host-owned.
+* Selected items always resolve to the latest objects from `items`; keys that
+* disappear from the source are removed instead of becoming ghost selections.
+*/
+function createKeyedSelection(options) {
+	const initialAvailable = new Set(untrack(options.items).map(options.key));
+	const initial = normalizeKeys(options.initialKeys ?? [], initialAvailable, options.mode);
+	const [keys, setKeys] = createSignal(initial);
+	createEffect(() => new Set(options.items().map(options.key)), (available) => {
+		setKeys((current) => {
+			const next = normalizeKeys(current, available, options.mode);
+			return setsEqual(current, next) ? current : next;
+		});
+	});
+	const selectedItems = createMemo(() => {
+		const selected = keys();
+		return options.items().filter((item) => selected.has(options.key(item)));
+	});
+	const set = (nextKeys) => {
+		const next = normalizeKeys(nextKeys, new Set(options.items().map(options.key)), options.mode);
+		setKeys((current) => setsEqual(current, next) ? current : next);
+	};
+	const select = (key) => {
+		if (options.mode === "single") {
+			set([key]);
+			return;
+		}
+		setKeys((current) => {
+			if (current.has(key)) return current;
+			if (!new Set(options.items().map(options.key)).has(key)) return current;
+			return /* @__PURE__ */ new Set([...current, key]);
+		});
+	};
+	const deselect = (key) => {
+		setKeys((current) => {
+			if (!current.has(key)) return current;
+			const next = new Set(current);
+			next.delete(key);
+			return next;
+		});
+	};
+	return {
+		keys,
+		items: selectedItems,
+		item: () => selectedItems()[0],
+		isSelected: (key) => keys().has(key),
+		select,
+		deselect,
+		toggle: (key) => keys().has(key) ? deselect(key) : select(key),
+		set,
+		clear: () => setKeys((current) => current.size === 0 ? current : /* @__PURE__ */ new Set())
+	};
+}
+function normalizeKeys(keys, available, mode) {
+	const next = /* @__PURE__ */ new Set();
+	for (const key of keys) {
+		if (!available.has(key)) continue;
+		next.add(key);
+		if (mode === "single") break;
+	}
+	return next;
+}
+function setsEqual(left, right) {
+	if (left.size !== right.size) return false;
+	for (const key of left) if (!right.has(key)) return false;
+	return true;
 }
 //#endregion
 //#region src/primitives/class-names.ts
@@ -1502,149 +1680,6 @@ function ScrollArea(props) {
 	});
 }
 //#endregion
-//#region src/primitives/interactions/form-draft.ts
-/**
-* A small immutable draft for form fields with explicit reset and commit
-* semantics. Transient request/error state belongs outside this model.
-*/
-function createFormDraft(initial, options = {}) {
-	const [baselineBox, setBaselineBox] = createSignal({ value: { ...initial } });
-	const [box, setBox] = createSignal({ value: { ...initial } });
-	const value = () => box().value;
-	const equals = options.equals ?? shallowEqual;
-	const dirty = createMemo(() => !equals(value(), baselineBox().value));
-	const errors = createMemo(() => options.validate?.(value()) ?? {});
-	const valid = createMemo(() => Reflect.ownKeys(errors()).length === 0);
-	const replace = (next) => setBox({ value: next });
-	const resetTo = (next) => {
-		setBaselineBox({ value: { ...next } });
-		replace({ ...next });
-	};
-	const setField = (key, updater) => {
-		setBox((currentBox) => {
-			const current = currentBox.value;
-			const previous = current[key];
-			const next = typeof updater === "function" ? updater(previous) : updater;
-			return Object.is(previous, next) ? currentBox : { value: {
-				...current,
-				[key]: next
-			} };
-		});
-	};
-	return {
-		value,
-		dirty,
-		errors,
-		valid,
-		fieldError: (key) => errors()[key],
-		field: (key) => value()[key],
-		control: (key) => [() => value()[key], (next) => setField(key, next)],
-		set: setField,
-		patch: (patch) => {
-			setBox((currentBox) => {
-				const current = currentBox.value;
-				for (const key of Reflect.ownKeys(patch)) if (!Object.is(current[key], patch[key])) return { value: {
-					...current,
-					...patch
-				} };
-				return currentBox;
-			});
-		},
-		reset: () => replace({ ...baselineBox().value }),
-		resetTo,
-		commit: () => {
-			setBox((currentBox) => {
-				setBaselineBox({ value: { ...currentBox.value } });
-				return currentBox;
-			});
-		}
-	};
-}
-function shallowEqual(left, right) {
-	const keys = Reflect.ownKeys(left);
-	if (keys.length !== Reflect.ownKeys(right).length) return false;
-	return keys.every((key) => Object.is(left[key], right[key]));
-}
-//#endregion
-//#region src/primitives/interactions/selection.ts
-function toggleSelection(current, item, mode, allowEmpty = false) {
-	return match(mode).with("single", () => current === item && allowEmpty ? void 0 : item).with("multiple", () => {
-		const values = Array.isArray(current) ? current : [];
-		return values.includes(item) ? values.filter((value) => value !== item) : [...values, item];
-	}).exhaustive();
-}
-function isSelected(selection, item) {
-	return Array.isArray(selection) ? selection.includes(item) : selection === item;
-}
-/**
-* Selection state owned by stable keys while values remain host-owned.
-* Selected items always resolve to the latest objects from `items`; keys that
-* disappear from the source are removed instead of becoming ghost selections.
-*/
-function createKeyedSelection(options) {
-	const initialAvailable = new Set(untrack(options.items).map(options.key));
-	const initial = normalizeKeys(options.initialKeys ?? [], initialAvailable, options.mode);
-	const [keys, setKeys] = createSignal(initial);
-	createEffect(() => new Set(options.items().map(options.key)), (available) => {
-		setKeys((current) => {
-			const next = normalizeKeys(current, available, options.mode);
-			return setsEqual(current, next) ? current : next;
-		});
-	});
-	const selectedItems = createMemo(() => {
-		const selected = keys();
-		return options.items().filter((item) => selected.has(options.key(item)));
-	});
-	const set = (nextKeys) => {
-		const next = normalizeKeys(nextKeys, new Set(options.items().map(options.key)), options.mode);
-		setKeys((current) => setsEqual(current, next) ? current : next);
-	};
-	const select = (key) => {
-		if (options.mode === "single") {
-			set([key]);
-			return;
-		}
-		setKeys((current) => {
-			if (current.has(key)) return current;
-			if (!new Set(options.items().map(options.key)).has(key)) return current;
-			return /* @__PURE__ */ new Set([...current, key]);
-		});
-	};
-	const deselect = (key) => {
-		setKeys((current) => {
-			if (!current.has(key)) return current;
-			const next = new Set(current);
-			next.delete(key);
-			return next;
-		});
-	};
-	return {
-		keys,
-		items: selectedItems,
-		item: () => selectedItems()[0],
-		isSelected: (key) => keys().has(key),
-		select,
-		deselect,
-		toggle: (key) => keys().has(key) ? deselect(key) : select(key),
-		set,
-		clear: () => setKeys((current) => current.size === 0 ? current : /* @__PURE__ */ new Set())
-	};
-}
-function normalizeKeys(keys, available, mode) {
-	const next = /* @__PURE__ */ new Set();
-	for (const key of keys) {
-		if (!available.has(key)) continue;
-		next.add(key);
-		if (mode === "single") break;
-	}
-	return next;
-}
-function setsEqual(left, right) {
-	if (left.size !== right.size) return false;
-	for (const key of left) if (!right.has(key)) return false;
-	return true;
-}
-//#endregion
 //#region src/primitives/scroll-reset.ts
 /** Reset one explicitly selected native viewport after its key changes. */
 function createScrollReset(options) {
@@ -1890,6 +1925,7 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	createActive: () => createActive,
 	createAnimationFrame: () => createAnimationFrame,
 	createButton: () => createButton,
+	createContainerMatch: () => createContainerMatch,
 	createFocus: () => createFocus,
 	createFocusWithin: () => createFocusWithin,
 	createFormDraft: () => createFormDraft,
@@ -1912,6 +1948,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { createHover as $, Row as A, Text as B, Spin as C, useOverlayPlane as D, createOverlayLayer as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, Button as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, Center as O, Image as P, createPress as Q, PathBuilder as R, Ripple as S, OverlayPlaneProvider as T, View as U, TextArea as V, rotate2d$1 as W, createButton as X, Link as Y, createActive as Z, shift as _, createKeyedSelection as a, createLoop as at, createNotifications as b, createFormDraft as c, createTransition as ct, arrow as d, createFocus as et, autoPlacement as f, offset as g, flip as h, createScrollReset as i, animateKeyframes as it, CollapsiblePresence as j, Column as k, ScrollArea as l, computeHostFloatingPosition as m, createTabs as n, createAnimationFrame as nt, isSelected as o, createPulse as ot, computeFloatingPosition as p, createMeasuredSize as q, createShortcuts as r, animate as rt, toggleSelection as s, createRotation as st, primitives_exports as t, createFocusWithin as tt, Popover as u, size as v, Modal as w, Pulse as x, NotificationRegion as y, Svg as z };
+export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createTransition as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-BoIsDtYR.mjs.map
+//# sourceMappingURL=primitives-C1LSQiBw.mjs.map

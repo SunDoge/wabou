@@ -169,6 +169,15 @@ pub struct DebugComputedStyle {
     /// Numeric font weight.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub font_weight: f32,
+    /// Requested font-family fallback stack, when explicitly configured.
+    #[serde(default)]
+    pub font_family: Option<String>,
+    /// Whether resolved glyph runs require synthetic emboldening.
+    #[serde(default)]
+    pub synthetic_bold: bool,
+    /// Whether resolved glyph runs require a synthetic italic skew.
+    #[serde(default)]
+    pub synthetic_italic: bool,
     /// Whether normal inline wrapping is enabled.
     pub wrap_text: bool,
     /// Resolved opacity.
@@ -198,6 +207,9 @@ impl Default for DebugComputedStyle {
             overflow_y: None,
             font_size: 0.0,
             font_weight: 0.0,
+            font_family: None,
+            synthetic_bold: false,
+            synthetic_italic: false,
             wrap_text: false,
             opacity: 1.0,
             pointer_events: true,
@@ -208,6 +220,19 @@ impl Default for DebugComputedStyle {
             background: None,
         }
     }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+/// Winning declaration and its lower-priority sources for one Style IR property.
+pub struct DebugStyleCascade {
+    /// Canonical Style IR property name.
+    pub property: String,
+    /// Source whose declaration won the cascade, such as `.font-normal` or `inline`.
+    pub source: String,
+    /// Lower-priority sources replaced by the winner, in cascade order.
+    pub overridden_sources: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -230,6 +255,9 @@ pub struct DebugNode {
     /// Rejected utilities or invalid declarations associated with the node.
     #[serde(default)]
     pub style_diagnostics: Vec<String>,
+    /// Final source and overridden sources for every declared Style IR property.
+    #[serde(default)]
+    pub style_cascade: Vec<DebugStyleCascade>,
     /// Retained string attributes.
     pub attrs: Vec<(String, String)>,
     /// Border box in logical window coordinates.
@@ -270,6 +298,12 @@ pub struct DebugStatus {
     /// Number of retained nodes.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub node_count: usize,
+    /// Active ordinary-text raster backend.
+    #[serde(default)]
+    pub text_backend: String,
+    /// Platform policy used when ordinary raster text must fall back to outlines.
+    #[serde(default)]
+    pub text_outline_fallback: String,
     /// Focused Solid node identifier.
     pub focused_node: Option<NodeKey>,
     /// Hovered Solid node identifier.

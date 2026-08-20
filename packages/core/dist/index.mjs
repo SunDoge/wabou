@@ -1,10 +1,10 @@
-import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, m as NodeKeyTable, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-B5PLhBe8.mjs";
+import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, m as NodeKeyTable, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-BkE2Fvea.mjs";
 import { a as bool, c as number, d as rgba, f as rotate2d, g as INLINE_STYLE_CONTRACT, h as translate2d, i as auto, l as percent, m as shadow, n as StyleValueKind, o as classes, p as scale2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-D3b6x0_C.mjs";
-import { A as createFps, C as render, D as spread, E as setTransform2D, F as PathBuilder, I as isVectorPath, M as HostProvider, N as defaultHost, O as writer, P as useHost, S as removeNode, T as setProp, _ as mergeProps, a as createElement, b as registerRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as Portal, k as VirtualList, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as runSweep, x as releaseOverlayRoot, y as ref } from "./renderer-DSjeItPz.mjs";
+import { A as createFps, C as render, D as spread, E as setTransform2D, F as PathBuilder, I as isVectorPath, M as HostProvider, N as defaultHost, O as writer, P as useHost, S as removeNode, T as setProp, _ as mergeProps, a as createElement, b as registerRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as Portal, k as VirtualList, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as runSweep, x as releaseOverlayRoot, y as ref } from "./renderer-DvbiURED.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
-import { createComponent as createComponent$1, createContext, createEffect, createSignal, flush, getOwner, onCleanup, untrack, useContext } from "solid-js";
+import { createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, flush, getOwner, onCleanup, untrack, useContext } from "solid-js";
 //#region src/polyfills/abort-controller.ts
 /** Install cancellation primitives when the embedding runtime lacks them. */
 function installAbortControllerPolyfill() {
@@ -613,12 +613,12 @@ function createWindowMatch(query, window = useWindow()) {
 	for (const [name, value] of entries) if (value !== void 0 && (!Number.isFinite(value) || value < 0)) throw new RangeError(`${name} must be a finite non-negative number`);
 	if (query.minWidth !== void 0 && query.maxWidth !== void 0 && query.minWidth > query.maxWidth) throw new RangeError("minWidth cannot exceed maxWidth");
 	if (query.minHeight !== void 0 && query.maxHeight !== void 0 && query.minHeight > query.maxHeight) throw new RangeError("minHeight cannot exceed maxHeight");
-	return () => {
+	return createMemo(() => {
 		const width = window.width();
 		const height = window.height();
 		if (width <= 0 || height <= 0) return false;
 		return (query.minWidth === void 0 || width >= query.minWidth) && (query.maxWidth === void 0 || width <= query.maxWidth) && (query.minHeight === void 0 || height >= query.minHeight) && (query.maxHeight === void 0 || height <= query.maxHeight);
-	};
+	}, { sync: true });
 }
 const initial = {
 	windowId: windowKeyFromJSON({
@@ -634,7 +634,13 @@ const initial = {
 	focused: false,
 	colorScheme: "light"
 };
-const [metrics, setMetrics] = createSignal(initial, { equals: false });
+function sameMetrics(previous, next) {
+	return previous.windowId.lo === next.windowId.lo && previous.windowId.hi === next.windowId.hi && previous.logicalWidth === next.logicalWidth && previous.logicalHeight === next.logicalHeight && previous.physicalWidth === next.physicalWidth && previous.physicalHeight === next.physicalHeight && previous.scaleFactor === next.scaleFactor && previous.maximized === next.maximized && previous.focused === next.focused && previous.colorScheme === next.colorScheme;
+}
+const [metrics, setMetrics] = createSignal(initial, {
+	equals: sameMetrics,
+	ownedWrite: true
+});
 function decodeWindowMetrics(value) {
 	if (typeof value !== "object" || value === null) throw new TypeError("window metrics must be an object");
 	const next = value;

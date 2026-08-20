@@ -12,7 +12,7 @@ type ConnectRequest = {
 export /**  One rounded clip and its coordinate transform. */
 type DebugClip = {
 	/**  Node establishing the clip. */
-	nodeId: number,
+	nodeId: NodeKey,
 	/**  Clip origin such as overflow or native widget. */
 	kind: string,
 	/**  Coordinate space in which [`Self::rect`] is expressed. */
@@ -59,6 +59,12 @@ type DebugComputedStyle = {
 	fontSize: number,
 	/**  Numeric font weight. */
 	fontWeight: number,
+	/**  Requested font-family fallback stack, when explicitly configured. */
+	fontFamily?: string | null,
+	/**  Whether resolved glyph runs require synthetic emboldening. */
+	syntheticBold?: boolean,
+	/**  Whether resolved glyph runs require a synthetic italic skew. */
+	syntheticItalic?: boolean,
 	/**  Whether normal inline wrapping is enabled. */
 	wrapText: boolean,
 	/**  Resolved opacity. */
@@ -94,9 +100,9 @@ type DebugFrame_Serialize = {
 export /**  Retained node projection published by the UI thread. */
 type DebugNode = {
 	/**  Solid-side node identifier. */
-	id: number,
+	id: NodeKey,
 	/**  Logical parent identifier. */
-	parentId: number | null,
+	parentId: NodeKey | null,
 	/**  Intrinsic/JSX tag name. */
 	tag: string,
 	/**  Plain text content when present. */
@@ -107,6 +113,8 @@ type DebugNode = {
 	matchedRules: string[],
 	/**  Rejected utilities or invalid declarations associated with the node. */
 	styleDiagnostics?: string[],
+	/**  Final source and overridden sources for every declared Style IR property. */
+	styleCascade?: DebugStyleCascade[],
 	/**  Retained string attributes. */
 	attrs: ([string, string])[],
 	/**  Border box in logical window coordinates. */
@@ -132,7 +140,7 @@ type DebugOverlay = {
 	/**  Draw the current hit target. */
 	hitTarget: boolean,
 	/**  Draw and retain one selected node identifier. */
-	selectedNode: number | null,
+	selectedNode: NodeKey | null,
 };
 
 export /**  Runtime/window status returned by the DevTools `status` command. */
@@ -151,16 +159,38 @@ type DebugStatus = {
 	deviceScale?: number,
 	/**  Number of retained nodes. */
 	nodeCount: number,
+	/**  Active ordinary-text raster backend. */
+	textBackend?: string,
+	/**  Platform policy used when ordinary raster text must fall back to outlines. */
+	textOutlineFallback?: string,
 	/**  Focused Solid node identifier. */
-	focusedNode: number | null,
+	focusedNode: NodeKey | null,
 	/**  Hovered Solid node identifier. */
-	hoveredNode: number | null,
+	hoveredNode: NodeKey | null,
+};
+
+export /**  Winning declaration and its lower-priority sources for one Style IR property. */
+type DebugStyleCascade = {
+	/**  Canonical Style IR property name. */
+	property: string,
+	/**  Source whose declaration won the cascade, such as `.font-normal` or `inline`. */
+	source: string,
+	/**  Lower-priority sources replaced by the winner, in cascade order. */
+	overriddenSources: string[],
 };
 
 export /**  Request selecting one retained node. */
 type InspectNodeRequest = {
 	/**  Retained node identifier. */
-	id: number,
+	id: NodeKey,
+};
+
+export /**  Full-width generational identity for one retained node. */
+type NodeKey = {
+	/**  Slot index. Zero is reserved by the wire protocol. */
+	lo: number,
+	/**  Non-zero odd generation, matching SlotMap's FFI representation. */
+	hi: number,
 };
 
 export /**  Filesystem path returned by socket and screenshot operations. */
@@ -204,7 +234,7 @@ type SetOverlayRequest = {
 	/**  Show the current hit target. */
 	hitTarget: boolean,
 	/**  Optionally highlight one retained node. */
-	selectedNode: number | null,
+	selectedNode: NodeKey | null,
 };
 
 export type DebugFrame = DebugFrame_Serialize;

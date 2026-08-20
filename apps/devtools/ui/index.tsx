@@ -25,6 +25,7 @@ import {
   type DebugFrame,
   type DebugNode,
   type DebugStatus,
+  type NodeKey,
 } from "./generated/host-bindings";
 import { overlayStyle } from "./model";
 
@@ -36,6 +37,14 @@ function shortText(node: DebugNode): string {
         .slice(0, 2)
         .map((c) => `.${c}`)
         .join("");
+}
+
+function sameNodeKey(left: NodeKey, right: NodeKey): boolean {
+  return left.lo === right.lo && left.hi === right.hi;
+}
+
+function nodeKeyLabel(key: NodeKey): string {
+  return `${key.lo}:${key.hi}`;
 }
 
 function clipLabel(clip: DebugClip): string {
@@ -92,7 +101,7 @@ function App() {
       setNodes(value);
       const id = selected()?.id;
       if (id) {
-        const next = value.find((node) => node.id === id);
+        const next = value.find((node) => sameNodeKey(node.id, id));
         if (next) setSelected(next);
       }
       setError(undefined);
@@ -128,7 +137,7 @@ function App() {
     setBusy(false);
   }
 
-  async function inspect(id: number): Promise<void> {
+  async function inspect(id: NodeKey): Promise<void> {
     try {
       const node = await devtools.inspectNode({ id });
       setSelected(node);
@@ -346,7 +355,7 @@ function App() {
                   class="w-full px-2 py-2 flex text-left border-b border-slate-800 bg-slate-900"
                   style={(state) => ({
                     "background-color":
-                      selected()?.id === node.id
+                      selected() && sameNodeKey(selected()!.id, node.id)
                         ? "#1e3a5f"
                         : state.hovered
                           ? "#172033"
@@ -355,7 +364,7 @@ function App() {
                   onClick={() => void inspect(node.id)}
                 >
                   <Text class="w-12 flex-none text-xs text-slate-500">
-                    #{node.id}
+                    #{nodeKeyLabel(node.id)}
                   </Text>
                   <Text class="w-20 flex-none text-sm text-cyan-400">
                     {node.tag}
@@ -439,7 +448,9 @@ function App() {
               <>
                 <View class="flex items-center gap-2 mb-3">
                   <Text class="text-lg text-cyan-400">{node().tag}</Text>
-                  <Text class="text-sm text-slate-500">#{node().id}</Text>
+                  <Text class="text-sm text-slate-500">
+                    #{nodeKeyLabel(node().id)}
+                  </Text>
                   <Show when={node().widget}>
                     <Text class="px-2 py-1 rounded bg-purple-900 text-purple-300 text-xs">
                       {node().widget}
@@ -457,7 +468,11 @@ function App() {
                   />
                   <Row
                     label="parent"
-                    value={node().parentId ? `#${node().parentId}` : "—"}
+                    value={
+                      node().parentId
+                        ? `#${nodeKeyLabel(node().parentId!)}`
+                        : "—"
+                    }
                   />
                 </Panel>
                 <Panel title="Classes">
@@ -519,6 +534,25 @@ function App() {
                     <For each={node().styleDiagnostics ?? []}>
                       {(diagnostic) => (
                         <Row label="rejected" value={diagnostic} />
+                      )}
+                    </For>
+                  </Panel>
+                </Show>
+                <Show when={(node().styleCascade?.length ?? 0) > 0}>
+                  <Panel title="Style cascade">
+                    <For each={node().styleCascade ?? []}>
+                      {(entry) => (
+                        <Row
+                          label={entry.property}
+                          value={
+                            entry.overriddenSources.length === 0
+                              ? entry.source
+                              : `${entry.source} ← ${entry.overriddenSources
+                                  .slice()
+                                  .reverse()
+                                  .join(" ← ")}`
+                          }
+                        />
                       )}
                     </For>
                   </Panel>
