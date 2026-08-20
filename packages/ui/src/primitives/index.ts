@@ -97,6 +97,11 @@ export {
   type PopoverTriggerProps,
 } from "./popover";
 export {
+  createRetainedItems,
+  type RetainedItem,
+  type RetainedItems,
+} from "./retained-items";
+export {
   arrow,
   autoPlacement,
   type ComputeFloatingPositionOptions,

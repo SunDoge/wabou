@@ -1493,6 +1493,72 @@ function Ripple(props) {
 	}));
 }
 //#endregion
+//#region src/primitives/retained-items.ts
+const assertUniqueKeys$1 = (items, key) => {
+	const keyed = /* @__PURE__ */ new Map();
+	for (const item of items) {
+		const itemKey = key(item);
+		if (keyed.has(itemKey)) throw new Error(`duplicate retained item key: ${String(itemKey)}`);
+		keyed.set(itemKey, item);
+	}
+	return keyed;
+};
+/**
+* Keep keyed values mounted after logical removal until `release` is called.
+*
+* Entries are stable by key, expose the latest source value, and report
+* logical presence independently from visual retention. This is the common
+* lifecycle needed by exit animations without delaying state or semantics.
+*/
+function createRetainedItems(source, key) {
+	const [revision, setRevision] = createSignal(0, { ownedWrite: true });
+	let active = assertUniqueKeys$1(untrack(source), key);
+	const createEntry = (itemKey, item) => {
+		const entry = {
+			key: itemKey,
+			current: item,
+			value: () => {
+				revision();
+				return entry.current;
+			},
+			present: () => {
+				revision();
+				return active.has(itemKey);
+			}
+		};
+		return entry;
+	};
+	const initial = [...active].map(([itemKey, item]) => createEntry(itemKey, item));
+	const [entries, setEntries] = createSignal(initial, { ownedWrite: true });
+	createEffect(source, (current) => {
+		const nextActive = assertUniqueKeys$1(current, key);
+		const previous = untrack(entries);
+		const previousByKey = new Map(previous.map((entry) => [entry.key, entry]));
+		const exiting = previous.filter((entry) => !nextActive.has(entry.key));
+		const next = current.map((item) => {
+			const itemKey = key(item);
+			const entry = previousByKey.get(itemKey) ?? createEntry(itemKey, item);
+			entry.current = item;
+			return entry;
+		});
+		active = nextActive;
+		setEntries([...exiting, ...next]);
+		setRevision((value) => value + 1);
+	});
+	return {
+		entries,
+		release(itemKey) {
+			if (active.has(itemKey)) return false;
+			const previous = untrack(entries);
+			const next = previous.filter((entry) => entry.key !== itemKey);
+			if (next.length === previous.length) return false;
+			setEntries(next);
+			setRevision((value) => value + 1);
+			return true;
+		}
+	};
+}
+//#endregion
 //#region src/primitives/notification.ts
 const finiteNonNegative = (value, fallback) => Number.isFinite(value) ? Math.max(0, value) : fallback;
 /** Create an owner-scoped notification queue with explicit JavaScript timers. */
@@ -1582,6 +1648,30 @@ const alignment = (placement) => ({
 	"align-items": placement.endsWith("start") ? "flex-start" : placement.endsWith("end") ? "flex-end" : "center",
 	"justify-content": placement.startsWith("bottom") ? "flex-end" : "flex-start"
 });
+const renderNotificationPortal = (props, children) => createComponent(Portal, {
+	plane: "floating",
+	role: "presentation",
+	get class() {
+		return `pointer-events-none ${props.class ?? ""}`;
+	},
+	get style() {
+		const placement = props.placement ?? "top-end";
+		return {
+			position: "absolute",
+			left: 0,
+			top: 0,
+			width: "100%",
+			height: "100%",
+			display: "flex",
+			"flex-direction": "column",
+			gap: 8,
+			padding: 16,
+			...alignment(placement),
+			...props.style
+		};
+	},
+	children
+});
 /** Render a non-blocking stack on the native floating overlay plane. */
 function NotificationRegion(props) {
 	const motion = untrack(() => props.motion);
@@ -1608,44 +1698,13 @@ function NotificationRegion(props) {
 				}
 			})
 		});
-		return createComponent(Portal, {
-			plane: "floating",
-			role: "presentation",
-			get class() {
-				return `pointer-events-none ${props.class ?? ""}`;
-			},
-			get style() {
-				const placement = props.placement ?? "top-end";
-				return {
-					position: "absolute",
-					left: 0,
-					top: 0,
-					width: "100%",
-					height: "100%",
-					display: "flex",
-					"flex-direction": "column",
-					gap: 8,
-					padding: 16,
-					...alignment(placement),
-					...props.style
-				};
-			},
-			children: items
-		});
+		return renderNotificationPortal(props, items);
 	}
 	const reducedMotion = useReducedMotion();
-	const [renderedItems, setRenderedItems] = createSignal(untrack(props.notifications.items), { ownedWrite: true });
-	createEffect(props.notifications.items, (current) => {
-		const currentIds = new Set(current.map((item) => item.id));
-		const previous = untrack(renderedItems);
-		setRenderedItems([...previous.filter((item) => !currentIds.has(item.id)), ...current]);
-	});
-	const removeExited = (id) => {
-		if (untrack(props.notifications.items).some((item) => item.id === id)) return;
-		setRenderedItems(untrack(renderedItems).filter((item) => item.id !== id));
-	};
-	const renderAnimatedItem = (item) => {
-		const logicallyPresent = () => props.notifications.items().some((current) => current.id === item.id);
+	const retained = createRetainedItems(props.notifications.items, (item) => item.id);
+	const renderAnimatedItem = (retainedItem) => {
+		const item = retainedItem.value();
+		const logicallyPresent = retainedItem.present;
 		const presence = createTransitionPresence(logicallyPresent, {
 			initialProgress: 0,
 			duration: motion.duration ?? .18,
@@ -1653,7 +1712,7 @@ function NotificationRegion(props) {
 			reducedMotion
 		});
 		createEffect(presence.phase, (phase) => {
-			if (phase === "unmounted") removeExited(item.id);
+			if (phase === "unmounted") retained.release(item.id);
 		});
 		const remaining = () => 1 - presence.progress();
 		return createComponent(View, {
@@ -1688,34 +1747,11 @@ function NotificationRegion(props) {
 	};
 	const items = createComponent(For, {
 		get each() {
-			return renderedItems();
+			return retained.entries();
 		},
 		children: renderAnimatedItem
 	});
-	return createComponent(Portal, {
-		plane: "floating",
-		role: "presentation",
-		get class() {
-			return `pointer-events-none ${props.class ?? ""}`;
-		},
-		get style() {
-			const placement = props.placement ?? "top-end";
-			return {
-				position: "absolute",
-				left: 0,
-				top: 0,
-				width: "100%",
-				height: "100%",
-				display: "flex",
-				"flex-direction": "column",
-				gap: 8,
-				padding: 16,
-				...alignment(placement),
-				...props.style
-			};
-		},
-		children: items
-	});
+	return renderNotificationPortal(props, items);
 }
 //#endregion
 //#region src/primitives/positioner.ts
@@ -2326,6 +2362,7 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	createOverlayLayer: () => createOverlayLayer,
 	createPresence: () => createPresence,
 	createPress: () => createPress,
+	createRetainedItems: () => createRetainedItems,
 	createScrollReset: () => createScrollReset,
 	createShortcuts: () => createShortcuts,
 	createTabs: () => createTabs,
@@ -2339,6 +2376,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { createActive as $, toggleSelection as A, Svg as B, createOverlayLayer as C, Row as D, Column as E, Image as F, rotate2d$1 as G, TextArea as H, NetworkImage as I, createContainerMatch as J, translate2d$1 as K, PasswordInput as L, CollapsiblePresence as M, CodeEditor as N, createKeyedSelection as O, Icon as P, createButton as Q, Path as R, OverlayPlaneProvider as S, Center as T, TextInput as U, Text as V, View as W, Button as X, createMeasuredSize as Y, Link as Z, Pulse as _, ScrollArea as a, animate as at, Modal as b, autoPlacement as c, createPulse as ct, flip as d, createTransition as dt, createPress as et, offset as f, normalizeSweepGeometry as ft, createNotifications as g, NotificationRegion as h, useReducedMotion as ht, createScrollReset as i, createAnimationFrame as it, createFormDraft as j, isSelected as k, computeFloatingPosition as l, createRotation as lt, size as m, useMotionConfig as mt, createTabs as n, createFocus as nt, Popover as o, animateKeyframes as ot, shift as p, MotionConfigProvider as pt, createPresence as q, createShortcuts as r, createFocusWithin as rt, arrow as s, createLoop as st, primitives_exports as t, createHover as tt, computeHostFloatingPosition as u, createSweep as ut, Ripple as v, useOverlayPlane as w, createTransitionPresence as x, Spin as y, PathBuilder as z };
+export { createButton as $, isSelected as A, PathBuilder as B, OverlayPlaneProvider as C, Column as D, Center as E, Icon as F, View as G, Text as H, Image as I, createPresence as J, rotate2d$1 as K, NetworkImage as L, createFormDraft as M, CollapsiblePresence as N, Row as O, CodeEditor as P, Link as Q, PasswordInput as R, createTransitionPresence as S, useOverlayPlane as T, TextArea as U, Svg as V, TextInput as W, createMeasuredSize as X, createContainerMatch as Y, Button as Z, createRetainedItems as _, ScrollArea as a, createAnimationFrame as at, Spin as b, autoPlacement as c, createLoop as ct, flip as d, createSweep as dt, createActive as et, offset as f, createTransition as ft, createNotifications as g, useReducedMotion as gt, NotificationRegion as h, useMotionConfig as ht, createScrollReset as i, createFocusWithin as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createPulse as lt, size as m, MotionConfigProvider as mt, createTabs as n, createHover as nt, Popover as o, animate as ot, shift as p, normalizeSweepGeometry as pt, translate2d$1 as q, createShortcuts as r, createFocus as rt, arrow as s, animateKeyframes as st, primitives_exports as t, createPress as tt, computeHostFloatingPosition as u, createRotation as ut, Pulse as v, createOverlayLayer as w, Modal as x, Ripple as y, Path as z };
 
-//# sourceMappingURL=primitives-COFjvCKu.mjs.map
+//# sourceMappingURL=primitives-BOL7Lcgh.mjs.map

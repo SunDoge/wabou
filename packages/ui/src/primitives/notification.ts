@@ -11,6 +11,7 @@ import {
   untrack,
 } from "solid-js";
 import { type Easing, useReducedMotion } from "../animation";
+import { createRetainedItems, type RetainedItem } from "./retained-items";
 import { createTransitionPresence } from "./transition-presence";
 import { View, type WabouStyle } from "./view";
 
@@ -214,6 +215,35 @@ const alignment = (placement: NotificationPlacement) => ({
   "justify-content": placement.startsWith("bottom") ? "flex-end" : "flex-start",
 });
 
+const renderNotificationPortal = (
+  props: NotificationRegionProps,
+  children: JSX.Element,
+) =>
+  createComponent(Portal, {
+    plane: "floating",
+    role: "presentation",
+    get class() {
+      return `pointer-events-none ${props.class ?? ""}`;
+    },
+    get style() {
+      const placement = props.placement ?? "top-end";
+      return {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        "flex-direction": "column",
+        gap: 8,
+        padding: 16,
+        ...alignment(placement),
+        ...props.style,
+      };
+    },
+    children,
+  });
+
 /** Render a non-blocking stack on the native floating overlay plane. */
 export function NotificationRegion(
   props: NotificationRegionProps,
@@ -251,54 +281,19 @@ export function NotificationRegion(
           }),
       },
     );
-    return createComponent(Portal, {
-      plane: "floating",
-      role: "presentation",
-      get class() {
-        return `pointer-events-none ${props.class ?? ""}`;
-      },
-      get style() {
-        const placement = props.placement ?? "top-end";
-        return {
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          "flex-direction": "column",
-          gap: 8,
-          padding: 16,
-          ...alignment(placement),
-          ...props.style,
-        };
-      },
-      children: items,
-    });
+    return renderNotificationPortal(props, items);
   }
 
   const reducedMotion = useReducedMotion();
-  const [renderedItems, setRenderedItems] = createSignal<
-    readonly NotificationItem[]
-  >(untrack(props.notifications.items), { ownedWrite: true });
-
-  createEffect(props.notifications.items, (current) => {
-    const currentIds = new Set(current.map((item) => item.id));
-    const previous = untrack(renderedItems);
-    setRenderedItems([
-      ...previous.filter((item) => !currentIds.has(item.id)),
-      ...current,
-    ]);
-  });
-
-  const removeExited = (id: number) => {
-    if (untrack(props.notifications.items).some((item) => item.id === id))
-      return;
-    setRenderedItems(untrack(renderedItems).filter((item) => item.id !== id));
-  };
-  const renderAnimatedItem = (item: NotificationItem) => {
-    const logicallyPresent = () =>
-      props.notifications.items().some((current) => current.id === item.id);
+  const retained = createRetainedItems(
+    props.notifications.items,
+    (item) => item.id,
+  );
+  const renderAnimatedItem = (
+    retainedItem: RetainedItem<NotificationItem, number>,
+  ) => {
+    const item = retainedItem.value();
+    const logicallyPresent = retainedItem.present;
     const presence = createTransitionPresence(logicallyPresent, {
       initialProgress: 0,
       duration: motion.duration ?? 0.18,
@@ -306,7 +301,7 @@ export function NotificationRegion(
       reducedMotion,
     });
     createEffect(presence.phase, (phase) => {
-      if (phase === "unmounted") removeExited(item.id);
+      if (phase === "unmounted") retained.release(item.id);
     });
     const remaining = () => 1 - presence.progress();
     return createComponent(View, {
@@ -346,38 +341,15 @@ export function NotificationRegion(
   };
   const items = createComponent(
     For as unknown as (props: {
-      each: readonly NotificationItem[];
-      children: (item: NotificationItem) => JSX.Element;
+      each: readonly RetainedItem<NotificationItem, number>[];
+      children: (item: RetainedItem<NotificationItem, number>) => JSX.Element;
     }) => JSX.Element,
     {
       get each() {
-        return renderedItems();
+        return retained.entries();
       },
       children: renderAnimatedItem,
     },
   );
-  return createComponent(Portal, {
-    plane: "floating",
-    role: "presentation",
-    get class() {
-      return `pointer-events-none ${props.class ?? ""}`;
-    },
-    get style() {
-      const placement = props.placement ?? "top-end";
-      return {
-        position: "absolute",
-        left: 0,
-        top: 0,
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        "flex-direction": "column",
-        gap: 8,
-        padding: 16,
-        ...alignment(placement),
-        ...props.style,
-      };
-    },
-    children: items,
-  });
+  return renderNotificationPortal(props, items);
 }
