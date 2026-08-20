@@ -46,6 +46,7 @@ export * from "./navigation";
 export * from "./page";
 export * from "./popover";
 export * from "./resizable";
+export * from "./search-field";
 export * from "./select";
 export {
   Checkbox,

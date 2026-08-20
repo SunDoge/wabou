@@ -1,14 +1,11 @@
 import {
   Badge,
-  Button,
-  Icon,
-  Input,
   PrimitiveButton,
   ScrollArea,
+  SearchField,
   Text,
   View,
 } from "@wabou/ui";
-import x from "lucide-static/icons/x.svg?raw";
 import { createMemo, createSignal, For, Show } from "solid-js";
 
 export interface SidebarItem<Id extends string = string> {
@@ -78,29 +75,14 @@ export function GallerySidebar<Id extends string>(
           <Text class="truncate text-xs text-muted">Components & platform</Text>
         </View>
       </View>
-      <View class="flex-none p-2 flex items-center gap-1 border-b border-subtle bg-surface">
-        <Input
+      <View class="flex-none p-2 border-b border-subtle bg-surface">
+        <SearchField
           aria-label="Search components"
           value={query()}
           placeholder="Search components"
-          class="min-w-0 flex-1"
-          onInput={(event) => setQuery(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape" || !query()) return;
-            event.preventDefault();
-            setQuery("");
-          }}
+          clearLabel="Clear component search"
+          onValueChange={setQuery}
         />
-        <Show when={query()}>
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Clear component search"
-            onClick={() => setQuery("")}
-          >
-            <Icon source={x} aria-hidden="true" size={16} />
-          </Button>
-        </Show>
       </View>
       <ScrollArea class="flex-1" contentClass="px-2 py-3">
         <Show when={!query()}>

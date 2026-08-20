@@ -23,6 +23,7 @@ import {
   RadioGroup,
   RadioGroupItem,
   ScrollArea,
+  SearchField,
   Separator,
   Skeleton,
   Slider,
@@ -134,6 +135,7 @@ function CardPage() {
 
 function InputPage() {
   const [value, setValue] = createSignal("");
+  const [query, setQuery] = createSignal("native");
   const [config, setConfig] = createSignal('{\n  "enabled": true\n}');
   const [configEdited, setConfigEdited] = createSignal(false);
   return (
@@ -158,6 +160,23 @@ function InputPage() {
           >
             Value: {value() || "—"}
           </ThemeText>
+        </View>
+      </Preview>
+      <Preview title="Search">
+        <View class="w-96 flex flex-col gap-2">
+          <SearchField
+            aria-label="Search documentation"
+            value={query()}
+            placeholder="Search documentation"
+            onValueChange={setQuery}
+          />
+          <Text
+            role="status"
+            aria-label="Search query"
+            class="text-xs text-muted"
+          >
+            Query: {query() || "—"}
+          </Text>
         </View>
       </Preview>
       <Preview title="Configuration editor">
