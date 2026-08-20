@@ -6,6 +6,7 @@ import {
   captureCommand,
   discoverCaptureCases,
   textContainmentDiagnostics,
+  validateCaptureArtifacts,
   validateCaptureSnapshot,
 } from "./check-captures";
 
@@ -202,5 +203,50 @@ describe("authored capture discovery", () => {
     expect(textContainmentDiagnostics(base)).toHaveLength(1);
     base.nodes[0].computed.overflowX = "Hidden";
     expect(textContainmentDiagnostics(base)).toEqual([]);
+  });
+
+  test("revalidates existing artifacts without invoking a renderer", async () => {
+    const root = await fixture();
+    const [capture] = await discoverCaptureCases(root);
+    if (!capture) throw new Error("expected a discovered capture");
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      capture.output,
+    );
+
+    await mkdir(join(root, "target", "wabou-captures", "demo", "nested"), {
+      recursive: true,
+    });
+    await writeFile(join(root, capture.output), "png");
+    await writeFile(
+      join(root, capture.snapshot),
+      JSON.stringify({
+        status: {
+          viewportWidth: capture.width,
+          viewportHeight: capture.height,
+          deviceScale: capture.scaleFactor,
+          nodeCount: 1,
+        },
+        nodes: [
+          {
+            id: { lo: 1, hi: 1 },
+            parentId: null,
+            tag: "view",
+            text: null,
+            classes: [],
+            rect: { x: 0, y: 0, width: capture.width, height: capture.height },
+            contentRect: {
+              x: 0,
+              y: 0,
+              width: capture.width,
+              height: capture.height,
+            },
+            computed: { overflowX: "Visible", overflowY: "Visible" },
+          },
+        ],
+      }),
+    );
+    await expect(
+      validateCaptureArtifacts(capture, root),
+    ).resolves.toBeUndefined();
   });
 });

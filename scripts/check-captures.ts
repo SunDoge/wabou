@@ -481,59 +481,88 @@ export function textContainmentDiagnostics(
   return diagnostics;
 }
 
+export async function validateCaptureArtifacts(
+  capture: CaptureCase,
+  workspaceRoot = root,
+): Promise<void> {
+  const output = resolve(workspaceRoot, capture.output);
+  if (!(await Bun.file(output).exists()) || Bun.file(output).size === 0) {
+    throw new Error(
+      `capture did not produce ${relative(workspaceRoot, output)}`,
+    );
+  }
+  const snapshot = resolve(workspaceRoot, capture.snapshot);
+  if (!(await Bun.file(snapshot).exists()) || Bun.file(snapshot).size === 0) {
+    throw new Error(
+      `capture did not produce ${relative(workspaceRoot, snapshot)}`,
+    );
+  }
+  const parsed = validateCaptureSnapshot(
+    JSON.parse(await readFile(snapshot, "utf8")),
+    capture,
+  );
+  if (capture.checkTextContainment) {
+    const diagnostics = textContainmentDiagnostics(parsed);
+    if (diagnostics.length > 0) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} has visible text overflow:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
+      );
+    }
+  }
+}
+
 function relativeScenarioPath(scenario: string): string {
   return scenario.split("/captures/")[1] ?? scenario;
 }
 
 async function main(): Promise<void> {
+  const supportedArguments = new Set(["--list", "--check-existing"]);
+  const arguments_ = process.argv.slice(2);
+  const unsupported = arguments_.find(
+    (argument) => !supportedArguments.has(argument),
+  );
+  if (unsupported) throw new Error(`unsupported argument ${unsupported}`);
+  if (
+    arguments_.includes("--list") &&
+    arguments_.includes("--check-existing")
+  ) {
+    throw new Error("--list and --check-existing cannot be combined");
+  }
   const captures = await discoverCaptureCases();
   if (captures.length === 0) {
     throw new Error("no apps/*/captures/**/*.ts scenarios were discovered");
   }
-  if (process.argv.includes("--list")) {
+  if (arguments_.includes("--list")) {
     console.log(JSON.stringify(captures, null, 2));
     return;
   }
 
+  const checkExisting = arguments_.includes("--check-existing");
   const builtApplications = new Set<string>();
   for (const capture of captures) {
     const output = resolve(root, capture.output);
-    await mkdir(dirname(output), { recursive: true });
-    console.log(`[capture] rendering ${capture.scenario}`);
-    const args = captureCommand(
-      capture,
-      builtApplications.has(capture.application),
-    );
-    const child = Bun.spawn(args, {
-      cwd: root,
-      stdin: "inherit",
-      stdout: "inherit",
-      stderr: "inherit",
-    });
-    const exitCode = await child.exited;
-    if (exitCode !== 0) process.exit(exitCode);
-    builtApplications.add(capture.application);
-    if (!(await Bun.file(output).exists()) || Bun.file(output).size === 0) {
-      throw new Error(`capture did not produce ${relative(root, output)}`);
+    if (!checkExisting) {
+      await mkdir(dirname(output), { recursive: true });
+      console.log(`[capture] rendering ${capture.scenario}`);
+      const args = captureCommand(
+        capture,
+        builtApplications.has(capture.application),
+      );
+      const child = Bun.spawn(args, {
+        cwd: root,
+        stdin: "inherit",
+        stdout: "inherit",
+        stderr: "inherit",
+      });
+      const exitCode = await child.exited;
+      if (exitCode !== 0) process.exit(exitCode);
+      builtApplications.add(capture.application);
     }
-    const snapshot = resolve(root, capture.snapshot);
-    if (!(await Bun.file(snapshot).exists()) || Bun.file(snapshot).size === 0) {
-      throw new Error(`capture did not produce ${relative(root, snapshot)}`);
-    }
-    const parsed = validateCaptureSnapshot(
-      JSON.parse(await readFile(snapshot, "utf8")),
-      capture,
-    );
-    if (capture.checkTextContainment) {
-      const diagnostics = textContainmentDiagnostics(parsed);
-      if (diagnostics.length > 0) {
-        throw new Error(
-          `${relative(root, snapshot)} has visible text overflow:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
-        );
-      }
-    }
+    await validateCaptureArtifacts(capture);
   }
-  console.log(`verified ${captures.length} authored captures`);
+  console.log(
+    `${checkExisting ? "checked existing artifacts for" : "verified"} ${captures.length} authored captures`,
+  );
 }
 
 if (import.meta.main) await main();
