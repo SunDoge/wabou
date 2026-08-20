@@ -195,6 +195,17 @@ function renderComponent(render, options = {}) {
 		originals.dropNode.call(writer, id);
 	};
 	let disposeMount = null;
+	let flushDepth = 0;
+	const flushUpdates = () => {
+		if (flushDepth > 0) return;
+		flushDepth += 1;
+		try {
+			flush();
+		} finally {
+			flushDepth -= 1;
+		}
+		writer.flush();
+	};
 	const restore = () => {
 		Object.assign(writer, originals);
 		restoreHostStubs.forEach((restoreStub) => {
@@ -209,8 +220,7 @@ function renderComponent(render, options = {}) {
 				return render();
 			}
 		}) : render());
-		flush();
-		writer.flush();
+		flushUpdates();
 	} catch (error) {
 		restore();
 		throw error;
@@ -229,8 +239,7 @@ function renderComponent(render, options = {}) {
 	};
 	const commitEvent = (node, eventCode, payload = "") => {
 		dispatchEvent(node.id, eventCode, payload);
-		flush();
-		writer.flush();
+		flushUpdates();
 	};
 	let focusedNode = null;
 	const blurFocusedNode = () => {
@@ -342,8 +351,7 @@ function renderComponent(render, options = {}) {
 		resize: ({ width, height }) => {
 			if (!Number.isFinite(width) || width < 0 || !Number.isFinite(height) || height < 0) throw new RangeError("component size must be finite and non-negative");
 			dispatchResizeObservation(node.id, width, height);
-			flush();
-			writer.flush();
+			flushUpdates();
 		}
 	});
 	const select = (matches, description, index, required = true) => {
@@ -361,8 +369,7 @@ function renderComponent(render, options = {}) {
 			return select(all().filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name)), `role=${role}${options.name === void 0 ? "" : ` name=${JSON.stringify(options.name)}`}`, options.index, false);
 		},
 		flush() {
-			flush();
-			writer.flush();
+			flushUpdates();
 		},
 		dispose() {
 			if (disposed) return;

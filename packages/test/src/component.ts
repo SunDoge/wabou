@@ -316,6 +316,21 @@ export function renderComponent(
   };
 
   let disposeMount: (() => void) | null = null;
+  let flushDepth = 0;
+  const flushUpdates = () => {
+    // Imperative host operations such as focus can be produced by an effect
+    // while this drain is already running. Solid processes those writes in the
+    // same continuation; recursively calling flush() only emits a warning and
+    // cannot make the result more synchronous.
+    if (flushDepth > 0) return;
+    flushDepth += 1;
+    try {
+      flushSolid();
+    } finally {
+      flushDepth -= 1;
+    }
+    writer.flush();
+  };
   const restore = () => {
     Object.assign(writer, originals);
     restoreHostStubs.forEach((restoreStub) => {
@@ -334,8 +349,7 @@ export function renderComponent(
           })
         : render(),
     );
-    flushSolid();
-    writer.flush();
+    flushUpdates();
   } catch (error) {
     restore();
     throw error;
@@ -358,8 +372,7 @@ export function renderComponent(
   };
   const commitEvent = (node: AuthoredNode, eventCode: number, payload = "") => {
     dispatchEvent(node.id, eventCode, payload);
-    flushSolid();
-    writer.flush();
+    flushUpdates();
   };
   let focusedNode: AuthoredNode | null = null;
   const blurFocusedNode = () => {
@@ -496,8 +509,7 @@ export function renderComponent(
         throw new RangeError("component size must be finite and non-negative");
       }
       dispatchResizeObservation(node.id, width, height);
-      flushSolid();
-      writer.flush();
+      flushUpdates();
     },
   });
   const select = (
@@ -543,8 +555,7 @@ export function renderComponent(
       );
     },
     flush() {
-      flushSolid();
-      writer.flush();
+      flushUpdates();
     },
     dispose() {
       if (disposed) return;
