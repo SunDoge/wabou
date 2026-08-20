@@ -11,10 +11,12 @@ import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import { NumberFormatter, NumberParser } from "@internationalized/number";
+import minus from "lucide-static/icons/minus.svg?raw";
+import plus from "lucide-static/icons/plus.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
 import check from "lucide-static/icons/check.svg?raw";
-import minus from "lucide-static/icons/minus.svg?raw";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
@@ -2752,6 +2754,218 @@ function PaginationNext(props) {
 	}));
 }
 //#endregion
+//#region src/components/range.ts
+function finiteOr(value, fallback) {
+	return value !== void 0 && Number.isFinite(value) ? value : fallback;
+}
+function normalizeRange(minValue, maxValue, stepValue) {
+	const min = finiteOr(minValue, 0);
+	const max = Math.max(min, finiteOr(maxValue, 100));
+	const candidateStep = finiteOr(stepValue, 1);
+	return {
+		min,
+		max,
+		step: candidateStep > 0 ? candidateStep : 1
+	};
+}
+function decimalPlaces(value) {
+	const [coefficient, exponentText] = String(value).toLowerCase().split("e");
+	const fractionLength = coefficient.split(".")[1]?.length ?? 0;
+	const exponent = exponentText === void 0 ? 0 : Number(exponentText);
+	return Math.max(0, Math.min(100, fractionLength - exponent));
+}
+//#endregion
+//#region src/components/number-field-state.ts
+function normalizeNumberFieldRange(minValue, maxValue, stepValue, largeStepValue) {
+	const min = finiteOr(minValue, Number.NEGATIVE_INFINITY);
+	const max = Math.max(min, finiteOr(maxValue, Number.POSITIVE_INFINITY));
+	const candidateStep = finiteOr(stepValue, 1);
+	const step = candidateStep > 0 ? candidateStep : 1;
+	const candidateLargeStep = finiteOr(largeStepValue, step * 10);
+	return {
+		min,
+		max,
+		step,
+		largeStep: candidateLargeStep > 0 ? candidateLargeStep : step * 10
+	};
+}
+function clampNumberFieldValue(value, range) {
+	return Math.max(range.min, Math.min(range.max, value));
+}
+function addNumberFieldStep(value, amount, range) {
+	const precision = Math.max(decimalPlaces(value), decimalPlaces(amount));
+	return clampNumberFieldValue(Number((value + amount).toFixed(precision)), range);
+}
+function numberFieldValueFromEmpty(direction, range) {
+	if (direction > 0 && Number.isFinite(range.min)) return range.min;
+	if (direction < 0 && Number.isFinite(range.max)) return range.max;
+	return clampNumberFieldValue(0, range);
+}
+//#endregion
+//#region src/components/number-field.tsx
+/** Locale-aware numeric input with explicit native stepping semantics. */
+function NumberField(props) {
+	const host = useHost();
+	const forwarded = omit(props, "value", "defaultValue", "min", "max", "step", "largeStep", "locale", "formatOptions", "placeholder", "changeOnWheel", "onValueChange", "class", "inputClass", "incrementLabel", "decrementLabel");
+	const range = () => normalizeNumberFieldRange(props.min, props.max, props.step, props.largeStep);
+	const locale = () => props.locale ?? host.intl.locale();
+	const parser = createMemo(() => new NumberParser(locale(), props.formatOptions));
+	const formatter = createMemo(() => new NumberFormatter(locale(), props.formatOptions));
+	const state = createControllableState({
+		value: () => props.value,
+		defaultValue: props.defaultValue ?? null,
+		disabled: () => Boolean(props.disabled || props.readOnly),
+		onChange: props.onValueChange
+	});
+	const formattedValue = () => {
+		const value = state.value();
+		return value === null ? "" : formatter().format(value);
+	};
+	const [focused, setFocused] = createSignal(false);
+	const [draft, setDraft] = createSignal(untrack(formattedValue));
+	createEffect(() => ({
+		focused: focused(),
+		value: formattedValue()
+	}), ({ focused: isFocused, value }) => {
+		if (!isFocused) setDraft(value);
+	});
+	const update = (next) => {
+		if (props.disabled || props.readOnly) return false;
+		const normalized = next === null ? null : clampNumberFieldValue(next, range());
+		const changed = state.set(normalized);
+		setDraft(formattedValue());
+		return changed;
+	};
+	const commitDraft = () => {
+		const value = draft().trim();
+		if (!value) {
+			update(null);
+			return;
+		}
+		const parsed = parser().parse(value);
+		if (Number.isFinite(parsed)) update(parsed);
+		else setDraft(formattedValue());
+	};
+	const changeBy = (direction, amount) => {
+		const current = state.value();
+		const next = current === null ? numberFieldValueFromEmpty(direction, range()) : addNumberFieldStep(current, direction * amount, range());
+		update(next);
+	};
+	const canDecrement = () => {
+		const value = state.value();
+		return !props.disabled && !props.readOnly && (value === null || value > range().min);
+	};
+	const canIncrement = () => {
+		const value = state.value();
+		return !props.disabled && !props.readOnly && (value === null || value < range().max);
+	};
+	return createComponent$1(InputGroup, {
+		get ["class"]() {
+			return props.class;
+		},
+		get children() {
+			return [
+				createComponent$1(InputGroupButton, {
+					size: "icon",
+					class: "w-6 h-6 mx-0.5",
+					get disabled() {
+						return !canDecrement();
+					},
+					get ["aria-label"]() {
+						return props.decrementLabel ?? `Decrease ${props["aria-label"]}`;
+					},
+					onClick: () => changeBy(-1, range().step),
+					get children() {
+						return createComponent$1(Icon, {
+							source: minus,
+							"aria-hidden": "true",
+							size: 14
+						});
+					}
+				}),
+				createComponent$1(InputGroupInput, mergeProps(forwarded, {
+					role: "spinbutton",
+					get ["aria-label"]() {
+						return props["aria-label"];
+					},
+					get ["aria-valuemin"]() {
+						return memo(() => {
+							return !!Number.isFinite(range().min);
+						})() ? range().min : void 0;
+					},
+					get ["aria-valuemax"]() {
+						return memo(() => {
+							return !!Number.isFinite(range().max);
+						})() ? range().max : void 0;
+					},
+					get ["aria-valuenow"]() {
+						return state.value() ?? void 0;
+					},
+					get ["aria-valuetext"]() {
+						return memo(() => {
+							return state.value() === null;
+						})() ? void 0 : formattedValue();
+					},
+					get value() {
+						return draft();
+					},
+					get placeholder() {
+						return props.placeholder;
+					},
+					get ["class"]() {
+						return props.inputClass;
+					},
+					onFocus: (event) => {
+						setFocused(true);
+						props.onFocus?.(event);
+					},
+					onBlur: (event) => {
+						commitDraft();
+						setFocused(false);
+						props.onBlur?.(event);
+					},
+					onInput: (event) => {
+						const next = event.currentTarget.value;
+						setDraft(next);
+						if (!parser().isValidPartialNumber(next, range().min, range().max)) return;
+						const parsed = parser().parse(next);
+						if (Number.isFinite(parsed) && parsed >= range().min && parsed <= range().max) state.set(parsed);
+					},
+					onKeyDown: (event) => {
+						props.onKeyDown?.(event);
+						if (event.defaultPrevented || props.disabled || props.readOnly) return;
+						if (match(event.key).with("ArrowUp", () => changeBy(1, range().step)).with("ArrowDown", () => changeBy(-1, range().step)).with("PageUp", () => changeBy(1, range().largeStep)).with("PageDown", () => changeBy(-1, range().largeStep)).with("Home", () => Number.isFinite(range().min) ? update(range().min) : false).with("End", () => Number.isFinite(range().max) ? update(range().max) : false).otherwise(() => false)) event.preventDefault();
+					},
+					onWheel: (event) => {
+						props.onWheel?.(event);
+						if (event.defaultPrevented || !props.changeOnWheel || !focused() || props.disabled || props.readOnly || event.deltaY === 0) return;
+						changeBy(event.deltaY < 0 ? 1 : -1, range().step);
+						event.preventDefault();
+					}
+				})),
+				createComponent$1(InputGroupButton, {
+					size: "icon",
+					class: "w-6 h-6 mx-0.5",
+					get disabled() {
+						return !canIncrement();
+					},
+					get ["aria-label"]() {
+						return props.incrementLabel ?? `Increase ${props["aria-label"]}`;
+					},
+					onClick: () => changeBy(1, range().step),
+					get children() {
+						return createComponent$1(Icon, {
+							source: plus,
+							"aria-hidden": "true",
+							size: 14
+						});
+					}
+				})
+			];
+		}
+	});
+}
+//#endregion
 //#region src/components/page.tsx
 const pageViewportClass = (className) => join("min-w-0 min-h-0 flex-1", className);
 const pageViewportContentClass = (className) => join("w-full h-full", className);
@@ -2902,27 +3116,6 @@ function PopoverFooter(props) {
 			return props.children;
 		}
 	});
-}
-//#endregion
-//#region src/components/range.ts
-function finiteOr(value, fallback) {
-	return value !== void 0 && Number.isFinite(value) ? value : fallback;
-}
-function normalizeRange(minValue, maxValue, stepValue) {
-	const min = finiteOr(minValue, 0);
-	const max = Math.max(min, finiteOr(maxValue, 100));
-	const candidateStep = finiteOr(stepValue, 1);
-	return {
-		min,
-		max,
-		step: candidateStep > 0 ? candidateStep : 1
-	};
-}
-function decimalPlaces(value) {
-	const [coefficient, exponentText] = String(value).toLowerCase().split("e");
-	const fractionLength = coefficient.split(".")[1]?.length ?? 0;
-	const exponent = exponentText === void 0 ? 0 : Number(exponentText);
-	return Math.max(0, Math.min(100, fractionLength - exponent));
 }
 //#endregion
 //#region src/components/progress.tsx
@@ -5259,6 +5452,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizeProgressValue, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizeProgressValue, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

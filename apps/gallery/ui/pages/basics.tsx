@@ -19,6 +19,7 @@ import {
   Kbd,
   KbdGroup,
   MotionConfigProvider,
+  NumberField,
   Progress,
   ProgressFill,
   ProgressLabel,
@@ -599,6 +600,68 @@ function SliderPage() {
   );
 }
 
+function NumberFieldPage() {
+  const [concurrency, setConcurrency] = createSignal(4);
+  const [price, setPrice] = createSignal<number | null>(12.5);
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Controlled value">
+        <View class="w-96 flex flex-col gap-3">
+          <Text class="text-sm font-medium text-primary">
+            Download concurrency
+          </Text>
+          <NumberField
+            aria-label="Download concurrency"
+            value={concurrency()}
+            min={1}
+            max={32}
+            onValueChange={(value) => setConcurrency(value ?? 1)}
+          />
+          <Text
+            role="status"
+            aria-label="Download concurrency value"
+            class="text-xs text-muted"
+          >
+            {`${concurrency()} concurrent tasks`}
+          </Text>
+        </View>
+      </Preview>
+      <Preview title="Locale-aware decimals">
+        <View class="w-96 flex flex-col gap-3">
+          <NumberField
+            aria-label="Price in euros"
+            value={price()}
+            min={0}
+            step={0.1}
+            locale="de-DE"
+            formatOptions={{
+              style: "currency",
+              currency: "EUR",
+              currencyDisplay: "symbol",
+            }}
+            onValueChange={setPrice}
+          />
+          <Text class="text-xs text-muted">
+            Locale-aware parsing is preserved while the field is being edited.
+          </Text>
+        </View>
+      </Preview>
+      <Preview title="States">
+        <View class="w-96 flex flex-col gap-3">
+          <NumberField aria-label="Optional amount" placeholder="No value" />
+          <NumberField aria-label="Read-only amount" value={8} readOnly />
+          <NumberField aria-label="Disabled amount" value={12} disabled />
+        </View>
+      </Preview>
+      <PropertyRow name="keyboard" value="arrows | page up/down | home | end" />
+      <PropertyRow
+        name="semantics"
+        value="native spinbutton | min | max | value"
+      />
+    </View>
+  );
+}
+
 function ScrollAreaPage() {
   const theme = useComponentsTheme();
   return (
@@ -890,6 +953,7 @@ export {
   FpsPage,
   InputPage,
   KbdPage,
+  NumberFieldPage,
   PlatformPage,
   ProgressPage,
   RadioGroupPage,

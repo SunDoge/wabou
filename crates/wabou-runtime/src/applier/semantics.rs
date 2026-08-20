@@ -493,6 +493,7 @@ mod tests {
             ("treeitem", SemanticRole::TreeItem),
             ("grid", SemanticRole::Grid),
             ("separator", SemanticRole::Separator),
+            ("spinbutton", SemanticRole::SpinButton),
         ] {
             assert_eq!(SemanticRole::from_name(name), Some(expected));
         }

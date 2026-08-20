@@ -16,7 +16,7 @@ export default defineWabouConfig({
     ],
   },
   intl: {
-    locales: ["en", "zh"],
+    locales: ["en", "zh", "de"],
     timeZones: "golden",
   },
   theme: {

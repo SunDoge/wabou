@@ -78,6 +78,7 @@ fn accesskit_node(
         SemanticRole::RowHeader => Role::RowHeader,
         SemanticRole::Separator => Role::Splitter,
         SemanticRole::Slider => Role::Slider,
+        SemanticRole::SpinButton => Role::SpinButton,
         SemanticRole::ProgressBar => Role::ProgressIndicator,
         SemanticRole::TabList => Role::TabList,
         SemanticRole::Tab => Role::Tab,
@@ -174,6 +175,7 @@ fn accesskit_node(
         | SemanticRole::MenuItem
         | SemanticRole::TreeItem
         | SemanticRole::Slider
+        | SemanticRole::SpinButton
         | SemanticRole::Tab
             if !semantic.disabled =>
         {
@@ -573,6 +575,7 @@ mod tests {
             (SemanticRole::RowHeader, Role::RowHeader),
             (SemanticRole::Separator, Role::Splitter),
             (SemanticRole::Slider, Role::Slider),
+            (SemanticRole::SpinButton, Role::SpinButton),
             (SemanticRole::ProgressBar, Role::ProgressIndicator),
             (SemanticRole::Heading, Role::Heading),
             (SemanticRole::TabList, Role::TabList),

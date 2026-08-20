@@ -37,6 +37,7 @@ export * from "./input";
 export * from "./layout";
 export * from "./menubar";
 export * from "./navigation";
+export * from "./number-field";
 export * from "./page";
 export * from "./popover";
 export * from "./progress";

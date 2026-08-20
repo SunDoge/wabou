@@ -44,12 +44,13 @@
   "dependencies": {
     "@floating-ui/core": "^1.8.0",
     "@internationalized/date": "^3.12.3",
+    "@internationalized/number": "^3.5.3",
     "@tanstack/history": "1.162.1",
     "@tanstack/router-core": "1.171.24",
     "@wabou/core": "workspace:*",
     "lucide-static": "1.31.0",
     "motion-dom": "^12.43.0",
-    "ts-pattern": "^5.9.0",
-    "solid-js": "2.0.0-rc.1"
+    "solid-js": "2.0.0-rc.1",
+    "ts-pattern": "^5.9.0"
   }
 }

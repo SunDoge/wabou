@@ -38,6 +38,7 @@ type ComponentId =
   | "badge"
   | "card"
   | "input"
+  | "number-field"
   | "checkbox"
   | "radio-group"
   | "switch"
@@ -113,6 +114,7 @@ const groups: Array<{
     label: "Forms",
     items: [
       { id: "input", name: "Input" },
+      { id: "number-field", name: "Number field" },
       { id: "select", name: "Select" },
       { id: "combobox", name: "Combobox" },
       { id: "date-picker", name: "Date picker" },
@@ -190,6 +192,8 @@ const descriptions: Record<ComponentId, string> = {
   badge: "A compact label for statuses, categories and metadata.",
   card: "A flexible container for grouped content and actions.",
   input: "A native text input with consistent layout and visual treatment.",
+  "number-field":
+    "Edits locale-aware numeric values with explicit stepping and native spinbutton semantics.",
   checkbox:
     "A binary or indeterminate selection control for forms and settings.",
   "radio-group": "A mutually exclusive selection group with native semantics.",
@@ -273,6 +277,7 @@ import {
   FpsPage,
   InputPage,
   KbdPage,
+  NumberFieldPage,
   PlatformPage,
   ProgressPage,
   RadioGroupPage,
@@ -463,6 +468,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "input"}>
                     <InputPage />
+                  </Match>
+                  <Match when={selected() === "number-field"}>
+                    <NumberFieldPage />
                   </Match>
                   <Match when={selected() === "checkbox"}>
                     <CheckboxPage />

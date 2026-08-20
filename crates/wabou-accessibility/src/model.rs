@@ -103,6 +103,8 @@ semantic_roles! {
     Separator => "separator",
     /// Numeric value selected along a bounded range.
     Slider => "slider",
+    /// Editable numeric value with discrete increment and decrement actions.
+    SpinButton => "spinbutton",
     /// Read-only completion value along a bounded range.
     ProgressBar => "progressbar",
     /// Container for a set of tabs.

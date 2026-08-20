@@ -154,16 +154,6 @@
         "whatwg-url": "^17.1.0",
       },
     },
-    "packages/style-compiler": {
-      "name": "@wabou/style-compiler",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@unocss/core": "^66.7.5",
-        "@wabou/unocss-preset": "workspace:*",
-        "unocss": "^66.7.5",
-        "vite": "^6.0.0",
-      },
-    },
     "packages/terminal": {
       "name": "@wabou/terminal",
       "version": "0.1.0-alpha.1",
@@ -189,6 +179,7 @@
       "dependencies": {
         "@floating-ui/core": "^1.8.0",
         "@internationalized/date": "^3.12.3",
+        "@internationalized/number": "^3.5.3",
         "@tanstack/history": "1.162.1",
         "@tanstack/router-core": "1.171.24",
         "@wabou/core": "workspace:*",
@@ -196,13 +187,6 @@
         "motion-dom": "^12.43.0",
         "solid-js": "2.0.0-rc.1",
         "ts-pattern": "^5.9.0",
-      },
-    },
-    "packages/unocss-preset": {
-      "name": "@wabou/unocss-preset",
-      "version": "0.1.0-alpha.1",
-      "dependencies": {
-        "@unocss/core": "^66.7.5",
       },
     },
     "packages/vite": {
@@ -429,6 +413,8 @@
     "@inquirer/external-editor": ["@inquirer/external-editor@1.0.3", "", { "dependencies": { "chardet": "^2.1.1", "iconv-lite": "^0.7.0" }, "peerDependencies": { "@types/node": ">=18" }, "optionalPeers": ["@types/node"] }, "sha512-RWbSrDiYmO4LbejWY7ttpxczuwQyZLBUyygsA9Nsv95hpzUWwnNTVQmAq3xuh7vNwCp07UTmE5i11XAEExx4RA=="],
 
     "@internationalized/date": ["@internationalized/date@3.12.3", "", { "dependencies": { "@swc/helpers": "^0.5.0" } }, "sha512-fuLX+3ZKLsxI73y8b01EG/WjHb6gE6weCqlfawPO27kBWGMh9G1yH6Csv1uU7/cac9H2GHmOMt6CjmuQ1aia4Q=="],
+
+    "@internationalized/number": ["@internationalized/number@3.6.7", "", { "dependencies": { "@swc/helpers": "^0.5.0" } }, "sha512-3ji1fcrT+FPAK86UqEhB/psHixYo6niWPJtt7+qRaYFynt/BaJG8GhAPimtWUpEiVSTq8ZM8L5psMxGquiB/Vg=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 
@@ -704,8 +690,6 @@
 
     "@wabou/stress": ["@wabou/stress@workspace:apps/stress"],
 
-    "@wabou/style-compiler": ["@wabou/style-compiler@workspace:packages/style-compiler"],
-
     "@wabou/terminal": ["@wabou/terminal@workspace:packages/terminal"],
 
     "@wabou/terminal-demo": ["@wabou/terminal-demo@workspace:apps/terminal"],
@@ -713,8 +697,6 @@
     "@wabou/test": ["@wabou/test@workspace:packages/test"],
 
     "@wabou/ui": ["@wabou/ui@workspace:packages/ui"],
-
-    "@wabou/unocss-preset": ["@wabou/unocss-preset@workspace:packages/unocss-preset"],
 
     "@wabou/vite": ["@wabou/vite@workspace:packages/vite"],
 

@@ -107,6 +107,7 @@ export type WabouSemanticRole =
   | "rowheader"
   | "separator"
   | "slider"
+  | "spinbutton"
   | "status"
   | "switch"
   | "tab"
