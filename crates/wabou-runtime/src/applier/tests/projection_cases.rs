@@ -358,11 +358,11 @@ fn secondary_pointer_sequence_dispatches_context_menu_without_click() {
 }
 
 #[test]
-fn dragging_inside_pressed_target_does_not_synthesize_a_click() {
+fn dragging_outside_pressed_target_keeps_the_js_pointer_capture() {
     let mut applier = interactive_applier();
     applier.handle_event(pointer(PointerPhase::Down, 10.0, 20.0, 1));
-    applier.handle_event(pointer(PointerPhase::Move, 80.0, 20.0, 1));
-    applier.handle_event(pointer(PointerPhase::Up, 80.0, 20.0, 0));
+    applier.handle_event(pointer(PointerPhase::Move, 180.0, 20.0, 1));
+    applier.handle_event(pointer(PointerPhase::Up, 180.0, 20.0, 0));
 
     let codes = applier
         .runtime
@@ -370,6 +370,7 @@ fn dragging_inside_pressed_target_does_not_synthesize_a_click() {
         .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
         .expect("read dispatched events");
     assert!(codes.contains(&event::POINTERDOWN));
+    assert!(codes.contains(&event::POINTERMOVE));
     assert!(codes.contains(&event::POINTERUP));
     assert!(!codes.contains(&event::CLICK));
     assert!(applier.interaction.input.pointer_down_target.is_none());

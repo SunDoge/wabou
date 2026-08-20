@@ -59,7 +59,10 @@ impl Applier {
                 self.interaction.text_selection.last_click = None;
             }
         }
-        changed |= target.is_some_and(|target| {
+        // A pressed JS node owns the gesture until release, matching native
+        // controls and keeping drag cleanup deterministic outside its bounds.
+        let release_target = captured.or(target);
+        changed |= release_target.is_some_and(|target| {
             self.dispatch_pointer(target, event::POINTERUP, Some(button), pointer.modifiers)
         });
         if let Some(target) = target
@@ -268,7 +271,12 @@ impl Applier {
             }
             self.interaction.input.hovered_target = target;
         }
-        if let Some(target) = target {
+        let dispatch_target = if pointer.buttons != 0 {
+            self.interaction.input.pointer_down_target.or(target)
+        } else {
+            target
+        };
+        if let Some(target) = dispatch_target {
             changed |= self.dispatch_pointer(target, event::POINTERMOVE, None, pointer.modifiers);
         }
         Self::response(changed)

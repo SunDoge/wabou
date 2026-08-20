@@ -95,6 +95,8 @@ semantic_roles! {
     ColumnHeader => "columnheader",
     /// Header describing a table row.
     RowHeader => "rowheader",
+    /// Adjustable divider between adjacent regions.
+    Separator => "separator",
     /// Numeric value selected along a bounded range.
     Slider => "slider",
     /// Read-only completion value along a bounded range.

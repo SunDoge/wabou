@@ -30,6 +30,8 @@ export interface ComponentLocator {
   readonly className: string;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
+  /** Dispatch a captured native pointer move while preserving button state. */
+  pointerMove(position?: ComponentPointerPosition): void;
   pointerUp(position?: ComponentPointerPosition): void;
   click(): void;
   /** Dispatch a secondary-click context-menu event at a deterministic point. */
@@ -47,6 +49,8 @@ export interface ComponentLocator {
 }
 
 export interface ComponentPointerPosition {
+  clientX?: number;
+  clientY?: number;
   offsetX?: number;
   offsetY?: number;
 }
@@ -377,14 +381,21 @@ export function renderComponent(
     buttons: number,
     button = 0,
   ): string => {
-    const offsetX = position.offsetX ?? 0;
-    const offsetY = position.offsetY ?? 0;
-    if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
-      throw new RangeError("component pointer offsets must be finite");
+    const clientX = position.clientX ?? position.offsetX ?? 0;
+    const clientY = position.clientY ?? position.offsetY ?? 0;
+    const offsetX = position.offsetX ?? clientX;
+    const offsetY = position.offsetY ?? clientY;
+    if (
+      !Number.isFinite(clientX) ||
+      !Number.isFinite(clientY) ||
+      !Number.isFinite(offsetX) ||
+      !Number.isFinite(offsetY)
+    ) {
+      throw new RangeError("component pointer coordinates must be finite");
     }
     return JSON.stringify({
-      clientX: offsetX,
-      clientY: offsetY,
+      clientX,
+      clientY,
       offsetX,
       offsetY,
       button,
@@ -412,6 +423,10 @@ export function renderComponent(
     pointerDown: (position = {}) => {
       ensureEnabled(node, "press");
       commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
+    },
+    pointerMove: (position = {}) => {
+      ensureEnabled(node, "drag");
+      commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 1));
     },
     pointerUp: (position = {}) => {
       ensureEnabled(node, "release");

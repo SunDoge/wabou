@@ -110,6 +110,7 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
                         | SemanticRole::Cell
                         | SemanticRole::ColumnHeader
                         | SemanticRole::RowHeader
+                        | SemanticRole::Separator
                         | SemanticRole::Generic
                         | SemanticRole::Tab
                 )
@@ -491,6 +492,7 @@ mod tests {
             ("tree", SemanticRole::Tree),
             ("treeitem", SemanticRole::TreeItem),
             ("grid", SemanticRole::Grid),
+            ("separator", SemanticRole::Separator),
         ] {
             assert_eq!(SemanticRole::from_name(name), Some(expected));
         }

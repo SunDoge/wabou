@@ -1,6 +1,14 @@
 import { m as NodeKeyTable } from "./protocol-BkE2Fvea.mjs";
 //#region src/glue/resize-observer.ts
-const observers = new NodeKeyTable();
+const registryKey = Symbol.for("@wabou/core.resize-observers");
+const realm = globalThis;
+const observers = (() => {
+	const existing = realm[registryKey];
+	if (existing) return existing;
+	const created = new NodeKeyTable();
+	realm[registryKey] = created;
+	return created;
+})();
 var WabouResizeObserver = class {
 	callback;
 	targets = /* @__PURE__ */ new Set();
@@ -58,4 +66,4 @@ globalThis.ResizeObserver = WabouResizeObserver;
 //#endregion
 export { dispatchResizeObservation as t };
 
-//# sourceMappingURL=resize-observer-CcJpoJiT.mjs.map
+//# sourceMappingURL=resize-observer-dWY6jptf.mjs.map

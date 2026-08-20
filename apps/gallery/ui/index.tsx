@@ -53,6 +53,7 @@ type ComponentId =
   | "shadows"
   | "utilities"
   | "scroll-area"
+  | "resizable"
   | "overlay"
   | "alert"
   | "skeleton"
@@ -164,6 +165,7 @@ const groups: Array<{
     items: [
       { id: "utilities", name: "Utilities" },
       { id: "scroll-area", name: "Scroll area" },
+      { id: "resizable", name: "Resizable" },
     ],
   },
   {
@@ -198,6 +200,8 @@ const descriptions: Record<ComponentId, string> = {
     "Vello-native blurred rounded rectangles with explicit Gaussian parameters.",
   utilities: "Tailwind-style static classes parsed by the native Rust preset.",
   "scroll-area": "A native scrolling viewport with intrinsic flex content.",
+  resizable:
+    "Composes explicitly identified panels with pointer and keyboard resizing.",
   overlay: "Explicit floating and modal planes shared by JavaScript portals.",
   alert: "Calls attention to information that needs user awareness.",
   skeleton: "A lightweight animated placeholder for content that is loading.",
@@ -287,6 +291,7 @@ import {
   FieldPage,
   PaginationPage,
   PopoverPage,
+  ResizablePage,
   SelectPage,
   SheetPage,
   ToastPage,
@@ -519,6 +524,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "popover"}>
                     <PopoverPage />
+                  </Match>
+                  <Match when={selected() === "resizable"}>
+                    <ResizablePage />
                   </Match>
                   <Match when={selected() === "breadcrumb"}>
                     <BreadcrumbPageDemo />

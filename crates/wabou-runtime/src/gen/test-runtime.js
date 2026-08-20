@@ -6163,7 +6163,16 @@ ${detail}`);
   globalThis.clearInterval = clearTimer;
 
   // packages/core/src/glue/resize-observer.ts
-  var observers = new NodeKeyTable;
+  var registryKey = Symbol.for("@wabou/core.resize-observers");
+  var realm = globalThis;
+  var observers = (() => {
+    const existing = realm[registryKey];
+    if (existing)
+      return existing;
+    const created = new NodeKeyTable;
+    realm[registryKey] = created;
+    return created;
+  })();
 
   class WabouResizeObserver {
     callback;

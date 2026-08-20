@@ -6,10 +6,28 @@ interface WabouResizeObserverEntry {
 }
 
 type ResizeCallback = (entries: WabouResizeObserverEntry[]) => void;
-const observers = new NodeKeyTable<{
+type ResizeObserverTable = NodeKeyTable<{
   target: { id: NodeKey };
   callbacks: Set<ResizeCallback>;
-}>();
+}>;
+
+// Source and built package entries can coexist in dev/test processes. Keep
+// resize subscriptions realm-global so either entry dispatches to the same
+// observers instead of making behavior depend on module import order.
+const registryKey = Symbol.for("@wabou/core.resize-observers");
+const realm = globalThis as typeof globalThis & {
+  [registryKey]?: ResizeObserverTable;
+};
+const observers: ResizeObserverTable = (() => {
+  const existing = realm[registryKey];
+  if (existing) return existing;
+  const created = new NodeKeyTable<{
+    target: { id: NodeKey };
+    callbacks: Set<ResizeCallback>;
+  }>();
+  realm[registryKey] = created;
+  return created;
+})();
 
 class WabouResizeObserver {
   private readonly targets = new Set<NodeKey>();

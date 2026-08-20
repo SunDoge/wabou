@@ -67,6 +67,9 @@ import {
   PopoverFooter,
   PopoverHeader,
   PopoverTitle,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
   Select,
   Sheet,
   SheetDescription,
@@ -286,6 +289,62 @@ export function PopoverPage() {
         </Popover>
         <Text role="status" class="text-sm text-secondary">
           {saved()}
+        </Text>
+      </View>
+    </Preview>
+  );
+}
+
+const workspacePanels = [
+  { id: "navigation", defaultSize: 32, minSize: 20, maxSize: 60 },
+  { id: "content", defaultSize: 68, minSize: 40, maxSize: 80 },
+] as const;
+
+export function ResizablePage() {
+  const [sizes, setSizes] = createSignal({ navigation: 32, content: 68 });
+  return (
+    <Preview title="Explicit split-panel composition">
+      <View class="w-full flex flex-col gap-4">
+        <ResizablePanelGroup
+          panels={workspacePanels}
+          value={sizes()}
+          onValueChange={(next) =>
+            setSizes({
+              navigation: next.navigation,
+              content: next.content,
+            })
+          }
+          aria-label="Workspace panels"
+          class="h-64 rounded-lg border border-subtle bg-surface"
+        >
+          <ResizablePanel id="navigation" class="p-4 bg-surface-muted">
+            <View class="flex flex-col gap-2">
+              <Text class="font-semibold">Navigation</Text>
+              <Text maxLines={1} class="text-sm text-secondary">
+                Drag or use arrow keys.
+              </Text>
+            </View>
+          </ResizablePanel>
+          <ResizableHandle
+            before="navigation"
+            after="content"
+            aria-label="Resize navigation panel"
+          />
+          <ResizablePanel id="content" class="p-4">
+            <View class="flex flex-col gap-2">
+              <Text class="font-semibold">Content</Text>
+              <Text class="text-sm text-secondary">
+                Both panels keep explicit min and max constraints.
+              </Text>
+            </View>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+        <Text
+          role="status"
+          aria-label="Panel sizes"
+          class="text-sm text-secondary"
+        >
+          {`${Math.round(sizes().navigation)}% navigation · ${Math.round(sizes().content)}% content`}
         </Text>
       </View>
     </Preview>

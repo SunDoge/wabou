@@ -104,6 +104,7 @@ export type WabouSemanticRole =
   | "radiogroup"
   | "row"
   | "rowheader"
+  | "separator"
   | "slider"
   | "status"
   | "switch"

@@ -1189,6 +1189,7 @@ fn interactive_applier() -> Applier {
     });
     for code in [
         event::POINTERDOWN,
+        event::POINTERMOVE,
         event::POINTERUP,
         event::CLICK,
         event::CONTEXTMENU,

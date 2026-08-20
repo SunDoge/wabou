@@ -18,7 +18,13 @@ export function createControllableState<T>(
   // Solid 2 treats a function passed to createSignal as a computation. Keep
   // the generic value in an object so both ordinary and function-valued state
   // remain writable without relying on setter/update-function ambiguity.
-  const [local, setLocal] = createSignal({ value: options.defaultValue });
+  // Controllable state is intentionally writable from host events and public
+  // state-machine commands, which can run outside the component owner's
+  // reactive scope.
+  const [local, setLocal] = createSignal(
+    { value: options.defaultValue },
+    { ownedWrite: true },
+  );
   const value = () => options.value() ?? local().value;
   return {
     value,

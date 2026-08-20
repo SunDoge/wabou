@@ -243,12 +243,14 @@ function renderComponent(render, options = {}) {
 		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
 	};
 	const pointerPayload = (position, buttons, button = 0) => {
-		const offsetX = position.offsetX ?? 0;
-		const offsetY = position.offsetY ?? 0;
-		if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) throw new RangeError("component pointer offsets must be finite");
+		const clientX = position.clientX ?? position.offsetX ?? 0;
+		const clientY = position.clientY ?? position.offsetY ?? 0;
+		const offsetX = position.offsetX ?? clientX;
+		const offsetY = position.offsetY ?? clientY;
+		if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || !Number.isFinite(offsetX) || !Number.isFinite(offsetY)) throw new RangeError("component pointer coordinates must be finite");
 		return JSON.stringify({
-			clientX: offsetX,
-			clientY: offsetY,
+			clientX,
+			clientY,
 			offsetX,
 			offsetY,
 			button,
@@ -276,6 +278,10 @@ function renderComponent(render, options = {}) {
 		pointerDown: (position = {}) => {
 			ensureEnabled(node, "press");
 			commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
+		},
+		pointerMove: (position = {}) => {
+			ensureEnabled(node, "drag");
+			commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 1));
 		},
 		pointerUp: (position = {}) => {
 			ensureEnabled(node, "release");

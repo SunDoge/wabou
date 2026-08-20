@@ -9,6 +9,8 @@ interface ComponentLocator {
   readonly className: string;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
+  /** Dispatch a captured native pointer move while preserving button state. */
+  pointerMove(position?: ComponentPointerPosition): void;
   pointerUp(position?: ComponentPointerPosition): void;
   click(): void;
   /** Dispatch a secondary-click context-menu event at a deterministic point. */
@@ -28,6 +30,8 @@ interface ComponentLocator {
   }): void;
 }
 interface ComponentPointerPosition {
+  clientX?: number;
+  clientY?: number;
   offsetX?: number;
   offsetY?: number;
 }
