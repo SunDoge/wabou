@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   captureCommand,
   discoverCaptureCases,
+  parseCaptureArguments,
   textContainmentDiagnostics,
   validateCaptureArtifacts,
   validateCaptureSnapshot,
@@ -33,6 +34,30 @@ async function fixture(): Promise<string> {
 }
 
 describe("authored capture discovery", () => {
+  test("parses exact repeatable scenario selection", () => {
+    expect(
+      parseCaptureArguments([
+        "--check-existing",
+        "--scenario",
+        "apps/demo/captures/first.ts",
+        "--scenario",
+        "apps\\demo\\captures\\second.ts",
+      ]),
+    ).toEqual({
+      list: false,
+      checkExisting: true,
+      scenarios: [
+        "apps/demo/captures/first.ts",
+        "apps/demo/captures/second.ts",
+      ],
+    });
+    expect(() => parseCaptureArguments(["--scenario"])).toThrow("requires");
+    expect(() => parseCaptureArguments(["--unknown"])).toThrow("unsupported");
+    expect(() => parseCaptureArguments(["--list", "--check-existing"])).toThrow(
+      "cannot be combined",
+    );
+  });
+
   test("applies app defaults and per-scenario viewport overrides", async () => {
     const root = await fixture();
     await writeFile(

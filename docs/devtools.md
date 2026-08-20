@@ -174,6 +174,15 @@ After a full render, `bun run check:captures` reapplies structural validation to
 the existing artifacts without rebuilding or starting application hosts. This
 is intended for iterating on validation rules; because it does not render the
 current sources, it is not a replacement for `verify:captures` in CI.
+Use repeatable exact `--scenario` arguments to render or recheck only the state
+affected by a local change:
+
+```sh
+bun run scripts/check-captures.ts \
+  --scenario apps/motrix/captures/task-details.ts
+bun run scripts/check-captures.ts --check-existing \
+  --scenario apps/motrix/captures/task-details.ts
+```
 
 `page.waitForIdle()` waits for queued test actions and runtime work; it does
 not wait for visual animation completion because a valid application may have

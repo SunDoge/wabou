@@ -515,29 +515,65 @@ function relativeScenarioPath(scenario: string): string {
   return scenario.split("/captures/")[1] ?? scenario;
 }
 
-async function main(): Promise<void> {
-  const supportedArguments = new Set(["--list", "--check-existing"]);
-  const arguments_ = process.argv.slice(2);
-  const unsupported = arguments_.find(
-    (argument) => !supportedArguments.has(argument),
-  );
-  if (unsupported) throw new Error(`unsupported argument ${unsupported}`);
-  if (
-    arguments_.includes("--list") &&
-    arguments_.includes("--check-existing")
-  ) {
-    throw new Error("--list and --check-existing cannot be combined");
+export interface CaptureArguments {
+  list: boolean;
+  checkExisting: boolean;
+  scenarios: string[];
+}
+
+export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
+  const parsed: CaptureArguments = {
+    list: false,
+    checkExisting: false,
+    scenarios: [],
+  };
+  for (let index = 0; index < arguments_.length; index++) {
+    const argument = arguments_[index];
+    if (argument === "--list") parsed.list = true;
+    else if (argument === "--check-existing") parsed.checkExisting = true;
+    else if (argument === "--scenario") {
+      const scenario = arguments_[++index];
+      if (!scenario || scenario.startsWith("--")) {
+        throw new Error("--scenario requires an apps/*/captures/**/*.ts path");
+      }
+      parsed.scenarios.push(scenario.replaceAll("\\", "/"));
+    } else {
+      throw new Error(`unsupported argument ${argument}`);
+    }
   }
-  const captures = await discoverCaptureCases();
-  if (captures.length === 0) {
+  if (parsed.list && (parsed.checkExisting || parsed.scenarios.length > 0)) {
+    throw new Error(
+      "--list cannot be combined with capture selection or checking",
+    );
+  }
+  return parsed;
+}
+
+async function main(): Promise<void> {
+  const arguments_ = parseCaptureArguments(process.argv.slice(2));
+  const discovered = await discoverCaptureCases();
+  if (discovered.length === 0) {
     throw new Error("no apps/*/captures/**/*.ts scenarios were discovered");
   }
-  if (arguments_.includes("--list")) {
-    console.log(JSON.stringify(captures, null, 2));
+  if (arguments_.list) {
+    console.log(JSON.stringify(discovered, null, 2));
     return;
   }
+  const selected = new Set(arguments_.scenarios);
+  const captures =
+    selected.size === 0
+      ? discovered
+      : discovered.filter((capture) => selected.has(capture.scenario));
+  if (captures.length !== selected.size) {
+    const missing = [...selected].filter(
+      (scenario) => !captures.some((capture) => capture.scenario === scenario),
+    );
+    throw new Error(
+      `unknown capture scenario${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`,
+    );
+  }
 
-  const checkExisting = arguments_.includes("--check-existing");
+  const checkExisting = arguments_.checkExisting;
   const builtApplications = new Set<string>();
   for (const capture of captures) {
     const output = resolve(root, capture.output);
