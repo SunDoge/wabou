@@ -116,6 +116,24 @@ test("drives a real component through keyboard events", () => {
   expect(slider.attribute("aria-valuenow")).toBe("45");
 });
 
+test("observes native interaction policy instead of treating it as attributes", () => {
+  const screen = renderComponent(() => (
+    <View
+      role="group"
+      aria-label="Modal region"
+      focusOrder={3}
+      interactionBlocked
+      focusContained
+    />
+  ));
+  const region = screen.getByRole("group", { name: "Modal region" });
+
+  expect(region.focusOrder).toBe(3);
+  expect(region.interactionBlocked).toBe(true);
+  expect(region.focusContained).toBe(true);
+  expect(region.attribute("focusOrder")).toBeNull();
+});
+
 test("publishes deterministic native measurements to a component", () => {
   const MeasuredPanel = () => {
     const size = createMeasuredSize();

@@ -1,4 +1,4 @@
-import type { NodeKey } from "@wabou/core/protocol";
+import { INTERACTION_POLICY, type NodeKey } from "@wabou/core/protocol";
 import {
   type BuiltinHost,
   dispatchEvent,
@@ -18,6 +18,9 @@ interface AuthoredNode {
   parent: AuthoredNode | null;
   readonly children: AuthoredNode[];
   readonly attributes: Map<string, string>;
+  focusOrder: number | null;
+  interactionBlocked: boolean;
+  focusContained: boolean;
   className: string;
   text: string;
 }
@@ -59,6 +62,12 @@ export interface ComponentLocator extends ComponentQueries {
   readonly className: string;
   /** Whether this locator owns the harness's native focus simulation. */
   readonly focused: boolean;
+  /** Native tab order emitted through Wabou's interaction policy protocol. */
+  readonly focusOrder: number | null;
+  /** Whether native pointer and keyboard routing is blocked for this subtree. */
+  readonly interactionBlocked: boolean;
+  /** Whether native focus traversal is contained by this subtree. */
+  readonly focusContained: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch a captured native pointer move while preserving button state. */
@@ -256,6 +265,7 @@ export function renderComponent(
     setAttribute: writer.setAttribute,
     removeAttribute: writer.removeAttribute,
     setClassName: writer.setClassName,
+    setInteractionPolicy: writer.setInteractionPolicy,
     dropNode: writer.dropNode,
     focusNode: writer.focusNode,
   };
@@ -267,6 +277,9 @@ export function renderComponent(
       parent: null,
       children: [],
       attributes: new Map(),
+      focusOrder: null,
+      interactionBlocked: false,
+      focusContained: false,
       className: "",
       text,
     });
@@ -328,6 +341,16 @@ export function renderComponent(
     const node = nodes.get(key(id));
     if (node) node.className = value;
     originals.setClassName.call(writer, id, value);
+  };
+  writer.setInteractionPolicy = (id, flags, focusOrder) => {
+    const node = nodes.get(key(id));
+    if (node) {
+      node.focusOrder =
+        (flags & INTERACTION_POLICY.Focusable) !== 0 ? focusOrder : null;
+      node.interactionBlocked = (flags & INTERACTION_POLICY.BlockSubtree) !== 0;
+      node.focusContained = (flags & INTERACTION_POLICY.ContainFocus) !== 0;
+    }
+    originals.setInteractionPolicy.call(writer, id, flags, focusOrder);
   };
   writer.dropNode = (id) => {
     const node = nodes.get(key(id));
@@ -573,6 +596,15 @@ export function renderComponent(
       },
       get focused() {
         return focusedNode === node;
+      },
+      get focusOrder() {
+        return node.focusOrder;
+      },
+      get interactionBlocked() {
+        return node.interactionBlocked;
+      },
+      get focusContained() {
+        return node.focusContained;
       },
       attribute: (name) => node.attributes.get(name) ?? null,
       pointerDown: (position = {}) => {

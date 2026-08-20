@@ -78,6 +78,7 @@ type ComponentId =
   | "field"
   | "empty"
   | "button-group"
+  | "toolbar"
   | "select"
   | "date-picker"
   | "data-table"
@@ -94,6 +95,7 @@ const groups: Array<{
     items: [
       { id: "button", name: "Button" },
       { id: "button-group", name: "Button group" },
+      { id: "toolbar", name: "Toolbar" },
       { id: "toggle", name: "Toggle" },
       { id: "switch", name: "Switch" },
       { id: "dropdown-menu", name: "Dropdown menu" },
@@ -241,6 +243,8 @@ const descriptions: Record<ComponentId, string> = {
   empty: "A centered placeholder for collections that do not contain data yet.",
   "button-group":
     "Groups related actions into horizontal or vertical toolbars.",
+  toolbar:
+    "Composes commands and toggles with one tab stop and directional keyboard navigation.",
   "data-table":
     "A framework-agnostic TanStack Table core rendered through native Wabou primitives.",
   "tree-view":
@@ -283,6 +287,7 @@ import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { OverviewPage } from "./pages/overview";
+import { ToolbarPage } from "./pages/toolbar";
 import { TreeViewPage } from "./pages/tree-view";
 import {
   AccordionPage,
@@ -570,6 +575,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "button-group"}>
                     <ButtonGroupPage />
+                  </Match>
+                  <Match when={selected() === "toolbar"}>
+                    <ToolbarPage />
                   </Match>
                   <Match when={selected() === "select"}>
                     <SelectPage />

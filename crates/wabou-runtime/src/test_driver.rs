@@ -1509,6 +1509,7 @@ mod tests {
             ("menuitem", SemanticRole::MenuItem),
             ("tree", SemanticRole::Tree),
             ("treeitem", SemanticRole::TreeItem),
+            ("toolbar", SemanticRole::Toolbar),
             ("tablist", SemanticRole::TabList),
             ("tab", SemanticRole::Tab),
             ("tabpanel", SemanticRole::TabPanel),

@@ -82,6 +82,7 @@ export {
 } from "./theme";
 export * from "./title-bar";
 export * from "./toast";
+export * from "./toolbar";
 export * from "./tooltip";
 export * from "./tree-view";
 

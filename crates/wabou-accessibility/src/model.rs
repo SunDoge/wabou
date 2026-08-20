@@ -85,6 +85,8 @@ semantic_roles! {
     Tree => "tree",
     /// One item in a hierarchical tree.
     TreeItem => "treeitem",
+    /// Container for a compact set of application controls.
+    Toolbar => "toolbar",
     /// Tabular data container.
     Table => "table",
     /// One row in a table.

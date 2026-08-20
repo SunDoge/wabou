@@ -3956,6 +3956,148 @@ function Toaster(props) {
 	});
 }
 //#endregion
+//#region src/components/toolbar.tsx
+const ToolbarContext = createContext();
+/** A compact command surface with one native tab stop and arrow navigation. */
+function Toolbar(props) {
+	const entries = [];
+	const [activeId, setActiveId] = createSignal(void 0, { ownedWrite: true });
+	const [registryVersion, setRegistryVersion] = createSignal(0, { ownedWrite: true });
+	const orientation = () => props.orientation ?? "horizontal";
+	const enabled = () => entries.filter((entry) => !entry.disabled());
+	const roving = createRovingFocus({
+		orientation,
+		loop: props.loop,
+		onMove: setActiveId
+	});
+	const context = {
+		orientation,
+		register(id, target, disabled) {
+			const entry = {
+				id,
+				disabled
+			};
+			entries.push(entry);
+			const unregisterRoving = roving.register({
+				id,
+				target,
+				disabled
+			});
+			setRegistryVersion((version) => version + 1);
+			return () => {
+				unregisterRoving();
+				const index = entries.indexOf(entry);
+				if (index >= 0) entries.splice(index, 1);
+				setRegistryVersion((version) => version + 1);
+			};
+		},
+		activate: setActiveId,
+		isTabStop(id) {
+			registryVersion();
+			const candidates = enabled();
+			const active = activeId();
+			return id === (candidates.some((entry) => entry.id === active) ? active : candidates[0]?.id);
+		},
+		move: roving.move
+	};
+	return createComponent(ToolbarContext, {
+		value: context,
+		get children() {
+			return createComponent$1(View, {
+				role: "toolbar",
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				get ["aria-orientation"]() {
+					return orientation();
+				},
+				get ["class"]() {
+					return join("flex-none flex items-center gap-1 rounded-md border border-subtle bg-control p-1", match(orientation()).with("horizontal", () => "flex-row").with("vertical", () => "flex-col").exhaustive(), props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	});
+}
+function ToolbarButton(props) {
+	const toolbar = useContext(ToolbarContext);
+	if (!toolbar) throw new Error("ToolbarButton must be used inside Toolbar");
+	const id = createUniqueId();
+	const forwarded = omit(props, "ref", "onFocus", "onKeyDown");
+	let unregister;
+	onCleanup(() => unregister?.());
+	return createComponent$1(Button, mergeProps(forwarded, {
+		get variant() {
+			return props.variant ?? "ghost";
+		},
+		get size() {
+			return props.size ?? "sm";
+		},
+		get focusOrder() {
+			return toolbar.isTabStop(id) ? 0 : -1;
+		},
+		ref: (node) => {
+			unregister?.();
+			unregister = toolbar.register(id, node, () => props.disabled ?? false);
+			props.ref?.(node);
+		},
+		onFocus: (event) => {
+			toolbar.activate(id);
+			props.onFocus?.(event);
+		},
+		onKeyDown: (event) => {
+			props.onKeyDown?.(event);
+			if (toolbar.move(id, event.key)) event.preventDefault();
+		}
+	}));
+}
+function ToolbarToggle(props) {
+	const state = createControllableState({
+		value: () => props.pressed,
+		defaultValue: props.defaultPressed ?? false,
+		disabled: () => props.disabled ?? false,
+		onChange: props.onPressedChange
+	});
+	const forwarded = omit(props, "pressed", "defaultPressed", "onPressedChange");
+	return createComponent$1(ToolbarButton, mergeProps(forwarded, {
+		get ["aria-pressed"]() {
+			return state.value();
+		},
+		get variant() {
+			return state.value() ? "secondary" : "ghost";
+		},
+		onClick: () => state.set(!state.value())
+	}));
+}
+function ToolbarGroup(props) {
+	const toolbar = useContext(ToolbarContext);
+	if (!toolbar) throw new Error("ToolbarGroup must be used inside Toolbar");
+	return createComponent$1(View, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get ["class"]() {
+			return join("flex items-center gap-0.5", toolbar.orientation() === "horizontal" ? "flex-row" : "flex-col", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function ToolbarSeparator(props) {
+	const toolbar = useContext(ToolbarContext);
+	if (!toolbar) throw new Error("ToolbarSeparator must be used inside Toolbar");
+	return createComponent$1(View, {
+		"aria-hidden": "true",
+		get ["class"]() {
+			return join("flex-none bg-subtle", toolbar.orientation() === "horizontal" ? "w-px h-5" : "h-px w-5", props.class);
+		}
+	});
+}
+//#endregion
 //#region src/components/tooltip.tsx
 let tooltipId = 0;
 /** A delayed, non-interactive label for pointer and keyboard focus targets. */
@@ -4673,6 +4815,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTransition, createTreeModel, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTransition, createTreeModel, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

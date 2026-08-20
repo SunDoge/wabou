@@ -23,6 +23,12 @@ interface ComponentLocator extends ComponentQueries {
   readonly className: string;
   /** Whether this locator owns the harness's native focus simulation. */
   readonly focused: boolean;
+  /** Native tab order emitted through Wabou's interaction policy protocol. */
+  readonly focusOrder: number | null;
+  /** Whether native pointer and keyboard routing is blocked for this subtree. */
+  readonly interactionBlocked: boolean;
+  /** Whether native focus traversal is contained by this subtree. */
+  readonly focusContained: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch a captured native pointer move while preserving button state. */

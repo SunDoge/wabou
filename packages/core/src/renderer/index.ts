@@ -115,6 +115,7 @@ export type WabouSemanticRole =
   | "textbox"
   | "tree"
   | "treeitem"
+  | "toolbar"
   | "tooltip";
 
 /** Roles that remain addressable after semantic-tree projection. */

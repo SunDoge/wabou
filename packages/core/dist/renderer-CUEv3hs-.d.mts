@@ -1,4 +1,4 @@
-import "./index-2AMW6JAA.mjs";
+import "./index-BxYePIW9.mjs";
 //#region src/renderer/use-fps.d.ts
 /**
  * Track frames-per-second. A self-perpetuating rAF loop counts frames; a
@@ -15,4 +15,4 @@ import "./index-2AMW6JAA.mjs";
 declare function createFps(): () => number;
 //#endregion
 export { createFps as t };
-//# sourceMappingURL=renderer-Bv_ewNCi.d.mts.map
+//# sourceMappingURL=renderer-CUEv3hs-.d.mts.map

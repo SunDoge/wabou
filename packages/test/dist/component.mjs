@@ -1,4 +1,5 @@
 import { EVENT_CODE, HostProvider, dispatchEvent, mount, writer } from "@wabou/core/renderer";
+import { INTERACTION_POLICY } from "@wabou/core/protocol";
 import { dispatchResizeObservation } from "@wabou/core/testing";
 import { createComponent, flush } from "solid-js";
 import { onTestFinished } from "vitest";
@@ -119,6 +120,7 @@ function renderComponent(render, options = {}) {
 		setAttribute: writer.setAttribute,
 		removeAttribute: writer.removeAttribute,
 		setClassName: writer.setClassName,
+		setInteractionPolicy: writer.setInteractionPolicy,
 		dropNode: writer.dropNode,
 		focusNode: writer.focusNode
 	};
@@ -129,6 +131,9 @@ function renderComponent(render, options = {}) {
 			parent: null,
 			children: [],
 			attributes: /* @__PURE__ */ new Map(),
+			focusOrder: null,
+			interactionBlocked: false,
+			focusContained: false,
 			className: "",
 			text
 		});
@@ -187,6 +192,15 @@ function renderComponent(render, options = {}) {
 		const node = nodes.get(key(id));
 		if (node) node.className = value;
 		originals.setClassName.call(writer, id, value);
+	};
+	writer.setInteractionPolicy = (id, flags, focusOrder) => {
+		const node = nodes.get(key(id));
+		if (node) {
+			node.focusOrder = (flags & INTERACTION_POLICY.Focusable) !== 0 ? focusOrder : null;
+			node.interactionBlocked = (flags & INTERACTION_POLICY.BlockSubtree) !== 0;
+			node.focusContained = (flags & INTERACTION_POLICY.ContainFocus) !== 0;
+		}
+		originals.setInteractionPolicy.call(writer, id, flags, focusOrder);
 	};
 	writer.dropNode = (id) => {
 		const node = nodes.get(key(id));
@@ -351,6 +365,15 @@ function renderComponent(render, options = {}) {
 			},
 			get focused() {
 				return focusedNode === node;
+			},
+			get focusOrder() {
+				return node.focusOrder;
+			},
+			get interactionBlocked() {
+				return node.interactionBlocked;
+			},
+			get focusContained() {
+				return node.focusContained;
 			},
 			attribute: (name) => node.attributes.get(name) ?? null,
 			pointerDown: (position = {}) => {
