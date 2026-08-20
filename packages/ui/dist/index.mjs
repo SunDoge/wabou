@@ -1780,6 +1780,12 @@ function PageHeader(props) {
 	});
 }
 //#endregion
+//#region src/components/select-semantics.ts
+/** Keep semantic ID references live for the same lifetime as the popup node. */
+function selectControlsId(listboxId, open) {
+	return open ? listboxId : void 0;
+}
+//#endregion
 //#region src/components/select.tsx
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
@@ -1855,7 +1861,9 @@ function Select(props) {
 			get ["aria-expanded"]() {
 				return interaction.open();
 			},
-			"aria-controls": `${id}-listbox`,
+			get ["aria-controls"]() {
+				return selectControlsId(`${id}-listbox`, interaction.open());
+			},
 			ref: (node) => {
 				trigger = node;
 				popover.ref(node);

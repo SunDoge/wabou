@@ -17,6 +17,7 @@ import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { createUniqueId, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { join } from "./class-names";
+import { selectControlsId } from "./select-semantics";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 const ITEM_HEIGHT = 40;
@@ -140,7 +141,7 @@ export function Select(props: SelectProps): JSX.Element {
           aria-label={props["aria-label"]}
           aria-haspopup="listbox"
           aria-expanded={interaction.open()}
-          aria-controls={`${id}-listbox`}
+          aria-controls={selectControlsId(`${id}-listbox`, interaction.open())}
           ref={(node) => {
             trigger = node;
             popover.ref(node);
