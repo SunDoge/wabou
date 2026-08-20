@@ -63,10 +63,10 @@ been removed fails explicitly instead of inspecting a stale detached tree.
 `click()` and `press(key)` dispatch through Wabou's real JavaScript event path
 and flush Solid synchronously, so the next assertion observes the completed
 component update. Common semantic states are exposed directly as live
-locator properties (`disabled`, `checked`, `selected`, `expanded`, `pressed`,
-`current`, and `orientation`), so component tests assert the same contract
-consumed by native accessibility projection instead of stringly typed
-`aria-*` attributes:
+locator properties (`disabled`, `readOnly`, `checked`, `selected`, `expanded`,
+`pressed`, `current`, and `orientation`), so component tests assert the same
+contract consumed by native accessibility projection instead of stringly
+typed `aria-*` attributes:
 
 ```ts
 const updates = screen.getByRole("checkbox", { name: "Updates" });
@@ -98,6 +98,11 @@ const slider = screen.getByRole("slider", { name: "Volume" });
 slider.press("ArrowRight");
 expect(slider.numericValue).toBe(45);
 ```
+
+`input(value)` first focuses the editor and then dispatches Wabou's authored
+input event. It rejects disabled and read-only editors. Native editing details
+such as selection, clipboard paste, and IME composition remain behavior-test
+responsibilities because the Rust editor owns them.
 
 Components that subscribe to native measurement can still mount in their
 explicit unmeasured state without requiring a window.

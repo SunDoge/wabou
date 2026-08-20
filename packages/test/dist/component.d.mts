@@ -9,6 +9,7 @@ type ComponentStyleValue = string | ComponentTypedStyleValue;
 interface ComponentRoleListOptions {
   name?: string;
   disabled?: boolean;
+  readOnly?: boolean;
   checked?: boolean | "mixed";
   selected?: boolean;
   expanded?: boolean;
@@ -39,6 +40,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly children: readonly ComponentLocator[];
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
   readonly disabled: boolean;
+  /** Read-only state as authored through `readOnly` or `aria-readonly`. */
+  readonly readOnly: boolean;
   /** Toggle state authored through `aria-checked`. */
   readonly checked: boolean | "mixed" | null;
   /** Selection state authored through `aria-selected`. */

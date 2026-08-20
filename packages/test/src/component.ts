@@ -37,6 +37,7 @@ export type ComponentStyleValue = string | ComponentTypedStyleValue;
 export interface ComponentRoleListOptions {
   name?: string;
   disabled?: boolean;
+  readOnly?: boolean;
   checked?: boolean | "mixed";
   selected?: boolean;
   expanded?: boolean;
@@ -82,6 +83,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly children: readonly ComponentLocator[];
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
   readonly disabled: boolean;
+  /** Read-only state as authored through `readOnly` or `aria-readonly`. */
+  readonly readOnly: boolean;
   /** Toggle state authored through `aria-checked`. */
   readonly checked: boolean | "mixed" | null;
   /** Selection state authored through `aria-selected`. */
@@ -579,6 +582,9 @@ export function renderComponent(
   const disabledState = (node: AuthoredNode): boolean =>
     node.attributes.has("disabled") ||
     node.attributes.get("aria-disabled") === "true";
+  const readOnlyState = (node: AuthoredNode): boolean =>
+    node.attributes.has("readOnly") ||
+    node.attributes.get("aria-readonly") === "true";
   const numericState = (node: AuthoredNode, name: string): number | null => {
     const value = node.attributes.get(name);
     if (value === undefined) return null;
@@ -652,6 +658,8 @@ export function renderComponent(
   ) =>
     (options.disabled === undefined ||
       disabledState(node) === options.disabled) &&
+    (options.readOnly === undefined ||
+      readOnlyState(node) === options.readOnly) &&
     (options.checked === undefined ||
       toggleState(node, "aria-checked") === options.checked) &&
     (options.selected === undefined ||
@@ -773,6 +781,14 @@ export function renderComponent(
       );
     }
   };
+  const ensureEditable = (node: AuthoredNode) => {
+    ensureEnabled(node, "input into");
+    if (readOnlyState(node)) {
+      throw new Error(
+        `cannot input into read-only component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`,
+      );
+    }
+  };
   const pointerPayload = (
     position: ComponentPointerPosition,
     buttons: number,
@@ -824,6 +840,9 @@ export function renderComponent(
       },
       get disabled() {
         return disabledState(node);
+      },
+      get readOnly() {
+        return readOnlyState(node);
       },
       get checked() {
         return toggleState(node, "aria-checked");
@@ -912,7 +931,8 @@ export function renderComponent(
         commitEvent(node, EVENT_CODE.keyup, payload);
       },
       input: (value) => {
-        ensureEnabled(node, "input");
+        ensureEditable(node);
+        focusAuthoredNode(node);
         commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
       },
       focus: () => {

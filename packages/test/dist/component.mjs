@@ -342,6 +342,7 @@ function renderComponent(render, options = {}) {
 		return booleanState(node, name);
 	};
 	const disabledState = (node) => node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true";
+	const readOnlyState = (node) => node.attributes.has("readOnly") || node.attributes.get("aria-readonly") === "true";
 	const numericState = (node, name) => {
 		const value = node.attributes.get(name);
 		if (value === void 0) return null;
@@ -390,7 +391,7 @@ function renderComponent(render, options = {}) {
 	const describeRole = (role, options) => {
 		return `role=${role}${Object.entries(options).filter(([name, value]) => name !== "index" && value !== void 0).map(([name, value]) => ` ${name}=${JSON.stringify(value)}`).join("")}`;
 	};
-	const matchesState = (node, options) => (options.disabled === void 0 || disabledState(node) === options.disabled) && (options.checked === void 0 || toggleState(node, "aria-checked") === options.checked) && (options.selected === void 0 || booleanState(node, "aria-selected") === options.selected) && (options.expanded === void 0 || booleanState(node, "aria-expanded") === options.expanded) && (options.pressed === void 0 || toggleState(node, "aria-pressed") === options.pressed) && (options.current === void 0 || currentState(node) === options.current) && (options.orientation === void 0 || orientationState(node) === options.orientation) && (options.focused === void 0 || focusedNode === node === options.focused);
+	const matchesState = (node, options) => (options.disabled === void 0 || disabledState(node) === options.disabled) && (options.readOnly === void 0 || readOnlyState(node) === options.readOnly) && (options.checked === void 0 || toggleState(node, "aria-checked") === options.checked) && (options.selected === void 0 || booleanState(node, "aria-selected") === options.selected) && (options.expanded === void 0 || booleanState(node, "aria-expanded") === options.expanded) && (options.pressed === void 0 || toggleState(node, "aria-pressed") === options.pressed) && (options.current === void 0 || currentState(node) === options.current) && (options.orientation === void 0 || orientationState(node) === options.orientation) && (options.focused === void 0 || focusedNode === node === options.focused);
 	const matchingRole = (root, role, options) => scopeNodes(root).filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name) && matchesState(node, options));
 	const scopeSuffix = (root) => root === null ? "" : ` within ${roleOf(root) ?? root.tag} "${nameOf(root)}"`;
 	const resolveOne = (root, role, options, required) => {
@@ -452,6 +453,10 @@ function renderComponent(render, options = {}) {
 		ensureAttached(node, action);
 		if (disabledState(node)) throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
 	};
+	const ensureEditable = (node) => {
+		ensureEnabled(node, "input into");
+		if (readOnlyState(node)) throw new Error(`cannot input into read-only component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
+	};
 	const pointerPayload = (position, buttons, button = 0) => {
 		const clientX = position.clientX ?? position.offsetX ?? 0;
 		const clientY = position.clientY ?? position.offsetY ?? 0;
@@ -492,6 +497,9 @@ function renderComponent(render, options = {}) {
 			},
 			get disabled() {
 				return disabledState(node);
+			},
+			get readOnly() {
+				return readOnlyState(node);
 			},
 			get checked() {
 				return toggleState(node, "aria-checked");
@@ -579,7 +587,8 @@ function renderComponent(render, options = {}) {
 				commitEvent(node, EVENT_CODE.keyup, payload);
 			},
 			input: (value) => {
-				ensureEnabled(node, "input");
+				ensureEditable(node);
+				focusAuthoredNode(node);
 				commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
 			},
 			focus: () => {
