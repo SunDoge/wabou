@@ -379,7 +379,23 @@ describe("authored capture discovery", () => {
       widget: null,
       focusable: true,
       focusOrder: 0,
-      semantic: null,
+      semantic: {
+        role: "checkbox",
+        label: "Select item",
+        disabled: false,
+        exposed: true,
+        controls: [],
+        activeDescendant: null,
+        states: {
+          checked: null as string | null,
+          pressed: null,
+          selected: null,
+          expanded: null,
+          current: null,
+          popup: null,
+          modal: null,
+        },
+      },
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -395,7 +411,11 @@ describe("authored capture discovery", () => {
     };
     expect(semanticStateDiagnostics(snapshot)).toHaveLength(1);
     control.attrs.push(["aria-checked", "false"]);
+    control.semantic.states.checked = "false";
     expect(semanticStateDiagnostics(snapshot)).toEqual([]);
+    control.semantic.states.checked = "true";
+    expect(semanticStateDiagnostics(snapshot)[0]).toContain("projected");
+    control.semantic.states.checked = "false";
     control.attrs[1] = ["aria-checked", "invalid"];
     expect(semanticStateDiagnostics(snapshot)).toHaveLength(1);
 
@@ -427,6 +447,15 @@ describe("authored capture discovery", () => {
       exposed: boolean;
       controls: Array<{ lo: number; hi: number }>;
       activeDescendant: { lo: number; hi: number } | null;
+      states: {
+        checked: string | null;
+        pressed: string | null;
+        selected: boolean | null;
+        expanded: boolean | null;
+        current: string | null;
+        popup: string | null;
+        modal: boolean | null;
+      };
     };
     const node = (
       lo: number,
@@ -482,6 +511,15 @@ describe("authored capture discovery", () => {
       exposed: true,
       controls: [items.id],
       activeDescendant: duplicate.id,
+      states: {
+        checked: null,
+        pressed: null,
+        selected: null,
+        expanded: null,
+        current: null,
+        popup: null,
+        modal: null,
+      },
     };
     expect(semanticRelationshipDiagnostics(snapshot)).toEqual([]);
 

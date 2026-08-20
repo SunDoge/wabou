@@ -45,6 +45,16 @@ interface SnapshotNodeKey {
   hi: number;
 }
 
+interface CaptureSemanticStates {
+  checked: string | null;
+  pressed: string | null;
+  selected: boolean | null;
+  expanded: boolean | null;
+  current: string | null;
+  popup: string | null;
+  modal: boolean | null;
+}
+
 interface CaptureSnapshotNode {
   id: SnapshotNodeKey;
   parentId: SnapshotNodeKey | null;
@@ -64,6 +74,7 @@ interface CaptureSnapshotNode {
     exposed: boolean;
     controls: SnapshotNodeKey[];
     activeDescendant: SnapshotNodeKey | null;
+    states: CaptureSemanticStates;
   } | null;
   rect: SnapshotRect;
   contentRect: SnapshotRect;
@@ -374,6 +385,13 @@ function optionalString(value: unknown, path: string): string | null {
   return value;
 }
 
+function optionalBoolean(value: unknown, path: string): boolean | null {
+  if (value === null) return null;
+  if (typeof value !== "boolean")
+    throw new Error(`${path} must be a boolean or null`);
+  return value;
+}
+
 export function validateCaptureSnapshot(
   value: unknown,
   capture: CaptureCase,
@@ -506,6 +524,16 @@ export function validateCaptureSnapshot(
             `${capture.snapshot}.nodes[${index}].semantic has invalid role, disabled, exposed, or controls fields`,
           );
         }
+        if (
+          value.states === null ||
+          typeof value.states !== "object" ||
+          Array.isArray(value.states)
+        ) {
+          throw new Error(
+            `${capture.snapshot}.nodes[${index}].semantic.states must be an object`,
+          );
+        }
+        const states = value.states as Record<string, unknown>;
         semantic = {
           role: value.role,
           label: optionalString(
@@ -527,6 +555,36 @@ export function validateCaptureSnapshot(
                   value.activeDescendant,
                   `${capture.snapshot}.nodes[${index}].semantic.activeDescendant`,
                 ),
+          states: {
+            checked: optionalString(
+              states.checked,
+              `${capture.snapshot}.nodes[${index}].semantic.states.checked`,
+            ),
+            pressed: optionalString(
+              states.pressed,
+              `${capture.snapshot}.nodes[${index}].semantic.states.pressed`,
+            ),
+            selected: optionalBoolean(
+              states.selected,
+              `${capture.snapshot}.nodes[${index}].semantic.states.selected`,
+            ),
+            expanded: optionalBoolean(
+              states.expanded,
+              `${capture.snapshot}.nodes[${index}].semantic.states.expanded`,
+            ),
+            current: optionalString(
+              states.current,
+              `${capture.snapshot}.nodes[${index}].semantic.states.current`,
+            ),
+            popup: optionalString(
+              states.popup,
+              `${capture.snapshot}.nodes[${index}].semantic.states.popup`,
+            ),
+            modal: optionalBoolean(
+              states.modal,
+              `${capture.snapshot}.nodes[${index}].semantic.states.modal`,
+            ),
+          },
         };
       }
       return {
@@ -779,44 +837,130 @@ export function semanticStateDiagnostics(snapshot: CaptureSnapshot): string[] {
   for (const node of snapshot.nodes) {
     const attrs = nodeAttrs(node);
     if (attrs.get("aria-hidden") === "true") continue;
-    const role = attrs.get("role");
+    const role = attrs.get("role") ?? node.semantic?.role;
     if (!role) continue;
     const required = booleanStates[role];
     if (required) {
       const [attribute, values] = required;
       const value = attrs.get(attribute);
-      if (!value || !values.has(value)) {
+      if (value === undefined) {
         diagnostics.push(
           `${node.tag} ${nodeKey(node.id)} with role ${role} requires ${attribute}=${[...values].join("|")}; received ${JSON.stringify(value ?? null)}`,
         );
       }
     }
-    if (role !== "slider") continue;
-    const numberAttribute = (name: string): number | undefined => {
-      const raw = attrs.get(name);
-      return raw === undefined
-        ? undefined
-        : raw.trim()
-          ? Number(raw)
-          : Number.NaN;
-    };
-    const value = numberAttribute("aria-valuenow");
-    const minimum = numberAttribute("aria-valuemin");
-    const maximum = numberAttribute("aria-valuemax");
-    if (value === undefined || !Number.isFinite(value)) {
-      diagnostics.push(
-        `${node.tag} ${nodeKey(node.id)} with role slider requires a finite aria-valuenow`,
-      );
-    } else if (
-      (minimum !== undefined && !Number.isFinite(minimum)) ||
-      (maximum !== undefined && !Number.isFinite(maximum)) ||
-      (minimum !== undefined && maximum !== undefined && minimum > maximum) ||
-      (minimum !== undefined && value < minimum) ||
-      (maximum !== undefined && value > maximum)
-    ) {
-      diagnostics.push(
-        `${node.tag} ${nodeKey(node.id)} has invalid slider range min=${JSON.stringify(attrs.get("aria-valuemin") ?? null)} now=${JSON.stringify(attrs.get("aria-valuenow") ?? null)} max=${JSON.stringify(attrs.get("aria-valuemax") ?? null)}`,
-      );
+    if (role === "slider") {
+      const numberAttribute = (name: string): number | undefined => {
+        const raw = attrs.get(name);
+        return raw === undefined
+          ? undefined
+          : raw.trim()
+            ? Number(raw)
+            : Number.NaN;
+      };
+      const value = numberAttribute("aria-valuenow");
+      const minimum = numberAttribute("aria-valuemin");
+      const maximum = numberAttribute("aria-valuemax");
+      if (value === undefined || !Number.isFinite(value)) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} with role slider requires a finite aria-valuenow`,
+        );
+      } else if (
+        (minimum !== undefined && !Number.isFinite(minimum)) ||
+        (maximum !== undefined && !Number.isFinite(maximum)) ||
+        (minimum !== undefined && maximum !== undefined && minimum > maximum) ||
+        (minimum !== undefined && value < minimum) ||
+        (maximum !== undefined && value > maximum)
+      ) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} has invalid slider range min=${JSON.stringify(attrs.get("aria-valuemin") ?? null)} now=${JSON.stringify(attrs.get("aria-valuenow") ?? null)} max=${JSON.stringify(attrs.get("aria-valuemax") ?? null)}`,
+        );
+      }
+    }
+    const contracts: Array<{
+      attribute: string;
+      values: ReadonlySet<string>;
+      projected: string | boolean | null | undefined;
+      expected(value: string): string | boolean | null;
+    }> = [
+      {
+        attribute: "aria-disabled",
+        values: new Set(["false", "true"]),
+        projected: node.semantic?.disabled,
+        expected: (value) => value === "true",
+      },
+      {
+        attribute: "aria-checked",
+        values: new Set(["false", "mixed", "true"]),
+        projected: node.semantic?.states.checked,
+        expected: (value) => value,
+      },
+      {
+        attribute: "aria-pressed",
+        values: new Set(["false", "mixed", "true"]),
+        projected: node.semantic?.states.pressed,
+        expected: (value) => value,
+      },
+      {
+        attribute: "aria-selected",
+        values: new Set(["false", "true"]),
+        projected: node.semantic?.states.selected,
+        expected: (value) => value === "true",
+      },
+      {
+        attribute: "aria-expanded",
+        values: new Set(["false", "true"]),
+        projected: node.semantic?.states.expanded,
+        expected: (value) => value === "true",
+      },
+      {
+        attribute: "aria-current",
+        values: new Set([
+          "false",
+          "true",
+          "page",
+          "step",
+          "location",
+          "date",
+          "time",
+        ]),
+        projected: node.semantic?.states.current,
+        expected: (value) => (value === "false" ? null : value),
+      },
+      {
+        attribute: "aria-haspopup",
+        values: new Set(["dialog", "grid", "listbox", "menu", "tree"]),
+        projected: node.semantic?.states.popup,
+        expected: (value) => value,
+      },
+      {
+        attribute: "aria-modal",
+        values: new Set(["false", "true"]),
+        projected: node.semantic?.states.modal,
+        expected: (value) => value === "true",
+      },
+    ];
+    for (const contract of contracts) {
+      const authored = attrs.get(contract.attribute);
+      if (authored === undefined) continue;
+      if (!contract.values.has(authored)) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} has invalid ${contract.attribute}=${JSON.stringify(authored)}; expected ${[...contract.values].join("|")}`,
+        );
+        continue;
+      }
+      if (!node.semantic) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} ${contract.attribute} has no final semantic projection`,
+        );
+        continue;
+      }
+      const expected = contract.expected(authored);
+      if (!Object.is(contract.projected, expected)) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} ${contract.attribute} projected ${JSON.stringify(contract.projected)}; expected ${JSON.stringify(expected)}`,
+        );
+      }
     }
   }
   return diagnostics;

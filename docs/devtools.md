@@ -176,8 +176,10 @@ logical viewport multiplied by device scale, an internally consistent retained
 parent graph, no rejected style utilities, and no text escaping a chain of
 visible-overflow ancestors. Interactive roles, images, and dialogs must also
 resolve an accessible name from `aria-label`, `aria-labelledby`, or descendant
-text. Stateful roles must expose valid checked, selected, expanded, or slider
-range values. Semantic IDs must be unique, and `aria-controls` and
+text. Authored disabled, checked, pressed, selected, expanded, current, popup,
+and modal states must use valid values and match the final accessibility
+projection; sliders must expose a finite, internally consistent range.
+Semantic IDs must be unique, and `aria-controls` and
 `aria-activedescendant` must resolve to live nodes in the captured frame and
 match the final accessibility projection.
 Enabled interactive controls must declare a JS-side focus order and provide an
