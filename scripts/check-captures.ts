@@ -8,6 +8,7 @@ interface CaptureViewport {
   height: number;
   scaleFactor: number;
   waitMs: number;
+  checkTextContainment: boolean;
 }
 
 interface CaptureConfig {
@@ -29,6 +30,22 @@ interface SnapshotRect {
   height: number;
 }
 
+interface SnapshotNodeKey {
+  lo: number;
+  hi: number;
+}
+
+interface CaptureSnapshotNode {
+  id: SnapshotNodeKey;
+  parentId: SnapshotNodeKey | null;
+  tag: string;
+  text: string | null;
+  classes: string[];
+  rect: SnapshotRect;
+  contentRect: SnapshotRect;
+  computed: { overflowX: string | null; overflowY: string | null };
+}
+
 interface CaptureSnapshot {
   status: {
     viewportWidth: number;
@@ -36,7 +53,7 @@ interface CaptureSnapshot {
     deviceScale: number;
     nodeCount: number;
   };
-  nodes: Array<{ rect: SnapshotRect; contentRect: SnapshotRect }>;
+  nodes: CaptureSnapshotNode[];
 }
 
 export function captureCommand(
@@ -76,8 +93,15 @@ const fallbackViewport: CaptureViewport = {
   height: 900,
   scaleFactor: 1,
   waitMs: 250,
+  checkTextContainment: true,
 };
-const viewportKeys = new Set(["width", "height", "scaleFactor", "waitMs"]);
+const viewportKeys = new Set([
+  "width",
+  "height",
+  "scaleFactor",
+  "waitMs",
+  "checkTextContainment",
+]);
 
 function finiteNumber(
   value: unknown,
@@ -143,6 +167,12 @@ function parseViewport(
       60_000,
       true,
     );
+  if (record.checkTextContainment !== undefined) {
+    if (typeof record.checkTextContainment !== "boolean") {
+      throw new Error(`${name}.checkTextContainment must be a boolean`);
+    }
+    viewport.checkTextContainment = record.checkTextContainment;
+  }
   if (!partial) {
     return { ...fallbackViewport, ...viewport };
   }
@@ -262,6 +292,24 @@ function snapshotRect(value: unknown, path: string): SnapshotRect {
   };
 }
 
+function snapshotNodeKey(value: unknown, path: string): SnapshotNodeKey {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${path} must be an object`);
+  }
+  const key = value as Record<string, unknown>;
+  return {
+    lo: snapshotNumber(key.lo, `${path}.lo`),
+    hi: snapshotNumber(key.hi, `${path}.hi`),
+  };
+}
+
+function optionalString(value: unknown, path: string): string | null {
+  if (value === null) return null;
+  if (typeof value !== "string")
+    throw new Error(`${path} must be a string or null`);
+  return value;
+}
+
 export function validateCaptureSnapshot(
   value: unknown,
   capture: CaptureCase,
@@ -307,7 +355,41 @@ export function validateCaptureSnapshot(
         );
       }
       const node = value as Record<string, unknown>;
+      if (
+        !Array.isArray(node.classes) ||
+        !node.classes.every((item) => typeof item === "string")
+      ) {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}].classes must be a string array`,
+        );
+      }
+      if (
+        node.computed === null ||
+        typeof node.computed !== "object" ||
+        Array.isArray(node.computed)
+      ) {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}].computed must be an object`,
+        );
+      }
+      const computed = node.computed as Record<string, unknown>;
       return {
+        id: snapshotNodeKey(node.id, `${capture.snapshot}.nodes[${index}].id`),
+        parentId:
+          node.parentId === null
+            ? null
+            : snapshotNodeKey(
+                node.parentId,
+                `${capture.snapshot}.nodes[${index}].parentId`,
+              ),
+        tag:
+          optionalString(node.tag, `${capture.snapshot}.nodes[${index}].tag`) ??
+          "",
+        text: optionalString(
+          node.text,
+          `${capture.snapshot}.nodes[${index}].text`,
+        ),
+        classes: node.classes,
         rect: snapshotRect(
           node.rect,
           `${capture.snapshot}.nodes[${index}].rect`,
@@ -316,6 +398,16 @@ export function validateCaptureSnapshot(
           node.contentRect,
           `${capture.snapshot}.nodes[${index}].contentRect`,
         ),
+        computed: {
+          overflowX: optionalString(
+            computed.overflowX,
+            `${capture.snapshot}.nodes[${index}].computed.overflowX`,
+          ),
+          overflowY: optionalString(
+            computed.overflowY,
+            `${capture.snapshot}.nodes[${index}].computed.overflowY`,
+          ),
+        },
       };
     }),
   };
@@ -341,6 +433,52 @@ export function validateCaptureSnapshot(
     );
   }
   return parsed;
+}
+
+function nodeKey(key: SnapshotNodeKey): string {
+  return `${key.lo}:${key.hi}`;
+}
+
+function overflowAmount(inner: SnapshotRect, outer: SnapshotRect): number {
+  return Math.max(
+    outer.x - inner.x,
+    outer.y - inner.y,
+    inner.x + inner.width - (outer.x + outer.width),
+    inner.y + inner.height - (outer.y + outer.height),
+  );
+}
+
+export function textContainmentDiagnostics(
+  snapshot: CaptureSnapshot,
+  tolerance = 1,
+): string[] {
+  const nodes = new Map(snapshot.nodes.map((node) => [nodeKey(node.id), node]));
+  const diagnostics: string[] = [];
+  for (const node of snapshot.nodes) {
+    if (node.text === null) continue;
+    let ancestor = node.parentId
+      ? nodes.get(nodeKey(node.parentId))
+      : undefined;
+    while (ancestor) {
+      if (
+        ancestor.computed.overflowX !== "Visible" ||
+        ancestor.computed.overflowY !== "Visible"
+      ) {
+        break;
+      }
+      const overflow = overflowAmount(node.rect, ancestor.rect);
+      if (overflow > tolerance) {
+        diagnostics.push(
+          `text ${JSON.stringify(node.text)} (${node.tag} ${nodeKey(node.id)}) exceeds ancestor ${ancestor.tag} ${nodeKey(ancestor.id)} by ${overflow.toFixed(1)}px; ancestor classes: ${ancestor.classes.join(" ") || "<none>"}`,
+        );
+        break;
+      }
+      ancestor = ancestor.parentId
+        ? nodes.get(nodeKey(ancestor.parentId))
+        : undefined;
+    }
+  }
+  return diagnostics;
 }
 
 function relativeScenarioPath(scenario: string): string {
@@ -382,10 +520,18 @@ async function main(): Promise<void> {
     if (!(await Bun.file(snapshot).exists()) || Bun.file(snapshot).size === 0) {
       throw new Error(`capture did not produce ${relative(root, snapshot)}`);
     }
-    validateCaptureSnapshot(
+    const parsed = validateCaptureSnapshot(
       JSON.parse(await readFile(snapshot, "utf8")),
       capture,
     );
+    if (capture.checkTextContainment) {
+      const diagnostics = textContainmentDiagnostics(parsed);
+      if (diagnostics.length > 0) {
+        throw new Error(
+          `${relative(root, snapshot)} has visible text overflow:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
+        );
+      }
+    }
   }
   console.log(`verified ${captures.length} authored captures`);
 }
