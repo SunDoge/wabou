@@ -1,4 +1,4 @@
-import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-BTB9GV8Y.mjs";
+import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-B8Ve0MqH.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -13,6 +13,10 @@ import folder from "lucide-static/icons/folder.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import check from "lucide-static/icons/check.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
+import checkCircle from "lucide-static/icons/circle-check.svg?raw";
+import info from "lucide-static/icons/info.svg?raw";
+import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
+import x from "lucide-static/icons/x.svg?raw";
 import { createMemoryHistory, createMemoryHistory as createMemoryHistory$1 } from "@tanstack/history";
 import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanstack/router-core";
 export * from "@wabou/core";
@@ -3381,6 +3385,154 @@ function Tooltip(props) {
 	});
 }
 //#endregion
+//#region src/components/toast.tsx
+const treatment = (variant) => match(variant).with("default", () => ({
+	icon: info,
+	color: "text-accent"
+})).with("success", () => ({
+	icon: checkCircle,
+	color: "text-success-primary"
+})).with("warning", () => ({
+	icon: triangleAlert,
+	color: "text-accent"
+})).with("destructive", () => ({
+	icon: triangleAlert,
+	color: "text-danger-primary"
+})).exhaustive();
+function ToastContent(props) {
+	const style = () => treatment(props.input.variant ?? "default");
+	return createComponent$1(View, {
+		class: "w-full min-w-0 flex items-start gap-3 rounded-lg border border-subtle bg-surface p-3 shadow-md",
+		get children() {
+			return [
+				createComponent$1(Icon, {
+					get source() {
+						return style().icon;
+					},
+					get ["class"]() {
+						return join("flex-none mt-0.5", style().color);
+					},
+					size: 18
+				}),
+				createComponent$1(View, {
+					class: "min-w-0 flex-1 flex flex-col gap-1",
+					get children() {
+						return [
+							createComponent$1(Text, {
+								class: "text-sm font-medium text-primary",
+								get children() {
+									return props.input.title;
+								}
+							}),
+							memo(() => {
+								return memo(() => {
+									return !!props.input.description;
+								})() ? createComponent$1(Text, {
+									class: "text-sm whitespace-normal text-muted",
+									get children() {
+										return props.input.description;
+									}
+								}) : props.input.description;
+							}),
+							memo(() => {
+								return memo(() => {
+									return !!props.input.action;
+								})() ? createComponent$1(View, {
+									class: "pt-1 flex items-center",
+									get children() {
+										return createComponent$1(Button, {
+											size: "sm",
+											variant: "outline",
+											onClick: () => {
+												props.input.action?.onAction();
+												if (props.input.action?.dismiss !== false) props.dismiss();
+											},
+											get children() {
+												return props.input.action.label;
+											}
+										});
+									}
+								}) : props.input.action;
+							})
+						];
+					}
+				}),
+				createComponent$1(Button, {
+					size: "icon",
+					variant: "ghost",
+					get ["aria-label"]() {
+						return `Dismiss ${props.input.title}`;
+					},
+					class: "w-7 h-7 flex-none",
+					get onClick() {
+						return props.dismiss;
+					},
+					get children() {
+						return createComponent$1(Icon, {
+							source: x,
+							size: 14
+						});
+					}
+				})
+			];
+		}
+	});
+}
+/** Create an owner-scoped, styled toast queue over NotificationRegion. */
+function createToasts(options = {}) {
+	const notifications = createNotifications(options);
+	const show = (input) => notifications.show({
+		"aria-label": input.title,
+		priority: input.variant === "destructive" ? "assertive" : "polite",
+		duration: input.duration,
+		onDismiss: input.onDismiss,
+		content: (controls) => createComponent$1(ToastContent, {
+			input,
+			get dismiss() {
+				return controls.dismiss;
+			}
+		})
+	});
+	return {
+		notifications,
+		show,
+		success: (title, input = {}) => show({
+			...input,
+			title,
+			variant: "success"
+		}),
+		warning: (title, input = {}) => show({
+			...input,
+			title,
+			variant: "warning"
+		}),
+		error: (title, input = {}) => show({
+			...input,
+			title,
+			variant: "destructive"
+		}),
+		dismiss: (id) => notifications.dismiss(id, "dismiss"),
+		clear: notifications.clear
+	};
+}
+/** Render a non-blocking stack of styled toasts on the floating plane. */
+function Toaster(props) {
+	return createComponent$1(NotificationRegion, {
+		get notifications() {
+			return props.toasts.notifications;
+		},
+		get placement() {
+			return props.placement ?? "bottom-end";
+		},
+		get ["class"]() {
+			return props.class;
+		},
+		get itemClass() {
+			return join("w-96 max-w-full", props.itemClass);
+		}
+	});
+}
+//#endregion
 //#region src/components/index.tsx
 function badgeColors(variant) {
 	return match(variant).with("default", () => "bg-accent border-accent text-on-accent").with("secondary", () => "bg-control border-subtle text-primary").with("outline", () => "bg-transparent border-strong text-secondary").with("success", () => "bg-success-surface border-success-primary text-success-primary").with("destructive", () => "bg-danger-surface border-danger text-danger-primary").exhaustive();
@@ -3832,6 +3984,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

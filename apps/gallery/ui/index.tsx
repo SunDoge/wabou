@@ -61,6 +61,7 @@ type ComponentId =
   | "separator"
   | "dialog"
   | "sheet"
+  | "toast"
   | "tooltip"
   | "breadcrumb"
   | "pagination"
@@ -94,6 +95,7 @@ const groups: Array<{
       { id: "context-menu", name: "Context menu" },
       { id: "command", name: "Command" },
       { id: "sheet", name: "Sheet" },
+      { id: "toast", name: "Toast" },
     ],
   },
   {
@@ -200,6 +202,7 @@ const descriptions: Record<ComponentId, string> = {
   separator: "Visually separates content in a list or layout.",
   dialog: "A modal surface with native focus isolation and dismissal behavior.",
   sheet: "A modal panel attached to a viewport edge.",
+  toast: "Shows non-blocking feedback with queueing, actions and timeouts.",
   tooltip:
     "A delayed floating label for pointer hover and keyboard focus targets.",
   breadcrumb:
@@ -276,6 +279,7 @@ import {
   PaginationPage,
   SelectPage,
   SheetPage,
+  ToastPage,
   TooltipPage,
 } from "./pages/widgets";
 
@@ -561,6 +565,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "sheet"}>
                     <SheetPage />
+                  </Match>
+                  <Match when={selected() === "toast"}>
+                    <ToastPage />
                   </Match>
                   <Match when={selected() === "tooltip"}>
                     <TooltipPage />

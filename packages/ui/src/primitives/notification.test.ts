@@ -51,6 +51,26 @@ test("notification queue enforces its limit and reports dismissal reasons", () =
   });
 });
 
+test("notification limit is synchronous inside a batched owner write", () => {
+  createRoot((dispose) => {
+    const notifications = createNotifications({ defaultDuration: 0, limit: 1 });
+    const dismissed: NotificationDismissReason[] = [];
+
+    notifications.show({
+      "aria-label": "first",
+      content: () => null,
+      onDismiss: (reason) => dismissed.push(reason),
+    });
+    notifications.show({ "aria-label": "second", content: () => null });
+
+    expect(notifications.items().map((item) => item["aria-label"])).toEqual([
+      "second",
+    ]);
+    expect(dismissed).toEqual(["overflow"]);
+    dispose();
+  });
+});
+
 test("notification timeout pauses and resumes", async () => {
   await new Promise<void>((resolve, reject) => {
     createRoot((dispose) => {

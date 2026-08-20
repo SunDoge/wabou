@@ -77,6 +77,7 @@ export {
 } from "./theme";
 export * from "./title-bar";
 export * from "./tooltip";
+export * from "./toast";
 
 export interface BadgeProps {
   children?: JSX.Element;

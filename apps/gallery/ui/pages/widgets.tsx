@@ -23,6 +23,7 @@ import {
   Combobox,
   Command,
   ContextMenu,
+  createToasts,
   DatePicker,
   Dialog,
   DialogDescription,
@@ -61,6 +62,7 @@ import {
   SheetHeader,
   SheetTitle,
   Text,
+  Toaster,
   Tooltip,
   View,
 } from "@wabou/ui";
@@ -134,6 +136,39 @@ export function SheetPage() {
         )}
       </Sheet>
     </Preview>
+  );
+}
+
+export function ToastPage() {
+  const toasts = createToasts();
+  return (
+    <>
+      <Preview title="Transient feedback">
+        <View class="flex flex-wrap items-center gap-3">
+          <Button
+            onClick={() =>
+              toasts.success("Project saved", {
+                description: "Your changes were written to disk.",
+              })
+            }
+          >
+            Success toast
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() =>
+              toasts.error("Download failed", {
+                description: "The connection closed before completion.",
+                action: { label: "Retry", onAction: () => {} },
+              })
+            }
+          >
+            Action toast
+          </Button>
+        </View>
+      </Preview>
+      <Toaster toasts={toasts} />
+    </>
   );
 }
 

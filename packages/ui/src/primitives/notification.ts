@@ -106,7 +106,7 @@ export function createNotifications(
     items,
     show(input) {
       while (records.size >= limit) {
-        const oldest = items()[0];
+        const oldest = records.values().next().value?.item;
         if (!oldest || !dismiss(oldest.id, "overflow")) break;
       }
       const duration = finiteNonNegative(
