@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  accessibleNameDiagnostics,
   captureCommand,
   discoverCaptureCases,
   parseCaptureArguments,
@@ -112,6 +113,7 @@ describe("authored capture discovery", () => {
         waitMs: 100,
         checkTextContainment: false,
         checkStyleDiagnostics: true,
+        checkAccessibleNames: true,
       },
       {
         application: "apps/demo",
@@ -124,6 +126,7 @@ describe("authored capture discovery", () => {
         waitMs: 100,
         checkTextContainment: true,
         checkStyleDiagnostics: true,
+        checkAccessibleNames: true,
       },
     ]);
   });
@@ -150,6 +153,7 @@ describe("authored capture discovery", () => {
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
+      checkAccessibleNames: true,
     };
 
     expect(captureCommand(capture, false)).not.toContain("--skip-build");
@@ -169,6 +173,7 @@ describe("authored capture discovery", () => {
       waitMs: 250,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
+      checkAccessibleNames: true,
     };
     expect(
       validateCaptureSnapshot(
@@ -187,6 +192,7 @@ describe("authored capture discovery", () => {
               text: null,
               classes: [],
               styleDiagnostics: [],
+              attrs: [],
               rect: { x: 0, y: 0, width: 800, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -214,6 +220,7 @@ describe("authored capture discovery", () => {
               text: null,
               classes: [],
               styleDiagnostics: [],
+              attrs: [],
               rect: { x: 0, y: 0, width: Number.NaN, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -241,6 +248,7 @@ describe("authored capture discovery", () => {
           text: null,
           classes: ["w-10"],
           styleDiagnostics: [] as string[],
+          attrs: [["role", "button"]] as Array<[string, string]>,
           rect: { x: 0, y: 0, width: 40, height: 20 },
           contentRect: { x: 0, y: 0, width: 40, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -252,6 +260,7 @@ describe("authored capture discovery", () => {
           text: "too wide",
           classes: [],
           styleDiagnostics: [] as string[],
+          attrs: [["role", "label"]] as Array<[string, string]>,
           rect: { x: 0, y: 0, width: 60, height: 20 },
           contentRect: { x: 0, y: 0, width: 60, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -267,6 +276,56 @@ describe("authored capture discovery", () => {
     ]);
   });
 
+  test("requires accessible names for semantic controls", () => {
+    const node = (
+      lo: number,
+      parentId: { lo: number; hi: number } | null,
+      tag: string,
+      text: string | null,
+      attrs: Array<[string, string]>,
+    ) => ({
+      id: { lo, hi: 1 },
+      parentId,
+      tag,
+      text,
+      classes: [],
+      styleDiagnostics: [],
+      attrs,
+      rect: { x: 0, y: 0, width: 40, height: 20 },
+      contentRect: { x: 0, y: 0, width: 40, height: 20 },
+      computed: { overflowX: "Visible", overflowY: "Visible" },
+    });
+    const button = node(1, null, "button", null, [["role", "button"]]);
+    const snapshot = {
+      status: {
+        viewportWidth: 100,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: 1,
+      },
+      nodes: [button],
+    };
+    expect(accessibleNameDiagnostics(snapshot)).toHaveLength(1);
+    button.attrs.push(["aria-label", "Save"]);
+    expect(accessibleNameDiagnostics(snapshot)).toEqual([]);
+
+    button.attrs = [
+      ["role", "button"],
+      ["aria-labelledby", "save-label"],
+    ];
+    snapshot.nodes.push(
+      node(2, null, "text", "Save changes", [
+        ["id", "save-label"],
+        ["role", "label"],
+      ]),
+    );
+    expect(accessibleNameDiagnostics(snapshot)).toEqual([]);
+    button.attrs = [["role", "button"]];
+    expect(accessibleNameDiagnostics(snapshot)).toHaveLength(1);
+    button.attrs.push(["aria-hidden", "true"]);
+    expect(accessibleNameDiagnostics(snapshot)).toEqual([]);
+  });
+
   test("rejects duplicate, dangling, and cyclic retained-node identities", () => {
     const capture = {
       application: "apps/demo",
@@ -279,6 +338,7 @@ describe("authored capture discovery", () => {
       waitMs: 0,
       checkTextContainment: true,
       checkStyleDiagnostics: true,
+      checkAccessibleNames: true,
     };
     const node = (lo: number, parentId: { lo: number; hi: number } | null) => ({
       id: { lo, hi: 1 },
@@ -287,6 +347,7 @@ describe("authored capture discovery", () => {
       text: null,
       classes: [],
       styleDiagnostics: [],
+      attrs: [],
       rect: { x: 0, y: 0, width: 100, height: 100 },
       contentRect: { x: 0, y: 0, width: 100, height: 100 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -359,6 +420,7 @@ describe("authored capture discovery", () => {
             text: null,
             classes: [],
             styleDiagnostics: [],
+            attrs: [],
             rect: { x: 0, y: 0, width: capture.width, height: capture.height },
             contentRect: {
               x: 0,
@@ -383,6 +445,16 @@ describe("authored capture discovery", () => {
       "rejected styles",
     );
     capture.checkStyleDiagnostics = false;
+    await expect(
+      validateCaptureArtifacts(capture, root),
+    ).resolves.toBeUndefined();
+    snapshot.nodes[0].tag = "button";
+    snapshot.nodes[0].attrs = [["role", "button"]];
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      "unnamed semantic controls",
+    );
+    capture.checkAccessibleNames = false;
     await expect(
       validateCaptureArtifacts(capture, root),
     ).resolves.toBeUndefined();

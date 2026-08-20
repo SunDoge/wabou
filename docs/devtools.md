@@ -165,9 +165,11 @@ each retained tree has the requested viewport and scale, a consistent node
 count, finite layout geometry, a PNG whose physical dimensions match the
 logical viewport multiplied by device scale, an internally consistent retained
 parent graph, no rejected style utilities, and no text escaping a chain of
-visible-overflow ancestors. Text containment stops at explicit clip or scroll
-boundaries. Intentional exceptions must be declared per capture with
-`checkStyleDiagnostics: false` or `checkTextContainment: false`. An optional
+visible-overflow ancestors. Interactive roles, images, and dialogs must also
+resolve an accessible name from `aria-label`, `aria-labelledby`, or descendant
+text. Text containment stops at explicit clip or scroll boundaries. Intentional
+exceptions must be declared per capture with `checkAccessibleNames: false`,
+`checkStyleDiagnostics: false`, or `checkTextContainment: false`. An optional
 `captures/config.json` supplies an
 application viewport default and per-file overrides; the verifier rejects
 overrides whose scenario was removed, so metadata cannot silently drift.

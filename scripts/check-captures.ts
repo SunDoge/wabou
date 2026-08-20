@@ -10,6 +10,7 @@ interface CaptureViewport {
   waitMs: number;
   checkTextContainment: boolean;
   checkStyleDiagnostics: boolean;
+  checkAccessibleNames: boolean;
 }
 
 interface CaptureConfig {
@@ -48,6 +49,7 @@ interface CaptureSnapshotNode {
   text: string | null;
   classes: string[];
   styleDiagnostics: string[];
+  attrs: Array<[string, string]>;
   rect: SnapshotRect;
   contentRect: SnapshotRect;
   computed: { overflowX: string | null; overflowY: string | null };
@@ -102,6 +104,7 @@ const fallbackViewport: CaptureViewport = {
   waitMs: 250,
   checkTextContainment: true,
   checkStyleDiagnostics: true,
+  checkAccessibleNames: true,
 };
 const viewportKeys = new Set([
   "width",
@@ -110,6 +113,7 @@ const viewportKeys = new Set([
   "waitMs",
   "checkTextContainment",
   "checkStyleDiagnostics",
+  "checkAccessibleNames",
 ]);
 
 function finiteNumber(
@@ -187,6 +191,12 @@ function parseViewport(
       throw new Error(`${name}.checkStyleDiagnostics must be a boolean`);
     }
     viewport.checkStyleDiagnostics = record.checkStyleDiagnostics;
+  }
+  if (record.checkAccessibleNames !== undefined) {
+    if (typeof record.checkAccessibleNames !== "boolean") {
+      throw new Error(`${name}.checkAccessibleNames must be a boolean`);
+    }
+    viewport.checkAccessibleNames = record.checkAccessibleNames;
   }
   if (!partial) {
     return { ...fallbackViewport, ...viewport };
@@ -387,6 +397,19 @@ export function validateCaptureSnapshot(
         );
       }
       if (
+        !Array.isArray(node.attrs) ||
+        !node.attrs.every(
+          (item) =>
+            Array.isArray(item) &&
+            item.length === 2 &&
+            item.every((part) => typeof part === "string"),
+        )
+      ) {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}].attrs must be string pairs`,
+        );
+      }
+      if (
         node.computed === null ||
         typeof node.computed !== "object" ||
         Array.isArray(node.computed)
@@ -414,6 +437,7 @@ export function validateCaptureSnapshot(
         ),
         classes: node.classes,
         styleDiagnostics: node.styleDiagnostics,
+        attrs: node.attrs,
         rect: snapshotRect(
           node.rect,
           `${capture.snapshot}.nodes[${index}].rect`,
@@ -548,6 +572,81 @@ export function rejectedStyleDiagnostics(snapshot: CaptureSnapshot): string[] {
   );
 }
 
+const namedRoles = new Set([
+  "button",
+  "checkbox",
+  "combobox",
+  "dialog",
+  "img",
+  "link",
+  "listbox",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+  "radio",
+  "searchbox",
+  "slider",
+  "spinbutton",
+  "switch",
+  "tab",
+  "textbox",
+  "treeitem",
+]);
+const namedTags = new Set(["button", "input", "select", "textarea"]);
+
+function nodeAttrs(node: CaptureSnapshotNode): Map<string, string> {
+  return new Map(node.attrs);
+}
+
+export function accessibleNameDiagnostics(snapshot: CaptureSnapshot): string[] {
+  const children = new Map<string, CaptureSnapshotNode[]>();
+  const ids = new Map<string, CaptureSnapshotNode>();
+  for (const node of snapshot.nodes) {
+    if (node.parentId) {
+      const key = nodeKey(node.parentId);
+      const siblings = children.get(key) ?? [];
+      siblings.push(node);
+      children.set(key, siblings);
+    }
+    const id = nodeAttrs(node).get("id")?.trim();
+    if (id) ids.set(id, node);
+  }
+  const textContent = (node: CaptureSnapshotNode): string => {
+    if (nodeAttrs(node).get("aria-hidden") === "true") return "";
+    return [
+      node.text ?? "",
+      ...(children.get(nodeKey(node.id)) ?? []).map(textContent),
+    ]
+      .join(" ")
+      .trim();
+  };
+  const diagnostics: string[] = [];
+  for (const node of snapshot.nodes) {
+    const attrs = nodeAttrs(node);
+    if (attrs.get("aria-hidden") === "true") continue;
+    const role = attrs.get("role") ?? node.tag;
+    if (role === "none" || role === "presentation") continue;
+    if (!namedRoles.has(role) && !namedTags.has(node.tag)) continue;
+    const direct = attrs.get("aria-label")?.trim() ?? "";
+    const references = (attrs.get("aria-labelledby") ?? "")
+      .split(/\s+/u)
+      .filter(Boolean);
+    const referenced = references
+      .map((id) => ids.get(id))
+      .filter((label): label is CaptureSnapshotNode => label !== undefined)
+      .map(textContent)
+      .join(" ")
+      .trim();
+    if (!direct && !referenced && !textContent(node)) {
+      diagnostics.push(
+        `${node.tag} ${nodeKey(node.id)} with role ${role} has no aria-label, resolved aria-labelledby, or descendant text`,
+      );
+    }
+  }
+  return diagnostics;
+}
+
 export async function validateCaptureArtifacts(
   capture: CaptureCase,
   workspaceRoot = root,
@@ -601,6 +700,14 @@ export async function validateCaptureArtifacts(
     if (diagnostics.length > 0) {
       throw new Error(
         `${relative(workspaceRoot, snapshot)} has rejected styles:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
+      );
+    }
+  }
+  if (capture.checkAccessibleNames) {
+    const diagnostics = accessibleNameDiagnostics(parsed);
+    if (diagnostics.length > 0) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} has unnamed semantic controls:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
       );
     }
   }
