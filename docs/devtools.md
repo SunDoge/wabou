@@ -176,7 +176,8 @@ visible-overflow ancestors. Interactive roles, images, and dialogs must also
 resolve an accessible name from `aria-label`, `aria-labelledby`, or descendant
 text. Stateful roles must expose valid checked, selected, expanded, or slider
 range values. Semantic IDs must be unique, and `aria-controls` and
-`aria-activedescendant` must resolve to live nodes in the captured frame.
+`aria-activedescendant` must resolve to live nodes in the captured frame and
+match the final accessibility projection.
 Enabled interactive controls must declare a JS-side focus order and provide an
 event listener or native widget action; projected focus targets must retain
 that authored policy. Text containment stops at explicit clip or scroll

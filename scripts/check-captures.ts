@@ -57,6 +57,14 @@ interface CaptureSnapshotNode {
   widget: string | null;
   focusable: boolean;
   focusOrder: number | null;
+  semantic: {
+    role: string;
+    label: string | null;
+    disabled: boolean;
+    exposed: boolean;
+    controls: SnapshotNodeKey[];
+    activeDescendant: SnapshotNodeKey | null;
+  } | null;
   rect: SnapshotRect;
   contentRect: SnapshotRect;
   computed: { overflowX: string | null; overflowY: string | null };
@@ -480,6 +488,47 @@ export function validateCaptureSnapshot(
         );
       }
       const computed = node.computed as Record<string, unknown>;
+      let semantic: CaptureSnapshotNode["semantic"] = null;
+      if (node.semantic !== undefined && node.semantic !== null) {
+        if (typeof node.semantic !== "object" || Array.isArray(node.semantic)) {
+          throw new Error(
+            `${capture.snapshot}.nodes[${index}].semantic must be an object or null`,
+          );
+        }
+        const value = node.semantic as Record<string, unknown>;
+        if (
+          typeof value.role !== "string" ||
+          typeof value.disabled !== "boolean" ||
+          typeof value.exposed !== "boolean" ||
+          !Array.isArray(value.controls)
+        ) {
+          throw new Error(
+            `${capture.snapshot}.nodes[${index}].semantic has invalid role, disabled, exposed, or controls fields`,
+          );
+        }
+        semantic = {
+          role: value.role,
+          label: optionalString(
+            value.label,
+            `${capture.snapshot}.nodes[${index}].semantic.label`,
+          ),
+          disabled: value.disabled,
+          exposed: value.exposed,
+          controls: value.controls.map((control, controlIndex) =>
+            snapshotNodeKey(
+              control,
+              `${capture.snapshot}.nodes[${index}].semantic.controls[${controlIndex}]`,
+            ),
+          ),
+          activeDescendant:
+            value.activeDescendant === null
+              ? null
+              : snapshotNodeKey(
+                  value.activeDescendant,
+                  `${capture.snapshot}.nodes[${index}].semantic.activeDescendant`,
+                ),
+        };
+      }
       return {
         id: snapshotNodeKey(node.id, `${capture.snapshot}.nodes[${index}].id`),
         parentId:
@@ -506,6 +555,7 @@ export function validateCaptureSnapshot(
         ),
         focusable: node.focusable,
         focusOrder: node.focusOrder,
+        semantic,
         rect: snapshotRect(
           node.rect,
           `${capture.snapshot}.nodes[${index}].rect`,
@@ -810,6 +860,7 @@ export function semanticRelationshipDiagnostics(
         );
       }
       const seen = new Set<string>();
+      const resolved: SnapshotNodeKey[] = [];
       for (const reference of references) {
         if (seen.has(reference)) {
           diagnostics.push(
@@ -827,7 +878,41 @@ export function semanticRelationshipDiagnostics(
           diagnostics.push(
             `${node.tag} ${nodeKey(node.id)} ${attribute} references itself`,
           );
+        } else {
+          resolved.push(target.id);
         }
+      }
+      if (references.length > 0 && !node.semantic) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} ${attribute} has no final semantic projection`,
+        );
+        continue;
+      }
+      if (
+        attribute === "aria-controls" &&
+        resolved.length === references.length
+      ) {
+        const projected = node.semantic?.controls.map(nodeKey) ?? [];
+        const expected = resolved.map(nodeKey);
+        if (
+          projected.length !== expected.length ||
+          projected.some((key, index) => key !== expected[index])
+        ) {
+          diagnostics.push(
+            `${node.tag} ${nodeKey(node.id)} aria-controls projected ${JSON.stringify(projected)}; expected ${JSON.stringify(expected)}`,
+          );
+        }
+      }
+      if (
+        attribute === "aria-activedescendant" &&
+        references.length === 1 &&
+        resolved.length === 1 &&
+        nodeKey(node.semantic?.activeDescendant ?? { lo: 0, hi: 0 }) !==
+          nodeKey(resolved[0])
+      ) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} aria-activedescendant projected ${node.semantic?.activeDescendant ? JSON.stringify(nodeKey(node.semantic.activeDescendant)) : "null"}; expected ${JSON.stringify(nodeKey(resolved[0]))}`,
+        );
       }
     }
   }
@@ -853,6 +938,7 @@ const interactiveRoles = new Set([
   "textbox",
   "treeitem",
 ]);
+const compositeItemRoles = new Set(["option"]);
 
 export function interactionContractDiagnostics(
   snapshot: CaptureSnapshot,
@@ -870,7 +956,7 @@ export function interactionContractDiagnostics(
     const role = attrs.get("role") ?? node.tag;
     if (!interactiveRoles.has(role) && !namedTags.has(node.tag)) continue;
     const description = `${node.tag} ${nodeKey(node.id)} with role ${role}`;
-    if (node.focusOrder === null) {
+    if (node.focusOrder === null && !compositeItemRoles.has(role)) {
       diagnostics.push(`${description} has no authored focusOrder`);
     }
     if (node.listeners.length === 0 && node.widget === null) {

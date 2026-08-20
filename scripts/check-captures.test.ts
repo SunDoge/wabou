@@ -212,6 +212,7 @@ describe("authored capture discovery", () => {
               widget: null,
               focusable: false,
               focusOrder: null,
+              semantic: null,
               rect: { x: 0, y: 0, width: 800, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -244,6 +245,7 @@ describe("authored capture discovery", () => {
               widget: null,
               focusable: false,
               focusOrder: null,
+              semantic: null,
               rect: { x: 0, y: 0, width: Number.NaN, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -276,6 +278,7 @@ describe("authored capture discovery", () => {
           widget: null,
           focusable: true,
           focusOrder: 0,
+          semantic: null,
           rect: { x: 0, y: 0, width: 40, height: 20 },
           contentRect: { x: 0, y: 0, width: 40, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -292,6 +295,7 @@ describe("authored capture discovery", () => {
           widget: null,
           focusable: false,
           focusOrder: null,
+          semantic: null,
           rect: { x: 0, y: 0, width: 60, height: 20 },
           contentRect: { x: 0, y: 0, width: 60, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -326,6 +330,7 @@ describe("authored capture discovery", () => {
       widget: null,
       focusable: false,
       focusOrder: null,
+      semantic: null,
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -374,6 +379,7 @@ describe("authored capture discovery", () => {
       widget: null,
       focusable: true,
       focusOrder: 0,
+      semantic: null,
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -414,6 +420,14 @@ describe("authored capture discovery", () => {
   });
 
   test("requires unique and live semantic id references", () => {
+    type SemanticProjection = {
+      role: string;
+      label: string | null;
+      disabled: boolean;
+      exposed: boolean;
+      controls: Array<{ lo: number; hi: number }>;
+      activeDescendant: { lo: number; hi: number } | null;
+    };
     const node = (
       lo: number,
       attrs: Array<[string, string]>,
@@ -430,6 +444,7 @@ describe("authored capture discovery", () => {
       widget: null,
       focusable: false,
       focusOrder: null,
+      semantic: null as SemanticProjection | null,
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -460,6 +475,14 @@ describe("authored capture discovery", () => {
       ["aria-activedescendant", "active"],
     ];
     duplicate.attrs = [["id", "active"]];
+    owner.semantic = {
+      role: "combobox",
+      label: "Example",
+      disabled: false,
+      exposed: true,
+      controls: [items.id],
+      activeDescendant: duplicate.id,
+    };
     expect(semanticRelationshipDiagnostics(snapshot)).toEqual([]);
 
     owner.attrs = [
@@ -486,6 +509,7 @@ describe("authored capture discovery", () => {
       widget: null as string | null,
       focusable: false,
       focusOrder: null as number | null,
+      semantic: null,
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -510,6 +534,13 @@ describe("authored capture discovery", () => {
     control.widget = "editor";
     expect(interactionContractDiagnostics(snapshot)).toEqual([]);
 
+    control.attrs = [["role", "option"]];
+    control.focusOrder = null;
+    control.listeners = [1];
+    control.widget = null;
+    expect(interactionContractDiagnostics(snapshot)).toEqual([]);
+
+    control.attrs = [["role", "button"]];
     control.focusOrder = null;
     control.focusable = true;
     expect(interactionContractDiagnostics(snapshot)).toHaveLength(2);
@@ -548,6 +579,7 @@ describe("authored capture discovery", () => {
       widget: null,
       focusable: false,
       focusOrder: null,
+      semantic: null,
       rect: { x: 0, y: 0, width: 100, height: 100 },
       contentRect: { x: 0, y: 0, width: 100, height: 100 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -625,6 +657,7 @@ describe("authored capture discovery", () => {
             widget: null,
             focusable: false,
             focusOrder: null,
+            semantic: null,
             rect: { x: 0, y: 0, width: capture.width, height: capture.height },
             contentRect: {
               x: 0,
