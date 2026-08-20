@@ -4,14 +4,16 @@ import {
   Portal,
   useHost,
 } from "@wabou/core/renderer";
-import type { Shadow } from "@wabou/core/style";
+import { number, type Shadow, scale2d } from "@wabou/core/style";
 import {
   createEffect,
   createSignal,
   type JSX,
   onCleanup,
   Show,
+  untrack,
 } from "solid-js";
+import { type Easing, useReducedMotion } from "../animation";
 import {
   createOverlayLayer,
   type OverlayDismissReason,
@@ -28,6 +30,7 @@ import {
   type PointAnchor,
   shift,
 } from "./positioner";
+import { createTransitionPresence } from "./transition-presence";
 import { View, type ViewProps, type WabouStyle } from "./view";
 
 export interface PopoverTriggerProps {
@@ -73,6 +76,15 @@ interface PopoverBaseProps {
   outsidePointerStrategy?: "backdrop" | "passthrough";
   /** Defaults to the nearest overlay plane, or `floating` at app content. */
   plane?: OverlayPlane;
+  /** Set to false to keep presence semantics while disabling visual motion. */
+  motion?: false | PopoverMotionOptions;
+}
+
+export interface PopoverMotionOptions {
+  duration?: number;
+  ease?: Easing;
+  /** Initial scale around the panel center. Defaults to 0.98. */
+  fromScale?: number;
 }
 
 export type PopoverProps = PopoverBaseProps &
@@ -95,18 +107,28 @@ export type PopoverProps = PopoverBaseProps &
 export function Popover(props: PopoverProps): JSX.Element {
   const host = useHost();
   const inheritedPlane = useOverlayPlane();
+  const reducedMotion = useReducedMotion();
   const plane = () => props.plane ?? inheritedPlane;
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(
-    props.defaultOpen ?? false,
+    untrack(() => props.defaultOpen ?? false),
   );
   const [position, setPosition] = createSignal({ x: 0, y: 0 });
   const [positioned, setPositioned] = createSignal(false);
   const open = () => props.open ?? uncontrolledOpen();
+  const motion = untrack(() => props.motion);
+  const presence = createTransitionPresence(open, {
+    ready: positioned,
+    duration: motion === false ? 0 : (motion?.duration ?? 0.14),
+    ease: motion === false ? "linear" : (motion?.ease ?? "easeOut"),
+    reducedMotion: () => motion === false || reducedMotion(),
+  });
   let anchor: Handle | undefined;
   let content: Handle | undefined;
   let frame = 0;
   let positionRequest = 0;
   let observer: ResizeObserver | undefined;
+  const motionFromScale = () =>
+    motion === false ? 1 : (motion?.fromScale ?? 0.98);
 
   const contains = (root: Handle | undefined, target: Handle | undefined) => {
     if (!root || !target) return false;
@@ -133,19 +155,16 @@ export function Popover(props: PopoverProps): JSX.Element {
     returnFocus: () => anchor,
     restoreFocus: () => props.restoreFocus ?? true,
   });
-  const stopObservingPointer = observeGlobalPointerEvent(
-    "click",
-    (target) => {
-      if (
-        props.outsidePointerStrategy !== "passthrough" ||
-        !open() ||
-        contains(anchor, target) ||
-        contains(content, target)
-      )
-        return;
-      layer.onOutside({ preventDefault() {}, stopPropagation() {} });
-    },
-  );
+  const stopObservingPointer = observeGlobalPointerEvent("click", (target) => {
+    if (
+      props.outsidePointerStrategy !== "passthrough" ||
+      !open() ||
+      contains(anchor, target) ||
+      contains(content, target)
+    )
+      return;
+    layer.onOutside({ preventDefault() {}, stopPropagation() {} });
+  });
 
   const updatePosition = async () => {
     const point = props.anchorPoint?.();
@@ -206,7 +225,6 @@ export function Popover(props: PopoverProps): JSX.Element {
   createEffect(open, (isOpen) => {
     if (!isOpen) {
       positionRequest++;
-      setPositioned(false);
       observer?.disconnect();
       observer = undefined;
       return;
@@ -218,6 +236,9 @@ export function Popover(props: PopoverProps): JSX.Element {
     frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => void updatePosition());
     });
+  });
+  createEffect(presence.phase, (phase) => {
+    if (phase === "unmounted") setPositioned(false);
   });
 
   onCleanup(() => {
@@ -262,12 +283,12 @@ export function Popover(props: PopoverProps): JSX.Element {
   // Render functions create component ownership. Invoke the trigger once and
   // expose reactive attributes through getters instead of recreating its
   // subtree whenever the overlay opens or closes.
-  const trigger = props.trigger(triggerProps);
+  const trigger = untrack(() => props.trigger(triggerProps));
 
   return (
     <>
       {trigger}
-      <Show when={open()}>
+      <Show when={presence.mounted()}>
         <Portal
           plane={plane()}
           ref={(node: Handle) => {
@@ -282,7 +303,9 @@ export function Popover(props: PopoverProps): JSX.Element {
             height: "100%",
             "z-index": layer.zIndex(),
             "pointer-events":
-              props.outsidePointerStrategy === "passthrough" ? "none" : "auto",
+              !open() || props.outsidePointerStrategy === "passthrough"
+                ? "none"
+                : "auto",
           }}
           onClick={
             props.outsidePointerStrategy === "passthrough"
@@ -301,6 +324,11 @@ export function Popover(props: PopoverProps): JSX.Element {
             aria-label={props["aria-label"]}
             class={props.contentClass}
             shadows={props.contentShadows}
+            transform={scale2d(
+              motionFromScale() + presence.progress() * (1 - motionFromScale()),
+            )}
+            interactionBlocked={!open()}
+            aria-hidden={open() ? undefined : "true"}
             style={{
               position: "absolute",
               // The panel must participate in layout before Floating UI can
@@ -310,6 +338,7 @@ export function Popover(props: PopoverProps): JSX.Element {
               left: positioned() ? `${position().x}px` : "-100000px",
               top: positioned() ? `${position().y}px` : "-100000px",
               ...props.contentStyle,
+              opacity: number(presence.progress()),
             }}
             onClick={(event: { stopPropagation(): void }) =>
               event.stopPropagation()

@@ -90,6 +90,7 @@ export {
 } from "./overlay-layer";
 export {
   Popover,
+  type PopoverMotionOptions,
   type PopoverProps,
   type PopoverTriggerProps,
 } from "./popover";
@@ -146,6 +147,11 @@ export {
   type TabsOptions,
   type TabsResult,
 } from "./tabs";
+export {
+  createTransitionPresence,
+  type TransitionPresence,
+  type TransitionPresenceOptions,
+} from "./transition-presence";
 export {
   type Affine2D,
   CodeEditor,

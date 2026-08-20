@@ -1,4 +1,4 @@
-import { createEffect, createSignal, type Accessor } from "solid-js";
+import { type Accessor, createEffect, createSignal, untrack } from "solid-js";
 
 export type PresencePhase = "unmounted" | "entering" | "present" | "exiting";
 
@@ -12,27 +12,33 @@ export interface Presence {
 /** Explicit mount lifecycle for content whose exit must finish before removal. */
 export function createPresence(open: Accessor<boolean>): Presence {
   const [phase, setPhase] = createSignal<PresencePhase>(
-    open() ? "present" : "unmounted",
+    untrack(open) ? "present" : "unmounted",
   );
 
   createEffect(open, (isOpen) => {
-    if (isOpen) {
-      if (phase() === "unmounted" || phase() === "exiting") {
-        setPhase("entering");
+    setPhase((current) => {
+      if (isOpen && (current === "unmounted" || current === "exiting")) {
+        return "entering";
       }
-    } else if (phase() === "present" || phase() === "entering") {
-      setPhase("exiting");
-    }
+      if (!isOpen && (current === "present" || current === "entering")) {
+        return "exiting";
+      }
+      return current;
+    });
   });
 
   return {
     phase,
     mounted: () => phase() !== "unmounted",
     finishEnter() {
-      if (open() && phase() === "entering") setPhase("present");
+      if (untrack(open)) {
+        setPhase((current) => (current === "entering" ? "present" : current));
+      }
     },
     finishExit() {
-      if (!open() && phase() === "exiting") setPhase("unmounted");
+      if (!untrack(open)) {
+        setPhase((current) => (current === "exiting" ? "unmounted" : current));
+      }
     },
   };
 }
