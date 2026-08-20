@@ -743,22 +743,21 @@ fn cancelled_result(kind: &TestActionKind) -> TestActionResult {
     }
 }
 
-fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
-    let toggle_value = |state: Option<wabou_shell::SemanticToggleState>| match state {
-        Some(wabou_shell::SemanticToggleState::Off) => serde_json::Value::Bool(false),
-        Some(wabou_shell::SemanticToggleState::On) => serde_json::Value::Bool(true),
-        Some(wabou_shell::SemanticToggleState::Mixed) => serde_json::Value::String("mixed".into()),
+fn semantic_toggle_json(state: Option<wabou_shell::SemanticToggleState>) -> serde_json::Value {
+    match state.map(wabou_shell::SemanticToggleState::as_str) {
+        Some("false") => serde_json::Value::Bool(false),
+        Some("true") => serde_json::Value::Bool(true),
+        Some("mixed") => serde_json::Value::String("mixed".into()),
+        Some(value) => unreachable!("unknown semantic toggle state {value}"),
         None => serde_json::Value::Null,
-    };
-    let current = match node.states.current {
-        Some(wabou_shell::SemanticCurrent::True) => Some("true"),
-        Some(wabou_shell::SemanticCurrent::Page) => Some("page"),
-        Some(wabou_shell::SemanticCurrent::Step) => Some("step"),
-        Some(wabou_shell::SemanticCurrent::Location) => Some("location"),
-        Some(wabou_shell::SemanticCurrent::Date) => Some("date"),
-        Some(wabou_shell::SemanticCurrent::Time) => Some("time"),
-        None => None,
-    };
+    }
+}
+
+fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> String {
+    let current = node
+        .states
+        .current
+        .map(wabou_shell::SemanticCurrent::as_str);
     serde_json::json!({
             "name": node.label,
             "value": node.value,
@@ -772,8 +771,8 @@ fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> Str
                 "height": node.bounds[3] - node.bounds[1],
             },
             "disabled": node.disabled,
-            "checked": toggle_value(node.states.checked),
-            "pressed": toggle_value(node.states.pressed),
+            "checked": semantic_toggle_json(node.states.checked),
+            "pressed": semantic_toggle_json(node.states.pressed),
             "selected": node.states.selected,
             "current": current,
             "expanded": node.states.expanded,
@@ -819,21 +818,6 @@ fn locator_query_json(
 }
 
 fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) -> serde_json::Value {
-    let toggle = |state: Option<wabou_shell::SemanticToggleState>| match state {
-        Some(wabou_shell::SemanticToggleState::Off) => serde_json::Value::Bool(false),
-        Some(wabou_shell::SemanticToggleState::On) => serde_json::Value::Bool(true),
-        Some(wabou_shell::SemanticToggleState::Mixed) => serde_json::Value::String("mixed".into()),
-        None => serde_json::Value::Null,
-    };
-    let current = |state: Option<wabou_shell::SemanticCurrent>| match state {
-        Some(wabou_shell::SemanticCurrent::True) => Some("true"),
-        Some(wabou_shell::SemanticCurrent::Page) => Some("page"),
-        Some(wabou_shell::SemanticCurrent::Step) => Some("step"),
-        Some(wabou_shell::SemanticCurrent::Location) => Some("location"),
-        Some(wabou_shell::SemanticCurrent::Date) => Some("date"),
-        Some(wabou_shell::SemanticCurrent::Time) => Some("time"),
-        None => None,
-    };
     serde_json::json!({
         "windowId": window_key,
         "revision": snapshot.revision,
@@ -861,10 +845,10 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
             "controls": node.controls,
             "activeDescendant": node.active_descendant,
             "disabled": node.disabled,
-            "checked": toggle(node.states.checked),
-            "pressed": toggle(node.states.pressed),
+            "checked": semantic_toggle_json(node.states.checked),
+            "pressed": semantic_toggle_json(node.states.pressed),
             "selected": node.states.selected,
-            "current": current(node.states.current),
+            "current": node.states.current.map(wabou_shell::SemanticCurrent::as_str),
             "expanded": node.states.expanded,
             "focused": snapshot.focus == Some(node.id),
         })).collect::<Vec<_>>(),

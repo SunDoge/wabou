@@ -118,6 +118,17 @@ pub enum SemanticToggleState {
     Mixed,
 }
 
+impl SemanticToggleState {
+    /// Canonical value used by the JS semantic contract and diagnostics.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "false",
+            Self::On => "true",
+            Self::Mixed => "mixed",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Meaning of the item currently active within a related set.
 pub enum SemanticCurrent {
@@ -135,6 +146,20 @@ pub enum SemanticCurrent {
     Time,
 }
 
+impl SemanticCurrent {
+    /// Canonical value used by `aria-current` and diagnostics.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::True => "true",
+            Self::Page => "page",
+            Self::Step => "step",
+            Self::Location => "location",
+            Self::Date => "date",
+            Self::Time => "time",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Kind of popup opened by a semantic control.
 pub enum SemanticPopup {
@@ -148,6 +173,19 @@ pub enum SemanticPopup {
     Grid,
     /// Dialog surface.
     Dialog,
+}
+
+impl SemanticPopup {
+    /// Canonical value used by `aria-haspopup` and diagnostics.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Menu => "menu",
+            Self::ListBox => "listbox",
+            Self::Tree => "tree",
+            Self::Grid => "grid",
+            Self::Dialog => "dialog",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -333,6 +371,17 @@ mod tests {
         }
         assert_eq!(SemanticRole::from_name("generic"), None);
         assert_eq!(SemanticRole::from_name("alertdialog"), None);
+    }
+
+    #[test]
+    fn semantic_state_names_share_the_authored_contract() {
+        assert_eq!(SemanticToggleState::Off.as_str(), "false");
+        assert_eq!(SemanticToggleState::On.as_str(), "true");
+        assert_eq!(SemanticToggleState::Mixed.as_str(), "mixed");
+        assert_eq!(SemanticCurrent::Page.as_str(), "page");
+        assert_eq!(SemanticCurrent::Time.as_str(), "time");
+        assert_eq!(SemanticPopup::ListBox.as_str(), "listbox");
+        assert_eq!(SemanticPopup::Dialog.as_str(), "dialog");
     }
 
     #[test]
