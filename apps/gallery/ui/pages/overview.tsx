@@ -10,7 +10,6 @@ import {
   Kbd,
   Path,
   PathBuilder,
-  Progress,
   Slider,
   SplitPane,
   SplitPaneAside,
@@ -29,35 +28,28 @@ import palette from "lucide-static/icons/palette.svg?raw";
 import scan from "lucide-static/icons/scan-line.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
 import { createMemo, createSignal, For, type JSX, onCleanup } from "solid-js";
+import {
+  appendFrameSample,
+  frameDuration,
+  frameStages,
+} from "./overview-metrics";
 
 const treeNodes = [
-  { id: "shell", name: "ApplicationShell", detail: "flex row, 1440 by 900" },
-  { id: "rail", name: "NavigationRail", detail: "fixed, 224 by 900" },
-  { id: "hero", name: "HeroSurface", detail: "rounded, elevation raised" },
-  { id: "chart", name: "FrameTimeline", detail: "native scene, 120 Hz" },
+  { id: "shell", name: "ApplicationShell", detail: "root layout region" },
+  { id: "rail", name: "NavigationRail", detail: "persistent navigation" },
+  { id: "hero", name: "HeroSurface", detail: "rounded paint surface" },
+  { id: "chart", name: "FrameTimeline", detail: "retained vector scene" },
 ] as const;
 
-const stages = [
-  { label: "JS", value: "1.3 ms", width: 28 },
-  { label: "Build", value: "2.1 ms", width: 46 },
-  { label: "Scene", value: "0.8 ms", width: 18 },
-  { label: "Present", value: "1.1 ms", width: 24 },
-] as const;
-
-function LiveFrameChart() {
-  const [tick, setTick] = createSignal(0);
-  const timer = setInterval(() => setTick((value) => value + 1), 650);
-  onCleanup(() => clearInterval(timer));
+function LiveFrameChart(props: { samples: readonly number[] }) {
   const source = createMemo(() => {
-    const phase = tick();
-    const points = [];
-    for (let index = 0; index < 18; index++) {
-      const value =
-        42 +
-        Math.sin((index + phase) * 0.72) * 13 +
-        Math.sin((index - phase) * 0.31) * 7;
-      points.push({ x: index * 18, y: 72 - value });
-    }
+    const samples = props.samples.length >= 2 ? props.samples : [0, 0];
+    const ceiling = Math.max(16.67, ...samples);
+    const step = 306 / Math.max(1, samples.length - 1);
+    const points = samples.map((value, index) => ({
+      x: index * step,
+      y: 56 - Math.min(1, value / ceiling) * 44,
+    }));
     return new PathBuilder().splineThrough(points).build({
       stroke: 0x38bdf8ff,
       strokeWidth: 2.5,
@@ -82,11 +74,41 @@ export function OverviewPage(props: {
   const [overlayPaint, setOverlayPaint] = createSignal(
     host.diagnostics.overlayPaintStats(),
   );
+  const [frameStats, setFrameStats] = createSignal(
+    host.diagnostics.frameStats(),
+  );
+  const [frameSamples, setFrameSamples] = createSignal<number[]>([]);
+  const currentFrameDuration = createMemo(() => {
+    const stats = frameStats();
+    return stats ? frameDuration(stats) : null;
+  });
+  const currentFrameStages = createMemo(() => {
+    const stats = frameStats();
+    return stats ? frameStages(stats) : [];
+  });
+  const frameDurationLabel = createMemo(() => {
+    const duration = currentFrameDuration();
+    return duration === null ? "--" : `${duration.toFixed(1)} ms`;
+  });
+  const viewportLabel = createMemo(() => {
+    const stats = frameStats();
+    return stats
+      ? `${Math.round(stats.viewport_w)} x ${Math.round(stats.viewport_h)}`
+      : "Waiting for native frame";
+  });
   const debugOverlayAvailable = overlayPaint() !== null;
   const [selectedNode, setSelectedNode] = createSignal("hero");
   const [motion, setMotion] = createSignal(72);
   const [inspectLayout, setInspectLayout] = createSignal(false);
   let overlayEvidenceTimer: ReturnType<typeof setInterval> | undefined;
+  const frameEvidenceTimer = setInterval(() => {
+    const next = host.diagnostics.frameStats();
+    setFrameStats(next);
+    if (next)
+      setFrameSamples((samples) =>
+        appendFrameSample(samples, frameDuration(next)),
+      );
+  }, 250);
   const stopOverlayEvidence = () => {
     clearInterval(overlayEvidenceTimer);
     overlayEvidenceTimer = undefined;
@@ -114,6 +136,7 @@ export function OverviewPage(props: {
     return `${paint.layout_bounds} native bounds · pass ${paint.sequence}`;
   };
   onCleanup(() => {
+    clearInterval(frameEvidenceTimer);
     stopOverlayEvidence();
     if (inspectLayout()) host.diagnostics.setOverlay({});
   });
@@ -190,8 +213,16 @@ export function OverviewPage(props: {
                   label="Frame rate"
                   value={<Fps label="" />}
                 />
-                <Metric icon={boxes} label="Scene nodes" value="1,284" />
-                <Metric icon={cpu} label="Frame budget" value="8.3 ms" />
+                <Metric
+                  icon={boxes}
+                  label="Scene nodes"
+                  value={frameStats()?.node_count.toLocaleString() ?? "--"}
+                />
+                <Metric
+                  icon={cpu}
+                  label="Frame time"
+                  value={frameDurationLabel()}
+                />
               </View>
             </SplitPaneMain>
 
@@ -209,11 +240,13 @@ export function OverviewPage(props: {
                     Native frame pipeline
                   </Text>
                 </View>
-                <Badge variant="outline">Live</Badge>
+                <Badge variant={frameStats() ? "success" : "outline"}>
+                  {frameStats() ? "Live" : "Waiting"}
+                </Badge>
               </View>
               <View class="flex flex-col gap-3">
-                <LiveFrameChart />
-                <For each={stages}>
+                <LiveFrameChart samples={frameSamples()} />
+                <For each={currentFrameStages()}>
                   {(stage) => (
                     <View class="flex items-center gap-3">
                       <Text class="w-12 flex-none text-xs text-muted">
@@ -226,16 +259,16 @@ export function OverviewPage(props: {
                         />
                       </View>
                       <Text class="w-12 flex-none text-right font-mono text-xs text-secondary">
-                        {stage.value}
+                        {`${stage.value.toFixed(1)} ms`}
                       </Text>
                     </View>
                   )}
                 </For>
               </View>
               <View class="flex items-center justify-between pt-3 border-t border-subtle">
-                <Text class="text-xs text-muted">Headroom</Text>
+                <Text class="text-xs text-muted">Viewport</Text>
                 <Text class="font-mono text-xs text-success-primary">
-                  36 percent
+                  {viewportLabel()}
                 </Text>
               </View>
             </SplitPaneAside>
@@ -250,7 +283,7 @@ export function OverviewPage(props: {
               <View class="flex items-center gap-2">
                 <Icon source={scan} size={15} class="text-accent" />
                 <Text class="text-sm font-semibold text-primary">
-                  Live native inspector
+                  Inspector anatomy
                 </Text>
               </View>
               <View class="flex items-center gap-2">
@@ -304,12 +337,16 @@ export function OverviewPage(props: {
                 </View>
                 <View class="mt-1 p-3 flex flex-col gap-2 rounded-md border border-subtle bg-surface-muted">
                   <View class="flex items-center justify-between">
-                    <Text class="text-xs text-muted">Layout stability</Text>
+                    <Text class="text-xs text-muted">Runtime diagnostics</Text>
                     <Text class="font-mono text-xs text-success-primary">
-                      100 percent
+                      DevTools queryable
                     </Text>
                   </View>
-                  <Progress value={100} label="Layout stability" />
+                  <View class="flex items-center gap-2">
+                    <Badge variant="outline">Snapshot</Badge>
+                    <Badge variant="outline">Overlay</Badge>
+                    <Badge variant="outline">Trace</Badge>
+                  </View>
                 </View>
               </SplitPaneMain>
             </SplitPane>
@@ -340,9 +377,7 @@ export function OverviewPage(props: {
             <View class="flex items-center justify-between py-3 border-t border-b border-subtle">
               <View class="flex flex-col gap-1">
                 <Text class="text-sm text-primary">Layout overlay</Text>
-                <Text class="text-xs text-muted">
-                  {layoutOverlayStatus()}
-                </Text>
+                <Text class="text-xs text-muted">{layoutOverlayStatus()}</Text>
               </View>
               <Switch
                 checked={inspectLayout()}
