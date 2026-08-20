@@ -14,7 +14,6 @@ import {
   mount,
   PrimitiveButton,
   RouterProvider,
-  ScrollArea,
   Separator,
   Text,
   useLocation,
@@ -23,11 +22,12 @@ import {
   useWindow,
   View,
 } from "@wabou/ui";
-import { createSignal, For, Match, Show, Switch as ShowCase } from "solid-js";
+import { createSignal, Match, Show, Switch as ShowCase } from "solid-js";
 import "virtual:wabou-stylesheet";
 
 import { OverlayPage } from "./pages/overlay";
 import { SystemPage } from "./pages/system";
+import { GallerySidebar } from "./sidebar";
 
 function classes(...values: Array<string | false | undefined>): string {
   return values.filter(Boolean).join(" ");
@@ -332,83 +332,15 @@ function App() {
     >
       <ComponentsProvider theme={dark() ? "dark" : "light"}>
         <View class="w-full h-full flex overflow-hidden bg-canvas text-primary font-sans">
-          <View
-            class={classes(
-              "h-full flex-none flex flex-col border-r border-subtle bg-surface-muted",
-              compact() ? "w-48" : "w-56",
-            )}
-          >
-            <View class="h-14 flex-none px-4 flex items-center gap-3 border-b border-subtle bg-surface">
-              <View class="w-8 h-8 flex items-center justify-center rounded-md bg-accent shadow-sm">
-                <Text class="text-sm font-bold text-white">W</Text>
-              </View>
-              <View class="flex flex-col">
-                <Text class="text-sm font-semibold text-primary">Wabou</Text>
-                <Text class="text-xs text-muted">Components & platform</Text>
-              </View>
-            </View>
-            <ScrollArea class="flex-1" contentClass="px-2 py-3">
-              <PrimitiveButton
-                unstyled
-                aria-label="Overview"
-                selected={selected() === null}
-                class={(state) =>
-                  classes(
-                    "w-full h-8 px-3 mb-3 justify-start rounded-md text-sm",
-                    selected() === null
-                      ? "bg-selected text-primary"
-                      : state.hovered
-                        ? "bg-control-hover text-primary"
-                        : "bg-transparent text-secondary",
-                    state.focusVisible && "border border-focus",
-                  )
-                }
-                onClick={() => void navigate({ to: "/" })}
-              >
-                Overview
-              </PrimitiveButton>
-              <For each={groups}>
-                {(group) => (
-                  <View class="flex-none flex flex-col gap-0.5 mb-4">
-                    <Text class="px-2 py-1 text-xs font-medium text-muted">
-                      {group.label}
-                    </Text>
-                    <For each={group.items}>
-                      {(item) => (
-                        <PrimitiveButton
-                          unstyled
-                          aria-label={item.name}
-                          selected={selected() === item.id}
-                          class={(state) =>
-                            classes(
-                              "w-full h-8 px-3 justify-start rounded-md text-sm",
-                              selected() === item.id
-                                ? "bg-selected text-primary"
-                                : state.hovered
-                                  ? "bg-control-hover text-primary"
-                                  : "bg-transparent text-secondary",
-                              state.focusVisible && "border border-focus",
-                            )
-                          }
-                          onClick={() =>
-                            void navigate({ to: `/components/${item.id}` })
-                          }
-                        >
-                          {item.name}
-                        </PrimitiveButton>
-                      )}
-                    </For>
-                  </View>
-                )}
-              </For>
-            </ScrollArea>
-            <View class="flex-none p-3 border-t border-subtle bg-surface">
-              <Badge variant="outline">
-                {groups.reduce((total, group) => total + group.items.length, 0)}{" "}
-                showcases
-              </Badge>
-            </View>
-          </View>
+          <GallerySidebar
+            groups={groups}
+            descriptions={descriptions}
+            selected={selected()}
+            compact={compact()}
+            onSelect={(id) =>
+              void navigate({ to: id === null ? "/" : `/components/${id}` })
+            }
+          />
 
           <View class="flex-1 min-w-0 h-full flex flex-col">
             <View class="h-14 flex-none px-6 flex items-center justify-between border-b border-subtle bg-surface">
