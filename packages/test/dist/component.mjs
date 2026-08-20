@@ -143,6 +143,9 @@ function renderComponent(render, options = {}) {
 		setAttribute: writer.setAttribute,
 		removeAttribute: writer.removeAttribute,
 		setClassName: writer.setClassName,
+		setStyle: writer.setStyle,
+		setStyleValue: writer.setStyleValue,
+		removeStyle: writer.removeStyle,
 		setTransform2D: writer.setTransform2D,
 		setInteractionPolicy: writer.setInteractionPolicy,
 		dropNode: writer.dropNode,
@@ -159,6 +162,7 @@ function renderComponent(render, options = {}) {
 			interactionBlocked: false,
 			focusContained: false,
 			className: "",
+			styles: /* @__PURE__ */ new Map(),
 			transform: null,
 			text
 		});
@@ -217,6 +221,21 @@ function renderComponent(render, options = {}) {
 		const node = nodes.get(key(id));
 		if (node) node.className = value;
 		originals.setClassName.call(writer, id, value);
+	};
+	writer.setStyle = (id, name, value) => {
+		nodes.get(key(id))?.styles.set(name, value);
+		originals.setStyle.call(writer, id, name, value);
+	};
+	writer.setStyleValue = (id, name, kind, value) => {
+		nodes.get(key(id))?.styles.set(name, {
+			kind,
+			value
+		});
+		originals.setStyleValue.call(writer, id, name, kind, value);
+	};
+	writer.removeStyle = (id, name) => {
+		nodes.get(key(id))?.styles.delete(name);
+		originals.removeStyle.call(writer, id, name);
 	};
 	writer.setTransform2D = (id, value) => {
 		const node = nodes.get(key(id));
@@ -438,6 +457,7 @@ function renderComponent(render, options = {}) {
 			get className() {
 				return node.className;
 			},
+			style: (name) => node.styles.get(name) ?? null,
 			get children() {
 				return node.children.map(locator);
 			},

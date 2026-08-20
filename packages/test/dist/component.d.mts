@@ -1,6 +1,11 @@
 import { BuiltinHost, Host } from "@wabou/core/renderer";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
+interface ComponentTypedStyleValue {
+  readonly kind: number;
+  readonly value: number;
+}
+type ComponentStyleValue = string | ComponentTypedStyleValue;
 interface ComponentRoleListOptions {
   name?: string;
   disabled?: boolean;
@@ -28,6 +33,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Last authored string or typed value emitted for an inline style property. */
+  style(name: string): ComponentStyleValue | null;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
@@ -142,5 +149,5 @@ declare function cleanupComponents(): void;
  */
 declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
+export { ComponentLocator, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map

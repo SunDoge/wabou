@@ -1,4 +1,5 @@
 import { type Host, useHost } from "@wabou/core/renderer";
+import { px } from "@wabou/core/style";
 import { createTestHost, renderComponent } from "@wabou/test/component";
 import {
   Button,
@@ -213,6 +214,39 @@ test("publishes deterministic native measurements to a component", () => {
   panel.resize({ width: 240, height: 28 });
 
   expect(screen.getByRole("status", { name: "Width 240" }).text).toBe("240");
+});
+
+test("observes reactive inline styles emitted through the native protocol", () => {
+  let setWidth: ((value: string | undefined) => void) | undefined;
+  let useTypedWidth: (() => void) | undefined;
+  const StyledPanel = () => {
+    const [width, updateWidth] = createSignal<
+      string | ReturnType<typeof px> | undefined
+    >("40%");
+    setWidth = (value) => updateWidth(value);
+    useTypedWidth = () => updateWidth(px(96));
+    return (
+      <View
+        role="group"
+        aria-label="Styled panel"
+        style={{ width: width(), opacity: 0.5 }}
+      />
+    );
+  };
+  const screen = renderComponent(StyledPanel);
+  const panel = screen.getByRole("group", { name: "Styled panel" });
+
+  expect(panel.style("width")).toBe("40%");
+  expect(panel.style("opacity")).toBe("0.5");
+  setWidth?.("75%");
+  screen.flush();
+  expect(panel.style("width")).toBe("75%");
+  useTypedWidth?.();
+  screen.flush();
+  expect(panel.style("width")).toEqual({ kind: 1, value: 96 });
+  setWidth?.(undefined);
+  screen.flush();
+  expect(panel.style("width")).toBeNull();
 });
 
 test("observes runtime transforms without decoding protocol bytes", () => {

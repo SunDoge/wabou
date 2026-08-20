@@ -120,8 +120,9 @@ expect(screen.getByRole("tooltip")).not.toBeNull();
 
 Behavior assertions should use roles and semantic state. For the narrower case
 where a component contract includes emitted paint state, a locator exposes its
-direct authored `children`; this permits transform assertions without adding
-test-only roles or attributes to production components:
+direct authored `children`, `style(name)`, and `transform`. This permits narrow
+visual-contract assertions without adding test-only roles or attributes to
+production components:
 
 ```ts
 const control = screen.getByRole("switch", { name: "Sync" });
@@ -129,6 +130,11 @@ const thumb = control.children[0];
 await screen.advanceTime(90);
 expect(thumb.transform?.[4]).toBeGreaterThan(0);
 ```
+
+`style(name)` observes string and typed inline values emitted through Wabou's
+actual protocol writer and remains live across reactive updates. It does not
+pretend to be computed layout or pixel output; keep those checks in native
+layout and screenshot tests.
 
 Promise-backed capabilities and async event handlers can be observed with the
 harness-owned retry loop. `waitFor` commits Solid and protocol work before each

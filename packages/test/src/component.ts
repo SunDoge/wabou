@@ -22,9 +22,17 @@ interface AuthoredNode {
   interactionBlocked: boolean;
   focusContained: boolean;
   className: string;
+  readonly styles: Map<string, ComponentStyleValue>;
   transform: readonly [number, number, number, number, number, number] | null;
   text: string;
 }
+
+export interface ComponentTypedStyleValue {
+  readonly kind: number;
+  readonly value: number;
+}
+
+export type ComponentStyleValue = string | ComponentTypedStyleValue;
 
 export interface ComponentRoleListOptions {
   name?: string;
@@ -68,6 +76,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Last authored string or typed value emitted for an inline style property. */
+  style(name: string): ComponentStyleValue | null;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
@@ -358,6 +368,9 @@ export function renderComponent(
     setAttribute: writer.setAttribute,
     removeAttribute: writer.removeAttribute,
     setClassName: writer.setClassName,
+    setStyle: writer.setStyle,
+    setStyleValue: writer.setStyleValue,
+    removeStyle: writer.removeStyle,
     setTransform2D: writer.setTransform2D,
     setInteractionPolicy: writer.setInteractionPolicy,
     dropNode: writer.dropNode,
@@ -375,6 +388,7 @@ export function renderComponent(
       interactionBlocked: false,
       focusContained: false,
       className: "",
+      styles: new Map(),
       transform: null,
       text,
     });
@@ -436,6 +450,18 @@ export function renderComponent(
     const node = nodes.get(key(id));
     if (node) node.className = value;
     originals.setClassName.call(writer, id, value);
+  };
+  writer.setStyle = (id, name, value) => {
+    nodes.get(key(id))?.styles.set(name, value);
+    originals.setStyle.call(writer, id, name, value);
+  };
+  writer.setStyleValue = (id, name, kind, value) => {
+    nodes.get(key(id))?.styles.set(name, { kind, value });
+    originals.setStyleValue.call(writer, id, name, kind, value);
+  };
+  writer.removeStyle = (id, name) => {
+    nodes.get(key(id))?.styles.delete(name);
+    originals.removeStyle.call(writer, id, name);
   };
   writer.setTransform2D = (id, value) => {
     const node = nodes.get(key(id));
@@ -776,6 +802,7 @@ export function renderComponent(
       get className() {
         return node.className;
       },
+      style: (name) => node.styles.get(name) ?? null,
       get children() {
         return node.children.map(locator);
       },
