@@ -1214,14 +1214,61 @@ function createOverlayLayer(options) {
 	};
 }
 //#endregion
+//#region src/primitives/transition-presence.ts
+/**
+* Couples logical presence to an interruptible visual transition.
+*
+* Closing disables the logical surface immediately while keeping its visual
+* subtree mounted until progress reaches zero. Reopening during exit simply
+* retargets the current transition instead of remounting the subtree.
+*/
+function createTransitionPresence(open, options = {}) {
+	const presence = createPresence(open);
+	const visuallyPresent = () => open() && (options.ready?.() ?? true);
+	const transition = createTransition(() => visuallyPresent() ? 1 : 0, {
+		duration: options.duration ?? .16,
+		ease: options.ease ?? "easeOut",
+		reducedMotion: options.reducedMotion,
+		onComplete(value) {
+			if (value === 1 && untrack(open)) presence.finishEnter();
+			else if (value === 0 && !untrack(open)) presence.finishExit();
+		}
+	});
+	createEffect(() => [
+		open(),
+		visuallyPresent(),
+		transition.value(),
+		presence.phase()
+	], ([isOpen, isVisible, progress, phase]) => {
+		if (isOpen && isVisible && progress === 1 && phase === "entering") presence.finishEnter();
+		else if (!isOpen && progress === 0 && phase === "exiting") presence.finishExit();
+	});
+	return {
+		phase: presence.phase,
+		mounted: presence.mounted,
+		progress: transition.value,
+		transition
+	};
+}
+//#endregion
 //#region src/primitives/modal.tsx
 /**
 * A native modal plane with host-enforced focus, hit-test, and accessibility
 * isolation. Visual styling remains explicit so applications can own it.
 */
 function Modal(props) {
+	const reducedMotion = useReducedMotion();
 	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(untrack(() => props.defaultOpen ?? false));
 	const open = () => props.open ?? uncontrolledOpen();
+	const motion = untrack(() => props.motion);
+	const motionOptions = motion === false ? void 0 : motion;
+	const motionEnabled = motionOptions !== void 0;
+	const presence = createTransitionPresence(open, {
+		duration: motionOptions?.duration ?? (motionEnabled ? .16 : 0),
+		ease: motionOptions?.ease ?? (motionEnabled ? "easeOut" : "linear"),
+		reducedMotion: () => !motionEnabled || reducedMotion()
+	});
+	const motionFromScale = () => motionOptions?.fromScale ?? 1;
 	let trigger;
 	let focusFrame = 0;
 	let wasOpenForInitialFocus = false;
@@ -1273,13 +1320,19 @@ function Modal(props) {
 	};
 	const overlay = createComponent(Show, {
 		get when() {
-			return open();
+			return presence.mounted();
 		},
 		get children() {
 			return createComponent(Portal, {
 				plane: "modal",
 				role: "presentation",
-				focusContained: true,
+				"aria-modal": "true",
+				get focusContained() {
+					return open();
+				},
+				get interactionBlocked() {
+					return !open();
+				},
 				get class() {
 					return props.backdropClass;
 				},
@@ -1294,6 +1347,8 @@ function Modal(props) {
 						"align-items": "center",
 						"justify-content": "center",
 						...props.backdropStyle,
+						opacity: number(presence.progress()),
+						"pointer-events": open() ? "auto" : "none",
 						"z-index": layer.zIndex()
 					};
 				},
@@ -1319,6 +1374,15 @@ function Modal(props) {
 						},
 						get shadows() {
 							return props.contentShadows;
+						},
+						get transform() {
+							return scale2d(motionFromScale() + presence.progress() * (1 - motionFromScale()));
+						},
+						get interactionBlocked() {
+							return !open();
+						},
+						get "aria-hidden"() {
+							return open() ? void 0 : "true";
 						},
 						onClick: (event) => event.stopPropagation(),
 						get children() {
@@ -1625,43 +1689,6 @@ function computeHostPointFloatingPosition(point, floating, host, options = {}) {
 			getClippingRect: () => snapshot.viewport
 		}
 	});
-}
-//#endregion
-//#region src/primitives/transition-presence.ts
-/**
-* Couples logical presence to an interruptible visual transition.
-*
-* Closing disables the logical surface immediately while keeping its visual
-* subtree mounted until progress reaches zero. Reopening during exit simply
-* retargets the current transition instead of remounting the subtree.
-*/
-function createTransitionPresence(open, options = {}) {
-	const presence = createPresence(open);
-	const visuallyPresent = () => open() && (options.ready?.() ?? true);
-	const transition = createTransition(() => visuallyPresent() ? 1 : 0, {
-		duration: options.duration ?? .16,
-		ease: options.ease ?? "easeOut",
-		reducedMotion: options.reducedMotion,
-		onComplete(value) {
-			if (value === 1 && untrack(open)) presence.finishEnter();
-			else if (value === 0 && !untrack(open)) presence.finishExit();
-		}
-	});
-	createEffect(() => [
-		open(),
-		visuallyPresent(),
-		transition.value(),
-		presence.phase()
-	], ([isOpen, isVisible, progress, phase]) => {
-		if (isOpen && isVisible && progress === 1 && phase === "entering") presence.finishEnter();
-		else if (!isOpen && progress === 0 && phase === "exiting") presence.finishExit();
-	});
-	return {
-		phase: presence.phase,
-		mounted: presence.mounted,
-		progress: transition.value,
-		transition
-	};
 }
 //#endregion
 //#region src/primitives/popover.tsx
@@ -2210,6 +2237,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { createActive as $, toggleSelection as A, Svg as B, createOverlayLayer as C, Row as D, Column as E, Image as F, rotate2d$1 as G, TextArea as H, NetworkImage as I, createContainerMatch as J, translate2d$1 as K, PasswordInput as L, CollapsiblePresence as M, CodeEditor as N, createKeyedSelection as O, Icon as P, createButton as Q, Path as R, OverlayPlaneProvider as S, Center as T, TextInput as U, Text as V, View as W, Button as X, createMeasuredSize as Y, Link as Z, createNotifications as _, ScrollArea as a, animate as at, Spin as b, arrow as c, createPulse as ct, computeHostFloatingPosition as d, createTransition as dt, createPress as et, flip as f, normalizeSweepGeometry as ft, NotificationRegion as g, size as h, useReducedMotion as ht, createScrollReset as i, createAnimationFrame as it, createFormDraft as j, isSelected as k, autoPlacement as l, createRotation as lt, shift as m, useMotionConfig as mt, createTabs as n, createFocus as nt, Popover as o, animateKeyframes as ot, offset as p, MotionConfigProvider as pt, createPresence as q, createShortcuts as r, createFocusWithin as rt, createTransitionPresence as s, createLoop as st, primitives_exports as t, createHover as tt, computeFloatingPosition as u, createSweep as ut, Pulse as v, useOverlayPlane as w, Modal as x, Ripple as y, PathBuilder as z };
+export { createActive as $, toggleSelection as A, Svg as B, createOverlayLayer as C, Row as D, Column as E, Image as F, rotate2d$1 as G, TextArea as H, NetworkImage as I, createContainerMatch as J, translate2d$1 as K, PasswordInput as L, CollapsiblePresence as M, CodeEditor as N, createKeyedSelection as O, Icon as P, createButton as Q, Path as R, OverlayPlaneProvider as S, Center as T, TextInput as U, Text as V, View as W, Button as X, createMeasuredSize as Y, Link as Z, Pulse as _, ScrollArea as a, animate as at, Modal as b, autoPlacement as c, createPulse as ct, flip as d, createTransition as dt, createPress as et, offset as f, normalizeSweepGeometry as ft, createNotifications as g, NotificationRegion as h, useReducedMotion as ht, createScrollReset as i, createAnimationFrame as it, createFormDraft as j, isSelected as k, computeFloatingPosition as l, createRotation as lt, size as m, useMotionConfig as mt, createTabs as n, createFocus as nt, Popover as o, animateKeyframes as ot, shift as p, MotionConfigProvider as pt, createPresence as q, createShortcuts as r, createFocusWithin as rt, arrow as s, createLoop as st, primitives_exports as t, createHover as tt, computeHostFloatingPosition as u, createSweep as ut, Ripple as v, useOverlayPlane as w, createTransitionPresence as x, Spin as y, PathBuilder as z };
 
-//# sourceMappingURL=primitives-DQI6xk_y.mjs.map
+//# sourceMappingURL=primitives-Dy2ya9C4.mjs.map

@@ -51,6 +51,7 @@ export {
   type ModalControls,
   type ModalEvent,
   type ModalKeyEvent,
+  type ModalMotionOptions,
   type ModalOpenChangeReason,
   type ModalProps,
   type ModalTriggerProps,

@@ -1,5 +1,5 @@
 import { type Handle, Portal } from "@wabou/core/renderer";
-import type { Shadow } from "@wabou/core/style";
+import { number, type Shadow, scale2d } from "@wabou/core/style";
 import {
   createComponent,
   createEffect,
@@ -9,7 +9,9 @@ import {
   Show,
   untrack,
 } from "solid-js";
+import { type Easing, useReducedMotion } from "../animation";
 import { createOverlayLayer, OverlayPlaneProvider } from "./overlay-layer";
+import { createTransitionPresence } from "./transition-presence";
 import type { WabouStyle } from "./view";
 import { View } from "./view";
 
@@ -40,6 +42,13 @@ export interface ModalControls {
   close(): void;
 }
 
+export interface ModalMotionOptions {
+  duration?: number;
+  ease?: Easing;
+  /** Initial content scale around its center. Defaults to 1. */
+  fromScale?: number;
+}
+
 export interface ModalProps {
   children?: JSX.Element | ((controls: ModalControls) => JSX.Element);
   trigger?: (props: ModalTriggerProps) => JSX.Element;
@@ -61,6 +70,8 @@ export interface ModalProps {
   /** Overrides the host's default of focusing the first focusable descendant. */
   initialFocus?: () => Handle | undefined;
   restoreFocus?: boolean;
+  /** Headless Modal is static by default; styled dialogs opt into motion. */
+  motion?: false | ModalMotionOptions;
 }
 
 /**
@@ -68,10 +79,20 @@ export interface ModalProps {
  * isolation. Visual styling remains explicit so applications can own it.
  */
 export function Modal(props: ModalProps): JSX.Element {
+  const reducedMotion = useReducedMotion();
   const [uncontrolledOpen, setUncontrolledOpen] = createSignal(
     untrack(() => props.defaultOpen ?? false),
   );
   const open = () => props.open ?? uncontrolledOpen();
+  const motion = untrack(() => props.motion);
+  const motionOptions = motion === false ? undefined : motion;
+  const motionEnabled = motionOptions !== undefined;
+  const presence = createTransitionPresence(open, {
+    duration: motionOptions?.duration ?? (motionEnabled ? 0.16 : 0),
+    ease: motionOptions?.ease ?? (motionEnabled ? "easeOut" : "linear"),
+    reducedMotion: () => !motionEnabled || reducedMotion(),
+  });
+  const motionFromScale = () => motionOptions?.fromScale ?? 1;
   let trigger: Handle | undefined;
   let focusFrame = 0;
   let wasOpenForInitialFocus = false;
@@ -135,13 +156,19 @@ export function Modal(props: ModalProps): JSX.Element {
     }) => JSX.Element,
     {
       get when() {
-        return open();
+        return presence.mounted();
       },
       get children() {
         return createComponent(Portal, {
           plane: "modal",
           role: "presentation",
-          focusContained: true,
+          "aria-modal": "true",
+          get focusContained() {
+            return open();
+          },
+          get interactionBlocked() {
+            return !open();
+          },
           get class() {
             return props.backdropClass;
           },
@@ -156,6 +183,8 @@ export function Modal(props: ModalProps): JSX.Element {
               "align-items": "center",
               "justify-content": "center",
               ...props.backdropStyle,
+              opacity: number(presence.progress()),
+              "pointer-events": open() ? "auto" : "none",
               // Portal containers share one native plane. Make open order
               // explicit so nested overlays paint above their owning modal.
               "z-index": layer.zIndex(),
@@ -183,6 +212,18 @@ export function Modal(props: ModalProps): JSX.Element {
               },
               get shadows() {
                 return props.contentShadows;
+              },
+              get transform() {
+                return scale2d(
+                  motionFromScale() +
+                    presence.progress() * (1 - motionFromScale()),
+                );
+              },
+              get interactionBlocked() {
+                return !open();
+              },
+              get "aria-hidden"() {
+                return open() ? undefined : "true";
               },
               onClick: (event: ModalEvent) => event.stopPropagation(),
               get children() {

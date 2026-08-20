@@ -148,6 +148,35 @@ test("Modal can keep backdrop and Escape dismissal disabled", () => {
   disposeMount();
 });
 
+test("Modal motion keeps a closed visual subtree mounted for exit", () => {
+  const disposeMount = mount(() => null);
+  const root = getMountRoot();
+
+  createRoot((dispose) => {
+    let controls: ModalControls | undefined;
+    Modal({
+      "aria-label": "Animated dialog",
+      defaultOpen: true,
+      motion: { duration: 10, fromScale: 0.98 },
+      children: (value) => {
+        controls = value;
+        return View({});
+      },
+    });
+    flush();
+    const modalPlane = root.lastChild;
+    expect(modalPlane).not.toBeNull();
+
+    controls?.close();
+    flush();
+    expect(root.lastChild).toBe(modalPlane);
+    dispose();
+  });
+
+  expect(root.lastChild).toBeNull();
+  disposeMount();
+});
+
 test("Modal content makes nested overlays inherit the modal plane", () => {
   const disposeMount = mount(() => null);
   let inherited: string | undefined;

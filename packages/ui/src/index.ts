@@ -62,6 +62,7 @@ export {
   Link as PrimitiveLink,
   type LinkProps as PrimitiveLinkProps,
   Modal,
+  type ModalMotionOptions,
   type ModalProps,
   NetworkImage,
   type NetworkImageProps,

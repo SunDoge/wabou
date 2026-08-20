@@ -1,4 +1,5 @@
 import { rgba } from "@wabou/core";
+import type { JSX } from "solid-js";
 import {
   Modal,
   type ModalControls,
@@ -7,7 +8,6 @@ import {
   View,
 } from "../primitives";
 import { ScrollArea } from "../primitives/scroll-area";
-import type { JSX } from "solid-js";
 import { join } from "./class-names";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
@@ -20,6 +20,7 @@ export function Dialog(props: DialogProps): JSX.Element {
   return (
     <Modal
       {...props}
+      motion={props.motion === undefined ? { fromScale: 0.98 } : props.motion}
       backdropClass={props.backdropClass}
       backdropStyle={{
         "background-color": rgba(0x00000033),
