@@ -18,10 +18,12 @@ bun run verify
 ```
 
 `bun run verify:js` and `bun run verify:rust` are available when a change only
-needs one side of the boundary. The full command checks formatting, types,
-generated bindings, package tarballs, unit tests, Clippy, and every Rust target.
-It reports stale generated output instead of rewriting the worktree; run
-`bun run gen` explicitly when that diagnostic is expected.
+needs one side of the boundary; `bun run verify:behavior` discovers every app
+with authored native behavior scenarios. The full command checks formatting,
+types, generated bindings, package tarballs, unit tests, Clippy, every Rust
+target, and native application behavior. It reports stale generated output
+instead of rewriting the worktree; run `bun run gen` explicitly when that
+diagnostic is expected.
 
 To run the GitHub Actions workflow locally, use the repository's `act`
 wrapper. It uses Docker's host network and forwards the host proxy at

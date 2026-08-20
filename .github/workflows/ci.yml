@@ -73,13 +73,10 @@ jobs:
 
       - name: Test native application behavior
         run: |
-          cargo run -p wabou-cli -- test apps/gallery
+          bun run verify:behavior
           cargo run -p wabou-cli -- test \
             --replay target/wabou-test/gallery/artifacts/trace.json \
             --app apps/gallery
-          cargo run -p wabou-cli -- test apps/7guis
-          cargo run -p wabou-cli -- test apps/vlist
-          cargo run -p wabou-cli -- test apps/motrix
           WABOU_MOTRIX_TEST_ENGINE_FAILURE=1 cargo run -p wabou-cli -- test \
             apps/motrix/tests/engine-failure.scenario.ts \
             --artifacts target/wabou-test/motrix/engine-failure-artifacts
