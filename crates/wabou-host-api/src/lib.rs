@@ -300,6 +300,23 @@ pub struct CalendarDateInfo {
     pub day: u8,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
+/// Evidence from the most recent native debug-overlay paint pass.
+pub struct DebugOverlayPaintStats {
+    /// Monotonic paint-pass sequence. Zero means no pass has completed.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub sequence: u64,
+    /// Whether an overlay was enabled for that pass.
+    pub enabled: bool,
+    /// Number of layout border boxes stroked into the Vello scene.
+    pub layout_bounds: u32,
+    /// Number of unique clip rectangles stroked into the Vello scene.
+    pub clip_bounds: u32,
+    /// Number of hit-target or selected-node highlights painted.
+    pub highlights: u32,
+}
+
 #[cfg(feature = "bindings")]
 mod contract {
     use super::*;
@@ -319,6 +336,11 @@ mod contract {
         ],
         "boolean",
     );
+    pub const DEBUG_OVERLAY_PAINT_STATS: NativeMethod = NativeMethod::sync(
+        "debugOverlayPaintStats",
+        &[],
+        "DebugOverlayPaintStats | null",
+    );
     pub const LAYOUT_SNAPSHOT: NativeMethod =
         NativeMethod::sync("layoutSnapshot", &[("ids", "NodeKey[]")], "LayoutSnapshot");
     pub const SYSTEM_LOCALE: NativeMethod = NativeMethod::sync("systemLocale", &[], "string");
@@ -332,12 +354,14 @@ mod contract {
 pub fn bindings() -> FunctionModule {
     FunctionModule::new("NativeHostApi")
         .response_dto::<CalendarDateInfo>()
+        .response_dto::<DebugOverlayPaintStats>()
         .response_dto::<FrameStats>()
         .response_dto::<LayoutSnapshot>()
         .method(contract::OPEN_URL)
         .method(contract::LOAD_FONT)
         .method(contract::FRAME_STATS)
         .method(contract::SET_DEBUG_OVERLAY)
+        .method(contract::DEBUG_OVERLAY_PAINT_STATS)
         .method(contract::LAYOUT_SNAPSHOT)
         .method(contract::SYSTEM_LOCALE)
         .method(contract::SYSTEM_TIME_ZONE)
@@ -356,6 +380,7 @@ mod tests {
         assert!(output.contains(
             "setDebugOverlay(layout: boolean, clips: boolean, hitTarget: boolean): boolean"
         ));
+        assert!(output.contains("debugOverlayPaintStats(): DebugOverlayPaintStats | null"));
         assert!(output.contains("layoutSnapshot(ids: NodeKey[]): LayoutSnapshot"));
         assert!(output.contains("systemLocale(): string"));
         assert!(output.contains("systemTimeZone(): string"));

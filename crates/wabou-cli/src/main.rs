@@ -26,8 +26,8 @@ mod render_metrics;
 mod scaffold;
 
 use artifact::{
-    app_binary, app_bindings_target, app_dev_features, app_profiling_feature,
-    artifact_from_metadata, cargo_metadata, optional_app_bindings_target,
+    app_binary, app_bindings_target, app_dev_features, app_framework_feature,
+    app_profiling_feature, artifact_from_metadata, cargo_metadata, optional_app_bindings_target,
 };
 #[cfg(test)]
 use artifact::{binary_target, bindings_target, dev_features, framework_feature};
@@ -623,7 +623,11 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
     let test_data = tempfile::tempdir_in(&test_dir)?;
-    let executable = build_behavior_host(workspace, &manifest, &binary, None)?;
+    // Behavior scenarios may exercise the same native diagnostics that are
+    // available under `wabou dev`. Compile that implementation into the host
+    // instead of silently replacing it with the no-op ABI fallback.
+    let devtools_feature = app_framework_feature(workspace, app, "devtools")?;
+    let executable = build_behavior_host(workspace, &manifest, &binary, Some(&devtools_feature))?;
     let mut host = Command::new(executable);
     host.current_dir(workspace)
         .env(

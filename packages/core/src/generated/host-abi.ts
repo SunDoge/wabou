@@ -19,6 +19,7 @@ declare global {
     clips: boolean,
     hitTarget: boolean,
   ): boolean;
+  function __wabou_debug_overlay_paint_stats(): string;
   function __wabou_layout_snapshot(
     ids: Uint32Array,
     output: Float64Array | undefined,

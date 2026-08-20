@@ -85,6 +85,14 @@
       "returns": "boolean"
     },
     {
+      "name": "__wabou_debug_overlay_paint_stats",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [],
+      "returns": "string"
+    },
+    {
       "name": "__wabou_layout_snapshot",
       "direction": "host",
       "owner": "runtime",

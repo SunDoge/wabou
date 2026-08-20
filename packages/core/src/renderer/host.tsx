@@ -8,6 +8,7 @@ import {
 import { isNodeKey, type NodeKey } from "../protocol";
 import type {
   CalendarDateInfo,
+  DebugOverlayPaintStats,
   FrameStats,
   LayoutRect,
   LayoutSnapshot,
@@ -17,6 +18,7 @@ import type {
 import type { HostCapabilities } from "./index";
 
 export type {
+  DebugOverlayPaintStats,
   FrameStats,
   LayoutNodeMetrics,
   LayoutRect,
@@ -32,6 +34,7 @@ declare function __wabou_set_debug_overlay(
   clips: boolean,
   hitTarget: boolean,
 ): boolean;
+declare function __wabou_debug_overlay_paint_stats(): string;
 declare function __wabou_layout_snapshot(
   ids: Uint32Array,
   output: Float64Array | undefined,
@@ -66,6 +69,8 @@ export interface BuiltinHost {
     frameStats(): FrameStats | null;
     /** Configure native diagnostic layers. Returns false without DevTools support. */
     setOverlay(options: DebugOverlayOptions): boolean;
+    /** Evidence from the most recent native overlay paint pass. */
+    overlayPaintStats(): DebugOverlayPaintStats | null;
   };
   readonly intl: {
     /** Locale reported by the operating system, falling back to en-US. */
@@ -161,6 +166,10 @@ const nativeHost: NativeHostApi = {
   frameStats: () => JSON.parse(__wabou_frame_stats()) as FrameStats | null,
   setDebugOverlay: (layout, clips, hitTarget) =>
     __wabou_set_debug_overlay(layout, clips, hitTarget),
+  debugOverlayPaintStats: () =>
+    JSON.parse(
+      __wabou_debug_overlay_paint_stats(),
+    ) as DebugOverlayPaintStats | null,
   layoutSnapshot: readLayoutSnapshot,
   systemLocale: () => __wabou_system_locale(),
   systemTimeZone: () => __wabou_system_time_zone(),
@@ -173,6 +182,7 @@ const builtinHost: BuiltinHost = {
   fonts: { load: nativeHost.loadFont },
   diagnostics: {
     frameStats: nativeHost.frameStats,
+    overlayPaintStats: nativeHost.debugOverlayPaintStats,
     setOverlay: (options) =>
       nativeHost.setDebugOverlay(
         options.layout ?? false,

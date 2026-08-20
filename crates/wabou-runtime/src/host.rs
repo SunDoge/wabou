@@ -1176,6 +1176,17 @@ fn run_headless_test(
                 color_scheme: Some(wabou_shell::ColorScheme::Light),
             }));
             last_nodes[index] = source.build_frame(&mut text, width, height);
+            // Deterministic tests do not own a GPU surface, but diagnostic
+            // layers are still scene behavior. Encode them into a throwaway
+            // Vello scene every frame so tests can observe the same paint pass
+            // as a native window without requiring presentation support.
+            let mut diagnostic_scene = vello::Scene::new();
+            source.paint_debug_overlay(
+                &mut diagnostic_scene,
+                &last_nodes[index],
+                &mut text,
+                viewport.scale_factor,
+            );
             controller.poll_headless_source(window_key, source.as_mut());
             drain_headless_effects(source.as_mut());
         }

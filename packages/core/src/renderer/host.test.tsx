@@ -5,7 +5,11 @@ import { type BuiltinHost, type Host, HostProvider, useHost } from "./host";
 const fakeBuiltinHost: BuiltinHost = {
   system: { openUrl: () => true },
   fonts: { load: () => true },
-  diagnostics: { frameStats: () => null, setOverlay: () => false },
+  diagnostics: {
+    frameStats: () => null,
+    setOverlay: () => false,
+    overlayPaintStats: () => null,
+  },
   intl: {
     locale: () => "en-US",
     timeZone: () => "UTC",

@@ -31,6 +31,14 @@ Object.assign(globalThis, {
     calls.push(["overlay", layout, clips, hitTarget]);
     return true;
   },
+  __wabou_debug_overlay_paint_stats: () =>
+    JSON.stringify({
+      sequence: 4,
+      enabled: true,
+      layout_bounds: 12,
+      clip_bounds: 2,
+      highlights: 1,
+    }),
   __wabou_layout_snapshot: (
     ids: Uint32Array,
     output: Float64Array | undefined,
@@ -75,6 +83,13 @@ test("defaultHost adapts system, font, and diagnostics ABI", () => {
     node_count: 5,
     viewport_w: 640,
     viewport_h: 480,
+  });
+  expect(defaultHost.diagnostics.overlayPaintStats()).toEqual({
+    sequence: 4,
+    enabled: true,
+    layout_bounds: 12,
+    clip_bounds: 2,
+    highlights: 1,
   });
 });
 

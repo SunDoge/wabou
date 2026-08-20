@@ -22,6 +22,7 @@ function createTestHost(capabilities, builtins = {}) {
 		diagnostics: {
 			frameStats: () => null,
 			setOverlay: () => false,
+			overlayPaintStats: () => null,
 			...builtins.diagnostics
 		},
 		intl: {

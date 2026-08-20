@@ -86,6 +86,10 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
         1.0,
     );
     assert_eq!(disabled_scene.encoding().n_paths, 0);
+    let disabled_paint = debug.read().expect("debug state").overlay_paint();
+    assert_eq!(disabled_paint.sequence, 1);
+    assert!(!disabled_paint.enabled);
+    assert_eq!(disabled_paint.layout_bounds, 0);
 
     debug
         .write()
@@ -100,6 +104,12 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
         enabled_scene.encoding().n_paths > 0,
         "enabled layout diagnostics must encode a visible stroke"
     );
+    let enabled_paint = debug.read().expect("debug state").overlay_paint();
+    assert_eq!(enabled_paint.sequence, 2);
+    assert!(enabled_paint.enabled);
+    assert_eq!(enabled_paint.layout_bounds, 1);
+    assert_eq!(enabled_paint.clip_bounds, 0);
+    assert_eq!(enabled_paint.highlights, 0);
 }
 
 #[test]

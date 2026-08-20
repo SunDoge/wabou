@@ -16,6 +16,7 @@ use std::thread;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use wabou_host_api::DebugOverlayPaintStats;
 pub use wabou_host_api::NodeKey;
 
 /// Current newline-delimited JSON protocol version.
@@ -570,6 +571,7 @@ pub struct DebugState {
     wake: Option<Arc<dyn Fn() + Send + Sync>>,
     raw_frames: bool,
     overlay: DebugOverlay,
+    overlay_paint: DebugOverlayPaintStats,
     overlay_changed: bool,
 }
 
@@ -611,6 +613,7 @@ impl Default for DebugState {
             wake: None,
             raw_frames: std::env::var_os("WABOU_DEVTOOLS_RAW_FRAMES").is_some(),
             overlay: DebugOverlay::default(),
+            overlay_paint: DebugOverlayPaintStats::default(),
             overlay_changed: false,
         }
     }
@@ -646,6 +649,17 @@ impl DebugState {
     /// Return the currently requested native overlay layers.
     pub fn overlay(&self) -> DebugOverlay {
         self.overlay
+    }
+
+    /// Return evidence from the most recent native overlay paint pass.
+    pub fn overlay_paint(&self) -> DebugOverlayPaintStats {
+        self.overlay_paint
+    }
+
+    /// Publish counts collected while appending the overlay to a native scene.
+    pub fn record_overlay_paint(&mut self, mut stats: DebugOverlayPaintStats) {
+        stats.sequence = self.overlay_paint.sequence.wrapping_add(1).max(1);
+        self.overlay_paint = stats;
     }
 
     /// Replace overlay configuration and wake the UI loop.

@@ -552,6 +552,23 @@ impl JsRuntime {
             .with_name("__wabou_set_debug_overlay")?,
         )?;
 
+        #[cfg(any(feature = "devtools", test))]
+        let debug_state = self.debug_state.clone();
+        globals.set(
+            "__wabou_debug_overlay_paint_stats",
+            rquickjs::Function::new(ctx.clone(), move || -> String {
+                #[cfg(any(feature = "devtools", test))]
+                let stats = debug_state
+                    .borrow()
+                    .as_ref()
+                    .and_then(|state| state.read().ok().map(|state| state.overlay_paint()));
+                #[cfg(not(any(feature = "devtools", test)))]
+                let stats: Option<wabou_host_api::DebugOverlayPaintStats> = None;
+                serde_json::to_string(&stats).expect("overlay paint stats are serializable")
+            })?
+            .with_name("__wabou_debug_overlay_paint_stats")?,
+        )?;
+
         let metrics = self.layout_metrics.clone();
         globals.set(
             "__wabou_layout_snapshot",

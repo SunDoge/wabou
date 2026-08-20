@@ -9,6 +9,20 @@ type CalendarDateInfo = {
 	day: number,
 };
 
+export /**  Evidence from the most recent native debug-overlay paint pass. */
+type DebugOverlayPaintStats = {
+	/**  Monotonic paint-pass sequence. Zero means no pass has completed. */
+	sequence: number,
+	/**  Whether an overlay was enabled for that pass. */
+	enabled: boolean,
+	/**  Number of layout border boxes stroked into the Vello scene. */
+	layout_bounds: number,
+	/**  Number of unique clip rectangles stroked into the Vello scene. */
+	clip_bounds: number,
+	/**  Number of hit-target or selected-node highlights painted. */
+	highlights: number,
+};
+
 export /**  Timing and scene-size metrics for the most recently presented frame. */
 type FrameStats = {
 	/**  Total Rust frame construction time in milliseconds. */
@@ -82,6 +96,7 @@ type NodeKey = {
 };
 
 export interface NativeHostApi {
+  debugOverlayPaintStats(): DebugOverlayPaintStats | null;
   frameStats(): FrameStats | null;
   layoutSnapshot(ids: NodeKey[]): LayoutSnapshot;
   loadFont(path: string): boolean;

@@ -5473,6 +5473,7 @@
     loadFont: (path) => __wabou_load_font(path),
     frameStats: () => JSON.parse(__wabou_frame_stats()),
     setDebugOverlay: (layout, clips, hitTarget) => __wabou_set_debug_overlay(layout, clips, hitTarget),
+    debugOverlayPaintStats: () => JSON.parse(__wabou_debug_overlay_paint_stats()),
     layoutSnapshot: readLayoutSnapshot,
     systemLocale: () => __wabou_system_locale(),
     systemTimeZone: () => __wabou_system_time_zone(),
@@ -5483,6 +5484,7 @@
     fonts: { load: nativeHost.loadFont },
     diagnostics: {
       frameStats: nativeHost.frameStats,
+      overlayPaintStats: nativeHost.debugOverlayPaintStats,
       setOverlay: (options) => nativeHost.setDebugOverlay(options.layout ?? false, options.clips ?? false, options.hitTarget ?? false)
     },
     intl: {

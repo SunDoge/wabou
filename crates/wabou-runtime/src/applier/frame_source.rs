@@ -588,9 +588,18 @@ impl FrameSource for Applier {
         let Some(state) = &self.frame.projections.debug_state else {
             return;
         };
-        let Ok(state) = state.read() else { return };
-        let overlay = state.overlay();
+        let Ok(guard) = state.read() else { return };
+        let overlay = guard.overlay();
+        drop(guard);
+        let mut paint_stats = wabou_host_api::DebugOverlayPaintStats {
+            enabled: overlay.is_enabled(),
+            ..Default::default()
+        };
         if !overlay.is_enabled() {
+            if let Ok(mut state) = state.write() {
+                state.record_overlay_paint(paint_stats);
+            }
+            tracing::trace!(target: "wabou::devtools", "painted disabled debug overlay pass");
             return;
         }
         let device = Affine::scale(device_scale);
@@ -611,6 +620,7 @@ impl FrameSource for Applier {
                     None,
                     &rect,
                 );
+                paint_stats.layout_bounds = paint_stats.layout_bounds.saturating_add(1);
             }
             if overlay.clips
                 && let Some(clip) = node.clip
@@ -628,6 +638,7 @@ impl FrameSource for Applier {
                         clip[3] as f64,
                     ),
                 );
+                paint_stats.clip_bounds = paint_stats.clip_bounds.saturating_add(1);
             }
 
             let is_hit = overlay.hit_target && hovered == Some(solid_id);
@@ -635,6 +646,7 @@ impl FrameSource for Applier {
             if !is_hit && !is_selected {
                 continue;
             }
+            paint_stats.highlights = paint_stats.highlights.saturating_add(1);
             let accent = if is_selected {
                 Color::from_rgba8(168, 85, 247, 255)
             } else {
@@ -692,6 +704,16 @@ impl FrameSource for Applier {
                 ),
             );
         }
+        if let Ok(mut state) = state.write() {
+            state.record_overlay_paint(paint_stats);
+        }
+        tracing::trace!(
+            target: "wabou::devtools",
+            layout_bounds = paint_stats.layout_bounds,
+            clip_bounds = paint_stats.clip_bounds,
+            highlights = paint_stats.highlights,
+            "painted debug overlay"
+        );
     }
 
     #[cfg(not(any(feature = "devtools", test)))]
