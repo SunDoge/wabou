@@ -10,6 +10,7 @@ interface AuthoredNode {
   parent: AuthoredNode | null;
   readonly children: AuthoredNode[];
   readonly attributes: Map<string, string>;
+  className: string;
   text: string;
 }
 
@@ -18,9 +19,13 @@ export interface ComponentLocator {
   readonly role: string;
   readonly name: string;
   readonly text: string;
+  readonly className: string;
   attribute(name: string): string | null;
   click(): void;
   press(key: string): void;
+  input(value: string): void;
+  hover(): void;
+  unhover(): void;
   /** Publish a deterministic native content-box observation. */
   resize(size: { width: number; height: number }): void;
 }
@@ -97,6 +102,7 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
     setText: writer.setText,
     setAttribute: writer.setAttribute,
     removeAttribute: writer.removeAttribute,
+    setClassName: writer.setClassName,
     dropNode: writer.dropNode,
   };
 
@@ -107,6 +113,7 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
       parent: null,
       children: [],
       attributes: new Map(),
+      className: "",
       text,
     });
   };
@@ -162,6 +169,11 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
   writer.removeAttribute = (id, name) => {
     nodes.get(key(id))?.attributes.delete(name);
     originals.removeAttribute.call(writer, id, name);
+  };
+  writer.setClassName = (id, value) => {
+    const node = nodes.get(key(id));
+    if (node) node.className = value;
+    originals.setClassName.call(writer, id, value);
   };
   writer.dropNode = (id) => {
     const node = nodes.get(key(id));
@@ -228,6 +240,9 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
     get text() {
       return textOf(node);
     },
+    get className() {
+      return node.className;
+    },
     attribute: (name) => node.attributes.get(name) ?? null,
     click: () => {
       ensureEnabled(node, "click");
@@ -240,6 +255,15 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
       commitEvent(node, EVENT_CODE.keydown, payload);
       commitEvent(node, EVENT_CODE.keyup, payload);
     },
+    input: (value) => {
+      ensureEnabled(node, "input");
+      commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
+    },
+    hover: () => {
+      ensureEnabled(node, "hover");
+      commitEvent(node, EVENT_CODE.pointerenter);
+    },
+    unhover: () => commitEvent(node, EVENT_CODE.pointerleave),
     resize: ({ width, height }) => {
       if (
         !Number.isFinite(width) ||

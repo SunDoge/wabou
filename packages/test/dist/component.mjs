@@ -46,6 +46,7 @@ function renderComponent(render) {
 		setText: writer.setText,
 		setAttribute: writer.setAttribute,
 		removeAttribute: writer.removeAttribute,
+		setClassName: writer.setClassName,
 		dropNode: writer.dropNode
 	};
 	const create = (id, tag, text = "") => {
@@ -55,6 +56,7 @@ function renderComponent(render) {
 			parent: null,
 			children: [],
 			attributes: /* @__PURE__ */ new Map(),
+			className: "",
 			text
 		});
 	};
@@ -107,6 +109,11 @@ function renderComponent(render) {
 	writer.removeAttribute = (id, name) => {
 		nodes.get(key(id))?.attributes.delete(name);
 		originals.removeAttribute.call(writer, id, name);
+	};
+	writer.setClassName = (id, value) => {
+		const node = nodes.get(key(id));
+		if (node) node.className = value;
+		originals.setClassName.call(writer, id, value);
 	};
 	writer.dropNode = (id) => {
 		const node = nodes.get(key(id));
@@ -161,6 +168,9 @@ function renderComponent(render) {
 		get text() {
 			return textOf(node);
 		},
+		get className() {
+			return node.className;
+		},
 		attribute: (name) => node.attributes.get(name) ?? null,
 		click: () => {
 			ensureEnabled(node, "click");
@@ -176,6 +186,15 @@ function renderComponent(render) {
 			commitEvent(node, EVENT_CODE.keydown, payload);
 			commitEvent(node, EVENT_CODE.keyup, payload);
 		},
+		input: (value) => {
+			ensureEnabled(node, "input");
+			commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
+		},
+		hover: () => {
+			ensureEnabled(node, "hover");
+			commitEvent(node, EVENT_CODE.pointerenter);
+		},
+		unhover: () => commitEvent(node, EVENT_CODE.pointerleave),
 		resize: ({ width, height }) => {
 			if (!Number.isFinite(width) || width < 0 || !Number.isFinite(height) || height < 0) throw new RangeError("component size must be finite and non-negative");
 			dispatchResizeObservation(node.id, width, height);

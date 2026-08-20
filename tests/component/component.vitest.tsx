@@ -1,6 +1,13 @@
 import { expect, test } from "vitest";
 import { createSignal } from "solid-js";
-import { Button, createMeasuredSize, Slider, Text, View } from "@wabou/ui";
+import {
+  Button,
+  createMeasuredSize,
+  Input,
+  Slider,
+  Text,
+  View,
+} from "@wabou/ui";
 import { renderComponent } from "@wabou/test/component";
 
 test("tests a reactive component through its authored role and name", () => {
@@ -68,4 +75,41 @@ test("publishes deterministic native measurements to a component", () => {
   panel.resize({ width: 240, height: 28 });
 
   expect(screen.getByRole("status", { name: "Width 240" }).text).toBe("240");
+});
+
+test("enters text through the real controlled-input event path", () => {
+  const Form = () => {
+    const [name, setName] = createSignal("");
+    return (
+      <View>
+        <Input
+          aria-label="Name"
+          value={name()}
+          onInput={(event) => setName(event.currentTarget.value)}
+        />
+        <Text role="status" aria-label={`Name ${name()}`}>
+          {name()}
+        </Text>
+      </View>
+    );
+  };
+  const screen = renderComponent(() => <Form />);
+
+  screen.getByRole("textbox", { name: "Name" }).input("Ada");
+
+  expect(screen.getByRole("status", { name: "Name Ada" }).text).toBe("Ada");
+});
+
+test("observes hover styling without intercepting the protocol writer", () => {
+  const screen = renderComponent(() => (
+    <Button variant="ghost" aria-label="Menu">
+      Menu
+    </Button>
+  ));
+  const button = screen.getByRole("button", { name: "Menu" });
+  expect(button.className).toContain("bg-transparent");
+
+  button.hover();
+
+  expect(button.className).toContain("bg-control-hover");
 });

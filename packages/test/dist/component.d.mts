@@ -5,9 +5,13 @@ interface ComponentLocator {
   readonly role: string;
   readonly name: string;
   readonly text: string;
+  readonly className: string;
   attribute(name: string): string | null;
   click(): void;
   press(key: string): void;
+  input(value: string): void;
+  hover(): void;
+  unhover(): void;
   /** Publish a deterministic native content-box observation. */
   resize(size: {
     width: number;
