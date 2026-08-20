@@ -671,6 +671,52 @@ impl FrameSource for Applier {
             );
             scene.stroke(&Stroke::new(2.0), device, accent, None, &rect);
 
+            // A selected border box alone is ambiguous for the failures this
+            // overlay is intended to diagnose: padding, native-widget clips,
+            // and text origins all use the content box. Paint that box as a
+            // separate layer so the overlay describes the geometry consumed
+            // by descendants and widgets, rather than merely proving that a
+            // node exists.
+            let [content_x, content_y] = node.content_origin;
+            let [content_width, content_height] = node.content_size;
+            let content_rect = Rect::new(
+                content_x as f64,
+                content_y as f64,
+                (content_x + content_width) as f64,
+                (content_y + content_height) as f64,
+            );
+            scene.fill(
+                Fill::NonZero,
+                device,
+                Color::from_rgba8(14, 165, 233, 38),
+                None,
+                &content_rect,
+            );
+            scene.stroke(
+                &Stroke::new(1.25),
+                device,
+                Color::from_rgba8(34, 211, 238, 255),
+                None,
+                &content_rect,
+            );
+
+            let [border_top, border_right, border_bottom, border_left] = node.border_widths;
+            if node.border_widths.iter().any(|width| *width > 0.0) {
+                let border_inner = Rect::new(
+                    (x0 + border_left) as f64,
+                    (y0 + border_top) as f64,
+                    (x1 - border_right).max(x0 + border_left) as f64,
+                    (y1 - border_bottom).max(y0 + border_top) as f64,
+                );
+                scene.stroke(
+                    &Stroke::new(1.0),
+                    device,
+                    Color::from_rgba8(251, 191, 36, 255),
+                    None,
+                    &border_inner,
+                );
+            }
+
             let atoms = self.document.atoms.borrow();
             let tag = self
                 .document
@@ -680,7 +726,12 @@ impl FrameSource for Applier {
                 .and_then(|declared| declared.tag)
                 .and_then(|tag| atoms.resolve(tag))
                 .unwrap_or("#text");
-            let label: Arc<str> = format!("{tag}#{solid_id}").into();
+            let border_width = (x1 - x0).max(0.0);
+            let border_height = (y1 - y0).max(0.0);
+            let label: Arc<str> = format!(
+                "{tag}#{solid_id}  {border_width:.0} x {border_height:.0} | content {content_width:.0} x {content_height:.0}"
+            )
+            .into();
             drop(atoms);
             let layout = layout_text_styled(
                 tcx,

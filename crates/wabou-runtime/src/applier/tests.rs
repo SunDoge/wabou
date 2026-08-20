@@ -147,6 +147,87 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
 }
 
 #[test]
+fn selected_debug_overlay_distinguishes_border_and_content_boxes() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    applier.apply_op(&Op::CreateElement {
+        id: nk(2),
+        tag: view,
+    });
+    let node_id = applier.document.node_store.solid_to_node[&nk(2)];
+    let placed = PlacedNode {
+        node_id,
+        parent_node_id: None,
+        depth: 0,
+        rect: [10.0, 20.0, 110.0, 80.0],
+        content_origin: [30.0, 35.0],
+        content_size: [60.0, 30.0],
+        clip: None,
+        clip_radius: 0.0,
+        clip_depth: None,
+        own_clip: None,
+        own_clip_radius: 0.0,
+        border_widths: [2.0, 3.0, 4.0, 5.0],
+        scroll: layout::ScrollMetrics::default(),
+        paint: Paint::default(),
+    };
+    let debug = wabou_devtools::DebugState::shared();
+    debug
+        .write()
+        .expect("debug state")
+        .set_overlay(wabou_devtools::DebugOverlay {
+            selected_node: Some(nk(2)),
+            ..Default::default()
+        });
+    applier.set_debug_state(debug.clone());
+
+    let mut scene = Scene::new();
+    applier.paint_debug_overlay(&mut scene, &[placed], &mut TextContext::new(), 1.0);
+    let paint = debug.read().expect("debug state").overlay_paint();
+    assert_eq!(paint.highlights, 1);
+
+    let output = std::env::temp_dir().join(format!(
+        "wabou-debug-overlay-box-model-{}.png",
+        std::process::id()
+    ));
+    wabou_shell::renderer::render_to_png(&scene, 130, 100, Color::WHITE, &output.to_string_lossy())
+        .expect("render selected debug overlay");
+    let pixels = image::open(&output)
+        .expect("open selected debug overlay png")
+        .into_rgba8();
+    std::fs::remove_file(output).expect("remove selected debug overlay png");
+
+    let padding = pixels.get_pixel(20, 50).0;
+    let content = pixels.get_pixel(50, 50).0;
+    assert_ne!(padding, [255, 255, 255, 255]);
+    assert_ne!(
+        content, padding,
+        "content and padding must use distinct tints"
+    );
+    assert!(
+        content[2] > content[0],
+        "content box must retain its cyan diagnostic tint: {content:?}"
+    );
+    let cyan_pixels = pixels
+        .pixels()
+        .filter(|pixel| pixel[0] < 100 && pixel[1] > 160 && pixel[2] > 180)
+        .count();
+    let amber_pixels = pixels
+        .pixels()
+        .filter(|pixel| pixel[0] > 180 && pixel[1] > 80 && pixel[2] < 180)
+        .count();
+    assert!(
+        cyan_pixels > 20,
+        "content outline must reach pixels; found {cyan_pixels}"
+    );
+    assert!(
+        amber_pixels > 40,
+        "border inset must reach pixels; found {amber_pixels}"
+    );
+}
+
+#[test]
 fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
