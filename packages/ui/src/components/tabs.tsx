@@ -4,6 +4,7 @@ import {
   createContext,
   type JSX,
   onCleanup,
+  Show,
   useContext,
 } from "solid-js";
 import { match } from "ts-pattern";
@@ -195,9 +196,11 @@ export function TabsContent(props: {
 }): JSX.Element {
   const context = useContext(TabsContext);
   if (!context) throw new Error("TabsContent must be used inside Tabs");
-  return context.value() === props.value ? (
-    <View role="tabpanel" class={join("flex-1", props.class)}>
-      {props.children}
-    </View>
-  ) : null;
+  return (
+    <Show when={context.value() === props.value}>
+      <View role="tabpanel" class={join("flex-1", props.class)}>
+        {props.children}
+      </View>
+    </Show>
+  );
 }

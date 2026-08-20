@@ -4785,15 +4785,22 @@ function TabsTrigger(props) {
 function TabsContent(props) {
 	const context = useContext(TabsContext);
 	if (!context) throw new Error("TabsContent must be used inside Tabs");
-	return context.value() === props.value ? createComponent$1(View, {
-		role: "tabpanel",
-		get ["class"]() {
-			return join("flex-1", props.class);
+	return createComponent$1(Show, {
+		get when() {
+			return context.value() === props.value;
 		},
 		get children() {
-			return props.children;
+			return createComponent$1(View, {
+				role: "tabpanel",
+				get ["class"]() {
+					return join("flex-1", props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			});
 		}
-	}) : null;
+	});
 }
 //#endregion
 //#region src/components/title-bar.tsx
