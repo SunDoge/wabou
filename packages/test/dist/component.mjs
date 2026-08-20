@@ -14,6 +14,16 @@ const implicitRole = (tag) => {
 	if (tag === "input") return "textbox";
 	return null;
 };
+function installHostStub(name) {
+	const target = globalThis;
+	const hadOwn = Object.hasOwn(target, name);
+	const previous = target[name];
+	if (typeof previous !== "function") target[name] = () => {};
+	return () => {
+		if (hadOwn) target[name] = previous;
+		else delete target[name];
+	};
+}
 /**
 * Mount a component into Wabou's real Solid renderer while recording its
 * authored host tree. This is intentionally a fast component-contract test:
@@ -23,6 +33,7 @@ const implicitRole = (tag) => {
 function renderComponent(render) {
 	if (activeHarness) throw new Error("renderComponent supports one active component screen at a time");
 	activeHarness = true;
+	const restoreHostStubs = [installHostStub("__wabou_resize_observe"), installHostStub("__wabou_resize_unobserve")];
 	const nodes = /* @__PURE__ */ new Map();
 	const roots = [];
 	const originals = {
@@ -105,6 +116,7 @@ function renderComponent(render) {
 	let disposeMount = null;
 	const restore = () => {
 		Object.assign(writer, originals);
+		restoreHostStubs.forEach((restoreStub) => restoreStub());
 		activeHarness = false;
 	};
 	try {
@@ -127,17 +139,41 @@ function renderComponent(render) {
 		roots.forEach(visit);
 		return result;
 	};
+	const commitEvent = (node, eventCode, payload = "") => {
+		dispatchEvent(node.id, eventCode, payload);
+		flush();
+		writer.flush();
+	};
+	const ensureEnabled = (node, action) => {
+		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
+	};
 	const locator = (node) => ({
-		tag: node.tag,
-		role: roleOf(node) ?? "",
-		name: nameOf(node),
-		text: textOf(node),
+		get tag() {
+			return node.tag;
+		},
+		get role() {
+			return roleOf(node) ?? "";
+		},
+		get name() {
+			return nameOf(node);
+		},
+		get text() {
+			return textOf(node);
+		},
 		attribute: (name) => node.attributes.get(name) ?? null,
 		click: () => {
-			if (node.attributes.has("disabled")) throw new Error(`cannot click disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
-			dispatchEvent(node.id, EVENT_CODE.click, "");
-			flush();
-			writer.flush();
+			ensureEnabled(node, "click");
+			commitEvent(node, EVENT_CODE.click);
+		},
+		press: (pressedKey) => {
+			ensureEnabled(node, "press");
+			if (pressedKey.length === 0) throw new Error("key must not be empty");
+			const payload = JSON.stringify({
+				key: pressedKey,
+				repeat: false
+			});
+			commitEvent(node, EVENT_CODE.keydown, payload);
+			commitEvent(node, EVENT_CODE.keyup, payload);
 		}
 	});
 	const select = (matches, description, index, required = true) => {

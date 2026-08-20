@@ -7,6 +7,7 @@ interface ComponentLocator {
   readonly text: string;
   attribute(name: string): string | null;
   click(): void;
+  press(key: string): void;
 }
 interface ComponentScreen {
   getByRole(role: string, options?: {
