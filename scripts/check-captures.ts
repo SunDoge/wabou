@@ -55,6 +55,12 @@ interface CaptureSemanticStates {
   modal: boolean | null;
 }
 
+interface CaptureSemanticRange {
+  value: number | null;
+  min: number | null;
+  max: number | null;
+}
+
 interface CaptureSnapshotNode {
   id: SnapshotNodeKey;
   parentId: SnapshotNodeKey | null;
@@ -75,6 +81,7 @@ interface CaptureSnapshotNode {
     controls: SnapshotNodeKey[];
     activeDescendant: SnapshotNodeKey | null;
     states: CaptureSemanticStates;
+    range: CaptureSemanticRange;
   } | null;
   rect: SnapshotRect;
   contentRect: SnapshotRect;
@@ -392,6 +399,13 @@ function optionalBoolean(value: unknown, path: string): boolean | null {
   return value;
 }
 
+function optionalFiniteNumber(value: unknown, path: string): number | null {
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value))
+    throw new Error(`${path} must be a finite number or null`);
+  return value;
+}
+
 export function validateCaptureSnapshot(
   value: unknown,
   capture: CaptureCase,
@@ -534,6 +548,16 @@ export function validateCaptureSnapshot(
           );
         }
         const states = value.states as Record<string, unknown>;
+        if (
+          value.range === null ||
+          typeof value.range !== "object" ||
+          Array.isArray(value.range)
+        ) {
+          throw new Error(
+            `${capture.snapshot}.nodes[${index}].semantic.range must be an object`,
+          );
+        }
+        const range = value.range as Record<string, unknown>;
         semantic = {
           role: value.role,
           label: optionalString(
@@ -583,6 +607,20 @@ export function validateCaptureSnapshot(
             modal: optionalBoolean(
               states.modal,
               `${capture.snapshot}.nodes[${index}].semantic.states.modal`,
+            ),
+          },
+          range: {
+            value: optionalFiniteNumber(
+              range.value,
+              `${capture.snapshot}.nodes[${index}].semantic.range.value`,
+            ),
+            min: optionalFiniteNumber(
+              range.min,
+              `${capture.snapshot}.nodes[${index}].semantic.range.min`,
+            ),
+            max: optionalFiniteNumber(
+              range.max,
+              `${capture.snapshot}.nodes[${index}].semantic.range.max`,
             ),
           },
         };
@@ -875,6 +913,27 @@ export function semanticStateDiagnostics(snapshot: CaptureSnapshot): string[] {
         diagnostics.push(
           `${node.tag} ${nodeKey(node.id)} has invalid slider range min=${JSON.stringify(attrs.get("aria-valuemin") ?? null)} now=${JSON.stringify(attrs.get("aria-valuenow") ?? null)} max=${JSON.stringify(attrs.get("aria-valuemax") ?? null)}`,
         );
+      }
+      for (const [attribute, projected] of [
+        ["aria-valuenow", node.semantic?.range.value],
+        ["aria-valuemin", node.semantic?.range.min],
+        ["aria-valuemax", node.semantic?.range.max],
+      ] as const) {
+        const authored = attrs.get(attribute);
+        if (authored === undefined || !Number.isFinite(Number(authored)))
+          continue;
+        if (!node.semantic) {
+          diagnostics.push(
+            `${node.tag} ${nodeKey(node.id)} ${attribute} has no final semantic projection`,
+          );
+          continue;
+        }
+        const expected = Number(authored);
+        if (projected !== expected) {
+          diagnostics.push(
+            `${node.tag} ${nodeKey(node.id)} ${attribute} projected ${JSON.stringify(projected)}; expected ${JSON.stringify(expected)}`,
+          );
+        }
       }
     }
     const contracts: Array<{

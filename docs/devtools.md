@@ -180,7 +180,8 @@ visible-overflow ancestors. Interactive roles, images, and dialogs must also
 resolve an accessible name from `aria-label`, `aria-labelledby`, or descendant
 text. Authored disabled, checked, pressed, selected, expanded, current, popup,
 and modal states must use valid values and match the final accessibility
-projection; sliders must expose a finite, internally consistent range.
+projection; sliders must expose a finite, internally consistent range whose
+authored values match the final accessibility projection.
 Semantic IDs must be unique, and `aria-controls` and
 `aria-activedescendant` must resolve to live nodes in the captured frame and
 match the final accessibility projection.

@@ -395,6 +395,11 @@ describe("authored capture discovery", () => {
           popup: null,
           modal: null,
         },
+        range: {
+          value: null as number | null,
+          min: null as number | null,
+          max: null as number | null,
+        },
       },
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
@@ -419,6 +424,18 @@ describe("authored capture discovery", () => {
     control.attrs[1] = ["aria-checked", "invalid"];
     expect(semanticStateDiagnostics(snapshot)).toHaveLength(1);
 
+    control.attrs = [
+      ["role", "slider"],
+      ["aria-valuenow", "64"],
+      ["aria-valuemin", "0"],
+      ["aria-valuemax", "100"],
+    ];
+    control.semantic.role = "slider";
+    control.semantic.range = { value: 64, min: 0, max: 100 };
+    expect(semanticStateDiagnostics(snapshot)).toEqual([]);
+    control.semantic.range.value = 63;
+    expect(semanticStateDiagnostics(snapshot)[0]).toContain("projected");
+
     control.tag = "view";
     control.attrs = [
       ["role", "slider"],
@@ -426,10 +443,12 @@ describe("authored capture discovery", () => {
       ["aria-valuenow", "11"],
       ["aria-valuemax", "10"],
     ];
+    control.semantic.range = { value: 11, min: 0, max: 10 };
     expect(semanticStateDiagnostics(snapshot)[0]).toContain(
       "invalid slider range",
     );
     control.attrs[2] = ["aria-valuenow", "5"];
+    control.semantic.range.value = 5;
     expect(semanticStateDiagnostics(snapshot)).toEqual([]);
     control.attrs[2] = ["aria-valuenow", ""];
     expect(semanticStateDiagnostics(snapshot)[0]).toContain(
@@ -455,6 +474,11 @@ describe("authored capture discovery", () => {
         current: string | null;
         popup: string | null;
         modal: boolean | null;
+      };
+      range: {
+        value: number | null;
+        min: number | null;
+        max: number | null;
       };
     };
     const node = (
@@ -520,6 +544,7 @@ describe("authored capture discovery", () => {
         popup: null,
         modal: null,
       },
+      range: { value: null, min: null, max: null },
     };
     expect(semanticRelationshipDiagnostics(snapshot)).toEqual([]);
 
