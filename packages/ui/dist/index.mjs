@@ -1,4 +1,4 @@
-import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d$1, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, dt as normalizeSweepGeometry, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createSweep, n as createTabs, nt as createFocusWithin, o as Popover$1, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, ut as createTransition, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-B7idTNZd.mjs";
+import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d$1, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, dt as normalizeSweepGeometry, et as createHover, ft as MotionConfigProvider, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createSweep, mt as useReducedMotion, n as createTabs, nt as createFocusWithin, o as Popover$1, ot as createLoop, pt as useMotionConfig, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, ut as createTransition, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-oFEfPFnk.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -1569,6 +1569,7 @@ const useCollapsible = () => {
 	return value;
 };
 function Collapsible(props) {
+	const inheritedReducedMotion = useReducedMotion();
 	const state = createDisclosure({
 		open: () => props.open,
 		defaultOpen: props.defaultOpen,
@@ -1579,7 +1580,7 @@ function Collapsible(props) {
 		open: state.open,
 		toggle: state.toggle,
 		disabled: state.disabled,
-		reducedMotion: () => props.reducedMotion ?? false
+		reducedMotion: () => props.reducedMotion ?? inheritedReducedMotion()
 	};
 	return createComponent$1(CollapsibleContext, {
 		value: context,
@@ -1663,6 +1664,7 @@ const useAccordionItem = () => {
 	return value;
 };
 function Accordion(props) {
+	const inheritedReducedMotion = useReducedMotion();
 	const type = () => props.type ?? "single";
 	const state = createControllableState({
 		value: () => props.value,
@@ -1677,7 +1679,7 @@ function Accordion(props) {
 				state.set(nextAccordionValue(state.value(), type(), item, props.collapsible));
 			},
 			disabled: () => props.disabled ?? false,
-			reducedMotion: () => props.reducedMotion ?? false
+			reducedMotion: () => props.reducedMotion ?? inheritedReducedMotion()
 		},
 		get children() {
 			return createComponent$1(View, {
@@ -1768,13 +1770,16 @@ function AccordionContent(props) {
 //#endregion
 //#region src/components/display.tsx
 function Skeleton(props) {
+	const reducedMotion = useReducedMotion();
 	const [width, setWidth] = createSignal(0, { ownedWrite: true });
 	const measured = createMeasuredSize({ onChange: (size) => setWidth(size.width) });
 	const sweep = createSweep({
 		extent: width,
 		itemRatio: .4,
 		duration: 1.6,
-		ease: "easeInOut"
+		ease: "easeInOut",
+		reducedMotion,
+		reducedValue: .5
 	});
 	return createComponent$1(View, {
 		ref(r$) {
@@ -3000,11 +3005,14 @@ function ProgressTrack(props) {
 }
 function IndeterminateProgressFill(props) {
 	const context = useProgressContext();
+	const reducedMotion = useReducedMotion();
 	const sweep = createSweep({
 		extent: context.trackWidth,
 		itemRatio: .4,
 		duration: 1.35,
-		ease: "easeInOut"
+		ease: "easeInOut",
+		reducedMotion,
+		reducedValue: .5
 	});
 	return createComponent$1(View, mergeProps(props, {
 		"aria-hidden": "true",
@@ -5004,25 +5012,17 @@ function switchColors(checked, state) {
 function Switch(props) {
 	const [local, setLocal] = createSignal(props.defaultChecked ?? false);
 	const checked = () => props.checked ?? local();
-	const [thumbX, setThumbX] = createSignal(checked() ? 20 : 0);
-	let movement;
-	createEffect(checked, (isChecked) => {
-		const target = isChecked ? 20 : 0;
-		const from = untrack(thumbX);
-		if (from === target) return;
-		movement?.stop();
-		movement = animate(from, target, {
-			duration: .18,
-			ease: [
-				.22,
-				1,
-				.36,
-				1
-			],
-			onUpdate: setThumbX
-		});
+	const reducedMotion = useReducedMotion();
+	const movement = createTransition(() => checked() ? 20 : 0, {
+		duration: .18,
+		ease: [
+			.22,
+			1,
+			.36,
+			1
+		],
+		reducedMotion
 	});
-	onCleanup(() => movement?.stop());
 	const toggle = () => {
 		if (props.disabled) return;
 		const next = !checked();
@@ -5054,7 +5054,7 @@ function Switch(props) {
 						"aria-hidden": "true",
 						class: "w-5 h-5 rounded-full bg-on-accent",
 						get transform() {
-							return translate2d$1(thumbX(), 0);
+							return translate2d$1(movement.value(), 0);
 						}
 					});
 				}
@@ -5230,6 +5230,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizeProgressValue, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizeProgressValue, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

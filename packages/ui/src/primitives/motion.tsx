@@ -5,6 +5,7 @@ import {
   createLoop,
   createPulse,
   createRotation,
+  useReducedMotion,
 } from "../animation";
 import { View, type ViewProps, type WabouStyle } from "./view";
 
@@ -19,6 +20,7 @@ interface PlaybackProps {
 function bindPlayback(
   controls: AnimationControls,
   props: Pick<PlaybackProps, "paused" | "speed">,
+  reducedMotion: () => boolean,
 ) {
   createEffect(
     () => props.speed ?? 1,
@@ -27,9 +29,9 @@ function bindPlayback(
     },
   );
   createEffect(
-    () => props.paused,
-    (paused) => {
-      if (paused) controls.pause();
+    () => (props.paused ?? false) || reducedMotion(),
+    (stopped) => {
+      if (stopped) controls.pause();
       else controls.play();
     },
   );
@@ -42,12 +44,15 @@ export interface SpinProps extends Omit<ViewProps, "transform">, PlaybackProps {
 /** A single native View whose contents rotate around its border-box center. */
 export function Spin(props: SpinProps): JSX.Element {
   const motion = props;
+  const reducedMotion = useReducedMotion();
   const view = omit(props, "duration", "speed", "paused");
   const rotation = createRotation({
     autoplay: !motion.paused,
     duration: motion.duration ?? 1,
+    reducedMotion,
+    reducedValue: 0,
   });
-  bindPlayback(rotation.controls, motion);
+  bindPlayback(rotation.controls, motion, reducedMotion);
   return <View {...view} transform={rotation.transform()} />;
 }
 
@@ -59,6 +64,7 @@ export interface PulseProps extends ViewProps, PlaybackProps {
 /** A single native View with a repeating opacity pulse. */
 export function Pulse(props: PulseProps): JSX.Element {
   const motion = props;
+  const reducedMotion = useReducedMotion();
   const view = omit(
     props,
     "duration",
@@ -74,10 +80,10 @@ export function Pulse(props: PulseProps): JSX.Element {
     from: motion.from,
     to: motion.to,
   });
-  bindPlayback(pulse.controls, motion);
+  bindPlayback(pulse.controls, motion, reducedMotion);
   const style = (): WabouStyle => ({
     ...(motion.style ?? {}),
-    opacity: pulse.value(),
+    opacity: reducedMotion() ? (motion.to ?? 1) : pulse.value(),
   });
   return <View {...view} style={style()} />;
 }
@@ -90,6 +96,7 @@ export interface RippleProps extends ViewProps, PlaybackProps {
 /** A center-originating ring that expands while fading out, then repeats. */
 export function Ripple(props: RippleProps): JSX.Element {
   const motion = props;
+  const reducedMotion = useReducedMotion();
   const view = omit(
     props,
     "duration",
@@ -104,8 +111,10 @@ export function Ripple(props: RippleProps): JSX.Element {
     duration: motion.duration ?? 1.4,
     from: 0,
     to: 1,
+    reducedMotion,
+    reducedValue: 1,
   });
-  bindPlayback(ripple.controls, motion);
+  bindPlayback(ripple.controls, motion, reducedMotion);
   const progress = () => ripple.value();
   return (
     <View
@@ -114,7 +123,10 @@ export function Ripple(props: RippleProps): JSX.Element {
         (motion.fromScale ?? 0.35) +
           progress() * (1 - (motion.fromScale ?? 0.35)),
       )}
-      style={{ ...(motion.style ?? {}), opacity: 1 - progress() }}
+      style={{
+        ...(motion.style ?? {}),
+        opacity: reducedMotion() ? 0 : 1 - progress(),
+      }}
     />
   );
 }

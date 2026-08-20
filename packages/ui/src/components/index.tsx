@@ -1,13 +1,7 @@
 import { createFps } from "@wabou/core/renderer";
-import {
-  createEffect,
-  createSignal,
-  type JSX,
-  onCleanup,
-  untrack,
-} from "solid-js";
+import { createSignal, type JSX } from "solid-js";
 import { match, P } from "ts-pattern";
-import { type AnimationControls, animate } from "../animation";
+import { createTransition, useReducedMotion } from "../animation";
 import {
   type ButtonState,
   Button as HeadlessButton,
@@ -383,20 +377,12 @@ function switchColors(checked: boolean, state: ButtonState): string {
 export function Switch(props: SwitchProps): JSX.Element {
   const [local, setLocal] = createSignal(props.defaultChecked ?? false);
   const checked = () => props.checked ?? local();
-  const [thumbX, setThumbX] = createSignal(checked() ? 20 : 0);
-  let movement: AnimationControls | undefined;
-  createEffect(checked, (isChecked) => {
-    const target = isChecked ? 20 : 0;
-    const from = untrack(thumbX);
-    if (from === target) return;
-    movement?.stop();
-    movement = animate(from, target, {
-      duration: 0.18,
-      ease: [0.22, 1, 0.36, 1],
-      onUpdate: setThumbX,
-    });
+  const reducedMotion = useReducedMotion();
+  const movement = createTransition(() => (checked() ? 20 : 0), {
+    duration: 0.18,
+    ease: [0.22, 1, 0.36, 1],
+    reducedMotion,
   });
-  onCleanup(() => movement?.stop());
   const toggle = () => {
     if (props.disabled) return;
     const next = !checked();
@@ -426,7 +412,7 @@ export function Switch(props: SwitchProps): JSX.Element {
         <View
           aria-hidden="true"
           class="w-5 h-5 rounded-full bg-on-accent"
-          transform={translate2d(thumbX(), 0)}
+          transform={translate2d(movement.value(), 0)}
         />
       </HeadlessButton>
       {props.label && (

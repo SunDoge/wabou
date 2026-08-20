@@ -1,9 +1,10 @@
 import { createSignal, type JSX } from "solid-js";
-import { createSweep } from "../animation";
+import { createSweep, useReducedMotion } from "../animation";
 import { createMeasuredSize, Spin, Text, View } from "../primitives";
 import { join } from "./class-names";
 
 export function Skeleton(props: { class?: string }): JSX.Element {
+  const reducedMotion = useReducedMotion();
   const [width, setWidth] = createSignal(0, { ownedWrite: true });
   const measured = createMeasuredSize({
     onChange: (size) => setWidth(size.width),
@@ -13,6 +14,8 @@ export function Skeleton(props: { class?: string }): JSX.Element {
     itemRatio: 0.4,
     duration: 1.6,
     ease: "easeInOut",
+    reducedMotion,
+    reducedValue: 0.5,
   });
   return (
     <View

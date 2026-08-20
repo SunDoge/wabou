@@ -18,6 +18,7 @@ import {
   Input,
   Kbd,
   KbdGroup,
+  MotionConfigProvider,
   Progress,
   ProgressFill,
   ProgressLabel,
@@ -392,16 +393,26 @@ function TabsPage() {
 
 function SkeletonPage() {
   return (
-    <Preview title="Loading card">
-      <View class="w-96 flex items-center gap-4">
-        <Skeleton class="w-12 h-12 rounded-full" />
-        <View class="flex-1 flex flex-col gap-2">
-          <Skeleton class="w-2/3 h-4" />
-          <Skeleton class="w-full h-3" />
-          <Skeleton class="w-4/5 h-3" />
+    <View class="flex flex-col gap-5">
+      <Preview title="Loading card">
+        <View class="w-96 flex items-center gap-4">
+          <Skeleton class="w-12 h-12 rounded-full" />
+          <View class="flex-1 flex flex-col gap-2">
+            <Skeleton class="w-2/3 h-4" />
+            <Skeleton class="w-full h-3" />
+            <Skeleton class="w-4/5 h-3" />
+          </View>
         </View>
-      </View>
-    </Preview>
+      </Preview>
+      <Preview title="Reduced motion policy">
+        <MotionConfigProvider reducedMotion>
+          <View class="w-96 flex flex-col gap-2">
+            <Skeleton class="w-full h-4" />
+            <Skeleton class="w-4/5 h-3" />
+          </View>
+        </MotionConfigProvider>
+      </Preview>
+    </View>
   );
 }
 

@@ -1,4 +1,6 @@
-import { createTransition } from "../animation";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import { createContext, type JSX, useContext } from "solid-js";
+import { createTransition, useReducedMotion } from "../animation";
 import {
   Button,
   CollapsiblePresence,
@@ -13,8 +15,6 @@ import {
   isSelected,
   toggleSelection,
 } from "../primitives/interactions";
-import { createContext, type JSX, useContext } from "solid-js";
-import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { join } from "./class-names";
 
 function DisclosureIndicator(props: {
@@ -60,6 +60,7 @@ export interface CollapsibleProps {
   class?: string;
 }
 export function Collapsible(props: CollapsibleProps) {
+  const inheritedReducedMotion = useReducedMotion();
   const state = createDisclosure({
     open: () => props.open,
     defaultOpen: props.defaultOpen,
@@ -70,7 +71,7 @@ export function Collapsible(props: CollapsibleProps) {
     open: state.open,
     toggle: state.toggle,
     disabled: state.disabled,
-    reducedMotion: () => props.reducedMotion ?? false,
+    reducedMotion: () => props.reducedMotion ?? inheritedReducedMotion(),
   };
   return (
     <CollapsibleContext value={context}>
@@ -166,6 +167,7 @@ export interface AccordionProps {
   class?: string;
 }
 export function Accordion(props: AccordionProps) {
+  const inheritedReducedMotion = useReducedMotion();
   const type = () => props.type ?? "single";
   const state = createControllableState<AccordionValue>({
     value: () => props.value,
@@ -181,7 +183,7 @@ export function Accordion(props: AccordionProps) {
       );
     },
     disabled: () => props.disabled ?? false,
-    reducedMotion: () => props.reducedMotion ?? false,
+    reducedMotion: () => props.reducedMotion ?? inheritedReducedMotion(),
   };
   return (
     <AccordionContext value={context}>

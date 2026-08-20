@@ -7,7 +7,7 @@ import {
   Show,
   useContext,
 } from "solid-js";
-import { createSweep } from "../animation";
+import { createSweep, useReducedMotion } from "../animation";
 import {
   createMeasuredSize,
   Text,
@@ -150,11 +150,14 @@ export function ProgressTrack(props: ViewProps): JSX.Element {
 
 function IndeterminateProgressFill(props: ViewProps): JSX.Element {
   const context = useProgressContext();
+  const reducedMotion = useReducedMotion();
   const sweep = createSweep({
     extent: context.trackWidth,
     itemRatio: 0.4,
     duration: 1.35,
     ease: "easeInOut",
+    reducedMotion,
+    reducedValue: 0.5,
   });
   return (
     <View

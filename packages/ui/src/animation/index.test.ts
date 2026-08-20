@@ -45,6 +45,26 @@ describe("Solid animation primitives", () => {
       dispose();
     }));
 
+  test("publishes a stable sweep value while motion is reduced", () =>
+    createRoot((dispose) => {
+      const [reduced, setReduced] = createSignal(true);
+      const sweep = createSweep({
+        extent: 100,
+        reducedMotion: reduced,
+        reducedValue: 0.5,
+      });
+      flush();
+      expect(sweep.value()).toBe(0.5);
+      expect(sweep.offset()).toBeCloseTo(30);
+      expect(sweep.transform().slice(0, 4)).toEqual([1, 0, 0, 1]);
+      expect(sweep.controls.state).toBe("paused");
+
+      setReduced(false);
+      flush();
+      expect(sweep.controls.state).toBe("running");
+      dispose();
+    }));
+
   test("normalizes unsafe sweep geometry", () => {
     expect(normalizeSweepGeometry(Number.NaN, 0)).toEqual({
       extent: 0,

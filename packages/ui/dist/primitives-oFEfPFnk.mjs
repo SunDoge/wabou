@@ -7,6 +7,26 @@ import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, 
 import { match } from "ts-pattern";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 import { formatNodeKey } from "@wabou/core/protocol";
+//#region src/animation/config.tsx
+const DEFAULT_MOTION_CONFIG = Object.freeze({ reducedMotion: () => false });
+const MotionConfigContext = createContext(DEFAULT_MOTION_CONFIG);
+/** Application-level motion policy inherited by all styled Wabou components. */
+function MotionConfigProvider(props) {
+	const parent = useContext(MotionConfigContext);
+	return createComponent$1(MotionConfigContext, {
+		value: { reducedMotion: () => props.reducedMotion ?? parent.reducedMotion() },
+		get children() {
+			return props.children;
+		}
+	});
+}
+function useMotionConfig() {
+	return useContext(MotionConfigContext);
+}
+function useReducedMotion() {
+	return useMotionConfig().reducedMotion;
+}
+//#endregion
 //#region src/animation/index.ts
 var Controls = class {
 	backend;
@@ -150,17 +170,28 @@ function createTransition(target, options = {}) {
 function createLoop(options = {}) {
 	const from = options.from ?? 0;
 	const to = options.to ?? 1;
-	const { from: _from, to: _to, onUpdate, ...animationOptions } = options;
-	const [value, setValue] = createSignal(from);
+	const { from: _from, to: _to, reducedMotion, reducedValue = from, onUpdate, ...animationOptions } = options;
+	const initiallyReduced = untrack(() => read(reducedMotion, false));
+	const [value, setValue] = createSignal(initiallyReduced ? reducedValue : from);
 	const controls = animate(from, to, {
 		duration: 1,
 		ease: "linear",
 		repeat: Infinity,
 		...animationOptions,
+		autoplay: (animationOptions.autoplay ?? true) && !initiallyReduced,
 		onUpdate(next) {
 			setValue(next);
 			onUpdate?.(next);
 		}
+	});
+	let initialized = false;
+	createEffect(() => read(reducedMotion, false), (reduced) => {
+		if (reduced) {
+			controls.pause();
+			setValue(reducedValue);
+			onUpdate?.(reducedValue);
+		} else if (initialized && animationOptions.autoplay !== false) controls.play();
+		initialized = true;
 	});
 	onCleanup(() => controls.stop());
 	return {
@@ -833,6 +864,8 @@ function CodeEditor(props) {
 * crossing the moving clip edge.
 */
 function CollapsiblePresence(props) {
+	const inheritedReducedMotion = useReducedMotion();
+	const reducedMotion = () => props.reducedMotion ?? inheritedReducedMotion();
 	const open = () => props.open;
 	const initiallyOpen = open();
 	const presence = createPresence(open);
@@ -841,7 +874,7 @@ function CollapsiblePresence(props) {
 	const opacityTransition = createTransition(() => open() ? 1 : 0, {
 		duration: props.duration ?? .2,
 		ease: props.ease ?? "easeOut",
-		reducedMotion: () => props.reducedMotion ?? false
+		reducedMotion
 	});
 	const measured = createMeasuredSize({ onChange(size) {
 		if (initialMeasurement && initiallyOpen && !props.animateInitial) heightTransition?.jump(size.height);
@@ -850,7 +883,7 @@ function CollapsiblePresence(props) {
 	const transitionOptions = () => ({
 		duration: props.duration ?? .2,
 		ease: props.ease ?? "easeOut",
-		reducedMotion: () => props.reducedMotion ?? false
+		reducedMotion
 	});
 	heightTransition = createTransition(() => open() && measured.measured() ? measured.height() : 0, {
 		...transitionOptions(),
@@ -1298,24 +1331,27 @@ function Modal(props) {
 }
 //#endregion
 //#region src/primitives/motion.tsx
-function bindPlayback(controls, props) {
+function bindPlayback(controls, props, reducedMotion) {
 	createEffect(() => props.speed ?? 1, (speed) => {
 		controls.speed = speed;
 	});
-	createEffect(() => props.paused, (paused) => {
-		if (paused) controls.pause();
+	createEffect(() => (props.paused ?? false) || reducedMotion(), (stopped) => {
+		if (stopped) controls.pause();
 		else controls.play();
 	});
 }
 /** A single native View whose contents rotate around its border-box center. */
 function Spin(props) {
 	const motion = props;
+	const reducedMotion = useReducedMotion();
 	const view = omit(props, "duration", "speed", "paused");
 	const rotation = createRotation({
 		autoplay: !motion.paused,
-		duration: motion.duration ?? 1
+		duration: motion.duration ?? 1,
+		reducedMotion,
+		reducedValue: 0
 	});
-	bindPlayback(rotation.controls, motion);
+	bindPlayback(rotation.controls, motion, reducedMotion);
 	return createComponent$1(View, mergeProps(view, { get transform() {
 		return rotation.transform();
 	} }));
@@ -1323,6 +1359,7 @@ function Spin(props) {
 /** A single native View with a repeating opacity pulse. */
 function Pulse(props) {
 	const motion = props;
+	const reducedMotion = useReducedMotion();
 	const view = omit(props, "duration", "speed", "paused", "from", "to", "style");
 	const pulse = createPulse({
 		autoplay: !motion.paused,
@@ -1330,10 +1367,10 @@ function Pulse(props) {
 		from: motion.from,
 		to: motion.to
 	});
-	bindPlayback(pulse.controls, motion);
+	bindPlayback(pulse.controls, motion, reducedMotion);
 	const style = () => ({
 		...motion.style ?? {},
-		opacity: pulse.value()
+		opacity: reducedMotion() ? motion.to ?? 1 : pulse.value()
 	});
 	return createComponent$1(View, mergeProps(view, { get style() {
 		return style();
@@ -1342,14 +1379,17 @@ function Pulse(props) {
 /** A center-originating ring that expands while fading out, then repeats. */
 function Ripple(props) {
 	const motion = props;
+	const reducedMotion = useReducedMotion();
 	const view = omit(props, "duration", "speed", "paused", "fromScale", "style", "transform");
 	const ripple = createLoop({
 		autoplay: !motion.paused,
 		duration: motion.duration ?? 1.4,
 		from: 0,
-		to: 1
+		to: 1,
+		reducedMotion,
+		reducedValue: 1
 	});
-	bindPlayback(ripple.controls, motion);
+	bindPlayback(ripple.controls, motion, reducedMotion);
 	const progress = () => ripple.value();
 	return createComponent$1(View, mergeProps(view, {
 		get transform() {
@@ -1358,7 +1398,7 @@ function Ripple(props) {
 		get style() {
 			return {
 				...motion.style ?? {},
-				opacity: 1 - progress()
+				opacity: reducedMotion() ? 0 : 1 - progress()
 			};
 		}
 	}));
@@ -2102,6 +2142,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d$1 as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, normalizeSweepGeometry as dt, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createSweep as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, createTransition as ut, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
+export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d$1 as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, normalizeSweepGeometry as dt, createHover as et, offset as f, MotionConfigProvider as ft, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createSweep as lt, size as m, useReducedMotion as mt, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, useMotionConfig as pt, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, createTransition as ut, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-B7idTNZd.mjs.map
+//# sourceMappingURL=primitives-oFEfPFnk.mjs.map

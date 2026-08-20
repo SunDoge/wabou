@@ -13,6 +13,14 @@ import {
   untrack,
 } from "solid-js";
 
+export {
+  type MotionConfig,
+  MotionConfigProvider,
+  type MotionConfigProviderProps,
+  useMotionConfig,
+  useReducedMotion,
+} from "./config";
+
 export type AnimationValue = number | string;
 export type AnimationType = "tween" | "spring" | false;
 export type RepeatType = "loop" | "reverse" | "mirror";
@@ -265,6 +273,10 @@ export interface LoopOptions
   extends Omit<AnimationOptions<number>, "onUpdate"> {
   from?: number;
   to?: number;
+  /** Reactive policy which pauses the loop and publishes `reducedValue`. */
+  reducedMotion?: MaybeAccessor<boolean>;
+  /** Stable value exposed while motion is reduced. Defaults to `from`. */
+  reducedValue?: number;
   onUpdate?: (value: number) => void;
 }
 
@@ -278,18 +290,43 @@ export function createLoop(
 ): ReactiveAnimation<number> {
   const from = options.from ?? 0;
   const to = options.to ?? 1;
-  const { from: _from, to: _to, onUpdate, ...animationOptions } = options;
-  const [value, setValue] = createSignal(from);
+  const {
+    from: _from,
+    to: _to,
+    reducedMotion,
+    reducedValue = from,
+    onUpdate,
+    ...animationOptions
+  } = options;
+  const initiallyReduced = untrack(() => read(reducedMotion, false));
+  const [value, setValue] = createSignal(
+    initiallyReduced ? reducedValue : from,
+  );
   const controls = animate(from, to, {
     duration: 1,
     ease: "linear",
     repeat: Infinity,
     ...animationOptions,
+    autoplay: (animationOptions.autoplay ?? true) && !initiallyReduced,
     onUpdate(next) {
       setValue(next);
       onUpdate?.(next);
     },
   });
+  let initialized = false;
+  createEffect(
+    () => read(reducedMotion, false),
+    (reduced) => {
+      if (reduced) {
+        controls.pause();
+        setValue(reducedValue);
+        onUpdate?.(reducedValue);
+      } else if (initialized && animationOptions.autoplay !== false) {
+        controls.play();
+      }
+      initialized = true;
+    },
+  );
   onCleanup(() => controls.stop());
   return { value, controls };
 }
