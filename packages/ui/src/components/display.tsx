@@ -3,8 +3,15 @@ import { createSweep, useReducedMotion } from "../animation";
 import { createMeasuredSize, Spin, Text, View } from "../primitives";
 import { join } from "./class-names";
 
-export function Skeleton(props: { class?: string }): JSX.Element {
+export interface SkeletonProps {
+  class?: string;
+  /** Disable the shimmer while preserving the stable loading placeholder. */
+  animated?: boolean;
+}
+
+export function Skeleton(props: SkeletonProps): JSX.Element {
   const reducedMotion = useReducedMotion();
+  const motionDisabled = () => props.animated === false || reducedMotion();
   const [width, setWidth] = createSignal(0, { ownedWrite: true });
   const measured = createMeasuredSize({
     onChange: (size) => setWidth(size.width),
@@ -14,7 +21,7 @@ export function Skeleton(props: { class?: string }): JSX.Element {
     itemRatio: 0.4,
     duration: 1.6,
     ease: "easeInOut",
-    reducedMotion,
+    reducedMotion: motionDisabled,
     reducedValue: 0.5,
   });
   return (
@@ -26,6 +33,7 @@ export function Skeleton(props: { class?: string }): JSX.Element {
       <View
         class="w-2/5 h-full flex-none bg-control-hover"
         transform={sweep.transform()}
+        style={{ opacity: motionDisabled() ? 0 : 1 }}
       />
     </View>
   );

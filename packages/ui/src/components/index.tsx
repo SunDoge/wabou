@@ -29,7 +29,13 @@ export * from "./date-picker";
 export * from "./dialog";
 export * from "./directory-picker";
 export * from "./disclosure";
-export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
+export {
+  Kbd,
+  KbdGroup,
+  Skeleton,
+  type SkeletonProps,
+  Spinner,
+} from "./display";
 export * from "./dropdown-menu";
 export * from "./forms";
 export * from "./hover-card";

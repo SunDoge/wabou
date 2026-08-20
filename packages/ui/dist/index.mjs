@@ -1779,6 +1779,7 @@ function AccordionContent(props) {
 //#region src/components/display.tsx
 function Skeleton(props) {
 	const reducedMotion = useReducedMotion();
+	const motionDisabled = () => props.animated === false || reducedMotion();
 	const [width, setWidth] = createSignal(0, { ownedWrite: true });
 	const measured = createMeasuredSize({ onChange: (size) => setWidth(size.width) });
 	const sweep = createSweep({
@@ -1786,7 +1787,7 @@ function Skeleton(props) {
 		itemRatio: .4,
 		duration: 1.6,
 		ease: "easeInOut",
-		reducedMotion,
+		reducedMotion: motionDisabled,
 		reducedValue: .5
 	});
 	return createComponent$1(View, {
@@ -1803,6 +1804,9 @@ function Skeleton(props) {
 				class: "w-2/5 h-full flex-none bg-control-hover",
 				get transform() {
 					return sweep.transform();
+				},
+				get style() {
+					return { opacity: motionDisabled() ? 0 : 1 };
 				}
 			});
 		}
