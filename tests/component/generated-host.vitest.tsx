@@ -1,10 +1,10 @@
-import { expect, test, vi } from "vitest";
-import { createSignal } from "solid-js";
-import { Button, Text, View } from "@wabou/ui";
 import { createTestHost, renderComponent } from "@wabou/test/component";
+import { Button, Text, View } from "@wabou/ui";
+import { createSignal } from "solid-js";
+import { expect, test } from "vitest";
 import {
-  type DescribePaletteRequest,
   createBindingsDemoTestCapability,
+  type DescribePaletteRequest,
   useBindingsDemoClient,
 } from "../../apps/gallery/ui/generated/host-bindings";
 
@@ -48,7 +48,7 @@ test("drives a generated DTO capability through a component", async () => {
 
   screen.getByRole("button", { name: "Load palette" }).click();
 
-  await vi.waitFor(() => {
+  await screen.waitFor(() => {
     expect(screen.getByRole("status", { name: "Ocean palette" }).text).toBe(
       "Ocean palette",
     );

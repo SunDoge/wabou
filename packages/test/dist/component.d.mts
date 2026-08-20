@@ -95,7 +95,15 @@ interface ComponentScreen extends ComponentQueries {
   flush(): void;
   /** Advance a harness-owned fake clock and commit resulting reactive work. */
   advanceTime(milliseconds: number): void;
+  /** Retry an assertion while committing Promise-driven component updates. */
+  waitFor<T>(assertion: () => T | Promise<T>, options?: ComponentWaitForOptions): Promise<T>;
   dispose(): void;
+}
+interface ComponentWaitForOptions {
+  /** Total retry budget in milliseconds. Defaults to 1000. */
+  timeout?: number;
+  /** Retry interval in milliseconds. Defaults to 10. */
+  interval?: number;
 }
 interface RenderComponentOptions {
   /** Host fixture injected into the component subtree. */
@@ -132,5 +140,5 @@ declare function cleanupComponents(): void;
  */
 declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
+export { ComponentLocator, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map

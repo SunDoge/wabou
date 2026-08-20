@@ -314,6 +314,44 @@ test("owns delayed component work through an explicit fake clock", () => {
   expect(() => screen.advanceTime(-1)).toThrow("finite and non-negative");
 });
 
+test("waits for Promise-driven component work with bounded diagnostics", async () => {
+  const AsyncStatus = () => {
+    const [status, setStatus] = createSignal("Idle");
+    return (
+      <View>
+        <Button
+          aria-label="Load"
+          onClick={async () => {
+            await Promise.resolve();
+            setStatus("Ready");
+          }}
+        />
+        <Text role="status" aria-label={status()}>
+          {status()}
+        </Text>
+      </View>
+    );
+  };
+  const screen = renderComponent(AsyncStatus, { clock: "fake" });
+
+  screen.getByRole("button", { name: "Load" }).click();
+  const ready = await screen.waitFor(() =>
+    screen.getByRole("status", { name: "Ready" }),
+  );
+  expect(ready.text).toBe("Ready");
+  await expect(
+    screen.waitFor(() => screen.getByRole("status", { name: "Missing" }), {
+      timeout: 20,
+      interval: 10,
+    }),
+  ).rejects.toThrow(
+    'component wait timed out after 20ms: no component found for role=status name="Missing"',
+  );
+  await expect(screen.waitFor(() => true, { interval: 0 })).rejects.toThrow(
+    "interval must be finite and positive",
+  );
+});
+
 test("injects typed host capabilities and records their calls", () => {
   interface DemoCapability {
     demo: {

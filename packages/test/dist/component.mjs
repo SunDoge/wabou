@@ -534,6 +534,28 @@ function renderComponent(render, options = {}) {
 			vi.advanceTimersByTime(milliseconds);
 			flushUpdates();
 		},
+		async waitFor(assertion, waitOptions = {}) {
+			const timeout = waitOptions.timeout ?? 1e3;
+			const interval = waitOptions.interval ?? 10;
+			if (!Number.isFinite(timeout) || timeout < 0) throw new RangeError("component wait timeout must be finite and non-negative");
+			if (!Number.isFinite(interval) || interval <= 0) throw new RangeError("component wait interval must be finite and positive");
+			let lastError;
+			for (let elapsed = 0; elapsed <= timeout; elapsed += interval) {
+				await Promise.resolve();
+				flushUpdates();
+				try {
+					return await assertion();
+				} catch (error) {
+					lastError = error;
+				}
+				if (elapsed + interval <= timeout) {
+					if (options.clock === "fake") await Promise.resolve();
+					else await new Promise((resolve) => setTimeout(resolve, interval));
+				}
+			}
+			const detail = lastError instanceof Error ? `: ${lastError.message}` : "";
+			throw new Error(`component wait timed out after ${timeout}ms${detail}`, { cause: lastError });
+		},
 		dispose() {
 			if (disposed) return;
 			disposed = true;

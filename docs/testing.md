@@ -116,6 +116,18 @@ screen.advanceTime(400);
 expect(screen.getByRole("tooltip")).not.toBeNull();
 ```
 
+Promise-backed capabilities and async event handlers can be observed with the
+harness-owned retry loop. `waitFor` commits Solid and protocol work before each
+assertion, reports the last locator/assertion failure on timeout, and does not
+implicitly advance a fake clock:
+
+```ts
+screen.getByRole("button", { name: "Load" }).click();
+await screen.waitFor(() => {
+  expect(screen.getByRole("status").text).toBe("Ready");
+});
+```
+
 Publish a deterministic content-box size when a responsive branch is part of
 the unit contract:
 

@@ -136,7 +136,19 @@ export interface ComponentScreen extends ComponentQueries {
   flush(): void;
   /** Advance a harness-owned fake clock and commit resulting reactive work. */
   advanceTime(milliseconds: number): void;
+  /** Retry an assertion while committing Promise-driven component updates. */
+  waitFor<T>(
+    assertion: () => T | Promise<T>,
+    options?: ComponentWaitForOptions,
+  ): Promise<T>;
   dispose(): void;
+}
+
+export interface ComponentWaitForOptions {
+  /** Total retry budget in milliseconds. Defaults to 1000. */
+  timeout?: number;
+  /** Retry interval in milliseconds. Defaults to 10. */
+  interval?: number;
 }
 
 export interface RenderComponentOptions {
@@ -866,6 +878,45 @@ export function renderComponent(
       }
       vi.advanceTimersByTime(milliseconds);
       flushUpdates();
+    },
+    async waitFor(assertion, waitOptions = {}) {
+      const timeout = waitOptions.timeout ?? 1_000;
+      const interval = waitOptions.interval ?? 10;
+      if (!Number.isFinite(timeout) || timeout < 0) {
+        throw new RangeError(
+          "component wait timeout must be finite and non-negative",
+        );
+      }
+      if (!Number.isFinite(interval) || interval <= 0) {
+        throw new RangeError(
+          "component wait interval must be finite and positive",
+        );
+      }
+      let lastError: unknown;
+      for (let elapsed = 0; elapsed <= timeout; elapsed += interval) {
+        // Async event handlers and mocked capabilities normally resume in the
+        // next microtask. Commit their Solid and protocol work before probing.
+        await Promise.resolve();
+        flushUpdates();
+        try {
+          return await assertion();
+        } catch (error) {
+          lastError = error;
+        }
+        if (elapsed + interval <= timeout) {
+          if (options.clock === "fake") {
+            // Keep timer advancement explicit through advanceTime(). A
+            // microtask yield still lets Promise-backed host fixtures settle.
+            await Promise.resolve();
+          } else {
+            await new Promise<void>((resolve) => setTimeout(resolve, interval));
+          }
+        }
+      }
+      const detail = lastError instanceof Error ? `: ${lastError.message}` : "";
+      throw new Error(`component wait timed out after ${timeout}ms${detail}`, {
+        cause: lastError,
+      });
     },
     dispose() {
       if (disposed) return;
