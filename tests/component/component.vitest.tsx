@@ -113,3 +113,22 @@ test("observes hover styling without intercepting the protocol writer", () => {
 
   expect(button.className).toContain("bg-control-hover");
 });
+
+test("uses the native pointer sequence and exposes transient press state", () => {
+  let activations = 0;
+  const screen = renderComponent(() => (
+    <Button variant="secondary" aria-label="Run" onClick={() => activations++}>
+      Run
+    </Button>
+  ));
+  const button = screen.getByRole("button", { name: "Run" });
+
+  button.pointerDown({ offsetX: 8, offsetY: 4 });
+  expect(button.className).toContain("bg-control-pressed");
+  button.pointerUp({ offsetX: 8, offsetY: 4 });
+  expect(activations).toBe(0);
+
+  button.click();
+  expect(activations).toBe(1);
+  expect(button.className).not.toContain("bg-control-pressed");
+});

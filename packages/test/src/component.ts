@@ -21,6 +21,8 @@ export interface ComponentLocator {
   readonly text: string;
   readonly className: string;
   attribute(name: string): string | null;
+  pointerDown(position?: ComponentPointerPosition): void;
+  pointerUp(position?: ComponentPointerPosition): void;
   click(): void;
   press(key: string): void;
   input(value: string): void;
@@ -28,6 +30,11 @@ export interface ComponentLocator {
   unhover(): void;
   /** Publish a deterministic native content-box observation. */
   resize(size: { width: number; height: number }): void;
+}
+
+export interface ComponentPointerPosition {
+  offsetX?: number;
+  offsetY?: number;
 }
 
 export interface ComponentScreen {
@@ -227,6 +234,25 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
       );
     }
   };
+  const pointerPayload = (
+    position: ComponentPointerPosition,
+    buttons: number,
+  ): string => {
+    const offsetX = position.offsetX ?? 0;
+    const offsetY = position.offsetY ?? 0;
+    if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) {
+      throw new RangeError("component pointer offsets must be finite");
+    }
+    return JSON.stringify({
+      clientX: offsetX,
+      clientY: offsetY,
+      offsetX,
+      offsetY,
+      button: 0,
+      buttons,
+      mods: 0,
+    });
+  };
   const locator = (node: AuthoredNode): ComponentLocator => ({
     get tag() {
       return node.tag;
@@ -244,8 +270,18 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
       return node.className;
     },
     attribute: (name) => node.attributes.get(name) ?? null,
+    pointerDown: (position = {}) => {
+      ensureEnabled(node, "press");
+      commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
+    },
+    pointerUp: (position = {}) => {
+      ensureEnabled(node, "release");
+      commitEvent(node, EVENT_CODE.pointerup, pointerPayload(position, 0));
+    },
     click: () => {
       ensureEnabled(node, "click");
+      commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
+      commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
       commitEvent(node, EVENT_CODE.click);
     },
     press: (pressedKey) => {

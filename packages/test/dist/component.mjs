@@ -155,6 +155,20 @@ function renderComponent(render) {
 	const ensureEnabled = (node, action) => {
 		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
 	};
+	const pointerPayload = (position, buttons) => {
+		const offsetX = position.offsetX ?? 0;
+		const offsetY = position.offsetY ?? 0;
+		if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) throw new RangeError("component pointer offsets must be finite");
+		return JSON.stringify({
+			clientX: offsetX,
+			clientY: offsetY,
+			offsetX,
+			offsetY,
+			button: 0,
+			buttons,
+			mods: 0
+		});
+	};
 	const locator = (node) => ({
 		get tag() {
 			return node.tag;
@@ -172,8 +186,18 @@ function renderComponent(render) {
 			return node.className;
 		},
 		attribute: (name) => node.attributes.get(name) ?? null,
+		pointerDown: (position = {}) => {
+			ensureEnabled(node, "press");
+			commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
+		},
+		pointerUp: (position = {}) => {
+			ensureEnabled(node, "release");
+			commitEvent(node, EVENT_CODE.pointerup, pointerPayload(position, 0));
+		},
 		click: () => {
 			ensureEnabled(node, "click");
+			commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
+			commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
 			commitEvent(node, EVENT_CODE.click);
 		},
 		press: (pressedKey) => {

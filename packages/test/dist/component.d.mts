@@ -7,6 +7,8 @@ interface ComponentLocator {
   readonly text: string;
   readonly className: string;
   attribute(name: string): string | null;
+  pointerDown(position?: ComponentPointerPosition): void;
+  pointerUp(position?: ComponentPointerPosition): void;
   click(): void;
   press(key: string): void;
   input(value: string): void;
@@ -17,6 +19,10 @@ interface ComponentLocator {
     width: number;
     height: number;
   }): void;
+}
+interface ComponentPointerPosition {
+  offsetX?: number;
+  offsetY?: number;
 }
 interface ComponentScreen {
   getByRole(role: string, options?: {
@@ -39,5 +45,5 @@ declare function cleanupComponents(): void;
  */
 declare function renderComponent(render: () => JSX.Element): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentScreen, cleanupComponents, renderComponent };
+export { ComponentLocator, ComponentPointerPosition, ComponentScreen, cleanupComponents, renderComponent };
 //# sourceMappingURL=component.d.mts.map
