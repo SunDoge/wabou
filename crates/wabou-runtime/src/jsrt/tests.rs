@@ -322,10 +322,10 @@ fn fetch_wakes_host_and_resolves_on_js_thread() {
             "unexpected request: {request}"
         );
         stream
-                .write_all(
-                    b"HTTP/1.1 201 Created\r\ncontent-type: application/json\r\ncontent-length: 10\r\nconnection: close\r\n\r\n{\"id\": 42}",
-                )
-                .expect("write response");
+            .write_all(
+                b"HTTP/1.1 201 Created\r\ncontent-type: application/octet-stream\r\ncontent-length: 4\r\nconnection: close\r\n\r\n\x00\xff\x80\x01",
+            )
+            .expect("write response");
     });
 
     let runtime = JsRuntime::new().expect("runtime");
@@ -349,27 +349,25 @@ fn fetch_wakes_host_and_resolves_on_js_thread() {
     runtime.poll_async_runtime();
 
     let initial_result = runtime
-        .with(|ctx| ctx.eval::<Option<String>, _>("globalThis.fetchResult"))
+        .with(|ctx| ctx.eval::<bool, _>("globalThis.fetchResult !== null"))
         .expect("inspect initial fetch result");
-    let wake_required = initial_result.is_none();
+    let wake_required = !initial_result;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
-    let result = if let Some(result) = initial_result {
-        result
-    } else {
+    if !initial_result {
         loop {
             if runtime.take_async_wake() {
                 runtime.poll_async_runtime();
             }
-            if let Some(result) = runtime
-                .with(|ctx| ctx.eval::<Option<String>, _>("globalThis.fetchResult"))
+            if runtime
+                .with(|ctx| ctx.eval::<bool, _>("globalThis.fetchResult !== null"))
                 .expect("inspect fetch result")
             {
-                break result;
+                break;
             }
             assert!(std::time::Instant::now() < deadline, "fetch timed out");
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-    };
+    }
     if wake_required {
         // The pending bit is published before the callback is invoked, so
         // Promise completion can win the race by a few instructions.
@@ -384,11 +382,26 @@ fn fetch_wakes_host_and_resolves_on_js_thread() {
     runtime.take_async_wake();
     assert!(!runtime.poll_async_runtime(), "runtime should be idle");
 
+    let result = runtime
+        .with(|ctx| {
+            ctx.eval::<String, _>(
+                r#"JSON.stringify({
+                    ...globalThis.fetchResult,
+                    body: Array.from(globalThis.fetchResult.body),
+                    bodyIsUint8Array: globalThis.fetchResult.body instanceof Uint8Array,
+                })"#,
+            )
+        })
+        .expect("serialize fetch result for assertion");
     let result: serde_json::Value = serde_json::from_str(&result).expect("response JSON");
     assert_eq!(result["status"], 201);
     assert_eq!(result["statusText"], "Created");
-    assert_eq!(result["body"], "{\"id\": 42}");
-    assert_eq!(result["headers"]["content-type"], "application/json");
+    assert_eq!(result["bodyIsUint8Array"], true);
+    assert_eq!(result["body"], serde_json::json!([0, 255, 128, 1]));
+    assert_eq!(
+        result["headers"]["content-type"],
+        "application/octet-stream"
+    );
     server.join().expect("test server");
 }
 

@@ -3,7 +3,15 @@ import { installFetchPolyfill } from "./fetch";
 
 test("installs interoperable Headers and Response globals", async () => {
   const runtime = globalThis as typeof globalThis & {
-    __wabou_fetch?: (url: string, init: string) => Promise<string>;
+    __wabou_fetch?: (
+      url: string,
+      init: string,
+    ) => Promise<{
+      status: number;
+      statusText: string;
+      headers: Record<string, string>;
+      body: Uint8Array;
+    }>;
   };
   const previous = {
     fetch: runtime.fetch,
@@ -21,12 +29,12 @@ test("installs interoperable Headers and Response globals", async () => {
         headers: { accept: "application/json" },
         body: "request",
       });
-      return JSON.stringify({
+      return {
         status: 201,
         statusText: "Created",
         headers: { "Content-Type": "application/json" },
-        body: '{"ok":true}',
-      });
+        body: new TextEncoder().encode('{"ok":true}'),
+      };
     };
 
     installFetchPolyfill();
@@ -52,6 +60,12 @@ test("installs interoperable Headers and Response globals", async () => {
     expect(response.ok).toBe(true);
     expect(response.headers.get("content-type")).toBe("application/json");
     expect(await response.json()).toEqual({ ok: true });
+    expect(new Uint8Array(await response.clone().arrayBuffer())).toEqual(
+      new TextEncoder().encode('{"ok":true}'),
+    );
+    expect(await (response as unknown as WabouBinaryResponse).bytes()).toEqual(
+      new TextEncoder().encode('{"ok":true}'),
+    );
   } finally {
     runtime.fetch = previous.fetch;
     runtime.Headers = previous.Headers;
@@ -60,3 +74,7 @@ test("installs interoperable Headers and Response globals", async () => {
     else Reflect.deleteProperty(runtime, "__wabou_fetch");
   }
 });
+
+interface WabouBinaryResponse {
+  bytes(): Promise<Uint8Array>;
+}

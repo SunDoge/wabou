@@ -12,7 +12,7 @@ interface FetchResponseData {
   status: number;
   statusText: string;
   headers: Record<string, string>;
-  body: string;
+  body: Uint8Array;
 }
 
 type HeadersInit =
@@ -99,15 +99,30 @@ interface ResponseInit {
   headers?: HeadersInit;
 }
 
+function encodeResponseBody(
+  body: string | Uint8Array | ArrayBuffer | null,
+  copy: boolean,
+): Uint8Array {
+  if (typeof body === "string") return new TextEncoder().encode(body);
+  if (body instanceof Uint8Array) return copy ? body.slice() : body;
+  if (body instanceof ArrayBuffer) return new Uint8Array(body.slice(0));
+  return new Uint8Array();
+}
+
 class WabouResponse {
   readonly headers: WabouHeaders;
   readonly status: number;
   readonly statusText: string;
   readonly url: string;
-  private readonly bodyText: string;
+  private readonly bodyBytes: Uint8Array;
 
-  constructor(body: string | null = null, init: ResponseInit = {}, url = "") {
-    this.bodyText = body ?? "";
+  constructor(
+    body: string | Uint8Array | ArrayBuffer | null = null,
+    init: ResponseInit = {},
+    url = "",
+    copyBody = true,
+  ) {
+    this.bodyBytes = encodeResponseBody(body, copyBody);
     this.status = init.status ?? 200;
     this.statusText = init.statusText ?? "";
     this.headers = new WabouHeaders(init.headers);
@@ -119,16 +134,24 @@ class WabouResponse {
   }
 
   text(): Promise<string> {
-    return Promise.resolve(this.bodyText);
+    return Promise.resolve(new TextDecoder().decode(this.bodyBytes));
   }
 
-  json(): Promise<unknown> {
-    return Promise.resolve(JSON.parse(this.bodyText));
+  async json(): Promise<unknown> {
+    return JSON.parse(await this.text());
+  }
+
+  bytes(): Promise<Uint8Array> {
+    return Promise.resolve(this.bodyBytes.slice());
+  }
+
+  arrayBuffer(): Promise<ArrayBuffer> {
+    return Promise.resolve(this.bodyBytes.slice().buffer);
   }
 
   clone(): WabouResponse {
     return new WabouResponse(
-      this.bodyText,
+      this.bodyBytes,
       {
         status: this.status,
         statusText: this.statusText,
@@ -145,10 +168,23 @@ class WabouResponse {
     }
     return new WabouResponse(JSON.stringify(value), { ...init, headers });
   }
+
+  static fromHost(data: FetchResponseData, url: string): WabouResponse {
+    return new WabouResponse(
+      data.body,
+      {
+        status: data.status,
+        statusText: data.statusText,
+        headers: data.headers,
+      },
+      url,
+      false,
+    );
+  }
 }
 
 type FetchRuntime = typeof globalThis & {
-  __wabou_fetch(url: string, initJson: string): Promise<string>;
+  __wabou_fetch(url: string, initJson: string): Promise<FetchResponseData>;
 };
 
 /** Install the host-backed Fetch API surface. Safe to call again in tests. */
@@ -188,19 +224,16 @@ export function installFetchPolyfill(): void {
       : {};
     return (globalThis as FetchRuntime)
       .__wabou_fetch(url, JSON.stringify(serializedInit))
-      .then((json: string) => {
-        const data: FetchResponseData = JSON.parse(json);
+      .then((data: FetchResponseData) => {
         const ResponseConstructor =
           globalThis.Response as unknown as typeof WabouResponse;
-        return new ResponseConstructor(
-          data.body,
-          {
-            status: data.status,
-            statusText: data.statusText,
-            headers: data.headers,
-          },
-          url,
-        ) as unknown as Response;
+        if (ResponseConstructor === WabouResponse)
+          return WabouResponse.fromHost(data, url) as unknown as Response;
+        return new ResponseConstructor(data.body, {
+          status: data.status,
+          statusText: data.statusText,
+          headers: data.headers,
+        }) as unknown as Response;
       });
   }) as typeof globalThis.fetch;
 }

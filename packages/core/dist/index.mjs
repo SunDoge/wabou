@@ -72,14 +72,20 @@ var WabouHeaders = class {
 		return Object.fromEntries(this.entriesByName);
 	}
 };
+function encodeResponseBody(body, copy) {
+	if (typeof body === "string") return new TextEncoder().encode(body);
+	if (body instanceof Uint8Array) return copy ? body.slice() : body;
+	if (body instanceof ArrayBuffer) return new Uint8Array(body.slice(0));
+	return /* @__PURE__ */ new Uint8Array();
+}
 var WabouResponse = class WabouResponse {
 	headers;
 	status;
 	statusText;
 	url;
-	bodyText;
-	constructor(body = null, init = {}, url = "") {
-		this.bodyText = body ?? "";
+	bodyBytes;
+	constructor(body = null, init = {}, url = "", copyBody = true) {
+		this.bodyBytes = encodeResponseBody(body, copyBody);
 		this.status = init.status ?? 200;
 		this.statusText = init.statusText ?? "";
 		this.headers = new WabouHeaders(init.headers);
@@ -89,13 +95,19 @@ var WabouResponse = class WabouResponse {
 		return this.status >= 200 && this.status < 300;
 	}
 	text() {
-		return Promise.resolve(this.bodyText);
+		return Promise.resolve(new TextDecoder().decode(this.bodyBytes));
 	}
-	json() {
-		return Promise.resolve(JSON.parse(this.bodyText));
+	async json() {
+		return JSON.parse(await this.text());
+	}
+	bytes() {
+		return Promise.resolve(this.bodyBytes.slice());
+	}
+	arrayBuffer() {
+		return Promise.resolve(this.bodyBytes.slice().buffer);
 	}
 	clone() {
-		return new WabouResponse(this.bodyText, {
+		return new WabouResponse(this.bodyBytes, {
 			status: this.status,
 			statusText: this.statusText,
 			headers: this.headers
@@ -108,6 +120,13 @@ var WabouResponse = class WabouResponse {
 			...init,
 			headers
 		});
+	}
+	static fromHost(data, url) {
+		return new WabouResponse(data.body, {
+			status: data.status,
+			statusText: data.statusText,
+			headers: data.headers
+		}, url, false);
 	}
 };
 /** Install the host-backed Fetch API surface. Safe to call again in tests. */
@@ -129,14 +148,14 @@ function installFetchPolyfill() {
 			...init,
 			headers: init.headers instanceof WabouHeaders ? init.headers.toRecord() : init.headers
 		} : {};
-		return globalThis.__wabou_fetch(url, JSON.stringify(serializedInit)).then((json) => {
-			const data = JSON.parse(json);
+		return globalThis.__wabou_fetch(url, JSON.stringify(serializedInit)).then((data) => {
 			const ResponseConstructor = globalThis.Response;
+			if (ResponseConstructor === WabouResponse) return WabouResponse.fromHost(data, url);
 			return new ResponseConstructor(data.body, {
 				status: data.status,
 				statusText: data.statusText,
 				headers: data.headers
-			}, url);
+			});
 		});
 	});
 }

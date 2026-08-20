@@ -23,7 +23,12 @@ declare global {
   function __wabou_log(level: "debug" | "info" | "warn" | "error" | "log", message: string): void;
   function __wabou_utf8_encode(value: string): Uint8Array;
   function __wabou_utf8_decode(bytes: Uint8Array): string;
-  function __wabou_fetch(url: string, initJson: string): Promise<string>;
+  function __wabou_fetch(url: string, initJson: string): Promise<{
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    body: Uint8Array;
+  }>;
   function __wabou_sleep(delayMs: number): Promise<void>;
   function __wabou_resize_observe(nodeLo: number, nodeHi: number): void;
   function __wabou_resize_unobserve(nodeLo: number, nodeHi: number): void;

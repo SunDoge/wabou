@@ -145,7 +145,7 @@
       "owner": "runtime",
       "kind": "function",
       "params": [["url", "string"], ["initJson", "string"]],
-      "returns": "Promise<string>"
+      "returns": "Promise<{ status: number; statusText: string; headers: Record<string, string>; body: Uint8Array }>"
     },
     {
       "name": "__wabou_sleep",

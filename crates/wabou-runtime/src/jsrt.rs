@@ -76,6 +76,28 @@ struct FetchInit {
     body: Option<String>,
 }
 
+struct FetchResponse {
+    status: u16,
+    status_text: String,
+    headers: HashMap<String, String>,
+    body: Vec<u8>,
+}
+
+impl<'js> rquickjs::IntoJs<'js> for FetchResponse {
+    fn into_js(self, ctx: &Ctx<'js>) -> JsResult<rquickjs::Value<'js>> {
+        let value = Object::new(ctx.clone())?;
+        value.set("status", self.status)?;
+        value.set("statusText", self.status_text)?;
+        let headers = Object::new(ctx.clone())?;
+        for (name, value) in self.headers {
+            headers.set(name, value)?;
+        }
+        value.set("headers", headers)?;
+        value.set("body", TypedArray::new(ctx.clone(), self.body)?)?;
+        Ok(value.into_value())
+    }
+}
+
 struct RuntimeWake {
     callback: Mutex<Option<wabou_shell::WakeCallback>>,
     pending: AtomicBool,
@@ -982,7 +1004,7 @@ async fn fetch_request(
     client: reqwest::Client,
     url: String,
     init_json: String,
-) -> JsResult<String> {
+) -> JsResult<FetchResponse> {
     let init: FetchInit = serde_json::from_str(&init_json).unwrap_or_default();
     let method = init
         .method
@@ -1007,16 +1029,16 @@ async fn fetch_request(
         .map(|(name, value)| (name.to_string(), value.to_str().unwrap_or("").to_owned()))
         .collect::<HashMap<_, _>>();
     let body = response
-        .text()
+        .bytes()
         .await
-        .map_err(|_| rquickjs::Error::Unknown)?;
-    serde_json::to_string(&serde_json::json!({
-        "status": status.as_u16(),
-        "statusText": status.canonical_reason().unwrap_or(""),
-        "headers": headers,
-        "body": body,
-    }))
-    .map_err(|_| rquickjs::Error::Unknown)
+        .map_err(|_| rquickjs::Error::Unknown)?
+        .to_vec();
+    Ok(FetchResponse {
+        status: status.as_u16(),
+        status_text: status.canonical_reason().unwrap_or("").to_owned(),
+        headers,
+        body,
+    })
 }
 
 #[cfg(test)]
