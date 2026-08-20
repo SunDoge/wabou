@@ -376,13 +376,18 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
       class={(state) =>
         join(
           "h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
-          selected()
-            ? props.variant === "accent"
-              ? "bg-accent text-on-accent"
-              : "bg-surface text-primary"
-            : state.hovered
-              ? "bg-control-hover text-primary"
-              : "bg-transparent text-muted",
+          match({
+            selected: selected(),
+            accent: props.variant === "accent",
+            hovered: state.hovered,
+          })
+            .with(
+              { selected: true, accent: true },
+              () => "bg-accent text-on-accent",
+            )
+            .with({ selected: true }, () => "bg-surface text-primary")
+            .with({ hovered: true }, () => "bg-control-hover text-primary")
+            .otherwise(() => "bg-transparent text-muted"),
           state.focusVisible && "border-focus",
           props.class,
         )
