@@ -86,6 +86,26 @@ expect(slider.numericValue).toBe(45);
 Components that subscribe to native measurement can still mount in their
 explicit unmeasured state without requiring a window.
 
+For delayed overlays, debouncing, or animation bookkeeping, let the harness
+own Vitest's fake clock. `advanceTime` advances timers and commits the resulting
+Solid and protocol work in one step; disposing the screen restores real time:
+
+```ts
+const screen = renderComponent(
+  () => (
+    <Tooltip
+      openDelay={400}
+      trigger={(trigger) => <Button {...trigger}>Help</Button>}
+    >
+      Help text
+    </Tooltip>
+  ),
+  { clock: "fake" },
+);
+screen.advanceTime(400);
+expect(screen.getByRole("tooltip")).not.toBeNull();
+```
+
 Publish a deterministic content-box size when a responsive branch is part of
 the unit contract:
 

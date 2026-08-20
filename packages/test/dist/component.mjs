@@ -2,7 +2,7 @@ import { EVENT_CODE, HostProvider, dispatchEvent, mount, writer } from "@wabou/c
 import { INTERACTION_POLICY } from "@wabou/core/protocol";
 import { dispatchResizeObservation } from "@wabou/core/testing";
 import { createComponent, flush } from "solid-js";
-import { onTestFinished } from "vitest";
+import { onTestFinished, vi } from "vitest";
 //#region src/component.ts
 function missingHostMethod(path) {
 	throw new Error(`test host method ${path} is not configured`);
@@ -107,6 +107,7 @@ function installHostStub(name) {
 * `wabou test` behavior scenarios.
 */
 function renderComponent(render, options = {}) {
+	if (options.clock !== void 0 && options.clock !== "real" && options.clock !== "fake") throw new RangeError(`unsupported component clock ${JSON.stringify(options.clock)}`);
 	if (activeHarness) throw new Error("renderComponent supports one active component screen at a time");
 	activeHarness = true;
 	const restoreHostStubs = [installHostStub("__wabou_resize_observe"), installHostStub("__wabou_resize_unobserve")];
@@ -234,9 +235,11 @@ function renderComponent(render, options = {}) {
 		restoreHostStubs.forEach((restoreStub) => {
 			restoreStub();
 		});
+		if (options.clock === "fake") vi.useRealTimers();
 		activeHarness = false;
 	};
 	try {
+		if (options.clock === "fake") vi.useFakeTimers();
 		disposeMount = mount(() => options.host ? createComponent(HostProvider, {
 			value: options.host,
 			get children() {
@@ -500,6 +503,12 @@ function renderComponent(render, options = {}) {
 	const screen = {
 		...queries(null),
 		flush() {
+			flushUpdates();
+		},
+		advanceTime(milliseconds) {
+			if (options.clock !== "fake") throw new Error("advanceTime requires renderComponent(..., { clock: \"fake\" })");
+			if (!Number.isFinite(milliseconds) || milliseconds < 0) throw new RangeError("component clock duration must be finite and non-negative");
+			vi.advanceTimersByTime(milliseconds);
 			flushUpdates();
 		},
 		dispose() {

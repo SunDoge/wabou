@@ -268,6 +268,35 @@ test("uses the native pointer sequence and exposes transient press state", () =>
   expect(button.className).not.toContain("bg-control-pressed");
 });
 
+test("owns delayed component work through an explicit fake clock", () => {
+  const DelayedStatus = () => {
+    const [status, setStatus] = createSignal("Idle");
+    return (
+      <View>
+        <Button
+          aria-label="Start"
+          onClick={() => {
+            setStatus("Waiting");
+            setTimeout(() => setStatus("Ready"), 50);
+          }}
+        />
+        <Text role="status" aria-label={status()}>
+          {status()}
+        </Text>
+      </View>
+    );
+  };
+  const screen = renderComponent(DelayedStatus, { clock: "fake" });
+
+  screen.getByRole("button", { name: "Start" }).click();
+  expect(screen.getByRole("status", { name: "Waiting" }).text).toBe("Waiting");
+  screen.advanceTime(49);
+  expect(screen.getByRole("status", { name: "Waiting" }).text).toBe("Waiting");
+  screen.advanceTime(1);
+  expect(screen.getByRole("status", { name: "Ready" }).text).toBe("Ready");
+  expect(() => screen.advanceTime(-1)).toThrow("finite and non-negative");
+});
+
 test("injects typed host capabilities and records their calls", () => {
   interface DemoCapability {
     demo: {

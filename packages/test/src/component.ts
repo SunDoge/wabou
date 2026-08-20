@@ -10,7 +10,7 @@ import {
 } from "@wabou/core/renderer";
 import { dispatchResizeObservation } from "@wabou/core/testing";
 import { createComponent, flush as flushSolid, type JSX } from "solid-js";
-import { onTestFinished } from "vitest";
+import { onTestFinished, vi } from "vitest";
 
 interface AuthoredNode {
   readonly id: NodeKey;
@@ -123,12 +123,16 @@ export interface ComponentPointerPosition {
 export interface ComponentScreen extends ComponentQueries {
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
+  /** Advance a harness-owned fake clock and commit resulting reactive work. */
+  advanceTime(milliseconds: number): void;
   dispose(): void;
 }
 
 export interface RenderComponentOptions {
   /** Host fixture injected into the component subtree. */
   host?: Host;
+  /** Use a fake clock owned and restored by this component screen. */
+  clock?: "real" | "fake";
 }
 
 export interface TestHostCall {
@@ -265,6 +269,15 @@ export function renderComponent(
   render: () => JSX.Element,
   options: RenderComponentOptions = {},
 ): ComponentScreen {
+  if (
+    options.clock !== undefined &&
+    options.clock !== "real" &&
+    options.clock !== "fake"
+  ) {
+    throw new RangeError(
+      `unsupported component clock ${JSON.stringify(options.clock)}`,
+    );
+  }
   if (activeHarness) {
     throw new Error(
       "renderComponent supports one active component screen at a time",
@@ -414,9 +427,11 @@ export function renderComponent(
     restoreHostStubs.forEach((restoreStub) => {
       restoreStub();
     });
+    if (options.clock === "fake") vi.useRealTimers();
     activeHarness = false;
   };
   try {
+    if (options.clock === "fake") vi.useFakeTimers();
     disposeMount = mount(() =>
       options.host
         ? createComponent(HostProvider, {
@@ -780,6 +795,20 @@ export function renderComponent(
   const screen: ComponentScreen = {
     ...queries(null),
     flush() {
+      flushUpdates();
+    },
+    advanceTime(milliseconds) {
+      if (options.clock !== "fake") {
+        throw new Error(
+          'advanceTime requires renderComponent(..., { clock: "fake" })',
+        );
+      }
+      if (!Number.isFinite(milliseconds) || milliseconds < 0) {
+        throw new RangeError(
+          "component clock duration must be finite and non-negative",
+        );
+      }
+      vi.advanceTimersByTime(milliseconds);
       flushUpdates();
     },
     dispose() {

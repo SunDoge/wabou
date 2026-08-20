@@ -82,11 +82,15 @@ interface ComponentPointerPosition {
 interface ComponentScreen extends ComponentQueries {
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
+  /** Advance a harness-owned fake clock and commit resulting reactive work. */
+  advanceTime(milliseconds: number): void;
   dispose(): void;
 }
 interface RenderComponentOptions {
   /** Host fixture injected into the component subtree. */
   host?: Host;
+  /** Use a fake clock owned and restored by this component screen. */
+  clock?: "real" | "fake";
 }
 interface TestHostCall {
   readonly path: string;

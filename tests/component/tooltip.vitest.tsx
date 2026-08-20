@@ -1,22 +1,23 @@
 import { renderComponent } from "@wabou/test/component";
 import { Button, Tooltip } from "@wabou/ui";
-import { afterEach, expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 
-afterEach(() => vi.useRealTimers());
-
-const renderTooltip = (openDelay = 500) =>
-  renderComponent(() => (
-    <Tooltip
-      openDelay={openDelay}
-      trigger={(trigger) => (
-        <Button aria-label="Help" {...trigger}>
-          Help
-        </Button>
-      )}
-    >
-      Explains this action
-    </Tooltip>
-  ));
+const renderTooltip = (openDelay = 500, fakeClock = false) =>
+  renderComponent(
+    () => (
+      <Tooltip
+        openDelay={openDelay}
+        trigger={(trigger) => (
+          <Button aria-label="Help" {...trigger}>
+            Help
+          </Button>
+        )}
+      >
+        Explains this action
+      </Tooltip>
+    ),
+    { clock: fakeClock ? "fake" : "real" },
+  );
 
 test("opens on focus and closes with Escape", () => {
   const screen = renderTooltip();
@@ -33,21 +34,17 @@ test("opens on focus and closes with Escape", () => {
 });
 
 test("honors hover delay and cancels a pending open", () => {
-  vi.useFakeTimers();
-  const screen = renderTooltip(400);
+  const screen = renderTooltip(400, true);
   const trigger = screen.getByRole("button", { name: "Help" });
 
   trigger.hover();
-  vi.advanceTimersByTime(399);
-  screen.flush();
+  screen.advanceTime(399);
   expect(screen.queryByRole("tooltip")).toBeNull();
   trigger.unhover();
-  vi.advanceTimersByTime(1_000);
-  screen.flush();
+  screen.advanceTime(1_000);
   expect(screen.queryByRole("tooltip")).toBeNull();
 
   trigger.hover();
-  vi.advanceTimersByTime(400);
-  screen.flush();
+  screen.advanceTime(400);
   expect(screen.getByRole("tooltip").text).toBe("Explains this action");
 });

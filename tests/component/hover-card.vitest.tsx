@@ -1,49 +1,55 @@
 import { renderComponent } from "@wabou/test/component";
 import { Button, HoverCard, Text } from "@wabou/ui";
 import { createSignal } from "solid-js";
-import { afterEach, expect, test, vi } from "vitest";
-
-afterEach(() => vi.useRealTimers());
+import { expect, test } from "vitest";
 
 const renderHoverCard = (
-  options: { openDelay?: number; closeDelay?: number; disabled?: boolean } = {},
+  options: {
+    openDelay?: number;
+    closeDelay?: number;
+    disabled?: boolean;
+    fakeClock?: boolean;
+  } = {},
 ) =>
-  renderComponent(() => (
-    <HoverCard
-      aria-label="Project preview"
-      openDelay={options.openDelay}
-      closeDelay={options.closeDelay}
-      disabled={options.disabled}
-      trigger={(trigger) => (
-        <Button aria-label="Wabou project" {...trigger}>
-          Wabou
-        </Button>
-      )}
-    >
-      <Text>Native Solid applications</Text>
-    </HoverCard>
-  ));
+  renderComponent(
+    () => (
+      <HoverCard
+        aria-label="Project preview"
+        openDelay={options.openDelay}
+        closeDelay={options.closeDelay}
+        disabled={options.disabled}
+        trigger={(trigger) => (
+          <Button aria-label="Wabou project" {...trigger}>
+            Wabou
+          </Button>
+        )}
+      >
+        <Text>Native Solid applications</Text>
+      </HoverCard>
+    ),
+    { clock: options.fakeClock ? "fake" : "real" },
+  );
 
 test("keeps the card open while the pointer travels into its content", () => {
-  vi.useFakeTimers();
-  const screen = renderHoverCard({ openDelay: 300, closeDelay: 200 });
+  const screen = renderHoverCard({
+    openDelay: 300,
+    closeDelay: 200,
+    fakeClock: true,
+  });
   const trigger = screen.getByRole("button", { name: "Wabou project" });
 
   trigger.hover();
-  vi.advanceTimersByTime(300);
-  screen.flush();
+  screen.advanceTime(300);
   const card = screen.getByRole("dialog", { name: "Project preview" });
   expect(card.text).toBe("Native Solid applications");
 
   trigger.unhover();
   card.hover();
-  vi.advanceTimersByTime(500);
-  screen.flush();
+  screen.advanceTime(500);
   expect(screen.getByRole("dialog").text).toBe("Native Solid applications");
 
   card.unhover();
-  vi.advanceTimersByTime(200);
-  screen.flush();
+  screen.advanceTime(200);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
