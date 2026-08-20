@@ -11,6 +11,7 @@ interface CaptureViewport {
   checkTextContainment: boolean;
   checkStyleDiagnostics: boolean;
   checkAccessibleNames: boolean;
+  checkSemanticStates: boolean;
 }
 
 interface CaptureConfig {
@@ -105,6 +106,7 @@ const fallbackViewport: CaptureViewport = {
   checkTextContainment: true,
   checkStyleDiagnostics: true,
   checkAccessibleNames: true,
+  checkSemanticStates: true,
 };
 const viewportKeys = new Set([
   "width",
@@ -114,6 +116,7 @@ const viewportKeys = new Set([
   "checkTextContainment",
   "checkStyleDiagnostics",
   "checkAccessibleNames",
+  "checkSemanticStates",
 ]);
 
 function finiteNumber(
@@ -197,6 +200,12 @@ function parseViewport(
       throw new Error(`${name}.checkAccessibleNames must be a boolean`);
     }
     viewport.checkAccessibleNames = record.checkAccessibleNames;
+  }
+  if (record.checkSemanticStates !== undefined) {
+    if (typeof record.checkSemanticStates !== "boolean") {
+      throw new Error(`${name}.checkSemanticStates must be a boolean`);
+    }
+    viewport.checkSemanticStates = record.checkSemanticStates;
   }
   if (!partial) {
     return { ...fallbackViewport, ...viewport };
@@ -647,6 +656,63 @@ export function accessibleNameDiagnostics(snapshot: CaptureSnapshot): string[] {
   return diagnostics;
 }
 
+const booleanStates: Record<string, [string, ReadonlySet<string>]> = {
+  checkbox: ["aria-checked", new Set(["false", "mixed", "true"])],
+  combobox: ["aria-expanded", new Set(["false", "true"])],
+  option: ["aria-selected", new Set(["false", "true"])],
+  radio: ["aria-checked", new Set(["false", "true"])],
+  switch: ["aria-checked", new Set(["false", "true"])],
+  tab: ["aria-selected", new Set(["false", "true"])],
+};
+
+export function semanticStateDiagnostics(snapshot: CaptureSnapshot): string[] {
+  const diagnostics: string[] = [];
+  for (const node of snapshot.nodes) {
+    const attrs = nodeAttrs(node);
+    if (attrs.get("aria-hidden") === "true") continue;
+    const role = attrs.get("role");
+    if (!role) continue;
+    const required = booleanStates[role];
+    if (required) {
+      const [attribute, values] = required;
+      const value = attrs.get(attribute);
+      if (!value || !values.has(value)) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} with role ${role} requires ${attribute}=${[...values].join("|")}; received ${JSON.stringify(value ?? null)}`,
+        );
+      }
+    }
+    if (role !== "slider") continue;
+    const numberAttribute = (name: string): number | undefined => {
+      const raw = attrs.get(name);
+      return raw === undefined
+        ? undefined
+        : raw.trim()
+          ? Number(raw)
+          : Number.NaN;
+    };
+    const value = numberAttribute("aria-valuenow");
+    const minimum = numberAttribute("aria-valuemin");
+    const maximum = numberAttribute("aria-valuemax");
+    if (value === undefined || !Number.isFinite(value)) {
+      diagnostics.push(
+        `${node.tag} ${nodeKey(node.id)} with role slider requires a finite aria-valuenow`,
+      );
+    } else if (
+      (minimum !== undefined && !Number.isFinite(minimum)) ||
+      (maximum !== undefined && !Number.isFinite(maximum)) ||
+      (minimum !== undefined && maximum !== undefined && minimum > maximum) ||
+      (minimum !== undefined && value < minimum) ||
+      (maximum !== undefined && value > maximum)
+    ) {
+      diagnostics.push(
+        `${node.tag} ${nodeKey(node.id)} has invalid slider range min=${JSON.stringify(attrs.get("aria-valuemin") ?? null)} now=${JSON.stringify(attrs.get("aria-valuenow") ?? null)} max=${JSON.stringify(attrs.get("aria-valuemax") ?? null)}`,
+      );
+    }
+  }
+  return diagnostics;
+}
+
 export async function validateCaptureArtifacts(
   capture: CaptureCase,
   workspaceRoot = root,
@@ -708,6 +774,14 @@ export async function validateCaptureArtifacts(
     if (diagnostics.length > 0) {
       throw new Error(
         `${relative(workspaceRoot, snapshot)} has unnamed semantic controls:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
+      );
+    }
+  }
+  if (capture.checkSemanticStates) {
+    const diagnostics = semanticStateDiagnostics(parsed);
+    if (diagnostics.length > 0) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} has invalid semantic states:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
       );
     }
   }

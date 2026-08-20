@@ -10,6 +10,7 @@ import {
   pngDimensions,
   rejectedStyleDiagnostics,
   selectCaptureCases,
+  semanticStateDiagnostics,
   textContainmentDiagnostics,
   validateCaptureArtifacts,
   validateCaptureSnapshot,
@@ -114,6 +115,7 @@ describe("authored capture discovery", () => {
         checkTextContainment: false,
         checkStyleDiagnostics: true,
         checkAccessibleNames: true,
+        checkSemanticStates: true,
       },
       {
         application: "apps/demo",
@@ -127,6 +129,7 @@ describe("authored capture discovery", () => {
         checkTextContainment: true,
         checkStyleDiagnostics: true,
         checkAccessibleNames: true,
+        checkSemanticStates: true,
       },
     ]);
   });
@@ -154,6 +157,7 @@ describe("authored capture discovery", () => {
       checkTextContainment: true,
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
+      checkSemanticStates: true,
     };
 
     expect(captureCommand(capture, false)).not.toContain("--skip-build");
@@ -174,6 +178,7 @@ describe("authored capture discovery", () => {
       checkTextContainment: true,
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
+      checkSemanticStates: true,
     };
     expect(
       validateCaptureSnapshot(
@@ -326,6 +331,54 @@ describe("authored capture discovery", () => {
     expect(accessibleNameDiagnostics(snapshot)).toEqual([]);
   });
 
+  test("requires role-specific semantic state values", () => {
+    const control = {
+      id: { lo: 1, hi: 1 },
+      parentId: null,
+      tag: "button",
+      text: null,
+      classes: [],
+      styleDiagnostics: [],
+      attrs: [["role", "checkbox"]] as Array<[string, string]>,
+      rect: { x: 0, y: 0, width: 40, height: 20 },
+      contentRect: { x: 0, y: 0, width: 40, height: 20 },
+      computed: { overflowX: "Visible", overflowY: "Visible" },
+    };
+    const snapshot = {
+      status: {
+        viewportWidth: 100,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: 1,
+      },
+      nodes: [control],
+    };
+    expect(semanticStateDiagnostics(snapshot)).toHaveLength(1);
+    control.attrs.push(["aria-checked", "false"]);
+    expect(semanticStateDiagnostics(snapshot)).toEqual([]);
+    control.attrs[1] = ["aria-checked", "invalid"];
+    expect(semanticStateDiagnostics(snapshot)).toHaveLength(1);
+
+    control.tag = "view";
+    control.attrs = [
+      ["role", "slider"],
+      ["aria-valuemin", "0"],
+      ["aria-valuenow", "11"],
+      ["aria-valuemax", "10"],
+    ];
+    expect(semanticStateDiagnostics(snapshot)[0]).toContain(
+      "invalid slider range",
+    );
+    control.attrs[2] = ["aria-valuenow", "5"];
+    expect(semanticStateDiagnostics(snapshot)).toEqual([]);
+    control.attrs[2] = ["aria-valuenow", ""];
+    expect(semanticStateDiagnostics(snapshot)[0]).toContain(
+      "finite aria-valuenow",
+    );
+    control.attrs.push(["aria-hidden", "true"]);
+    expect(semanticStateDiagnostics(snapshot)).toEqual([]);
+  });
+
   test("rejects duplicate, dangling, and cyclic retained-node identities", () => {
     const capture = {
       application: "apps/demo",
@@ -339,6 +392,7 @@ describe("authored capture discovery", () => {
       checkTextContainment: true,
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
+      checkSemanticStates: true,
     };
     const node = (lo: number, parentId: { lo: number; hi: number } | null) => ({
       id: { lo, hi: 1 },
@@ -455,6 +509,18 @@ describe("authored capture discovery", () => {
       "unnamed semantic controls",
     );
     capture.checkAccessibleNames = false;
+    await expect(
+      validateCaptureArtifacts(capture, root),
+    ).resolves.toBeUndefined();
+    snapshot.nodes[0].attrs = [
+      ["role", "checkbox"],
+      ["aria-label", "Select item"],
+    ];
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      "invalid semantic states",
+    );
+    capture.checkSemanticStates = false;
     await expect(
       validateCaptureArtifacts(capture, root),
     ).resolves.toBeUndefined();
