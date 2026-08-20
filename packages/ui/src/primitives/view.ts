@@ -57,7 +57,9 @@ export interface PathProps extends Omit<PrimitiveProps, "children"> {
 
 export interface IconProps extends Omit<SvgProps, "source"> {
   source: string;
-  size?: number;
+  size?: number | "1em";
+  /** Optional explicit CSS size.  When omitted, fallback to `1em` for
+   *  text-sized UI alignment. */
   /** Override Lucide's root `fill="none"`, for example with currentColor. */
   fill?: "none" | "currentColor";
   /** Accessible name. Omit for a decorative icon. */
@@ -211,6 +213,7 @@ export function Path(props: PathProps): JSX.Element {
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 export function Icon(props: IconProps): JSX.Element {
   const rest = omit(props, "source", "size", "fill", "label", "class");
+  const iconSize = props.size ?? "1em";
   const node = createElement("svg");
   spread(node, rest, false);
   spread(
@@ -221,16 +224,27 @@ export function Icon(props: IconProps): JSX.Element {
           ? `self-center shrink-0 ${props.class}`
           : "self-center shrink-0";
       },
+      get style(): WabouStyle {
+        return {
+          display: "inline-flex",
+          "align-items": "center",
+          "justify-content": "center",
+          "align-self": "center",
+          "flex-shrink": 0,
+          "line-height": "1",
+          ...(props.style ?? {}),
+        };
+      },
+      get width(): string {
+        return typeof iconSize === "number" ? String(iconSize) : iconSize;
+      },
       get source() {
         return props.fill && props.fill !== "none"
           ? props.source.replace('fill="none"', `fill="${props.fill}"`)
           : props.source;
       },
-      get width() {
-        return String(props.size ?? 24);
-      },
       get height() {
-        return String(props.size ?? 24);
+        return typeof iconSize === "number" ? String(iconSize) : iconSize;
       },
       get role() {
         return props.label ? "img" : undefined;

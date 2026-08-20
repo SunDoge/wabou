@@ -474,8 +474,10 @@ describe("host primitives", () => {
   test("Icon always adds alignment defaults and preserves custom class", () => {
     const classes: Array<[string, string]> = [];
     const size: Array<[string, string]> = [];
+    const styles: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     const setClassName = writer.setClassName.bind(writer);
+    const setStyle = writer.setStyle.bind(writer);
     writer.setClassName = (_id, value) => {
       classes.push(["class", value]);
     };
@@ -483,6 +485,9 @@ describe("host primitives", () => {
       if (name === "width" || name === "height") {
         size.push([name, value]);
       }
+    };
+    writer.setStyle = (_id, name, value) => {
+      styles.push([name, value]);
     };
     try {
       createRoot((dispose) => {
@@ -497,11 +502,44 @@ describe("host primitives", () => {
     } finally {
       writer.setAttribute = setAttribute;
       writer.setClassName = setClassName;
+      writer.setStyle = setStyle;
     }
     expect(classes).toEqual([["class", "self-center shrink-0 text-accent"]]);
     expect(size).toEqual([
       ["width", "14"],
       ["height", "14"],
+    ]);
+    expect(styles).toEqual(
+      expect.arrayContaining([
+        ["display", "inline-flex"],
+        ["align-items", "center"],
+        ["justify-content", "center"],
+        ["align-self", "center"],
+        ["flex-shrink", "0"],
+        ["line-height", "1"],
+      ]),
+    );
+  });
+
+  test("Icon defaults to 1em when size is not provided", () => {
+    const size: Array<[string, string]> = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    writer.setAttribute = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        size.push([name, value]);
+      }
+    };
+    try {
+      createRoot((dispose) => {
+        Icon({ source: "<svg/>", class: "text-muted" });
+        dispose();
+      });
+    } finally {
+      writer.setAttribute = setAttribute;
+    }
+    expect(size).toEqual([
+      ["width", "1em"],
+      ["height", "1em"],
     ]);
   });
 });
