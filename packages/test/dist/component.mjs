@@ -90,11 +90,11 @@ const implicitRole = (tag) => {
 	if (tag === "input") return "textbox";
 	return null;
 };
-function installHostStub(name) {
+function installHostStub(name, stub = () => {}) {
 	const target = globalThis;
 	const hadOwn = Object.hasOwn(target, name);
 	const previous = target[name];
-	if (typeof previous !== "function") target[name] = () => {};
+	if (typeof previous !== "function") target[name] = stub;
 	return () => {
 		if (hadOwn) target[name] = previous;
 		else delete target[name];
@@ -110,7 +110,27 @@ function renderComponent(render, options = {}) {
 	if (options.clock !== void 0 && options.clock !== "real" && options.clock !== "fake") throw new RangeError(`unsupported component clock ${JSON.stringify(options.clock)}`);
 	if (activeHarness) throw new Error("renderComponent supports one active component screen at a time");
 	activeHarness = true;
-	const restoreHostStubs = [installHostStub("__wabou_resize_observe"), installHostStub("__wabou_resize_unobserve")];
+	const restoreHostStubs = [
+		installHostStub("__wabou_resize_observe"),
+		installHostStub("__wabou_resize_unobserve"),
+		installHostStub("__wabou_flush"),
+		installHostStub("__wabou_log"),
+		installHostStub("__wabou_layout_snapshot", (ids, output) => {
+			const values = [
+				1,
+				0,
+				0,
+				0,
+				0,
+				1024,
+				768,
+				ids.length / 2
+			];
+			for (let index = 0; index < ids.length / 2; index++) values.push(ids[index * 2], ids[index * 2 + 1], 0, 0, 0, 0, 0, 0, 1024, 768, 0, 0, 0, 0);
+			if (output && output.length >= values.length) output.set(values);
+			return values.length;
+		})
+	];
 	const nodes = /* @__PURE__ */ new Map();
 	const roots = [];
 	const originals = {
@@ -220,6 +240,8 @@ function renderComponent(render, options = {}) {
 	};
 	let disposeMount = null;
 	let flushDepth = 0;
+	let fakeFrameTime = 0;
+	let restorePerformanceNow;
 	const flushUpdates = () => {
 		if (flushDepth > 0) return;
 		flushDepth += 1;
@@ -235,11 +257,17 @@ function renderComponent(render, options = {}) {
 		restoreHostStubs.forEach((restoreStub) => {
 			restoreStub();
 		});
+		restorePerformanceNow?.();
 		if (options.clock === "fake") vi.useRealTimers();
 		activeHarness = false;
 	};
 	try {
-		if (options.clock === "fake") vi.useFakeTimers();
+		if (options.clock === "fake") {
+			vi.useFakeTimers();
+			fakeFrameTime = performance.now();
+			const performanceNow = vi.spyOn(performance, "now").mockImplementation(() => fakeFrameTime);
+			restorePerformanceNow = () => performanceNow.mockRestore();
+		}
 		disposeMount = mount(() => options.host ? createComponent(HostProvider, {
 			value: options.host,
 			get children() {
@@ -410,6 +438,9 @@ function renderComponent(render, options = {}) {
 			get className() {
 				return node.className;
 			},
+			get children() {
+				return node.children.map(locator);
+			},
 			get disabled() {
 				return disabledState(node);
 			},
@@ -531,8 +562,23 @@ function renderComponent(render, options = {}) {
 		advanceTime(milliseconds) {
 			if (options.clock !== "fake") throw new Error("advanceTime requires renderComponent(..., { clock: \"fake\" })");
 			if (!Number.isFinite(milliseconds) || milliseconds < 0) throw new RangeError("component clock duration must be finite and non-negative");
-			vi.advanceTimersByTime(milliseconds);
-			flushUpdates();
+			const tick = globalThis.__wabou_tick;
+			const frameInterval = 16;
+			let remaining = milliseconds;
+			if (remaining === 0) {
+				vi.advanceTimersByTime(0);
+				if (typeof tick === "function") tick(fakeFrameTime);
+				flushUpdates();
+				return;
+			}
+			while (remaining > 0) {
+				const elapsed = Math.min(frameInterval, remaining);
+				vi.advanceTimersByTime(elapsed);
+				fakeFrameTime += elapsed;
+				if (typeof tick === "function") tick(fakeFrameTime);
+				flushUpdates();
+				remaining -= elapsed;
+			}
 		},
 		async waitFor(assertion, waitOptions = {}) {
 			const timeout = waitOptions.timeout ?? 1e3;

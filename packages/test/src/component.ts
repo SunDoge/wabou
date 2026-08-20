@@ -68,6 +68,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
+  readonly children: readonly ComponentLocator[];
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
   readonly disabled: boolean;
   /** Toggle state authored through `aria-checked`. */
@@ -271,11 +273,11 @@ const implicitRole = (tag: string): string | null => {
   return null;
 };
 
-function installHostStub(name: string): () => void {
+function installHostStub(name: string, stub: unknown = () => {}): () => void {
   const target = globalThis as Record<string, unknown>;
   const hadOwn = Object.hasOwn(target, name);
   const previous = target[name];
-  if (typeof previous !== "function") target[name] = () => {};
+  if (typeof previous !== "function") target[name] = stub;
   return () => {
     if (hadOwn) target[name] = previous;
     else delete target[name];
@@ -314,6 +316,34 @@ export function renderComponent(
   const restoreHostStubs = [
     installHostStub("__wabou_resize_observe"),
     installHostStub("__wabou_resize_unobserve"),
+    installHostStub("__wabou_flush"),
+    installHostStub("__wabou_log"),
+    installHostStub(
+      "__wabou_layout_snapshot",
+      (ids: Uint32Array, output?: Float64Array) => {
+        const values = [1, 0, 0, 0, 0, 1_024, 768, ids.length / 2];
+        for (let index = 0; index < ids.length / 2; index++) {
+          values.push(
+            ids[index * 2],
+            ids[index * 2 + 1],
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1_024,
+            768,
+            0,
+            0,
+            0,
+            0,
+          );
+        }
+        if (output && output.length >= values.length) output.set(values);
+        return values.length;
+      },
+    ),
   ];
 
   const nodes = new Map<string, AuthoredNode>();
@@ -431,6 +461,8 @@ export function renderComponent(
 
   let disposeMount: (() => void) | null = null;
   let flushDepth = 0;
+  let fakeFrameTime = 0;
+  let restorePerformanceNow: (() => void) | undefined;
   const flushUpdates = () => {
     // Imperative host operations such as focus can be produced by an effect
     // while this drain is already running. Solid processes those writes in the
@@ -450,11 +482,19 @@ export function renderComponent(
     restoreHostStubs.forEach((restoreStub) => {
       restoreStub();
     });
+    restorePerformanceNow?.();
     if (options.clock === "fake") vi.useRealTimers();
     activeHarness = false;
   };
   try {
-    if (options.clock === "fake") vi.useFakeTimers();
+    if (options.clock === "fake") {
+      vi.useFakeTimers();
+      fakeFrameTime = performance.now();
+      const performanceNow = vi
+        .spyOn(performance, "now")
+        .mockImplementation(() => fakeFrameTime);
+      restorePerformanceNow = () => performanceNow.mockRestore();
+    }
     disposeMount = mount(() =>
       options.host
         ? createComponent(HostProvider, {
@@ -736,6 +776,9 @@ export function renderComponent(
       get className() {
         return node.className;
       },
+      get children() {
+        return node.children.map(locator);
+      },
       get disabled() {
         return disabledState(node);
       },
@@ -876,8 +919,25 @@ export function renderComponent(
           "component clock duration must be finite and non-negative",
         );
       }
-      vi.advanceTimersByTime(milliseconds);
-      flushUpdates();
+      const tick = (globalThis as Record<string, unknown>).__wabou_tick;
+      // Integer milliseconds preserve exact setTimeout boundaries in fake
+      // timers while approximating the native 60 Hz frame cadence.
+      const frameInterval = 16;
+      let remaining = milliseconds;
+      if (remaining === 0) {
+        vi.advanceTimersByTime(0);
+        if (typeof tick === "function") tick(fakeFrameTime);
+        flushUpdates();
+        return;
+      }
+      while (remaining > 0) {
+        const elapsed = Math.min(frameInterval, remaining);
+        vi.advanceTimersByTime(elapsed);
+        fakeFrameTime += elapsed;
+        if (typeof tick === "function") tick(fakeFrameTime);
+        flushUpdates();
+        remaining -= elapsed;
+      }
     },
     async waitFor(assertion, waitOptions = {}) {
       const timeout = waitOptions.timeout ?? 1_000;

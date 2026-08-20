@@ -28,6 +28,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
+  readonly children: readonly ComponentLocator[];
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
   readonly disabled: boolean;
   /** Toggle state authored through `aria-checked`. */
