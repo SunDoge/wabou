@@ -1,4 +1,5 @@
 import { BuiltinHost, Host } from "@wabou/core/renderer";
+import { PlatformServices } from "@wabou/core";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
 interface ComponentTypedStyleValue {
@@ -122,6 +123,8 @@ interface ComponentWaitForOptions {
 interface RenderComponentOptions {
   /** Host fixture injected into the component subtree. */
   host?: Host;
+  /** Native platform services overridden for this component subtree. */
+  platform?: Partial<PlatformServices>;
   /** Use a fake clock owned and restored by this component screen. */
   clock?: "real" | "fake";
 }

@@ -200,6 +200,21 @@ to execute in their explicit unmeasured state; pass a layout override when
 positioning geometry is part of the test. Unconfigured system and font side
 effects still throw instead of silently succeeding.
 
+Components using contextual native services can receive the same typed
+overrides accepted by `PlatformProvider`. This keeps clipboard, dialog,
+notification, and window behavior on the production dependency-injection path:
+
+```tsx
+const screen = renderComponent(() => <DirectoryPicker {...props} />, {
+  platform: {
+    dialog: {
+      ...testDialog,
+      pickDirectory: async () => "/tmp/downloads",
+    },
+  },
+});
+```
+
 This layer verifies component state, composition, declared roles and names,
 and JavaScript event handling. It intentionally does not invent a fake layout
 engine. Keep the much smaller set of geometry, native hit-testing, window, and

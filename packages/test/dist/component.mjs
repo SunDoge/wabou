@@ -1,5 +1,6 @@
 import { EVENT_CODE, HostProvider, dispatchEvent, mount, writer } from "@wabou/core/renderer";
 import { INTERACTION_POLICY } from "@wabou/core/protocol";
+import { PlatformProvider } from "@wabou/core";
 import { dispatchResizeObservation } from "@wabou/core/testing";
 import { createComponent, flush } from "solid-js";
 import { onTestFinished, vi } from "vitest";
@@ -316,12 +317,28 @@ function renderComponent(render, options = {}) {
 			const performanceNow = vi.spyOn(performance, "now").mockImplementation(() => fakeFrameTime);
 			restorePerformanceNow = () => performanceNow.mockRestore();
 		}
-		disposeMount = mount(() => options.host ? createComponent(HostProvider, {
-			value: options.host,
-			get children() {
-				return render();
-			}
-		}) : render());
+		let content = render;
+		const host = options.host;
+		if (host) {
+			const child = content;
+			content = () => createComponent(HostProvider, {
+				value: host,
+				get children() {
+					return child();
+				}
+			});
+		}
+		const platform = options.platform;
+		if (platform) {
+			const child = content;
+			content = () => createComponent(PlatformProvider, {
+				value: platform,
+				get children() {
+					return child();
+				}
+			});
+		}
+		disposeMount = mount(content);
 		flushUpdates();
 	} catch (error) {
 		restore();

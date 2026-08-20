@@ -1,3 +1,4 @@
+import { PlatformProvider, type PlatformServices } from "@wabou/core";
 import { INTERACTION_POLICY, type NodeKey } from "@wabou/core/protocol";
 import {
   type BuiltinHost,
@@ -171,6 +172,8 @@ export interface ComponentWaitForOptions {
 export interface RenderComponentOptions {
   /** Host fixture injected into the component subtree. */
   host?: Host;
+  /** Native platform services overridden for this component subtree. */
+  platform?: Partial<PlatformServices>;
   /** Use a fake clock owned and restored by this component screen. */
   clock?: "real" | "fake";
 }
@@ -540,16 +543,30 @@ export function renderComponent(
         .mockImplementation(() => fakeFrameTime);
       restorePerformanceNow = () => performanceNow.mockRestore();
     }
-    disposeMount = mount(() =>
-      options.host
-        ? createComponent(HostProvider, {
-            value: options.host,
-            get children() {
-              return render();
-            },
-          })
-        : render(),
-    );
+    let content = render;
+    const host = options.host;
+    if (host) {
+      const child = content;
+      content = () =>
+        createComponent(HostProvider, {
+          value: host,
+          get children() {
+            return child();
+          },
+        });
+    }
+    const platform = options.platform;
+    if (platform) {
+      const child = content;
+      content = () =>
+        createComponent(PlatformProvider, {
+          value: platform,
+          get children() {
+            return child();
+          },
+        });
+    }
+    disposeMount = mount(content);
     flushUpdates();
   } catch (error) {
     restore();
