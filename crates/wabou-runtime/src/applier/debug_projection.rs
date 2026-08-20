@@ -333,6 +333,8 @@ impl Applier {
                     height: ch,
                 },
                 listeners,
+                focusable: self.interaction.input.focusable_targets.contains(&id),
+                focus_order: declared.and_then(|declared| declared.focus_order),
                 widget: self
                     .document
                     .widget_manager

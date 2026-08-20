@@ -266,6 +266,12 @@ pub struct DebugNode {
     pub content_rect: Rect,
     /// Generated event codes registered on the node.
     pub listeners: Vec<u8>,
+    /// Whether the final interaction projection admits this node as a focus target.
+    #[serde(default)]
+    pub focusable: bool,
+    /// JS-authored focus order. Negative values are programmatically focusable but skipped by Tab.
+    #[serde(default)]
+    pub focus_order: Option<i32>,
     /// Native widget kind, if attached.
     pub widget: Option<String>,
     /// Clip and transform diagnostics.

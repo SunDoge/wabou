@@ -50,7 +50,10 @@ mise exec -- cargo run -p wabou-cli -- inspect capture --x 820 --y 600 --output 
 ```
 
 `query` searches tags, text and classes. `node` returns structure, attributes,
-listeners, border/content rectangles and a compact computed-style summary.
+listeners, border/content rectangles and a compact computed-style summary. It
+also reports the JS-authored `focusOrder` and the final projected `focusable`
+state. Comparing them distinguishes authored keyboard policy from a node that
+is temporarily excluded by runtime state such as an active modal.
 Node identities are generational and are printed as `{ "lo": 42, "hi": 1 }`;
 pass them to `inspect node` as `42:1`. A bare `42` remains shorthand for the
 initial generation `42:1`, but an exact key should be copied after remounts.
