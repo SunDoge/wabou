@@ -1716,6 +1716,18 @@ function Popover(props) {
 							};
 						},
 						onClick: (event) => event.stopPropagation(),
+						get onPointerEnter() {
+							return props.onContentPointerEnter;
+						},
+						get onPointerLeave() {
+							return props.onContentPointerLeave;
+						},
+						get onFocusIn() {
+							return props.onContentFocusIn;
+						},
+						get onFocusOut() {
+							return props.onContentFocusOut;
+						},
 						onKeyDown: handleEscape,
 						get children() {
 							return props.children;
@@ -2043,4 +2055,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createTransition as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-BevFk5rm.mjs.map
+//# sourceMappingURL=primitives-DOeoy0cp.mjs.map

@@ -23,7 +23,7 @@ import {
   type PointAnchor,
   shift,
 } from "./positioner";
-import { View, type WabouStyle } from "./view";
+import { View, type ViewProps, type WabouStyle } from "./view";
 
 export interface PopoverTriggerProps {
   ref: (node: Handle) => void;
@@ -53,6 +53,11 @@ interface PopoverBaseProps {
   contentClass?: string;
   contentStyle?: WabouStyle;
   contentShadows?: readonly Shadow[] | null;
+  /** Keeps composed hover/focus surfaces open while the pointer is inside. */
+  onContentPointerEnter?: ViewProps["onPointerEnter"];
+  onContentPointerLeave?: ViewProps["onPointerLeave"];
+  onContentFocusIn?: ViewProps["onFocusIn"];
+  onContentFocusOut?: ViewProps["onFocusOut"];
   closeOnEscape?: boolean;
   restoreFocus?: boolean;
   /** Defaults to the nearest overlay plane, or `floating` at app content. */
@@ -268,6 +273,10 @@ export function Popover(props: PopoverProps): JSX.Element {
             onClick={(event: { stopPropagation(): void }) =>
               event.stopPropagation()
             }
+            onPointerEnter={props.onContentPointerEnter}
+            onPointerLeave={props.onContentPointerLeave}
+            onFocusIn={props.onContentFocusIn}
+            onFocusOut={props.onContentFocusOut}
             onKeyDown={handleEscape}
           >
             {props.children}

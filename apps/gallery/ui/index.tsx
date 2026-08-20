@@ -66,6 +66,7 @@ type ComponentId =
   | "toast"
   | "tooltip"
   | "popover"
+  | "hover-card"
   | "breadcrumb"
   | "pagination"
   | "dropdown-menu"
@@ -100,6 +101,7 @@ const groups: Array<{
       { id: "sheet", name: "Sheet" },
       { id: "toast", name: "Toast" },
       { id: "popover", name: "Popover" },
+      { id: "hover-card", name: "Hover card" },
     ],
   },
   {
@@ -217,6 +219,8 @@ const descriptions: Record<ComponentId, string> = {
     "A delayed floating label for pointer hover and keyboard focus targets.",
   popover:
     "Displays composed interactive content in a collision-aware floating surface.",
+  "hover-card":
+    "Previews related content with delayed pointer and keyboard interaction.",
   breadcrumb:
     "Shows the current location while leaving navigation behavior to the application.",
   pagination: "Composes explicit controls for navigating a paged collection.",
@@ -289,6 +293,7 @@ import {
   DropdownMenuPage,
   EmptyPage,
   FieldPage,
+  HoverCardPage,
   PaginationPage,
   PopoverPage,
   ResizablePage,
@@ -524,6 +529,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "popover"}>
                     <PopoverPage />
+                  </Match>
+                  <Match when={selected() === "hover-card"}>
+                    <HoverCardPage />
                   </Match>
                   <Match when={selected() === "resizable"}>
                     <ResizablePage />

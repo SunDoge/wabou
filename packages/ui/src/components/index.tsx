@@ -39,6 +39,7 @@ export * from "./disclosure";
 export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
 export * from "./dropdown-menu";
 export * from "./forms";
+export * from "./hover-card";
 export * from "./input";
 export * from "./layout";
 export * from "./navigation";

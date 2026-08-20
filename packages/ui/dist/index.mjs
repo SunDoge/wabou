@@ -1,4 +1,4 @@
-import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover$1, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-BevFk5rm.mjs";
+import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover$1, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-DOeoy0cp.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -1952,6 +1952,119 @@ function InputGroupTextArea(props) {
 	} }));
 }
 //#endregion
+//#region src/components/delayed-open.ts
+/** Owns cancellable open/close timers independently from a rendered surface. */
+function createDelayedOpenController(options) {
+	let timer;
+	const cancel = () => {
+		if (timer !== void 0) clearTimeout(timer);
+		timer = void 0;
+	};
+	const schedule = (open, delay) => {
+		cancel();
+		if (delay <= 0) {
+			options.setOpen(open);
+			return;
+		}
+		timer = setTimeout(() => {
+			timer = void 0;
+			options.setOpen(open);
+		}, delay);
+	};
+	return {
+		scheduleOpen: () => schedule(true, options.openDelay()),
+		scheduleClose: () => schedule(false, options.closeDelay()),
+		openNow: () => {
+			cancel();
+			options.setOpen(true);
+		},
+		closeNow: () => {
+			cancel();
+			options.setOpen(false);
+		},
+		cancel,
+		dispose: cancel
+	};
+}
+//#endregion
+//#region src/components/hover-card.tsx
+/** A preview surface that tolerates pointer travel between trigger and card. */
+function HoverCard(props) {
+	const theme = useComponentsTheme();
+	const state = createControllableState({
+		value: () => props.open,
+		defaultValue: props.defaultOpen ?? false,
+		disabled: () => props.disabled ?? false,
+		onChange: props.onOpenChange
+	});
+	const open = () => !(props.disabled ?? false) && state.value();
+	const delay = createDelayedOpenController({
+		openDelay: () => Math.max(0, props.openDelay ?? 400),
+		closeDelay: () => Math.max(0, props.closeDelay ?? 200),
+		setOpen: (next) => state.set(next)
+	});
+	onCleanup(delay.dispose);
+	return createComponent$1(Popover$1, {
+		get open() {
+			return open();
+		},
+		onOpenChange: (next) => {
+			if (!next) delay.closeNow();
+		},
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get placement() {
+			return props.placement ?? "bottom-start";
+		},
+		get offset() {
+			return props.offset ?? 8;
+		},
+		closeOnEscape: true,
+		restoreFocus: false,
+		get contentClass() {
+			return join("min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface", props.contentClass);
+		},
+		get contentShadows() {
+			return memo(() => {
+				return props.contentShadows === void 0;
+			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
+		},
+		get onContentPointerEnter() {
+			return delay.openNow;
+		},
+		get onContentPointerLeave() {
+			return delay.scheduleClose;
+		},
+		get onContentFocusIn() {
+			return delay.openNow;
+		},
+		get onContentFocusOut() {
+			return delay.scheduleClose;
+		},
+		trigger: (popover) => {
+			const trigger = {
+				ref: popover.ref,
+				onPointerEnter: delay.scheduleOpen,
+				onPointerLeave: delay.scheduleClose,
+				onFocus: delay.openNow,
+				onBlur: delay.scheduleClose,
+				onKeyDown: (event) => {
+					if (event.key === "Escape") delay.closeNow();
+				},
+				"aria-haspopup": "dialog",
+				get "aria-expanded"() {
+					return open();
+				}
+			};
+			return props.trigger(trigger);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+//#endregion
 //#region src/components/layout.tsx
 const emptyClass = (variant = "surface", className) => join("w-full min-w-0 p-8 items-center justify-center gap-4", variant === "surface" ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs" : "min-h-0 bg-transparent", className);
 function Empty(props) {
@@ -3763,40 +3876,6 @@ function Toaster(props) {
 	});
 }
 //#endregion
-//#region src/components/tooltip-state.ts
-/** Owns tooltip timers independently from rendering and positioning. */
-function createTooltipDelayController(options) {
-	let timer;
-	const cancel = () => {
-		if (timer !== void 0) clearTimeout(timer);
-		timer = void 0;
-	};
-	const schedule = (open, delay) => {
-		cancel();
-		if (delay <= 0) {
-			options.setOpen(open);
-			return;
-		}
-		timer = setTimeout(() => {
-			timer = void 0;
-			options.setOpen(open);
-		}, delay);
-	};
-	return {
-		scheduleOpen: () => schedule(true, options.openDelay()),
-		scheduleClose: () => schedule(false, options.closeDelay()),
-		openNow: () => {
-			cancel();
-			options.setOpen(true);
-		},
-		closeNow: () => {
-			cancel();
-			options.setOpen(false);
-		},
-		dispose: cancel
-	};
-}
-//#endregion
 //#region src/components/tooltip.tsx
 let tooltipId = 0;
 /** A delayed, non-interactive label for pointer and keyboard focus targets. */
@@ -3809,7 +3888,7 @@ function Tooltip(props) {
 		if (props.open === void 0) setUncontrolledOpen(next);
 		props.onOpenChange?.(next);
 	};
-	const delay = createTooltipDelayController({
+	const delay = createDelayedOpenController({
 		openDelay: () => props.openDelay ?? 500,
 		closeDelay: () => props.closeDelay ?? 80,
 		setOpen
@@ -4307,6 +4386,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

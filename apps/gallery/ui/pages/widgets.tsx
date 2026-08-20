@@ -13,6 +13,7 @@ import {
   Avatar,
   AvatarGroup,
   AvatarGroupCount,
+  Badge,
   Breadcrumb,
   BreadcrumbEllipsis,
   BreadcrumbItem,
@@ -50,6 +51,7 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  HoverCard,
   Icon,
   Input,
   InputGroup,
@@ -289,6 +291,39 @@ export function PopoverPage() {
         </Popover>
         <Text role="status" class="text-sm text-secondary">
           {saved()}
+        </Text>
+      </View>
+    </Preview>
+  );
+}
+
+export function HoverCardPage() {
+  return (
+    <Preview title="Delayed preview surface">
+      <View class="flex items-start gap-4">
+        <HoverCard
+          aria-label="Wabou project preview"
+          trigger={(trigger) => (
+            <Button variant="outline" aria-label="Preview Wabou" {...trigger}>
+              Preview Wabou
+            </Button>
+          )}
+        >
+          <View class="flex flex-col gap-2">
+            <Text class="text-sm font-semibold text-primary">Wabou</Text>
+            <Text
+              role="status"
+              aria-label="Project summary"
+              class="whitespace-normal text-sm text-secondary"
+            >
+              Native desktop applications composed with Solid and rendered by
+              Rust.
+            </Text>
+            <Badge variant="outline">Native UI</Badge>
+          </View>
+        </HoverCard>
+        <Text class="text-sm text-muted">
+          Hover the trigger, or focus it with the keyboard.
         </Text>
       </View>
     </Preview>
