@@ -1,8 +1,8 @@
-import { test } from "@wabou/test";
+import { expect, test } from "@wabou/test";
 
 test(
   "create and inspect a failed task for capture",
-  async ({ page }) => {
+  async ({ effects, page }) => {
     await page.getByRole("button", { name: "Downloads" }).click();
     await page.getByRole("button", { name: "New task" }).click();
     await page.getByRole("button", { name: "Links" }).click();
@@ -24,18 +24,18 @@ test(
     const files = page.getByRole("tab", { name: "Task files" });
     const activity = page.getByRole("tab", { name: "Task activity" });
     await overview.waitFor();
-    const [overviewBox, filesBox, activityBox] = await Promise.all([
-      overview.snapshot(),
-      files.snapshot(),
-      activity.snapshot(),
-    ]);
-    const tabY = overviewBox.bounds.y;
-    if (
-      Math.abs(filesBox.bounds.y - tabY) > 1 ||
-      Math.abs(activityBox.bounds.y - tabY) > 1
-    ) {
-      throw new Error("task detail tabs must remain on one row");
-    }
+    await page
+      .getByRole("group", { name: "Task detail status: Failed" })
+      .waitFor();
+    await expect(files).toHaveSameBoundsAs(overview, ["y"], { tolerance: 1 });
+    await expect(activity).toHaveSameBoundsAs(overview, ["y"], {
+      tolerance: 1,
+    });
+    effects.respond("clipboardWrite", null);
+    await page.getByRole("button", { name: "Copy source" }).click();
+    await page
+      .getByRole("status", { name: "Download action completed" })
+      .waitFor();
   },
   { timeout: 10_000 },
 );

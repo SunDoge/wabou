@@ -12,9 +12,9 @@ test("open Downloads for capture", async ({ page }) => {
     heading.snapshot(),
   ]);
   if (
-    dashboardBox.bounds.y < 60 ||
-    toggleBox.bounds.y < 12 ||
-    headingBox.bounds.y < 12
+    dashboardBox.bounds.y < 40 ||
+    toggleBox.bounds.y < 0 ||
+    headingBox.bounds.y < 40
   )
     throw new Error(
       `capture viewport clipped fixed chrome (sidebar y=${dashboardBox.bounds.y}, toggle y=${toggleBox.bounds.y}, heading y=${headingBox.bounds.y})`,

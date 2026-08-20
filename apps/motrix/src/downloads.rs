@@ -20,7 +20,9 @@ use wabou::{
 use crate::{
     activity::ActivityLog,
     config::{AppConfig, ConfigStore},
-    download_backend::{DownloadEvent, DownloadTask, GoshBackend, HttpDownloadRequest, TaskState},
+    download_backend::{
+        DownloadEvent, DownloadTask, GoshBackend, HttpDownloadRequest, TaskPriority, TaskState,
+    },
     nat::{NatManager, NatStatus},
     torrent::{TorrentPreview, read_torrent},
 };
@@ -38,11 +40,14 @@ const ADD_TORRENT: JsonMethod<AddTorrentRequest, String> = JsonMethod::new("addT
 const INSPECT_TORRENT: HostMethod<InspectTorrentRequest, TorrentPreview> =
     HostMethod::new("inspectTorrent");
 const TASK_ACTION: JsonMethod<TaskActionRequest, ()> = JsonMethod::new("taskAction");
+const SET_TASK_PRIORITY: JsonMethod<SetTaskPriorityRequest, ()> =
+    JsonMethod::new("setTaskPriority");
 const BATCH_TASK_ACTION: JsonMethod<BatchTaskActionRequest, Vec<String>> =
     JsonMethod::new("batchTaskAction");
 const GET_CONFIG: JsonMethod<(), AppConfig> = JsonMethod::no_request("getConfig");
 const SET_CONFIG: JsonMethod<AppConfig, SetConfigResult> = JsonMethod::new("setConfig");
 const OPEN_TASK_FOLDER: JsonMethod<OpenTaskFolderRequest, ()> = JsonMethod::new("openTaskFolder");
+const OPEN_PATH: JsonMethod<OpenTaskFolderRequest, ()> = JsonMethod::new("openPath");
 const OPEN_CONFIG_FOLDER: JsonMethod<(), ()> = JsonMethod::no_request("openConfigFolder");
 const GLOBAL_TASK_ACTION: JsonMethod<GlobalTaskActionRequest, ()> =
     JsonMethod::new("globalTaskAction");
@@ -50,6 +55,24 @@ const GET_TASK_DETAILS: JsonMethod<GetTaskDetailsRequest, TaskDetails> =
     JsonMethod::new("getTaskDetails");
 const RETRY_ENGINE: JsonMethod<(), ()> = JsonMethod::no_request("retryEngine");
 static TEST_ENGINE_FAILURE_INJECTED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DownloadUriKind {
+    Http,
+    Magnet,
+}
+
+fn classify_download_uri(value: &str) -> Result<DownloadUriKind, String> {
+    let parsed =
+        url::Url::parse(value).map_err(|error| format!("invalid download URI: {error}"))?;
+    match parsed.scheme() {
+        "http" | "https" => Ok(DownloadUriKind::Http),
+        "magnet" => Ok(DownloadUriKind::Magnet),
+        scheme => Err(format!(
+            "unsupported download URI scheme `{scheme}`; expected HTTP, HTTPS, or magnet"
+        )),
+    }
+}
 
 #[derive(Clone)]
 pub struct DownloadService {
@@ -132,11 +155,34 @@ impl DownloadService {
         self.runtime.get()
     }
 
-    fn save_config(&self, config: AppConfig) -> Result<SetConfigResult, String> {
+    async fn save_config(&self, config: AppConfig) -> Result<SetConfigResult, String> {
         config.validate()?;
         let runtime = self.runtime()?;
         let restart_required = engine_restart_required(&runtime.engine_config, &config);
-        runtime.config_store.save(&config)?;
+        let previous = runtime
+            .config
+            .read()
+            .map_err(|_| "configuration lock poisoned".to_owned())?
+            .clone();
+        runtime
+            .backend
+            .set_runtime_limits(
+                config.max_concurrent_downloads.max(1) as usize,
+                parse_nonzero_limit(&config.max_overall_download_limit),
+                parse_nonzero_limit(&config.max_overall_upload_limit),
+            )
+            .await?;
+        if let Err(error) = runtime.config_store.save(&config) {
+            let _ = runtime
+                .backend
+                .set_runtime_limits(
+                    previous.max_concurrent_downloads.max(1) as usize,
+                    parse_nonzero_limit(&previous.max_overall_download_limit),
+                    parse_nonzero_limit(&previous.max_overall_upload_limit),
+                )
+                .await;
+            return Err(error);
+        }
         *runtime
             .config
             .write()
@@ -250,23 +296,24 @@ impl DownloadService {
             TaskAction::Remove | TaskAction::StopSeeding => {
                 self.backend()?.cancel(id, remove_files).await
             }
-            TaskAction::Retry => Err("retry is not available yet; add the task again".to_owned()),
+            TaskAction::Retry => self.backend()?.retry(id).await.map(|_| ()),
         }
     }
+}
+
+fn parse_nonzero_limit(value: &str) -> Option<u64> {
+    crate::config::parse_byte_size(value).filter(|value| *value > 0)
 }
 
 fn engine_restart_required(previous: &AppConfig, next: &AppConfig) -> bool {
     previous.download_dir != next.download_dir
         || previous.max_connection_per_server != next.max_connection_per_server
         || previous.min_split_size != next.min_split_size
-        || previous.max_concurrent_downloads != next.max_concurrent_downloads
         || previous.dht_enabled != next.dht_enabled
         || previous.pex_enabled != next.pex_enabled
         || previous.bt_max_peers != next.bt_max_peers
         || previous.listen_port != next.listen_port
         || previous.seed_ratio != next.seed_ratio
-        || previous.max_overall_download_limit != next.max_overall_download_limit
-        || previous.max_overall_upload_limit != next.max_overall_upload_limit
         || previous.user_agent != next.user_agent
         || previous.proxy.enabled != next.proxy.enabled
         || previous.proxy.host != next.proxy.host
@@ -343,6 +390,8 @@ struct TaskSnapshot {
     retryable: bool,
     archived: bool,
     file_count: usize,
+    priority: TaskPriority,
+    created_at_ms: i64,
 }
 
 impl From<DownloadTask> for TaskSnapshot {
@@ -376,9 +425,11 @@ impl From<DownloadTask> for TaskSnapshot {
             seeders: task.seeders,
             error_message: task.error,
             bittorrent: task.bittorrent,
-            retryable: task.state == TaskState::Error,
+            retryable: task.retryable,
             archived: false,
             file_count: task.file_count,
+            priority: task.priority,
+            created_at_ms: task.created_at_ms,
         }
     }
 }
@@ -450,6 +501,8 @@ struct AddUriRequest {
     split: Option<i32>,
     #[serde(default)]
     headers: Vec<String>,
+    #[serde(default)]
+    priority: TaskPriority,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -457,6 +510,8 @@ struct AddTorrentRequest {
     path: String,
     dir: Option<String>,
     selected_files: Option<Vec<u64>>,
+    #[serde(default)]
+    priority: TaskPriority,
 }
 #[derive(Deserialize)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
@@ -487,6 +542,12 @@ struct TaskActionRequest {
     action: TaskAction,
     #[serde(default)]
     remove_files: bool,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetTaskPriorityRequest {
+    id: String,
+    priority: TaskPriority,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -536,7 +597,7 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
     let set = service.clone();
     capability.method(SET_CONFIG, move |config| {
         let service = set.clone();
-        async move { service.save_config(config) }
+        async move { service.save_config(config).await }
     })?;
     let details = service.clone();
     capability.method(GET_TASK_DETAILS, move |request: GetTaskDetailsRequest| {
@@ -552,10 +613,17 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
     capability.method(ADD_URI, move |request: AddUriRequest| {
         let service = add.clone();
         async move {
-            if request.uris.is_empty() {
+            let uris = request
+                .uris
+                .into_iter()
+                .map(|value| value.trim().to_owned())
+                .filter(|value| !value.is_empty())
+                .map(|uri| classify_download_uri(&uri).map(|kind| (uri, kind)))
+                .collect::<Result<Vec<_>, _>>()?;
+            if uris.is_empty() {
                 return Err("at least one URI is required".to_owned());
             }
-            if request.uris.len() > 1
+            if uris.len() > 1
                 && request
                     .out
                     .as_deref()
@@ -564,32 +632,34 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
                 return Err("an output filename can only be used with one URI".to_owned());
             }
             let mut ids = Vec::new();
-            for uri in request
-                .uris
-                .into_iter()
-                .map(|value| value.trim().to_owned())
-                .filter(|value| !value.is_empty())
-            {
+            for (uri, kind) in uris {
                 let dir = request
                     .dir
                     .as_deref()
                     .filter(|value| !value.trim().is_empty())
                     .map(PathBuf::from);
-                let id = if uri.starts_with("magnet:") {
-                    service.backend()?.add_magnet(uri, dir).await?
-                } else {
-                    let mut download = HttpDownloadRequest::new(uri);
-                    download.save_dir = dir;
-                    download.filename = request.out.clone();
-                    download.max_connections =
-                        request.split.map(|value| value.clamp(1, 64) as usize);
-                    download.headers = request
-                        .headers
-                        .iter()
-                        .filter_map(|header| header.split_once(':'))
-                        .map(|(name, value)| (name.trim().to_owned(), value.trim().to_owned()))
-                        .collect();
-                    service.backend()?.add_http(download).await?
+                let id = match kind {
+                    DownloadUriKind::Magnet => {
+                        service
+                            .backend()?
+                            .add_magnet(uri, dir, request.priority)
+                            .await?
+                    }
+                    DownloadUriKind::Http => {
+                        let mut download = HttpDownloadRequest::new(uri);
+                        download.save_dir = dir;
+                        download.filename = request.out.clone();
+                        download.max_connections =
+                            request.split.map(|value| value.clamp(1, 64) as usize);
+                        download.headers = request
+                            .headers
+                            .iter()
+                            .filter_map(|header| header.split_once(':'))
+                            .map(|(name, value)| (name.trim().to_owned(), value.trim().to_owned()))
+                            .collect();
+                        download.priority = request.priority;
+                        service.backend()?.add_http(download).await?
+                    }
                 };
                 ids.push(id);
             }
@@ -610,7 +680,12 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
             });
             service
                 .backend()?
-                .add_torrent(data, request.dir.map(PathBuf::from), selected)
+                .add_torrent(
+                    data,
+                    request.dir.map(PathBuf::from),
+                    selected,
+                    request.priority,
+                )
                 .await
         }
     })?;
@@ -620,6 +695,16 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
         async move {
             service
                 .task_action(&request.id, request.action, request.remove_files)
+                .await
+        }
+    })?;
+    let priority = service.clone();
+    capability.method(SET_TASK_PRIORITY, move |request: SetTaskPriorityRequest| {
+        let service = priority.clone();
+        async move {
+            service
+                .backend()?
+                .set_priority(request.id, request.priority)
                 .await
         }
     })?;
@@ -663,6 +748,12 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
                     .ok_or_else(|| "task path has no parent".to_owned())?
             };
             open::that(target).map_err(|error| error.to_string())
+        },
+    )?;
+    capability.method(
+        OPEN_PATH,
+        move |request: OpenTaskFolderRequest| async move {
+            open::that(PathBuf::from(request.path)).map_err(|error| error.to_string())
         },
     )?;
     let folder = service.clone();
@@ -773,7 +864,7 @@ pub fn stream_snapshots(context: HostMessageContext, service: DownloadService) {
 
 #[cfg(test)]
 mod tests {
-    use super::engine_restart_required;
+    use super::{DownloadUriKind, classify_download_uri, engine_restart_required};
     use crate::config::{AppConfig, ThemeMode};
 
     #[test]
@@ -784,13 +875,33 @@ mod tests {
         appearance.notify_on_complete = !appearance.notify_on_complete;
         assert!(!engine_restart_required(&original, &appearance));
 
+        let mut runtime_limits = original.clone();
+        runtime_limits.max_concurrent_downloads += 1;
+        runtime_limits.max_overall_download_limit = "10M".to_owned();
+        runtime_limits.max_overall_upload_limit = "1M".to_owned();
+        assert!(!engine_restart_required(&original, &runtime_limits));
+
         let mut engine = original.clone();
-        engine.max_concurrent_downloads += 1;
+        engine.max_connection_per_server += 1;
         assert!(engine_restart_required(&original, &engine));
 
         let mut later_save = engine.clone();
         later_save.theme = ThemeMode::Dark;
         assert!(engine_restart_required(&original, &later_save));
         assert!(!engine_restart_required(&engine, &later_save));
+    }
+
+    #[test]
+    fn download_uri_validation_rejects_local_and_unknown_schemes_before_dispatch() {
+        assert_eq!(
+            classify_download_uri("https://example.com/file.iso").unwrap(),
+            DownloadUriKind::Http
+        );
+        assert_eq!(
+            classify_download_uri("magnet:?xt=urn:btih:0123456789abcdef").unwrap(),
+            DownloadUriKind::Magnet
+        );
+        assert!(classify_download_uri("file:///tmp/private").is_err());
+        assert!(classify_download_uri("not a URI").is_err());
     }
 }

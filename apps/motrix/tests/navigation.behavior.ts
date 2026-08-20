@@ -46,6 +46,15 @@ test("Motrix dashboard reflows at its minimum window size", async ({
   await expect(uploadCardChart).toBeWithinBounds(wideUpload.bounds, {
     tolerance: 1,
   });
+  const wideActivity = await activity.snapshot();
+  if (
+    wideActivity.bounds.height < 200 ||
+    wideActivity.bounds.y + wideActivity.bounds.height < 900 - 48
+  ) {
+    throw new Error(
+      `dashboard activity did not consume the available viewport: ${JSON.stringify(wideActivity.bounds)}`,
+    );
+  }
 
   await window.resize(window.current, 900, 600);
   const compactEngine = await engine.snapshot();
@@ -73,7 +82,29 @@ test("Motrix dashboard reflows at its minimum window size", async ({
     );
   }
 
+  await window.resize(window.current, 700, 500);
+  const clippedTransfer = await transferOverview.snapshot();
+  if (clippedTransfer.bounds.y + clippedTransfer.bounds.height <= 500) {
+    throw new Error(
+      "small-window dashboard did not produce scrollable overflow",
+    );
+  }
+  await engine.wheel(900);
+  await expect(transferOverview).toBeInViewport();
+
   await window.resize(window.current, 1280, 820);
+  const standardActivity = await activity.snapshot();
+  // Restored transparent windows reserve a 12px client-decoration inset on
+  // every side for their shadow. Keep the activity useful without assuming
+  // the full native surface is application content.
+  if (
+    standardActivity.bounds.height < 200 ||
+    standardActivity.bounds.y + standardActivity.bounds.height < 820 - 48
+  ) {
+    throw new Error(
+      `dashboard roomy breakpoint starved activity at the default window size: ${JSON.stringify(standardActivity.bounds)}`,
+    );
+  }
 });
 
 test("Motrix route changes keep the sidebar chrome fixed", async ({
@@ -82,12 +113,26 @@ test("Motrix route changes keep the sidebar chrome fixed", async ({
 }) => {
   await window.resize(window.current, 1024, 700);
   const dashboard = page.getByRole("button", { name: "Dashboard" });
+  await expect(
+    page.getByRole("button", { name: "Minimize window" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Maximize window" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Close window" }),
+  ).toBeInViewport();
+  await page.getByRole("button", { name: "Hide sidebar" }).click();
+  const showSidebar = page.getByRole("button", { name: "Show sidebar" });
+  await showSidebar.waitFor();
+  await showSidebar.click();
+  await page.getByRole("button", { name: "Hide sidebar" }).waitFor();
   const before = await dashboard.snapshot();
   await expect(dashboard).toBeWithinBounds({
     x: 0,
-    y: 60,
+    y: 40,
     width: 1024,
-    height: 640,
+    height: 660,
   });
   await page.getByRole("button", { name: "Settings" }).click();
   const heading = page.getByRole("heading", { name: "Settings" });
@@ -97,7 +142,21 @@ test("Motrix route changes keep the sidebar chrome fixed", async ({
     y: before.bounds.y,
   });
   await expect(heading).toBeInViewport();
+  await page.getByRole("group", { name: "Settings categories" }).wheel(800);
   await dashboard.click();
+  const dashboardHeading = page.getByRole("heading", { name: "Dashboard" });
+  await expect(dashboardHeading).toBeInViewport();
+  const dashboardHeadingBounds = (await dashboardHeading.snapshot()).bounds;
+  const engine = await page
+    .getByRole("group", { name: "DOWNLOAD SERVICE statistic" })
+    .snapshot();
+  if (
+    engine.bounds.y <
+    dashboardHeadingBounds.y + dashboardHeadingBounds.height
+  )
+    throw new Error(
+      `route navigation retained the previous page scroll offset: heading=${dashboardHeadingBounds.y}, first card=${engine.bounds.y}`,
+    );
   await window.resize(window.current, 1280, 820);
 });
 
@@ -110,11 +169,29 @@ test("Motrix download controls remain inside the minimum viewport", async ({
     "page",
   );
   await window.resize(window.current, 900, 600);
+  const search = page.getByRole("textbox", { name: "Search downloads" });
+  await expect(search).toBeInViewport();
   await expect(
-    page.getByRole("textbox", { name: "Search downloads" }),
+    page.getByRole("button", { name: "Sort downloads: Newest first" }),
   ).toBeInViewport();
+  const downloadList = await page
+    .getByRole("group", { name: "Download list" })
+    .snapshot();
+  if (downloadList.bounds.height < 300) {
+    throw new Error(
+      `download list did not consume the available viewport: ${downloadList.bounds.height}px`,
+    );
+  }
+  await page.getByRole("button", { name: "Add a download" }).click();
+  await page.getByRole("dialog", { name: "Add download task" }).waitFor();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await search.type("no-such-download");
+  const clearSearch = page.getByRole("button", { name: "Clear search" });
+  await clearSearch.waitFor();
+  await clearSearch.click();
+  await expect(search).toHaveValue("");
   await expect(
-    page.getByRole("button", { name: "Sort downloads" }),
+    page.getByRole("button", { name: "Add a download" }),
   ).toBeInViewport();
   const allDownloads = page.getByRole("button", { name: "All" });
   await allDownloads.click();
@@ -122,6 +199,14 @@ test("Motrix download controls remain inside the minimum viewport", async ({
   await expect(page.getByRole("button", { name: "Downloading" })).toBePressed();
   await page.getByRole("button", { name: "Downloading" }).press("ArrowLeft");
   await expect(allDownloads).toBePressed();
+  await window.resize(window.current, 700, 500);
+  await expect(search).toBeInViewport();
+  await expect(
+    page.getByRole("combobox", { name: "Download status" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("button", { name: "Add a download" }),
+  ).toBeInViewport();
   await window.resize(window.current, 1280, 820);
 });
 
@@ -131,6 +216,35 @@ test("Motrix settings controls remain inside the minimum viewport", async ({
 }) => {
   await page.getByRole("button", { name: "Settings" }).click();
   await window.resize(window.current, 900, 600);
+  const categories = page.getByRole("group", { name: "Settings categories" });
+  const categoryBounds = (await categories.snapshot()).bounds;
+  for (const name of [
+    "General",
+    "Appearance",
+    "Downloads",
+    "BitTorrent",
+    "Integration",
+    "Network",
+    "Advanced",
+    "About",
+  ]) {
+    const category = page.getByRole("button", {
+      name: `Open ${name} settings`,
+    });
+    await expect(category).toBeWithinBounds(categoryBounds, { tolerance: 1 });
+    const { bounds } = await category.snapshot();
+    if (bounds.height < 96) {
+      throw new Error(
+        `settings category ${name} collapsed below its content-safe height: ${bounds.height}px`,
+      );
+    }
+  }
+  await categories.wheel(800);
+  await expect(
+    page.getByRole("button", { name: "Open About settings" }),
+  ).toBeInViewport();
+  await categories.wheel(-800);
+  await page.getByRole("button", { name: "Open General settings" }).click();
   await expect(
     page.getByRole("switch", {
       name: "Show downloads after creating a task",
@@ -153,6 +267,9 @@ test("Motrix settings controls remain inside the minimum viewport", async ({
   await general.wheel(600);
   await expect(save).toBeInViewport();
   await save.wheel(-600);
+  await page
+    .getByRole("button", { name: "Back to settings categories" })
+    .click();
   await window.resize(window.current, 1280, 820);
 });
 
@@ -160,6 +277,7 @@ test("Motrix settings distinguish saved config from an unsaved draft", async ({
   page,
 }) => {
   await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Open General settings" }).click();
   await page.getByRole("status", { name: "Settings up to date" }).waitFor();
   const save = page.getByRole("button", { name: "Save settings" });
   await expect(save).toBeDisabled();
@@ -189,6 +307,12 @@ test("Motrix settings distinguish saved config from an unsaved draft", async ({
   await expect(
     page.getByRole("alert", { name: "Settings validation error" }),
   ).toBeAbsent();
+  const maxConcurrent = page.getByRole("textbox", {
+    name: "Concurrent downloads",
+  });
+  await expect(maxConcurrent).toHaveValue("5");
+  await maxConcurrent.press("a", { control: true });
+  await maxConcurrent.type("6");
   await page.getByRole("tab", { name: "Configure General" }).click();
   const setting = page.getByRole("switch", {
     name: "Show downloads after creating a task",
@@ -205,6 +329,11 @@ test("Motrix settings distinguish saved config from an unsaved draft", async ({
   // Restore the original value so the behavior suite does not persist a
   // user-visible configuration change.
   await setting.click();
+  await page.getByRole("tab", { name: "Configure Downloads" }).click();
+  await maxConcurrent.press("a", { control: true });
+  await maxConcurrent.type("5");
+  await expect(maxConcurrent).toHaveValue("5");
+  await expect(save).toBeEnabled();
   await save.click();
   await page
     .getByRole("status", { name: "Settings saved and applied." })
@@ -223,9 +352,22 @@ test("Motrix routes and opens the add-task modal", async ({
   await page.getByRole("dialog", { name: "Add download task" }).waitFor();
   await page.getByRole("button", { name: "Links" }).click();
   await page.getByRole("button", { name: "Paste" }).waitFor();
+  const downloadUrls = page.getByRole("textbox", { name: "Download URLs" });
+  await downloadUrls.type("file:///tmp/private");
   await page
-    .getByRole("textbox", { name: "Download URLs" })
-    .type("https://example.com/file.iso\nhttps://example.com/file-2.iso");
+    .getByRole("alert", { name: "Download URI validation error" })
+    .waitFor();
+  await expect(
+    page.getByRole("button", { name: "Create task" }),
+  ).toBeDisabled();
+  await downloadUrls.press("a", { control: true });
+  await downloadUrls.press("Backspace");
+  await expect(
+    page.getByRole("alert", { name: "Download URI validation error" }),
+  ).toBeAbsent();
+  await downloadUrls.type(
+    "https://example.com/file.iso\nhttps://example.com/file-2.iso",
+  );
   await page
     .getByRole("textbox", { name: "Output filename" })
     .type("shared.iso");
@@ -239,14 +381,6 @@ test("Motrix routes and opens the add-task modal", async ({
   await expect(
     page.getByRole("textbox", { name: "Save directory" }),
   ).toHaveValue("/tmp/wabou-motrix-downloads");
-  await page.getByRole("button", { name: "Advanced HTTP options" }).click();
-  await page.getByRole("textbox", { name: "HTTP request headers" }).waitFor();
-  await expect(
-    page.getByRole("dialog", { name: "Add download task" }),
-  ).toBeWithinBounds({ x: 0, y: 16, width: 900, height: 568 });
-  await expect(
-    page.getByRole("button", { name: "Create task" }),
-  ).toBeInViewport();
   const split = page.getByRole("textbox", { name: "Split count" });
   await split.type("x");
   await page
@@ -259,6 +393,18 @@ test("Motrix routes and opens the add-task modal", async ({
   await expect(
     page.getByRole("alert", { name: "Add task validation error" }),
   ).toBeAbsent();
+  const advanced = page.getByRole("button", {
+    name: "Advanced HTTP options",
+  });
+  await advanced.click();
+  await advanced.wheel(420);
+  await page.getByRole("textbox", { name: "HTTP request headers" }).waitFor();
+  await expect(
+    page.getByRole("dialog", { name: "Add download task" }),
+  ).toBeWithinBounds({ x: 0, y: 16, width: 900, height: 568 });
+  await expect(
+    page.getByRole("button", { name: "Create task" }),
+  ).toBeInViewport();
   await page.getByRole("button", { name: "Torrent file" }).click();
   await page.getByRole("label", { name: "Choose a .torrent file" }).waitFor();
   effects.respond("dialogOpen", ["/wabou-test-does-not-exist/missing.torrent"]);
@@ -336,7 +482,35 @@ test(
   { timeout: 10_000 },
 );
 
+test("Motrix file drops expose lifecycle feedback and open torrents", async ({
+  page,
+  window,
+  files,
+}) => {
+  const invalid = files.writeText("drops/readme.txt", "not a torrent");
+  await window.fileDrop(window.current, "entered", [invalid]);
+  await page.getByRole("status", { name: "Torrent drop target" }).waitFor();
+  await window.fileDrop(window.current, "dropped", [invalid]);
+  const dropError = page.getByRole("alert", {
+    name: "Only .torrent files can be dropped here.",
+  });
+  await dropError.waitFor();
+  await page.getByRole("button", { name: "Dismiss file drop error" }).click();
+  await expect(dropError).toBeAbsent();
+
+  const torrent = files.writeText("drops/behavior.torrent", torrentFixture(3));
+  await window.fileDrop(window.current, "entered", [torrent]);
+  await page.getByRole("status", { name: "Torrent drop target" }).waitFor();
+  await window.fileDrop(window.current, "dropped", [torrent]);
+  await page.getByRole("dialog", { name: "Add download task" }).waitFor();
+  await page
+    .getByRole("status", { name: "3 files · 6 B" })
+    .waitFor({ timeout: 5_000 });
+  await page.getByRole("button", { name: "Cancel" }).click();
+});
+
 test("Motrix closes to its tray and restores the native window", async ({
+  effects,
   page,
   window,
 }) => {
@@ -352,6 +526,9 @@ test("Motrix closes to its tray and restores the native window", async ({
     surfaceGeneration: 2,
   });
   await page.getByRole("button", { name: "Downloads" }).waitFor();
+  effects.respond("windowClose", null);
+  await page.getByRole("button", { name: "Close window" }).click();
+  await page.waitForIdle();
 });
 
 test(
@@ -386,6 +563,15 @@ test(
         name: "Inspect queued-magnet-test",
       })
       .click({ timeout: 5_000 });
+    const priority = page.getByRole("combobox", { name: "Task priority" });
+    await priority.click();
+    await expect(page.getByRole("option", { name: "Normal" })).toBeSelected();
+    await page.getByRole("option", { name: "High" }).click();
+    await priority.click();
+    await expect(page.getByRole("option", { name: "High" })).toBeSelected({
+      timeout: 5_000,
+    });
+    await page.getByRole("option", { name: "High" }).click();
     await page.getByRole("tab", { name: "Task activity" }).click();
     await page.getByRole("tab", { name: "Task overview" }).click();
     await page
@@ -402,7 +588,7 @@ test(
 
 test(
   "Motrix inspects and safely removes a real download task",
-  async ({ page, window }) => {
+  async ({ effects, page, window }) => {
     await page.getByRole("button", { name: "New task" }).click();
     await page.getByRole("dialog", { name: "Add download task" }).waitFor();
     await page.getByRole("button", { name: "Links" }).click();
@@ -412,6 +598,9 @@ test(
     await page
       .getByRole("textbox", { name: "Output filename" })
       .type("wabou-behavior-test.bin");
+    const highPriority = page.getByRole("button", { name: "High" });
+    await highPriority.click();
+    await expect(highPriority).toBePressed();
     await page.getByRole("button", { name: "Create task" }).click();
     await page
       .getByRole("alert", {
@@ -419,6 +608,7 @@ test(
       })
       .waitFor({ timeout: 5_000 });
     await page.getByRole("button", { name: "Dismiss" }).click();
+    await page.getByRole("label", { name: "High priority" }).waitFor();
     const taskSelection = page.getByRole("checkbox", {
       name: "Select wabou-behavior-test.bin",
     });
@@ -434,12 +624,32 @@ test(
       timeout: 1_000,
     });
     await taskSelection.click();
+    const retryTask = page.getByRole("button", {
+      name: "Retry wabou-behavior-test.bin",
+    });
+    await retryTask.waitFor({ timeout: 5_000 });
+    await retryTask.click();
     await page
-      .getByRole("button", { name: "Retry wabou-behavior-test.bin" })
+      .getByRole("alert", {
+        name: "Download failed: wabou-behavior-test.bin",
+      })
       .waitFor({ timeout: 5_000 });
+    await page.getByRole("button", { name: "Dismiss" }).click();
+    await page.getByRole("label", { name: "High priority" }).waitFor();
+    await page.getByRole("button", { name: "Notifications" }).click();
     await page
-      .getByRole("button", { name: "Inspect wabou-behavior-test.bin" })
+      .getByRole("button", {
+        name: "View Download failed: wabou-behavior-test.bin",
+        index: 0,
+      })
       .click({ timeout: 5_000 });
+    await expect(page.getByRole("button", { name: "Downloads" })).toBeCurrent(
+      "page",
+    );
+    await page
+      .getByRole("button", { name: "Close inspector" })
+      .waitFor({ timeout: 5_000 });
+    await page.getByRole("group", { name: "Added" }).waitFor();
     await expect(
       page.getByRole("dialog", {
         name: "Task details: wabou-behavior-test.bin",
@@ -450,10 +660,30 @@ test(
       name: "Task details: wabou-behavior-test.bin",
     });
     await compactDetails.waitFor();
+    effects.respond("clipboardWrite", null);
+    await page.getByRole("button", { name: "Copy source" }).click();
+    await page
+      .getByRole("status", { name: "Download action completed" })
+      .waitFor();
     const compactDetailsBox = await compactDetails.snapshot();
     if (compactDetailsBox.bounds.height < 540) {
       throw new Error(
         `compact detail surface wastes viewport height: ${compactDetailsBox.bounds.height}px of 600px`,
+      );
+    }
+    await expect(
+      page.getByRole("button", { name: "Close inspector" }),
+    ).toBeInViewport();
+    await window.resize(window.current, 700, 500);
+    const narrowDetailsBox = await compactDetails.snapshot();
+    if (
+      narrowDetailsBox.bounds.x < 0 ||
+      narrowDetailsBox.bounds.x + narrowDetailsBox.bounds.width > 700 ||
+      narrowDetailsBox.bounds.y < 0 ||
+      narrowDetailsBox.bounds.y + narrowDetailsBox.bounds.height > 500
+    ) {
+      throw new Error(
+        `narrow task details escaped the viewport: ${JSON.stringify(narrowDetailsBox.bounds)}`,
       );
     }
     await expect(
@@ -465,6 +695,14 @@ test(
         name: "Task details: wabou-behavior-test.bin",
       }),
     ).toBeAbsent();
+    effects.respond("contextMenuShow", "priority");
+    const sortDownloads = page.getByRole("button", {
+      name: "Sort downloads: Newest first",
+    });
+    await sortDownloads.click();
+    await page
+      .getByRole("button", { name: "Sort downloads: Priority" })
+      .waitFor();
     await window.resize(window.current, 1280, 820);
     await page
       .getByRole("button", { name: "Inspect wabou-behavior-test.bin" })
@@ -497,6 +735,49 @@ test(
   { timeout: 15_000 },
 );
 
+test(
+  "Motrix respects the show-downloads-after-adding preference",
+  async ({ page }) => {
+    const preference = page.getByRole("switch", {
+      name: "Show downloads after creating a task",
+    });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Open General settings" }).click();
+    await preference.click();
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await page.getByRole("button", { name: "Dashboard" }).click();
+    await page.getByRole("button", { name: "New task" }).click();
+    await page
+      .getByRole("textbox", { name: "Download URLs" })
+      .type("http://127.0.0.1:9/stay-on-dashboard.bin");
+    await page.getByRole("button", { name: "Create task" }).click();
+    await page
+      .getByRole("alert", { name: "Download failed: stay-on-dashboard.bin" })
+      .waitFor({ timeout: 5_000 });
+    await expect(page.getByRole("button", { name: "Dashboard" })).toBeCurrent(
+      "page",
+    );
+    await expect(
+      page.getByRole("heading", { name: "Dashboard" }),
+    ).toBeInViewport();
+    await page.getByRole("button", { name: "Dismiss" }).click();
+
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Open General settings" }).click();
+    await preference.click();
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await page.getByRole("button", { name: "Downloads" }).click();
+    await page
+      .getByRole("button", { name: "Remove stay-on-dashboard.bin" })
+      .click();
+    await page.getByRole("button", { name: "Remove" }).click();
+    await expect(
+      page.getByRole("button", { name: "Remove stay-on-dashboard.bin" }),
+    ).toBeAbsent({ timeout: 5_000 });
+  },
+  { timeout: 15_000 },
+);
+
 test("Motrix exposes notifications and supported engine settings", async ({
   page,
 }) => {
@@ -504,13 +785,49 @@ test("Motrix exposes notifications and supported engine settings", async ({
   const speedProfile = page.getByRole("combobox", { name: "Speed profile" });
   await speedProfile.click();
   await page.getByRole("option", { name: "Balanced" }).click();
+  await page
+    .getByRole("status", { name: "Speed profile Balanced applied." })
+    .waitFor();
   await speedProfile.click();
   await expect(page.getByRole("option", { name: "Balanced" })).toBeSelected();
-  await page.getByRole("option", { name: "Balanced" }).click();
+  await page.getByRole("option", { name: "Unlimited" }).click();
+  await page
+    .getByRole("status", { name: "Speed profile Unlimited applied." })
+    .waitFor();
   await page.getByRole("button", { name: "Notifications" }).click();
   await page.getByRole("heading", { name: "Notifications" }).waitFor();
+  await expect(
+    page.getByRole("group", { name: "Notification history" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("button", {
+      name: "View Download failed: wabou-behavior-test.bin",
+    }),
+  ).toHaveCount(2);
+  await page
+    .getByRole("button", {
+      name: "View Download failed: wabou-behavior-test.bin",
+      index: 0,
+    })
+    .click();
+  await page
+    .getByRole("alert", {
+      name: "Task unavailable: wabou-behavior-test.bin",
+    })
+    .waitFor();
+  await expect(
+    page.getByRole("group", { name: "Notification history" }),
+  ).toBeInViewport();
+  await page.getByRole("button", { name: "Clear all" }).click();
+  await expect(
+    page.getByRole("heading", { name: "No recent notifications" }),
+  ).toBeInViewport();
+  await expect(
+    page.getByRole("group", { name: "Notification history" }),
+  ).toBeAbsent();
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("heading", { name: "Settings" }).waitFor();
+  await page.getByRole("button", { name: "Open General settings" }).click();
   await page
     .getByRole("button", { name: "Browse default download directory" })
     .waitFor();
@@ -556,12 +873,46 @@ test("Motrix exposes notifications and supported engine settings", async ({
   await page.getByRole("button", { name: "Save settings" }).click();
   await page
     .getByRole("status", {
-      name: "Settings saved. Engine changes apply after restart.",
+      name: "Settings saved and applied.",
     })
     .waitFor();
-  await page.getByRole("button", { name: "Restart now" }).waitFor();
+  await expect(page.getByRole("button", { name: "Restart now" })).toBeAbsent();
   await page.getByRole("tab", { name: "Configure Advanced" }).click();
   await page.getByRole("button", { name: "Open folder" }).waitFor();
   await page.getByRole("tab", { name: "Configure About" }).click();
   await page.getByRole("button", { name: "Open repository" }).waitFor();
 });
+
+test(
+  "Motrix clears stopped tasks through one confirmed batch action",
+  async ({ page }) => {
+    await page.getByRole("button", { name: "Downloads" }).click();
+    await page.getByRole("button", { name: "New task" }).click();
+    await page
+      .getByRole("textbox", { name: "Download URLs" })
+      .type("http://127.0.0.1:9/clear-stopped.bin");
+    await page
+      .getByRole("textbox", { name: "Output filename" })
+      .type("clear-stopped.bin");
+    await page.getByRole("button", { name: "Create task" }).click();
+    await page
+      .getByRole("alert", { name: "Download failed: clear-stopped.bin" })
+      .waitFor({ timeout: 5_000 });
+    await page.getByRole("button", { name: "Dismiss" }).click();
+    await page.getByRole("button", { name: "Clear stopped" }).click();
+    await page.getByRole("dialog", { name: "Remove download tasks" }).waitFor();
+    await expect(
+      page.getByRole("checkbox", {
+        name: "Also move downloaded files to Trash",
+      }),
+    ).toBeInViewport();
+    await page.getByRole("button", { name: "Remove" }).click();
+    await expect(
+      page.getByRole("button", { name: "Inspect clear-stopped.bin" }),
+    ).toBeAbsent({ timeout: 5_000 });
+    await expect(
+      page.getByRole("button", { name: "Clear stopped" }),
+    ).toBeAbsent();
+  },
+  { timeout: 10_000 },
+);

@@ -14,18 +14,21 @@ import {
   createNotifications,
   createShortcuts,
   createTransition,
-  createWindowMatch,
-  DirectoryPicker,
   DialogScrollBody,
+  DirectoryPicker,
   dialog,
   Icon,
   Input,
   Modal,
   NotificationRegion,
+  PageViewport,
   px,
-  ScrollArea,
   Text,
   TextArea,
+  TitleBar,
+  TitleBarDragRegion,
+  ToggleGroup,
+  ToggleGroupItem,
   useFileDrop,
   useLocation,
   useNavigate,
@@ -33,14 +36,18 @@ import {
   useWindow,
   View,
   VirtualList,
+  WindowFrame,
 } from "@wabou/ui";
 import bell from "lucide-static/icons/bell.svg?raw";
 import download from "lucide-static/icons/download.svg?raw";
 import gauge from "lucide-static/icons/gauge.svg?raw";
+import minus from "lucide-static/icons/minus.svg?raw";
 import panelLeftClose from "lucide-static/icons/panel-left-close.svg?raw";
 import panelLeftOpen from "lucide-static/icons/panel-left-open.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
+import square from "lucide-static/icons/square.svg?raw";
+import x from "lucide-static/icons/x.svg?raw";
 import {
   createEffect,
   createSignal,
@@ -50,22 +57,17 @@ import {
   untrack,
 } from "solid-js";
 import { match } from "ts-pattern";
-import type { MotrixConfig, TorrentPreview } from "./downloads";
+import { AppActionsProvider } from "./app-actions";
+import type { MotrixConfig, TaskPriority, TorrentPreview } from "./downloads";
 import { useDownloads } from "./downloads";
 import { parseCurlDownload } from "./lib/curl";
+import { downloadUriError, downloadUris } from "./lib/download-uri";
 import { formatBytes } from "./lib/format";
 
 const navigation = [
   ["/", "Dashboard", gauge],
   ["/downloads", "Downloads", download],
 ] as const;
-
-function linkUris(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter((item) => item && !item.startsWith("#"));
-}
 
 function initialAddTaskDraft(config: MotrixConfig) {
   return {
@@ -77,6 +79,7 @@ function initialAddTaskDraft(config: MotrixConfig) {
     filename: "",
     split: String(config.split),
     headers: "",
+    priority: "normal" as TaskPriority,
   };
 }
 
@@ -92,9 +95,13 @@ function validateAddTaskDraft(value: Readonly<AddTaskDraft>) {
   if (
     value.source === "links" &&
     value.filename.trim() &&
-    linkUris(value.url).length > 1
+    downloadUris(value.url).length > 1
   )
     errors.filename = "A custom output filename can only be used with one URL.";
+  if (value.source === "links" && value.url.trim()) {
+    const error = downloadUriError(value.url);
+    if (error) errors.url = error;
+  }
   if (
     value.source === "links" &&
     value.headers
@@ -110,15 +117,14 @@ function validateAddTaskDraft(value: Readonly<AddTaskDraft>) {
 }
 
 export function AppShell(props: { children?: JSX.Element }) {
-  const location = useLocation();
   const navigate = useNavigate();
+  const location = useLocation();
   const downloads = useDownloads();
   const window = useWindow();
   const initialConfig = untrack(downloads.config);
   const [adding, setAdding] = createSignal(false);
   const [sidebarOpen, setSidebarOpen] = createSignal(true);
-  const compactDashboard = createWindowMatch({ maxWidth: 1050 });
-  const sidebarWidth = createTransition(() => (sidebarOpen() ? 208 : 52), {
+  const sidebarWidth = createTransition(() => (sidebarOpen() ? 232 : 52), {
     duration: 0.22,
     ease: "easeOut",
   });
@@ -175,11 +181,13 @@ export function AppShell(props: { children?: JSX.Element }) {
   const [addError, setAddError] = createSignal("");
   const [addNotice, setAddNotice] = createSignal("");
   const [draggingFile, setDraggingFile] = createSignal(false);
+  const [dropError, setDropError] = createSignal("");
   const [confirmingQuit, setConfirmingQuit] = createSignal(false);
   const [directory, setDirectory] = addTask.control("directory");
   const [filename, setFilename] = addTask.control("filename");
   const [split, setSplit] = addTask.control("split");
   const [headers, setHeaders] = addTask.control("headers");
+  const [priority, setPriority] = addTask.control("priority");
   const torrentInspection = createLatestAsyncResource<string, TorrentPreview>({
     source: () => torrentPath() || undefined,
     load: (path) => downloads.inspectTorrent(path),
@@ -249,15 +257,21 @@ export function AppShell(props: { children?: JSX.Element }) {
     },
   );
   useFileDrop((event) => {
-    if (event.phase === "entered" || event.phase === "moved")
+    if (event.phase === "entered" || event.phase === "moved") {
       setDraggingFile(true);
+      setDropError("");
+    }
     if (event.phase === "left") setDraggingFile(false);
     if (event.phase !== "dropped") return;
     setDraggingFile(false);
     const torrent = event.paths.find((path) =>
       path.toLowerCase().endsWith(".torrent"),
     );
-    if (!torrent) return;
+    if (!torrent) {
+      setDropError("Only .torrent files can be dropped here.");
+      return;
+    }
+    setDropError("");
     chooseTorrent(torrent);
     setSource("torrent");
     setAdding(true);
@@ -270,7 +284,7 @@ export function AppShell(props: { children?: JSX.Element }) {
         selected={active()}
         aria-current={active() ? "page" : undefined}
         aria-label={label}
-        class="w-full h-9 text-sm font-medium text-primary"
+        class="w-full h-12 text-base font-medium text-primary"
         classList={{
           "px-3 justify-start": sidebarOpen(),
           "px-0 justify-center": !sidebarOpen(),
@@ -278,9 +292,9 @@ export function AppShell(props: { children?: JSX.Element }) {
         }}
         onClick={() => navigate({ to: path })}
       >
-        <Icon source={icon} size={17} />
+        <Icon source={icon} size={19} />
         <Show when={sidebarOpen()}>
-          <Text class="text-sm font-medium text-primary">{label}</Text>
+          <Text class="text-base font-medium text-primary">{label}</Text>
         </Show>
       </Button>
     );
@@ -331,31 +345,18 @@ export function AppShell(props: { children?: JSX.Element }) {
       transition={{ duration: 0.18, easing: "ease-out" }}
     >
       <ComponentsProvider theme={resolvedTheme()}>
-        <View
+        <WindowFrame
           {...shortcuts.bindings}
-          class="w-full h-full p-2 flex gap-3 bg-canvas text-primary"
+          class="flex flex-col bg-canvas text-primary"
         >
-          <Show when={draggingFile()}>
+          <TitleBar class="px-2 bg-canvas">
             <View
-              overlayPlane="floating"
-              class="absolute inset-4 z-50 flex items-center justify-center rounded-2xl border-2 border-accent bg-surface"
+              class="h-full flex-none px-2 flex items-center gap-2"
+              style={{ width: px(sidebarWidth.value()) }}
             >
-              <View class="flex flex-col items-center gap-3">
-                <Icon source={download} size={42} class="text-accent" />
-                <Text class="text-xl font-semibold">
-                  Drop a torrent file to create a task
-                </Text>
-              </View>
-            </View>
-          </Show>
-          <View
-            class="flex-none overflow-hidden px-2 pt-3 pb-2 flex flex-col rounded-xl bg-surface-muted"
-            style={{ width: px(sidebarWidth.value()) }}
-          >
-            <Show
-              when={sidebarOpen()}
-              fallback={
-                <View class="mb-4 flex flex-col items-center gap-2">
+              <Show
+                when={sidebarOpen()}
+                fallback={
                   <Button
                     aria-label="Show sidebar"
                     size="icon"
@@ -364,24 +365,14 @@ export function AppShell(props: { children?: JSX.Element }) {
                   >
                     <Icon source={panelLeftOpen} size={18} />
                   </Button>
-                  <Button
-                    aria-label="New task"
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => setAdding(true)}
-                  >
-                    <Icon source={plus} size={18} />
-                  </Button>
-                </View>
-              }
-            >
-              <View class="px-1 mb-4 flex items-center gap-2">
-                <View class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
+                }
+              >
+                <View class="w-8 h-8 flex-none rounded-lg bg-accent flex items-center justify-center">
                   <Icon source={download} size={17} class="text-on-accent" />
                 </View>
-                <View class="min-w-0 flex-1 flex flex-col">
-                  <Text class="text-sm font-semibold text-primary">Motrix</Text>
-                </View>
+                <Text class="min-w-0 flex-1 truncate text-sm font-semibold text-primary">
+                  Motrix
+                </Text>
                 <Button
                   aria-label="Hide sidebar"
                   size="icon"
@@ -398,49 +389,112 @@ export function AppShell(props: { children?: JSX.Element }) {
                 >
                   <Icon source={plus} size={18} />
                 </Button>
+              </Show>
+            </View>
+            <TitleBarDragRegion class="min-w-0 justify-center">
+              <Text class="text-xs text-muted">Motrix · Wabou</Text>
+            </TitleBarDragRegion>
+            <Button
+              aria-label="Minimize window"
+              size="icon"
+              variant="ghost"
+              onClick={() => window.minimize()}
+            >
+              <Icon source={minus} size={16} />
+            </Button>
+            <Button
+              aria-label={
+                window.maximized() ? "Restore window" : "Maximize window"
+              }
+              size="icon"
+              variant="ghost"
+              onClick={() => window.setMaximized(!window.maximized())}
+            >
+              <Icon source={square} size={14} />
+            </Button>
+            <Button
+              aria-label="Close window"
+              size="icon"
+              variant="ghost"
+              onClick={() => window.close()}
+            >
+              <Icon source={x} size={17} />
+            </Button>
+          </TitleBar>
+          <View class="relative min-h-0 flex-1 px-2 pb-2 flex gap-3">
+            <Show when={draggingFile()}>
+              <View
+                overlayPlane="floating"
+                role="status"
+                aria-label="Torrent drop target"
+                class="absolute inset-4 z-50 flex items-center justify-center rounded-2xl border-2 border-accent bg-surface"
+              >
+                <View class="flex flex-col items-center gap-3">
+                  <Icon source={download} size={42} class="text-accent" />
+                  <Text class="text-xl font-semibold">
+                    Drop a torrent file to create a task
+                  </Text>
+                </View>
               </View>
             </Show>
-            <View class="flex flex-col gap-1">
-              <For each={navigation}>
-                {([path, label, icon]) => navButton(path, label, icon)}
-              </For>
-            </View>
-            <View class="flex-1" />
-            {navButton("/notifications", "Notifications", bell)}
-            <View class="my-2 border-t border-subtle" />
-            {navButton("/settings", "Settings", settings)}
-          </View>
-          <View class="min-w-0 flex-1 flex flex-col overflow-hidden">
-            <Show
-              when={
-                location().pathname !== "/" &&
-                location().pathname !== "/downloads"
-              }
-              fallback={
-                <Show
-                  when={location().pathname === "/" && compactDashboard()}
-                  fallback={
-                    <View class="min-h-0 flex-1 overflow-hidden">
-                      <View class="w-full min-w-0 h-full max-w-6xl mx-auto px-5 py-4">
-                        {props.children}
-                      </View>
-                    </View>
-                  }
+            <Show when={dropError()}>
+              <View
+                overlayPlane="floating"
+                role="alert"
+                aria-label={dropError()}
+                class="absolute top-4 right-4 z-50 max-w-md p-3 flex items-center gap-3 rounded-xl border border-danger-primary bg-surface shadow-lg"
+              >
+                <Text class="min-w-0 flex-1 text-sm text-danger-primary">
+                  {dropError()}
+                </Text>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Dismiss file drop error"
+                  onClick={() => setDropError("")}
                 >
-                  <ScrollArea class="flex-1">
-                    <View class="w-full min-w-0 max-w-6xl mx-auto px-5 py-4">
-                      {props.children}
-                    </View>
-                  </ScrollArea>
-                </Show>
-              }
-            >
-              <ScrollArea class="flex-1">
-                <View class="w-full min-w-0 max-w-6xl mx-auto px-5 py-4">
-                  {props.children}
-                </View>
-              </ScrollArea>
+                  Dismiss
+                </Button>
+              </View>
             </Show>
+            <View
+              class="flex-none overflow-hidden px-2 py-2 flex flex-col rounded-xl bg-surface-muted"
+              style={{ width: px(sidebarWidth.value()) }}
+            >
+              <Show when={!sidebarOpen()}>
+                <View class="mb-4 flex flex-col items-center gap-2">
+                  <Button
+                    aria-label="New task"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setAdding(true)}
+                  >
+                    <Icon source={plus} size={18} />
+                  </Button>
+                </View>
+              </Show>
+              <View class="flex flex-col gap-1">
+                <For each={navigation}>
+                  {([path, label, icon]) => navButton(path, label, icon)}
+                </For>
+              </View>
+              <View class="flex-1" />
+              {navButton("/notifications", "Notifications", bell)}
+              <View class="my-2 border-t border-subtle" />
+              {navButton("/settings", "Settings", settings)}
+            </View>
+            <View class="min-w-0 flex-1 flex flex-col overflow-hidden">
+              <PageViewport
+                contentClass="max-w-6xl mx-auto px-5 py-4"
+                resetKey={location().pathname}
+              >
+                <AppActionsProvider
+                  value={{ openAddTask: () => setAdding(true) }}
+                >
+                  {props.children}
+                </AppActionsProvider>
+              </PageViewport>
+            </View>
           </View>
           <Modal
             aria-label="Add download task"
@@ -592,6 +646,17 @@ export function AppShell(props: { children?: JSX.Element }) {
                       placeholder="https://example.com/file.iso"
                       onInput={(event) => setUrl(event.currentTarget.value)}
                     />
+                    <Show when={addTask.fieldError("url")}>
+                      {(error) => (
+                        <Text
+                          role="alert"
+                          aria-label="Download URI validation error"
+                          class="text-sm text-danger-primary"
+                        >
+                          {error()}
+                        </Text>
+                      )}
+                    </Show>
                   </Show>
                   <View class="flex gap-3">
                     <DirectoryPicker
@@ -612,6 +677,31 @@ export function AppShell(props: { children?: JSX.Element }) {
                       placeholder="16"
                       onInput={(event) => setSplit(event.currentTarget.value)}
                     />
+                  </View>
+                  <View class="flex flex-col gap-1">
+                    <Text class="text-xs text-muted">Queue priority</Text>
+                    <ToggleGroup
+                      type="single"
+                      aria-label="New task priority"
+                      value={priority()}
+                      class="w-full gap-1 bg-transparent p-0"
+                      onValueChange={(value) => {
+                        if (value) setPriority(value as TaskPriority);
+                      }}
+                    >
+                      <ToggleGroupItem value="low" class="min-w-0 flex-1">
+                        Low
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="normal" class="min-w-0 flex-1">
+                        Normal
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="high" class="min-w-0 flex-1">
+                        High
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="critical" class="min-w-0 flex-1">
+                        Critical
+                      </ToggleGroupItem>
+                    </ToggleGroup>
                   </View>
                   <Show when={source() === "links"}>
                     <Input
@@ -690,9 +780,7 @@ export function AppShell(props: { children?: JSX.Element }) {
                     disabled={
                       !addTask.valid() ||
                       (source() === "links"
-                        ? !url().trim() ||
-                          (Boolean(filename().trim()) &&
-                            linkUris(url()).length > 1)
+                        ? !url().trim()
                         : inspectingTorrent() ||
                           !torrentPreview() ||
                           selectedTorrentFiles().length === 0)
@@ -704,6 +792,7 @@ export function AppShell(props: { children?: JSX.Element }) {
                         const options = {
                           dir: directory().trim() || undefined,
                           split: Number.parseInt(split(), 10) || undefined,
+                          priority: priority(),
                         };
                         if (source() === "torrent")
                           await downloads.addTorrent({
@@ -712,7 +801,7 @@ export function AppShell(props: { children?: JSX.Element }) {
                             ...options,
                           });
                         else {
-                          const uris = linkUris(url());
+                          const uris = downloadUris(url());
                           await downloads.addUris({
                             uris,
                             out: filename().trim() || undefined,
@@ -765,7 +854,7 @@ export function AppShell(props: { children?: JSX.Element }) {
             )}
           </Modal>
           <NotificationRegion notifications={toasts} placement="bottom-end" />
-        </View>
+        </WindowFrame>
       </ComponentsProvider>
     </ColorThemeProvider>
   );

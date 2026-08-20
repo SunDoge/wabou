@@ -10,12 +10,17 @@ import {
   DirectoryPicker,
   Icon,
   Input,
+  PageHeader,
+  PrimitiveButton,
+  ResponsiveGrid,
+  ResponsiveGridRemainder,
   Switch,
   Tabs,
   TabsList,
   TabsTrigger,
   Text,
   useHost,
+  useResponsiveGrid,
   View,
 } from "@wabou/ui";
 import boxes from "lucide-static/icons/boxes.svg?raw";
@@ -226,7 +231,7 @@ function SettingsForm() {
   const compact = createWindowMatch({ maxWidth: 1100 });
   const snapshot = downloads.snapshot;
   const initialConfig = downloads.config();
-  const [section, setSection] = createSignal<SettingsSection>("general");
+  const [section, setSection] = createSignal<SettingsSection>();
   const draft = createFormDraft(initialSettingsDraft(initialConfig), {
     validate: validateSettingsDraft,
   });
@@ -343,603 +348,742 @@ function SettingsForm() {
   };
 
   return (
-    <View class="min-w-0 flex flex-col gap-4">
-      <View class="flex items-center justify-between">
-        <View class="flex flex-col gap-1">
-          <Text role="heading" class="text-2xl font-bold">
-            Settings
-          </Text>
-          <Text class="text-sm text-muted">
-            Configure Motrix and the downloads engine from one place.
-          </Text>
-        </View>
-        <Badge
-          variant={snapshot().status === "ready" ? "success" : "secondary"}
-        >
-          {snapshot().status === "ready"
-            ? "Downloads ready"
-            : "Downloads unavailable"}
-        </Badge>
-      </View>
+    <View class="h-full min-w-0 flex flex-col gap-4">
+      <PageHeader
+        title="Settings"
+        actions={
+          <Show when={section()}>
+            <Button
+              variant="ghost"
+              aria-label="Back to settings categories"
+              onClick={() => setSection(undefined)}
+            >
+              All settings
+            </Button>
+          </Show>
+        }
+      />
 
-      <Tabs
-        class="gap-0"
-        value={section()}
-        onValueChange={(value) => setSection(value as SettingsSection)}
+      <Show
+        when={section()}
+        fallback={
+          <SettingsOverview compact={compact()} onSelect={setSection} />
+        }
       >
-        <TabsList
-          unstyled
-          aria-label="Settings sections"
-          class="grid grid-cols-4 gap-2"
-        >
-          <For each={settingsItems}>
-            {([id, name, detail, icon]) => (
-              <TabsTrigger
-                unstyled
-                value={id}
-                aria-label={`Configure ${name}`}
-                class={(state) =>
-                  `w-full min-w-0 p-0 justify-start overflow-hidden rounded-xl border bg-surface shadow-lg ${compact() ? "h-14" : "h-20"} ${section() === id ? "border-accent" : "border-subtle"} ${state.focusVisible ? "border-focus" : ""}`
-                }
-              >
-                <View class="w-full h-full p-3 flex flex-row items-center gap-2">
-                  <View
-                    class={`w-8 h-8 flex-none rounded-lg flex items-center justify-center ${section() === id ? "bg-accent text-on-accent" : "bg-control text-accent"}`}
-                  >
-                    <Icon source={icon} size={17} />
-                  </View>
-                  <View class="min-w-0 flex flex-col items-start gap-1">
-                    <Text class="font-semibold">{name}</Text>
-                    <Show when={!compact()}>
-                      <Text class="truncate text-xs text-muted">{detail}</Text>
-                    </Show>
-                  </View>
-                </View>
-              </TabsTrigger>
-            )}
-          </For>
-        </TabsList>
-      </Tabs>
-
-      <Card class="rounded-xl shadow-lg">
-        <CardContent class="p-4 flex flex-col gap-4">
-          <Show when={section() === "general"}>
-            <SectionHeading
-              title="General"
-              detail="Choose where downloads are stored and which events should notify you."
-            />
-            <FieldLabel label="Default download directory">
-              <DirectoryPicker
-                aria-label="Default download directory"
-                value={downloadDir()}
-                placeholder="Use downloads default"
-                browseAriaLabel="Browse default download directory"
-                dialogOptions={{
-                  title: "Choose the default download directory",
-                }}
-                onValueChange={setDownloadDir}
-                onBrowseError={(error) => setMessage(String(error))}
-              />
-            </FieldLabel>
-            <View
-              class="flex"
-              classList={{ "flex-col gap-3": compact(), "gap-8": !compact() }}
+        <View class="min-w-0 flex flex-col gap-4">
+          <Tabs
+            class="gap-0"
+            value={section() ?? "general"}
+            onValueChange={(value) => setSection(value as SettingsSection)}
+          >
+            <TabsList
+              unstyled
+              aria-label="Settings sections"
+              class="grid grid-cols-4 gap-2"
             >
-              <Switch
-                label="Notify when downloads finish"
-                checked={notifyComplete()}
-                onCheckedChange={setNotifyComplete}
-              />
-              <Switch
-                label="Notify when downloads fail"
-                checked={notifyError()}
-                onCheckedChange={setNotifyError}
-              />
-            </View>
-            <View
-              class="flex"
-              classList={{ "flex-col gap-3": compact(), "gap-8": !compact() }}
-            >
-              <Switch
-                label="Resume paused tasks when Motrix starts"
-                checked={resumeOnLaunch()}
-                onCheckedChange={setResumeOnLaunch}
-              />
-              <Switch
-                label="Show downloads after creating a task"
-                checked={showDownloadsAfterAdding()}
-                onCheckedChange={setShowDownloadsAfterAdding}
-              />
-            </View>
-            <Switch
-              label="Warn before quitting while downloads are running"
-              checked={warnBeforeQuit()}
-              onCheckedChange={setWarnBeforeQuit}
-            />
-          </Show>
-
-          <Show when={section() === "appearance"}>
-            <SectionHeading
-              title="Appearance"
-              detail="Select the application color theme. The choice is saved for the next launch."
-            />
-            <View class="w-full min-w-0 grid grid-cols-3 gap-4">
-              <ThemeChoice
-                name="System"
-                detail="Follow the native window preference"
-                selected={theme() === "system"}
-                onSelect={() => setTheme("system")}
-              />
-              <ThemeChoice
-                name="Light"
-                detail="Bright surfaces with high-contrast text"
-                selected={theme() === "light"}
-                onSelect={() => setTheme("light")}
-              />
-              <ThemeChoice
-                name="Dark"
-                detail="Low-glare surfaces for dim environments"
-                selected={theme() === "dark"}
-                onSelect={() => setTheme("dark")}
-              />
-            </View>
-          </Show>
-
-          <Show when={section() === "downloads"}>
-            <SectionHeading
-              title="Downloads"
-              detail="Tune connection splitting, queue concurrency, and global bandwidth limits."
-            />
-            <View class="w-full min-w-0 grid grid-cols-2 gap-4">
-              <FieldLabel label="Split count">
-                <Input
-                  aria-label="Default split count"
-                  value={split()}
-                  placeholder="16"
-                  onInput={(event) => setSplit(event.currentTarget.value)}
-                />
-              </FieldLabel>
-              <FieldLabel label="Concurrent downloads">
-                <Input
-                  aria-label="Concurrent downloads"
-                  value={concurrent()}
-                  placeholder="5"
-                  onInput={(event) => setConcurrent(event.currentTarget.value)}
-                />
-              </FieldLabel>
-              <FieldLabel label="Connections per server">
-                <Input
-                  aria-label="Connections per server"
-                  value={connectionsPerServer()}
-                  placeholder="16"
-                  onInput={(event) =>
-                    setConnectionsPerServer(event.currentTarget.value)
-                  }
-                />
-              </FieldLabel>
-              <FieldLabel label="Minimum split size">
-                <Input
-                  aria-label="Minimum split size"
-                  value={minSplitSize()}
-                  placeholder="20M"
-                  onInput={(event) =>
-                    setMinSplitSize(event.currentTarget.value)
-                  }
-                />
-              </FieldLabel>
-              <FieldLabel label="Download limit">
-                <Input
-                  aria-label="Maximum download speed"
-                  value={downloadLimit()}
-                  placeholder="0 or 10M"
-                  onInput={(event) =>
-                    setDownloadLimit(event.currentTarget.value)
-                  }
-                />
-              </FieldLabel>
-              <FieldLabel label="Upload limit">
-                <Input
-                  aria-label="Maximum upload speed"
-                  value={uploadLimit()}
-                  placeholder="0 or 1M"
-                  onInput={(event) => setUploadLimit(event.currentTarget.value)}
-                />
-              </FieldLabel>
-              <FieldLabel label="HTTP User-Agent">
-                <Input
-                  aria-label="HTTP User-Agent"
-                  value={userAgent()}
-                  placeholder="Motrix-Wabou/0.1"
-                  onInput={(event) => setUserAgent(event.currentTarget.value)}
-                />
-              </FieldLabel>
-            </View>
-            <View class="w-full flex flex-col gap-3 rounded-xl border border-subtle bg-surface p-4">
-              <View class="flex items-center justify-between gap-3">
-                <View class="flex flex-col gap-1">
-                  <Text class="font-semibold">Speed profiles</Text>
-                  <Text class="text-xs text-muted">
-                    Save paired download and upload limits for one-click use on
-                    the Dashboard.
-                  </Text>
-                </View>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={speedProfiles().length >= 8}
-                  onClick={() =>
-                    setSpeedProfiles((profiles) => [
-                      ...profiles,
-                      {
-                        name: `Profile ${profiles.length + 1}`,
-                        downloadLimit: "0",
-                        uploadLimit: "0",
-                      },
-                    ])
-                  }
-                >
-                  Add profile
-                </Button>
-              </View>
-              <View class="grid grid-cols-4 gap-2">
-                <Text class="text-xs font-semibold text-muted">Name</Text>
-                <Text class="text-xs font-semibold text-muted">Download</Text>
-                <Text class="text-xs font-semibold text-muted">Upload</Text>
-                <Text class="text-xs font-semibold text-muted">Action</Text>
-                <For each={speedProfiles()}>
-                  {(profile, index) => (
-                    <>
-                      <Input
-                        aria-label={`Speed profile ${index() + 1} name`}
-                        value={profile.name}
-                        onInput={(event) =>
-                          updateSpeedProfile(
-                            index(),
-                            "name",
-                            event.currentTarget.value,
-                          )
-                        }
-                      />
-                      <Input
-                        aria-label={`${profile.name || `Profile ${index() + 1}`} download limit`}
-                        value={profile.downloadLimit}
-                        placeholder="0 or 10M"
-                        onInput={(event) =>
-                          updateSpeedProfile(
-                            index(),
-                            "downloadLimit",
-                            event.currentTarget.value,
-                          )
-                        }
-                      />
-                      <Input
-                        aria-label={`${profile.name || `Profile ${index() + 1}`} upload limit`}
-                        value={profile.uploadLimit}
-                        placeholder="0 or 1M"
-                        onInput={(event) =>
-                          updateSpeedProfile(
-                            index(),
-                            "uploadLimit",
-                            event.currentTarget.value,
-                          )
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={speedProfiles().length === 1}
-                        aria-label={`Remove ${profile.name || `profile ${index() + 1}`}`}
-                        onClick={() =>
-                          setSpeedProfiles((profiles) =>
-                            profiles.filter(
-                              (_profile, position) => position !== index(),
-                            ),
-                          )
-                        }
-                      >
-                        Remove
-                      </Button>
-                    </>
-                  )}
-                </For>
-              </View>
-            </View>
-            <Text class="text-xs text-muted">
-              downloads accepts values such as 512K and 10M. Use 0 for
-              unlimited.
-            </Text>
-          </Show>
-
-          <Show when={section() === "bittorrent"}>
-            <SectionHeading
-              title="BitTorrent"
-              detail="Peer discovery and seeding options supported by the embedded engine."
-            />
-            <View class="w-full min-w-0 grid grid-cols-2 gap-4">
-              <Switch
-                label="Enable DHT peer discovery"
-                checked={dhtEnabled()}
-                onCheckedChange={setDhtEnabled}
-              />
-              <Switch
-                label="Enable peer exchange (PEX)"
-                checked={pexEnabled()}
-                onCheckedChange={setPexEnabled}
-              />
-              <FieldLabel label="Maximum peers per torrent">
-                <Input
-                  aria-label="Maximum peers per torrent"
-                  value={btMaxPeers()}
-                  placeholder="128"
-                  onInput={(event) => setBtMaxPeers(event.currentTarget.value)}
-                />
-              </FieldLabel>
-              <FieldLabel label="BT listen port">
-                <Input
-                  aria-label="BT listen port"
-                  value={listenPort()}
-                  placeholder="6881"
-                  onInput={(event) => setListenPort(event.currentTarget.value)}
-                />
-              </FieldLabel>
-              <FieldLabel label="Seed ratio">
-                <Input
-                  aria-label="Seed ratio"
-                  value={seedRatio()}
-                  placeholder="1.0"
-                  onInput={(event) => setSeedRatio(event.currentTarget.value)}
-                />
-              </FieldLabel>
-            </View>
-          </Show>
-
-          <Show when={section() === "integration"}>
-            <SectionHeading
-              title="Integration"
-              detail="The app embeds gosh-dl and shuts it down cleanly on exit."
-            />
-            <View class="w-full min-w-0 grid grid-cols-2 gap-4">
-              <InfoCard
-                title="Command line"
-                detail="Launch with Wabou during development or run the packaged application directly."
-              />
-              <InfoCard
-                title="Desktop services"
-                detail="Native file dialogs, dropped torrent files, clipboard access, and notifications are enabled."
-              />
-            </View>
-          </Show>
-
-          <Show when={section() === "network"}>
-            <SectionHeading
-              title="Network and engine"
-              detail="Configure the embedded Rust download engine and incoming peer connectivity."
-            />
-            <View class="p-4 flex items-center justify-between rounded-lg border border-subtle bg-surface-muted">
-              <View class="min-w-0 flex flex-col gap-1">
-                <Text class="font-semibold">Download service</Text>
-                <Text class="truncate text-sm text-muted">
-                  Embedded locally · {snapshot().version ?? "gosh-dl"}
-                </Text>
-              </View>
-              <Badge
-                variant={
-                  snapshot().status === "ready" ? "success" : "secondary"
-                }
-              >
-                {snapshot().status === "ready"
-                  ? "Ready"
-                  : snapshot().status === "starting"
-                    ? "Starting"
-                    : "Unavailable"}
-              </Badge>
-            </View>
-            <View class="border-t border-subtle" />
-            <View class="flex items-center justify-between">
-              <View class="flex flex-col gap-1">
-                <Text class="font-semibold">Incoming peer connections</Text>
-                <Text class="text-xs text-muted">
-                  Maintain TCP and UDP mappings for the configured BT and DHT
-                  ports.
-                </Text>
-              </View>
-              <Switch
-                label="Enable automatic port mapping"
-                checked={natEnabled()}
-                onCheckedChange={setNatEnabled}
-              />
-            </View>
-            <Show when={natEnabled()}>
-              <View class="grid grid-cols-4 gap-2">
-                <For
-                  each={
-                    [
-                      ["auto", "Automatic"],
-                      ["pcp", "PCP"],
-                      ["natPmp", "NAT-PMP"],
-                      ["upnp", "UPnP"],
-                    ] as const
-                  }
-                >
-                  {([value, label]) => (
-                    <Button
-                      size="sm"
-                      variant={natProtocol() === value ? "default" : "outline"}
-                      onClick={() => setNatProtocol(value)}
-                    >
-                      {label}
-                    </Button>
-                  )}
-                </For>
-              </View>
-              <View
-                role="status"
-                aria-label="Port mapping status"
-                class="p-3 flex flex-col gap-1 rounded-lg bg-surface-muted"
-              >
-                <View class="flex items-center justify-between">
-                  <Text class="text-sm font-medium">Port mapping</Text>
-                  <Badge
-                    variant={
-                      snapshot().nat.state === "mapped"
-                        ? "success"
-                        : "secondary"
+              <For each={settingsItems}>
+                {([id, name, detail, icon]) => (
+                  <TabsTrigger
+                    unstyled
+                    value={id}
+                    aria-label={`Configure ${name}`}
+                    class={(state) =>
+                      `w-full min-w-0 p-0 justify-start overflow-hidden rounded-xl border bg-surface shadow-sm ${compact() ? "h-14" : "h-20"} ${section() === id ? "border-accent" : "border-subtle"} ${state.focusVisible ? "border-focus" : ""}`
                     }
                   >
-                    {snapshot().nat.state}
-                  </Badge>
+                    <View class="w-full h-full p-3 flex flex-row items-center gap-2">
+                      <View
+                        class={`w-8 h-8 flex-none rounded-lg flex items-center justify-center ${section() === id ? "bg-accent text-on-accent" : "bg-control text-accent"}`}
+                      >
+                        <Icon source={icon} size={17} />
+                      </View>
+                      <View class="min-w-0 flex flex-col items-start gap-1">
+                        <Text class="font-semibold">{name}</Text>
+                        <Show when={!compact()}>
+                          <Text class="truncate text-xs text-muted">
+                            {detail}
+                          </Text>
+                        </Show>
+                      </View>
+                    </View>
+                  </TabsTrigger>
+                )}
+              </For>
+            </TabsList>
+          </Tabs>
+
+          <Card class="rounded-2xl shadow-md">
+            <CardContent class="p-4 flex flex-col gap-4">
+              <Show when={section() === "general"}>
+                <SectionHeading
+                  title="General"
+                  detail="Choose where downloads are stored and which events should notify you."
+                />
+                <FieldLabel label="Default download directory">
+                  <DirectoryPicker
+                    aria-label="Default download directory"
+                    value={downloadDir()}
+                    placeholder="Use downloads default"
+                    browseAriaLabel="Browse default download directory"
+                    dialogOptions={{
+                      title: "Choose the default download directory",
+                    }}
+                    onValueChange={setDownloadDir}
+                    onBrowseError={(error) => setMessage(String(error))}
+                  />
+                </FieldLabel>
+                <View
+                  class="flex"
+                  classList={{
+                    "flex-col gap-3": compact(),
+                    "gap-8": !compact(),
+                  }}
+                >
+                  <Switch
+                    label="Notify when downloads finish"
+                    checked={notifyComplete()}
+                    onCheckedChange={setNotifyComplete}
+                  />
+                  <Switch
+                    label="Notify when downloads fail"
+                    checked={notifyError()}
+                    onCheckedChange={setNotifyError}
+                  />
+                </View>
+                <View
+                  class="flex"
+                  classList={{
+                    "flex-col gap-3": compact(),
+                    "gap-8": !compact(),
+                  }}
+                >
+                  <Switch
+                    label="Resume paused tasks when Motrix starts"
+                    checked={resumeOnLaunch()}
+                    onCheckedChange={setResumeOnLaunch}
+                  />
+                  <Switch
+                    label="Show downloads after creating a task"
+                    checked={showDownloadsAfterAdding()}
+                    onCheckedChange={setShowDownloadsAfterAdding}
+                  />
+                </View>
+                <Switch
+                  label="Warn before quitting while downloads are running"
+                  checked={warnBeforeQuit()}
+                  onCheckedChange={setWarnBeforeQuit}
+                />
+              </Show>
+
+              <Show when={section() === "appearance"}>
+                <SectionHeading
+                  title="Appearance"
+                  detail="Select the application color theme. The choice is saved for the next launch."
+                />
+                <View class="w-full min-w-0 grid grid-cols-3 gap-4">
+                  <ThemeChoice
+                    name="System"
+                    detail="Follow the native window preference"
+                    selected={theme() === "system"}
+                    onSelect={() => setTheme("system")}
+                  />
+                  <ThemeChoice
+                    name="Light"
+                    detail="Bright surfaces with high-contrast text"
+                    selected={theme() === "light"}
+                    onSelect={() => setTheme("light")}
+                  />
+                  <ThemeChoice
+                    name="Dark"
+                    detail="Low-glare surfaces for dim environments"
+                    selected={theme() === "dark"}
+                    onSelect={() => setTheme("dark")}
+                  />
+                </View>
+              </Show>
+
+              <Show when={section() === "downloads"}>
+                <SectionHeading
+                  title="Downloads"
+                  detail="Tune connection splitting, queue concurrency, and global bandwidth limits."
+                />
+                <View class="w-full min-w-0 grid grid-cols-2 gap-4">
+                  <FieldLabel label="Split count">
+                    <Input
+                      aria-label="Default split count"
+                      value={split()}
+                      placeholder="16"
+                      onInput={(event) => setSplit(event.currentTarget.value)}
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Concurrent downloads">
+                    <Input
+                      aria-label="Concurrent downloads"
+                      value={concurrent()}
+                      placeholder="5"
+                      onInput={(event) =>
+                        setConcurrent(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Connections per server">
+                    <Input
+                      aria-label="Connections per server"
+                      value={connectionsPerServer()}
+                      placeholder="16"
+                      onInput={(event) =>
+                        setConnectionsPerServer(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Minimum split size">
+                    <Input
+                      aria-label="Minimum split size"
+                      value={minSplitSize()}
+                      placeholder="20M"
+                      onInput={(event) =>
+                        setMinSplitSize(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Download limit">
+                    <Input
+                      aria-label="Maximum download speed"
+                      value={downloadLimit()}
+                      placeholder="0 or 10M"
+                      onInput={(event) =>
+                        setDownloadLimit(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Upload limit">
+                    <Input
+                      aria-label="Maximum upload speed"
+                      value={uploadLimit()}
+                      placeholder="0 or 1M"
+                      onInput={(event) =>
+                        setUploadLimit(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="HTTP User-Agent">
+                    <Input
+                      aria-label="HTTP User-Agent"
+                      value={userAgent()}
+                      placeholder="Motrix-Wabou/0.1"
+                      onInput={(event) =>
+                        setUserAgent(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                </View>
+                <View class="w-full flex flex-col gap-3 rounded-xl border border-subtle bg-surface p-4">
+                  <View class="flex items-center justify-between gap-3">
+                    <View class="flex flex-col gap-1">
+                      <Text class="font-semibold">Speed profiles</Text>
+                      <Text class="text-xs text-muted">
+                        Save paired download and upload limits for one-click use
+                        on the Dashboard.
+                      </Text>
+                    </View>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={speedProfiles().length >= 8}
+                      onClick={() =>
+                        setSpeedProfiles((profiles) => [
+                          ...profiles,
+                          {
+                            name: `Profile ${profiles.length + 1}`,
+                            downloadLimit: "0",
+                            uploadLimit: "0",
+                          },
+                        ])
+                      }
+                    >
+                      Add profile
+                    </Button>
+                  </View>
+                  <View class="grid grid-cols-4 gap-2">
+                    <Text class="text-xs font-semibold text-muted">Name</Text>
+                    <Text class="text-xs font-semibold text-muted">
+                      Download
+                    </Text>
+                    <Text class="text-xs font-semibold text-muted">Upload</Text>
+                    <Text class="text-xs font-semibold text-muted">Action</Text>
+                    <For each={speedProfiles()}>
+                      {(profile, index) => (
+                        <>
+                          <Input
+                            aria-label={`Speed profile ${index() + 1} name`}
+                            value={profile.name}
+                            onInput={(event) =>
+                              updateSpeedProfile(
+                                index(),
+                                "name",
+                                event.currentTarget.value,
+                              )
+                            }
+                          />
+                          <Input
+                            aria-label={`${profile.name || `Profile ${index() + 1}`} download limit`}
+                            value={profile.downloadLimit}
+                            placeholder="0 or 10M"
+                            onInput={(event) =>
+                              updateSpeedProfile(
+                                index(),
+                                "downloadLimit",
+                                event.currentTarget.value,
+                              )
+                            }
+                          />
+                          <Input
+                            aria-label={`${profile.name || `Profile ${index() + 1}`} upload limit`}
+                            value={profile.uploadLimit}
+                            placeholder="0 or 1M"
+                            onInput={(event) =>
+                              updateSpeedProfile(
+                                index(),
+                                "uploadLimit",
+                                event.currentTarget.value,
+                              )
+                            }
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={speedProfiles().length === 1}
+                            aria-label={`Remove ${profile.name || `profile ${index() + 1}`}`}
+                            onClick={() =>
+                              setSpeedProfiles((profiles) =>
+                                profiles.filter(
+                                  (_profile, position) => position !== index(),
+                                ),
+                              )
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </>
+                      )}
+                    </For>
+                  </View>
                 </View>
                 <Text class="text-xs text-muted">
-                  TCP {snapshot().nat.tcpExternalAddress ?? "discovering"} · UDP{" "}
-                  {snapshot().nat.udpExternalAddress ?? "discovering"}
+                  downloads accepts values such as 512K and 10M. Use 0 for
+                  unlimited.
                 </Text>
-              </View>
-            </Show>
-            <View class="border-t border-subtle" />
-            <View class="flex items-center justify-between">
-              <View class="flex flex-col gap-1">
-                <Text class="font-semibold">Download proxy</Text>
-                <Text class="text-xs text-muted">
-                  Route downloads downloads through an explicit proxy.
-                </Text>
-              </View>
-              <Switch
-                label="Enable download proxy"
-                checked={proxyEnabled()}
-                onCheckedChange={setProxyEnabled}
-              />
-            </View>
-            <Show when={proxyEnabled()}>
-              <Text class="text-xs text-muted">
-                downloads uses an HTTP forward proxy for HTTP, HTTPS, and FTP
-                downloads.
-              </Text>
-              <View class="w-full min-w-0 grid grid-cols-2 gap-3">
-                <FieldLabel label="Proxy host">
-                  <Input
-                    aria-label="Proxy host"
-                    value={proxyHost()}
-                    placeholder="127.0.0.1"
-                    onInput={(event) => setProxyHost(event.currentTarget.value)}
-                  />
-                </FieldLabel>
-                <FieldLabel label="Proxy port">
-                  <Input
-                    aria-label="Proxy port"
-                    value={proxyPort()}
-                    placeholder="8080"
-                    onInput={(event) => setProxyPort(event.currentTarget.value)}
-                  />
-                </FieldLabel>
-              </View>
-            </Show>
-          </Show>
-
-          <Show when={section() === "advanced"}>
-            <SectionHeading
-              title="Advanced"
-              detail="Inspect local application data and configuration."
-            />
-            <View class="w-full min-w-0 grid grid-cols-1 gap-4">
-              <MaintenanceCard
-                title="Configuration folder"
-                detail="Open the platform-native directory containing Motrix's protected configuration file."
-                action="Open folder"
-                disabled={busy()}
-                onAction={() =>
-                  runMaintenance("Open configuration folder", () =>
-                    downloads.openConfigFolder(),
-                  )
-                }
-              />
-            </View>
-          </Show>
-
-          <Show when={section() === "about"}>
-            <SectionHeading
-              title="About Motrix · Wabou"
-              detail="A native download manager built as a real-world Wabou application."
-            />
-            <View class="w-full min-w-0 grid grid-cols-2 gap-4">
-              <InfoCard title="Application" detail="Motrix · Wabou 0.1.0" />
-              <InfoCard
-                title="Download engine"
-                detail={snapshot().version ?? "not connected"}
-              />
-              <InfoCard
-                title="Architecture"
-                detail="Rust owns downloads, files, persistence and native services; Solid owns routed UI state."
-              />
-              <View class="min-w-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface-muted">
-                <Text class="font-semibold">Source code</Text>
-                <Text class="whitespace-normal text-sm text-muted">
-                  Wabou is developed in the open under the Apache-2.0 license.
-                </Text>
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    host.system.openUrl("https://github.com/SunDoge/wabou")
-                  }
-                >
-                  Open repository
-                </Button>
-              </View>
-            </View>
-          </Show>
-
-          <View class="pt-4 flex items-center justify-between border-t border-subtle">
-            <Show
-              when={
-                !draft.valid() ? Object.values(draft.errors())[0] : message()
-              }
-              fallback={
-                <Text
-                  role="status"
-                  aria-label={
-                    draft.dirty() ? "Unsaved settings" : "Settings up to date"
-                  }
-                  class="text-xs text-muted"
-                >
-                  {draft.dirty()
-                    ? "Unsaved changes."
-                    : "Settings are up to date."}
-                </Text>
-              }
-            >
-              <Text
-                role={draft.valid() ? "status" : "alert"}
-                aria-label={
-                  draft.valid() ? message() : "Settings validation error"
-                }
-                class={
-                  draft.valid()
-                    ? "text-sm text-muted"
-                    : "text-sm text-danger-primary"
-                }
-              >
-                {!draft.valid() ? Object.values(draft.errors())[0] : message()}
-              </Text>
-            </Show>
-            <View class="flex items-center gap-2">
-              <Show when={restartRequired() && !import.meta.env.DEV}>
-                <Button
-                  variant="outline"
-                  onClick={() => application.relaunch()}
-                >
-                  Restart now
-                </Button>
               </Show>
-              <Button
-                disabled={busy() || !draft.dirty() || !draft.valid()}
-                onClick={save}
-              >
-                {busy() ? "Working…" : "Save settings"}
-              </Button>
-            </View>
-          </View>
-        </CardContent>
-      </Card>
+
+              <Show when={section() === "bittorrent"}>
+                <SectionHeading
+                  title="BitTorrent"
+                  detail="Peer discovery and seeding options supported by the embedded engine."
+                />
+                <View class="w-full min-w-0 grid grid-cols-2 gap-4">
+                  <Switch
+                    label="Enable DHT peer discovery"
+                    checked={dhtEnabled()}
+                    onCheckedChange={setDhtEnabled}
+                  />
+                  <Switch
+                    label="Enable peer exchange (PEX)"
+                    checked={pexEnabled()}
+                    onCheckedChange={setPexEnabled}
+                  />
+                  <FieldLabel label="Maximum peers per torrent">
+                    <Input
+                      aria-label="Maximum peers per torrent"
+                      value={btMaxPeers()}
+                      placeholder="128"
+                      onInput={(event) =>
+                        setBtMaxPeers(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="BT listen port">
+                    <Input
+                      aria-label="BT listen port"
+                      value={listenPort()}
+                      placeholder="6881"
+                      onInput={(event) =>
+                        setListenPort(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                  <FieldLabel label="Seed ratio">
+                    <Input
+                      aria-label="Seed ratio"
+                      value={seedRatio()}
+                      placeholder="1.0"
+                      onInput={(event) =>
+                        setSeedRatio(event.currentTarget.value)
+                      }
+                    />
+                  </FieldLabel>
+                </View>
+              </Show>
+
+              <Show when={section() === "integration"}>
+                <SectionHeading
+                  title="Integration"
+                  detail="The app embeds gosh-dl and shuts it down cleanly on exit."
+                />
+                <View class="w-full min-w-0 grid grid-cols-2 gap-4">
+                  <InfoCard
+                    title="Command line"
+                    detail="Launch with Wabou during development or run the packaged application directly."
+                  />
+                  <InfoCard
+                    title="Desktop services"
+                    detail="Native file dialogs, dropped torrent files, clipboard access, and notifications are enabled."
+                  />
+                </View>
+              </Show>
+
+              <Show when={section() === "network"}>
+                <SectionHeading
+                  title="Network and engine"
+                  detail="Configure the embedded Rust download engine and incoming peer connectivity."
+                />
+                <View class="p-4 flex items-center justify-between rounded-lg border border-subtle bg-surface-muted">
+                  <View class="min-w-0 flex flex-col gap-1">
+                    <Text class="font-semibold">Download service</Text>
+                    <Text class="truncate text-sm text-muted">
+                      Embedded locally · {snapshot().version ?? "gosh-dl"}
+                    </Text>
+                  </View>
+                  <Badge
+                    variant={
+                      snapshot().status === "ready" ? "success" : "secondary"
+                    }
+                  >
+                    {snapshot().status === "ready"
+                      ? "Ready"
+                      : snapshot().status === "starting"
+                        ? "Starting"
+                        : "Unavailable"}
+                  </Badge>
+                </View>
+                <View class="border-t border-subtle" />
+                <View class="flex items-center justify-between">
+                  <View class="flex flex-col gap-1">
+                    <Text class="font-semibold">Incoming peer connections</Text>
+                    <Text class="text-xs text-muted">
+                      Maintain TCP and UDP mappings for the configured BT and
+                      DHT ports.
+                    </Text>
+                  </View>
+                  <Switch
+                    label="Enable automatic port mapping"
+                    checked={natEnabled()}
+                    onCheckedChange={setNatEnabled}
+                  />
+                </View>
+                <Show when={natEnabled()}>
+                  <View class="grid grid-cols-4 gap-2">
+                    <For
+                      each={
+                        [
+                          ["auto", "Automatic"],
+                          ["pcp", "PCP"],
+                          ["natPmp", "NAT-PMP"],
+                          ["upnp", "UPnP"],
+                        ] as const
+                      }
+                    >
+                      {([value, label]) => (
+                        <Button
+                          size="sm"
+                          variant={
+                            natProtocol() === value ? "default" : "outline"
+                          }
+                          onClick={() => setNatProtocol(value)}
+                        >
+                          {label}
+                        </Button>
+                      )}
+                    </For>
+                  </View>
+                  <View
+                    role="status"
+                    aria-label="Port mapping status"
+                    class="p-3 flex flex-col gap-1 rounded-lg bg-surface-muted"
+                  >
+                    <View class="flex items-center justify-between">
+                      <Text class="text-sm font-medium">Port mapping</Text>
+                      <Badge
+                        variant={
+                          snapshot().nat.state === "mapped"
+                            ? "success"
+                            : "secondary"
+                        }
+                      >
+                        {snapshot().nat.state}
+                      </Badge>
+                    </View>
+                    <Text class="text-xs text-muted">
+                      TCP {snapshot().nat.tcpExternalAddress ?? "discovering"} ·
+                      UDP {snapshot().nat.udpExternalAddress ?? "discovering"}
+                    </Text>
+                  </View>
+                </Show>
+                <View class="border-t border-subtle" />
+                <View class="flex items-center justify-between">
+                  <View class="flex flex-col gap-1">
+                    <Text class="font-semibold">Download proxy</Text>
+                    <Text class="text-xs text-muted">
+                      Route downloads through an explicit proxy.
+                    </Text>
+                  </View>
+                  <Switch
+                    label="Enable download proxy"
+                    checked={proxyEnabled()}
+                    onCheckedChange={setProxyEnabled}
+                  />
+                </View>
+                <Show when={proxyEnabled()}>
+                  <Text class="text-xs text-muted">
+                    The engine uses an HTTP forward proxy for HTTP, HTTPS, and
+                    FTP downloads.
+                  </Text>
+                  <View class="w-full min-w-0 grid grid-cols-2 gap-3">
+                    <FieldLabel label="Proxy host">
+                      <Input
+                        aria-label="Proxy host"
+                        value={proxyHost()}
+                        placeholder="127.0.0.1"
+                        onInput={(event) =>
+                          setProxyHost(event.currentTarget.value)
+                        }
+                      />
+                    </FieldLabel>
+                    <FieldLabel label="Proxy port">
+                      <Input
+                        aria-label="Proxy port"
+                        value={proxyPort()}
+                        placeholder="8080"
+                        onInput={(event) =>
+                          setProxyPort(event.currentTarget.value)
+                        }
+                      />
+                    </FieldLabel>
+                  </View>
+                </Show>
+              </Show>
+
+              <Show when={section() === "advanced"}>
+                <SectionHeading
+                  title="Advanced"
+                  detail="Inspect local application data and configuration."
+                />
+                <View class="w-full min-w-0 grid grid-cols-1 gap-4">
+                  <MaintenanceCard
+                    title="Configuration folder"
+                    detail="Open the platform-native directory containing Motrix's protected configuration file."
+                    action="Open folder"
+                    disabled={busy()}
+                    onAction={() =>
+                      runMaintenance("Open configuration folder", () =>
+                        downloads.openConfigFolder(),
+                      )
+                    }
+                  />
+                </View>
+              </Show>
+
+              <Show when={section() === "about"}>
+                <SectionHeading
+                  title="About Motrix · Wabou"
+                  detail="A native download manager built as a real-world Wabou application."
+                />
+                <View class="w-full min-w-0 grid grid-cols-2 gap-4">
+                  <InfoCard title="Application" detail="Motrix · Wabou 0.1.0" />
+                  <InfoCard
+                    title="Download engine"
+                    detail={snapshot().version ?? "not connected"}
+                  />
+                  <InfoCard
+                    title="Architecture"
+                    detail="Rust owns downloads, files, persistence and native services; Solid owns routed UI state."
+                  />
+                  <View class="min-w-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface-muted">
+                    <Text class="font-semibold">Source code</Text>
+                    <Text class="whitespace-normal text-sm text-muted">
+                      Wabou is developed in the open under the Apache-2.0
+                      license.
+                    </Text>
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        host.system.openUrl("https://github.com/SunDoge/wabou")
+                      }
+                    >
+                      Open repository
+                    </Button>
+                  </View>
+                </View>
+              </Show>
+
+              <View class="pt-4 flex items-center justify-between border-t border-subtle">
+                <Show
+                  when={
+                    !draft.valid()
+                      ? Object.values(draft.errors())[0]
+                      : message()
+                  }
+                  fallback={
+                    <Text
+                      role="status"
+                      aria-label={
+                        draft.dirty()
+                          ? "Unsaved settings"
+                          : "Settings up to date"
+                      }
+                      class="text-xs text-muted"
+                    >
+                      {draft.dirty()
+                        ? "Unsaved changes."
+                        : "Settings are up to date."}
+                    </Text>
+                  }
+                >
+                  <Text
+                    role={draft.valid() ? "status" : "alert"}
+                    aria-label={
+                      draft.valid() ? message() : "Settings validation error"
+                    }
+                    class={
+                      draft.valid()
+                        ? "text-sm text-muted"
+                        : "text-sm text-danger-primary"
+                    }
+                  >
+                    {!draft.valid()
+                      ? Object.values(draft.errors())[0]
+                      : message()}
+                  </Text>
+                </Show>
+                <View class="flex items-center gap-2">
+                  <Show when={restartRequired() && !import.meta.env.DEV}>
+                    <Button
+                      variant="outline"
+                      onClick={() => application.relaunch()}
+                    >
+                      Restart now
+                    </Button>
+                  </Show>
+                  <Button
+                    disabled={busy() || !draft.dirty() || !draft.valid()}
+                    onClick={save}
+                  >
+                    {busy() ? "Working…" : "Save settings"}
+                  </Button>
+                </View>
+              </View>
+            </CardContent>
+          </Card>
+        </View>
+      </Show>
     </View>
+  );
+}
+
+function SettingsOverview(props: {
+  compact: boolean;
+  onSelect(section: SettingsSection): void;
+}) {
+  return (
+    <ResponsiveGrid
+      role="group"
+      aria-label="Settings categories"
+      minColumnWidth={260}
+      gap={1}
+      maxColumns={3}
+      initialColumns={props.compact ? 2 : 3}
+      class="flex-none overflow-hidden rounded-2xl bg-subtle shadow-sm"
+    >
+      <For each={settingsItems}>
+        {([id, name, detail, icon]) => (
+          <SettingsOverviewItem
+            id={id}
+            name={name}
+            detail={detail}
+            icon={icon}
+            onSelect={props.onSelect}
+          />
+        )}
+      </For>
+      <ResponsiveGridRemainder
+        itemCount={settingsItems.length}
+        class="bg-surface"
+      />
+    </ResponsiveGrid>
+  );
+}
+
+function SettingsOverviewItem(props: {
+  id: SettingsSection;
+  name: string;
+  detail: string;
+  icon: string;
+  onSelect(section: SettingsSection): void;
+}) {
+  const grid = useResponsiveGrid();
+  const compact = () => grid.columns() < 3;
+  return (
+    <PrimitiveButton
+      unstyled
+      aria-label={`Open ${props.name} settings`}
+      class={(state) =>
+        `w-full min-w-0 ${compact() ? "p-4" : "p-8"} ${state.hovered ? "bg-control-hover" : "bg-surface"}`
+      }
+      classList={{ "min-h-24": compact(), "min-h-56": !compact() }}
+      onClick={() => props.onSelect(props.id)}
+    >
+      <View
+        class="w-full min-w-0 flex items-start gap-4"
+        classList={{
+          "flex-row items-center": compact(),
+          "flex-col": !compact(),
+        }}
+      >
+        <View
+          class="flex-none flex items-center justify-center"
+          classList={{
+            "w-12 h-12 rounded-xl": compact(),
+            "w-14 h-14 rounded-2xl": !compact(),
+            "bg-selected": ["general", "integration", "about"].includes(
+              props.id,
+            ),
+            "bg-activity-1": ["appearance", "network"].includes(props.id),
+            "bg-danger-surface": props.id === "downloads",
+            "bg-success-surface": ["bittorrent", "advanced"].includes(props.id),
+            "text-accent": props.id === "general",
+            "text-chart-download": ["appearance", "network"].includes(props.id),
+            "text-danger-primary": props.id === "downloads",
+            "text-success-primary": ["bittorrent", "advanced"].includes(
+              props.id,
+            ),
+            "text-chart-upload": props.id === "integration",
+            "text-secondary": props.id === "about",
+          }}
+        >
+          <Icon source={props.icon} size={compact() ? 24 : 28} />
+        </View>
+        <View class="min-w-0 flex flex-col items-start gap-1">
+          <Text
+            classList={{ "text-base": compact(), "text-lg": !compact() }}
+            class="font-semibold text-primary"
+          >
+            {props.name}
+          </Text>
+          <Text class="whitespace-normal text-sm text-muted">
+            {props.detail}
+          </Text>
+        </View>
+      </View>
+    </PrimitiveButton>
   );
 }
 

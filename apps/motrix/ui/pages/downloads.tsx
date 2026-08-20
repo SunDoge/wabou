@@ -8,16 +8,25 @@ import {
   CardContent,
   Checkbox,
   clipboard,
+  createContainerMatch,
   createKeyedAsyncAction,
   createKeyedSelection,
   createLatestAsyncResource,
   createWindowMatch,
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
   Icon,
   Input,
   isDirectEvent,
   Modal,
+  PageHeader,
   Progress,
   ScrollArea,
+  Select,
   showNativeMenu,
   Tabs,
   TabsList,
@@ -32,17 +41,20 @@ import sortIcon from "lucide-static/icons/arrow-down-wide-narrow.svg?raw";
 import inspect from "lucide-static/icons/panel-right-open.svg?raw";
 import pause from "lucide-static/icons/pause.svg?raw";
 import play from "lucide-static/icons/play.svg?raw";
+import plus from "lucide-static/icons/plus.svg?raw";
 import retry from "lucide-static/icons/rotate-ccw.svg?raw";
 import stop from "lucide-static/icons/square.svg?raw";
 import trash from "lucide-static/icons/trash-2.svg?raw";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { useAppActions } from "../app-actions";
 import { LiveChart } from "../components/live-chart";
 import {
   type DownloadTask,
   type DownloadTaskDetails,
+  type TaskPriority,
   useDownloads,
 } from "../downloads";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatDateTime } from "../lib/format";
 import {
   primaryTaskAction,
   primaryTaskActionLabel,
@@ -50,19 +62,36 @@ import {
   restartTaskAction,
   type TaskFilter,
   type TaskSort,
+  taskPathActions,
+  taskStatusPresentation,
 } from "../task-list";
 
 const sortLabels: Record<TaskSort, string> = {
-  queue: "Queue order",
+  newest: "Newest first",
+  oldest: "Oldest first",
+  priority: "Priority",
   name: "Name",
   size: "Largest size",
   progress: "Most progress",
   speed: "Fastest speed",
 };
 
+const priorityOptions: readonly { value: TaskPriority; label: string }[] = [
+  { value: "low", label: "Low" },
+  { value: "normal", label: "Normal" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+];
+
 export function DownloadsPage() {
   const downloads = useDownloads();
+  const appActions = useAppActions();
   const compactToolbar = createWindowMatch({ maxWidth: 1100 });
+  const narrow = createWindowMatch({ maxWidth: 800 });
+  // The fixed sidebar consumes roughly 230px. Compact only the table before
+  // its content area can no longer hold metadata, progress and actions; the
+  // surrounding toolbar has a separate, smaller responsive breakpoint.
+  const compactTable = createContainerMatch({ maxWidth: 760 });
   const [query, setQuery] = createSignal("");
   const filters: readonly [TaskFilter, string][] = [
     ["all", "All"],
@@ -72,7 +101,7 @@ export function DownloadsPage() {
     ["stopped", "Stopped"],
   ];
   const [filter, setFilter] = createSignal<TaskFilter>("all");
-  const [sort, setSort] = createSignal<TaskSort>("queue");
+  const [sort, setSort] = createSignal<TaskSort>("newest");
   const taskSource = () => downloads.snapshot().tasks;
   const inspectorSelection = createKeyedSelection({
     items: taskSource,
@@ -93,11 +122,17 @@ export function DownloadsPage() {
   const selectedIds = batchSelection.keys;
   const selectedTasks = batchSelection.items;
   const [actionError, setActionError] = createSignal("");
+  const [actionNotice, setActionNotice] = createSignal("");
   const pendingRemoval = removalSelection.items;
   const [removeFiles, setRemoveFiles] = createSignal(false);
   const [detailTab, setDetailTab] = createSignal<
     "overview" | "files" | "activity"
   >("overview");
+  createEffect(downloads.requestedTaskId, (id) => {
+    if (!id) return;
+    inspectorSelection.select(id);
+    downloads.clearTaskInspectionRequest();
+  });
   const detailsResource = createLatestAsyncResource<
     string,
     DownloadTaskDetails
@@ -115,6 +150,7 @@ export function DownloadsPage() {
     () => selected()?.id,
     () => {
       setDetailTab("overview");
+      setActionNotice("");
     },
   );
   createEffect(
@@ -134,10 +170,16 @@ export function DownloadsPage() {
     (key: string, _operation: () => Promise<void>) => key,
     (_key: string, operation: () => Promise<void>) => operation(),
   );
-  const executeAction = async (key: string, action: () => Promise<void>) => {
+  const executeAction = async (
+    key: string,
+    action: () => Promise<void>,
+    successMessage?: string,
+  ) => {
     setActionError("");
+    setActionNotice("");
     const outcome = await taskActions.run(key, action);
     if (!outcome.ok) setActionError(String(outcome.error));
+    else if (successMessage) setActionNotice(successMessage);
   };
   const toggleSelected = (id: string, checked: boolean) =>
     checked ? batchSelection.select(id) : batchSelection.deselect(id);
@@ -168,6 +210,7 @@ export function DownloadsPage() {
     inspectorSelection.select(task.id);
     const restartAction = restartTaskAction(task);
     const primaryAction = primaryTaskAction(task);
+    const pathActions = taskPathActions(task);
     const selection = await showNativeMenu({
       position,
       items: [
@@ -187,9 +230,15 @@ export function DownloadsPage() {
         },
         {
           kind: "item",
-          id: "open-folder",
-          label: "Open folder",
-          enabled: Boolean(task.filePath || task.dir),
+          id: "open-file",
+          label: "Open file",
+          enabled: pathActions.openFile,
+        },
+        {
+          kind: "item",
+          id: "show-in-folder",
+          label: "Show in folder",
+          enabled: pathActions.showInFolder,
         },
         {
           kind: "item",
@@ -197,148 +246,213 @@ export function DownloadsPage() {
           label: "Copy source",
           enabled: Boolean(task.uri),
         },
+        {
+          kind: "submenu",
+          label: "Priority",
+          items: priorityOptions.map(({ value, label }) => ({
+            kind: "item" as const,
+            id: `priority-${value}`,
+            label,
+            checked: task.priority === value,
+          })),
+        },
         { kind: "separator" },
         { kind: "item", id: "remove", label: "Remove" },
       ],
     });
     if (selection === "toggle" && primaryAction) await pauseOrResume(task);
     else if (selection === "retry" && restartAction) await retryTask(task);
-    else if (selection === "open-folder") {
+    else if (selection === "open-file") {
+      if (task.filePath) {
+        await downloads.openPath(task.filePath);
+        setActionNotice(`Opened ${task.name}.`);
+      }
+    } else if (selection === "show-in-folder") {
       const path = task.filePath || task.dir;
-      if (path) await downloads.openTaskFolder(path);
+      if (path) {
+        await downloads.openTaskFolder(path);
+        setActionNotice(`Opened the folder containing ${task.name}.`);
+      }
     } else if (selection === "copy-source") {
-      if (task.uri) await clipboard.writeText(task.uri);
+      if (task.uri) {
+        await clipboard.writeText(task.uri);
+        setActionNotice(`Copied the source for ${task.name}.`);
+      }
+    } else if (selection.startsWith("priority-")) {
+      const priority = selection.slice("priority-".length) as TaskPriority;
+      if (priorityOptions.some((option) => option.value === priority)) {
+        await downloads.setTaskPriority(task.id, priority);
+        setActionNotice(`${task.name} priority set to ${priority}.`);
+      }
     } else if (selection === "remove") requestRemoval([task]);
   };
   const shown = createMemo(() =>
     projectTasks(downloads.snapshot().tasks, filter(), query(), sort()),
   );
+  const stoppedTasks = createMemo(() =>
+    downloads
+      .snapshot()
+      .tasks.filter(
+        (task) => task.status === "error" || task.status === "removed",
+      ),
+  );
   return (
     <View class="h-full min-h-0 flex flex-col gap-3">
-      <View
-        class="flex-none flex justify-between"
-        classList={{
-          "items-center": !compactToolbar(),
-          "flex-col items-stretch gap-2": compactToolbar(),
-        }}
-      >
-        <View class="flex items-center gap-3">
-          <Text role="heading" class="text-2xl font-bold">
-            All Downloads
-          </Text>
+      <PageHeader
+        title="All Downloads"
+        stacked={compactToolbar()}
+        titleAdornment={
           <Badge variant="outline">
             {shown().length}/{downloads.snapshot().tasks.length}
           </Badge>
-        </View>
-        <View
-          class="flex items-center gap-2"
-          classList={{ "w-full": compactToolbar() }}
-        >
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={
-              downloads.snapshot().status !== "ready" ||
-              taskActions.pending("global")
-            }
-            onClick={() =>
-              executeAction("global", async () => {
-                await downloads.globalTaskAction("pauseAll");
-              })
-            }
-          >
-            <Icon source={pause} size={14} />
-            Pause all
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={
-              downloads.snapshot().status !== "ready" ||
-              taskActions.pending("global")
-            }
-            onClick={() =>
-              executeAction("global", async () => {
-                await downloads.globalTaskAction("resumeAll");
-              })
-            }
-          >
-            <Icon source={play} size={14} />
-            Resume all
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label="Sort downloads"
-            disabled={taskActions.pending("sort")}
-            onClick={() =>
-              executeAction("sort", async () => {
-                const selectedSort = await showNativeMenu({
-                  items: (
-                    Object.entries(sortLabels) as [TaskSort, string][]
-                  ).map(([id, label]) => ({
-                    kind: "item" as const,
-                    id,
-                    label,
-                    checked: sort() === id,
-                  })),
-                });
-                if (
-                  typeof selectedSort === "string" &&
-                  selectedSort in sortLabels
-                )
-                  setSort(selectedSort as TaskSort);
-              })
-            }
-          >
-            <Icon source={sortIcon} size={14} />
-            {sortLabels[sort()]}
-          </Button>
+        }
+        actions={
           <View
-            classList={{
-              "w-56": !compactToolbar(),
-              "min-w-32 flex-1": compactToolbar(),
-            }}
+            class="w-full flex gap-2"
+            classList={{ "flex-col items-stretch": narrow() }}
           >
-            <Input
-              aria-label="Search downloads"
-              value={query()}
-              placeholder="Search downloads"
-              onInput={(event) => setQuery(event.currentTarget.value)}
-            />
+            <View class="flex flex-row items-center gap-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={
+                  downloads.snapshot().status !== "ready" ||
+                  taskActions.pending("global")
+                }
+                onClick={() =>
+                  executeAction("global", async () => {
+                    await downloads.globalTaskAction("pauseAll");
+                  })
+                }
+              >
+                <Icon source={pause} size={14} />
+                Pause all
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={
+                  downloads.snapshot().status !== "ready" ||
+                  taskActions.pending("global")
+                }
+                onClick={() =>
+                  executeAction("global", async () => {
+                    await downloads.globalTaskAction("resumeAll");
+                  })
+                }
+              >
+                <Icon source={play} size={14} />
+                Resume all
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Sort downloads: ${sortLabels[sort()]}`}
+                disabled={taskActions.pending("sort")}
+                onClick={() =>
+                  executeAction("sort", async () => {
+                    const selectedSort = await showNativeMenu({
+                      items: (
+                        Object.entries(sortLabels) as [TaskSort, string][]
+                      ).map(([id, label]) => ({
+                        kind: "item" as const,
+                        id,
+                        label,
+                        checked: sort() === id,
+                      })),
+                    });
+                    if (
+                      typeof selectedSort === "string" &&
+                      selectedSort in sortLabels
+                    )
+                      setSort(selectedSort as TaskSort);
+                  })
+                }
+              >
+                <Icon source={sortIcon} size={14} />
+                {sortLabels[sort()]}
+              </Button>
+            </View>
+            <View
+              classList={{
+                "w-56": !compactToolbar(),
+                "min-w-32 flex-1": compactToolbar(),
+              }}
+            >
+              <Input
+                aria-label="Search downloads"
+                value={query()}
+                placeholder="Search downloads"
+                onInput={(event) => setQuery(event.currentTarget.value)}
+              />
+            </View>
           </View>
-        </View>
-      </View>
-      <View class="flex-none flex items-center justify-between">
-        <ToggleGroup
-          type="single"
-          value={filter()}
-          aria-label="Download status"
-          class="gap-2 bg-transparent p-0"
-          onValueChange={(value) => {
-            setFilter(value as TaskFilter);
-            inspectorSelection.clear();
-            batchSelection.clear();
-          }}
+        }
+      />
+      <View class="flex-none flex items-center justify-between gap-3">
+        <Show
+          when={narrow()}
+          fallback={
+            <ToggleGroup
+              type="single"
+              value={filter()}
+              aria-label="Download status"
+              class="gap-2 bg-transparent p-0"
+              onValueChange={(value) => {
+                setFilter(value as TaskFilter);
+                inspectorSelection.clear();
+                batchSelection.clear();
+              }}
+            >
+              <For each={filters}>
+                {([value, label]) => (
+                  <ToggleGroupItem
+                    value={value}
+                    variant="accent"
+                    class="flex-none"
+                  >
+                    {label}
+                  </ToggleGroupItem>
+                )}
+              </For>
+            </ToggleGroup>
+          }
         >
-          <For each={filters}>
-            {([value, label]) => (
-              <ToggleGroupItem value={value} variant="accent" class="flex-none">
-                {label}
-              </ToggleGroupItem>
-            )}
-          </For>
-        </ToggleGroup>
+          <Select
+            aria-label="Download status"
+            class="w-44"
+            value={filter()}
+            options={filters.map(([value, label]) => ({ value, label }))}
+            onValueChange={(value) => {
+              setFilter(value as TaskFilter);
+              inspectorSelection.clear();
+              batchSelection.clear();
+            }}
+          />
+        </Show>
         <Show
           when={selectedIds().size > 0}
           fallback={
-            <Show when={selected()}>
-              {(task) => (
-                <Text class="text-sm text-muted">
-                  Inspecting · {task().name}
-                </Text>
-              )}
-            </Show>
+            <View class="flex items-center gap-2">
+              <Show when={selected()}>
+                {(task) => (
+                  <Text class="text-sm text-muted">
+                    Inspecting · {task().name}
+                  </Text>
+                )}
+              </Show>
+              <Show when={stoppedTasks().length > 0}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={taskActions.pending("batch")}
+                  onClick={() => requestRemoval(stoppedTasks())}
+                >
+                  <Icon source={trash} size={14} />
+                  Clear stopped
+                </Button>
+              </Show>
+            </View>
           }
         >
           <View class="flex items-center gap-2">
@@ -407,8 +521,21 @@ export function DownloadsPage() {
         </Show>
       </View>
       <Show when={actionError()}>
-        <View role="alert" class="px-4 py-3 rounded-lg bg-danger-surface">
+        <View
+          role="alert"
+          aria-label="Download action failed"
+          class="px-4 py-3 rounded-lg bg-danger-surface"
+        >
           <Text class="text-sm text-danger-primary">{actionError()}</Text>
+        </View>
+      </Show>
+      <Show when={!selected() && !actionError() && actionNotice()}>
+        <View
+          role="status"
+          aria-label="Download action completed"
+          class="px-4 py-3 rounded-lg bg-success-surface"
+        >
+          <Text class="text-sm text-success-primary">{actionNotice()}</Text>
         </View>
       </Show>
       <AdaptiveSplitPane
@@ -416,7 +543,12 @@ export function DownloadsPage() {
         class="min-h-0 flex-1 gap-3"
       >
         <AdaptiveSplitPaneMain class="h-full">
-          <Card class="min-w-0 h-full rounded-xl shadow-lg">
+          <Card
+            ref={compactTable.ref}
+            role="group"
+            aria-label="Download list"
+            class="min-w-0 h-full rounded-xl shadow-lg"
+          >
             <CardContent class="h-full min-h-0 p-0 flex flex-col">
               <View class="h-11 flex-none px-4 flex items-center border-b border-subtle bg-surface-muted">
                 <View class="w-9 flex-none">
@@ -437,21 +569,75 @@ export function DownloadsPage() {
                     }
                   />
                 </View>
-                <Text class="w-2/5 text-xs text-muted">NAME</Text>
-                <Text class="w-1/6 text-xs text-muted">SIZE</Text>
-                <Text class="w-1/4 text-xs text-muted">PROGRESS</Text>
-                <Text class="flex-1 text-xs text-muted">STATUS</Text>
+                <Text
+                  class={
+                    compactTable.matches()
+                      ? "min-w-0 flex-1 text-xs text-muted"
+                      : "w-2/5 text-xs text-muted"
+                  }
+                >
+                  NAME
+                </Text>
+                <Show when={!compactTable.matches()}>
+                  <Text class="w-1/6 text-xs text-muted">SIZE</Text>
+                  <Text class="w-1/4 text-xs text-muted">PROGRESS</Text>
+                </Show>
+                <Text class="w-20 flex-none text-xs text-muted">STATUS</Text>
               </View>
               <Show
                 when={shown().length > 0}
                 fallback={
-                  <View class="min-h-0 flex-1 flex items-center justify-center">
-                    <Text class="text-muted">
-                      {query().trim()
-                        ? "No downloads match this search."
-                        : "No downloads yet."}
-                    </Text>
-                  </View>
+                  <Show
+                    when={!query().trim()}
+                    fallback={
+                      <Empty
+                        variant="plain"
+                        class={narrow() ? "flex-1 p-2 gap-2" : "flex-1"}
+                      >
+                        <EmptyHeader>
+                          <EmptyTitle>No matching downloads</EmptyTitle>
+                          <EmptyDescription>
+                            Try another name or clear the current search.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                          <Button
+                            variant="outline"
+                            onClick={() => setQuery("")}
+                          >
+                            Clear search
+                          </Button>
+                        </EmptyContent>
+                      </Empty>
+                    }
+                  >
+                    <Empty
+                      variant="plain"
+                      class={narrow() ? "flex-1 p-2 gap-2" : "flex-1"}
+                    >
+                      <Show when={!narrow()}>
+                        <EmptyMedia class="rounded-full bg-selected">
+                          <Icon source={plus} size={22} class="text-accent" />
+                        </EmptyMedia>
+                      </Show>
+                      <EmptyHeader>
+                        <EmptyTitle>Start your first download</EmptyTitle>
+                        <EmptyDescription class="max-w-md">
+                          Add one or more links, or inspect a torrent before
+                          creating the task.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                      <EmptyContent>
+                        <Button
+                          aria-label="Add a download"
+                          onClick={appActions.openAddTask}
+                        >
+                          <Icon source={plus} size={15} />
+                          Add download
+                        </Button>
+                      </EmptyContent>
+                    </Empty>
+                  </Show>
                 }
               >
                 <VirtualList
@@ -471,10 +657,18 @@ export function DownloadsPage() {
                       }}
                       onDblClick={() => {
                         if (task().status !== "complete") return;
-                        const path = task().filePath || task().dir;
-                        if (path)
-                          executeAction(task().id, () =>
-                            downloads.openTaskFolder(path),
+                        const filePath = task().filePath;
+                        if (filePath)
+                          executeAction(
+                            task().id,
+                            () => downloads.openPath(filePath),
+                            `Opened ${task().name}.`,
+                          );
+                        else if (task().dir)
+                          executeAction(
+                            task().id,
+                            () => downloads.openTaskFolder(task().dir),
+                            `Opened the folder containing ${task().name}.`,
                           );
                       }}
                       onContextMenu={(event) => {
@@ -496,8 +690,28 @@ export function DownloadsPage() {
                           }
                         />
                       </View>
-                      <View class="w-2/5 min-w-0 flex flex-col">
-                        <Text class="truncate font-medium">{task().name}</Text>
+                      <View
+                        role="group"
+                        aria-label={`Task identity: ${task().name}`}
+                        class={
+                          compactTable.matches()
+                            ? "min-w-0 flex-1 flex flex-col"
+                            : "w-2/5 min-w-0 flex flex-col"
+                        }
+                      >
+                        <View class="min-w-0 flex items-center gap-2">
+                          <Text class="min-w-0 flex-1 truncate font-medium">
+                            {task().name}
+                          </Text>
+                          <Show when={task().priority !== "normal"}>
+                            <Badge variant="outline" class="flex-none">
+                              {priorityOptions.find(
+                                (option) => option.value === task().priority,
+                              )?.label ?? task().priority}{" "}
+                              priority
+                            </Badge>
+                          </Show>
+                        </View>
                         <Text class="text-xs text-muted">
                           {task().bittorrent ? "BitTorrent" : "HTTP"} ·{" "}
                           {task().fileCount}{" "}
@@ -505,31 +719,38 @@ export function DownloadsPage() {
                           {task().connections} connections
                         </Text>
                       </View>
-                      <Text class="w-1/6 text-sm">
-                        {formatBytes(task().totalLength)}
-                      </Text>
-                      <View class="w-1/4 pr-5 flex flex-col gap-1">
-                        <Progress
-                          value={
-                            task().totalLength
-                              ? (task().completedLength / task().totalLength) *
-                                100
-                              : 0
-                          }
-                        />
-                        <Text class="text-xs text-muted">
-                          {formatBytes(task().completedLength)} ·{" "}
-                          {formatBytes(task().downloadSpeed)}/s ·{" "}
-                          {formatEta(task())}
+                      <Show when={!compactTable.matches()}>
+                        <Text class="w-1/6 text-sm">
+                          {formatBytes(task().totalLength)}
                         </Text>
-                      </View>
-                      <View class="flex-1">
+                        <View class="w-1/4 pr-5 flex flex-col gap-1">
+                          <Progress
+                            value={
+                              task().totalLength
+                                ? (task().completedLength /
+                                    task().totalLength) *
+                                  100
+                                : 0
+                            }
+                          />
+                          <Text class="text-xs text-muted">
+                            {formatBytes(task().completedLength)} ·{" "}
+                            {formatBytes(task().downloadSpeed)}/s ·{" "}
+                            {formatEta(task())}
+                          </Text>
+                        </View>
+                      </Show>
+                      <View
+                        role="group"
+                        aria-label={`Task status: ${task().name}`}
+                        class="w-20 flex-none"
+                      >
                         <Badge
                           variant={
-                            task().status === "active" ? "default" : "secondary"
+                            taskStatusPresentation(task().status).variant
                           }
                         >
-                          {task().status}
+                          {taskStatusPresentation(task().status).label}
                         </Badge>
                       </View>
                       <View class="flex gap-1">
@@ -660,7 +881,32 @@ export function DownloadsPage() {
                       <Show when={detailTab() === "overview"}>
                         <View class="flex flex-col gap-3">
                           <Detail label="Task ID" value={task().id} />
-                          <Detail label="Status" value={task().status} />
+                          <TaskStatusDetail status={task().status} />
+                          <Detail
+                            label="Added"
+                            value={formatDateTime(task().createdAtMs)}
+                          />
+                          <View class="flex flex-col gap-1">
+                            <Text class="text-xs text-muted">Priority</Text>
+                            <Select
+                              aria-label="Task priority"
+                              class="w-full"
+                              value={task().priority}
+                              options={[...priorityOptions]}
+                              disabled={taskActions.pending(task().id)}
+                              onValueChange={(value) =>
+                                executeAction(
+                                  task().id,
+                                  () =>
+                                    downloads.setTaskPriority(
+                                      task().id,
+                                      value as TaskPriority,
+                                    ),
+                                  `${task().name} priority set to ${value}.`,
+                                )
+                              }
+                            />
+                          </View>
                           <Detail
                             label="Save directory"
                             value={task().dir || "Default"}
@@ -791,9 +1037,45 @@ export function DownloadsPage() {
                       </Show>
                     </View>
                   </ScrollArea>
-                  <View class="flex gap-2">
+                  <Show when={!actionError() && actionNotice()}>
+                    <View
+                      role="status"
+                      aria-label="Download action completed"
+                      class="px-3 py-2 rounded-lg bg-success-surface"
+                    >
+                      <Text class="text-xs text-success-primary">
+                        {actionNotice()}
+                      </Text>
+                    </View>
+                  </Show>
+                  <View
+                    class={
+                      compactToolbar()
+                        ? "flex flex-row gap-2"
+                        : "flex flex-col gap-2"
+                    }
+                  >
+                    <Show when={taskPathActions(task()).openFile}>
+                      <Button
+                        variant="outline"
+                        class={compactToolbar() ? "" : "w-full"}
+                        disabled={taskActions.pending(task().id)}
+                        onClick={() => {
+                          const path = task().filePath;
+                          if (path)
+                            executeAction(
+                              task().id,
+                              () => downloads.openPath(path),
+                              `Opened ${task().name}.`,
+                            );
+                        }}
+                      >
+                        Open file
+                      </Button>
+                    </Show>
                     <Button
                       variant="outline"
+                      class={compactToolbar() ? "" : "w-full"}
                       disabled={
                         taskActions.pending(task().id) ||
                         (!task().filePath && !task().dir)
@@ -801,28 +1083,41 @@ export function DownloadsPage() {
                       onClick={() => {
                         const path = task().filePath || task().dir;
                         if (path)
-                          executeAction(task().id, () =>
-                            downloads.openTaskFolder(path),
+                          executeAction(
+                            task().id,
+                            () => downloads.openTaskFolder(path),
+                            `Opened the folder containing ${task().name}.`,
                           );
                       }}
                     >
-                      Open folder
+                      Show in folder
                     </Button>
                     <Button
                       variant="outline"
+                      class={compactToolbar() ? "" : "w-full"}
                       disabled={taskActions.pending("clipboard") || !task().uri}
                       onClick={() => {
                         const uri = task().uri;
                         if (uri)
-                          executeAction("clipboard", async () => {
-                            await clipboard.writeText(uri);
-                          });
+                          executeAction(
+                            "clipboard",
+                            async () => {
+                              await clipboard.writeText(uri);
+                            },
+                            `Copied the source for ${task().name}.`,
+                          );
                       }}
                     >
                       Copy source
                     </Button>
                   </View>
-                  <Button variant="outline" onClick={inspectorSelection.clear}>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setActionNotice("");
+                      inspectorSelection.clear();
+                    }}
+                  >
                     Close inspector
                   </Button>
                 </CardContent>
@@ -883,7 +1178,11 @@ export function DownloadsPage() {
       >
         {({ close }) => (
           <>
-            <Text class="text-xl font-semibold">Remove download?</Text>
+            <Text class="text-xl font-semibold">
+              {pendingRemoval().length === 1
+                ? "Remove download?"
+                : "Remove downloads?"}
+            </Text>
             <Text class="whitespace-normal text-sm text-muted">
               {pendingRemoval().length === 1
                 ? pendingRemoval()[0]?.name
@@ -943,9 +1242,23 @@ function fileName(path: string): string {
 
 function Detail(props: { label: string; value: string }) {
   return (
-    <View class="flex flex-col gap-1">
+    <View role="group" aria-label={props.label} class="flex flex-col gap-1">
       <Text class="text-xs text-muted">{props.label}</Text>
       <Text class="text-sm whitespace-normal">{props.value}</Text>
+    </View>
+  );
+}
+
+function TaskStatusDetail(props: { status: string }) {
+  const presentation = () => taskStatusPresentation(props.status);
+  return (
+    <View
+      role="group"
+      aria-label={`Task detail status: ${presentation().label}`}
+      class="flex flex-col items-start gap-1"
+    >
+      <Text class="text-xs text-muted">Status</Text>
+      <Badge variant={presentation().variant}>{presentation().label}</Badge>
     </View>
   );
 }

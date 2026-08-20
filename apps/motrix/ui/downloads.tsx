@@ -21,11 +21,13 @@ import {
 } from "solid-js";
 import type {
   NativeDownloadsApi,
-  TorrentFilePreview,
   TorrentPreview,
 } from "./generated/native-downloads";
 
-export type { TorrentFilePreview, TorrentPreview } from "./generated/native-downloads";
+export type {
+  TorrentFilePreview,
+  TorrentPreview,
+} from "./generated/native-downloads";
 
 export interface DownloadTask {
   id: string;
@@ -48,7 +50,12 @@ export interface DownloadTask {
   /** Completed task retained by Motrix after downloads stopped seeding it. */
   archived: boolean;
   fileCount: number;
+  priority: TaskPriority;
+  /** Engine-persisted creation time, as Unix milliseconds. */
+  createdAtMs: number;
 }
+
+export type TaskPriority = "low" | "normal" | "high" | "critical";
 
 export interface DownloadSnapshot {
   revision: number;
@@ -222,10 +229,12 @@ interface NativeDownloadsCapability extends NativeJsonCapability {
   addUri(request: string): string | PromiseLike<string>;
   addTorrent(request: string): string | PromiseLike<string>;
   taskAction(request: string): string | PromiseLike<string>;
+  setTaskPriority(request: string): string | PromiseLike<string>;
   batchTaskAction(request: string): string | PromiseLike<string>;
   getConfig(): string | PromiseLike<string>;
   setConfig(request: string): string | PromiseLike<string>;
   openTaskFolder(request: string): string | PromiseLike<string>;
+  openPath(request: string): string | PromiseLike<string>;
   openConfigFolder(): string | PromiseLike<string>;
   globalTaskAction(request: string): string | PromiseLike<string>;
   getTaskDetails(request: string): string | PromiseLike<string>;
@@ -254,6 +263,9 @@ interface DownloadsContextValue {
   uploadHistory(): readonly number[];
   events(): readonly TaskEvent[];
   quitRequests(): number;
+  requestedTaskId(): string | undefined;
+  requestTaskInspection(id: string): boolean;
+  clearTaskInspectionRequest(): void;
   taskHistory(id: string): TaskSpeedHistory;
   clearEvents(): void;
   config(): MotrixConfig;
@@ -267,6 +279,7 @@ interface DownloadsContextValue {
     dir?: string;
     split?: number;
     selectedFiles?: number[];
+    priority?: TaskPriority;
   }): Promise<string>;
   inspectTorrent(path: string): Promise<TorrentPreview>;
   taskDetails(id: string): Promise<DownloadTaskDetails>;
@@ -275,6 +288,7 @@ interface DownloadsContextValue {
     action: DownloadAction,
     options?: TaskActionOptions,
   ): Promise<void>;
+  setTaskPriority(id: string, priority: TaskPriority): Promise<void>;
   batchTaskAction(
     ids: string[],
     action: DownloadAction,
@@ -282,6 +296,7 @@ interface DownloadsContextValue {
   ): Promise<string[]>;
   saveConfig(config: MotrixConfig): Promise<SetConfigResult>;
   openTaskFolder(path: string): Promise<void>;
+  openPath(path: string): Promise<void>;
   openConfigFolder(): Promise<void>;
   globalTaskAction(action: "pauseAll" | "resumeAll"): Promise<void>;
   refresh(): Promise<void>;
@@ -311,6 +326,7 @@ export interface AddUrisRequest {
   out?: string;
   split?: number;
   headers?: string[];
+  priority?: TaskPriority;
 }
 
 const disconnected: DownloadSnapshot = {
@@ -375,6 +391,7 @@ export function DownloadsProvider(props: ParentProps) {
     {},
   );
   const [quitRequests, setQuitRequests] = createSignal(0);
+  const [requestedTaskId, setRequestedTaskId] = createSignal<string>();
   const previousStatuses = new Map<string, string>();
   let statusesSeeded = false;
   let nextEventId = 1;
@@ -465,6 +482,13 @@ export function DownloadsProvider(props: ParentProps) {
     uploadHistory,
     events,
     quitRequests,
+    requestedTaskId,
+    requestTaskInspection: (id) => {
+      if (!snapshot().tasks.some((task) => task.id === id)) return false;
+      setRequestedTaskId(id);
+      return true;
+    },
+    clearTaskInspectionRequest: () => setRequestedTaskId(undefined),
     taskHistory: (id) => taskHistories()[id] ?? { download: [], upload: [] },
     clearEvents: () => setEvents([]),
     config,
@@ -506,6 +530,14 @@ export function DownloadsProvider(props: ParentProps) {
         snapshotReflectsTaskAction(next, id, action),
       );
     },
+    setTaskPriority: async (id, priority) => {
+      await call("setTaskPriority", { id, priority });
+      await waitForSnapshot(
+        (next) =>
+          next.tasks.find((candidate) => candidate.id === id)?.priority ===
+          priority,
+      );
+    },
     batchTaskAction: async (ids, action, options) => {
       const completed = await call<string[]>("batchTaskAction", {
         ids,
@@ -523,6 +555,7 @@ export function DownloadsProvider(props: ParentProps) {
       return result;
     },
     openTaskFolder: (path) => call("openTaskFolder", { path }),
+    openPath: (path) => call("openPath", { path }),
     openConfigFolder: () => call("openConfigFolder"),
     globalTaskAction: async (action) => {
       const affected = snapshotResource

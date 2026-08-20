@@ -23,6 +23,7 @@ trash = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4"] }
+url = { workspace = true }
 wabou = { workspace = true, features = ["tray"] }
 specta-typescript = { workspace = true, optional = true }
 

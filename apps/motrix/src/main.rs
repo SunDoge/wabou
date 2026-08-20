@@ -1,7 +1,7 @@
 use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
+    AppDirectoryConfig, Color, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
     initial_window_resource_key,
 };
 use wabou::{SystemTray, TrayImage};
@@ -67,13 +67,16 @@ fn main() -> Result<(), Whatever> {
         })
         .hide_window_on_close(main_window);
     let mut host = HostBuilder::new()
+        .base_color(Color::TRANSPARENT)
         .app_directory_config(directory_config)
         .persist_window_size("main")
         .window(
             WindowOptions::new()
                 .title("Motrix · Wabou")
                 .initial_inner_size(1280, 820)
-                .min_inner_size(900, 600),
+                .min_inner_size(900, 600)
+                .decorations(false)
+                .transparent(true),
         )
         .json_capability(downloads::CAPABILITY, move |capability| {
             downloads::mount(capability, capability_service.clone())

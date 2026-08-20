@@ -12,9 +12,9 @@ use std::{
 
 use gosh_dl::{
     DownloadEngine, DownloadEvent as EngineEvent, DownloadId, DownloadKind, DownloadOptions,
-    DownloadState, EngineConfig,
+    DownloadPriority, DownloadState, EngineConfig,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::{broadcast, oneshot};
 
 use crate::config::{AppConfig, parse_byte_size};
@@ -41,7 +41,43 @@ pub struct DownloadTask {
     pub bittorrent: bool,
     pub seeders: Option<u64>,
     pub error: Option<String>,
+    pub retryable: bool,
     pub file_count: usize,
+    pub priority: TaskPriority,
+    /// Stable engine-persisted creation time used for deterministic task ordering.
+    pub created_at_ms: i64,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskPriority {
+    Low,
+    #[default]
+    Normal,
+    High,
+    Critical,
+}
+
+impl From<DownloadPriority> for TaskPriority {
+    fn from(value: DownloadPriority) -> Self {
+        match value {
+            DownloadPriority::Low => Self::Low,
+            DownloadPriority::Normal => Self::Normal,
+            DownloadPriority::High => Self::High,
+            DownloadPriority::Critical => Self::Critical,
+        }
+    }
+}
+
+impl From<TaskPriority> for DownloadPriority {
+    fn from(value: TaskPriority) -> Self {
+        match value {
+            TaskPriority::Low => Self::Low,
+            TaskPriority::Normal => Self::Normal,
+            TaskPriority::High => Self::High,
+            TaskPriority::Critical => Self::Critical,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -86,6 +122,7 @@ pub struct HttpDownloadRequest {
     pub filename: Option<String>,
     pub headers: Vec<(String, String)>,
     pub max_connections: Option<usize>,
+    pub priority: TaskPriority,
 }
 
 impl HttpDownloadRequest {
@@ -96,6 +133,7 @@ impl HttpDownloadRequest {
             filename: None,
             headers: Vec::new(),
             max_connections: None,
+            priority: TaskPriority::Normal,
         }
     }
 }
@@ -109,11 +147,13 @@ enum Command {
         data: Vec<u8>,
         save_dir: Option<PathBuf>,
         selected_files: Option<Vec<usize>>,
+        priority: TaskPriority,
         reply: oneshot::Sender<Result<String, String>>,
     },
     AddMagnet {
         uri: String,
         save_dir: Option<PathBuf>,
+        priority: TaskPriority,
         reply: oneshot::Sender<Result<String, String>>,
     },
     List {
@@ -132,11 +172,29 @@ enum Command {
         delete_files: bool,
         reply: oneshot::Sender<Result<(), String>>,
     },
+    Retry {
+        id: String,
+        reply: oneshot::Sender<Result<String, String>>,
+    },
+    SetPriority {
+        id: String,
+        priority: TaskPriority,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
     PauseAll {
         reply: oneshot::Sender<Result<(), String>>,
     },
     ResumeAll {
         reply: oneshot::Sender<Result<(), String>>,
+    },
+    SetRuntimeLimits {
+        max_concurrent_downloads: usize,
+        download: Option<u64>,
+        upload: Option<u64>,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
+    GetRuntimeLimits {
+        reply: oneshot::Sender<(usize, Option<u64>, Option<u64>)>,
     },
     Shutdown {
         reply: oneshot::Sender<Result<(), String>>,
@@ -207,11 +265,13 @@ impl GoshBackend {
         data: Vec<u8>,
         save_dir: Option<PathBuf>,
         selected_files: Option<Vec<usize>>,
+        priority: TaskPriority,
     ) -> Result<String, String> {
         self.request(|reply| Command::AddTorrent {
             data,
             save_dir,
             selected_files,
+            priority,
             reply,
         })
         .await?
@@ -221,10 +281,12 @@ impl GoshBackend {
         &self,
         uri: impl Into<String>,
         save_dir: Option<PathBuf>,
+        priority: TaskPriority,
     ) -> Result<String, String> {
         self.request(|reply| Command::AddMagnet {
             uri: uri.into(),
             save_dir,
+            priority,
             reply,
         })
         .await?
@@ -250,6 +312,29 @@ impl GoshBackend {
         self.request(|reply| Command::Cancel {
             id: id.into(),
             delete_files,
+            reply,
+        })
+        .await?
+    }
+
+    /// Replace a retryable failed HTTP or magnet task while preserving its
+    /// source, destination, filename, and request metadata.
+    pub async fn retry(&self, id: impl Into<String>) -> Result<String, String> {
+        self.request(|reply| Command::Retry {
+            id: id.into(),
+            reply,
+        })
+        .await?
+    }
+
+    pub async fn set_priority(
+        &self,
+        id: impl Into<String>,
+        priority: TaskPriority,
+    ) -> Result<(), String> {
+        self.request(|reply| Command::SetPriority {
+            id: id.into(),
+            priority,
             reply,
         })
         .await?
@@ -282,6 +367,26 @@ impl GoshBackend {
 
     pub async fn resume_all(&self) -> Result<(), String> {
         self.request(|reply| Command::ResumeAll { reply }).await?
+    }
+
+    pub async fn set_runtime_limits(
+        &self,
+        max_concurrent_downloads: usize,
+        download: Option<u64>,
+        upload: Option<u64>,
+    ) -> Result<(), String> {
+        self.request(|reply| Command::SetRuntimeLimits {
+            max_concurrent_downloads,
+            download,
+            upload,
+            reply,
+        })
+        .await?
+    }
+
+    pub async fn runtime_limits(&self) -> Result<(usize, Option<u64>, Option<u64>), String> {
+        self.request(|reply| Command::GetRuntimeLimits { reply })
+            .await
     }
 
     async fn request<T>(
@@ -391,6 +496,7 @@ async fn handle_command(engine: &Arc<DownloadEngine>, command: Command) -> bool 
             options.filename = request.filename;
             options.headers = request.headers;
             options.max_connections = request.max_connections;
+            options.priority = request.priority.into();
             let result = engine
                 .add_http(&request.url, options)
                 .await
@@ -402,11 +508,13 @@ async fn handle_command(engine: &Arc<DownloadEngine>, command: Command) -> bool 
             data,
             save_dir,
             selected_files,
+            priority,
             reply,
         } => {
             let mut options = DownloadOptions::new();
             options.save_dir = save_dir;
             options.selected_files = selected_files;
+            options.priority = priority.into();
             let result = engine
                 .add_torrent(&data, options)
                 .await
@@ -417,10 +525,12 @@ async fn handle_command(engine: &Arc<DownloadEngine>, command: Command) -> bool 
         Command::AddMagnet {
             uri,
             save_dir,
+            priority,
             reply,
         } => {
             let mut options = DownloadOptions::new();
             options.save_dir = save_dir;
+            options.priority = priority.into();
             let result = engine
                 .add_magnet(&uri, options)
                 .await
@@ -457,6 +567,22 @@ async fn handle_command(engine: &Arc<DownloadEngine>, command: Command) -> bool 
             };
             let _ = reply.send(result);
         }
+        Command::Retry { id, reply } => {
+            let result = retry_download(engine, &id).await;
+            let _ = reply.send(result);
+        }
+        Command::SetPriority {
+            id,
+            priority,
+            reply,
+        } => {
+            let result = find_id(engine, &id).and_then(|id| {
+                engine
+                    .set_priority(id, priority.into())
+                    .map_err(|e| e.to_string())
+            });
+            let _ = reply.send(result);
+        }
         Command::PauseAll { reply } => {
             let result = batch_result(engine.pause_all().await);
             let _ = reply.send(result);
@@ -465,6 +591,28 @@ async fn handle_command(engine: &Arc<DownloadEngine>, command: Command) -> bool 
             let result = batch_result(engine.resume_all().await);
             let _ = reply.send(result);
         }
+        Command::SetRuntimeLimits {
+            max_concurrent_downloads,
+            download,
+            upload,
+            reply,
+        } => {
+            let mut config = engine.get_config();
+            config.max_concurrent_downloads = max_concurrent_downloads;
+            config.global_download_limit = download;
+            config.global_upload_limit = upload;
+            let result = engine.set_config(config).map_err(|error| error.to_string());
+            let _ = reply.send(result);
+        }
+        Command::GetRuntimeLimits { reply } => {
+            let config = engine.get_config();
+            let limits = engine.get_bandwidth_limits();
+            let _ = reply.send((
+                config.max_concurrent_downloads,
+                limits.download,
+                limits.upload,
+            ));
+        }
         Command::Shutdown { reply } => {
             let result = engine.shutdown().await.map_err(|error| error.to_string());
             let _ = reply.send(result);
@@ -472,6 +620,64 @@ async fn handle_command(engine: &Arc<DownloadEngine>, command: Command) -> bool 
         }
     }
     false
+}
+
+async fn retry_download(engine: &Arc<DownloadEngine>, id: &str) -> Result<String, String> {
+    let download_id = find_id(engine, id)?;
+    let status = engine
+        .list()
+        .into_iter()
+        .find(|status| status.id == download_id)
+        .ok_or_else(|| format!("unknown download task `{id}`"))?;
+    if !matches!(&status.state, DownloadState::Error { .. }) {
+        return Err("only failed downloads can be retried".to_owned());
+    }
+
+    enum RetrySource {
+        Http(String),
+        Magnet(String),
+    }
+    let source = match status.kind {
+        DownloadKind::Http => RetrySource::Http(
+            status
+                .metadata
+                .url
+                .clone()
+                .ok_or_else(|| "failed HTTP task has no source URL".to_owned())?,
+        ),
+        DownloadKind::Magnet => RetrySource::Magnet(
+            status
+                .metadata
+                .magnet_uri
+                .clone()
+                .ok_or_else(|| "failed magnet task has no source URI".to_owned())?,
+        ),
+        DownloadKind::Torrent => {
+            return Err("torrent retry requires the original metainfo file".to_owned());
+        }
+    };
+
+    let mut options = DownloadOptions::new();
+    options.priority = status.priority;
+    options.save_dir = Some(status.metadata.save_dir.clone());
+    options.filename = status.metadata.filename.clone();
+    options.user_agent = status.metadata.user_agent.clone();
+    options.referer = status.metadata.referer.clone();
+    options.headers = status.metadata.headers.clone();
+    options.cookies = Some(status.metadata.cookies.clone());
+    options.checksum = status.metadata.checksum.clone();
+    options.mirrors = status.metadata.mirrors.clone();
+
+    engine
+        .cancel(download_id, false)
+        .await
+        .map_err(|error| error.to_string())?;
+    let replacement = match source {
+        RetrySource::Http(url) => engine.add_http(&url, options).await,
+        RetrySource::Magnet(uri) => engine.add_magnet(&uri, options).await,
+    }
+    .map_err(|error| error.to_string())?;
+    Ok(replacement.to_string())
 }
 
 fn async_result<T>(result: gosh_dl::Result<T>) -> Result<T, String> {
@@ -501,6 +707,10 @@ fn find_id(engine: &DownloadEngine, id: &str) -> Result<DownloadId, String> {
 }
 
 fn project_task(status: &gosh_dl::DownloadStatus) -> DownloadTask {
+    // Engine retryability describes automatic retry policy. A user-triggered
+    // retry can still recreate an exhausted failure when its source survives.
+    let retryable = matches!(&status.state, DownloadState::Error { .. })
+        && (status.metadata.url.is_some() || status.metadata.magnet_uri.is_some());
     DownloadTask {
         id: status.id.to_string(),
         name: status.metadata.name.clone(),
@@ -523,10 +733,13 @@ fn project_task(status: &gosh_dl::DownloadStatus) -> DownloadTask {
             DownloadState::Error { message, .. } => Some(message.clone()),
             _ => None,
         },
+        retryable,
         file_count: status
             .torrent_info
             .as_ref()
             .map_or(1, |info| info.files.len()),
+        priority: status.priority.into(),
+        created_at_ms: status.created_at.timestamp_millis(),
     }
 }
 
@@ -583,6 +796,14 @@ mod tests {
             }),
             TaskState::Error
         );
+        assert_eq!(
+            TaskPriority::from(DownloadPriority::Critical),
+            TaskPriority::Critical
+        );
+        assert_eq!(
+            DownloadPriority::from(TaskPriority::Low),
+            DownloadPriority::Low
+        );
     }
 
     #[tokio::test]
@@ -594,6 +815,34 @@ mod tests {
             ..AppConfig::default()
         };
         let backend = GoshBackend::start(&config, &root).expect("start embedded engine");
+
+        assert_eq!(
+            backend.runtime_limits().await.expect("read limits"),
+            (5, None, None)
+        );
+        backend
+            .set_runtime_limits(9, Some(10 * 1024 * 1024), Some(1024 * 1024))
+            .await
+            .expect("update live engine limits");
+        assert_eq!(
+            backend.runtime_limits().await.expect("read updated limits"),
+            (9, Some(10 * 1024 * 1024), Some(1024 * 1024))
+        );
+
+        let mut prioritized = HttpDownloadRequest::new("http://127.0.0.1:9/priority.bin");
+        prioritized.priority = TaskPriority::High;
+        let prioritized_id = backend
+            .add_http(prioritized)
+            .await
+            .expect("create prioritized HTTP task");
+        assert_eq!(
+            backend
+                .task(&prioritized_id)
+                .await
+                .expect("read prioritized task")
+                .priority,
+            TaskPriority::High
+        );
 
         let error = backend
             .add_http(HttpDownloadRequest::new("file:///not-an-http-download"))

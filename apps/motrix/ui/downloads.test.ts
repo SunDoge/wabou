@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
+  appendTaskSpeedHistories,
+  applySnapshotPatch,
   type DownloadSnapshot,
   type DownloadSnapshotPatch,
   type DownloadTask,
-  appendTaskSpeedHistories,
-  applySnapshotPatch,
   snapshotReflectsTaskAction,
   terminalTaskTransitions,
 } from "./downloads";
@@ -25,6 +25,8 @@ function task(id: string, downloadSpeed: number): DownloadTask {
     retryable: true,
     archived: false,
     fileCount: 1,
+    priority: "normal",
+    createdAtMs: Number(id) * 1_000,
   };
 }
 

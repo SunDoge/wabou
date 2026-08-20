@@ -9,7 +9,7 @@ The current implementation includes routed Dashboard, Downloads,
 Notifications, and Settings surfaces; HTTP/HTTPS multi-connection downloads;
 magnet and torrent creation with metadata preview and pre-download file
 selection; clipboard paste with browser cURL interpretation; native directory
-selection; search and status filters; pause, resume, remove, and batch actions;
+selection; search and status filters; pause, resume, retry, remove, and batch actions;
 revisioned Rust-to-JavaScript task patches; animated throughput charts;
 persistent transfer activity; native and in-app completion/error notifications;
 light/dark/follow-system themes; and graceful native-host shutdown.

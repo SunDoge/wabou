@@ -1,18 +1,23 @@
 import {
-  Badge,
+  Button,
   Card,
   CardContent,
+  createAsyncAction,
   createWindowMatch,
-  Ripple,
+  Icon,
+  PageHeader,
+  ResponsiveGrid,
   Select,
   Text,
+  useNavigate,
   View,
 } from "@wabou/ui";
-import { createMemo, For, Show } from "solid-js";
+import sliders from "lucide-static/icons/sliders-horizontal.svg?raw";
+import { createMemo, createSignal, For, Show } from "solid-js";
 import { match, P } from "ts-pattern";
-import { useDownloads } from "../downloads";
 import { LiveChart } from "../components/live-chart";
 import { StatCard } from "../components/stat-card";
+import { useDownloads } from "../downloads";
 import { formatBytes } from "../lib/format";
 
 const DAYS_PER_WEEK = 7;
@@ -37,7 +42,11 @@ function activityClass(value: number, maximum: number) {
 
 export function DashboardPage() {
   const compact = createWindowMatch({ maxWidth: 1050 });
+  const narrow = createWindowMatch({ maxWidth: 800 });
   const short = createWindowMatch({ maxHeight: 700 });
+  const roomy = createWindowMatch({ minWidth: 1250, minHeight: 880 });
+  const spaciousActivity = createWindowMatch({ minWidth: 1250 });
+  const navigate = useNavigate();
   const downloads = useDownloads();
   const snapshot = downloads.snapshot;
   const serviceReady = () => snapshot().status === "ready";
@@ -63,6 +72,21 @@ export function DashboardPage() {
     () => snapshot().tasks.filter((task) => task.status === "complete").length,
   );
   const activityMaximum = createMemo(() => Math.max(1, ...snapshot().activity));
+  const [speedProfileFeedback, setSpeedProfileFeedback] = createSignal<{
+    kind: "success" | "error";
+    text: string;
+  }>();
+  const speedProfileAction = createAsyncAction(async (value: string) => {
+    const profile =
+      downloads.config().speedProfiles[Number.parseInt(value, 10)];
+    if (!profile) throw new Error("The selected speed profile is unavailable.");
+    const result = await downloads.saveConfig({
+      ...downloads.config(),
+      maxOverallDownloadLimit: profile.downloadLimit,
+      maxOverallUploadLimit: profile.uploadLimit,
+    });
+    return { name: profile.name, restartRequired: result.restartRequired };
+  });
   const activityWeeks = createMemo(() => {
     const days = snapshot().activity;
     const weeks: number[][] = [];
@@ -75,80 +99,94 @@ export function DashboardPage() {
     () => snapshot().activity.filter((value) => value > 0).length,
   );
   const setSpeedProfile = async (value: string) => {
-    const profile =
-      downloads.config().speedProfiles[Number.parseInt(value, 10)];
-    if (!profile) return;
-    await downloads.saveConfig({
-      ...downloads.config(),
-      maxOverallDownloadLimit: profile.downloadLimit,
-      maxOverallUploadLimit: profile.uploadLimit,
-    });
+    setSpeedProfileFeedback(undefined);
+    const outcome = await speedProfileAction.run(value);
+    setSpeedProfileFeedback(
+      outcome.ok
+        ? {
+            kind: "success",
+            text: outcome.value.restartRequired
+              ? `Speed profile ${outcome.value.name} applied; other engine changes still need restart.`
+              : `Speed profile ${outcome.value.name} applied.`,
+          }
+        : {
+            kind: "error",
+            text: `Could not apply speed profile: ${String(outcome.error)}`,
+          },
+    );
   };
 
   return (
-    <View
-      class={
-        short() ? "h-full flex flex-col gap-4" : "flex-1 flex flex-col gap-4"
-      }
-    >
-      <View class="flex-none flex flex-row items-end justify-between">
-        <View class="flex flex-col gap-1">
-          <Text role="heading" class="text-3xl font-bold">
-            Dashboard
-          </Text>
-          <Text class="text-sm text-muted">
-            A clear view of your downloads and transfer activity.
-          </Text>
-        </View>
-        <Badge variant={serviceReady() ? "success" : "secondary"}>
-          <View class="relative w-3 h-3 flex items-center justify-center">
-            <Show when={serviceReady()}>
-              <Ripple
-                aria-hidden
-                duration={1.4}
-                class="absolute inset-0 rounded-full bg-success-primary"
-              />
-            </Show>
-            <View
-              class="w-2 h-2 rounded-full"
-              classList={{
-                "bg-success-primary": serviceReady(),
-                "bg-muted": !serviceReady(),
-              }}
-            />
-          </View>
-          {serviceReady() ? "Downloads ready" : "Downloads unavailable"}
-        </Badge>
-      </View>
-
-      <View
-        class={
-          compact() ? "grid grid-cols-2 gap-4" : "h-40 flex flex-none gap-4"
+    <View class="min-h-full flex flex-col gap-4">
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Open settings"
+            onClick={() => navigate({ to: "/settings" })}
+          >
+            <Icon source={sliders} size={20} />
+          </Button>
         }
+      />
+
+      <ResponsiveGrid
+        minColumnWidth={200}
+        gap={roomy() ? 20 : 16}
+        maxColumns={4}
+        initialColumns={compact() ? 2 : 4}
+        class="flex-none"
       >
         <StatCard
           dense={short()}
+          roomy={roomy()}
           label="DOWNLOAD SERVICE"
           accent={serviceReady() ? "green" : "neutral"}
           value={serviceReady() ? "Ready" : "Unavailable"}
           detail={snapshot().version ?? "Embedded Rust service"}
-        >
-          <Text class="text-xs text-secondary">
-            {serviceReady()
+          description={
+            serviceReady()
               ? "Embedded downloader is responding"
-              : snapshot().error ?? "Starting the embedded downloader"}
-          </Text>
-        </StatCard>
+              : (snapshot().error ?? "Starting the embedded downloader")
+          }
+        />
         <StatCard
           dense={short()}
+          roomy={roomy()}
           label="SPEED LIMIT"
           accent="neutral"
           value={speedLimit() === "0" ? "Unlimited" : speedLimit()}
-          detail={`Upload ${uploadLimit() === "0" ? "unlimited" : uploadLimit()}`}
+          footer={
+            <Show
+              when={speedProfileFeedback()}
+              fallback={
+                <Text class="truncate text-xs text-muted">
+                  Upload {uploadLimit() === "0" ? "unlimited" : uploadLimit()}
+                </Text>
+              }
+            >
+              {(feedback) => (
+                <Text
+                  role={feedback().kind === "error" ? "alert" : "status"}
+                  aria-label={feedback().text}
+                  class={
+                    feedback().kind === "error"
+                      ? "truncate text-xs text-danger-primary"
+                      : "truncate text-xs text-success-primary"
+                  }
+                >
+                  {feedback().text}
+                </Text>
+              )}
+            </Show>
+          }
         >
           <Select
             aria-label="Speed profile"
             class="w-full"
+            disabled={speedProfileAction.pending()}
             placeholder="Custom limits"
             value={activeSpeedProfile()}
             options={downloads.config().speedProfiles.map((profile, index) => ({
@@ -160,6 +198,7 @@ export function DashboardPage() {
         </StatCard>
         <StatCard
           dense={short()}
+          roomy={roomy()}
           label="UPLOAD"
           accent="purple"
           value={`${formatBytes(snapshot().uploadSpeed)}/s`}
@@ -173,6 +212,7 @@ export function DashboardPage() {
         </StatCard>
         <StatCard
           dense={short()}
+          roomy={roomy()}
           label="DOWNLOAD"
           accent="blue"
           value={`${formatBytes(snapshot().downloadSpeed)}/s`}
@@ -180,57 +220,97 @@ export function DashboardPage() {
         >
           <LiveChart compact values={downloads.downloadHistory()} />
         </StatCard>
-      </View>
+      </ResponsiveGrid>
 
       <View
         class={
-          short()
-            ? "h-32 flex flex-none gap-4"
-            : compact()
-              ? "flex flex-none flex-col gap-4"
-              : "h-40 flex flex-none gap-4"
+          narrow()
+            ? "flex flex-none flex-col gap-4"
+            : short()
+              ? "h-32 flex flex-none gap-4"
+              : compact()
+                ? "flex flex-none flex-col gap-4"
+                : roomy()
+                  ? "h-56 flex flex-none gap-5"
+                  : "h-40 flex flex-none gap-4"
         }
       >
         <Card
           role="group"
           aria-label="Task statistics"
           class={
-            short()
-              ? "w-64 flex-none rounded-xl shadow-lg"
-              : compact()
-                ? "w-full h-40 flex-none rounded-xl shadow-lg"
-                : "w-80 flex-none rounded-xl shadow-lg"
+            narrow()
+              ? "w-full h-32 flex-none rounded-xl shadow-lg"
+              : short()
+                ? "w-64 flex-none rounded-xl shadow-lg"
+                : compact()
+                  ? "w-full h-40 flex-none rounded-xl shadow-lg"
+                  : "flex-1 rounded-2xl shadow-md"
           }
         >
-          <CardContent class="h-full p-4 flex flex-col gap-3">
+          <CardContent
+            class={
+              roomy()
+                ? "h-full p-6 flex flex-col gap-3"
+                : "h-full p-4 flex flex-col gap-3"
+            }
+          >
             <View class="flex flex-row items-center justify-between">
-              <Text class="text-xs font-semibold text-muted">TASKS</Text>
-              <Text class="text-xs text-muted">Current session</Text>
+              <Text class="text-sm font-medium text-secondary">
+                ACTIVE TASKS
+              </Text>
+              <View class="w-3 h-3 rounded-full bg-strong" />
             </View>
-            <View class="flex-1 flex flex-row items-end gap-3">
-              <View class="flex-1 flex flex-col gap-2">
-                <Text class="text-3xl font-bold">{activeTasks()}</Text>
-                <Text class="text-xs text-muted">Active now</Text>
+            <Show
+              when={!short()}
+              fallback={
+                <View class="min-h-0 flex-1 flex flex-row items-end gap-3">
+                  <View class="flex-1 flex flex-col gap-1">
+                    <Text class="text-3xl font-semibold">{activeTasks()}</Text>
+                    <Text class="text-xs text-secondary">DOWNLOADING</Text>
+                  </View>
+                  <View class="flex-1 flex flex-col gap-2">
+                    <View class="flex items-center justify-between">
+                      <Text class="text-xs text-secondary">Waiting</Text>
+                      <Text class="text-sm font-semibold">
+                        {waitingTasks()}
+                      </Text>
+                    </View>
+                    <View class="flex items-center justify-between">
+                      <Text class="text-xs text-secondary">Completed</Text>
+                      <Text class="text-sm font-semibold">
+                        {stoppedTasks()}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              }
+            >
+              <Text
+                class={
+                  roomy() ? "text-4xl font-semibold" : "text-3xl font-semibold"
+                }
+              >
+                {activeTasks()}
+              </Text>
+              <View class="flex-1" />
+              <View class="flex flex-row items-end">
+                <View class="flex-1 flex flex-col gap-1">
+                  <Text class="text-xl font-semibold">{activeTasks()}</Text>
+                  <Text class="text-xs text-secondary">DOWNLOADING</Text>
+                </View>
+                <View class="w-px h-12 mx-4 bg-subtle" />
+                <View class="flex-1 flex flex-col gap-1">
+                  <Text class="text-xl font-semibold">{waitingTasks()}</Text>
+                  <Text class="text-xs text-secondary">WAITING</Text>
+                </View>
+                <View class="w-px h-12 mx-4 bg-subtle" />
+                <View class="flex-1 flex flex-col gap-1">
+                  <Text class="text-xl font-semibold">{stoppedTasks()}</Text>
+                  <Text class="text-xs text-secondary">COMPLETED</Text>
+                </View>
               </View>
-              <View class="flex-1 flex flex-col gap-2">
-                <View class="flex flex-row items-center justify-between">
-                  <Text class="text-xs text-muted">Waiting</Text>
-                  <Text class="text-sm font-semibold">{waitingTasks()}</Text>
-                </View>
-                <View class="flex flex-row items-center justify-between">
-                  <Text class="text-xs text-muted">Completed</Text>
-                  <Text class="text-sm font-semibold">{stoppedTasks()}</Text>
-                </View>
-                <View class="h-2 overflow-hidden rounded-full bg-control">
-                  <View
-                    class="h-full rounded-full bg-chart-download"
-                    style={{
-                      width: `${Math.max(8, Math.min(100, activeTasks() * 16))}%`,
-                    }}
-                  />
-                </View>
-              </View>
-            </View>
+            </Show>
           </CardContent>
         </Card>
 
@@ -238,20 +318,26 @@ export function DashboardPage() {
           role="group"
           aria-label="Transfer overview"
           class={
-            short()
-              ? "min-w-0 flex-1 rounded-xl shadow-xl"
-              : compact()
-                ? "w-full h-40 flex-none rounded-xl shadow-xl"
-                : "min-w-0 flex-1 rounded-xl shadow-xl"
+            narrow()
+              ? "w-full h-40 flex-none rounded-2xl shadow-md"
+              : short()
+                ? "min-w-0 flex-1 rounded-2xl shadow-md"
+                : compact()
+                  ? "w-full h-40 flex-none rounded-2xl shadow-md"
+                  : "min-w-0 flex-1 rounded-2xl shadow-md"
           }
         >
           <CardContent class="h-full p-4 flex flex-col gap-2">
             <View class="flex flex-row items-start justify-between">
               <View class="flex flex-col gap-1">
-                <Text class="text-xs font-semibold text-muted">
+                <Text class="text-sm font-medium text-secondary">
                   TRANSFER OVERVIEW
                 </Text>
-                <Text class="text-xl font-semibold">
+                <Text
+                  class={
+                    roomy() ? "text-4xl font-semibold" : "text-xl font-semibold"
+                  }
+                >
                   {formatBytes(snapshot().downloadedToday)} today
                 </Text>
                 <Text class="text-xs text-secondary">
@@ -292,8 +378,8 @@ export function DashboardPage() {
           aria-label="Download activity"
           class={
             compact()
-              ? "h-80 flex-none rounded-xl shadow-xl"
-              : "min-h-0 flex-1 rounded-xl shadow-xl"
+              ? "h-80 flex-none rounded-2xl shadow-md"
+              : "min-h-0 flex-1 rounded-2xl shadow-md"
           }
         >
           <CardContent class="h-full p-4 flex flex-col gap-3">
@@ -318,7 +404,7 @@ export function DashboardPage() {
                 </View>
               </View>
             </View>
-            <View class="min-h-0 flex-1 flex flex-col items-center justify-center gap-3 rounded-lg bg-surface-muted">
+            <View class="min-h-0 flex-1 flex flex-col items-center justify-center gap-3 rounded-lg bg-surface">
               <View class="w-full px-6 flex flex-row justify-between">
                 <Text class="text-xs text-muted">52 weeks ago</Text>
                 <Text class="text-xs text-muted">Today</Text>
@@ -336,7 +422,11 @@ export function DashboardPage() {
                         <For each={week}>
                           {(value) => (
                             <View
-                              class="w-2.5 h-2.5 rounded-sm"
+                              class={
+                                spaciousActivity()
+                                  ? "w-3 h-3 rounded-sm"
+                                  : "w-2.5 h-2.5 rounded-sm"
+                              }
                               classList={activityClass(
                                 value,
                                 activityMaximum(),
