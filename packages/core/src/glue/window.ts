@@ -36,6 +36,8 @@ export interface WindowHandle {
   setTitle(title: string): void;
   /** Begin a compositor-managed move operation for a custom title bar. */
   startDragging(): void;
+  /** Restore this window if it was hidden or released to the tray. */
+  show(): void;
 }
 
 function handle(id: WindowKey): WindowHandle {
@@ -53,6 +55,7 @@ function handle(id: WindowKey): WindowHandle {
       dispatchFireAndForget(effectOps.windowSetTitle, { windowId: id, title }),
     startDragging: () =>
       dispatchFireAndForget(effectOps.windowStartDragging, { windowId: id }),
+    show: () => dispatchFireAndForget(effectOps.windowShow, { windowId: id }),
   });
 }
 

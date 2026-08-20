@@ -292,6 +292,7 @@ export function AppShell(props: { children?: JSX.Element }) {
         ["active", "waiting", "paused", "seeding"].includes(task.status),
       );
     if (downloads.config().warnBeforeQuit && running) {
+      window.show();
       setConfirmingQuit(true);
       return;
     }

@@ -193,6 +193,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
               created.minimize();
               created.setMaximized(true);
               created.startDragging();
+              created.show();
               created.close();
             });
             globalThis.currentWindowId = JSON.stringify(
@@ -240,6 +241,7 @@ fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
         wabou_shell::WindowCommand::Minimize,
         wabou_shell::WindowCommand::SetMaximized(true),
         wabou_shell::WindowCommand::StartDragging,
+        wabou_shell::WindowCommand::Show,
         wabou_shell::WindowCommand::Close,
     ] {
         assert_eq!(

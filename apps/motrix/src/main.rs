@@ -60,8 +60,11 @@ fn main() -> Result<(), Whatever> {
             context.show_window(main_window);
         })
         .separator()
-        .item("motrix.quit", "Quit Motrix", move |context| {
-            context.show_window(main_window);
+        .item("motrix.quit", "Quit Motrix", move |_context| {
+            // Do not show the window first: close-to-tray (especially Wayland
+            // surface recreation) would flash a frame before exit. JS exits
+            // in place, or calls window.show() only when a confirm dialog is
+            // needed.
             if let Err(error) =
                 tray_messages.send_to(main_window, HostMessage::null(downloads::QUIT_REQUESTED))
             {

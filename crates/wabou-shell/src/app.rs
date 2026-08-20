@@ -1571,6 +1571,9 @@ fn apply_window_command(app: &mut App, command: WindowCommand) {
                 let _ = shell.window().drag_window();
             }
         }
+        // Surface restoration is a MultiWindowApp operation; a visible
+        // window's Show is already a no-op in the lifecycle machine.
+        WindowCommand::Show => {}
     }
 }
 
@@ -1737,10 +1740,18 @@ impl MultiWindowApp {
         let commands = self
             .windows
             .values_mut()
+            .chain(self.hidden_windows.values_mut())
             .flat_map(|app| std::mem::take(&mut app.pending_window_commands))
             .collect::<Vec<_>>();
         for (window_id, command) in commands {
-            let Some(app) = find_window_by_key(self.windows.values_mut(), window_id) else {
+            if matches!(command, WindowCommand::Show) {
+                Self::extension_context(&mut self.windows, &mut self.hidden_windows, event_loop)
+                    .show_window(window_id);
+                continue;
+            }
+            let Some(app) = find_window_by_key(self.windows.values_mut(), window_id)
+                .or_else(|| find_window_by_key(self.hidden_windows.values_mut(), window_id))
+            else {
                 tracing::warn!(window_id = %window_id, "ignored command for unknown window");
                 continue;
             };
@@ -1749,11 +1760,13 @@ impl MultiWindowApp {
         if self
             .windows
             .values()
+            .chain(self.hidden_windows.values())
             .any(|app| app.application_exit_requested || app.application_relaunch_requested)
         {
             if self
                 .windows
                 .values()
+                .chain(self.hidden_windows.values())
                 .any(|app| app.application_relaunch_requested)
             {
                 self.relaunch_requested.store(true, Ordering::Release);

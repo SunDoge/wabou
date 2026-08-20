@@ -43,6 +43,7 @@ test("createWindow returns a handle that targets the created window", async () =
   child.minimize();
   child.setMaximized(true);
   child.startDragging();
+  child.show();
   child.close();
   currentWindow().close();
 
@@ -62,6 +63,7 @@ test("createWindow returns a handle that targets the created window", async () =
     [2, 5, { windowId: { lo: 42, hi: 1 } }],
     [2, 3, { windowId: { lo: 42, hi: 1 }, value: true }],
     [2, 6, { windowId: { lo: 42, hi: 1 } }],
+    [2, 7, { windowId: { lo: 42, hi: 1 } }],
     [2, 2, { windowId: { lo: 42, hi: 1 } }],
     [2, 2, { windowId: { lo: 3, hi: 1 } }],
   ]);

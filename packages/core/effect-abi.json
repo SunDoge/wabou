@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "abiVersion": 5,
+  "abiVersion": 6,
   "operations": [
     { "name": "clipboardRead", "capability": 1, "method": 1, "description": "Read text from the system clipboard." },
     { "name": "clipboardWrite", "capability": 1, "method": 2, "description": "Write text to the system clipboard." },
@@ -10,6 +10,7 @@
     { "name": "windowSetTitle", "capability": 2, "method": 4, "description": "Change a native window title." },
     { "name": "windowMinimize", "capability": 2, "method": 5, "description": "Minimize a native window." },
     { "name": "windowStartDragging", "capability": 2, "method": 6, "description": "Begin native interactive window dragging." },
+    { "name": "windowShow", "capability": 2, "method": 7, "description": "Show a hidden or surface-released native window." },
     { "name": "contextMenuShow", "capability": 3, "method": 1, "description": "Show a native context menu." },
     { "name": "appDirsResolve", "capability": 4, "method": 1, "description": "Resolve platform application directories." },
     { "name": "dialogOpen", "capability": 5, "method": 1, "description": "Show an open-file dialog." },

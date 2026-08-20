@@ -345,6 +345,10 @@ impl EffectPayload {
                 command: WindowCommand::StartDragging,
                 ..
             } => builtin::WINDOW_START_DRAGGING,
+            Self::WindowControl {
+                command: WindowCommand::Show,
+                ..
+            } => builtin::WINDOW_SHOW,
             Self::ContextMenuShow(_) => builtin::CONTEXT_MENU_SHOW,
             Self::AppDirsResolve(_) => builtin::APP_DIRS_RESOLVE,
             Self::DialogOpen(_) => builtin::DIALOG_OPEN,
@@ -561,6 +565,7 @@ mod tests {
         assert_eq!(builtin::CLIPBOARD_READ, EffectOp::new(1, 1));
         assert_eq!(builtin::WINDOW_MINIMIZE, EffectOp::new(2, 5));
         assert_eq!(builtin::WINDOW_START_DRAGGING, EffectOp::new(2, 6));
+        assert_eq!(builtin::WINDOW_SHOW, EffectOp::new(2, 7));
         assert_eq!(builtin::CONTEXT_MENU_SHOW, EffectOp::new(3, 1));
         assert_eq!(builtin::APP_DIRS_RESOLVE, EffectOp::new(4, 1));
         assert_eq!(builtin::DIALOG_OPEN, EffectOp::new(5, 1));

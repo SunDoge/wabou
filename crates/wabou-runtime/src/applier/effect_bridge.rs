@@ -186,7 +186,8 @@ pub(super) fn decode_effect_payload(
         | wabou_shell::effect::builtin::WINDOW_SET_MAXIMIZED
         | wabou_shell::effect::builtin::WINDOW_SET_TITLE
         | wabou_shell::effect::builtin::WINDOW_MINIMIZE
-        | wabou_shell::effect::builtin::WINDOW_START_DRAGGING => {
+        | wabou_shell::effect::builtin::WINDOW_START_DRAGGING
+        | wabou_shell::effect::builtin::WINDOW_SHOW => {
             let value: serde_json::Value = serde_json::from_str(&payload_json).unwrap_or_default();
             let target = value
                 .get("windowId")
@@ -207,6 +208,8 @@ pub(super) fn decode_effect_payload(
                         .and_then(|value| value.as_bool())
                         .unwrap_or(false),
                 )
+            } else if op == wabou_shell::effect::builtin::WINDOW_SHOW {
+                wabou_shell::WindowCommand::Show
             } else {
                 wabou_shell::WindowCommand::SetTitle(
                     value

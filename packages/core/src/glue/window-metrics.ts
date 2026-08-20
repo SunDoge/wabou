@@ -150,6 +150,7 @@ const state: WindowState = {
   setMaximized: (value) => currentWindow().setMaximized(value),
   setTitle: (title) => currentWindow().setTitle(title),
   startDragging: () => currentWindow().startDragging(),
+  show: () => currentWindow().show(),
   metrics,
   width: () => metrics().logicalWidth,
   height: () => metrics().logicalHeight,

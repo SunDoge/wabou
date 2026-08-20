@@ -194,6 +194,22 @@ fn app_directory_effect_uses_host_configuration_only() {
 }
 
 #[test]
+fn window_show_effect_restores_a_logical_window() {
+    assert_eq!(
+        decode_effect_payload(
+            wabou_shell::effect::builtin::WINDOW_SHOW,
+            wabou_shell::initial_window_resource_key(0),
+            "null".into(),
+            None,
+        ),
+        wabou_shell::EffectPayload::WindowControl {
+            window_id: wabou_shell::initial_window_resource_key(0),
+            command: wabou_shell::WindowCommand::Show,
+        }
+    );
+}
+
+#[test]
 fn application_exit_effect_is_process_scoped_and_payload_free() {
     assert_eq!(
         decode_effect_payload(

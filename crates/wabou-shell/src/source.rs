@@ -165,6 +165,8 @@ pub enum WindowCommand {
     SetTitle(String),
     /// Begin an OS-managed window drag from the current pointer gesture.
     StartDragging,
+    /// Restore a hidden or surface-released logical window.
+    Show,
 }
 
 /// Wabou's renderer-independent input model. Web-style events are an adapter

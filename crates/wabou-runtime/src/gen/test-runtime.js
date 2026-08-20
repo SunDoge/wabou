@@ -6511,7 +6511,7 @@ ${detail}`);
   }
 
   // packages/core/src/generated/effect-abi.ts
-  var EFFECT_ABI_VERSION = 5;
+  var EFFECT_ABI_VERSION = 6;
   var effectOps = Object.freeze({
     clipboardRead: { capability: 1, method: 1 },
     clipboardWrite: { capability: 1, method: 2 },
@@ -6521,6 +6521,7 @@ ${detail}`);
     windowSetTitle: { capability: 2, method: 4 },
     windowMinimize: { capability: 2, method: 5 },
     windowStartDragging: { capability: 2, method: 6 },
+    windowShow: { capability: 2, method: 7 },
     contextMenuShow: { capability: 3, method: 1 },
     appDirsResolve: { capability: 4, method: 1 },
     dialogOpen: { capability: 5, method: 1 },
@@ -6595,7 +6596,8 @@ ${detail}`);
         value
       }),
       setTitle: (title) => dispatchFireAndForget(effectOps.windowSetTitle, { windowId: id, title }),
-      startDragging: () => dispatchFireAndForget(effectOps.windowStartDragging, { windowId: id })
+      startDragging: () => dispatchFireAndForget(effectOps.windowStartDragging, { windowId: id }),
+      show: () => dispatchFireAndForget(effectOps.windowShow, { windowId: id })
     });
   }
   function createWindow(options = {}) {
@@ -6659,6 +6661,7 @@ ${detail}`);
     setMaximized: (value) => currentWindow().setMaximized(value),
     setTitle: (title) => currentWindow().setTitle(title),
     startDragging: () => currentWindow().startDragging(),
+    show: () => currentWindow().show(),
     metrics,
     width: () => metrics().logicalWidth,
     height: () => metrics().logicalHeight,
