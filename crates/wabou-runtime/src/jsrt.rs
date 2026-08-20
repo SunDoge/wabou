@@ -23,7 +23,9 @@ use rquickjs::{
     context::EvalOptions,
 };
 pub(crate) use wabou_host_api::LayoutRect;
-use wabou_host_api::{FrameStats as HostFrameStats, LayoutNodeMetrics, LayoutSnapshot, NodeKey};
+use wabou_host_api::{
+    FrameStats as HostFrameStats, LayoutNodeMetrics, LayoutScrollMetrics, LayoutSnapshot, NodeKey,
+};
 type JsResult<T> = rquickjs::Result<T>;
 pub(crate) type ResizeTargets = Rc<RefCell<HashMap<NodeKey, Option<(f32, f32)>>>>;
 
@@ -44,6 +46,7 @@ fn checked_node_key(lo: u32, hi: u32, boundary: &'static str) -> JsResult<NodeKe
 pub(crate) struct LayoutMetric {
     pub rect: LayoutRect,
     pub clip: LayoutRect,
+    pub scroll: LayoutScrollMetrics,
 }
 
 #[derive(Debug, Default)]
@@ -518,6 +521,7 @@ impl JsRuntime {
                             id,
                             rect: node.rect,
                             clip: node.clip,
+                            scroll: node.scroll,
                         })
                         .collect::<Vec<_>>();
                     serde_json::to_string(&LayoutSnapshot {

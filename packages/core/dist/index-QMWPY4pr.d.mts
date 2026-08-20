@@ -107,6 +107,8 @@ type LayoutNodeMetrics = {
   rect: LayoutRect;
   /**  Effective ancestor clip in logical window coordinates. */
   clip: LayoutRect;
+  /**  Current offset and scrollable range in logical pixels. */
+  scroll: LayoutScrollMetrics;
 };
 type LayoutRect = {
   /**  Left edge. */
@@ -117,6 +119,16 @@ type LayoutRect = {
   width: number;
   /**  Non-negative height. */
   height: number;
+};
+type LayoutScrollMetrics = {
+  /**  Current horizontal scroll offset. */
+  offsetX: number;
+  /**  Current vertical scroll offset. */
+  offsetY: number;
+  /**  Maximum horizontal scroll offset. */
+  rangeX: number;
+  /**  Maximum vertical scroll offset. */
+  rangeY: number;
 };
 type LayoutSnapshot = {
   /**  Monotonic layout revision used to detect stale snapshots. */
@@ -466,5 +478,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { VirtualListProps as $, delegateEvents as A, mergeProps as B, WabouVectorPathProps as C, VectorPathPaint as Ct, createComponent$1 as D, applyRef as E, insert as F, removeNode as G, ref as H, insertNode as I, setProp as J, render as K, isDirectEvent as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualList as Q, isServer as R, WabouSvgShapeProps as S, VectorPath as St, acquireOverlayRoot as T, registerRoot as U, mount as V, releaseOverlayRoot as W, spread as X, setTransform2D as Y, writer as Z, WabouPointerEvent as _, PathBuilder as _t, WabouBuiltinIntrinsicElements as a, LayoutTarget as at, WabouSemanticRole as b, PathLineJoin as bt, WabouEventTarget as c, FrameStats as ct, WabouInputEvent as d, LayoutSnapshot as dt, Portal as et, WabouInputProps as f, Fragment as ft, WabouNodeEvent as g, jsxs as gt, WabouNativeTag as h, jsxDEV as ht, NativeScrollbarStyle as i, HostProviderProps as it, dispatchEvent as j, createTextNode as k, WabouExposedSemanticRole as l, LayoutNodeMetrics as lt, WabouNativeElements as m, jsx as mt, DynamicProps as n, Host as nt, WabouControlProps as o, defaultHost as ot, WabouKeyEvent as p, JSX$1 as pt, runSweep as q, Handle as r, HostProvider as rt, WabouElementProps as s, useHost as st, Dynamic as t, PortalProps as tt, WabouImageProps as u, LayoutRect as ut, WabouPositionedEvent as v, PathFillRule as vt, WabouWheelEvent as w, isVectorPath as wt, WabouSvgProps as x, PathPoint as xt, WabouScrollEvent as y, PathLineCap as yt, memo as z };
-//# sourceMappingURL=index-C0fhEiFi.d.mts.map
+export { VirtualListProps as $, delegateEvents as A, mergeProps as B, WabouVectorPathProps as C, VectorPath as Ct, createComponent$1 as D, applyRef as E, insert as F, removeNode as G, ref as H, insertNode as I, setProp as J, render as K, isDirectEvent as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualList as Q, isServer as R, WabouSvgShapeProps as S, PathPoint as St, acquireOverlayRoot as T, isVectorPath as Tt, registerRoot as U, mount as V, releaseOverlayRoot as W, spread as X, setTransform2D as Y, writer as Z, WabouPointerEvent as _, jsxs as _t, WabouBuiltinIntrinsicElements as a, LayoutTarget as at, WabouSemanticRole as b, PathLineCap as bt, WabouEventTarget as c, FrameStats as ct, WabouInputEvent as d, LayoutScrollMetrics as dt, Portal as et, WabouInputProps as f, LayoutSnapshot as ft, WabouNodeEvent as g, jsxDEV as gt, WabouNativeTag as h, jsx as ht, NativeScrollbarStyle as i, HostProviderProps as it, dispatchEvent as j, createTextNode as k, WabouExposedSemanticRole as l, LayoutNodeMetrics as lt, WabouNativeElements as m, JSX$1 as mt, DynamicProps as n, Host as nt, WabouControlProps as o, defaultHost as ot, WabouKeyEvent as p, Fragment as pt, runSweep as q, Handle as r, HostProvider as rt, WabouElementProps as s, useHost as st, Dynamic as t, PortalProps as tt, WabouImageProps as u, LayoutRect as ut, WabouPositionedEvent as v, PathBuilder as vt, WabouWheelEvent as w, VectorPathPaint as wt, WabouSvgProps as x, PathLineJoin as xt, WabouScrollEvent as y, PathFillRule as yt, memo as z };
+//# sourceMappingURL=index-QMWPY4pr.d.mts.map

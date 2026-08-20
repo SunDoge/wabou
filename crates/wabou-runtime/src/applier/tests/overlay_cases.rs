@@ -200,6 +200,13 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     }));
     assert!(response.handled);
     assert_eq!(applier.interaction.scroll.offsets[&container], [0.0, 50.0]);
+    applier.publish_layout_metrics(&placed, 800, 600);
+    let projected_scroll =
+        applier.frame.projections.layout_metrics.borrow().nodes[&NodeKey::new(2, 1)].scroll;
+    assert_eq!(projected_scroll.offset_x, 0.0);
+    assert_eq!(projected_scroll.offset_y, 50.0);
+    assert_eq!(projected_scroll.range_x, 0.0);
+    assert_eq!(projected_scroll.range_y, 200.0);
     assert!(
         !applier
             .document

@@ -1121,6 +1121,7 @@ export {
   type HostProviderProps,
   type LayoutNodeMetrics,
   type LayoutRect,
+  type LayoutScrollMetrics,
   type LayoutSnapshot,
   type LayoutTarget,
   useHost,

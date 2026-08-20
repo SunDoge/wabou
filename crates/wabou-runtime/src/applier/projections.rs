@@ -81,6 +81,22 @@ impl Applier {
                 LayoutMetric {
                     rect: rect(placed_node.rect),
                     clip: placed_node.clip.map_or(viewport, rect),
+                    scroll: wabou_host_api::LayoutScrollMetrics {
+                        offset_x: self
+                            .interaction
+                            .scroll
+                            .offsets
+                            .get(&placed_node.node_id)
+                            .map_or(0.0, |offset| offset[0]),
+                        offset_y: self
+                            .interaction
+                            .scroll
+                            .offsets
+                            .get(&placed_node.node_id)
+                            .map_or(0.0, |offset| offset[1]),
+                        range_x: placed_node.scroll.range[0],
+                        range_y: placed_node.scroll.range[1],
+                    },
                 },
             );
         }

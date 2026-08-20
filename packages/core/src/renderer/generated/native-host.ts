@@ -35,6 +35,8 @@ type LayoutNodeMetrics = {
 	rect: LayoutRect,
 	/**  Effective ancestor clip in logical window coordinates. */
 	clip: LayoutRect,
+	/**  Current offset and scrollable range in logical pixels. */
+	scroll: LayoutScrollMetrics,
 };
 
 export /**  Axis-aligned rectangle in logical window coordinates. */
@@ -47,6 +49,18 @@ type LayoutRect = {
 	width: number,
 	/**  Non-negative height. */
 	height: number,
+};
+
+export /**  Two-dimensional scroll metrics in logical pixels. */
+type LayoutScrollMetrics = {
+	/**  Current horizontal scroll offset. */
+	offsetX: number,
+	/**  Current vertical scroll offset. */
+	offsetY: number,
+	/**  Maximum horizontal scroll offset. */
+	rangeX: number,
+	/**  Maximum vertical scroll offset. */
+	rangeY: number,
 };
 
 export /**  Immutable layout projection returned by the synchronous host API. */

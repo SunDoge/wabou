@@ -242,6 +242,25 @@ pub struct LayoutRect {
     pub height: f32,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+/// Two-dimensional scroll metrics in logical pixels.
+pub struct LayoutScrollMetrics {
+    /// Current horizontal scroll offset.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub offset_x: f32,
+    /// Current vertical scroll offset.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub offset_y: f32,
+    /// Maximum horizontal scroll offset.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub range_x: f32,
+    /// Maximum vertical scroll offset.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub range_y: f32,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Layout and effective clipping geometry for one Solid node.
@@ -252,6 +271,8 @@ pub struct LayoutNodeMetrics {
     pub rect: LayoutRect,
     /// Effective ancestor clip in logical window coordinates.
     pub clip: LayoutRect,
+    /// Current offset and scrollable range in logical pixels.
+    pub scroll: LayoutScrollMetrics,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

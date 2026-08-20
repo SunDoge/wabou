@@ -34,7 +34,8 @@ platform-independent implementation.
   `type="password"` inputs are type errors; use an explicit Wabou component or
   native capability instead.
 - Layout measurement is a completed native-frame snapshot through `useHost()`;
-  synchronous DOM layout reads are unavailable.
+  each requested node includes its border box, effective clip, scroll offset,
+  and scrollable range. Synchronous DOM layout reads are unavailable.
 - Browser storage, cookies, service workers, WebGL and browser canvas APIs are
   not supplied. A native widget may provide an explicit alternative.
 

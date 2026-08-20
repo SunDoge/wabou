@@ -19,6 +19,7 @@ export type {
   FrameStats,
   LayoutNodeMetrics,
   LayoutRect,
+  LayoutScrollMetrics,
   LayoutSnapshot,
 } from "./generated/native-host";
 

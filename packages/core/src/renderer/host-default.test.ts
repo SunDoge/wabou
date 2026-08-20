@@ -31,6 +31,7 @@ Object.assign(globalThis, {
         id: { lo: ids[index * 2], hi: ids[index * 2 + 1] },
         rect: { x: ids[index * 2], y: 2, width: 3, height: 4 },
         clip: { x: 0, y: 0, width: 640, height: 480 },
+        scroll: { offsetX: 0, offsetY: 12, rangeX: 0, rangeY: 120 },
       })),
     }),
 });
@@ -56,9 +57,14 @@ test("defaultHost adapts system, font, and diagnostics ABI", () => {
 });
 
 test("defaultHost adapts typed layout targets and convenience methods", () => {
-  expect(
-    defaultHost.layout.snapshot([k(3), { id: k(9) }]).nodes.map(({ id }) => id),
-  ).toEqual([k(3), k(9)]);
+  const snapshot = defaultHost.layout.snapshot([k(3), { id: k(9) }]);
+  expect(snapshot.nodes.map(({ id }) => id)).toEqual([k(3), k(9)]);
+  expect(snapshot.nodes[0]?.scroll).toEqual({
+    offsetX: 0,
+    offsetY: 12,
+    rangeX: 0,
+    rangeY: 120,
+  });
   expect(defaultHost.layout.measure({ id: k(4) })).toEqual({
     x: 4,
     y: 2,

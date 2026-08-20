@@ -76,11 +76,13 @@ describe("Floating UI platform adapter", () => {
                 id: k(1),
                 rect: { x: 20, y: 30, width: 40, height: 10 },
                 clip: viewport,
+                scroll: { offsetX: 0, offsetY: 0, rangeX: 0, rangeY: 0 },
               },
               {
                 id: k(2),
                 rect: { x: 0, y: 0, width: 60, height: 20 },
                 clip: viewport,
+                scroll: { offsetX: 0, offsetY: 0, rangeX: 0, rangeY: 0 },
               },
             ],
           };
@@ -107,6 +109,7 @@ describe("Floating UI platform adapter", () => {
               id: k(1),
               rect: { x: 20, y: 30, width: 40, height: 10 },
               clip: viewport,
+              scroll: { offsetX: 0, offsetY: 0, rangeX: 0, rangeY: 0 },
             },
           ],
         }),

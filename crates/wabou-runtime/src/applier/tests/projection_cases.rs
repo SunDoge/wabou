@@ -35,6 +35,15 @@ fn host_layout_snapshot_reports_completed_rects_and_viewport() {
     assert_eq!(snapshot["nodes"][0]["rect"]["width"], 100.0);
     assert_eq!(snapshot["nodes"][0]["rect"]["height"], 50.0);
     assert_eq!(snapshot["nodes"][0]["clip"], snapshot["viewport"]);
+    assert_eq!(
+        snapshot["nodes"][0]["scroll"],
+        serde_json::json!({
+            "offsetX": 0,
+            "offsetY": 0,
+            "rangeX": 0,
+            "rangeY": 0,
+        })
+    );
 }
 
 #[test]
