@@ -13,12 +13,12 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { StoryDetail } from "./pages/StoryDetail";
 import { StoryList } from "./pages/StoryList";
 
+// ThemeProvider lives outside RouterProvider (in `mount`) rather than here.
+// Route components arrive as `props.children` that the data router instantiated
+// inside RouteMatch; their Solid owner chain ends at RouteMatch, so a provider
+// placed here would be invisible to them — useTheme in StoryList would throw.
 function Root(props: { children?: import("solid-js").JSX.Element }) {
-  return (
-    <ThemeProvider>
-      <AppShell>{props.children}</AppShell>
-    </ThemeProvider>
-  );
+  return <AppShell>{props.children}</AppShell>;
 }
 
 const root = new BaseRootRoute({ component: Root });
@@ -37,4 +37,8 @@ const router = createDataRouter({
   context: {},
 });
 
-mount(() => <RouterProvider router={router} />);
+mount(() => (
+  <ThemeProvider>
+    <RouterProvider router={router} />
+  </ThemeProvider>
+));
