@@ -9,6 +9,7 @@ interface CaptureViewport {
   scaleFactor: number;
   waitMs: number;
   checkTextContainment: boolean;
+  checkStyleDiagnostics: boolean;
 }
 
 interface CaptureConfig {
@@ -46,6 +47,7 @@ interface CaptureSnapshotNode {
   tag: string;
   text: string | null;
   classes: string[];
+  styleDiagnostics: string[];
   rect: SnapshotRect;
   contentRect: SnapshotRect;
   computed: { overflowX: string | null; overflowY: string | null };
@@ -99,6 +101,7 @@ const fallbackViewport: CaptureViewport = {
   scaleFactor: 1,
   waitMs: 250,
   checkTextContainment: true,
+  checkStyleDiagnostics: true,
 };
 const viewportKeys = new Set([
   "width",
@@ -106,6 +109,7 @@ const viewportKeys = new Set([
   "scaleFactor",
   "waitMs",
   "checkTextContainment",
+  "checkStyleDiagnostics",
 ]);
 
 function finiteNumber(
@@ -177,6 +181,12 @@ function parseViewport(
       throw new Error(`${name}.checkTextContainment must be a boolean`);
     }
     viewport.checkTextContainment = record.checkTextContainment;
+  }
+  if (record.checkStyleDiagnostics !== undefined) {
+    if (typeof record.checkStyleDiagnostics !== "boolean") {
+      throw new Error(`${name}.checkStyleDiagnostics must be a boolean`);
+    }
+    viewport.checkStyleDiagnostics = record.checkStyleDiagnostics;
   }
   if (!partial) {
     return { ...fallbackViewport, ...viewport };
@@ -369,6 +379,14 @@ export function validateCaptureSnapshot(
         );
       }
       if (
+        !Array.isArray(node.styleDiagnostics) ||
+        !node.styleDiagnostics.every((item) => typeof item === "string")
+      ) {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}].styleDiagnostics must be a string array`,
+        );
+      }
+      if (
         node.computed === null ||
         typeof node.computed !== "object" ||
         Array.isArray(node.computed)
@@ -395,6 +413,7 @@ export function validateCaptureSnapshot(
           `${capture.snapshot}.nodes[${index}].text`,
         ),
         classes: node.classes,
+        styleDiagnostics: node.styleDiagnostics,
         rect: snapshotRect(
           node.rect,
           `${capture.snapshot}.nodes[${index}].rect`,
@@ -437,11 +456,45 @@ export function validateCaptureSnapshot(
       `${capture.snapshot} node count ${parsed.status.nodeCount} does not match ${parsed.nodes.length} retained nodes`,
     );
   }
+  validateSnapshotGraph(parsed, capture.snapshot);
   return parsed;
 }
 
 function nodeKey(key: SnapshotNodeKey): string {
   return `${key.lo}:${key.hi}`;
+}
+
+function validateSnapshotGraph(snapshot: CaptureSnapshot, name: string): void {
+  const nodes = new Map<string, CaptureSnapshotNode>();
+  for (const node of snapshot.nodes) {
+    const key = nodeKey(node.id);
+    if (nodes.has(key))
+      throw new Error(`${name} contains duplicate node id ${key}`);
+    nodes.set(key, node);
+  }
+  if (!snapshot.nodes.some((node) => node.parentId === null)) {
+    throw new Error(`${name} has no retained-tree root`);
+  }
+  for (const node of snapshot.nodes) {
+    const visited = new Set<string>();
+    let current: CaptureSnapshotNode | undefined = node;
+    while (current?.parentId) {
+      const currentKey = nodeKey(current.id);
+      if (visited.has(currentKey)) {
+        throw new Error(
+          `${name} contains a parent cycle at node ${currentKey}`,
+        );
+      }
+      visited.add(currentKey);
+      const parentKey = nodeKey(current.parentId);
+      current = nodes.get(parentKey);
+      if (!current) {
+        throw new Error(
+          `${name} node ${nodeKey(node.id)} references missing parent ${parentKey}`,
+        );
+      }
+    }
+  }
 }
 
 function overflowAmount(inner: SnapshotRect, outer: SnapshotRect): number {
@@ -484,6 +537,15 @@ export function textContainmentDiagnostics(
     }
   }
   return diagnostics;
+}
+
+export function rejectedStyleDiagnostics(snapshot: CaptureSnapshot): string[] {
+  return snapshot.nodes.flatMap((node) =>
+    node.styleDiagnostics.map(
+      (diagnostic) =>
+        `${node.tag} ${nodeKey(node.id)} (${node.classes.join(" ") || "no classes"}): ${diagnostic}`,
+    ),
+  );
 }
 
 export async function validateCaptureArtifacts(
@@ -531,6 +593,14 @@ export async function validateCaptureArtifacts(
     if (diagnostics.length > 0) {
       throw new Error(
         `${relative(workspaceRoot, snapshot)} has visible text overflow:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
+      );
+    }
+  }
+  if (capture.checkStyleDiagnostics) {
+    const diagnostics = rejectedStyleDiagnostics(parsed);
+    if (diagnostics.length > 0) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} has rejected styles:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
       );
     }
   }

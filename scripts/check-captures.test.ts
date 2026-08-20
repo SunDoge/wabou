@@ -7,6 +7,7 @@ import {
   discoverCaptureCases,
   parseCaptureArguments,
   pngDimensions,
+  rejectedStyleDiagnostics,
   selectCaptureCases,
   textContainmentDiagnostics,
   validateCaptureArtifacts,
@@ -110,6 +111,7 @@ describe("authored capture discovery", () => {
         scaleFactor: 2,
         waitMs: 100,
         checkTextContainment: false,
+        checkStyleDiagnostics: true,
       },
       {
         application: "apps/demo",
@@ -121,6 +123,7 @@ describe("authored capture discovery", () => {
         scaleFactor: 1,
         waitMs: 100,
         checkTextContainment: true,
+        checkStyleDiagnostics: true,
       },
     ]);
   });
@@ -146,6 +149,7 @@ describe("authored capture discovery", () => {
       scaleFactor: 1,
       waitMs: 250,
       checkTextContainment: true,
+      checkStyleDiagnostics: true,
     };
 
     expect(captureCommand(capture, false)).not.toContain("--skip-build");
@@ -164,6 +168,7 @@ describe("authored capture discovery", () => {
       scaleFactor: 2,
       waitMs: 250,
       checkTextContainment: true,
+      checkStyleDiagnostics: true,
     };
     expect(
       validateCaptureSnapshot(
@@ -181,6 +186,7 @@ describe("authored capture discovery", () => {
               tag: "view",
               text: null,
               classes: [],
+              styleDiagnostics: [],
               rect: { x: 0, y: 0, width: 800, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -207,6 +213,7 @@ describe("authored capture discovery", () => {
               tag: "view",
               text: null,
               classes: [],
+              styleDiagnostics: [],
               rect: { x: 0, y: 0, width: Number.NaN, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -233,6 +240,7 @@ describe("authored capture discovery", () => {
           tag: "button",
           text: null,
           classes: ["w-10"],
+          styleDiagnostics: [] as string[],
           rect: { x: 0, y: 0, width: 40, height: 20 },
           contentRect: { x: 0, y: 0, width: 40, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -243,6 +251,7 @@ describe("authored capture discovery", () => {
           tag: "text",
           text: "too wide",
           classes: [],
+          styleDiagnostics: [] as string[],
           rect: { x: 0, y: 0, width: 60, height: 20 },
           contentRect: { x: 0, y: 0, width: 60, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -252,6 +261,67 @@ describe("authored capture discovery", () => {
     expect(textContainmentDiagnostics(base)).toHaveLength(1);
     base.nodes[0].computed.overflowX = "Hidden";
     expect(textContainmentDiagnostics(base)).toEqual([]);
+    base.nodes[1].styleDiagnostics = ["unsupported utility `bad-class`"];
+    expect(rejectedStyleDiagnostics(base)).toEqual([
+      "text 2:1 (no classes): unsupported utility `bad-class`",
+    ]);
+  });
+
+  test("rejects duplicate, dangling, and cyclic retained-node identities", () => {
+    const capture = {
+      application: "apps/demo",
+      scenario: "apps/demo/captures/main.ts",
+      output: "target/wabou-captures/demo/main.png",
+      snapshot: "target/wabou-captures/demo/main.json",
+      width: 100,
+      height: 100,
+      scaleFactor: 1,
+      waitMs: 0,
+      checkTextContainment: true,
+      checkStyleDiagnostics: true,
+    };
+    const node = (lo: number, parentId: { lo: number; hi: number } | null) => ({
+      id: { lo, hi: 1 },
+      parentId,
+      tag: "view",
+      text: null,
+      classes: [],
+      styleDiagnostics: [],
+      rect: { x: 0, y: 0, width: 100, height: 100 },
+      contentRect: { x: 0, y: 0, width: 100, height: 100 },
+      computed: { overflowX: "Visible", overflowY: "Visible" },
+    });
+    const snapshot = (nodes: ReturnType<typeof node>[]) => ({
+      status: {
+        viewportWidth: 100,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: nodes.length,
+      },
+      nodes,
+    });
+    expect(() =>
+      validateCaptureSnapshot(
+        snapshot([node(1, null), node(1, null)]),
+        capture,
+      ),
+    ).toThrow("duplicate node id");
+    expect(() =>
+      validateCaptureSnapshot(
+        snapshot([node(1, null), node(2, { lo: 9, hi: 1 })]),
+        capture,
+      ),
+    ).toThrow("missing parent");
+    expect(() =>
+      validateCaptureSnapshot(
+        snapshot([
+          node(1, null),
+          node(2, { lo: 3, hi: 1 }),
+          node(3, { lo: 2, hi: 1 }),
+        ]),
+        capture,
+      ),
+    ).toThrow("parent cycle");
   });
 
   test("revalidates existing artifacts without invoking a renderer", async () => {
@@ -288,6 +358,7 @@ describe("authored capture discovery", () => {
             tag: "view",
             text: null,
             classes: [],
+            styleDiagnostics: [],
             rect: { x: 0, y: 0, width: capture.width, height: capture.height },
             contentRect: {
               x: 0,
@@ -300,6 +371,18 @@ describe("authored capture discovery", () => {
         ],
       }),
     );
+    await expect(
+      validateCaptureArtifacts(capture, root),
+    ).resolves.toBeUndefined();
+
+    const snapshotPath = join(root, capture.snapshot);
+    const snapshot = JSON.parse(await Bun.file(snapshotPath).text());
+    snapshot.nodes[0].styleDiagnostics = ["unsupported utility `bad-class`"];
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      "rejected styles",
+    );
+    capture.checkStyleDiagnostics = false;
     await expect(
       validateCaptureArtifacts(capture, root),
     ).resolves.toBeUndefined();
