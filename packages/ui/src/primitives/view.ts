@@ -210,12 +210,17 @@ export function Path(props: PathProps): JSX.Element {
 
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 export function Icon(props: IconProps): JSX.Element {
-  const rest = omit(props, "source", "size", "fill", "label");
+  const rest = omit(props, "source", "size", "fill", "label", "class");
   const node = createElement("svg");
   spread(node, rest, false);
   spread(
     node,
     {
+      get class() {
+        return props.class
+          ? `self-center shrink-0 ${props.class}`
+          : "self-center shrink-0";
+      },
       get source() {
         return props.fill && props.fill !== "none"
           ? props.source.replace('fill="none"', `fill="${props.fill}"`)

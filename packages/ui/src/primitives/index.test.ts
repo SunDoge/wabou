@@ -13,6 +13,7 @@ import {
   createTabs,
   NetworkImage,
   PasswordInput,
+  Icon,
   Svg,
   Text,
   TextArea,
@@ -469,4 +470,38 @@ describe("host primitives", () => {
       expect(password.tag).toBe("password-input");
       dispose();
     }));
+
+  test("Icon always adds alignment defaults and preserves custom class", () => {
+    const classes: Array<[string, string]> = [];
+    const size: Array<[string, string]> = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    const setClassName = writer.setClassName.bind(writer);
+    writer.setClassName = (_id, value) => {
+      classes.push(["class", value]);
+    };
+    writer.setAttribute = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        size.push([name, value]);
+      }
+    };
+    try {
+      createRoot((dispose) => {
+        Icon({
+          source: "<svg/>",
+          size: 14,
+          class: "text-accent",
+          label: "demo icon",
+        });
+        dispose();
+      });
+    } finally {
+      writer.setAttribute = setAttribute;
+      writer.setClassName = setClassName;
+    }
+    expect(classes).toEqual([["class", "self-center shrink-0 text-accent"]]);
+    expect(size).toEqual([
+      ["width", "14"],
+      ["height", "14"],
+    ]);
+  });
 });
