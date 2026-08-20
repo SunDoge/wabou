@@ -11,7 +11,7 @@
     "verify:rust": "cargo fmt --all -- --check && cargo check --workspace --all-targets && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-targets",
     "verify:behavior": "bun run scripts/check-behavior.ts",
     "test:solid2": "bun --conditions=browser --conditions=wabou-source test packages/core/src/renderer/events.test.ts packages/core/src/glue/host-frame.test.ts",
-    "test": "bun --conditions=browser --conditions=wabou-source test packages apps/*/ui",
+    "test": "bun --conditions=browser --conditions=wabou-source test packages apps/*/ui scripts",
     "ci:local": "bash scripts/run-act.sh",
     "commit:check": "cog check",
     "commit:hook": "cog install-hook commit-msg",

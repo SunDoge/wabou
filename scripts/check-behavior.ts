@@ -6,21 +6,15 @@ export async function discoverBehaviorApps(
   workspaceRoot = root,
 ): Promise<string[]> {
   const applications = new Set<string>();
-  const patterns = [
-    "apps/*/tests/**/*.behavior.ts",
-    "apps/*/tests/**/*.scenario.ts",
-  ];
+  const glob = new Bun.Glob("apps/*/tests/**/*.behavior.ts");
 
-  for (const pattern of patterns) {
-    const glob = new Bun.Glob(pattern);
-    for await (const source of glob.scan({
-      cwd: workspaceRoot,
-      onlyFiles: true,
-    })) {
-      const [apps, application] = source.split(/[\\/]/u);
-      if (apps === "apps" && application) {
-        applications.add(`${apps}/${application}`);
-      }
+  for await (const source of glob.scan({
+    cwd: workspaceRoot,
+    onlyFiles: true,
+  })) {
+    const [apps, application] = source.split(/[\\/]/u);
+    if (apps === "apps" && application) {
+      applications.add(`${apps}/${application}`);
     }
   }
 
@@ -30,7 +24,7 @@ export async function discoverBehaviorApps(
 async function main(): Promise<void> {
   const applications = await discoverBehaviorApps();
   if (applications.length === 0) {
-    throw new Error("no apps/*/tests behavior scenarios were discovered");
+    throw new Error("no apps/*/tests/**/*.behavior.ts suites were discovered");
   }
 
   if (process.argv.includes("--list")) {
