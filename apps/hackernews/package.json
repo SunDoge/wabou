@@ -12,7 +12,7 @@
   "dependencies": {
     "@wabou/ui": "workspace:*",
     "lucide-static": "1.31.0",
-    "solid-js": "2.0.0-rc.0"
+    "solid-js": "2.0.0-rc.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

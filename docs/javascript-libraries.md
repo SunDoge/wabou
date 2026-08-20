@@ -12,7 +12,7 @@ untested until the same checks pass again.
 
 | Library | Tested version | Status | Evidence and constraints |
 | --- | --- | --- | --- |
-| `solid-js` | 2.0.0-rc.0 | Preview baseline | Drives every Wabou application through `@solidjs/universal` 2.0, including signals, memos, effects, context, lifecycle, `For` and `Show`. Wabou deliberately targets the Solid 2 RC during its own developer preview; pin the exact workspace-compatible version. Use Wabou's renderer aliases; DOM-specific APIs remain unsupported. |
+| `solid-js` | 2.0.0-rc.1 | Preview baseline | Drives every Wabou application through `@solidjs/universal` 2.0, including signals, memos, effects, context, lifecycle, `For` and `Show`. Wabou deliberately targets the Solid 2 RC during its own developer preview; pin the exact workspace-compatible version. Use Wabou's renderer aliases; DOM-specific APIs remain unsupported. |
 | `valibot` | 1.4.2 | Supported | Runs without polyfills in QuickJS. Warden Desktop validates native response envelopes, preferences, login results, vault snapshots and item details with it. An isolated email/URL/union probe tree-shook to about 4.5 KB minified. |
 | `lucide-static` | 1.31.0 | Supported | Wabou components consume framework-independent SVG strings and send them through the cached native SVG path. This avoids DOM assumptions and keeps icon selection tree-shakeable. |
 | `@floating-ui/core` | 1.8.0 | Supported through a Wabou adapter | Wabou primitives supply native layout rectangles to its platform-independent middleware. `offset`, `flip`, `shift`, `size`, `arrow` and `autoPlacement` are tested. Do not use `@floating-ui/dom`. |

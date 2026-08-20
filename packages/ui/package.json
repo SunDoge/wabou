@@ -50,6 +50,6 @@
     "lucide-static": "1.31.0",
     "motion-dom": "^12.43.0",
     "ts-pattern": "^5.9.0",
-    "solid-js": "2.0.0-rc.0"
+    "solid-js": "2.0.0-rc.1"
   }
 }

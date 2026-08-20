@@ -12,7 +12,7 @@ APIs, styled components, common scene primitives, animation, and routing.
 Applications should not need to understand Wabou's internal package graph and
 should set `jsxImportSource` to `@wabou/ui`.
 
-The 0.1 developer preview targets the exact `solid-js@2.0.0-rc.0` line. Keep
+The 0.1 developer preview targets the exact `solid-js@2.0.0-rc.1` line. Keep
 Solid and Wabou packages pinned together until Solid 2 and the universal
 renderer publish stable releases; minor RC changes may alter renderer behavior.
 

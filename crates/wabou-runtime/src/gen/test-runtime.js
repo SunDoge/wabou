@@ -1350,7 +1350,7 @@
       return out;
     }
   }
-  // node_modules/.bun/@solidjs+signals@2.0.0-rc.0/node_modules/@solidjs/signals/dist/dev.js
+  // node_modules/.bun/@solidjs+signals@2.0.0-rc.1/node_modules/@solidjs/signals/dist/dev.js
   class NotReadyError extends Error {
     source;
     constructor(source) {
@@ -1613,7 +1613,7 @@
     return;
   }
   function resolveTransition(el) {
-    if (hasActiveOverride(el) && el._overrideOwner) {
+    if (hasActiveOverride$1(el) && el._overrideOwner) {
       const owner = el._overrideOwner = currentTransition(el._overrideOwner);
       if (owner._done !== true)
         return owner;
@@ -1621,7 +1621,7 @@
     }
     return resolveLane(el)?._transition ?? el._transition;
   }
-  function hasActiveOverride(el) {
+  function hasActiveOverride$1(el) {
     return !!(el._overrideValue !== undefined && el._overrideValue !== NOT_PENDING);
   }
   function assignOrMergeLane(el, sourceLane) {
@@ -1634,7 +1634,7 @@
       }
       const existingRoot = findLane(existing);
       if (activeLanes.has(existingRoot)) {
-        if (existingRoot !== sourceRoot && !hasActiveOverride(el)) {
+        if (existingRoot !== sourceRoot && !hasActiveOverride$1(el)) {
           if (sourceRoot._parentLane && findLane(sourceRoot._parentLane) === existingRoot) {
             el._optimisticLane = sourceLane;
           } else if (existingRoot._parentLane && findLane(existingRoot._parentLane) === sourceRoot)
@@ -1703,6 +1703,10 @@
   }
   function resetUnhandledAsync() {
     _hitUnhandledAsync = false;
+  }
+  var inEffectCallback = false;
+  function setEffectCallback(value) {
+    inEffectCallback = value;
   }
   function createBatch() {
     return {
@@ -2098,12 +2102,14 @@
     if (n._pendingSignal || n._latestValueComputed)
       GlobalQueue._snapCompanions(n);
   }
+  var storeCommitHook = null;
   function commitPendingNodes() {
     const pendingNodes = currentBatch._pendingNodes;
     for (let i = 0;i < pendingNodes.length; i++) {
       commitPendingNode(pendingNodes[i]);
     }
     pendingNodes.length = 0;
+    storeCommitHook?.();
   }
   function finalizePureQueue(completingTransition = null, incomplete = false) {
     const resolvePending = !incomplete;
@@ -2173,7 +2179,17 @@
     }
     if (globalQueue._running) {
       if (inTrackedQueueCallback) {
-        throw new Error("Cannot call flush() from inside onSettled or createTrackedEffect. flush() is not reentrant there.");
+        throw new Error("Cannot call flush() from inside onSettled or createTrackedEffect. flush() is not reentrant there. " + "Writes made here are processed in the same flush's continuation; to force a drain afterwards, defer it: queueMicrotask(() => flush()).");
+      }
+      if (inEffectCallback) {
+        const message = "[FLUSH_IN_EFFECT_CALLBACK] flush() called from inside an effect callback is a no-op: the flush that runs effects is already in progress. " + "Writes made here are processed in the same flush's continuation; to force a drain afterwards, defer it: queueMicrotask(() => flush()).";
+        emitDiagnostic({
+          code: "FLUSH_IN_EFFECT_CALLBACK",
+          kind: "lifecycle",
+          severity: "warn",
+          message
+        });
+        console.warn(message);
       }
       return;
     }
@@ -2842,7 +2858,7 @@
           queuePendingNode(el);
         el._pendingValue = value;
         GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, value);
-        if (!hasActiveOverride(el))
+        if (!hasActiveOverride$1(el))
           insertSubs(el);
         el._time = clock;
       } else if (lane) {
@@ -2880,44 +2896,12 @@
       }
       return false;
     };
-    if (thenable) {
-      let resolved = false, rejected = false, syncError, isSync = true;
-      result.then((v) => {
-        if (isSync) {
-          syncValue = v;
-          resolved = true;
-        } else {
-          asyncWrite(v);
-          settleAutodispose();
-        }
-      }, (e) => {
-        if (isSync) {
-          syncError = e;
-          rejected = true;
-        } else {
-          handleError(e);
-          settleAutodispose();
-        }
-      });
-      isSync = false;
-      if (rejected) {
-        handleError(syncError);
-        throw syncError;
-      } else if (!resolved) {
-        if (el._loading)
-          return el._value;
-        globalQueue.initTransition(resolveTransition(el));
-        throw new NotReadyError(context);
-      } else {
-        el._loading = false;
-      }
-    }
-    if (iterator) {
-      const it = result[Symbol.asyncIterator]();
+    const consumeIterator = (source, registerClose) => {
+      const it = source[Symbol.asyncIterator]();
       let hadValue = false;
       let completed = false;
-      let initialRead = true;
-      cleanup(() => {
+      let initialRead = !registerClose;
+      const close = () => {
         if (completed)
           return;
         completed = true;
@@ -2926,7 +2910,8 @@
           if (isThenable(returned))
             returned.then(undefined, () => {});
         } catch {}
-      });
+      };
+      registerClose ? registerClose(close) : cleanup(close);
       const iterateOrRelease = () => {
         if (!settleAutodispose())
           iterate();
@@ -2957,7 +2942,7 @@
             settleAutodispose();
           }
         }, (e) => {
-          if (isSync) {
+          if (isSync && initialRead) {
             syncError = e;
             rejected = true;
           } else if (el._inFlight === result) {
@@ -2983,7 +2968,69 @@
       };
       const immediatelyDone = iterate();
       initialRead = false;
-      if (!hadValue && !immediatelyDone) {
+      return hadValue || immediatelyDone;
+    };
+    let liveLanded = null;
+    const flattenIfIterable = (value, registerClose) => {
+      let innerIterator = false;
+      if (typeof value === "object" && value !== null) {
+        untrack(() => {
+          innerIterator = value[Symbol.asyncIterator];
+        });
+      }
+      if (!innerIterator)
+        return false;
+      const landed = consumeIterator(value, registerClose);
+      if (!registerClose)
+        liveLanded = landed;
+      return true;
+    };
+    if (thenable) {
+      let resolved = false, rejected = false, syncError, isSync = true;
+      const registerDeferredClose = (fn) => {
+        if (!el._disposal)
+          el._disposal = fn;
+        else if (Array.isArray(el._disposal))
+          el._disposal.push(fn);
+        else
+          el._disposal = [el._disposal, fn];
+      };
+      result.then((v) => {
+        if (isSync) {
+          syncValue = v;
+          resolved = true;
+        } else if (el._inFlight === result && !(el._flags & REACTIVE_DISPOSED) && flattenIfIterable(v, registerDeferredClose))
+          ;
+        else {
+          asyncWrite(v);
+          settleAutodispose();
+        }
+      }, (e) => {
+        if (isSync) {
+          syncError = e;
+          rejected = true;
+        } else {
+          handleError(e);
+          settleAutodispose();
+        }
+      });
+      isSync = false;
+      if (rejected) {
+        handleError(syncError);
+        throw syncError;
+      } else if (!resolved) {
+        if (el._loading)
+          return el._value;
+        globalQueue.initTransition(resolveTransition(el));
+        throw new NotReadyError(context);
+      } else if (!flattenIfIterable(syncValue)) {
+        el._loading = false;
+      }
+    }
+    if (iterator)
+      flattenIfIterable(result);
+    if (liveLanded !== null) {
+      if (!liveLanded) {
         if (el._loading)
           return el._value;
         globalQueue.initTransition(resolveTransition(el));
@@ -3015,7 +3062,7 @@
     const pendingSource = status === STATUS_PENDING && error instanceof NotReadyError ? error.source : undefined;
     const isSource = pendingSource === el;
     const isOptimisticBoundary = status === STATUS_PENDING && el._overrideValue !== undefined && !isSource;
-    const startsBlocking = isOptimisticBoundary && hasActiveOverride(el);
+    const startsBlocking = isOptimisticBoundary && hasActiveOverride$1(el);
     if (!blockStatus) {
       if (status === STATUS_PENDING && pendingSource) {
         addPendingSource(el, pendingSource);
@@ -3138,6 +3185,8 @@
       const lane = GlobalQueue._recomputeLane(el, true);
       if (lane)
         currentOptimisticLane = lane;
+      else if (lane === false)
+        isOptimisticDirty = false;
     } else if (activeTransition && !create && activeTransition._optimisticNodes.length) {
       const lane = GlobalQueue._recomputeLane(el, false);
       if (lane) {
@@ -3473,7 +3522,7 @@
     if (!computed2._fn && owner === el && el._overrideValue === undefined && el._snapshotValue === undefined && activeTransition === null && currentOptimisticLane === null && !snapshotCaptureActive && !strictRead) {
       if (c && tracking)
         link(el, c);
-      return !c || el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
+      return !c || el._pendingValue === NOT_PENDING || c._config & CONFIG_CHILDREN_FORBIDDEN ? el._value : el._pendingValue;
     }
     if (strictRead && !pendingCheckActive && owner._statusFlags & STATUS_PENDING)
       throwPendingUntrackedRead(strictRead, {
@@ -3553,7 +3602,7 @@
     if (currentOptimisticLane !== null && activeTransition !== null && c !== null && GlobalQueue._gatedRead(el, owner, c)) {
       return el._value;
     }
-    const value = !c || currentOptimisticLane !== null && GlobalQueue._laneReadsCommitted(el, owner, c) || el._pendingValue === NOT_PENDING || stale && el._transition && activeTransition !== el._transition ? el._value : el._pendingValue;
+    const value = !c || currentOptimisticLane !== null && GlobalQueue._laneReadsCommitted(el, owner, c) || el._pendingValue === NOT_PENDING || c._config & CONFIG_CHILDREN_FORBIDDEN || stale && el._transition && activeTransition !== el._transition ? el._value : el._pendingValue;
     if (pendingCheckActive)
       GlobalQueue._recordFresh(el, value);
     if (!c && owner === el && typeof computed2._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
@@ -3687,7 +3736,7 @@
   function transitionBlocked(transition) {
     for (let i = 0;i < transition._optimisticNodes.length; i++) {
       const node = transition._optimisticNodes[i];
-      if (hasActiveOverride(node) && "_statusFlags" in node && node._statusFlags & STATUS_PENDING && node._error instanceof NotReadyError) {
+      if (hasActiveOverride$1(node) && "_statusFlags" in node && node._statusFlags & STATUS_PENDING && node._error instanceof NotReadyError) {
         return true;
       }
     }
@@ -3756,7 +3805,7 @@
     const pendingLane = owner._optimisticLane;
     if (!pendingLane)
       return false;
-    return findLane(pendingLane) === findLane(currentOptimisticLane) && !hasActiveOverride(owner);
+    return findLane(pendingLane) === findLane(currentOptimisticLane) && !hasActiveOverride$1(owner);
   }
   function gatedRead(el, owner, c) {
     if (latestReadActive || el._pendingValue === NOT_PENDING || el._fn || owner !== el && !(owner._flags & REACTIVE_MANUAL_WRITE)) {
@@ -3776,8 +3825,16 @@
     return false;
   }
   function recomputeLane(el, own) {
-    if (own)
-      return resolveLane(el) ?? null;
+    if (own) {
+      const lane = resolveLane(el);
+      if (!lane)
+        return null;
+      if (!globalQueue._running && !activeTransition && !lane._transition && lane._source._parentSource !== undefined && el._overrideValue === undefined) {
+        el._optimisticLane = undefined;
+        return false;
+      }
+      return lane;
+    }
     for (let d = el._deps;d; d = d._nextDep) {
       const dep = d._dep;
       if (dep._flags & REACTIVE_OPTIMISTIC_DIRTY) {
@@ -3889,11 +3946,11 @@
       const parent = parentNode._firewall || parentNode;
       return newQuestionInFlight(parent);
     }
-    if (firewall && el._pendingValue !== NOT_PENDING && !hasActiveOverride(el)) {
+    if (firewall && el._pendingValue !== NOT_PENDING && !hasActiveOverride$1(el)) {
       return !!(firewall._flags & REACTIVE_MANUAL_WRITE) || !firewall._inFlight && !(firewall._statusFlags & STATUS_PENDING) || !!(firewall._statusFlags & STATUS_PENDING) && quietPending(firewall);
     }
     if (el._pendingValue !== NOT_PENDING && !(comp._statusFlags & STATUS_UNINITIALIZED) && !comp._loading) {
-      if (hasActiveOverride(el))
+      if (hasActiveOverride$1(el))
         return !el._equals || !el._equals(el._pendingValue, unwrapOverride(el._overrideValue));
       return true;
     }
@@ -4003,7 +4060,7 @@
         return visibleValue;
       }
     }
-    if (pendingComputed._pendingValue !== NOT_PENDING && !hasActiveOverride(pendingComputed) && !(stale && pendingComputed._transition && activeTransition !== pendingComputed._transition))
+    if (pendingComputed._pendingValue !== NOT_PENDING && !hasActiveOverride$1(pendingComputed) && !(stale && pendingComputed._transition && activeTransition !== pendingComputed._transition))
       return pendingComputed._pendingValue;
     return value;
   }
@@ -4120,6 +4177,7 @@
     let prevStrictRead = false;
     {
       prevStrictRead = setStrictRead("an effect callback");
+      setEffectCallback(true);
     }
     const prevCleanup = node._cleanup;
     node._cleanup = undefined;
@@ -4138,7 +4196,10 @@
         throw error;
       }
     } finally {
-      setStrictRead(prevStrictRead);
+      {
+        setStrictRead(prevStrictRead);
+        setEffectCallback(false);
+      }
       node._prevValue = node._value;
       node._modified = false;
     }
@@ -4166,21 +4227,34 @@
   function createRenderEffect(compute, effectFn, options) {
     effect(compute, effectFn, undefined, { ...options, name: options?.name ?? "effect" });
   }
+  var ownedRaw = new WeakSet;
+  var storeNextLookup = new WeakMap;
   var $TRACK = Symbol("STORE_TRACK");
   var $TARGET = Symbol("STORE_TARGET");
   var $PROXY = Symbol("STORE_PROXY");
-  var $DELETED = Symbol("STORE_DELETED");
   var $AFFECTS = Symbol("STORE_AFFECTS");
-  var STORE_SELF_PENDING = Symbol("STORE_SELF_PENDING");
-  var storeLookup = new WeakMap;
-  var symbolKeyedRecords = new WeakSet;
   var rawValues = new WeakSet;
   var OBJECT_PROTO = Object.prototype;
   var wrappableProtos = new WeakMap;
   function ownEnumerableKeys(o) {
     return Reflect.ownKeys(o).filter((k) => Object.prototype.propertyIsEnumerable.call(o, k));
   }
+  function inheritAffectsMarks(node, raw, property) {
+    for (const [carrier, entry] of affectsScopes) {
+      if (carrier._affectsCount && entry.scope.has(raw) && (entry.key === undefined || entry.key === property)) {
+        GlobalQueue._markAffects(node);
+        entry.inherited.push(node);
+      }
+    }
+  }
   var affectsScopes = new Map;
+  var nextAffectsNodeResolver = null;
+  function setNextAffectsNodeResolver(fn) {
+    nextAffectsNodeResolver = fn;
+  }
+  function affectsScopesLive() {
+    return affectsScopes.size > 0;
+  }
   function markAffects(node) {
     node._affectsCount = (node._affectsCount || 0) + 1;
     shiftAffectsMarks(1);
@@ -4201,6 +4275,60 @@
   GlobalQueue._releaseAffectsMarks = releaseAffectsMarks;
   GlobalQueue._markAffects = markAffects;
   GlobalQueue._releaseAffectsMark = releaseAffectsMark;
+  function getNode(target, key, current) {
+    const nodes = target.n ??= Object.create(null);
+    let node = nodes[key];
+    if (node === undefined) {
+      const created = node = signal(current, {
+        equals: (a, b) => isEqual(a, b) || sameLogicalSlot(target, a, b),
+        unobserved() {
+          if (created._affectsCount)
+            return;
+          if (target.n && target.n[key] === created) {
+            delete target.n[key];
+            target.nc--;
+          }
+        }
+      }, target.fam?.node ?? undefined);
+      created._config |= CONFIG_OWNED_WRITE;
+      created.acc = isOwnAccessor(target.pb ?? target.v, key);
+      created.px = undefined;
+      created.pxv = undefined;
+      if (target.fam?.opt)
+        created._overrideValue = NOT_PENDING;
+      if (key !== $AFFECTS && affectsScopesLive())
+        inheritAffectsMarks(created, target.v, key);
+      nodes[key] = node;
+      target.nc++;
+      markDescendants(target);
+    }
+    return node;
+  }
+  function sameLogicalSlot(target, a, b) {
+    if (a === null || typeof a !== "object" || b === null || typeof b !== "object")
+      return false;
+    const map = target.fam?.map ?? storeNextLookup;
+    const at = map.get(a);
+    return at !== undefined && at === map.get(b);
+  }
+  function markDescendants(target) {
+    let t = target;
+    while (t && !t.d) {
+      t.d = true;
+      t = t.u;
+    }
+  }
+  var foldOlds = new Map;
+  var FORCE = Symbol();
+  var pendingNotify = new Set;
+  var UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+  var hasOwn = Object.prototype.hasOwnProperty;
+  var lookupGetter = Object.prototype.__lookupGetter__;
+  var lookupSetter = Object.prototype.__lookupSetter__;
+  function isOwnAccessor(src, key) {
+    return hasOwn.call(src, key) && (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined);
+  }
+  setNextAffectsNodeResolver((t, key) => key === $AFFECTS ? getNode(t, $AFFECTS, undefined) : getNode(t, key, (t.pb ?? t.v)[key]));
   var DELETE = Symbol("STORE_PATH_DELETE");
   function trueFn() {
     return true;
@@ -4591,7 +4719,7 @@
     return needsUnwrap;
   }
 
-  // node_modules/.bun/solid-js@2.0.0-rc.0/node_modules/solid-js/dist/dev.js
+  // node_modules/.bun/solid-js@2.0.0-rc.1/node_modules/solid-js/dist/dev.js
   var $DEVCOMP = Symbol("COMPONENT_DEV");
   function createContext(defaultValue, options) {
     const id = Symbol(options && options.name || "");
@@ -4646,6 +4774,7 @@
   var _createMemo;
   var _createSignal;
   var _createRenderEffect;
+  var LIVE_SOURCE = Symbol.for("solid.LiveSource");
   var createMemo2 = (...args) => {
     return (_createMemo || createMemo)(...args);
   };
@@ -5176,7 +5305,7 @@
     return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && typeof value.drawable === "boolean" && value.data instanceof Uint8Array;
   }
 
-  // node_modules/.bun/@solidjs+universal@2.0.0-rc.0+6b48b9f3356e564b/node_modules/@solidjs/universal/dist/dev.js
+  // node_modules/.bun/@solidjs+universal@2.0.0-rc.1+8dd5f48cc8d92621/node_modules/@solidjs/universal/dist/dev.js
   var transparentOptions = {
     transparent: true,
     sync: true
