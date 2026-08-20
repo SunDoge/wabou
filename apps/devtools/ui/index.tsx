@@ -31,6 +31,7 @@ import {
   EMPTY_OVERLAY_LAYERS,
   type OverlayLayer,
   type OverlayLayers,
+  overlayEvidenceLabel,
   overlayStyle,
   toggleOverlayLayer,
 } from "./model";
@@ -96,6 +97,12 @@ function App() {
     try {
       const value = await devtools.status();
       setStatus(value);
+      const overlay = value.overlay ?? EMPTY_OVERLAY_LAYERS;
+      setOverlayLayers({
+        layout: overlay.layout,
+        clips: overlay.clips,
+        hitTarget: overlay.hitTarget,
+      });
       setError(undefined);
     } catch (cause) {
       setError(String(cause));
@@ -339,8 +346,18 @@ function App() {
 
       <Show when={connectedSocket()}>
         {(path) => (
-          <View class="flex-none px-3 py-1 bg-emerald-950 text-emerald-300 text-xs border-b border-emerald-800">
-            <Text>Connected to {path()}</Text>
+          <View class="flex-none px-3 py-1 flex flex-row items-center justify-between gap-4 bg-emerald-950 text-emerald-300 text-xs border-b border-emerald-800">
+            <Text class="min-w-0">Connected to {path()}</Text>
+            <Text class="flex-none whitespace-nowrap">
+              <Show when={status()}>
+                {(current) =>
+                  overlayEvidenceLabel(
+                    current().overlay,
+                    current().overlayPaint,
+                  )
+                }
+              </Show>
+            </Text>
           </View>
         )}
       </Show>

@@ -149,6 +149,20 @@ type DebugOverlay = {
 	selectedNode: NodeKey | null,
 };
 
+export /**  Evidence from the most recent native debug-overlay paint pass. */
+type DebugOverlayPaintStats = {
+	/**  Monotonic paint-pass sequence. Zero means no pass has completed. */
+	sequence: number,
+	/**  Whether an overlay was enabled for that pass. */
+	enabled: boolean,
+	/**  Number of layout border boxes stroked into the Vello scene. */
+	layout_bounds: number,
+	/**  Number of unique clip rectangles stroked into the Vello scene. */
+	clip_bounds: number,
+	/**  Number of hit-target or selected-node highlights painted. */
+	highlights: number,
+};
+
 export /**  Final platform-neutral accessibility projection for one retained node. */
 type DebugSemanticProjection = {
 	/**  Canonical role after native-widget and authored-role resolution. */
@@ -221,6 +235,10 @@ type DebugStatus = {
 	focusedNode: NodeKey | null,
 	/**  Hovered Solid node identifier. */
 	hoveredNode: NodeKey | null,
+	/**  Native diagnostic layers currently requested by any DevTools client. */
+	overlay?: DebugOverlay,
+	/**  Evidence from the most recently completed native overlay paint pass. */
+	overlayPaint?: DebugOverlayPaintStats,
 };
 
 export /**  Winning declaration and its lower-priority sources for one Style IR property. */

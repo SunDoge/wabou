@@ -11,7 +11,7 @@ bindings = [
   "dep:wabou-bindgen",
   "wabou-bindgen/generate",
 ]
-specta = ["dep:specta"]
+specta = ["dep:specta", "dep:specta-typescript"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }

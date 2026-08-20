@@ -428,6 +428,8 @@ impl Applier {
                 text_outline_fallback: text_context.outline_fallback_name().to_owned(),
                 focused_node: self.interaction.input.focused_target,
                 hovered_node: self.interaction.input.hovered_target,
+                overlay: Default::default(),
+                overlay_paint: Default::default(),
             },
             nodes,
         };

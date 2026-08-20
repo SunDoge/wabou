@@ -60,12 +60,22 @@ test("generated no-request methods are argument-free at the native boundary", as
               hitTarget: false,
               selectedNode: null,
             },
+            overlayPaint: {
+              sequence: 12,
+              enabled: true,
+              layout_bounds: 8,
+              clip_bounds: 2,
+              highlights: 1,
+            },
           },
         });
       },
     },
   } as unknown as Host);
 
-  await expect(client.status()).resolves.toMatchObject({ connected: true });
+  await expect(client.status()).resolves.toMatchObject({
+    connected: true,
+    overlayPaint: { sequence: 12, layout_bounds: 8 },
+  });
   expect(calls).toEqual([[]]);
 });

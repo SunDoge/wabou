@@ -375,6 +375,12 @@ pub struct DebugStatus {
     pub focused_node: Option<NodeKey>,
     /// Hovered Solid node identifier.
     pub hovered_node: Option<NodeKey>,
+    /// Native diagnostic layers currently requested by any DevTools client.
+    #[serde(default)]
+    pub overlay: DebugOverlay,
+    /// Evidence from the most recently completed native overlay paint pass.
+    #[serde(default)]
+    pub overlay_paint: DebugOverlayPaintStats,
 }
 
 fn default_device_scale() -> f64 {
@@ -626,7 +632,9 @@ impl DebugState {
     }
 
     /// Replace the immutable snapshot visible to readers.
-    pub fn publish(&mut self, snapshot: DebugSnapshot) {
+    pub fn publish(&mut self, mut snapshot: DebugSnapshot) {
+        snapshot.status.overlay = self.overlay;
+        snapshot.status.overlay_paint = self.overlay_paint;
         self.snapshot = snapshot;
     }
 
@@ -660,11 +668,18 @@ impl DebugState {
     pub fn record_overlay_paint(&mut self, mut stats: DebugOverlayPaintStats) {
         stats.sequence = self.overlay_paint.sequence.wrapping_add(1).max(1);
         self.overlay_paint = stats;
+        self.snapshot.status.overlay_paint = stats;
     }
 
     /// Replace overlay configuration and wake the UI loop.
     pub fn set_overlay(&mut self, overlay: DebugOverlay) {
         self.overlay = overlay;
+        self.overlay_paint = DebugOverlayPaintStats {
+            sequence: self.overlay_paint.sequence,
+            ..Default::default()
+        };
+        self.snapshot.status.overlay = overlay;
+        self.snapshot.status.overlay_paint = self.overlay_paint;
         self.overlay_changed = true;
         if let Some(wake) = &self.wake {
             wake();

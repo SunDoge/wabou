@@ -20,6 +20,14 @@ export interface OverlayLayers {
 
 export type OverlayLayer = keyof OverlayLayers;
 
+export interface OverlayPaintEvidence {
+  sequence: number;
+  enabled: boolean;
+  layout_bounds: number;
+  clip_bounds: number;
+  highlights: number;
+}
+
 export const EMPTY_OVERLAY_LAYERS: OverlayLayers = Object.freeze({
   layout: false,
   clips: false,
@@ -31,6 +39,21 @@ export function toggleOverlayLayer(
   layer: OverlayLayer,
 ): OverlayLayers {
   return { ...layers, [layer]: !layers[layer] };
+}
+
+export function overlayEvidenceLabel(
+  layers: (OverlayLayers & { selectedNode?: unknown }) | undefined,
+  paint: OverlayPaintEvidence | undefined,
+): string {
+  if (!layers || !paint) return "overlay evidence unavailable";
+  const requested =
+    layers.layout ||
+    layers.clips ||
+    layers.hitTarget ||
+    layers.selectedNode != null;
+  if (!requested) return `overlay off · pass ${paint.sequence}`;
+  if (!paint.enabled) return "overlay requested · awaiting native paint";
+  return `overlay pass ${paint.sequence} · ${paint.layout_bounds} bounds · ${paint.clip_bounds} clips · ${paint.highlights} highlights`;
 }
 
 export function decode<T>(raw: string): T {

@@ -140,6 +140,51 @@ fn overlay_command_updates_runtime_diagnostics() {
     );
     assert!(state.take_overlay_change());
     assert!(!state.take_overlay_change());
+
+    state.publish(DebugSnapshot {
+        status: DebugStatus {
+            revision: 9,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
+    let status = state
+        .execute(&request(2, "status", empty_params()).command)
+        .expect("read status after overlay update");
+    assert_eq!(status["overlay"], value);
+    assert_eq!(status["revision"], 9);
+
+    state.record_overlay_paint(DebugOverlayPaintStats {
+        enabled: true,
+        layout_bounds: 7,
+        clip_bounds: 2,
+        highlights: 1,
+        ..Default::default()
+    });
+    let status = state
+        .execute(&request(3, "status", empty_params()).command)
+        .expect("read status after overlay paint");
+    assert_eq!(status["overlayPaint"]["sequence"], 1);
+    assert_eq!(status["overlayPaint"]["layout_bounds"], 7);
+
+    state.set_overlay(DebugOverlay {
+        clips: true,
+        ..Default::default()
+    });
+    let pending = state
+        .execute(&request(4, "status", empty_params()).command)
+        .expect("read pending overlay status");
+    assert_eq!(pending["overlayPaint"]["sequence"], 1);
+    assert_eq!(pending["overlayPaint"]["enabled"], false);
+    assert_eq!(pending["overlayPaint"]["layout_bounds"], 0);
+
+    state.publish(DebugSnapshot::default());
+    let status = state
+        .execute(&request(5, "status", empty_params()).command)
+        .expect("read status after snapshot replacement");
+    assert_eq!(status["overlayPaint"]["sequence"], 1);
+    assert_eq!(status["overlay"]["clips"], true);
 }
 
 #[cfg(unix)]

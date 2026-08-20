@@ -300,12 +300,15 @@ pub struct CalendarDateInfo {
     pub day: u8,
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Evidence from the most recent native debug-overlay paint pass.
 pub struct DebugOverlayPaintStats {
     /// Monotonic paint-pass sequence. Zero means no pass has completed.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    #[cfg_attr(
+        any(feature = "bindings", feature = "specta"),
+        specta(type = specta_typescript::Number)
+    )]
     pub sequence: u64,
     /// Whether an overlay was enabled for that pass.
     pub enabled: bool,
