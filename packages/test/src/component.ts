@@ -153,6 +153,7 @@ export function createTestHost<C extends object = Record<string, never>>(
       },
       diagnostics: {
         frameStats: () => null,
+        setOverlay: () => false,
         ...builtins.diagnostics,
       },
       intl: {
