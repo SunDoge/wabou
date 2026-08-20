@@ -14,6 +14,11 @@ declare global {
   function __wabou_set_color_palette(colors: Uint32Array): void;
   function __wabou_load_font(path: string): boolean;
   function __wabou_frame_stats(): string;
+  function __wabou_set_debug_overlay(
+    layout: boolean,
+    clips: boolean,
+    hitTarget: boolean,
+  ): boolean;
   function __wabou_layout_snapshot(
     ids: Uint32Array,
     output: Float64Array | undefined,

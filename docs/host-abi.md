@@ -14,6 +14,7 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_set_color_palette` | host | runtime | always |
 | `__wabou_load_font` | host | runtime | always |
 | `__wabou_frame_stats` | host | runtime | always |
+| `__wabou_set_debug_overlay` | host | runtime | always |
 | `__wabou_layout_snapshot` | host | runtime | always |
 | `__wabou_system_locale` | host | runtime | always |
 | `__wabou_system_time_zone` | host | runtime | always |

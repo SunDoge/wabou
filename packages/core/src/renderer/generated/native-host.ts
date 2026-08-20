@@ -86,6 +86,7 @@ export interface NativeHostApi {
   layoutSnapshot(ids: NodeKey[]): LayoutSnapshot;
   loadFont(path: string): boolean;
   openUrl(url: string): boolean;
+  setDebugOverlay(layout: boolean, clips: boolean, hitTarget: boolean): boolean;
   systemCalendarDate(): CalendarDateInfo;
   systemLocale(): string;
   systemTimeZone(): string;

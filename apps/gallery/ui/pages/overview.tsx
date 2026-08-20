@@ -1,3 +1,4 @@
+import { useHost } from "@wabou/core";
 import {
   Badge,
   Button,
@@ -27,7 +28,7 @@ import layers from "lucide-static/icons/layers-3.svg?raw";
 import palette from "lucide-static/icons/palette.svg?raw";
 import scan from "lucide-static/icons/scan-line.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
-import { createMemo, createSignal, For, onCleanup, type JSX } from "solid-js";
+import { createMemo, createSignal, For, type JSX, onCleanup } from "solid-js";
 
 const treeNodes = [
   { id: "shell", name: "ApplicationShell", detail: "flex row, 1440 by 900" },
@@ -77,9 +78,18 @@ export function OverviewPage(props: {
   onExplore: () => void;
 }) {
   const compact = createWindowMatch({ maxWidth: 1099 }, useWindow());
+  const host = useHost();
+  const debugOverlayAvailable = host.diagnostics.setOverlay({});
   const [selectedNode, setSelectedNode] = createSignal("hero");
   const [motion, setMotion] = createSignal(72);
-  const [inspectLayout, setInspectLayout] = createSignal(true);
+  const [inspectLayout, setInspectLayout] = createSignal(false);
+  const toggleLayoutOverlay = (enabled: boolean) => {
+    if (host.diagnostics.setOverlay({ layout: enabled }))
+      setInspectLayout(enabled);
+  };
+  onCleanup(() => {
+    if (inspectLayout()) host.diagnostics.setOverlay({});
+  });
   const selected = () =>
     treeNodes.find((node) => node.id === selectedNode()) ?? treeNodes[0];
 
@@ -303,12 +313,17 @@ export function OverviewPage(props: {
             <View class="flex items-center justify-between py-3 border-t border-b border-subtle">
               <View class="flex flex-col gap-1">
                 <Text class="text-sm text-primary">Layout overlay</Text>
-                <Text class="text-xs text-muted">Inspect native bounds</Text>
+                <Text class="text-xs text-muted">
+                  {debugOverlayAvailable
+                    ? "Inspect native bounds"
+                    : "Available in debug builds"}
+                </Text>
               </View>
               <Switch
                 checked={inspectLayout()}
+                disabled={!debugOverlayAvailable}
                 aria-label="Layout overlay"
-                onCheckedChange={setInspectLayout}
+                onCheckedChange={toggleLayoutOverlay}
               />
             </View>
             <View class="flex flex-col gap-3">

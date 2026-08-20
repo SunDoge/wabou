@@ -310,6 +310,15 @@ mod contract {
         NativeMethod::sync("loadFont", &[("path", "string")], "boolean");
     pub const FRAME_STATS: NativeMethod =
         NativeMethod::sync("frameStats", &[], "FrameStats | null");
+    pub const SET_DEBUG_OVERLAY: NativeMethod = NativeMethod::sync(
+        "setDebugOverlay",
+        &[
+            ("layout", "boolean"),
+            ("clips", "boolean"),
+            ("hitTarget", "boolean"),
+        ],
+        "boolean",
+    );
     pub const LAYOUT_SNAPSHOT: NativeMethod =
         NativeMethod::sync("layoutSnapshot", &[("ids", "NodeKey[]")], "LayoutSnapshot");
     pub const SYSTEM_LOCALE: NativeMethod = NativeMethod::sync("systemLocale", &[], "string");
@@ -328,6 +337,7 @@ pub fn bindings() -> FunctionModule {
         .method(contract::OPEN_URL)
         .method(contract::LOAD_FONT)
         .method(contract::FRAME_STATS)
+        .method(contract::SET_DEBUG_OVERLAY)
         .method(contract::LAYOUT_SNAPSHOT)
         .method(contract::SYSTEM_LOCALE)
         .method(contract::SYSTEM_TIME_ZONE)
@@ -343,6 +353,9 @@ mod tests {
         let output = bindings().render();
         assert!(output.contains("openUrl(url: string): boolean"));
         assert!(output.contains("frameStats(): FrameStats | null"));
+        assert!(output.contains(
+            "setDebugOverlay(layout: boolean, clips: boolean, hitTarget: boolean): boolean"
+        ));
         assert!(output.contains("layoutSnapshot(ids: NodeKey[]): LayoutSnapshot"));
         assert!(output.contains("systemLocale(): string"));
         assert!(output.contains("systemTimeZone(): string"));

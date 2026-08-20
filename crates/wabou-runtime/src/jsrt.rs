@@ -171,7 +171,7 @@ pub struct JsRuntime {
     host_frame_sequence: u64,
     host_frame_epoch: std::time::Instant,
     #[cfg(any(feature = "devtools", test))]
-    debug_state: Option<wabou_devtools::SharedDebugState>,
+    debug_state: Rc<RefCell<Option<wabou_devtools::SharedDebugState>>>,
     resize_targets: ResizeTargets,
     runtime_wake: Arc<RuntimeWake>,
     ctx: AsyncContext,
@@ -250,7 +250,7 @@ impl JsRuntime {
             host_frame_sequence: 0,
             host_frame_epoch: std::time::Instant::now(),
             #[cfg(any(feature = "devtools", test))]
-            debug_state: None,
+            debug_state: Rc::new(RefCell::new(None)),
             resize_targets,
             runtime_wake,
             _tokio: tokio_rt,
@@ -518,6 +518,40 @@ impl JsRuntime {
             .with_name("__wabou_frame_stats")?,
         )?;
 
+        #[cfg(any(feature = "devtools", test))]
+        let debug_state = self.debug_state.clone();
+        globals.set(
+            "__wabou_set_debug_overlay",
+            rquickjs::Function::new(
+                ctx.clone(),
+                move |layout: bool, clips: bool, hit_target: bool| -> bool {
+                    #[cfg(any(feature = "devtools", test))]
+                    {
+                        let Some(state) = debug_state.borrow().clone() else {
+                            return false;
+                        };
+                        let Ok(mut state) = state.write() else {
+                            return false;
+                        };
+                        let selected_node = state.overlay().selected_node;
+                        state.set_overlay(wabou_devtools::DebugOverlay {
+                            layout,
+                            clips,
+                            hit_target,
+                            selected_node,
+                        });
+                        true
+                    }
+                    #[cfg(not(any(feature = "devtools", test)))]
+                    {
+                        let _ = (layout, clips, hit_target);
+                        false
+                    }
+                },
+            )?
+            .with_name("__wabou_set_debug_overlay")?,
+        )?;
+
         let metrics = self.layout_metrics.clone();
         globals.set(
             "__wabou_layout_snapshot",
@@ -773,7 +807,7 @@ impl JsRuntime {
 
     #[cfg(any(feature = "devtools", test))]
     pub(crate) fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
-        self.debug_state = Some(state);
+        *self.debug_state.borrow_mut() = Some(state);
     }
 
     /// Run a synchronous closure while holding the async QuickJS context lock.
@@ -925,7 +959,7 @@ impl JsRuntime {
         )
         .map_err(|_| rquickjs::Error::Unknown)?;
         #[cfg(any(feature = "devtools", test))]
-        if let Some(state) = &self.debug_state
+        if let Some(state) = self.debug_state.borrow().as_ref()
             && let Ok(mut state) = state.write()
         {
             state.push_frame(wabou_devtools::DebugFrame {

@@ -69,6 +69,12 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
         feature: None,
     },
     HostAbiEntry {
+        name: "__wabou_set_debug_overlay",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
         name: "__wabou_layout_snapshot",
         direction: Direction::Host,
         owner: "runtime",

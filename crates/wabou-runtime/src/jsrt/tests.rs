@@ -509,6 +509,28 @@ fn host_ffi_surface_matches_contract() {
 }
 
 #[test]
+fn application_can_configure_the_shared_debug_overlay() {
+    let mut runtime = JsRuntime::new().expect("runtime");
+    assert!(
+        !runtime
+            .with(|ctx| ctx.eval::<bool, _>("__wabou_set_debug_overlay(true, false, true)"))
+            .expect("overlay without debug state")
+    );
+
+    let state = wabou_devtools::DebugState::shared();
+    runtime.set_debug_state(state.clone());
+    assert!(
+        runtime
+            .with(|ctx| ctx.eval::<bool, _>("__wabou_set_debug_overlay(true, false, true)"))
+            .expect("overlay with debug state")
+    );
+    let overlay = state.read().expect("debug state").overlay();
+    assert!(overlay.layout);
+    assert!(!overlay.clips);
+    assert!(overlay.hit_target);
+}
+
+#[test]
 fn motion_value_animations_run_inside_quickjs() {
     const MOTION_FIXTURE: &str = include_str!("../gen/motion-test-runtime.js");
     let clock = Arc::new(TestClock::default());

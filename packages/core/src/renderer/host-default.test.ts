@@ -23,6 +23,14 @@ Object.assign(globalThis, {
       viewport_w: 640,
       viewport_h: 480,
     }),
+  __wabou_set_debug_overlay: (
+    layout: boolean,
+    clips: boolean,
+    hitTarget: boolean,
+  ) => {
+    calls.push(["overlay", layout, clips, hitTarget]);
+    return true;
+  },
   __wabou_layout_snapshot: (
     ids: Uint32Array,
     output: Float64Array | undefined,
@@ -97,4 +105,11 @@ test("defaultHost adapts typed layout targets and convenience methods", () => {
     width: 640,
     height: 480,
   });
+});
+
+test("defaultHost adapts structured diagnostic overlay options", () => {
+  expect(
+    defaultHost.diagnostics.setOverlay({ layout: true, hitTarget: true }),
+  ).toBe(true);
+  expect(calls.at(-1)).toEqual(["overlay", true, false, true]);
 });

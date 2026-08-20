@@ -569,6 +569,12 @@ impl RuntimeSourceConfig {
         if let Some(trace) = &self.effect_trace {
             applier.set_effect_trace(trace.clone());
         }
+        #[cfg(feature = "devtools")]
+        if let Some(state) = &self.debug_state {
+            // Install diagnostics before the guest boots so application-owned
+            // debug controls can configure the first rendered frame.
+            applier.set_debug_state(state.clone());
+        }
         match &self.source {
             ApplicationSource::Bundle { code, source_map } => applier
                 .boot_with_source_map(code, source_map.as_deref())
@@ -583,10 +589,6 @@ impl RuntimeSourceConfig {
                         operation: "boot Vite entry module",
                     })?
             }
-        }
-        #[cfg(feature = "devtools")]
-        if let Some(state) = &self.debug_state {
-            applier.set_debug_state(state.clone());
         }
         Ok(applier)
     }
@@ -1201,11 +1203,29 @@ fn run_headless_test(
         last_nodes[viewport.window_index] =
             source.build_frame(&mut text, capture_viewport.width, capture_viewport.height);
     }
+    let source_count = sources.len();
+    let capture_source = sources
+        .get_mut(viewport.window_index)
+        .map(|(source, _)| source.as_mut())
+        .ok_or_else(|| crate::Error::TestScenario {
+            message: format!(
+                "capture requested window {} but the application has {} window(s)",
+                viewport.window_index + 1,
+                source_count
+            ),
+        })?;
     if controller.report_passed() == Some(false) {
-        render_headless_failure(&last_nodes, &mut text, base_color, capture_viewport)?;
+        render_headless_failure(
+            capture_source,
+            &last_nodes,
+            &mut text,
+            base_color,
+            capture_viewport,
+        )?;
     }
     if let Some(output) = std::env::var_os("WABOU_TEST_CAPTURE_PATH") {
         render_headless_capture(
+            capture_source,
             &last_nodes,
             &mut text,
             base_color,
@@ -1345,6 +1365,7 @@ fn drain_headless_effects(source: &mut dyn crate::FrameSource) {
 }
 
 fn render_headless_failure(
+    source: &mut dyn crate::FrameSource,
     last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
     text: &mut crate::TextContext,
     base_color: Color,
@@ -1360,6 +1381,7 @@ fn render_headless_failure(
         message: format!("cannot create failure artifact directory: {error}"),
     })?;
     render_headless_capture(
+        source,
         last_nodes,
         text,
         base_color,
@@ -1369,6 +1391,7 @@ fn render_headless_failure(
 }
 
 fn render_headless_capture(
+    source: &mut dyn crate::FrameSource,
     last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
     text: &mut crate::TextContext,
     base_color: Color,
@@ -1402,6 +1425,7 @@ fn render_headless_capture(
         base_color,
         viewport.scale_factor,
     );
+    source.paint_debug_overlay(&mut scene, nodes, text, viewport.scale_factor);
     wabou_shell::renderer::render_to_png(
         &scene,
         viewport.physical_width(),

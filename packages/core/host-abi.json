@@ -73,11 +73,26 @@
       "returns": "string"
     },
     {
+      "name": "__wabou_set_debug_overlay",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [
+        ["layout", "boolean"],
+        ["clips", "boolean"],
+        ["hitTarget", "boolean"]
+      ],
+      "returns": "boolean"
+    },
+    {
       "name": "__wabou_layout_snapshot",
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["ids", "Uint32Array"], ["output", "Float64Array | undefined"]],
+      "params": [
+        ["ids", "Uint32Array"],
+        ["output", "Float64Array | undefined"]
+      ],
       "returns": "number"
     },
     {

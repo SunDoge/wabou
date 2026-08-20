@@ -149,6 +149,14 @@ type NodeKey = {
 type LayoutTarget = NodeKey$1 | {
   readonly id: NodeKey$1;
 };
+interface DebugOverlayOptions {
+  /** Draw every retained node's border box. */
+  layout?: boolean;
+  /** Draw unique effective overflow and scroll clips. */
+  clips?: boolean;
+  /** Draw the current native pointer hit target. */
+  hitTarget?: boolean;
+}
 interface BuiltinHost {
   readonly system: {
     /** Open an http(s) URL using the operating system's default handler. */
@@ -161,6 +169,8 @@ interface BuiltinHost {
   readonly diagnostics: {
     /** Latest render timings, or null before the first completed frame. */
     frameStats(): FrameStats | null;
+    /** Configure native diagnostic layers. Returns false without DevTools support. */
+    setOverlay(options: DebugOverlayOptions): boolean;
   };
   readonly intl: {
     /** Locale reported by the operating system, falling back to en-US. */
@@ -482,5 +492,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { spread as $, createElement as A, isServer as B, WabouSvgProps as C, PathFillRule as Ct, acquireOverlayRoot as D, VectorPath as Dt, WabouWheelEvent as E, PathPoint as Et, getMountRoot as F, ref as G, mergeProps as H, getRequestEvent as I, removeNode as J, registerRoot as K, insert as L, delegateEvents as M, dispatchEvent as N, applyRef as O, VectorPathPaint as Ot, effect as P, setTransform2D as Q, insertNode as R, WabouSemanticRole as S, PathBuilder as St, WabouVectorPathProps as T, PathLineJoin as Tt, mount as U, memo as V, observeGlobalPointerEvent as W, runSweep as X, render as Y, setProp as Z, WabouNativeTag as _, Fragment as _t, WabouBuiltinIntrinsicElements as a, BuiltinHost as at, WabouPositionedEvent as b, jsxDEV as bt, WabouEventTarget as c, HostProviderProps as ct, WabouGlobalPointerListener as d, useHost as dt, writer as et, WabouImageProps as f, FrameStats as ft, WabouNativeElements as g, LayoutSnapshot as gt, WabouKeyEvent as h, LayoutScrollMetrics as ht, NativeScrollbarStyle as i, PortalProps as it, createTextNode as j, createComponent$1 as k, isVectorPath as kt, WabouExposedSemanticRole as l, LayoutTarget as lt, WabouInputProps as m, LayoutRect as mt, DynamicProps as n, VirtualListProps as nt, WabouControlProps as o, Host as ot, WabouInputEvent as p, LayoutNodeMetrics as pt, releaseOverlayRoot as q, Handle as r, Portal as rt, WabouElementProps as s, HostProvider as st, Dynamic as t, VirtualList as tt, WabouGlobalPointerEventType as u, defaultHost as ut, WabouNodeEvent as v, JSX$1 as vt, WabouSvgShapeProps as w, PathLineCap as wt, WabouScrollEvent as x, jsxs as xt, WabouPointerEvent as y, jsx as yt, isDirectEvent as z };
-//# sourceMappingURL=index-B6uTHAr5.d.mts.map
+export { spread as $, createElement as A, isVectorPath as At, isServer as B, WabouSvgProps as C, PathBuilder as Ct, acquireOverlayRoot as D, PathPoint as Dt, WabouWheelEvent as E, PathLineJoin as Et, getMountRoot as F, ref as G, mergeProps as H, getRequestEvent as I, removeNode as J, registerRoot as K, insert as L, delegateEvents as M, dispatchEvent as N, applyRef as O, VectorPath as Ot, effect as P, setTransform2D as Q, insertNode as R, WabouSemanticRole as S, jsxs as St, WabouVectorPathProps as T, PathLineCap as Tt, mount as U, memo as V, observeGlobalPointerEvent as W, runSweep as X, render as Y, setProp as Z, WabouNativeTag as _, LayoutSnapshot as _t, WabouBuiltinIntrinsicElements as a, BuiltinHost as at, WabouPositionedEvent as b, jsx as bt, WabouEventTarget as c, HostProvider as ct, WabouGlobalPointerListener as d, defaultHost as dt, writer as et, WabouImageProps as f, useHost as ft, WabouNativeElements as g, LayoutScrollMetrics as gt, WabouKeyEvent as h, LayoutRect as ht, NativeScrollbarStyle as i, PortalProps as it, createTextNode as j, createComponent$1 as k, VectorPathPaint as kt, WabouExposedSemanticRole as l, HostProviderProps as lt, WabouInputProps as m, LayoutNodeMetrics as mt, DynamicProps as n, VirtualListProps as nt, WabouControlProps as o, DebugOverlayOptions as ot, WabouInputEvent as p, FrameStats as pt, releaseOverlayRoot as q, Handle as r, Portal as rt, WabouElementProps as s, Host as st, Dynamic as t, VirtualList as tt, WabouGlobalPointerEventType as u, LayoutTarget as ut, WabouNodeEvent as v, Fragment as vt, WabouSvgShapeProps as w, PathFillRule as wt, WabouScrollEvent as x, jsxDEV as xt, WabouPointerEvent as y, JSX$1 as yt, isDirectEvent as z };
+//# sourceMappingURL=index-acCuxMPd.d.mts.map

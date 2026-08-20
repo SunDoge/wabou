@@ -225,6 +225,7 @@ const nativeHost = {
 	openUrl: (url) => __wabou_open_url(url),
 	loadFont: (path) => __wabou_load_font(path),
 	frameStats: () => JSON.parse(__wabou_frame_stats()),
+	setDebugOverlay: (layout, clips, hitTarget) => __wabou_set_debug_overlay(layout, clips, hitTarget),
 	layoutSnapshot: readLayoutSnapshot,
 	systemLocale: () => __wabou_system_locale(),
 	systemTimeZone: () => __wabou_system_time_zone(),
@@ -233,7 +234,10 @@ const nativeHost = {
 const builtinHost = {
 	system: { openUrl: nativeHost.openUrl },
 	fonts: { load: nativeHost.loadFont },
-	diagnostics: { frameStats: nativeHost.frameStats },
+	diagnostics: {
+		frameStats: nativeHost.frameStats,
+		setOverlay: (options) => nativeHost.setDebugOverlay(options.layout ?? false, options.clips ?? false, options.hitTarget ?? false)
+	},
 	intl: {
 		locale: nativeHost.systemLocale,
 		timeZone: nativeHost.systemTimeZone,
@@ -1122,4 +1126,4 @@ function eventName(code) {
 //#endregion
 export { VirtualList as A, removeNode as C, setTransform2D as D, setProp as E, useHost as F, PathBuilder as I, isVectorPath as L, Portal as M, HostProvider as N, spread as O, defaultHost as P, releaseOverlayRoot as S, runSweep as T, mergeProps as _, createElement as a, ref as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, createFps as j, writer as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, render as w, registerRoot as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-DHN3mn4-.mjs.map
+//# sourceMappingURL=renderer-6B6tZQgT.mjs.map

@@ -5472,6 +5472,7 @@
     openUrl: (url) => __wabou_open_url(url),
     loadFont: (path) => __wabou_load_font(path),
     frameStats: () => JSON.parse(__wabou_frame_stats()),
+    setDebugOverlay: (layout, clips, hitTarget) => __wabou_set_debug_overlay(layout, clips, hitTarget),
     layoutSnapshot: readLayoutSnapshot,
     systemLocale: () => __wabou_system_locale(),
     systemTimeZone: () => __wabou_system_time_zone(),
@@ -5480,7 +5481,10 @@
   var builtinHost = {
     system: { openUrl: nativeHost.openUrl },
     fonts: { load: nativeHost.loadFont },
-    diagnostics: { frameStats: nativeHost.frameStats },
+    diagnostics: {
+      frameStats: nativeHost.frameStats,
+      setOverlay: (options) => nativeHost.setDebugOverlay(options.layout ?? false, options.clips ?? false, options.hitTarget ?? false)
+    },
     intl: {
       locale: nativeHost.systemLocale,
       timeZone: nativeHost.systemTimeZone,

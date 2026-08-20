@@ -27,6 +27,11 @@ export type {
 declare function __wabou_open_url(url: string): boolean;
 declare function __wabou_load_font(path: string): boolean;
 declare function __wabou_frame_stats(): string;
+declare function __wabou_set_debug_overlay(
+  layout: boolean,
+  clips: boolean,
+  hitTarget: boolean,
+): boolean;
 declare function __wabou_layout_snapshot(
   ids: Uint32Array,
   output: Float64Array | undefined,
@@ -37,6 +42,15 @@ declare function __wabou_system_calendar_date(): string;
 declare const __wabou_capabilities: Record<string, object>;
 
 export type LayoutTarget = NodeKey | { readonly id: NodeKey };
+
+export interface DebugOverlayOptions {
+  /** Draw every retained node's border box. */
+  layout?: boolean;
+  /** Draw unique effective overflow and scroll clips. */
+  clips?: boolean;
+  /** Draw the current native pointer hit target. */
+  hitTarget?: boolean;
+}
 
 export interface BuiltinHost {
   readonly system: {
@@ -50,6 +64,8 @@ export interface BuiltinHost {
   readonly diagnostics: {
     /** Latest render timings, or null before the first completed frame. */
     frameStats(): FrameStats | null;
+    /** Configure native diagnostic layers. Returns false without DevTools support. */
+    setOverlay(options: DebugOverlayOptions): boolean;
   };
   readonly intl: {
     /** Locale reported by the operating system, falling back to en-US. */
@@ -143,6 +159,8 @@ const nativeHost: NativeHostApi = {
   openUrl: (url) => __wabou_open_url(url),
   loadFont: (path) => __wabou_load_font(path),
   frameStats: () => JSON.parse(__wabou_frame_stats()) as FrameStats | null,
+  setDebugOverlay: (layout, clips, hitTarget) =>
+    __wabou_set_debug_overlay(layout, clips, hitTarget),
   layoutSnapshot: readLayoutSnapshot,
   systemLocale: () => __wabou_system_locale(),
   systemTimeZone: () => __wabou_system_time_zone(),
@@ -153,7 +171,15 @@ const nativeHost: NativeHostApi = {
 const builtinHost: BuiltinHost = {
   system: { openUrl: nativeHost.openUrl },
   fonts: { load: nativeHost.loadFont },
-  diagnostics: { frameStats: nativeHost.frameStats },
+  diagnostics: {
+    frameStats: nativeHost.frameStats,
+    setOverlay: (options) =>
+      nativeHost.setDebugOverlay(
+        options.layout ?? false,
+        options.clips ?? false,
+        options.hitTarget ?? false,
+      ),
+  },
   intl: {
     locale: nativeHost.systemLocale,
     timeZone: nativeHost.systemTimeZone,
