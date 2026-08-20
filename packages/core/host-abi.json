@@ -45,8 +45,8 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["name", "string"]],
-      "returns": "string"
+      "params": [["name", "string"], ["output", "Uint32Array | undefined"]],
+      "returns": "number"
     },
     {
       "name": "__wabou_set_color_palette",

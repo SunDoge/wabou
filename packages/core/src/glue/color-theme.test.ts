@@ -21,8 +21,11 @@ function installPalettes() {
     dark: [0x000000ff, 0xff0000ff],
     light: [0xffffffff, 0x00ff00ff],
   };
-  globalThis.__wabou_get_color_theme_palette = (name) =>
-    JSON.stringify(palettes[name]);
+  globalThis.__wabou_get_color_theme_palette = (name, output) => {
+    const palette = palettes[name];
+    if (output) output.set(palette);
+    return palette.length;
+  };
 }
 
 test("selects a native window color theme explicitly", () => {
@@ -46,7 +49,9 @@ test("rejects an empty color theme name before crossing the bridge", () => {
 });
 
 test("reports a missing compiled theme with configuration guidance", () => {
-  globalThis.__wabou_get_color_theme_palette = () => "undefined";
+  globalThis.__wabou_get_color_theme_palette = () => {
+    throw new Error("missing theme");
+  };
 
   expect(() => colorTheme.set("midnight")).toThrow(
     "declare it in the `theme.themes` section of vite.config.ts",

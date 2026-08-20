@@ -7,7 +7,10 @@ declare global {
   function __wabou_open_url(url: string): boolean;
   function __wabou_set_stylesheet(json: string): void;
   function __wabou_set_color_theme(name: string): void;
-  function __wabou_get_color_theme_palette(name: string): string;
+  function __wabou_get_color_theme_palette(
+    name: string,
+    output: Uint32Array | undefined,
+  ): number;
   function __wabou_set_color_palette(colors: Uint32Array): void;
   function __wabou_load_font(path: string): boolean;
   function __wabou_frame_stats(): string;

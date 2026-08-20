@@ -67,6 +67,42 @@ fn javascript_and_rust_share_runtime_atom_ids() {
 }
 
 #[test]
+fn color_theme_palette_fills_a_typed_array_without_json() {
+    let runtime = JsRuntime::new().expect("runtime");
+    *runtime.color_themes.borrow_mut() = Some(crate::style_ir::ColorThemes {
+        default: "light".to_owned(),
+        themes: std::collections::HashMap::from([(
+            "light".to_owned(),
+            crate::style_ir::ColorTheme {
+                _appearance: crate::style_ir::Appearance::Light,
+                colors: std::collections::HashMap::from([
+                    ("foreground".to_owned(), 0x1122_33ff),
+                    ("background".to_owned(), 0xaabb_ccff),
+                ]),
+            },
+        )]),
+    });
+
+    let result = runtime
+        .with(|ctx| {
+            ctx.eval::<Vec<u32>, _>(
+                r#"
+                (() => {
+                  const length = __wabou_get_color_theme_palette("light", undefined);
+                  const palette = new Uint32Array(length);
+                  const written = __wabou_get_color_theme_palette("light", palette);
+                  return [length, written, ...palette];
+                })()
+                "#,
+            )
+        })
+        .expect("read typed color palette");
+
+    // Tokens are stable in lexical order: background, then foreground.
+    assert_eq!(result, [2, 2, 0xaabb_ccff, 0x1122_33ff]);
+}
+
+#[test]
 fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     let runtime = JsRuntime::new().expect("runtime");
     runtime

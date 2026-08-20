@@ -23,3 +23,25 @@ pub fn host_utf8_decode<'js>(bytes: TypedArray<'js, u8>) -> Result<String> {
     // U+FFFD rather than throwing. from_utf8_lossy matches that.
     Ok(String::from_utf8_lossy(bytes).into_owned())
 }
+
+/// Copy native values into an exactly-sized JavaScript typed array.
+///
+/// rquickjs intentionally exposes immutable Rust views for JavaScript-owned
+/// buffers. Host functions nevertheless need an efficient output-buffer ABI,
+/// so keep the raw-pointer write and all of its invariants in this one helper.
+pub fn fill_typed_array<T: Copy>(output: &TypedArray<'_, T>, values: &[T]) -> Result<()> {
+    if output.len() != values.len() {
+        return Err(rquickjs::Error::Unknown);
+    }
+    let raw = output.as_raw().ok_or(rquickjs::Error::Unknown)?;
+    let byte_len = std::mem::size_of_val(values);
+    if raw.len != byte_len {
+        return Err(rquickjs::Error::Unknown);
+    }
+    // QuickJS owns a live, writable ArrayBuffer for this synchronous call.
+    // TypedArray validates the element type and exact byte length above.
+    unsafe {
+        std::ptr::copy_nonoverlapping(values.as_ptr().cast::<u8>(), raw.ptr.as_ptr(), byte_len);
+    }
+    Ok(())
+}

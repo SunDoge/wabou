@@ -427,20 +427,25 @@ impl JsRuntime {
         let available_themes = self.color_themes.clone();
         globals.set(
             "__wabou_get_color_theme_palette",
-            rquickjs::Function::new(ctx.clone(), move |name: String| -> JsResult<String> {
-                let themes = available_themes.borrow();
-                let themes = themes.as_ref().ok_or(rquickjs::Error::Unknown)?;
-                let theme = themes.themes.get(&name).ok_or(rquickjs::Error::Unknown)?;
-                let mut tokens = theme.colors.keys().collect::<Vec<_>>();
-                tokens.sort_unstable();
-                serde_json::to_string(
-                    &tokens
+            rquickjs::Function::new(
+                ctx.clone(),
+                move |name: String, output: Option<TypedArray<u32>>| -> JsResult<u32> {
+                    let themes = available_themes.borrow();
+                    let themes = themes.as_ref().ok_or(rquickjs::Error::Unknown)?;
+                    let theme = themes.themes.get(&name).ok_or(rquickjs::Error::Unknown)?;
+                    let mut tokens = theme.colors.keys().collect::<Vec<_>>();
+                    tokens.sort_unstable();
+                    let colors = tokens
                         .into_iter()
                         .map(|token| theme.colors[token])
-                        .collect::<Vec<_>>(),
-                )
-                .map_err(|_| rquickjs::Error::Unknown)
-            })?
+                        .collect::<Vec<_>>();
+                    let len = u32::try_from(colors.len()).map_err(|_| rquickjs::Error::Unknown)?;
+                    if let Some(output) = output {
+                        crate::host_ffi::fill_typed_array(&output, &colors)?;
+                    }
+                    Ok(len)
+                },
+            )?
             .with_name("__wabou_get_color_theme_palette")?,
         )?;
 

@@ -48,23 +48,25 @@ let activeAnimation: ColorThemeAnimation | undefined;
 
 function paletteFor(name: string): ColorPalette {
   if (!name) throw new Error("Wabou color theme name cannot be empty");
-  const raw = globalThis.__wabou_get_color_theme_palette(name);
-  let parsed: unknown;
+  let palette: unknown;
   try {
-    parsed = JSON.parse(raw);
+    const length = globalThis.__wabou_get_color_theme_palette(name, undefined);
+    if (!Number.isSafeInteger(length) || length < 0)
+      throw new TypeError("invalid palette length");
+    const output = new Uint32Array(length);
+    const written = globalThis.__wabou_get_color_theme_palette(name, output);
+    if (written !== length) throw new TypeError("palette length changed");
+    palette = output;
   } catch {
     throw new Error(
       `Unknown Wabou color theme \`${name}\`; declare it in the \`theme.themes\` section of vite.config.ts`,
     );
   }
-  if (
-    !Array.isArray(parsed) ||
-    !parsed.every((value) => Number.isInteger(value))
-  )
+  if (!(palette instanceof Uint32Array))
     throw new Error(
       `Wabou color theme \`${name}\` returned an invalid palette`,
     );
-  return Uint32Array.from(parsed as number[]);
+  return palette;
 }
 
 function easingFunction(easing: ColorThemeEasing | undefined) {
