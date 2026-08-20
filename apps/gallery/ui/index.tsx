@@ -60,6 +60,7 @@ type ComponentId =
   | "kbd"
   | "separator"
   | "dialog"
+  | "sheet"
   | "tooltip"
   | "breadcrumb"
   | "pagination"
@@ -90,6 +91,7 @@ const groups: Array<{
       { id: "switch", name: "Switch" },
       { id: "dropdown-menu", name: "Dropdown menu" },
       { id: "command", name: "Command" },
+      { id: "sheet", name: "Sheet" },
     ],
   },
   {
@@ -195,6 +197,7 @@ const descriptions: Record<ComponentId, string> = {
   kbd: "Displays keyboard input and shortcut chords.",
   separator: "Visually separates content in a list or layout.",
   dialog: "A modal surface with native focus isolation and dismissal behavior.",
+  sheet: "A modal panel attached to a viewport edge.",
   tooltip:
     "A delayed floating label for pointer hover and keyboard focus targets.",
   breadcrumb:
@@ -268,6 +271,7 @@ import {
   FieldPage,
   PaginationPage,
   SelectPage,
+  SheetPage,
   TooltipPage,
 } from "./pages/widgets";
 
@@ -550,6 +554,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "dialog"}>
                     <DialogPage />
+                  </Match>
+                  <Match when={selected() === "sheet"}>
+                    <SheetPage />
                   </Match>
                   <Match when={selected() === "tooltip"}>
                     <TooltipPage />

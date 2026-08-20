@@ -54,6 +54,11 @@ import {
   PaginationNext,
   PaginationPrevious,
   Select,
+  Sheet,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
   Text,
   Tooltip,
   View,
@@ -93,6 +98,40 @@ export function DialogPage() {
           </>
         )}
       </Dialog>
+    </Preview>
+  );
+}
+
+export function SheetPage() {
+  return (
+    <Preview title="Modal edge panel">
+      <Sheet
+        aria-label="Edit profile"
+        trigger={(trigger) => <Button {...trigger}>Open sheet</Button>}
+      >
+        {(controls) => (
+          <>
+            <SheetHeader>
+              <SheetTitle>Edit profile</SheetTitle>
+              <SheetDescription>
+                Update settings without leaving the current page.
+              </SheetDescription>
+            </SheetHeader>
+            <View class="min-h-0 flex-1 py-4">
+              <Field>
+                <FieldLabel>Name</FieldLabel>
+                <Input aria-label="Profile name" value="Wabou" />
+              </Field>
+            </View>
+            <SheetFooter>
+              <Button variant="outline" onClick={controls.close}>
+                Cancel
+              </Button>
+              <Button onClick={controls.close}>Save changes</Button>
+            </SheetFooter>
+          </>
+        )}
+      </Sheet>
     </Preview>
   );
 }

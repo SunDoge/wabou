@@ -42,6 +42,7 @@ export * from "./layout";
 export * from "./navigation";
 export * from "./page";
 export * from "./select";
+export * from "./sheet";
 export {
   Checkbox,
   type CheckboxProps,
