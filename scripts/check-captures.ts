@@ -12,6 +12,7 @@ interface CaptureViewport {
   checkStyleDiagnostics: boolean;
   checkAccessibleNames: boolean;
   checkSemanticStates: boolean;
+  checkInteractionContracts: boolean;
 }
 
 interface CaptureConfig {
@@ -51,6 +52,10 @@ interface CaptureSnapshotNode {
   classes: string[];
   styleDiagnostics: string[];
   attrs: Array<[string, string]>;
+  listeners: number[];
+  widget: string | null;
+  focusable: boolean;
+  focusOrder: number | null;
   rect: SnapshotRect;
   contentRect: SnapshotRect;
   computed: { overflowX: string | null; overflowY: string | null };
@@ -107,6 +112,7 @@ const fallbackViewport: CaptureViewport = {
   checkStyleDiagnostics: true,
   checkAccessibleNames: true,
   checkSemanticStates: true,
+  checkInteractionContracts: true,
 };
 const viewportKeys = new Set([
   "width",
@@ -117,6 +123,7 @@ const viewportKeys = new Set([
   "checkStyleDiagnostics",
   "checkAccessibleNames",
   "checkSemanticStates",
+  "checkInteractionContracts",
 ]);
 
 function finiteNumber(
@@ -206,6 +213,12 @@ function parseViewport(
       throw new Error(`${name}.checkSemanticStates must be a boolean`);
     }
     viewport.checkSemanticStates = record.checkSemanticStates;
+  }
+  if (record.checkInteractionContracts !== undefined) {
+    if (typeof record.checkInteractionContracts !== "boolean") {
+      throw new Error(`${name}.checkInteractionContracts must be a boolean`);
+    }
+    viewport.checkInteractionContracts = record.checkInteractionContracts;
   }
   if (!partial) {
     return { ...fallbackViewport, ...viewport };
@@ -419,6 +432,36 @@ export function validateCaptureSnapshot(
         );
       }
       if (
+        !Array.isArray(node.listeners) ||
+        !node.listeners.every(
+          (item) =>
+            typeof item === "number" &&
+            Number.isInteger(item) &&
+            item >= 0 &&
+            item <= 255,
+        )
+      ) {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}].listeners must be a byte array`,
+        );
+      }
+      if (typeof node.focusable !== "boolean") {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}].focusable must be a boolean`,
+        );
+      }
+      if (
+        node.focusOrder !== null &&
+        (typeof node.focusOrder !== "number" ||
+          !Number.isInteger(node.focusOrder) ||
+          node.focusOrder < -2_147_483_648 ||
+          node.focusOrder > 2_147_483_647)
+      ) {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}].focusOrder must be a 32-bit integer or null`,
+        );
+      }
+      if (
         node.computed === null ||
         typeof node.computed !== "object" ||
         Array.isArray(node.computed)
@@ -447,6 +490,13 @@ export function validateCaptureSnapshot(
         classes: node.classes,
         styleDiagnostics: node.styleDiagnostics,
         attrs: node.attrs,
+        listeners: node.listeners,
+        widget: optionalString(
+          node.widget,
+          `${capture.snapshot}.nodes[${index}].widget`,
+        ),
+        focusable: node.focusable,
+        focusOrder: node.focusOrder,
         rect: snapshotRect(
           node.rect,
           `${capture.snapshot}.nodes[${index}].rect`,
@@ -713,6 +763,59 @@ export function semanticStateDiagnostics(snapshot: CaptureSnapshot): string[] {
   return diagnostics;
 }
 
+const interactiveRoles = new Set([
+  "button",
+  "checkbox",
+  "combobox",
+  "link",
+  "listbox",
+  "menuitem",
+  "menuitemcheckbox",
+  "menuitemradio",
+  "option",
+  "radio",
+  "searchbox",
+  "slider",
+  "spinbutton",
+  "switch",
+  "tab",
+  "textbox",
+  "treeitem",
+]);
+
+export function interactionContractDiagnostics(
+  snapshot: CaptureSnapshot,
+): string[] {
+  const diagnostics: string[] = [];
+  for (const node of snapshot.nodes) {
+    const attrs = nodeAttrs(node);
+    if (
+      attrs.get("aria-hidden") === "true" ||
+      attrs.get("aria-disabled") === "true" ||
+      attrs.get("disabled") === "true"
+    ) {
+      continue;
+    }
+    const role = attrs.get("role") ?? node.tag;
+    if (!interactiveRoles.has(role) && !namedTags.has(node.tag)) continue;
+    const description = `${node.tag} ${nodeKey(node.id)} with role ${role}`;
+    if (node.focusOrder === null) {
+      diagnostics.push(`${description} has no authored focusOrder`);
+    }
+    if (node.listeners.length === 0 && node.widget === null) {
+      diagnostics.push(`${description} has no event listener or native widget`);
+    }
+  }
+  for (const node of snapshot.nodes) {
+    if (node.focusable && node.focusOrder === null) {
+      diagnostics.push(
+        `${node.tag} ${nodeKey(node.id)} is projected focusable without an authored focusOrder`,
+      );
+    }
+  }
+  return diagnostics;
+}
+
 export async function validateCaptureArtifacts(
   capture: CaptureCase,
   workspaceRoot = root,
@@ -782,6 +885,14 @@ export async function validateCaptureArtifacts(
     if (diagnostics.length > 0) {
       throw new Error(
         `${relative(workspaceRoot, snapshot)} has invalid semantic states:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
+      );
+    }
+  }
+  if (capture.checkInteractionContracts) {
+    const diagnostics = interactionContractDiagnostics(parsed);
+    if (diagnostics.length > 0) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} has invalid interaction contracts:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
       );
     }
   }

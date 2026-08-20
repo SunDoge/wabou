@@ -171,10 +171,13 @@ parent graph, no rejected style utilities, and no text escaping a chain of
 visible-overflow ancestors. Interactive roles, images, and dialogs must also
 resolve an accessible name from `aria-label`, `aria-labelledby`, or descendant
 text. Stateful roles must expose valid checked, selected, expanded, or slider
-range values. Text containment stops at explicit clip or scroll boundaries.
-Intentional exceptions must be declared per capture with
+range values. Enabled interactive controls must declare a JS-side focus order
+and provide an event listener or native widget action; projected focus targets
+must retain that authored policy. Text containment stops at explicit clip or
+scroll boundaries. Intentional exceptions must be declared per capture with
 `checkAccessibleNames: false`, `checkSemanticStates: false`,
-`checkStyleDiagnostics: false`, or `checkTextContainment: false`. An optional
+`checkInteractionContracts: false`, `checkStyleDiagnostics: false`, or
+`checkTextContainment: false`. An optional
 `captures/config.json` supplies an
 application viewport default and per-file overrides; the verifier rejects
 overrides whose scenario was removed, so metadata cannot silently drift.

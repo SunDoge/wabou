@@ -6,6 +6,7 @@ import {
   accessibleNameDiagnostics,
   captureCommand,
   discoverCaptureCases,
+  interactionContractDiagnostics,
   parseCaptureArguments,
   pngDimensions,
   rejectedStyleDiagnostics,
@@ -116,6 +117,7 @@ describe("authored capture discovery", () => {
         checkStyleDiagnostics: true,
         checkAccessibleNames: true,
         checkSemanticStates: true,
+        checkInteractionContracts: true,
       },
       {
         application: "apps/demo",
@@ -130,6 +132,7 @@ describe("authored capture discovery", () => {
         checkStyleDiagnostics: true,
         checkAccessibleNames: true,
         checkSemanticStates: true,
+        checkInteractionContracts: true,
       },
     ]);
   });
@@ -158,6 +161,7 @@ describe("authored capture discovery", () => {
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
       checkSemanticStates: true,
+      checkInteractionContracts: true,
     };
 
     expect(captureCommand(capture, false)).not.toContain("--skip-build");
@@ -179,6 +183,7 @@ describe("authored capture discovery", () => {
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
       checkSemanticStates: true,
+      checkInteractionContracts: true,
     };
     expect(
       validateCaptureSnapshot(
@@ -198,6 +203,10 @@ describe("authored capture discovery", () => {
               classes: [],
               styleDiagnostics: [],
               attrs: [],
+              listeners: [],
+              widget: null,
+              focusable: false,
+              focusOrder: null,
               rect: { x: 0, y: 0, width: 800, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -226,6 +235,10 @@ describe("authored capture discovery", () => {
               classes: [],
               styleDiagnostics: [],
               attrs: [],
+              listeners: [],
+              widget: null,
+              focusable: false,
+              focusOrder: null,
               rect: { x: 0, y: 0, width: Number.NaN, height: 600 },
               contentRect: { x: 0, y: 0, width: 800, height: 600 },
               computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -254,6 +267,10 @@ describe("authored capture discovery", () => {
           classes: ["w-10"],
           styleDiagnostics: [] as string[],
           attrs: [["role", "button"]] as Array<[string, string]>,
+          listeners: [1],
+          widget: null,
+          focusable: true,
+          focusOrder: 0,
           rect: { x: 0, y: 0, width: 40, height: 20 },
           contentRect: { x: 0, y: 0, width: 40, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -266,6 +283,10 @@ describe("authored capture discovery", () => {
           classes: [],
           styleDiagnostics: [] as string[],
           attrs: [["role", "label"]] as Array<[string, string]>,
+          listeners: [],
+          widget: null,
+          focusable: false,
+          focusOrder: null,
           rect: { x: 0, y: 0, width: 60, height: 20 },
           contentRect: { x: 0, y: 0, width: 60, height: 20 },
           computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -296,6 +317,10 @@ describe("authored capture discovery", () => {
       classes: [],
       styleDiagnostics: [],
       attrs,
+      listeners: [],
+      widget: null,
+      focusable: false,
+      focusOrder: null,
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -340,6 +365,10 @@ describe("authored capture discovery", () => {
       classes: [],
       styleDiagnostics: [],
       attrs: [["role", "checkbox"]] as Array<[string, string]>,
+      listeners: [1],
+      widget: null,
+      focusable: true,
+      focusOrder: 0,
       rect: { x: 0, y: 0, width: 40, height: 20 },
       contentRect: { x: 0, y: 0, width: 40, height: 20 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -379,6 +408,52 @@ describe("authored capture discovery", () => {
     expect(semanticStateDiagnostics(snapshot)).toEqual([]);
   });
 
+  test("requires authored focus policy and an action for interactive controls", () => {
+    const control = {
+      id: { lo: 1, hi: 1 },
+      parentId: null,
+      tag: "button",
+      text: "Save",
+      classes: [],
+      styleDiagnostics: [],
+      attrs: [["role", "button"]] as Array<[string, string]>,
+      listeners: [] as number[],
+      widget: null as string | null,
+      focusable: false,
+      focusOrder: null as number | null,
+      rect: { x: 0, y: 0, width: 40, height: 20 },
+      contentRect: { x: 0, y: 0, width: 40, height: 20 },
+      computed: { overflowX: "Visible", overflowY: "Visible" },
+    };
+    const snapshot = {
+      status: {
+        viewportWidth: 100,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: 1,
+      },
+      nodes: [control],
+    };
+    expect(interactionContractDiagnostics(snapshot)).toHaveLength(2);
+
+    control.focusOrder = 0;
+    control.listeners = [1];
+    expect(interactionContractDiagnostics(snapshot)).toEqual([]);
+
+    control.focusOrder = -1;
+    control.listeners = [];
+    control.widget = "editor";
+    expect(interactionContractDiagnostics(snapshot)).toEqual([]);
+
+    control.focusOrder = null;
+    control.focusable = true;
+    expect(interactionContractDiagnostics(snapshot)).toHaveLength(2);
+
+    control.attrs.push(["aria-disabled", "true"]);
+    control.focusable = false;
+    expect(interactionContractDiagnostics(snapshot)).toEqual([]);
+  });
+
   test("rejects duplicate, dangling, and cyclic retained-node identities", () => {
     const capture = {
       application: "apps/demo",
@@ -393,6 +468,7 @@ describe("authored capture discovery", () => {
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
       checkSemanticStates: true,
+      checkInteractionContracts: true,
     };
     const node = (lo: number, parentId: { lo: number; hi: number } | null) => ({
       id: { lo, hi: 1 },
@@ -402,6 +478,10 @@ describe("authored capture discovery", () => {
       classes: [],
       styleDiagnostics: [],
       attrs: [],
+      listeners: [],
+      widget: null,
+      focusable: false,
+      focusOrder: null,
       rect: { x: 0, y: 0, width: 100, height: 100 },
       contentRect: { x: 0, y: 0, width: 100, height: 100 },
       computed: { overflowX: "Visible", overflowY: "Visible" },
@@ -475,6 +555,10 @@ describe("authored capture discovery", () => {
             classes: [],
             styleDiagnostics: [],
             attrs: [],
+            listeners: [],
+            widget: null,
+            focusable: false,
+            focusOrder: null,
             rect: { x: 0, y: 0, width: capture.width, height: capture.height },
             contentRect: {
               x: 0,
@@ -504,6 +588,9 @@ describe("authored capture discovery", () => {
     ).resolves.toBeUndefined();
     snapshot.nodes[0].tag = "button";
     snapshot.nodes[0].attrs = [["role", "button"]];
+    snapshot.nodes[0].listeners = [1];
+    snapshot.nodes[0].focusable = true;
+    snapshot.nodes[0].focusOrder = 0;
     await writeFile(snapshotPath, JSON.stringify(snapshot));
     await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
       "unnamed semantic controls",
@@ -521,6 +608,14 @@ describe("authored capture discovery", () => {
       "invalid semantic states",
     );
     capture.checkSemanticStates = false;
+    snapshot.nodes[0].listeners = [];
+    snapshot.nodes[0].focusable = false;
+    snapshot.nodes[0].focusOrder = null;
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      "invalid interaction contracts",
+    );
+    capture.checkInteractionContracts = false;
     await expect(
       validateCaptureArtifacts(capture, root),
     ).resolves.toBeUndefined();
