@@ -63,6 +63,7 @@ type ComponentId =
   | "tooltip"
   | "breadcrumb"
   | "pagination"
+  | "dropdown-menu"
   | "accordion"
   | "avatar"
   | "field"
@@ -85,6 +86,7 @@ const groups: Array<{
       { id: "button-group", name: "Button group" },
       { id: "toggle", name: "Toggle" },
       { id: "switch", name: "Switch" },
+      { id: "dropdown-menu", name: "Dropdown menu" },
     ],
   },
   {
@@ -194,6 +196,8 @@ const descriptions: Record<ComponentId, string> = {
   breadcrumb:
     "Shows the current location while leaving navigation behavior to the application.",
   pagination: "Composes explicit controls for navigating a paged collection.",
+  "dropdown-menu":
+    "Presents a compact list of actions with native focus and typeahead.",
   accordion:
     "Vertically stacked disclosure sections with controlled or uncontrolled state.",
   avatar: "A compact visual identity with initials, images and grouped counts.",
@@ -251,6 +255,7 @@ import {
   ButtonGroupPage,
   DatePickerPage,
   DialogPage,
+  DropdownMenuPage,
   EmptyPage,
   FieldPage,
   PaginationPage,
@@ -546,6 +551,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "pagination"}>
                     <PaginationPage />
+                  </Match>
+                  <Match when={selected() === "dropdown-menu"}>
+                    <DropdownMenuPage />
                   </Match>
                   <Match when={selected() === "accordion"}>
                     <AccordionPage />

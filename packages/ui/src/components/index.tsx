@@ -33,6 +33,7 @@ export * from "./dialog";
 export * from "./directory-picker";
 export * from "./disclosure";
 export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
+export * from "./dropdown-menu";
 export * from "./forms";
 export * from "./input";
 export * from "./layout";

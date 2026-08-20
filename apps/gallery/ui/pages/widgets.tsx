@@ -26,6 +26,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -193,6 +194,43 @@ export function PaginationPage() {
         </Pagination>
         <Text role="status" class="text-sm text-secondary">
           {`Selected page ${page()}`}
+        </Text>
+      </View>
+    </Preview>
+  );
+}
+
+export function DropdownMenuPage() {
+  const [action, setAction] = createSignal("No action selected");
+  return (
+    <Preview title="Keyboard and pointer actions">
+      <View class="flex flex-col items-start gap-4">
+        <DropdownMenu
+          aria-label="Project actions"
+          onAction={setAction}
+          items={[
+            {
+              id: "open",
+              label: "Open project",
+              description: "Open in the current window",
+            },
+            { id: "rename", label: "Rename project" },
+            { id: "archive", label: "Archive project", disabled: true },
+            {
+              id: "delete",
+              label: "Delete project",
+              destructive: true,
+              separatorBefore: true,
+            },
+          ]}
+          trigger={(trigger) => (
+            <Button variant="outline" {...trigger}>
+              Project actions
+            </Button>
+          )}
+        />
+        <Text role="status" class="text-sm text-secondary">
+          {action()}
         </Text>
       </View>
     </Preview>
