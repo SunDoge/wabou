@@ -81,6 +81,7 @@ type ComponentId =
   | "select"
   | "date-picker"
   | "data-table"
+  | "tree-view"
   | "chart"
   | "i18n";
 
@@ -136,6 +137,7 @@ const groups: Array<{
       { id: "kbd", name: "Kbd" },
       { id: "avatar", name: "Avatar" },
       { id: "data-table", name: "Data table" },
+      { id: "tree-view", name: "Tree view" },
     ],
   },
   {
@@ -241,6 +243,8 @@ const descriptions: Record<ComponentId, string> = {
     "Groups related actions into horizontal or vertical toolbars.",
   "data-table":
     "A framework-agnostic TanStack Table core rendered through native Wabou primitives.",
+  "tree-view":
+    "Navigates explicit hierarchical data with roving focus and native keyboard semantics.",
   chart:
     "D3 geometry and scales rendered through Wabou's typed native path pipeline.",
   i18n: "Tree-shakeable typed messages compiled by Paraglide and driven by Solid locale state.",
@@ -279,6 +283,7 @@ import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { OverviewPage } from "./pages/overview";
+import { TreeViewPage } from "./pages/tree-view";
 import {
   AccordionPage,
   AlertDialogPage,
@@ -577,6 +582,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "data-table"}>
                     <DataTablePage />
+                  </Match>
+                  <Match when={selected() === "tree-view"}>
+                    <TreeViewPage />
                   </Match>
                   <Match when={selected() === "chart"}>
                     <ChartPage />

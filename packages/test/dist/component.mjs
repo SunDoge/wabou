@@ -119,7 +119,8 @@ function renderComponent(render, options = {}) {
 		setAttribute: writer.setAttribute,
 		removeAttribute: writer.removeAttribute,
 		setClassName: writer.setClassName,
-		dropNode: writer.dropNode
+		dropNode: writer.dropNode,
+		focusNode: writer.focusNode
 	};
 	const create = (id, tag, text = "") => {
 		nodes.set(key(id), {
@@ -239,6 +240,18 @@ function renderComponent(render, options = {}) {
 		commitEvent(previous, EVENT_CODE.blur);
 		commitEvent(previous, EVENT_CODE.focusout);
 	};
+	const focusAuthoredNode = (node) => {
+		if (focusedNode === node) return;
+		blurFocusedNode();
+		focusedNode = node;
+		commitEvent(node, EVENT_CODE.focus);
+		commitEvent(node, EVENT_CODE.focusin);
+	};
+	writer.focusNode = (id) => {
+		originals.focusNode.call(writer, id);
+		const node = nodes.get(key(id));
+		if (node) focusAuthoredNode(node);
+	};
 	const ensureEnabled = (node, action) => {
 		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
 	};
@@ -273,6 +286,9 @@ function renderComponent(render, options = {}) {
 		},
 		get className() {
 			return node.className;
+		},
+		get focused() {
+			return focusedNode === node;
 		},
 		attribute: (name) => node.attributes.get(name) ?? null,
 		pointerDown: (position = {}) => {
@@ -313,11 +329,7 @@ function renderComponent(render, options = {}) {
 		},
 		focus: () => {
 			ensureEnabled(node, "focus");
-			if (focusedNode === node) return;
-			blurFocusedNode();
-			focusedNode = node;
-			commitEvent(node, EVENT_CODE.focus);
-			commitEvent(node, EVENT_CODE.focusin);
+			focusAuthoredNode(node);
 		},
 		blur: () => {
 			if (focusedNode === node) blurFocusedNode();

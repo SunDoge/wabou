@@ -82,6 +82,7 @@ export {
 export * from "./title-bar";
 export * from "./toast";
 export * from "./tooltip";
+export * from "./tree-view";
 
 export interface BadgeProps {
   children?: JSX.Element;

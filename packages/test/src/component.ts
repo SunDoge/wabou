@@ -28,6 +28,8 @@ export interface ComponentLocator {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Whether this locator owns the harness's native focus simulation. */
+  readonly focused: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch a captured native pointer move while preserving button state. */
@@ -234,6 +236,7 @@ export function renderComponent(
     removeAttribute: writer.removeAttribute,
     setClassName: writer.setClassName,
     dropNode: writer.dropNode,
+    focusNode: writer.focusNode,
   };
 
   const create = (id: NodeKey, tag: string, text = "") => {
@@ -366,6 +369,21 @@ export function renderComponent(
     commitEvent(previous, EVENT_CODE.blur);
     commitEvent(previous, EVENT_CODE.focusout);
   };
+  const focusAuthoredNode = (node: AuthoredNode) => {
+    if (focusedNode === node) return;
+    blurFocusedNode();
+    focusedNode = node;
+    commitEvent(node, EVENT_CODE.focus);
+    commitEvent(node, EVENT_CODE.focusin);
+  };
+  // Roving-focus components call Handle.focus(), which writes the same native
+  // focus operation used by the real host. Reflect it back into component
+  // events so unit tests exercise that imperative path instead of faking it.
+  writer.focusNode = (id) => {
+    originals.focusNode.call(writer, id);
+    const node = nodes.get(key(id));
+    if (node) focusAuthoredNode(node);
+  };
   const ensureEnabled = (node: AuthoredNode, action: string) => {
     if (
       node.attributes.has("disabled") ||
@@ -419,6 +437,9 @@ export function renderComponent(
     get className() {
       return node.className;
     },
+    get focused() {
+      return focusedNode === node;
+    },
     attribute: (name) => node.attributes.get(name) ?? null,
     pointerDown: (position = {}) => {
       ensureEnabled(node, "press");
@@ -455,11 +476,7 @@ export function renderComponent(
     },
     focus: () => {
       ensureEnabled(node, "focus");
-      if (focusedNode === node) return;
-      blurFocusedNode();
-      focusedNode = node;
-      commitEvent(node, EVENT_CODE.focus);
-      commitEvent(node, EVENT_CODE.focusin);
+      focusAuthoredNode(node);
     },
     blur: () => {
       if (focusedNode === node) blurFocusedNode();

@@ -3935,6 +3935,213 @@ function Tooltip(props) {
 	});
 }
 //#endregion
+//#region src/components/tree-view.tsx
+/** Validates a nested tree once and provides deterministic visible traversal. */
+function createTreeModel(nodes) {
+	const byId = /* @__PURE__ */ new Map();
+	const parents = /* @__PURE__ */ new Map();
+	const entries = /* @__PURE__ */ new Map();
+	const visit = (items, parentId) => {
+		items.forEach((node, index) => {
+			if (!node.id) throw new Error("tree node id must not be empty");
+			if (byId.has(node.id)) throw new Error(`tree node id must be unique: ${node.id}`);
+			if (!node.label) throw new Error(`tree node label must not be empty: ${node.id}`);
+			byId.set(node.id, node);
+			parents.set(node.id, parentId);
+			entries.set(node.id, {
+				node,
+				parentId,
+				level: parentId === null ? 1 : (entries.get(parentId)?.level ?? 0) + 1,
+				position: index + 1,
+				setSize: items.length
+			});
+			if (node.children?.length) visit(node.children, node.id);
+		});
+	};
+	visit(nodes, null);
+	const isBranch = (id) => (byId.get(id)?.children?.length ?? 0) > 0;
+	return {
+		get: (id) => byId.get(id),
+		parent: (id) => parents.get(id),
+		firstChild: (id) => byId.get(id)?.children?.[0]?.id,
+		isBranch,
+		visible(expandedIds) {
+			const expanded = new Set(expandedIds);
+			const result = [];
+			const flatten = (items) => {
+				items.forEach((node) => {
+					const entry = entries.get(node.id);
+					if (!entry) throw new Error(`missing tree model entry: ${node.id}`);
+					result.push(entry);
+					if (node.children?.length && expanded.has(node.id)) flatten(node.children);
+				});
+			};
+			flatten(nodes);
+			return result;
+		}
+	};
+}
+function validateExpandedIds(model, ids) {
+	const unique = /* @__PURE__ */ new Set();
+	for (const id of ids) {
+		if (!model.get(id)) throw new Error(`unknown expanded tree node: ${id}`);
+		if (!model.isBranch(id)) throw new Error(`tree leaf cannot be expanded: ${id}`);
+		unique.add(id);
+	}
+	return [...unique];
+}
+/** A single-select tree with explicit data, expansion, and native focus routing. */
+function TreeView(props) {
+	const initialModel = createTreeModel(props.items);
+	const model = createMemo(() => createTreeModel(props.items));
+	const expandedState = createControllableState({
+		value: () => props.expandedIds === void 0 ? void 0 : validateExpandedIds(model(), props.expandedIds),
+		defaultValue: validateExpandedIds(initialModel, props.defaultExpandedIds ?? []),
+		onChange: props.onExpandedChange
+	});
+	const selectedState = createControllableState({
+		value: () => props.selectedId,
+		defaultValue: props.defaultSelectedId ?? null,
+		onChange: props.onSelectedChange
+	});
+	const [activeId, setActiveId] = createSignal(void 0, { ownedWrite: true });
+	const handles = /* @__PURE__ */ new Map();
+	const expanded = () => expandedState.value();
+	const visible = createMemo(() => model().visible(expanded()));
+	const enabledVisible = () => visible().filter(({ node }) => !node.disabled);
+	const isExpanded = (id) => expanded().includes(id);
+	const isSelected = (id) => selectedState.value() === id;
+	const tabStop = () => {
+		const candidates = enabledVisible();
+		const active = activeId();
+		if (active && candidates.some(({ node }) => node.id === active)) return active;
+		const selected = selectedState.value();
+		if (selected && candidates.some(({ node }) => node.id === selected)) return selected;
+		return candidates[0]?.node.id;
+	};
+	const focus = (id) => {
+		if (!id || model().get(id)?.disabled) return false;
+		setActiveId(id);
+		handles.get(id)?.focus();
+		return true;
+	};
+	const setExpanded = (id, next) => {
+		if (!model().isBranch(id)) return false;
+		const current = expanded();
+		if (current.includes(id) === next) return false;
+		return expandedState.set(next ? [...current, id] : current.filter((candidate) => candidate !== id));
+	};
+	const select = (node) => {
+		if (node.disabled) return;
+		selectedState.set(node.id);
+	};
+	const activate = (node) => {
+		select(node);
+		if (model().isBranch(node.id)) setExpanded(node.id, !isExpanded(node.id));
+	};
+	const moveLinear = (id, key) => {
+		const candidates = enabledVisible();
+		const index = candidates.findIndex(({ node }) => node.id === id);
+		const target = key === "Home" ? candidates[0] : key === "End" ? candidates.at(-1) : key === "ArrowDown" ? candidates[index + 1] : key === "ArrowUp" ? candidates[index - 1] : void 0;
+		return focus(target?.node.id);
+	};
+	const handleKey = (item, event) => {
+		const { id } = item.node;
+		let handled = false;
+		if ([
+			"ArrowUp",
+			"ArrowDown",
+			"Home",
+			"End"
+		].includes(event.key)) handled = moveLinear(id, event.key);
+		else if (event.key === "ArrowRight" && model().isBranch(id)) handled = isExpanded(id) ? focus(model().firstChild(id)) : setExpanded(id, true);
+		else if (event.key === "ArrowLeft") handled = isExpanded(id) ? setExpanded(id, false) : focus(item.parentId ?? void 0);
+		if (handled) event.preventDefault();
+	};
+	return createComponent$1(View, {
+		role: "tree",
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get ["class"]() {
+			return join("min-w-0 flex flex-col gap-0.5", props.class);
+		},
+		get children() {
+			return createComponent$1(For, {
+				get each() {
+					return visible();
+				},
+				children: (item) => {
+					const branch = () => model().isBranch(item.node.id);
+					return createComponent$1(Button$1, {
+						unstyled: true,
+						ref: (node) => handles.set(item.node.id, node),
+						role: "treeitem",
+						get ["aria-label"]() {
+							return item.node.label;
+						},
+						get ["aria-expanded"]() {
+							return memo(() => {
+								return !!branch();
+							})() ? isExpanded(item.node.id) : void 0;
+						},
+						get ["aria-selected"]() {
+							return isSelected(item.node.id);
+						},
+						get selected() {
+							return isSelected(item.node.id);
+						},
+						get disabled() {
+							return item.node.disabled;
+						},
+						get focusOrder() {
+							return tabStop() === item.node.id ? 0 : -1;
+						},
+						class: (state) => join("w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm", state.selected ? "bg-selected text-primary" : state.hovered ? "bg-control-hover text-primary" : "bg-transparent text-secondary", props.itemClass),
+						get style() {
+							return { "padding-left": `${8 + (item.level - 1) * 20}px` };
+						},
+						onFocus: () => setActiveId(item.node.id),
+						onClick: () => activate(item.node),
+						onKeyDown: (event) => handleKey(item, event),
+						get children() {
+							return [memo(() => {
+								return memo(() => {
+									return !!branch();
+								})() ? createComponent$1(Icon, {
+									"aria-hidden": "true",
+									get source() {
+										return isExpanded(item.node.id) ? chevronDown : chevronRight;
+									},
+									size: 14,
+									class: "flex-none text-muted"
+								}) : createComponent$1(View, {
+									"aria-hidden": "true",
+									class: "w-3.5 h-3.5 flex-none"
+								});
+							}), memo(() => {
+								return memo(() => {
+									return !!props.renderItem;
+								})() ? props.renderItem(item.node, {
+									expanded: isExpanded(item.node.id),
+									selected: isSelected(item.node.id),
+									level: item.level
+								}) : createComponent$1(Text, {
+									maxLines: 1,
+									class: "min-w-0 flex-1 text-sm",
+									get children() {
+										return item.node.label;
+									}
+								});
+							})];
+						}
+					});
+				}
+			});
+		}
+	});
+}
+//#endregion
 //#region src/components/index.tsx
 function badgeColors(variant) {
 	return match(variant).with("default", () => "bg-accent border-accent text-on-accent").with("secondary", () => "bg-control border-subtle text-primary").with("outline", () => "bg-transparent border-strong text-secondary").with("success", () => "bg-success-surface border-success-primary text-success-primary").with("destructive", () => "bg-danger-surface border-danger text-danger-primary").exhaustive();
@@ -4386,6 +4593,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTransition, createTreeModel, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

@@ -7,6 +7,8 @@ interface ComponentLocator {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Whether this locator owns the harness's native focus simulation. */
+  readonly focused: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch a captured native pointer move while preserving button state. */
