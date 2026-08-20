@@ -70,6 +70,20 @@ export interface IconProps extends Omit<SvgProps, "source"> {
   label?: string;
 }
 
+const ICON_SIZE_UNITLESS_RE = /^-?\d*\.?\d+$/;
+
+function normalizeIconSize(size: number | string | undefined): number | string {
+  if (size == null) return 16;
+  if (typeof size === "number") return size;
+  const value = size.trim();
+  if (!value) return 16;
+  const parsed = Number.parseFloat(value);
+  if (Number.isFinite(parsed) && ICON_SIZE_UNITLESS_RE.test(value)) {
+    return parsed;
+  }
+  return size;
+}
+
 export interface NetworkImageSource {
   kind: "network";
   url: string;
@@ -217,7 +231,7 @@ export function Path(props: PathProps): JSX.Element {
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 export function Icon(props: IconProps): JSX.Element {
   const rest = omit(props, "source", "size", "fill", "label", "class");
-  const iconSize = props.size ?? 16;
+  const iconSize = normalizeIconSize(props.size);
   const explicitPixelSize = typeof iconSize === "number";
   const node = createElement("svg");
   spread(node, rest, false);

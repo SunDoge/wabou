@@ -558,4 +558,50 @@ describe("host primitives", () => {
       ]),
     );
   });
+
+  test("Icon normalizes unitless string size to numeric px values", () => {
+    const attributes: Array<[string, string]> = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    writer.setAttribute = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        attributes.push([name, value]);
+      }
+    };
+    try {
+      createRoot((dispose) => {
+        Icon({ source: "<svg/>", size: "17" });
+        dispose();
+      });
+    } finally {
+      writer.setAttribute = setAttribute;
+    }
+    expect(attributes).toEqual([
+      ["width", "17"],
+      ["height", "17"],
+    ]);
+  });
+
+  test("Icon keeps unit suffix strings untouched for CSS-size values", () => {
+    const styles: Array<[string, string]> = [];
+    const setStyle = writer.setStyle.bind(writer);
+    writer.setStyle = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        styles.push([name, value]);
+      }
+    };
+    try {
+      createRoot((dispose) => {
+        Icon({ source: "<svg/>", size: "1.5rem" });
+        dispose();
+      });
+    } finally {
+      writer.setStyle = setStyle;
+    }
+    expect(styles).toEqual(
+      expect.arrayContaining([
+        ["width", "1.5rem"],
+        ["height", "1.5rem"],
+      ]),
+    );
+  });
 });
