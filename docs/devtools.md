@@ -160,6 +160,13 @@ wabou render apps/motrix --with-host \
 Scenario failures abort the capture with the same semantic locator diagnostics
 as `wabou test`.
 
+Repository applications keep reusable authored scenarios under `captures/`.
+Run `bun run verify:captures` at the workspace root to discover every capture,
+render it with the real application host, and write PNGs below
+`target/wabou-captures/<app>/`. An optional `captures/config.json` supplies an
+application viewport default and per-file overrides; the verifier rejects
+overrides whose scenario was removed, so metadata cannot silently drift.
+
 `page.waitForIdle()` waits for queued test actions and runtime work; it does
 not wait for visual animation completion because a valid application may have
 permanent animations such as spinners or status ripples. Override the capture

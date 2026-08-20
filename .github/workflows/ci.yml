@@ -81,6 +81,17 @@ jobs:
             apps/motrix/tests/engine-failure.scenario.ts \
             --artifacts target/wabou-test/motrix/engine-failure-artifacts
 
+      - name: Render authored application captures
+        run: bun run verify:captures
+
+      - name: Upload authored application captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authored-application-captures
+          path: target/wabou-captures/
+          if-no-files-found: ignore
+
       - name: Upload behavior-test diagnostics
         if: failure()
         uses: actions/upload-artifact@v4

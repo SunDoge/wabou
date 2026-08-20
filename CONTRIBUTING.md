@@ -22,9 +22,10 @@ needs one side of the boundary; `bun run verify:behavior` discovers every app
 with authored `tests/**/*.behavior.ts` suites. Standalone `.scenario.ts` files
 that require special environment setup remain explicit CI commands. The full command checks formatting,
 types, generated bindings, package tarballs, unit tests, Clippy, every Rust
-target, and native application behavior. It reports stale generated output
-instead of rewriting the worktree; run `bun run gen` explicitly when that
-diagnostic is expected.
+target, native application behavior, and every authored host-backed capture.
+Capture PNGs are retained under `target/wabou-captures` for inspection. The
+verification command reports stale generated output instead of rewriting the
+worktree; run `bun run gen` explicitly when that diagnostic is expected.
 
 To run the GitHub Actions workflow locally, use the repository's `act`
 wrapper. It uses Docker's host network and forwards the host proxy at

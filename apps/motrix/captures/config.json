@@ -1,0 +1,26 @@
+{
+  "defaults": {
+    "width": 1280,
+    "height": 820,
+    "scaleFactor": 1,
+    "waitMs": 250
+  },
+  "overrides": {
+    "dashboard-small-scroll.ts": {
+      "width": 700,
+      "height": 500
+    },
+    "download-task-row.ts": {
+      "width": 900,
+      "height": 600
+    },
+    "notifications.ts": {
+      "width": 900,
+      "height": 600
+    },
+    "settings-footer.ts": {
+      "width": 900,
+      "height": 600
+    }
+  }
+}
