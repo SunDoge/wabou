@@ -53,7 +53,11 @@ mise exec -- cargo run -p wabou-cli -- inspect capture --x 820 --y 600 --output 
 listeners, border/content rectangles and a compact computed-style summary. It
 also reports the JS-authored `focusOrder` and the final projected `focusable`
 state. Comparing them distinguishes authored keyboard policy from a node that
-is temporarily excluded by runtime state such as an active modal.
+is temporarily excluded by runtime state such as an active modal. Its nested
+`semantic` value reports the final role, inferred accessible name, disabled and
+platform-root exposure state, plus the live nodes resolved from
+`aria-controls` and `aria-activedescendant`. It is absent only when semantics
+were not built for that frame.
 Node identities are generational and are printed as `{ "lo": 42, "hi": 1 }`;
 pass them to `inspect node` as `42:1`. A bare `42` remains shorthand for the
 initial generation `42:1`, but an exact key should be copied after remounts.

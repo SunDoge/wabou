@@ -861,6 +861,20 @@ fn semantic_idrefs_resolve_to_live_native_nodes() {
         .expect("combobox semantic node");
     assert_eq!(combo.controls, [sk(3)]);
     assert_eq!(combo.active_descendant, Some(sk(4)));
+
+    let state = wabou_devtools::DebugState::shared();
+    applier.set_debug_state(state.clone());
+    applier.publish_debug_snapshot(&placed, &mut TextContext::new());
+    let state = state.read().unwrap();
+    let combo = state
+        .snapshot()
+        .nodes
+        .iter()
+        .find(|node| node.id == nk(2))
+        .expect("combobox debug node");
+    let semantic = combo.semantic.as_ref().expect("combobox projection");
+    assert_eq!(semantic.controls, [nk(3)]);
+    assert_eq!(semantic.active_descendant, Some(nk(4)));
 }
 
 #[test]

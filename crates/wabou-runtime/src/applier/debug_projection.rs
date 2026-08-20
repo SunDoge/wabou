@@ -257,6 +257,17 @@ impl Applier {
         let atoms = self.document.atoms.borrow();
         let placed_by_id: HashMap<_, _> = placed.iter().map(|node| (node.node_id, node)).collect();
         let css_transforms = resolved_css_transforms(placed);
+        let semantic_snapshot = &self.frame.projections.semantic_snapshot;
+        let semantic_by_id: HashMap<_, _> = semantic_snapshot
+            .nodes
+            .iter()
+            .map(|node| (NodeKey::from_ffi(node.id), node))
+            .collect();
+        let exposed_semantics: HashSet<_> = semantic_snapshot
+            .exposed_nodes()
+            .into_iter()
+            .map(|node| NodeKey::from_ffi(node.id))
+            .collect();
         let mut nodes = Vec::with_capacity(placed.len());
         for placed_node in placed {
             let Some(&id) = self
@@ -335,6 +346,21 @@ impl Applier {
                 listeners,
                 focusable: self.interaction.input.focusable_targets.contains(&id),
                 focus_order: declared.and_then(|declared| declared.focus_order),
+                semantic: semantic_by_id.get(&id).map(|semantic| {
+                    wabou_devtools::DebugSemanticProjection {
+                        role: semantic.role.as_str().to_owned(),
+                        label: semantic.label.clone(),
+                        disabled: semantic.disabled,
+                        exposed: exposed_semantics.contains(&id),
+                        controls: semantic
+                            .controls
+                            .iter()
+                            .copied()
+                            .map(NodeKey::from_ffi)
+                            .collect(),
+                        active_descendant: semantic.active_descendant.map(NodeKey::from_ffi),
+                    }
+                }),
                 widget: self
                     .document
                     .widget_manager

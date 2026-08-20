@@ -356,11 +356,28 @@ fn coalesced_release_distance_also_suppresses_click() {
 #[test]
 fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let mut applier = interactive_applier();
-    let class = applier.document.atoms.borrow_mut().intern("class");
+    let (class, role, aria_label) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (
+            atoms.intern("class"),
+            atoms.intern("role"),
+            atoms.intern("aria-label"),
+        )
+    };
     applier.apply_op(&Op::SetAttribute {
         id: NodeKey::new(2, 1),
         name: class,
         value: "font-medium font-normal",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: NodeKey::new(2, 1),
+        name: role,
+        value: "button",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: NodeKey::new(2, 1),
+        name: aria_label,
+        value: "Save",
     });
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
@@ -371,6 +388,8 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
         &applier.interaction.scroll.offsets,
     );
     applier.rebuild_focus_order(&placed);
+    applier.set_semantics_enabled(true);
+    applier.rebuild_semantic_snapshot(&placed);
     applier.frame.last_viewport = (800, 600);
     applier.publish_debug_snapshot(&placed, &mut TextContext::new());
     applier.handle_event(pointer(PointerPhase::Down, 20.0, 20.0, 1));
@@ -397,6 +416,10 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     assert_eq!(button.rect.height, 50.0);
     assert!(button.focusable);
     assert_eq!(button.focus_order, Some(3));
+    let semantic = button.semantic.as_ref().expect("semantic projection");
+    assert_eq!(semantic.role, "button");
+    assert_eq!(semantic.label.as_deref(), Some("Save"));
+    assert!(semantic.exposed);
     assert!(!button.computed.synthetic_bold);
     assert!(!button.computed.synthetic_italic);
     let font_weight = button

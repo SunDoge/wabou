@@ -238,6 +238,25 @@ pub struct DebugStyleCascade {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// Final platform-neutral accessibility projection for one retained node.
+pub struct DebugSemanticProjection {
+    /// Canonical role after native-widget and authored-role resolution.
+    pub role: String,
+    /// Accessible name after descendant-label inference.
+    pub label: Option<String>,
+    /// Whether assistive technology exposes the node as disabled.
+    pub disabled: bool,
+    /// Whether the node is reachable from the current platform root.
+    pub exposed: bool,
+    /// Live nodes resolved from the authored `aria-controls` ID references.
+    pub controls: Vec<NodeKey>,
+    /// Live node resolved from the authored `aria-activedescendant` ID reference.
+    pub active_descendant: Option<NodeKey>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
 /// Retained node projection published by the UI thread.
 pub struct DebugNode {
     /// Solid-side node identifier.
@@ -272,6 +291,9 @@ pub struct DebugNode {
     /// JS-authored focus order. Negative values are programmatically focusable but skipped by Tab.
     #[serde(default)]
     pub focus_order: Option<i32>,
+    /// Final accessibility projection, absent when semantics were not built for this frame.
+    #[serde(default)]
+    pub semantic: Option<DebugSemanticProjection>,
     /// Native widget kind, if attached.
     pub widget: Option<String>,
     /// Clip and transform diagnostics.
