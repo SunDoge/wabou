@@ -21,6 +21,11 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
+    "./test": {
+      "wabou-source": "./src/test.ts",
+      "types": "./dist/test.d.mts",
+      "import": "./dist/test.mjs"
+    },
     "./runtime": {
       "wabou-source": "./src/runtime/client.ts",
       "types": "./dist/runtime.d.mts",

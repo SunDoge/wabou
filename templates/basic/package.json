@@ -10,6 +10,7 @@
     "dev": "wabou dev",
     "build": "wabou build",
     "check": "wabou check",
+    "test": "vitest run",
     "test:behavior": "wabou test ."
   },
   "dependencies": {
@@ -22,6 +23,7 @@
     "@wabou/test": "workspace:*",
     "@wabou/vite": "workspace:*",
     "typescript": "^5.9.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "2.1.9"
   }
 }

@@ -13,7 +13,8 @@
     "verify:captures": "bun run scripts/check-captures.ts",
     "check:captures": "bun run scripts/check-captures.ts --check-existing",
     "test:solid2": "bun --conditions=browser --conditions=wabou-source test packages/core/src/renderer/events.test.ts packages/core/src/glue/host-frame.test.ts",
-    "test": "bun --conditions=browser --conditions=wabou-source test packages apps/*/ui scripts",
+    "test": "bun --conditions=browser --conditions=wabou-source test packages apps/*/ui scripts && bun run test:components",
+    "test:components": "vitest run",
     "ci:local": "bash scripts/run-act.sh",
     "commit:check": "cog check",
     "commit:hook": "cog install-hook commit-msg",
@@ -46,6 +47,7 @@
     "@tanstack/router-core": "1.171.24",
     "@types/bun": "^1.3.14",
     "@wabou/core": "workspace:*",
+    "@wabou/test": "workspace:*",
     "@wabou/ui": "workspace:*",
     "@wabou/vite": "workspace:*",
     "abort-controller": "3.0.0",
@@ -53,6 +55,7 @@
     "tsdown": "0.22.14",
     "typescript": "^5.9.0",
     "unocss": "^66.7.5",
-    "vite-plugin-solid": "3.0.0-next.27"
+    "vite-plugin-solid": "3.0.0-next.27",
+    "vitest": "2.1.9"
   }
 }

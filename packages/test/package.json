@@ -19,9 +19,18 @@
       "wabou-source": "./src/index.ts",
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
+    },
+    "./component": {
+      "wabou-source": "./src/component.ts",
+      "types": "./dist/component.d.mts",
+      "import": "./dist/component.mjs"
     }
   },
   "dependencies": {
     "@wabou/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "solid-js": ">=2.0.0-rc.0",
+    "vitest": ">=2.1.0"
   }
 }

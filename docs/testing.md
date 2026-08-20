@@ -1,4 +1,59 @@
-# Behavior testing
+# Testing
+
+## Component unit tests
+
+Most component behavior should be tested without starting a Rust host, native
+window, layout engine, or GPU. `@wabou/test/component` mounts TSX through the
+real Wabou Solid renderer and records the authored host tree, so a component
+test can use role-based locators and dispatch the same JavaScript event path as
+the application:
+
+```tsx
+import { renderComponent } from "@wabou/test/component";
+import { Button, Text, View } from "@wabou/ui";
+import { createSignal } from "solid-js";
+import { expect, test } from "vitest";
+
+function Counter() {
+  const [count, setCount] = createSignal(0);
+  return (
+    <View>
+      <Button aria-label="Increment" onClick={() => setCount(count() + 1)}>
+        Increment
+      </Button>
+      <Text role="status" aria-label={`Count ${count()}`}>
+        {String(count())}
+      </Text>
+    </View>
+  );
+}
+
+test("increments", () => {
+  const screen = renderComponent(() => <Counter />);
+  screen.getByRole("button", { name: "Increment" }).click();
+  expect(screen.getByRole("status", { name: "Count 1" }).text).toBe("1");
+});
+```
+
+Use the shared transform in `vitest.config.ts`:
+
+```ts
+import { defineWabouTestConfig } from "@wabou/vite/test";
+
+export default defineWabouTestConfig();
+```
+
+The configuration also cleans up the mounted component after each test and
+deduplicates Solid so application components and the test renderer share one
+reactive graph. Locators are strict: duplicate role/name matches fail unless an
+explicit zero-based `index` is supplied.
+
+This layer verifies component state, composition, declared roles and names,
+and JavaScript event handling. It intentionally does not invent a fake layout
+engine. Keep the much smaller set of geometry, native hit-testing, window, and
+pixel checks in behavior or capture tests.
+
+## Native behavior tests
 
 Wabou includes a Playwright-style behavior runner for native applications.
 Scenarios are TypeScript bundles evaluated in the application's existing

@@ -15,7 +15,10 @@ const packages: Record<string, UserConfig["entry"]> = {
     "jsx-runtime": "src/jsx.ts",
   },
   terminal: { index: "src/index.tsx" },
-  test: { index: "src/index.ts" },
+  test: {
+    index: "src/index.ts",
+    component: "src/component.ts",
+  },
   ui: {
     index: "src/index.ts",
     i18n: "src/i18n.ts",
@@ -24,6 +27,7 @@ const packages: Record<string, UserConfig["entry"]> = {
   },
   vite: {
     index: "src/index.ts",
+    test: "src/test.ts",
     preset: "src/preset/index.ts",
     runtime: "src/runtime/client.ts",
     "utility-manifest": "src/utility-manifest.ts",
