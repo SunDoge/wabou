@@ -47,6 +47,13 @@ pub(super) fn app_profiling_feature(workspace: &Path, app: &App) -> Result<Strin
         .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
 }
 
+pub(super) fn app_framework_feature(workspace: &Path, app: &App, feature: &str) -> Result<String> {
+    let metadata = cargo_metadata(workspace, app)?;
+    let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
+    framework_feature(&metadata, &manifest_path, feature)
+        .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
+}
+
 pub(super) fn app_bindings_target(workspace: &Path, app: &App) -> Result<String> {
     optional_app_bindings_target(workspace, app)?.ok_or_else(|| {
         "application must define one example sourced from `examples/wabou-bindgen.rs`".into()

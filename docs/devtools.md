@@ -133,10 +133,6 @@ wabou render apps/gallery --out /tmp/gallery.png \
   --snapshot /tmp/gallery-tree.json
 ```
 
-The option currently belongs to the bundle-only renderer. Use a live
-`captureCase` when application-owned Rust services must participate and both
-pixels and a frame-matched tree are required.
-
 Use `--with-host` when the rendered state depends on registrations in the
 application's `HostBuilder`. Wabou starts the real application binary on its
 deterministic headless backend, including services, capabilities, host-message
@@ -154,7 +150,8 @@ capture settling window:
 ```sh
 wabou render apps/motrix --with-host \
   --scenario apps/motrix/captures/downloads.ts \
-  --out /tmp/motrix-downloads.png
+  --out /tmp/motrix-downloads.png \
+  --snapshot /tmp/motrix-downloads.json
 ```
 
 Scenario failures abort the capture with the same semantic locator diagnostics
@@ -175,8 +172,10 @@ permanent animations such as spinners or status ripples. Override the capture
 settling window with `--wait-ms`; pass `--wait-ms 0` when the earliest frame is
 the state under test.
 
-Host-backed capture currently does not accept coordinate/key actions,
-`--metrics`, or `--snapshot`; those remain on the bundle-only path.
+Host-backed capture currently does not accept coordinate/key actions or
+`--metrics`; those remain on the bundle-only path. Its `--snapshot` output is
+published by the selected window's final frame, immediately before the PNG is
+rendered from that frame.
 
 Multi-window and HiDPI states can be selected explicitly. Width, height, and
 interaction coordinates remain logical pixels; the PNG dimensions are scaled:

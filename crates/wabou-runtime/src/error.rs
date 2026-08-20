@@ -86,6 +86,15 @@ pub enum Error {
         message: String,
     },
 
+    /// A deterministic headless DevTools snapshot could not be written.
+    #[snafu(display("failed to write headless snapshot {}: {message}", path.display()))]
+    HeadlessSnapshot {
+        /// Requested snapshot output path.
+        path: PathBuf,
+        /// Serialization, synchronization, or filesystem diagnostic.
+        message: String,
+    },
+
     /// Vite development integration failed.
     #[cfg(feature = "vite")]
     #[snafu(display("Vite integration failed: {source}"))]

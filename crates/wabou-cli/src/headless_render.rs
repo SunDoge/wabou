@@ -17,7 +17,7 @@ use wabou_shell::{
     PointerPhase, TextContext, UiEvent, WheelEvent,
 };
 
-use super::artifact::app_binary;
+use super::artifact::{app_binary, app_framework_feature};
 use super::config::{BuildProfile, bundle_path};
 use super::frontend;
 use super::process::{configure_test_backend, wait_for_managed_child};
@@ -393,7 +393,13 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
 
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
-    let executable = build_behavior_host(workspace, &manifest, &binary)?;
+    let snapshot_feature = options
+        .snapshot
+        .as_ref()
+        .map(|_| app_framework_feature(workspace, app, "devtools"))
+        .transpose()?;
+    let executable =
+        build_behavior_host(workspace, &manifest, &binary, snapshot_feature.as_deref())?;
     let test_data = tempfile::tempdir_in(&render_dir)?;
     let output = if options.out.is_absolute() {
         options.out.clone()
@@ -419,11 +425,28 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
         .env("XDG_CONFIG_HOME", test_data.path().join("xdg-config"))
         .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
         .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
+    let snapshot = options.snapshot.as_ref().map(|path| {
+        if path.is_absolute() {
+            path.clone()
+        } else {
+            std::env::current_dir()
+                .unwrap_or_else(|_| workspace.to_owned())
+                .join(path)
+        }
+    });
+    if let Some(snapshot) = &snapshot {
+        host.env("WABOU_TEST_SNAPSHOT_PATH", snapshot);
+    }
     configure_test_backend(&mut host, false);
     let status = wait_for_managed_child(host, Duration::from_secs(70), &AtomicBool::new(false))?;
     ensure(status, "Wabou host-backed render")?;
     if !output.is_file() {
         return Err(format!("host-backed render did not create {}", output.display()).into());
+    }
+    if let Some(snapshot) = snapshot
+        && !snapshot.is_file()
+    {
+        return Err(format!("host-backed render did not create {}", snapshot.display()).into());
     }
     println!(
         "[wabou] rendered {} with application host",

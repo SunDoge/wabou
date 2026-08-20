@@ -194,7 +194,7 @@ enum Commands {
         #[arg(long, value_name = "JSON")]
         metrics: Option<PathBuf>,
         /// Write the DevTools tree snapshot represented by the rendered frame.
-        #[arg(long, value_name = "JSON", conflicts_with = "with_host")]
+        #[arg(long, value_name = "JSON")]
         snapshot: Option<PathBuf>,
         /// Number of headless frames sampled for --metrics.
         #[arg(long, default_value_t = 20, requires = "metrics")]
@@ -623,7 +623,7 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;
     let test_data = tempfile::tempdir_in(&test_dir)?;
-    let executable = build_behavior_host(workspace, &manifest, &binary)?;
+    let executable = build_behavior_host(workspace, &manifest, &binary, None)?;
     let mut host = Command::new(executable);
     host.current_dir(workspace)
         .env(
@@ -748,17 +748,25 @@ fn has_file_matching(directory: &Path, matches: impl Copy + Fn(&str) -> bool) ->
     Ok(false)
 }
 
-fn build_behavior_host(workspace: &Path, manifest: &str, binary: &str) -> Result<PathBuf> {
-    let output = Command::new("cargo")
-        .current_dir(workspace)
-        .args([
-            "build",
-            "--manifest-path",
-            manifest,
-            "--bin",
-            binary,
-            "--message-format=json-render-diagnostics",
-        ])
+fn build_behavior_host(
+    workspace: &Path,
+    manifest: &str,
+    binary: &str,
+    features: Option<&str>,
+) -> Result<PathBuf> {
+    let mut command = Command::new("cargo");
+    command.current_dir(workspace).args([
+        "build",
+        "--manifest-path",
+        manifest,
+        "--bin",
+        binary,
+        "--message-format=json-render-diagnostics",
+    ]);
+    if let Some(features) = features {
+        command.args(["--features", features]);
+    }
+    let output = command
         // Cargo progress remains visible while stdout is reserved for its
         // machine-readable artifact stream.
         .stderr(Stdio::inherit())
@@ -1116,7 +1124,7 @@ mod tests {
     }
 
     #[test]
-    fn render_accepts_a_bundle_only_debug_snapshot() {
+    fn render_accepts_a_debug_snapshot_with_or_without_host() {
         let Cli {
             command: Commands::Render { snapshot, .. },
         } = Cli::try_parse_from([
@@ -1134,19 +1142,29 @@ mod tests {
         };
         assert_eq!(snapshot, Some(PathBuf::from("tree.json")));
 
-        assert!(
-            Cli::try_parse_from([
-                "wabou",
-                "render",
-                "apps/gallery",
-                "--out",
-                "capture.png",
-                "--snapshot",
-                "tree.json",
-                "--with-host",
-            ])
-            .is_err()
-        );
+        let Cli {
+            command:
+                Commands::Render {
+                    snapshot,
+                    with_host,
+                    ..
+                },
+        } = Cli::try_parse_from([
+            "wabou",
+            "render",
+            "apps/gallery",
+            "--out",
+            "capture.png",
+            "--snapshot",
+            "tree.json",
+            "--with-host",
+        ])
+        .unwrap()
+        else {
+            panic!("expected render command");
+        };
+        assert!(with_host);
+        assert_eq!(snapshot, Some(PathBuf::from("tree.json")));
     }
 
     #[test]

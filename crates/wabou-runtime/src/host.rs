@@ -978,7 +978,9 @@ impl HostBuilder {
         #[cfg(feature = "devtools")]
         let devtools_server = {
             let mut server = None;
-            let debug_state = self.devtools.then(wabou_devtools::DebugState::shared);
+            let debug_state = (self.devtools
+                || std::env::var_os("WABOU_TEST_SNAPSHOT_PATH").is_some())
+            .then(wabou_devtools::DebugState::shared);
             if self.devtools {
                 let path = wabou_devtools::socket_path();
                 server = Some(
@@ -1049,7 +1051,13 @@ impl HostBuilder {
         }
 
         if headless_test && let Some(controller) = &test_controller {
-            run_headless_test(controller, &mut sources, self.base_color)?;
+            run_headless_test(
+                controller,
+                &mut sources,
+                self.base_color,
+                #[cfg(feature = "devtools")]
+                devtools_server.1.as_ref(),
+            )?;
             services.finish()?;
             return Ok(crate::RunOutcome::Exit);
         }
@@ -1130,6 +1138,7 @@ fn run_headless_test(
     controller: &crate::test_driver::TestController,
     sources: &mut [WindowSource],
     base_color: Color,
+    #[cfg(feature = "devtools")] debug_state: Option<&wabou_devtools::SharedDebugState>,
 ) -> crate::Result<()> {
     let viewport = HeadlessViewport::from_environment()?;
 
@@ -1186,6 +1195,12 @@ fn run_headless_test(
         .headless_viewport(capture_window)
         .map(|(width, height)| viewport.with_logical_size(width, height))
         .unwrap_or(viewport);
+    // Every source publishes into the shared DevTools state. Build the selected
+    // window last so its tree and the PNG below describe the same final frame.
+    if let Some((source, _)) = sources.get_mut(viewport.window_index) {
+        last_nodes[viewport.window_index] =
+            source.build_frame(&mut text, capture_viewport.width, capture_viewport.height);
+    }
     if controller.report_passed() == Some(false) {
         render_headless_failure(&last_nodes, &mut text, base_color, capture_viewport)?;
     }
@@ -1198,7 +1213,37 @@ fn run_headless_test(
             Path::new(&output),
         )?;
     }
+    #[cfg(feature = "devtools")]
+    if let (Some(output), Some(state)) = (std::env::var_os("WABOU_TEST_SNAPSHOT_PATH"), debug_state)
+    {
+        write_headless_snapshot(state, Path::new(&output))?;
+    }
     finish_test_report(controller.clone())
+}
+
+#[cfg(feature = "devtools")]
+fn write_headless_snapshot(
+    state: &wabou_devtools::SharedDebugState,
+    output: &Path,
+) -> crate::Result<()> {
+    let failure = |message: String| crate::error::Error::HeadlessSnapshot {
+        path: output.to_owned(),
+        message,
+    };
+    if let Some(parent) = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent).map_err(|error| failure(error.to_string()))?;
+    }
+    let snapshot = state
+        .read()
+        .map_err(|_| failure("DevTools snapshot lock was poisoned".to_owned()))?
+        .snapshot()
+        .clone();
+    let bytes = serde_json::to_vec_pretty(&snapshot).map_err(|error| failure(error.to_string()))?;
+    std::fs::write(output, bytes).map_err(|error| failure(error.to_string()))?;
+    Ok(())
 }
 
 #[derive(Clone, Copy)]
