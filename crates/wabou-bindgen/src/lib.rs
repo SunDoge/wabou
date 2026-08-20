@@ -704,12 +704,35 @@ function decodeNativeResult<T>(raw: string, operation: string): T {
   return envelope.value as T;
 }
 
+function testCapabilityErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function encodeTestCapabilityFailure(
+  code: NativeHostCapabilityErrorCode,
+  error: unknown,
+): string {
+  return JSON.stringify({
+    ok: false,
+    error: { code, message: testCapabilityErrorMessage(error) },
+  });
+}
+
+function encodeTestCapabilitySuccess(value: unknown): string {
+  const encoded = JSON.stringify({ ok: true, value });
+  if (encoded === undefined) {
+    throw new TypeError("JSON.stringify returned undefined");
+  }
+  return encoded;
+}
+
 "#,
             );
         }
 
         for capability in sorted_capabilities(&self.capabilities) {
             let interface = format!("{}Client", upper_camel_case(&capability.name));
+            let test_handlers = format!("{}TestHandlers", upper_camel_case(&capability.name));
             output.push_str(&format!("export interface {interface} {{\n"));
             for method in sorted_methods(&capability.methods) {
                 let parameter = join_arguments(method, Argument::typed_parameter);
@@ -761,6 +784,48 @@ function decodeNativeResult<T>(raw: string, operation: string): T {
             output.push_str(&format!(
                 "export function use{interface}(): {interface} {{\n  return create{interface}(useHost());\n}}\n\n"
             ));
+            output.push_str(&format!("export interface {test_handlers} {{\n"));
+            for method in sorted_methods(&capability.methods) {
+                let parameter = join_arguments(method, Argument::typed_parameter);
+                output.push_str(&format!(
+                    "  {}({parameter}): NativeResult<{}>;\n",
+                    method.name, method.response
+                ));
+            }
+            output.push_str("}\n\n");
+            output.push_str(&format!(
+                "export function create{}TestCapability(handlers: {test_handlers}) {{\n  return {{\n    __wabouCapabilityVersion: {},\n",
+                upper_camel_case(&capability.name),
+                capability.version,
+            ));
+            for method in sorted_methods(&capability.methods) {
+                let native_parameter = native_parameters(method);
+                let typed_arguments = method
+                    .arguments
+                    .iter()
+                    .map(|argument| format!("decoded{}", upper_camel_case(&argument.name)))
+                    .collect::<Vec<_>>();
+                output.push_str(&format!(
+                    "    {}: async ({native_parameter}): Promise<string> => {{\n",
+                    method.name
+                ));
+                for (argument, decoded) in method.arguments.iter().zip(&typed_arguments) {
+                    output.push_str(&format!(
+                        "      let {decoded}: {};\n      try {{\n        {decoded} = JSON.parse({}) as {};\n      }} catch (error) {{\n        return encodeTestCapabilityFailure(\"invalidRequest\", error);\n      }}\n",
+                        argument.ty, argument.name, argument.ty
+                    ));
+                }
+                output.push_str("      let value;\n      try {\n");
+                output.push_str(&format!(
+                    "        value = await handlers.{}({});\n",
+                    method.name,
+                    typed_arguments.join(", ")
+                ));
+                output.push_str(
+                    "      } catch (error) {\n        return encodeTestCapabilityFailure(\"handlerFailure\", error);\n      }\n      try {\n        return encodeTestCapabilitySuccess(value);\n      } catch (error) {\n        return encodeTestCapabilityFailure(\"responseEncodingFailure\", error);\n      }\n    },\n",
+                );
+            }
+            output.push_str("  };\n}\n\n");
         }
         output.truncate(output.trim_end().len());
         output.push('\n');
@@ -1153,6 +1218,13 @@ mod tests {
         assert!(output.contains("\"workspace.updateFile\""));
         assert!(output.contains("useWorkspaceClient(): WorkspaceClient"));
         assert!(output.contains("createWorkspaceClient(useHost())"));
+        assert!(output.contains("export interface WorkspaceTestHandlers"));
+        assert!(
+            output.contains("updateFile(request: FunctionRequest): NativeResult<FunctionResponse>")
+        );
+        assert!(output.contains("createWorkspaceTestCapability(handlers: WorkspaceTestHandlers)"));
+        assert!(output.contains("decodedRequest = JSON.parse(request) as FunctionRequest"));
+        assert!(output.contains("value = await handlers.updateFile(decodedRequest)"));
         for code in JsonCapabilityErrorCode::WIRE_VALUES {
             assert!(
                 output.matches(code.as_str()).count() >= 2,
@@ -1220,6 +1292,7 @@ mod tests {
             "invokeNativeCapability(nativeCapability, \"workspace\", \"currentStatus\")"
         ));
         assert!(!output.contains("JSON.stringify(null)"));
+        assert!(output.contains("value = await handlers.currentStatus()"));
     }
 
     #[test]

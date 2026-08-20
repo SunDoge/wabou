@@ -172,6 +172,28 @@ function decodeNativeResult<T>(raw: string, operation: string): T {
   return envelope.value as T;
 }
 
+function testCapabilityErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function encodeTestCapabilityFailure(
+  code: NativeHostCapabilityErrorCode,
+  error: unknown,
+): string {
+  return JSON.stringify({
+    ok: false,
+    error: { code, message: testCapabilityErrorMessage(error) },
+  });
+}
+
+function encodeTestCapabilitySuccess(value: unknown): string {
+  const encoded = JSON.stringify({ ok: true, value });
+  if (encoded === undefined) {
+    throw new TypeError("JSON.stringify returned undefined");
+  }
+  return encoded;
+}
+
 export interface BindingsDemoClient {
   describePalette(request: DescribePaletteRequest): Promise<DescribePaletteResponse>;
 }
@@ -187,4 +209,33 @@ export function createBindingsDemoClient(host: Host): BindingsDemoClient {
 
 export function useBindingsDemoClient(): BindingsDemoClient {
   return createBindingsDemoClient(useHost());
+}
+
+export interface BindingsDemoTestHandlers {
+  describePalette(request: DescribePaletteRequest): NativeResult<DescribePaletteResponse>;
+}
+
+export function createBindingsDemoTestCapability(handlers: BindingsDemoTestHandlers) {
+  return {
+    __wabouCapabilityVersion: 1,
+    describePalette: async (request: string): Promise<string> => {
+      let decodedRequest: DescribePaletteRequest;
+      try {
+        decodedRequest = JSON.parse(request) as DescribePaletteRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.describePalette(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+  };
 }

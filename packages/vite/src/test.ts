@@ -19,6 +19,7 @@ type ComponentTestUserConfig = UserConfig & {
 export function defineWabouTestConfig(
   options: WabouTestConfigOptions = {},
 ): ComponentTestUserConfig {
+  const core = fileURLToPath(import.meta.resolve("@wabou/core"));
   const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
   const solidEntry = `${dirname(fileURLToPath(import.meta.resolve("solid-js/package.json")))}/dist/solid.js`;
   return mergeConfig(
@@ -34,8 +35,12 @@ export function defineWabouTestConfig(
         dedupe: ["solid-js"],
         alias: [
           { find: /^solid-js$/, replacement: solidEntry },
-          { find: "@wabou/core/renderer", replacement: renderer },
-          { find: "solid-js/web", replacement: renderer },
+          // The root entry and renderer must share one HostContext. Resolving
+          // only the renderer to its built entry while `wabou-source` resolves
+          // the root entry to source creates two module instances.
+          { find: /^@wabou\/core$/, replacement: core },
+          { find: /^@wabou\/core\/renderer$/, replacement: renderer },
+          { find: /^solid-js\/web$/, replacement: renderer },
         ],
       },
       test: {

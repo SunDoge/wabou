@@ -6,6 +6,7 @@ import {
   type DescribePaletteRequest,
   NativeCapabilityError,
   createBindingsDemoClient,
+  createBindingsDemoTestCapability,
   useBindingsDemoClient,
 } from "./generated/host-bindings";
 
@@ -44,6 +45,46 @@ test("generated client owns the JSON capability boundary", async () => {
   });
 });
 
+test("generated test capability owns JSON envelopes", async () => {
+  const capability = createBindingsDemoTestCapability({
+    describePalette: ({ name, swatchCount }) => ({
+      status: "palette",
+      title: `${name} palette`,
+      swatches: Array.from(
+        { length: swatchCount },
+        (_, index) => `${name}-${index + 1}`,
+      ),
+    }),
+  });
+  const response = await createBindingsDemoClient({
+    bindingsDemo: capability,
+  } as unknown as Host).describePalette({ name: "Ocean", swatchCount: 2 });
+
+  expect(response).toEqual({
+    status: "palette",
+    title: "Ocean palette",
+    swatches: ["Ocean-1", "Ocean-2"],
+  });
+});
+
+test("generated test capability classifies handler failures", async () => {
+  const capability = createBindingsDemoTestCapability({
+    describePalette: () => {
+      throw new Error("fixture unavailable");
+    },
+  });
+  const client = createBindingsDemoClient({
+    bindingsDemo: capability,
+  } as unknown as Host);
+
+  const error = await client
+    .describePalette({ name: "Ocean", swatchCount: 2 })
+    .catch((reason: unknown) => reason);
+
+  expect(error).toMatchObject({ code: "handlerFailure" });
+  expect(String(error)).toContain("fixture unavailable");
+});
+
 test("generated client identifies malformed native responses", async () => {
   const client = createBindingsDemoClient({
     bindingsDemo: {
@@ -76,9 +117,7 @@ test("generated client rejects malformed native envelopes", async () => {
 
   await expect(
     client.describePalette({ name: "broken", swatchCount: 1 }),
-  ).rejects.toThrow(
-    "bindingsDemo.describePalette: invalid response envelope",
-  );
+  ).rejects.toThrow("bindingsDemo.describePalette: invalid response envelope");
 });
 
 test("generated client rejects unclassified native failures", async () => {

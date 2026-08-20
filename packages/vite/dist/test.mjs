@@ -5,6 +5,7 @@ import solid from "vite-plugin-solid";
 //#region src/test.ts
 /** Configure Vitest to compile Wabou TSX through Solid's universal renderer. */
 function defineWabouTestConfig(options = {}) {
+	const core = fileURLToPath(import.meta.resolve("@wabou/core"));
 	const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
 	const solidEntry = `${dirname(fileURLToPath(import.meta.resolve("solid-js/package.json")))}/dist/solid.js`;
 	return mergeConfig({
@@ -21,11 +22,15 @@ function defineWabouTestConfig(options = {}) {
 					replacement: solidEntry
 				},
 				{
-					find: "@wabou/core/renderer",
+					find: /^@wabou\/core$/,
+					replacement: core
+				},
+				{
+					find: /^@wabou\/core\/renderer$/,
 					replacement: renderer
 				},
 				{
-					find: "solid-js/web",
+					find: /^solid-js\/web$/,
 					replacement: renderer
 				}
 			]

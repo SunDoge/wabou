@@ -123,6 +123,12 @@ type DebugNode = {
 	contentRect: Rect,
 	/**  Generated event codes registered on the node. */
 	listeners: number[],
+	/**  Whether the final interaction projection admits this node as a focus target. */
+	focusable?: boolean,
+	/**  JS-authored focus order. Negative values are programmatically focusable but skipped by Tab. */
+	focusOrder?: number | null,
+	/**  Final accessibility projection, absent when semantics were not built for this frame. */
+	semantic?: DebugSemanticProjection | null,
 	/**  Native widget kind, if attached. */
 	widget: string | null,
 	/**  Clip and transform diagnostics. */
@@ -141,6 +147,54 @@ type DebugOverlay = {
 	hitTarget: boolean,
 	/**  Draw and retain one selected node identifier. */
 	selectedNode: NodeKey | null,
+};
+
+export /**  Final platform-neutral accessibility projection for one retained node. */
+type DebugSemanticProjection = {
+	/**  Canonical role after native-widget and authored-role resolution. */
+	role: string,
+	/**  Accessible name after descendant-label inference. */
+	label: string | null,
+	/**  Whether assistive technology exposes the node as disabled. */
+	disabled: boolean,
+	/**  Whether the node is reachable from the current platform root. */
+	exposed: boolean,
+	/**  Live nodes resolved from the authored `aria-controls` ID references. */
+	controls: NodeKey[],
+	/**  Live node resolved from the authored `aria-activedescendant` ID reference. */
+	activeDescendant: NodeKey | null,
+	/**  Final role-specific states exported to the platform bridge. */
+	states: DebugSemanticStates,
+	/**  Final numeric range exported for sliders and progress indicators. */
+	range: DebugSemanticRange,
+};
+
+export /**  Canonical final numeric values for range-based accessibility controls. */
+type DebugSemanticRange = {
+	/**  Current numeric value. */
+	value: number | null,
+	/**  Optional minimum numeric value. */
+	min: number | null,
+	/**  Optional maximum numeric value. */
+	max: number | null,
+};
+
+export /**  Canonical final values for role-specific accessibility states. */
+type DebugSemanticStates = {
+	/**  Final check state (`false`, `true`, or `mixed`). */
+	checked: string | null,
+	/**  Final toggle-button press state (`false`, `true`, or `mixed`). */
+	pressed: string | null,
+	/**  Final selection state. */
+	selected: boolean | null,
+	/**  Final expansion state. */
+	expanded: boolean | null,
+	/**  Final current-item category. */
+	current: string | null,
+	/**  Final popup kind. */
+	popup: string | null,
+	/**  Final explicit modal state. */
+	modal: boolean | null,
 };
 
 export /**  Runtime/window status returned by the DevTools `status` command. */
@@ -393,6 +447,28 @@ function decodeNativeResult<T>(raw: string, operation: string): T {
   return envelope.value as T;
 }
 
+function testCapabilityErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function encodeTestCapabilityFailure(
+  code: NativeHostCapabilityErrorCode,
+  error: unknown,
+): string {
+  return JSON.stringify({
+    ok: false,
+    error: { code, message: testCapabilityErrorMessage(error) },
+  });
+}
+
+function encodeTestCapabilitySuccess(value: unknown): string {
+  const encoded = JSON.stringify({ ok: true, value });
+  if (encoded === undefined) {
+    throw new TypeError("JSON.stringify returned undefined");
+  }
+  return encoded;
+}
+
 export interface DevtoolsClient {
   captureScreenshot(): Promise<PathResult>;
   connect(request: ConnectRequest): Promise<PathResult>;
@@ -420,4 +496,141 @@ export function createDevtoolsClient(host: Host): DevtoolsClient {
 
 export function useDevtoolsClient(): DevtoolsClient {
   return createDevtoolsClient(useHost());
+}
+
+export interface DevtoolsTestHandlers {
+  captureScreenshot(): NativeResult<PathResult>;
+  connect(request: ConnectRequest): NativeResult<PathResult>;
+  inspectNode(request: InspectNodeRequest): NativeResult<DebugNode>;
+  queryNodes(request: QueryNodesRequest): NativeResult<DebugNode[]>;
+  recentFrames(request: RecentFramesRequest): NativeResult<DebugFrame_Serialize[]>;
+  setOverlay(request: SetOverlayRequest): NativeResult<DebugOverlay>;
+  status(): NativeResult<DebugStatus>;
+}
+
+export function createDevtoolsTestCapability(handlers: DevtoolsTestHandlers) {
+  return {
+    __wabouCapabilityVersion: 1,
+    captureScreenshot: async (): Promise<string> => {
+      let value;
+      try {
+        value = await handlers.captureScreenshot();
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    connect: async (request: string): Promise<string> => {
+      let decodedRequest: ConnectRequest;
+      try {
+        decodedRequest = JSON.parse(request) as ConnectRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.connect(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    inspectNode: async (request: string): Promise<string> => {
+      let decodedRequest: InspectNodeRequest;
+      try {
+        decodedRequest = JSON.parse(request) as InspectNodeRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.inspectNode(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    queryNodes: async (request: string): Promise<string> => {
+      let decodedRequest: QueryNodesRequest;
+      try {
+        decodedRequest = JSON.parse(request) as QueryNodesRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.queryNodes(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    recentFrames: async (request: string): Promise<string> => {
+      let decodedRequest: RecentFramesRequest;
+      try {
+        decodedRequest = JSON.parse(request) as RecentFramesRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.recentFrames(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    setOverlay: async (request: string): Promise<string> => {
+      let decodedRequest: SetOverlayRequest;
+      try {
+        decodedRequest = JSON.parse(request) as SetOverlayRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.setOverlay(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    status: async (): Promise<string> => {
+      let value;
+      try {
+        value = await handlers.status();
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+  };
 }

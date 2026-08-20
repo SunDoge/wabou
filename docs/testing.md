@@ -67,18 +67,24 @@ claim that Taffy would produce that geometry.
 
 Inject typed Host capabilities without booting Rust by passing a fixture to
 the component renderer. Generated DTOs remain the request and response types;
-the fixture does not introduce another schema:
+the fixture does not introduce another schema. `wabou-bindgen` emits a test
+adapter beside every client, so tests implement typed DTO handlers rather than
+the native JSON strings and result envelope:
 
 ```tsx
-const host = createTestHost<DownloadsHost>({
-  downloads: {
+const downloads = createDownloadsTestCapability({
     list: async () => [{ id: "1", name: "demo.zip" }],
-  },
 });
+const host = createTestHost({ downloads });
 
 const screen = renderComponent(() => <Downloads />, { host: host.host });
 expect(host.callsTo("downloads.list")).toHaveLength(1);
 ```
+
+The adapter mirrors the Rust capability boundary's `invalidRequest`,
+`handlerFailure`, and `responseEncodingFailure` envelopes. TypeScript catches
+DTO drift at authoring time; runtime schema validation remains Rust's job in a
+native run.
 
 Calls retain their path and exact arguments. Read-only locale/time defaults are
 deterministic (`en-US`, `UTC`, 1970-01-01); unconfigured system, font, and
