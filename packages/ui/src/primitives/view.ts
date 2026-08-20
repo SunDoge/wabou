@@ -62,8 +62,7 @@ export interface IconProps extends Omit<SvgProps, "source"> {
    * `%`).
    */
   size?: number | string;
-  /** Optional explicit CSS size.  When omitted, fallback to `1em` for
-   *  text-sized UI alignment. */
+  /** Optional explicit CSS size.  When omitted, falls back to 16px. */
   /** Override Lucide's root `fill="none"`, for example with currentColor. */
   fill?: "none" | "currentColor";
   /** Accessible name. Omit for a decorative icon. */
