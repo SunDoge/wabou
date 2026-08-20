@@ -1,4 +1,4 @@
-import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-B8Ve0MqH.mjs";
+import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-BevFk5rm.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -108,6 +108,187 @@ function useComponentsTheme() {
 	return (getOwner() ? useContext(ThemeContext) : defaultTheme).theme;
 }
 //#endregion
+//#region src/components/button.tsx
+function buttonColors(variant, state) {
+	const focus = state.focusVisible ? "border-focus" : "";
+	const passiveBorder = (value) => match(value).with("outline", () => "border-strong").with(P.union("default", "secondary", "ghost", "destructive"), () => "border-transparent").exhaustive();
+	return match({
+		variant,
+		pressed: state.pressed,
+		hovered: state.hovered
+	}).with({
+		variant: "default",
+		pressed: true
+	}, () => join("bg-accent-pressed border-transparent text-on-accent", focus)).with({
+		variant: "default",
+		hovered: true
+	}, () => join("bg-accent-hover border-transparent text-on-accent", focus)).with({ variant: "default" }, () => join("bg-accent border-transparent text-on-accent", focus)).with({
+		variant: "destructive",
+		pressed: true
+	}, () => join("bg-danger-pressed border-transparent text-on-accent", focus)).with({
+		variant: "destructive",
+		hovered: true
+	}, () => join("bg-danger-hover border-transparent text-on-accent", focus)).with({ variant: "destructive" }, () => join("bg-danger border-transparent text-on-accent", focus)).with({
+		variant: "secondary",
+		pressed: true
+	}, () => join("bg-control-pressed border-transparent text-primary", focus)).with({
+		variant: "secondary",
+		hovered: true
+	}, () => join("bg-control-hover border-transparent text-primary", focus)).with({ variant: "secondary" }, () => join("bg-control border-transparent text-primary", focus)).with({ pressed: true }, ({ variant: value }) => join("bg-control-pressed text-secondary", passiveBorder(value), focus)).with({ hovered: true }, ({ variant: value }) => join("bg-control-hover text-secondary", passiveBorder(value), focus)).with({ variant: P.union("outline", "ghost") }, ({ variant: value }) => join("bg-transparent text-secondary", passiveBorder(value), focus)).exhaustive();
+}
+function buttonSize(size) {
+	return match(size).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-base").with("icon", () => "w-8 h-8 p-0 text-sm").exhaustive();
+}
+function Button(props) {
+	const local = props;
+	const forwarded = omit(props, "variant", "size", "class", "style");
+	const variant = () => local.variant ?? "default";
+	const size = () => local.size ?? "default";
+	return createComponent$1(Button$1, mergeProps(forwarded, {
+		unstyled: true,
+		class: (state) => join("inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium", buttonColors(variant(), state), buttonSize(size()), local.class),
+		style: (state) => ({
+			"border-width": 1,
+			opacity: state.disabled ? .45 : 1,
+			...typeof local.style === "function" ? local.style(state) : local.style
+		})
+	}));
+}
+//#endregion
+//#region src/components/dialog.tsx
+function Dialog(props) {
+	const theme = useComponentsTheme();
+	return createComponent$1(Modal, mergeProps(props, {
+		get backdropClass() {
+			return props.backdropClass;
+		},
+		get backdropStyle() {
+			return {
+				"background-color": rgba(51),
+				...props.backdropStyle
+			};
+		},
+		get contentClass() {
+			return join("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5", props.contentClass);
+		},
+		get contentShadows() {
+			return memo(() => {
+				return props.contentShadows === void 0;
+			})() ? componentsElevation(theme(), "modal") : props.contentShadows;
+		}
+	}));
+}
+function DialogHeader(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return join("flex flex-col gap-1", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function DialogFooter(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return join("flex items-center justify-end gap-2", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+/**
+* The shrinking, independently scrollable region between a dialog's fixed
+* header and footer. The dialog surface must have a bounded or maximum height.
+*/
+function DialogScrollBody(props) {
+	return createComponent$1(ScrollArea, {
+		get ["class"]() {
+			return join("min-h-0 flex-1", props.class);
+		},
+		get contentClass() {
+			return props.contentClass;
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function DialogTitle(props) {
+	return createComponent$1(Text, {
+		get ["class"]() {
+			return join("text-lg font-semibold text-primary", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function DialogDescription(props) {
+	return createComponent$1(Text, {
+		get ["class"]() {
+			return join("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+//#endregion
+//#region src/components/alert-dialog.tsx
+const AlertDialogContext = createContext();
+function useAlertDialog() {
+	const context = useContext(AlertDialogContext);
+	if (!context) throw new Error("AlertDialog actions must be used inside AlertDialog");
+	return context;
+}
+/**
+* A blocking confirmation dialog. Backdrop dismissal is disabled by default so
+* every close is an intentional cancel, confirmation, or Escape action.
+*/
+function AlertDialog(props) {
+	return createComponent$1(Dialog, mergeProps(props, {
+		contentRole: "alertdialog",
+		get closeOnBackdrop() {
+			return props.closeOnBackdrop ?? false;
+		},
+		children: (controls) => createComponent(AlertDialogContext, {
+			value: controls,
+			get children() {
+				return typeof props.children === "function" ? props.children(controls) : props.children;
+			}
+		})
+	}));
+}
+function closingHandler(close, handler) {
+	return (event) => {
+		handler?.(event);
+		if (!event.defaultPrevented) close();
+	};
+}
+function AlertDialogAction(props) {
+	const dialog = useAlertDialog();
+	return createComponent$1(Button, mergeProps(props, { get onClick() {
+		return closingHandler(dialog.close, props.onClick);
+	} }));
+}
+function AlertDialogCancel(props) {
+	const dialog = useAlertDialog();
+	return createComponent$1(Button, mergeProps(props, {
+		get variant() {
+			return props.variant ?? "outline";
+		},
+		get onClick() {
+			return closingHandler(dialog.close, props.onClick);
+		}
+	}));
+}
+const AlertDialogHeader = DialogHeader;
+const AlertDialogFooter = DialogFooter;
+const AlertDialogTitle = DialogTitle;
+const AlertDialogDescription = DialogDescription;
+//#endregion
 //#region src/components/avatar.tsx
 function Avatar(props) {
 	const size = () => match(props.size ?? "default").with("sm", () => "w-8 h-8 text-xs").with("default", () => "w-10 h-10 text-sm").with("lg", () => "w-12 h-12 text-base").exhaustive();
@@ -164,53 +345,6 @@ function AvatarGroupCount(props) {
 			});
 		}
 	});
-}
-//#endregion
-//#region src/components/button.tsx
-function buttonColors(variant, state) {
-	const focus = state.focusVisible ? "border-focus" : "";
-	const passiveBorder = (value) => match(value).with("outline", () => "border-strong").with(P.union("default", "secondary", "ghost", "destructive"), () => "border-transparent").exhaustive();
-	return match({
-		variant,
-		pressed: state.pressed,
-		hovered: state.hovered
-	}).with({
-		variant: "default",
-		pressed: true
-	}, () => join("bg-accent-pressed border-transparent text-on-accent", focus)).with({
-		variant: "default",
-		hovered: true
-	}, () => join("bg-accent-hover border-transparent text-on-accent", focus)).with({ variant: "default" }, () => join("bg-accent border-transparent text-on-accent", focus)).with({
-		variant: "destructive",
-		pressed: true
-	}, () => join("bg-danger-pressed border-transparent text-on-accent", focus)).with({
-		variant: "destructive",
-		hovered: true
-	}, () => join("bg-danger-hover border-transparent text-on-accent", focus)).with({ variant: "destructive" }, () => join("bg-danger border-transparent text-on-accent", focus)).with({
-		variant: "secondary",
-		pressed: true
-	}, () => join("bg-control-pressed border-transparent text-primary", focus)).with({
-		variant: "secondary",
-		hovered: true
-	}, () => join("bg-control-hover border-transparent text-primary", focus)).with({ variant: "secondary" }, () => join("bg-control border-transparent text-primary", focus)).with({ pressed: true }, ({ variant: value }) => join("bg-control-pressed text-secondary", passiveBorder(value), focus)).with({ hovered: true }, ({ variant: value }) => join("bg-control-hover text-secondary", passiveBorder(value), focus)).with({ variant: P.union("outline", "ghost") }, ({ variant: value }) => join("bg-transparent text-secondary", passiveBorder(value), focus)).exhaustive();
-}
-function buttonSize(size) {
-	return match(size).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-base").with("icon", () => "w-8 h-8 p-0 text-sm").exhaustive();
-}
-function Button(props) {
-	const local = props;
-	const forwarded = omit(props, "variant", "size", "class", "style");
-	const variant = () => local.variant ?? "default";
-	const size = () => local.size ?? "default";
-	return createComponent$1(Button$1, mergeProps(forwarded, {
-		unstyled: true,
-		class: (state) => join("inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium", buttonColors(variant(), state), buttonSize(size()), local.class),
-		style: (state) => ({
-			"border-width": 1,
-			opacity: state.disabled ? .45 : 1,
-			...typeof local.style === "function" ? local.style(state) : local.style
-		})
-	}));
 }
 //#endregion
 //#region src/components/menu-state.ts
@@ -484,6 +618,20 @@ function Combobox(props) {
 			});
 		}
 	});
+}
+//#endregion
+//#region src/components/config-editor.tsx
+/**
+* Experimental native configuration editor. Its Wabou-owned props deliberately
+* hide the editor-core implementation so the backend can evolve independently.
+*/
+function ConfigEditor(props) {
+	return createComponent$1(CodeEditor, mergeProps(props, {
+		language: "json",
+		get ["class"]() {
+			return join("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
+		}
+	}));
 }
 //#endregion
 //#region src/primitives/interactions/collection.ts
@@ -994,20 +1142,6 @@ function ContextMenu(props) {
 	});
 }
 //#endregion
-//#region src/components/config-editor.tsx
-/**
-* Experimental native configuration editor. Its Wabou-owned props deliberately
-* hide the editor-core implementation so the backend can evolve independently.
-*/
-function ConfigEditor(props) {
-	return createComponent$1(CodeEditor, mergeProps(props, {
-		language: "json",
-		get ["class"]() {
-			return join("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
-		}
-	}));
-}
-//#endregion
 //#region src/components/date-picker.tsx
 function dayOfWeek(value) {
 	return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
@@ -1340,87 +1474,6 @@ function DatePicker(props) {
 				},
 				onValueChange: select
 			}));
-		}
-	});
-}
-//#endregion
-//#region src/components/dialog.tsx
-function Dialog(props) {
-	const theme = useComponentsTheme();
-	return createComponent$1(Modal, mergeProps(props, {
-		get backdropClass() {
-			return props.backdropClass;
-		},
-		get backdropStyle() {
-			return {
-				"background-color": rgba(51),
-				...props.backdropStyle
-			};
-		},
-		get contentClass() {
-			return join("w-[480px] max-w-full min-w-0 flex flex-col gap-4 rounded-lg border border-subtle bg-surface p-5", props.contentClass);
-		},
-		get contentShadows() {
-			return memo(() => {
-				return props.contentShadows === void 0;
-			})() ? componentsElevation(theme(), "modal") : props.contentShadows;
-		}
-	}));
-}
-function DialogHeader(props) {
-	return createComponent$1(View, {
-		get ["class"]() {
-			return join("flex flex-col gap-1", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function DialogFooter(props) {
-	return createComponent$1(View, {
-		get ["class"]() {
-			return join("flex items-center justify-end gap-2", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-/**
-* The shrinking, independently scrollable region between a dialog's fixed
-* header and footer. The dialog surface must have a bounded or maximum height.
-*/
-function DialogScrollBody(props) {
-	return createComponent$1(ScrollArea, {
-		get ["class"]() {
-			return join("min-h-0 flex-1", props.class);
-		},
-		get contentClass() {
-			return props.contentClass;
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function DialogTitle(props) {
-	return createComponent$1(Text, {
-		get ["class"]() {
-			return join("text-lg font-semibold text-primary", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	});
-}
-function DialogDescription(props) {
-	return createComponent$1(Text, {
-		get ["class"]() {
-			return join("w-full min-w-0 whitespace-normal text-sm text-muted", props.class);
-		},
-		get children() {
-			return props.children;
 		}
 	});
 }
@@ -2591,55 +2644,6 @@ function Select(props) {
 	});
 }
 //#endregion
-//#region src/components/sheet.tsx
-const geometry = (side) => match(side).with("left", () => ({
-	backdrop: {
-		"align-items": "stretch",
-		"justify-content": "flex-start"
-	},
-	content: "h-full w-[400px] max-w-full border-r"
-})).with("right", () => ({
-	backdrop: {
-		"align-items": "stretch",
-		"justify-content": "flex-end"
-	},
-	content: "h-full w-[400px] max-w-full border-l"
-})).with("top", () => ({
-	backdrop: {
-		"align-items": "flex-start",
-		"justify-content": "stretch"
-	},
-	content: "w-full max-h-[80%] border-b"
-})).with("bottom", () => ({
-	backdrop: {
-		"align-items": "flex-end",
-		"justify-content": "stretch"
-	},
-	content: "w-full max-h-[80%] border-t"
-})).exhaustive();
-/** A modal edge panel that shares native focus isolation with Dialog. */
-function Sheet(props) {
-	const theme = useComponentsTheme();
-	const placement = () => geometry(props.side ?? "right");
-	return createComponent$1(Modal, mergeProps(props, {
-		get backdropStyle() {
-			return {
-				"background-color": rgba(51),
-				...placement().backdrop,
-				...props.backdropStyle
-			};
-		},
-		get contentClass() {
-			return join("min-w-0 min-h-0 flex flex-col gap-4 border-subtle bg-surface p-5", placement().content, props.contentClass);
-		},
-		get contentShadows() {
-			return memo(() => {
-				return props.contentShadows === void 0;
-			})() ? componentsElevation(theme(), "modal") : props.contentShadows;
-		}
-	}));
-}
-//#endregion
 //#region src/components/selection.tsx
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 function Checkbox(props) {
@@ -2925,6 +2929,55 @@ function ToggleGroupItem(props) {
 			return props.children;
 		}
 	});
+}
+//#endregion
+//#region src/components/sheet.tsx
+const geometry = (side) => match(side).with("left", () => ({
+	backdrop: {
+		"align-items": "stretch",
+		"justify-content": "flex-start"
+	},
+	content: "h-full w-[400px] max-w-full border-r"
+})).with("right", () => ({
+	backdrop: {
+		"align-items": "stretch",
+		"justify-content": "flex-end"
+	},
+	content: "h-full w-[400px] max-w-full border-l"
+})).with("top", () => ({
+	backdrop: {
+		"align-items": "flex-start",
+		"justify-content": "stretch"
+	},
+	content: "w-full max-h-[80%] border-b"
+})).with("bottom", () => ({
+	backdrop: {
+		"align-items": "flex-end",
+		"justify-content": "stretch"
+	},
+	content: "w-full max-h-[80%] border-t"
+})).exhaustive();
+/** A modal edge panel that shares native focus isolation with Dialog. */
+function Sheet(props) {
+	const theme = useComponentsTheme();
+	const placement = () => geometry(props.side ?? "right");
+	return createComponent$1(Modal, mergeProps(props, {
+		get backdropStyle() {
+			return {
+				"background-color": rgba(51),
+				...placement().backdrop,
+				...props.backdropStyle
+			};
+		},
+		get contentClass() {
+			return join("min-w-0 min-h-0 flex flex-col gap-4 border-subtle bg-surface p-5", placement().content, props.contentClass);
+		},
+		get contentShadows() {
+			return memo(() => {
+				return props.contentShadows === void 0;
+			})() ? componentsElevation(theme(), "modal") : props.contentShadows;
+		}
+	}));
 }
 //#endregion
 //#region src/components/slider.tsx
@@ -3292,99 +3345,6 @@ function TitleBarDragRegion(props) {
 	}));
 }
 //#endregion
-//#region src/components/tooltip-state.ts
-/** Owns tooltip timers independently from rendering and positioning. */
-function createTooltipDelayController(options) {
-	let timer;
-	const cancel = () => {
-		if (timer !== void 0) clearTimeout(timer);
-		timer = void 0;
-	};
-	const schedule = (open, delay) => {
-		cancel();
-		if (delay <= 0) {
-			options.setOpen(open);
-			return;
-		}
-		timer = setTimeout(() => {
-			timer = void 0;
-			options.setOpen(open);
-		}, delay);
-	};
-	return {
-		scheduleOpen: () => schedule(true, options.openDelay()),
-		scheduleClose: () => schedule(false, options.closeDelay()),
-		openNow: () => {
-			cancel();
-			options.setOpen(true);
-		},
-		closeNow: () => {
-			cancel();
-			options.setOpen(false);
-		},
-		dispose: cancel
-	};
-}
-//#endregion
-//#region src/components/tooltip.tsx
-let tooltipId = 0;
-/** A delayed, non-interactive label for pointer and keyboard focus targets. */
-function Tooltip(props) {
-	const id = `wabou-tooltip-${++tooltipId}`;
-	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
-	const open = () => !props.disabled && (props.open ?? uncontrolledOpen());
-	const setOpen = (next) => {
-		if (props.disabled) next = false;
-		if (props.open === void 0) setUncontrolledOpen(next);
-		props.onOpenChange?.(next);
-	};
-	const delay = createTooltipDelayController({
-		openDelay: () => props.openDelay ?? 500,
-		closeDelay: () => props.closeDelay ?? 80,
-		setOpen
-	});
-	onCleanup(delay.dispose);
-	return createComponent$1(Popover, {
-		get open() {
-			return open();
-		},
-		onOpenChange: (next) => !next && delay.closeNow(),
-		get placement() {
-			return props.placement ?? "top";
-		},
-		get offset() {
-			return props.offset ?? 8;
-		},
-		contentRole: "presentation",
-		popupRole: "tooltip",
-		closeOnEscape: true,
-		restoreFocus: false,
-		get contentClass() {
-			return join("max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md", props.contentClass);
-		},
-		trigger: (popover) => props.trigger({
-			ref: popover.ref,
-			onPointerEnter: delay.scheduleOpen,
-			onPointerLeave: delay.scheduleClose,
-			onFocus: delay.openNow,
-			onBlur: delay.closeNow,
-			onKeyDown: (event) => {
-				if (event.key === "Escape") delay.closeNow();
-			}
-		}),
-		get children() {
-			return createComponent$1(Text, {
-				id,
-				role: "tooltip",
-				class: "whitespace-normal text-xs text-primary",
-				get children() {
-					return props.children;
-				}
-			});
-		}
-	});
-}
-//#endregion
 //#region src/components/toast.tsx
 const treatment = (variant) => match(variant).with("default", () => ({
 	icon: info,
@@ -3529,6 +3489,99 @@ function Toaster(props) {
 		},
 		get itemClass() {
 			return join("w-96 max-w-full", props.itemClass);
+		}
+	});
+}
+//#endregion
+//#region src/components/tooltip-state.ts
+/** Owns tooltip timers independently from rendering and positioning. */
+function createTooltipDelayController(options) {
+	let timer;
+	const cancel = () => {
+		if (timer !== void 0) clearTimeout(timer);
+		timer = void 0;
+	};
+	const schedule = (open, delay) => {
+		cancel();
+		if (delay <= 0) {
+			options.setOpen(open);
+			return;
+		}
+		timer = setTimeout(() => {
+			timer = void 0;
+			options.setOpen(open);
+		}, delay);
+	};
+	return {
+		scheduleOpen: () => schedule(true, options.openDelay()),
+		scheduleClose: () => schedule(false, options.closeDelay()),
+		openNow: () => {
+			cancel();
+			options.setOpen(true);
+		},
+		closeNow: () => {
+			cancel();
+			options.setOpen(false);
+		},
+		dispose: cancel
+	};
+}
+//#endregion
+//#region src/components/tooltip.tsx
+let tooltipId = 0;
+/** A delayed, non-interactive label for pointer and keyboard focus targets. */
+function Tooltip(props) {
+	const id = `wabou-tooltip-${++tooltipId}`;
+	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
+	const open = () => !props.disabled && (props.open ?? uncontrolledOpen());
+	const setOpen = (next) => {
+		if (props.disabled) next = false;
+		if (props.open === void 0) setUncontrolledOpen(next);
+		props.onOpenChange?.(next);
+	};
+	const delay = createTooltipDelayController({
+		openDelay: () => props.openDelay ?? 500,
+		closeDelay: () => props.closeDelay ?? 80,
+		setOpen
+	});
+	onCleanup(delay.dispose);
+	return createComponent$1(Popover, {
+		get open() {
+			return open();
+		},
+		onOpenChange: (next) => !next && delay.closeNow(),
+		get placement() {
+			return props.placement ?? "top";
+		},
+		get offset() {
+			return props.offset ?? 8;
+		},
+		contentRole: "presentation",
+		popupRole: "tooltip",
+		closeOnEscape: true,
+		restoreFocus: false,
+		get contentClass() {
+			return join("max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md", props.contentClass);
+		},
+		trigger: (popover) => props.trigger({
+			ref: popover.ref,
+			onPointerEnter: delay.scheduleOpen,
+			onPointerLeave: delay.scheduleClose,
+			onFocus: delay.openNow,
+			onBlur: delay.closeNow,
+			onKeyDown: (event) => {
+				if (event.key === "Escape") delay.closeNow();
+			}
+		}),
+		get children() {
+			return createComponent$1(Text, {
+				id,
+				role: "tooltip",
+				class: "whitespace-normal text-xs text-primary",
+				get children() {
+					return props.children;
+				}
+			});
 		}
 	});
 }
@@ -3984,6 +4037,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

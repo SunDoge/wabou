@@ -25,12 +25,13 @@ import { join } from "./class-names";
 import { normalizePercentage } from "./range";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
+export * from "./alert-dialog";
 export * from "./avatar";
 export * from "./button";
-export * from "./command";
 export * from "./combobox";
-export * from "./context-menu";
+export * from "./command";
 export * from "./config-editor";
+export * from "./context-menu";
 export * from "./date-picker";
 export * from "./dialog";
 export * from "./directory-picker";
@@ -43,7 +44,6 @@ export * from "./layout";
 export * from "./navigation";
 export * from "./page";
 export * from "./select";
-export * from "./sheet";
 export {
   Checkbox,
   type CheckboxProps,
@@ -58,6 +58,7 @@ export {
   type ToggleGroupProps,
   type ToggleProps,
 } from "./selection";
+export * from "./sheet";
 export * from "./slider";
 export {
   Tabs,
@@ -76,8 +77,8 @@ export {
   useComponentsTheme,
 } from "./theme";
 export * from "./title-bar";
-export * from "./tooltip";
 export * from "./toast";
+export * from "./tooltip";
 
 export interface BadgeProps {
   children?: JSX.Element;

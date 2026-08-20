@@ -55,6 +55,7 @@ fn accesskit_node(
         SemanticRole::RadioGroup => Role::RadioGroup,
         SemanticRole::Link => Role::Link,
         SemanticRole::Dialog => Role::Dialog,
+        SemanticRole::AlertDialog => Role::AlertDialog,
         SemanticRole::Alert => Role::Alert,
         SemanticRole::Status => Role::Status,
         SemanticRole::Tooltip => Role::Tooltip,
@@ -552,6 +553,8 @@ mod tests {
     fn structural_roles_reach_accesskit_without_becoming_generic_containers() {
         let roles = [
             (SemanticRole::Group, Role::Group),
+            (SemanticRole::Dialog, Role::Dialog),
+            (SemanticRole::AlertDialog, Role::AlertDialog),
             (SemanticRole::Image, Role::Image),
             (SemanticRole::RadioGroup, Role::RadioGroup),
             (SemanticRole::Menu, Role::Menu),

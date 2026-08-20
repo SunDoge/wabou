@@ -60,6 +60,7 @@ type ComponentId =
   | "kbd"
   | "separator"
   | "dialog"
+  | "alert-dialog"
   | "sheet"
   | "toast"
   | "tooltip"
@@ -146,6 +147,7 @@ const groups: Array<{
     items: [
       { id: "alert", name: "Alert" },
       { id: "dialog", name: "Dialog" },
+      { id: "alert-dialog", name: "Alert dialog" },
       { id: "tooltip", name: "Tooltip" },
       { id: "empty", name: "Empty" },
       { id: "accordion", name: "Accordion" },
@@ -201,6 +203,8 @@ const descriptions: Record<ComponentId, string> = {
   kbd: "Displays keyboard input and shortcut chords.",
   separator: "Visually separates content in a list or layout.",
   dialog: "A modal surface with native focus isolation and dismissal behavior.",
+  "alert-dialog":
+    "Interrupts a workflow until the user explicitly confirms or cancels.",
   sheet: "A modal panel attached to a viewport edge.",
   toast: "Shows non-blocking feedback with queueing, actions and timeouts.",
   tooltip:
@@ -265,6 +269,7 @@ import { I18nPage } from "./pages/i18n";
 import { OverviewPage } from "./pages/overview";
 import {
   AccordionPage,
+  AlertDialogPage,
   AvatarPage,
   BreadcrumbPageDemo,
   ButtonGroupPage,
@@ -562,6 +567,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "dialog"}>
                     <DialogPage />
+                  </Match>
+                  <Match when={selected() === "alert-dialog"}>
+                    <AlertDialogPage />
                   </Match>
                   <Match when={selected() === "sheet"}>
                     <SheetPage />

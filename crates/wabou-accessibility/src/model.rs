@@ -57,6 +57,8 @@ semantic_roles! {
     Link => "link",
     /// Dialog surface.
     Dialog => "dialog",
+    /// Modal alert that requires an explicit user response.
+    AlertDialog => "alertdialog",
     /// Assertive alert message.
     Alert => "alert",
     /// Non-assertive status message.
@@ -372,7 +374,10 @@ mod tests {
             assert_eq!(SemanticRole::from_name(role.as_str()), Some(*role));
         }
         assert_eq!(SemanticRole::from_name("generic"), None);
-        assert_eq!(SemanticRole::from_name("alertdialog"), None);
+        assert_eq!(
+            SemanticRole::from_name("alertdialog"),
+            Some(SemanticRole::AlertDialog)
+        );
     }
 
     #[test]

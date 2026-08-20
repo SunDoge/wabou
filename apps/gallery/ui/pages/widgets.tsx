@@ -3,6 +3,13 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Avatar,
   AvatarGroup,
   AvatarGroupCount,
@@ -101,6 +108,46 @@ export function DialogPage() {
           </>
         )}
       </Dialog>
+    </Preview>
+  );
+}
+
+export function AlertDialogPage() {
+  const [result, setResult] = createSignal("No decision yet");
+  return (
+    <Preview title="Explicit confirmation">
+      <View class="flex flex-col items-start gap-4">
+        <AlertDialog
+          aria-label="Delete deployment"
+          trigger={(trigger) => (
+            <Button variant="destructive" {...trigger}>
+              Delete deployment
+            </Button>
+          )}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this deployment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Its logs and generated artifacts will be permanently removed. This
+              action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setResult("Cancelled")}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => setResult("Deployment deleted")}
+            >
+              Delete deployment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialog>
+        <Text role="status" class="text-sm text-secondary">
+          {result()}
+        </Text>
+      </View>
     </Preview>
   );
 }

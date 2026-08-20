@@ -101,6 +101,7 @@ fn infer_descendant_labels(nodes: &mut [SemanticNode]) {
                     SemanticRole::Button
                         | SemanticRole::Link
                         | SemanticRole::Dialog
+                        | SemanticRole::AlertDialog
                         | SemanticRole::ComboBox
                         | SemanticRole::Option
                         | SemanticRole::MenuItem
@@ -494,7 +495,10 @@ mod tests {
             assert_eq!(SemanticRole::from_name(name), Some(expected));
         }
         assert_eq!(SemanticRole::from_name("unknown"), None);
-        assert_eq!(SemanticRole::from_name("alertdialog"), None);
+        assert_eq!(
+            SemanticRole::from_name("alertdialog"),
+            Some(SemanticRole::AlertDialog)
+        );
     }
 
     #[test]

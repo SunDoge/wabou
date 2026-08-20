@@ -79,6 +79,7 @@ export type WabouNativeTag = keyof WabouNativeElements & string;
 
 export type WabouSemanticRole =
   | "alert"
+  | "alertdialog"
   | "button"
   | "cell"
   | "checkbox"

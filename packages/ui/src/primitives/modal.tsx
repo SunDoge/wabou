@@ -48,6 +48,8 @@ export interface ModalProps {
   onOpenChange?: (open: boolean, reason: ModalOpenChangeReason) => void;
   /** Required until the native semantic tree resolves aria-labelledby. */
   "aria-label": string;
+  /** Use `alertdialog` for an interruption that requires an explicit choice. */
+  contentRole?: "dialog" | "alertdialog";
   backdropClass?: string;
   backdropStyle?: WabouStyle;
   contentClass?: string;
@@ -166,7 +168,9 @@ export function Modal(props: ModalProps): JSX.Element {
               get ref() {
                 return props.contentRef;
               },
-              role: "dialog",
+              get role() {
+                return props.contentRole ?? "dialog";
+              },
               "aria-modal": "true",
               get "aria-label"() {
                 return props["aria-label"];
