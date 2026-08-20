@@ -11,6 +11,7 @@ import {
   pngDimensions,
   rejectedStyleDiagnostics,
   selectCaptureCases,
+  semanticRelationshipDiagnostics,
   semanticStateDiagnostics,
   textContainmentDiagnostics,
   validateCaptureArtifacts,
@@ -117,6 +118,7 @@ describe("authored capture discovery", () => {
         checkStyleDiagnostics: true,
         checkAccessibleNames: true,
         checkSemanticStates: true,
+        checkSemanticRelationships: true,
         checkInteractionContracts: true,
       },
       {
@@ -132,6 +134,7 @@ describe("authored capture discovery", () => {
         checkStyleDiagnostics: true,
         checkAccessibleNames: true,
         checkSemanticStates: true,
+        checkSemanticRelationships: true,
         checkInteractionContracts: true,
       },
     ]);
@@ -161,6 +164,7 @@ describe("authored capture discovery", () => {
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
       checkSemanticStates: true,
+      checkSemanticRelationships: true,
       checkInteractionContracts: true,
     };
 
@@ -183,6 +187,7 @@ describe("authored capture discovery", () => {
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
       checkSemanticStates: true,
+      checkSemanticRelationships: true,
       checkInteractionContracts: true,
     };
     expect(
@@ -408,6 +413,66 @@ describe("authored capture discovery", () => {
     expect(semanticStateDiagnostics(snapshot)).toEqual([]);
   });
 
+  test("requires unique and live semantic id references", () => {
+    const node = (
+      lo: number,
+      attrs: Array<[string, string]>,
+      parentId: { lo: number; hi: number } | null = null,
+    ) => ({
+      id: { lo, hi: 1 },
+      parentId,
+      tag: "view",
+      text: null,
+      classes: [],
+      styleDiagnostics: [],
+      attrs,
+      listeners: [],
+      widget: null,
+      focusable: false,
+      focusOrder: null,
+      rect: { x: 0, y: 0, width: 40, height: 20 },
+      contentRect: { x: 0, y: 0, width: 40, height: 20 },
+      computed: { overflowX: "Visible", overflowY: "Visible" },
+    });
+    const owner = node(1, [
+      ["aria-controls", "items missing items"],
+      ["aria-activedescendant", "active extra"],
+    ]);
+    const items = node(2, [["id", "items"]]);
+    const duplicate = node(3, [["id", "items"]]);
+    const snapshot = {
+      status: {
+        viewportWidth: 100,
+        viewportHeight: 100,
+        deviceScale: 1,
+        nodeCount: 3,
+      },
+      nodes: [owner, items, duplicate],
+    };
+    const diagnostics = semanticRelationshipDiagnostics(snapshot);
+    expect(diagnostics.some((item) => item.includes("duplicates"))).toBe(true);
+    expect(diagnostics.some((item) => item.includes("missing id"))).toBe(true);
+    expect(diagnostics.some((item) => item.includes("repeats"))).toBe(true);
+    expect(diagnostics.some((item) => item.includes("exactly one"))).toBe(true);
+
+    owner.attrs = [
+      ["aria-controls", "items"],
+      ["aria-activedescendant", "active"],
+    ];
+    duplicate.attrs = [["id", "active"]];
+    expect(semanticRelationshipDiagnostics(snapshot)).toEqual([]);
+
+    owner.attrs = [
+      ["id", "owner"],
+      ["aria-controls", "owner"],
+    ];
+    expect(semanticRelationshipDiagnostics(snapshot)[0]).toContain(
+      "references itself",
+    );
+    owner.attrs.push(["aria-hidden", "true"]);
+    expect(semanticRelationshipDiagnostics(snapshot)).toEqual([]);
+  });
+
   test("requires authored focus policy and an action for interactive controls", () => {
     const control = {
       id: { lo: 1, hi: 1 },
@@ -468,6 +533,7 @@ describe("authored capture discovery", () => {
       checkStyleDiagnostics: true,
       checkAccessibleNames: true,
       checkSemanticStates: true,
+      checkSemanticRelationships: true,
       checkInteractionContracts: true,
     };
     const node = (lo: number, parentId: { lo: number; hi: number } | null) => ({
@@ -608,6 +674,12 @@ describe("authored capture discovery", () => {
       "invalid semantic states",
     );
     capture.checkSemanticStates = false;
+    snapshot.nodes[0].attrs.push(["aria-controls", "missing"]);
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    await expect(validateCaptureArtifacts(capture, root)).rejects.toThrow(
+      "invalid semantic relationships",
+    );
+    capture.checkSemanticRelationships = false;
     snapshot.nodes[0].listeners = [];
     snapshot.nodes[0].focusable = false;
     snapshot.nodes[0].focusOrder = null;

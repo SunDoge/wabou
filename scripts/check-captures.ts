@@ -12,6 +12,7 @@ interface CaptureViewport {
   checkStyleDiagnostics: boolean;
   checkAccessibleNames: boolean;
   checkSemanticStates: boolean;
+  checkSemanticRelationships: boolean;
   checkInteractionContracts: boolean;
 }
 
@@ -112,6 +113,7 @@ const fallbackViewport: CaptureViewport = {
   checkStyleDiagnostics: true,
   checkAccessibleNames: true,
   checkSemanticStates: true,
+  checkSemanticRelationships: true,
   checkInteractionContracts: true,
 };
 const viewportKeys = new Set([
@@ -123,6 +125,7 @@ const viewportKeys = new Set([
   "checkStyleDiagnostics",
   "checkAccessibleNames",
   "checkSemanticStates",
+  "checkSemanticRelationships",
   "checkInteractionContracts",
 ]);
 
@@ -213,6 +216,12 @@ function parseViewport(
       throw new Error(`${name}.checkSemanticStates must be a boolean`);
     }
     viewport.checkSemanticStates = record.checkSemanticStates;
+  }
+  if (record.checkSemanticRelationships !== undefined) {
+    if (typeof record.checkSemanticRelationships !== "boolean") {
+      throw new Error(`${name}.checkSemanticRelationships must be a boolean`);
+    }
+    viewport.checkSemanticRelationships = record.checkSemanticRelationships;
   }
   if (record.checkInteractionContracts !== undefined) {
     if (typeof record.checkInteractionContracts !== "boolean") {
@@ -763,6 +772,68 @@ export function semanticStateDiagnostics(snapshot: CaptureSnapshot): string[] {
   return diagnostics;
 }
 
+const semanticIdReferences = ["aria-controls", "aria-activedescendant"];
+
+export function semanticRelationshipDiagnostics(
+  snapshot: CaptureSnapshot,
+): string[] {
+  const diagnostics: string[] = [];
+  const ids = new Map<string, CaptureSnapshotNode>();
+  for (const node of snapshot.nodes) {
+    const id = nodeAttrs(node).get("id")?.trim();
+    if (!id) continue;
+    const previous = ids.get(id);
+    if (previous) {
+      diagnostics.push(
+        `${node.tag} ${nodeKey(node.id)} duplicates semantic id ${JSON.stringify(id)} from ${previous.tag} ${nodeKey(previous.id)}`,
+      );
+    } else {
+      ids.set(id, node);
+    }
+  }
+  for (const node of snapshot.nodes) {
+    const attrs = nodeAttrs(node);
+    if (attrs.get("aria-hidden") === "true") continue;
+    for (const attribute of semanticIdReferences) {
+      const raw = attrs.get(attribute);
+      if (raw === undefined) continue;
+      const references = raw.split(/\s+/u).filter(Boolean);
+      if (references.length === 0) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} has an empty ${attribute}`,
+        );
+        continue;
+      }
+      if (attribute === "aria-activedescendant" && references.length !== 1) {
+        diagnostics.push(
+          `${node.tag} ${nodeKey(node.id)} ${attribute} must reference exactly one id`,
+        );
+      }
+      const seen = new Set<string>();
+      for (const reference of references) {
+        if (seen.has(reference)) {
+          diagnostics.push(
+            `${node.tag} ${nodeKey(node.id)} ${attribute} repeats ${JSON.stringify(reference)}`,
+          );
+          continue;
+        }
+        seen.add(reference);
+        const target = ids.get(reference);
+        if (!target) {
+          diagnostics.push(
+            `${node.tag} ${nodeKey(node.id)} ${attribute} references missing id ${JSON.stringify(reference)}`,
+          );
+        } else if (target.id.lo === node.id.lo && target.id.hi === node.id.hi) {
+          diagnostics.push(
+            `${node.tag} ${nodeKey(node.id)} ${attribute} references itself`,
+          );
+        }
+      }
+    }
+  }
+  return diagnostics;
+}
+
 const interactiveRoles = new Set([
   "button",
   "checkbox",
@@ -885,6 +956,14 @@ export async function validateCaptureArtifacts(
     if (diagnostics.length > 0) {
       throw new Error(
         `${relative(workspaceRoot, snapshot)} has invalid semantic states:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
+      );
+    }
+  }
+  if (capture.checkSemanticRelationships) {
+    const diagnostics = semanticRelationshipDiagnostics(parsed);
+    if (diagnostics.length > 0) {
+      throw new Error(
+        `${relative(workspaceRoot, snapshot)} has invalid semantic relationships:\n${diagnostics.map((item) => `  - ${item}`).join("\n")}`,
       );
     }
   }
