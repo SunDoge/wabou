@@ -80,6 +80,24 @@ impl Applier {
             let (dispatched, _) = self.dispatch_cancellable_numeric(target, event::CLICK, data);
             changed |= dispatched;
         }
+        if let Some(target) = target
+            && button == PointerButton::Secondary
+            && Some(target) == self.interaction.input.pointer_down_target
+        {
+            let mut data = [0.0; event_data::LEN];
+            data[event_data::CLIENT_X as usize] = x;
+            data[event_data::CLIENT_Y as usize] = y;
+            let local = self.interaction.input.local_position(target, x, y);
+            data[event_data::OFFSET_X as usize] = local.0;
+            data[event_data::OFFSET_Y as usize] = local.1;
+            data[event_data::BUTTON as usize] = Self::web_button(button) as f64;
+            data[event_data::BUTTONS as usize] =
+                Self::web_buttons(self.interaction.input.pointer_buttons) as f64;
+            data[event_data::MODS as usize] = pointer.modifiers.bits() as f64;
+            let (dispatched, _) =
+                self.dispatch_cancellable_numeric(target, event::CONTEXTMENU, data);
+            changed |= dispatched;
+        }
         self.interaction.input.pointer_down_target.take();
         self.interaction.input.pointer_down_position = None;
         self.interaction.input.pointer_dragged = false;

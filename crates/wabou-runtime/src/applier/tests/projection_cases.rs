@@ -329,6 +329,35 @@ fn pointer_sequence_hit_tests_and_synthesizes_one_click() {
 }
 
 #[test]
+fn secondary_pointer_sequence_dispatches_context_menu_without_click() {
+    let mut applier = interactive_applier();
+    applier.handle_event(pointer_with_button(
+        PointerPhase::Down,
+        20.0,
+        20.0,
+        2,
+        PointerButton::Secondary,
+    ));
+    applier.handle_event(pointer_with_button(
+        PointerPhase::Up,
+        20.0,
+        20.0,
+        0,
+        PointerButton::Secondary,
+    ));
+
+    let codes = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<Vec<u8>, _>("globalThis.dispatched.map((x) => x[1])"))
+        .expect("read dispatched events");
+    assert_eq!(
+        codes,
+        vec![event::POINTERDOWN, event::POINTERUP, event::CONTEXTMENU]
+    );
+}
+
+#[test]
 fn dragging_inside_pressed_target_does_not_synthesize_a_click() {
     let mut applier = interactive_applier();
     applier.handle_event(pointer(PointerPhase::Down, 10.0, 20.0, 1));

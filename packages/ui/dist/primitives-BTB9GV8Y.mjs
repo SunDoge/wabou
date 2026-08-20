@@ -1526,6 +1526,26 @@ function computeHostFloatingPosition(reference, floating, host, options = {}) {
 		}
 	});
 }
+/** Position a native floating handle from an explicit viewport coordinate. */
+function computeHostPointFloatingPosition(point, floating, host, options = {}) {
+	if (![point.x, point.y].every(Number.isFinite)) throw new RangeError("floating point anchor must be finite");
+	const snapshot = host.layout.snapshot([floating]);
+	const targetId = "id" in floating ? floating.id : floating;
+	const node = snapshot.nodes.find((candidate) => formatNodeKey(candidate.id) === formatNodeKey(targetId));
+	if (!node) throw new LayoutTargetUnavailableError(`Layout target ${targetId.lo}v${targetId.hi} is not present in completed revision ${snapshot.revision}`);
+	return computeFloatingPosition(point, floating, {
+		...options,
+		platform: {
+			getRect: (target) => target === point ? {
+				x: point.x,
+				y: point.y,
+				width: 0,
+				height: 0
+			} : node.rect,
+			getClippingRect: () => snapshot.viewport
+		}
+	});
+}
 //#endregion
 //#region src/primitives/popover.tsx
 /** A root-layer floating panel positioned from native layout snapshots. */
@@ -1558,17 +1578,25 @@ function Popover(props) {
 		restoreFocus: () => props.restoreFocus ?? true
 	});
 	const updatePosition = async () => {
-		if (!open() || !anchor || !content) return;
+		const point = props.anchorPoint?.();
+		const reference = anchor;
+		if (!open() || !point && !reference || !content) return;
 		const request = ++positionRequest;
 		try {
-			const result = await computeHostFloatingPosition(anchor, content, host, {
+			const options = {
 				placement: props.placement ?? "bottom-start",
 				middleware: [
 					offset(props.offset ?? 6),
 					flip(),
 					shift({ padding: 8 })
 				]
-			});
+			};
+			let result;
+			if (point) result = await computeHostPointFloatingPosition(point, content, host, options);
+			else {
+				if (!reference) return;
+				result = await computeHostFloatingPosition(reference, content, host, options);
+			}
 			if (!open() || request !== positionRequest) return;
 			setPosition({
 				x: result.x,
@@ -2013,4 +2041,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createTransition as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-BkH0U8N7.mjs.map
+//# sourceMappingURL=primitives-BTB9GV8Y.mjs.map

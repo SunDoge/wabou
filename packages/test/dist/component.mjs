@@ -242,7 +242,7 @@ function renderComponent(render, options = {}) {
 	const ensureEnabled = (node, action) => {
 		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
 	};
-	const pointerPayload = (position, buttons) => {
+	const pointerPayload = (position, buttons, button = 0) => {
 		const offsetX = position.offsetX ?? 0;
 		const offsetY = position.offsetY ?? 0;
 		if (!Number.isFinite(offsetX) || !Number.isFinite(offsetY)) throw new RangeError("component pointer offsets must be finite");
@@ -251,7 +251,7 @@ function renderComponent(render, options = {}) {
 			clientY: offsetY,
 			offsetX,
 			offsetY,
-			button: 0,
+			button,
 			buttons,
 			mods: 0
 		});
@@ -286,6 +286,10 @@ function renderComponent(render, options = {}) {
 			commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
 			commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
 			commitEvent(node, EVENT_CODE.click);
+		},
+		contextMenu: (position = {}) => {
+			ensureEnabled(node, "open context menu for");
+			commitEvent(node, EVENT_CODE.contextmenu, pointerPayload(position, 0, 2));
 		},
 		press: (pressedKey) => {
 			ensureEnabled(node, "press");

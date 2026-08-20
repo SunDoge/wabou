@@ -1,9 +1,10 @@
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
-import { createSignal, For, type JSX } from "solid-js";
+import { createEffect, createSignal, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { Popover, Text, View } from "../primitives";
 import { createTypeahead } from "../primitives/interactions";
+import type { PointAnchor } from "../primitives/positioner";
 import { join } from "./class-names";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -35,6 +36,8 @@ export interface DropdownMenuProps {
   onAction?: (id: string) => void;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
+  /** Optional viewport point used by context-menu style triggers. */
+  anchorPoint?: () => PointAnchor | undefined;
 }
 
 /** A compact action menu with native focus, typeahead, and overlay routing. */
@@ -48,18 +51,25 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
   const typeahead = createTypeahead<MenuStateItem>();
   let trigger: Handle | undefined;
   let content: Handle | undefined;
+  let openEdge: "first" | "last" = "first";
+  let wasOpen = false;
 
   const setOpen = (next: boolean, edge: "first" | "last" = "first") => {
-    if (next) setHighlighted(moveMenuHighlight(props.items, undefined, edge));
-    else {
-      setHighlighted(undefined);
-      typeahead.reset();
-    }
+    openEdge = edge;
     if (props.open === undefined) setUncontrolledOpen(next);
     props.onOpenChange?.(next);
-    if (next) requestAnimationFrame(() => content?.focus());
-    else requestAnimationFrame(() => trigger?.focus());
   };
+  createEffect(open, (isOpen) => {
+    if (isOpen && !wasOpen) {
+      setHighlighted(moveMenuHighlight(props.items, undefined, openEdge));
+      requestAnimationFrame(() => content?.focus());
+    } else if (!isOpen && wasOpen) {
+      setHighlighted(undefined);
+      typeahead.reset();
+      requestAnimationFrame(() => trigger?.focus());
+    }
+    wasOpen = isOpen;
+  });
   const select = (id: string | undefined) => {
     const item = props.items.find((candidate) => candidate.id === id);
     if (!item || item.disabled) return false;
@@ -101,6 +111,7 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
       open={open()}
       onOpenChange={(next) => setOpen(next)}
       placement="bottom-end"
+      anchorPoint={props.anchorPoint}
       contentClass={join(
         "w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface",
         props.contentClass,

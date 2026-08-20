@@ -32,6 +32,8 @@ export interface ComponentLocator {
   pointerDown(position?: ComponentPointerPosition): void;
   pointerUp(position?: ComponentPointerPosition): void;
   click(): void;
+  /** Dispatch a secondary-click context-menu event at a deterministic point. */
+  contextMenu(position?: ComponentPointerPosition): void;
   press(key: string): void;
   input(value: string): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
@@ -373,6 +375,7 @@ export function renderComponent(
   const pointerPayload = (
     position: ComponentPointerPosition,
     buttons: number,
+    button = 0,
   ): string => {
     const offsetX = position.offsetX ?? 0;
     const offsetY = position.offsetY ?? 0;
@@ -384,7 +387,7 @@ export function renderComponent(
       clientY: offsetY,
       offsetX,
       offsetY,
-      button: 0,
+      button,
       buttons,
       mods: 0,
     });
@@ -419,6 +422,10 @@ export function renderComponent(
       commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
       commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
       commitEvent(node, EVENT_CODE.click);
+    },
+    contextMenu: (position = {}) => {
+      ensureEnabled(node, "open context menu for");
+      commitEvent(node, EVENT_CODE.contextmenu, pointerPayload(position, 0, 2));
     },
     press: (pressedKey) => {
       ensureEnabled(node, "press");

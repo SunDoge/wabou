@@ -15,10 +15,12 @@ import {
 } from "./overlay-layer";
 import {
   computeHostFloatingPosition,
+  computeHostPointFloatingPosition,
   flip,
   LayoutTargetUnavailableError,
   offset,
   type Placement,
+  type PointAnchor,
   shift,
 } from "./positioner";
 import { View, type WabouStyle } from "./view";
@@ -46,6 +48,8 @@ interface PopoverBaseProps {
   ) => void;
   placement?: Placement;
   offset?: number;
+  /** Positions from a viewport point instead of the trigger's layout box. */
+  anchorPoint?: () => PointAnchor | undefined;
   contentClass?: string;
   contentStyle?: WabouStyle;
   contentShadows?: readonly Shadow[] | null;
@@ -105,13 +109,32 @@ export function Popover(props: PopoverProps): JSX.Element {
   });
 
   const updatePosition = async () => {
-    if (!open() || !anchor || !content) return;
+    const point = props.anchorPoint?.();
+    const reference = anchor;
+    if (!open() || (!point && !reference) || !content) return;
     const request = ++positionRequest;
     try {
-      const result = await computeHostFloatingPosition(anchor, content, host, {
+      const options = {
         placement: props.placement ?? "bottom-start",
         middleware: [offset(props.offset ?? 6), flip(), shift({ padding: 8 })],
-      });
+      };
+      let result: Awaited<ReturnType<typeof computeHostFloatingPosition>>;
+      if (point) {
+        result = await computeHostPointFloatingPosition(
+          point,
+          content,
+          host,
+          options,
+        );
+      } else {
+        if (!reference) return;
+        result = await computeHostFloatingPosition(
+          reference,
+          content,
+          host,
+          options,
+        );
+      }
       if (!open() || request !== positionRequest) return;
       setPosition({ x: result.x, y: result.y });
       setPositioned(true);

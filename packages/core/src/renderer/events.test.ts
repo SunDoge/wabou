@@ -159,6 +159,27 @@ test("host click is dispatched exactly once after pointerup", () => {
   expect(clicks).toBe(1);
 });
 
+test("context-menu listeners receive compact pointer coordinates", () => {
+  writer.flush();
+  const target = createElement("view");
+  let received:
+    | { clientX: number; clientY: number; button: number }
+    | undefined;
+  setProp(
+    target,
+    "onContextMenu",
+    (event: { clientX: number; clientY: number; button: number }) => {
+      received = event;
+    },
+    undefined,
+  );
+
+  dispatchEvent(target.id, EVENT_CODE.contextmenu, "", [42, 24, 2, 3, 2, 0, 0]);
+
+  expect(received).toMatchObject({ clientX: 42, clientY: 24, button: 2 });
+  writer.flush();
+});
+
 test("event handler failures retain the event context and JavaScript stack", () => {
   const button = createElement("button");
   const messages: string[] = [];

@@ -22,6 +22,7 @@ import {
   CollapsibleTrigger,
   Combobox,
   Command,
+  ContextMenu,
   DatePicker,
   Dialog,
   DialogDescription,
@@ -267,6 +268,39 @@ export function DropdownMenuPage() {
           trigger={(trigger) => (
             <Button variant="outline" {...trigger}>
               Project actions
+            </Button>
+          )}
+        />
+        <Text role="status" class="text-sm text-secondary">
+          {action()}
+        </Text>
+      </View>
+    </Preview>
+  );
+}
+
+export function ContextMenuPage() {
+  const [action, setAction] = createSignal("Right-click the target");
+  return (
+    <Preview title="Secondary-click actions">
+      <View class="flex flex-col items-start gap-4">
+        <ContextMenu
+          aria-label="Canvas actions"
+          onAction={setAction}
+          items={[
+            { id: "copy", label: "Copy" },
+            { id: "duplicate", label: "Duplicate" },
+            { id: "locked", label: "Locked action", disabled: true },
+            {
+              id: "delete",
+              label: "Delete",
+              destructive: true,
+              separatorBefore: true,
+            },
+          ]}
+          trigger={(trigger) => (
+            <Button variant="outline" class="w-72 h-24" {...trigger}>
+              Right-click this target
             </Button>
           )}
         />

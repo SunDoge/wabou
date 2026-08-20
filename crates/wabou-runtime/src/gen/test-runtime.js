@@ -5987,7 +5987,7 @@
     } else {
       const ed = numericData;
       if (ed) {
-        if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click) {
+        if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click || eventCode === EVENT_CODE.contextmenu) {
           data.clientX = ed[0];
           data.clientY = ed[1];
           data.offsetX = ed[2];

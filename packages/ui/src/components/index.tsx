@@ -29,6 +29,7 @@ export * from "./avatar";
 export * from "./button";
 export * from "./command";
 export * from "./combobox";
+export * from "./context-menu";
 export * from "./config-editor";
 export * from "./date-picker";
 export * from "./dialog";

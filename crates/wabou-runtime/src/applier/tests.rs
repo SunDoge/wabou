@@ -1088,10 +1088,20 @@ fn clipboard_read_completions_route_to_the_requesting_widget() {
 use wabou_shell::{Point, PointerEvent};
 
 fn pointer(phase: PointerPhase, x: f64, y: f64, buttons: u32) -> UiEvent {
+    pointer_with_button(phase, x, y, buttons, PointerButton::Primary)
+}
+
+fn pointer_with_button(
+    phase: PointerPhase,
+    x: f64,
+    y: f64,
+    buttons: u32,
+    button: PointerButton,
+) -> UiEvent {
     UiEvent::Pointer(PointerEvent {
         phase,
         position: Point { x, y },
-        button: Some(PointerButton::Primary),
+        button: Some(button),
         buttons,
         modifiers: Modifiers::default(),
     })
@@ -1177,7 +1187,12 @@ fn interactive_applier() -> Applier {
         parent: NodeKey::new(1, 1),
         child: NodeKey::new(2, 1),
     });
-    for code in [event::POINTERDOWN, event::POINTERUP, event::CLICK] {
+    for code in [
+        event::POINTERDOWN,
+        event::POINTERUP,
+        event::CLICK,
+        event::CONTEXTMENU,
+    ] {
         applier.apply_op(&Op::AddEventListener {
             id: NodeKey::new(2, 1),
             event_type: code,

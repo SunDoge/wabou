@@ -1010,7 +1010,7 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 	else {
 		const ed = numericData;
 		if (ed) {
-			if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click) {
+			if (eventCode === EVENT_CODE.pointerup || eventCode === EVENT_CODE.pointerdown || eventCode === EVENT_CODE.pointermove || eventCode === EVENT_CODE.click || eventCode === EVENT_CODE.contextmenu) {
 				data.clientX = ed[0];
 				data.clientY = ed[1];
 				data.offsetX = ed[2];
@@ -1100,4 +1100,4 @@ function eventName(code) {
 //#endregion
 export { createFps as A, render as C, spread as D, setTransform2D as E, PathBuilder as F, isVectorPath as I, HostProvider as M, defaultHost as N, writer as O, useHost as P, removeNode as S, setProp as T, mergeProps as _, createElement as a, registerRoot as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, Portal as j, VirtualList as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, runSweep as w, releaseOverlayRoot as x, ref as y };
 
-//# sourceMappingURL=renderer-CHVWNlk0.mjs.map
+//# sourceMappingURL=renderer-CWJxXxRW.mjs.map

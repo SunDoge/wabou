@@ -6,14 +6,19 @@ import {
   type Platform,
   type Strategy,
 } from "@floating-ui/core";
+import { formatNodeKey } from "@wabou/core/protocol";
 import type {
   Host,
   LayoutRect as HostLayoutRect,
   LayoutTarget,
 } from "@wabou/core/renderer";
-import { formatNodeKey } from "@wabou/core/protocol";
 
 export type LayoutRect = HostLayoutRect;
+
+export interface PointAnchor {
+  x: number;
+  y: number;
+}
 
 export interface PositionPlatform<T> {
   getRect(target: T): LayoutRect | Promise<LayoutRect>;
@@ -106,6 +111,39 @@ export function computeHostFloatingPosition(
     platform: {
       getRect: (target) => rect(target).rect,
       getClippingRect: (target) => rect(target).clip,
+    },
+  });
+}
+
+/** Position a native floating handle from an explicit viewport coordinate. */
+export function computeHostPointFloatingPosition(
+  point: PointAnchor,
+  floating: LayoutTarget,
+  host: { readonly layout: Pick<Host["layout"], "snapshot"> },
+  options: ComputeHostFloatingPositionOptions = {},
+): Promise<ComputePositionReturn> {
+  if (![point.x, point.y].every(Number.isFinite)) {
+    throw new RangeError("floating point anchor must be finite");
+  }
+  const snapshot = host.layout.snapshot([floating]);
+  const targetId = "id" in floating ? floating.id : floating;
+  const node = snapshot.nodes.find(
+    (candidate) => formatNodeKey(candidate.id) === formatNodeKey(targetId),
+  );
+  if (!node) {
+    throw new LayoutTargetUnavailableError(
+      `Layout target ${targetId.lo}v${targetId.hi} is not present in completed revision ${snapshot.revision}`,
+    );
+  }
+  type Target = PointAnchor | LayoutTarget;
+  return computeFloatingPosition<Target>(point, floating, {
+    ...options,
+    platform: {
+      getRect: (target) =>
+        target === point
+          ? { x: point.x, y: point.y, width: 0, height: 0 }
+          : node.rect,
+      getClippingRect: () => snapshot.viewport,
     },
   });
 }

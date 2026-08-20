@@ -1,4 +1,4 @@
-import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-BkH0U8N7.mjs";
+import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-BTB9GV8Y.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -479,6 +479,514 @@ function Combobox(props) {
 				inputRef: (node) => search = node
 			});
 		}
+	});
+}
+//#endregion
+//#region src/primitives/interactions/collection.ts
+function createCollection(source) {
+	const enabled = () => source().filter((item) => !item.disabled);
+	const adjacent = (id, delta, loop) => {
+		const items = enabled();
+		if (items.length === 0) return void 0;
+		const next = (id === void 0 ? -1 : items.findIndex((item) => item.id === id)) + delta;
+		if (next >= 0 && next < items.length) return items[next];
+		if (!loop) return void 0;
+		return delta === 1 ? items[0] : items[items.length - 1];
+	};
+	return {
+		items: source,
+		find: (id) => source().find((item) => item.id === id),
+		indexOf: (id) => source().findIndex((item) => item.id === id),
+		first: () => enabled()[0],
+		last: () => enabled().at(-1),
+		next: (id, loop = false) => adjacent(id, 1, loop),
+		previous: (id, loop = false) => adjacent(id, -1, loop)
+	};
+}
+//#endregion
+//#region src/primitives/interactions/machine.ts
+function unchanged(state) {
+	return {
+		state,
+		commands: []
+	};
+}
+//#endregion
+//#region src/primitives/interactions/state.ts
+function createControllableState(options) {
+	const [local, setLocal] = createSignal({ value: options.defaultValue });
+	const value = () => options.value() ?? local().value;
+	return {
+		value,
+		set(next) {
+			if (options.disabled?.() || Object.is(value(), next)) return false;
+			if (options.value() === void 0) setLocal({ value: next });
+			options.onChange?.(next);
+			return true;
+		}
+	};
+}
+//#endregion
+//#region src/primitives/interactions/disclosure.ts
+function updateDisclosure(state, event) {
+	return match(event).with({ type: "DISABLED" }, ({ disabled }) => ({
+		state: {
+			...state,
+			disabled,
+			open: disabled ? false : state.open
+		},
+		commands: []
+	})).with({ type: "OPEN" }, () => state.disabled || state.open ? unchanged(state) : {
+		state: {
+			...state,
+			open: true
+		},
+		commands: []
+	}).with({ type: "CLOSE" }, () => !state.open ? unchanged(state) : {
+		state: {
+			...state,
+			open: false
+		},
+		commands: []
+	}).with({ type: "TOGGLE" }, () => state.disabled ? unchanged(state) : {
+		state: {
+			...state,
+			open: !state.open
+		},
+		commands: []
+	}).exhaustive();
+}
+function createDisclosure(options = {}) {
+	const controlled = createControllableState({
+		value: options.open ?? (() => void 0),
+		defaultValue: options.defaultOpen ?? false,
+		disabled: options.disabled,
+		onChange: options.onOpenChange
+	});
+	const set = (type) => {
+		const result = updateDisclosure({
+			open: controlled.value(),
+			disabled: options.disabled?.() ?? false
+		}, { type });
+		return controlled.set(result.state.open);
+	};
+	return {
+		open: controlled.value,
+		disabled: () => options.disabled?.() ?? false,
+		openDisclosure: () => set("OPEN"),
+		close: () => set("CLOSE"),
+		toggle: () => set("TOGGLE")
+	};
+}
+//#endregion
+//#region src/primitives/interactions/roving-focus.ts
+function createRovingFocus(options = {}) {
+	const items = [];
+	const enabled = () => items.filter((item) => !item.disabled?.());
+	return {
+		register(item) {
+			items.push(item);
+			return () => {
+				const index = items.indexOf(item);
+				if (index >= 0) items.splice(index, 1);
+			};
+		},
+		move(current, key) {
+			const orientation = options.orientation?.() ?? "horizontal";
+			const direction = match({
+				orientation,
+				key
+			}).with({ key: "Home" }, () => "first").with({ key: "End" }, () => "last").with(P.union({
+				orientation: "horizontal",
+				key: "ArrowRight"
+			}, {
+				orientation: "vertical",
+				key: "ArrowDown"
+			}), () => "next").with(P.union({
+				orientation: "horizontal",
+				key: "ArrowLeft"
+			}, {
+				orientation: "vertical",
+				key: "ArrowUp"
+			}), () => "previous").otherwise(() => void 0);
+			if (!direction) return false;
+			const candidates = enabled();
+			if (candidates.length === 0) return false;
+			const index = candidates.findIndex((item) => item.id === current);
+			const target = match(direction).with("first", () => candidates[0]).with("last", () => candidates.at(-1)).with("next", () => candidates[index + 1] ?? (options.loop === false ? void 0 : candidates[0])).with("previous", () => candidates[index - 1] ?? (options.loop === false ? void 0 : candidates.at(-1))).exhaustive();
+			if (!target) return false;
+			options.onMove?.(target.id);
+			target.target.focus();
+			return true;
+		}
+	};
+}
+//#endregion
+//#region src/primitives/interactions/typeahead.ts
+function createTypeahead(options = {}) {
+	let keys = "";
+	let timer;
+	const collator = typeof Intl === "undefined" || typeof Intl.Collator !== "function" ? void 0 : new Intl.Collator(options.locale, {
+		usage: "search",
+		sensitivity: "base"
+	});
+	const reset = () => {
+		keys = "";
+		if (timer !== void 0) clearTimeout(timer);
+		timer = void 0;
+	};
+	return {
+		search(items, key, activeId) {
+			if (key.length !== 1) return void 0;
+			keys += key;
+			if (timer !== void 0) clearTimeout(timer);
+			timer = setTimeout(reset, options.timeout ?? 350);
+			const query = keys.length > 1 && [...keys].every((value) => value === keys[0]) ? keys[0] : keys;
+			const enabled = items.filter((item) => !item.disabled && item.textValue);
+			const active = enabled.findIndex((item) => item.id === activeId);
+			return [...enabled.slice(active + 1), ...enabled.slice(0, active + 1)].find((item) => {
+				const prefix = item.textValue?.slice(0, query.length) ?? "";
+				return collator ? collator.compare(prefix, query) === 0 : prefix.toLowerCase() === query.toLowerCase();
+			});
+		},
+		reset
+	};
+}
+//#endregion
+//#region src/primitives/interactions/select.ts
+function updateSelect(state, event, options) {
+	const collection = createCollection(() => options.items);
+	const openAt = (id) => ({
+		state: {
+			...state,
+			open: true,
+			highlighted: id
+		},
+		commands: [{ type: "FOCUS_CONTENT" }, ...id ? [{
+			type: "SCROLL_TO_ITEM",
+			id
+		}] : []]
+	});
+	const move = (direction) => {
+		const candidate = direction === "next" ? collection.next(state.highlighted, options.loop ?? true) : collection.previous(state.highlighted, options.loop ?? true);
+		if (!candidate) return {
+			state,
+			commands: []
+		};
+		return {
+			state: {
+				...state,
+				highlighted: candidate.id
+			},
+			commands: [{
+				type: "SCROLL_TO_ITEM",
+				id: candidate.id
+			}]
+		};
+	};
+	return match(event).with({ type: "OPEN" }, () => state.open ? {
+		state,
+		commands: []
+	} : openAt(state.value ?? collection.first()?.id)).with({ type: "CLOSE" }, () => ({
+		state: {
+			...state,
+			open: false,
+			highlighted: void 0
+		},
+		commands: state.open ? [{ type: "FOCUS_TRIGGER" }] : []
+	})).with({ type: "TOGGLE" }, () => state.open ? {
+		state: {
+			...state,
+			open: false,
+			highlighted: void 0
+		},
+		commands: [{ type: "FOCUS_TRIGGER" }]
+	} : openAt(state.value ?? collection.first()?.id)).with({ type: "ARROW_DOWN" }, () => state.open ? move("next") : openAt(state.value ?? collection.first()?.id)).with({ type: "ARROW_UP" }, () => state.open ? move("previous") : openAt(state.value ?? collection.last()?.id)).with({ type: "HOME" }, () => openAt(collection.first()?.id)).with({ type: "END" }, () => openAt(collection.last()?.id)).with(P.union({ type: "HIGHLIGHT" }, { type: "TYPEAHEAD" }), ({ id }) => collection.find(id)?.disabled ? {
+		state,
+		commands: []
+	} : event.type === "TYPEAHEAD" && !state.open ? openAt(id) : {
+		state: {
+			...state,
+			highlighted: id
+		},
+		commands: [{
+			type: "SCROLL_TO_ITEM",
+			id
+		}]
+	}).with({ type: "SELECT" }, ({ id }) => {
+		const selected = id ?? state.highlighted;
+		if (!selected || collection.find(selected)?.disabled) return {
+			state,
+			commands: []
+		};
+		const close = options.closeOnSelect ?? true;
+		return {
+			state: {
+				open: close ? false : state.open,
+				value: selected,
+				highlighted: close ? void 0 : selected
+			},
+			commands: close ? [{ type: "FOCUS_TRIGGER" }] : []
+		};
+	}).exhaustive();
+}
+function createSelectInteraction(options) {
+	const value = createControllableState({
+		value: options.value ?? (() => void 0),
+		defaultValue: options.defaultValue,
+		disabled: options.disabled,
+		onChange: (next) => next && options.onValueChange?.(next)
+	});
+	const open = createControllableState({
+		value: options.open ?? (() => void 0),
+		defaultValue: options.defaultOpen ?? false,
+		disabled: options.disabled,
+		onChange: options.onOpenChange
+	});
+	const [highlighted, setHighlighted] = createSignal();
+	const typeahead = createTypeahead();
+	const state = () => ({
+		open: open.value(),
+		value: value.value(),
+		highlighted: highlighted()
+	});
+	const send = (event) => {
+		if (options.disabled?.()) return false;
+		const result = updateSelect(state(), event, {
+			items: options.items(),
+			loop: options.loop
+		});
+		const previous = state();
+		open.set(result.state.open);
+		if (result.state.value !== void 0) value.set(result.state.value);
+		setHighlighted(result.state.highlighted);
+		for (const command of result.commands) options.execute?.(command);
+		return previous.open !== result.state.open || previous.value !== result.state.value || previous.highlighted !== result.state.highlighted;
+	};
+	return {
+		state,
+		open: open.value,
+		value: value.value,
+		highlighted,
+		send,
+		typeahead(key) {
+			const item = typeahead.search(options.items(), key, highlighted());
+			return item ? send({
+				type: "TYPEAHEAD",
+				id: item.id
+			}) : false;
+		}
+	};
+}
+//#endregion
+//#region src/components/dropdown-menu.tsx
+/** A compact action menu with native focus, typeahead, and overlay routing. */
+function DropdownMenu(props) {
+	const theme = useComponentsTheme();
+	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
+	const [highlighted, setHighlighted] = createSignal();
+	const open = () => props.open ?? uncontrolledOpen();
+	const typeahead = createTypeahead();
+	let trigger;
+	let content;
+	let openEdge = "first";
+	let wasOpen = false;
+	const setOpen = (next, edge = "first") => {
+		openEdge = edge;
+		if (props.open === void 0) setUncontrolledOpen(next);
+		props.onOpenChange?.(next);
+	};
+	createEffect(open, (isOpen) => {
+		if (isOpen && !wasOpen) {
+			setHighlighted(moveMenuHighlight(props.items, void 0, openEdge));
+			requestAnimationFrame(() => content?.focus());
+		} else if (!isOpen && wasOpen) {
+			setHighlighted(void 0);
+			typeahead.reset();
+			requestAnimationFrame(() => trigger?.focus());
+		}
+		wasOpen = isOpen;
+	});
+	const select = (id) => {
+		const item = props.items.find((candidate) => candidate.id === id);
+		if (!item || item.disabled) return false;
+		item.onSelect?.();
+		props.onAction?.(item.id);
+		setOpen(false);
+		return true;
+	};
+	const move = (direction) => {
+		const next = moveMenuHighlight(props.items, highlighted(), direction);
+		if (next === void 0) return false;
+		setHighlighted(next);
+		return true;
+	};
+	const handleMenuKey = (event) => {
+		if (match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).with(" ", () => select(highlighted())).with("Escape", () => {
+			setOpen(false);
+			return true;
+		}).otherwise((key) => {
+			const item = typeahead.search(props.items, key, highlighted());
+			if (item) setHighlighted(item.id);
+			return item !== void 0;
+		})) event.preventDefault();
+	};
+	return createComponent$1(Popover, {
+		contentRole: "presentation",
+		popupRole: "menu",
+		get open() {
+			return open();
+		},
+		onOpenChange: (next) => setOpen(next),
+		placement: "bottom-end",
+		get anchorPoint() {
+			return props.anchorPoint;
+		},
+		get contentClass() {
+			return join("w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface", props.contentClass);
+		},
+		get contentShadows() {
+			return memo(() => {
+				return props.contentShadows === void 0;
+			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
+		},
+		trigger: (popover) => props.trigger({
+			ref: (node) => {
+				trigger = node;
+				popover.ref(node);
+			},
+			onClick: popover.onClick,
+			onKeyDown: (event) => {
+				popover.onKeyDown(event);
+				if (match(event.key).with("ArrowDown", () => {
+					setOpen(true, "first");
+					return true;
+				}).with("ArrowUp", () => {
+					setOpen(true, "last");
+					return true;
+				}).otherwise(() => false)) event.preventDefault();
+			},
+			"aria-haspopup": "menu",
+			get "aria-expanded"() {
+				return open();
+			}
+		}),
+		get children() {
+			return createComponent$1(View, {
+				ref: (node) => content = node,
+				role: "menu",
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				focusOrder: 0,
+				class: "min-w-0 flex flex-col gap-1",
+				onKeyDown: handleMenuKey,
+				get children() {
+					return createComponent$1(For, {
+						get each() {
+							return props.items;
+						},
+						keyed: false,
+						children: (item) => [memo(() => {
+							return memo(() => {
+								return !!item().separatorBefore;
+							})() ? createComponent$1(View, {
+								role: "presentation",
+								class: "h-px flex-none my-1 bg-control"
+							}) : item().separatorBefore;
+						}), createComponent$1(View, {
+							role: "menuitem",
+							get ["aria-label"]() {
+								return item().label;
+							},
+							get ["aria-disabled"]() {
+								return item().disabled;
+							},
+							get ["class"]() {
+								return join("w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
+							},
+							get style() {
+								return { opacity: item().disabled ? .45 : 1 };
+							},
+							onPointerMove: () => !item().disabled && setHighlighted(item().id),
+							onClick: () => select(item().id),
+							get children() {
+								return [createComponent$1(Text, {
+									class: "text-sm",
+									get children() {
+										return item().label;
+									}
+								}), memo(() => {
+									return memo(() => {
+										return !!item().description;
+									})() ? createComponent$1(Text, {
+										class: "text-xs text-muted",
+										get children() {
+											return item().description;
+										}
+									}) : item().description;
+								})];
+							}
+						})]
+					});
+				}
+			});
+		}
+	});
+}
+//#endregion
+//#region src/components/context-menu.tsx
+/** An action menu anchored to the native secondary-click coordinate. */
+function ContextMenu(props) {
+	const [open, setOpen] = createSignal(false);
+	const [point, setPoint] = createSignal();
+	return createComponent$1(DropdownMenu, {
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get items() {
+			return props.items;
+		},
+		get open() {
+			return open();
+		},
+		onOpenChange: setOpen,
+		get onAction() {
+			return props.onAction;
+		},
+		anchorPoint: point,
+		get contentClass() {
+			return props.contentClass;
+		},
+		get contentShadows() {
+			return props.contentShadows;
+		},
+		trigger: (menu) => props.trigger({
+			ref: menu.ref,
+			onContextMenu: (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				setPoint({
+					x: event.clientX,
+					y: event.clientY
+				});
+				setOpen(true);
+			},
+			onKeyDown: (event) => {
+				if (event.key === "ContextMenu" || event.key === "F10") {
+					event.preventDefault();
+					event.stopPropagation();
+					setPoint(void 0);
+					setOpen(true);
+					return;
+				}
+				menu.onKeyDown(event);
+			},
+			"aria-haspopup": "menu",
+			get "aria-expanded"() {
+				return open();
+			}
+		})
 	});
 }
 //#endregion
@@ -981,303 +1489,6 @@ function DirectoryPicker(props) {
 	});
 }
 //#endregion
-//#region src/primitives/interactions/collection.ts
-function createCollection(source) {
-	const enabled = () => source().filter((item) => !item.disabled);
-	const adjacent = (id, delta, loop) => {
-		const items = enabled();
-		if (items.length === 0) return void 0;
-		const next = (id === void 0 ? -1 : items.findIndex((item) => item.id === id)) + delta;
-		if (next >= 0 && next < items.length) return items[next];
-		if (!loop) return void 0;
-		return delta === 1 ? items[0] : items[items.length - 1];
-	};
-	return {
-		items: source,
-		find: (id) => source().find((item) => item.id === id),
-		indexOf: (id) => source().findIndex((item) => item.id === id),
-		first: () => enabled()[0],
-		last: () => enabled().at(-1),
-		next: (id, loop = false) => adjacent(id, 1, loop),
-		previous: (id, loop = false) => adjacent(id, -1, loop)
-	};
-}
-//#endregion
-//#region src/primitives/interactions/machine.ts
-function unchanged(state) {
-	return {
-		state,
-		commands: []
-	};
-}
-//#endregion
-//#region src/primitives/interactions/state.ts
-function createControllableState(options) {
-	const [local, setLocal] = createSignal({ value: options.defaultValue });
-	const value = () => options.value() ?? local().value;
-	return {
-		value,
-		set(next) {
-			if (options.disabled?.() || Object.is(value(), next)) return false;
-			if (options.value() === void 0) setLocal({ value: next });
-			options.onChange?.(next);
-			return true;
-		}
-	};
-}
-//#endregion
-//#region src/primitives/interactions/disclosure.ts
-function updateDisclosure(state, event) {
-	return match(event).with({ type: "DISABLED" }, ({ disabled }) => ({
-		state: {
-			...state,
-			disabled,
-			open: disabled ? false : state.open
-		},
-		commands: []
-	})).with({ type: "OPEN" }, () => state.disabled || state.open ? unchanged(state) : {
-		state: {
-			...state,
-			open: true
-		},
-		commands: []
-	}).with({ type: "CLOSE" }, () => !state.open ? unchanged(state) : {
-		state: {
-			...state,
-			open: false
-		},
-		commands: []
-	}).with({ type: "TOGGLE" }, () => state.disabled ? unchanged(state) : {
-		state: {
-			...state,
-			open: !state.open
-		},
-		commands: []
-	}).exhaustive();
-}
-function createDisclosure(options = {}) {
-	const controlled = createControllableState({
-		value: options.open ?? (() => void 0),
-		defaultValue: options.defaultOpen ?? false,
-		disabled: options.disabled,
-		onChange: options.onOpenChange
-	});
-	const set = (type) => {
-		const result = updateDisclosure({
-			open: controlled.value(),
-			disabled: options.disabled?.() ?? false
-		}, { type });
-		return controlled.set(result.state.open);
-	};
-	return {
-		open: controlled.value,
-		disabled: () => options.disabled?.() ?? false,
-		openDisclosure: () => set("OPEN"),
-		close: () => set("CLOSE"),
-		toggle: () => set("TOGGLE")
-	};
-}
-//#endregion
-//#region src/primitives/interactions/roving-focus.ts
-function createRovingFocus(options = {}) {
-	const items = [];
-	const enabled = () => items.filter((item) => !item.disabled?.());
-	return {
-		register(item) {
-			items.push(item);
-			return () => {
-				const index = items.indexOf(item);
-				if (index >= 0) items.splice(index, 1);
-			};
-		},
-		move(current, key) {
-			const orientation = options.orientation?.() ?? "horizontal";
-			const direction = match({
-				orientation,
-				key
-			}).with({ key: "Home" }, () => "first").with({ key: "End" }, () => "last").with(P.union({
-				orientation: "horizontal",
-				key: "ArrowRight"
-			}, {
-				orientation: "vertical",
-				key: "ArrowDown"
-			}), () => "next").with(P.union({
-				orientation: "horizontal",
-				key: "ArrowLeft"
-			}, {
-				orientation: "vertical",
-				key: "ArrowUp"
-			}), () => "previous").otherwise(() => void 0);
-			if (!direction) return false;
-			const candidates = enabled();
-			if (candidates.length === 0) return false;
-			const index = candidates.findIndex((item) => item.id === current);
-			const target = match(direction).with("first", () => candidates[0]).with("last", () => candidates.at(-1)).with("next", () => candidates[index + 1] ?? (options.loop === false ? void 0 : candidates[0])).with("previous", () => candidates[index - 1] ?? (options.loop === false ? void 0 : candidates.at(-1))).exhaustive();
-			if (!target) return false;
-			options.onMove?.(target.id);
-			target.target.focus();
-			return true;
-		}
-	};
-}
-//#endregion
-//#region src/primitives/interactions/typeahead.ts
-function createTypeahead(options = {}) {
-	let keys = "";
-	let timer;
-	const collator = typeof Intl === "undefined" || typeof Intl.Collator !== "function" ? void 0 : new Intl.Collator(options.locale, {
-		usage: "search",
-		sensitivity: "base"
-	});
-	const reset = () => {
-		keys = "";
-		if (timer !== void 0) clearTimeout(timer);
-		timer = void 0;
-	};
-	return {
-		search(items, key, activeId) {
-			if (key.length !== 1) return void 0;
-			keys += key;
-			if (timer !== void 0) clearTimeout(timer);
-			timer = setTimeout(reset, options.timeout ?? 350);
-			const query = keys.length > 1 && [...keys].every((value) => value === keys[0]) ? keys[0] : keys;
-			const enabled = items.filter((item) => !item.disabled && item.textValue);
-			const active = enabled.findIndex((item) => item.id === activeId);
-			return [...enabled.slice(active + 1), ...enabled.slice(0, active + 1)].find((item) => {
-				const prefix = item.textValue?.slice(0, query.length) ?? "";
-				return collator ? collator.compare(prefix, query) === 0 : prefix.toLowerCase() === query.toLowerCase();
-			});
-		},
-		reset
-	};
-}
-//#endregion
-//#region src/primitives/interactions/select.ts
-function updateSelect(state, event, options) {
-	const collection = createCollection(() => options.items);
-	const openAt = (id) => ({
-		state: {
-			...state,
-			open: true,
-			highlighted: id
-		},
-		commands: [{ type: "FOCUS_CONTENT" }, ...id ? [{
-			type: "SCROLL_TO_ITEM",
-			id
-		}] : []]
-	});
-	const move = (direction) => {
-		const candidate = direction === "next" ? collection.next(state.highlighted, options.loop ?? true) : collection.previous(state.highlighted, options.loop ?? true);
-		if (!candidate) return {
-			state,
-			commands: []
-		};
-		return {
-			state: {
-				...state,
-				highlighted: candidate.id
-			},
-			commands: [{
-				type: "SCROLL_TO_ITEM",
-				id: candidate.id
-			}]
-		};
-	};
-	return match(event).with({ type: "OPEN" }, () => state.open ? {
-		state,
-		commands: []
-	} : openAt(state.value ?? collection.first()?.id)).with({ type: "CLOSE" }, () => ({
-		state: {
-			...state,
-			open: false,
-			highlighted: void 0
-		},
-		commands: state.open ? [{ type: "FOCUS_TRIGGER" }] : []
-	})).with({ type: "TOGGLE" }, () => state.open ? {
-		state: {
-			...state,
-			open: false,
-			highlighted: void 0
-		},
-		commands: [{ type: "FOCUS_TRIGGER" }]
-	} : openAt(state.value ?? collection.first()?.id)).with({ type: "ARROW_DOWN" }, () => state.open ? move("next") : openAt(state.value ?? collection.first()?.id)).with({ type: "ARROW_UP" }, () => state.open ? move("previous") : openAt(state.value ?? collection.last()?.id)).with({ type: "HOME" }, () => openAt(collection.first()?.id)).with({ type: "END" }, () => openAt(collection.last()?.id)).with(P.union({ type: "HIGHLIGHT" }, { type: "TYPEAHEAD" }), ({ id }) => collection.find(id)?.disabled ? {
-		state,
-		commands: []
-	} : event.type === "TYPEAHEAD" && !state.open ? openAt(id) : {
-		state: {
-			...state,
-			highlighted: id
-		},
-		commands: [{
-			type: "SCROLL_TO_ITEM",
-			id
-		}]
-	}).with({ type: "SELECT" }, ({ id }) => {
-		const selected = id ?? state.highlighted;
-		if (!selected || collection.find(selected)?.disabled) return {
-			state,
-			commands: []
-		};
-		const close = options.closeOnSelect ?? true;
-		return {
-			state: {
-				open: close ? false : state.open,
-				value: selected,
-				highlighted: close ? void 0 : selected
-			},
-			commands: close ? [{ type: "FOCUS_TRIGGER" }] : []
-		};
-	}).exhaustive();
-}
-function createSelectInteraction(options) {
-	const value = createControllableState({
-		value: options.value ?? (() => void 0),
-		defaultValue: options.defaultValue,
-		disabled: options.disabled,
-		onChange: (next) => next && options.onValueChange?.(next)
-	});
-	const open = createControllableState({
-		value: options.open ?? (() => void 0),
-		defaultValue: options.defaultOpen ?? false,
-		disabled: options.disabled,
-		onChange: options.onOpenChange
-	});
-	const [highlighted, setHighlighted] = createSignal();
-	const typeahead = createTypeahead();
-	const state = () => ({
-		open: open.value(),
-		value: value.value(),
-		highlighted: highlighted()
-	});
-	const send = (event) => {
-		if (options.disabled?.()) return false;
-		const result = updateSelect(state(), event, {
-			items: options.items(),
-			loop: options.loop
-		});
-		const previous = state();
-		open.set(result.state.open);
-		if (result.state.value !== void 0) value.set(result.state.value);
-		setHighlighted(result.state.highlighted);
-		for (const command of result.commands) options.execute?.(command);
-		return previous.open !== result.state.open || previous.value !== result.state.value || previous.highlighted !== result.state.highlighted;
-	};
-	return {
-		state,
-		open: open.value,
-		value: value.value,
-		highlighted,
-		send,
-		typeahead(key) {
-			const item = typeahead.search(options.items(), key, highlighted());
-			return item ? send({
-				type: "TYPEAHEAD",
-				id: item.id
-			}) : false;
-		}
-	};
-}
-//#endregion
 //#region src/components/disclosure.tsx
 function DisclosureIndicator(props) {
 	const rotation = createTransition(() => props.open() ? Math.PI : 0, {
@@ -1570,152 +1781,6 @@ function KbdGroup(props) {
 		},
 		get children() {
 			return props.children;
-		}
-	});
-}
-//#endregion
-//#region src/components/dropdown-menu.tsx
-/** A compact action menu with native focus, typeahead, and overlay routing. */
-function DropdownMenu(props) {
-	const theme = useComponentsTheme();
-	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
-	const [highlighted, setHighlighted] = createSignal();
-	const open = () => props.open ?? uncontrolledOpen();
-	const typeahead = createTypeahead();
-	let trigger;
-	let content;
-	const setOpen = (next, edge = "first") => {
-		if (next) setHighlighted(moveMenuHighlight(props.items, void 0, edge));
-		else {
-			setHighlighted(void 0);
-			typeahead.reset();
-		}
-		if (props.open === void 0) setUncontrolledOpen(next);
-		props.onOpenChange?.(next);
-		if (next) requestAnimationFrame(() => content?.focus());
-		else requestAnimationFrame(() => trigger?.focus());
-	};
-	const select = (id) => {
-		const item = props.items.find((candidate) => candidate.id === id);
-		if (!item || item.disabled) return false;
-		item.onSelect?.();
-		props.onAction?.(item.id);
-		setOpen(false);
-		return true;
-	};
-	const move = (direction) => {
-		const next = moveMenuHighlight(props.items, highlighted(), direction);
-		if (next === void 0) return false;
-		setHighlighted(next);
-		return true;
-	};
-	const handleMenuKey = (event) => {
-		if (match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).with(" ", () => select(highlighted())).with("Escape", () => {
-			setOpen(false);
-			return true;
-		}).otherwise((key) => {
-			const item = typeahead.search(props.items, key, highlighted());
-			if (item) setHighlighted(item.id);
-			return item !== void 0;
-		})) event.preventDefault();
-	};
-	return createComponent$1(Popover, {
-		contentRole: "presentation",
-		popupRole: "menu",
-		get open() {
-			return open();
-		},
-		onOpenChange: (next) => setOpen(next),
-		placement: "bottom-end",
-		get contentClass() {
-			return join("w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface", props.contentClass);
-		},
-		get contentShadows() {
-			return memo(() => {
-				return props.contentShadows === void 0;
-			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
-		},
-		trigger: (popover) => props.trigger({
-			ref: (node) => {
-				trigger = node;
-				popover.ref(node);
-			},
-			onClick: popover.onClick,
-			onKeyDown: (event) => {
-				popover.onKeyDown(event);
-				if (match(event.key).with("ArrowDown", () => {
-					setOpen(true, "first");
-					return true;
-				}).with("ArrowUp", () => {
-					setOpen(true, "last");
-					return true;
-				}).otherwise(() => false)) event.preventDefault();
-			},
-			"aria-haspopup": "menu",
-			get "aria-expanded"() {
-				return open();
-			}
-		}),
-		get children() {
-			return createComponent$1(View, {
-				ref: (node) => content = node,
-				role: "menu",
-				get ["aria-label"]() {
-					return props["aria-label"];
-				},
-				focusOrder: 0,
-				class: "min-w-0 flex flex-col gap-1",
-				onKeyDown: handleMenuKey,
-				get children() {
-					return createComponent$1(For, {
-						get each() {
-							return props.items;
-						},
-						keyed: false,
-						children: (item) => [memo(() => {
-							return memo(() => {
-								return !!item().separatorBefore;
-							})() ? createComponent$1(View, {
-								role: "presentation",
-								class: "h-px flex-none my-1 bg-control"
-							}) : item().separatorBefore;
-						}), createComponent$1(View, {
-							role: "menuitem",
-							get ["aria-label"]() {
-								return item().label;
-							},
-							get ["aria-disabled"]() {
-								return item().disabled;
-							},
-							get ["class"]() {
-								return join("w-full min-h-8 flex-none px-2 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover" : "bg-transparent", item().destructive ? "text-danger-primary" : "text-primary");
-							},
-							get style() {
-								return { opacity: item().disabled ? .45 : 1 };
-							},
-							onPointerMove: () => !item().disabled && setHighlighted(item().id),
-							onClick: () => select(item().id),
-							get children() {
-								return [createComponent$1(Text, {
-									class: "text-sm",
-									get children() {
-										return item().label;
-									}
-								}), memo(() => {
-									return memo(() => {
-										return !!item().description;
-									})() ? createComponent$1(Text, {
-										class: "text-xs text-muted",
-										get children() {
-											return item().description;
-										}
-									}) : item().description;
-								})];
-							}
-						})]
-					});
-				}
-			});
 		}
 	});
 }
@@ -3767,6 +3832,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Sheet, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

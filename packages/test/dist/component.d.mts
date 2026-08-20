@@ -11,6 +11,8 @@ interface ComponentLocator {
   pointerDown(position?: ComponentPointerPosition): void;
   pointerUp(position?: ComponentPointerPosition): void;
   click(): void;
+  /** Dispatch a secondary-click context-menu event at a deterministic point. */
+  contextMenu(position?: ComponentPointerPosition): void;
   press(key: string): void;
   input(value: string): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */

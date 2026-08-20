@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { nodeKey, type NodeKey } from "@wabou/core/protocol";
+import { type NodeKey, nodeKey } from "@wabou/core/protocol";
 import {
   computeFloatingPosition,
   computeHostFloatingPosition,
+  computeHostPointFloatingPosition,
   flip,
   type LayoutRect,
   offset,
@@ -123,5 +124,36 @@ describe("Floating UI platform adapter", () => {
     ).rejects.toThrow(
       "Layout target 2v1 is not present in completed revision 8",
     );
+  });
+
+  test("positions and shifts a floating panel from a viewport point", async () => {
+    const host = {
+      layout: {
+        snapshot: () => ({
+          revision: 9,
+          viewport,
+          nodes: [
+            {
+              id: k(2),
+              rect: { x: 0, y: 0, width: 80, height: 40 },
+              clip: viewport,
+              scroll: { offsetX: 0, offsetY: 0, rangeX: 0, rangeY: 0 },
+            },
+          ],
+        }),
+      },
+    };
+
+    const result = await computeHostPointFloatingPosition(
+      { x: 290, y: 190 },
+      k(2),
+      host,
+      {
+        placement: "bottom-start",
+        middleware: [shift({ padding: 8, crossAxis: true })],
+      },
+    );
+
+    expect(result).toMatchObject({ x: 212, y: 152 });
   });
 });
