@@ -311,10 +311,17 @@ fn ir_color(value: &IrValue) -> Option<Color> {
     ))
 }
 
-/// Parse a CSS length string into a Style IR length: `Npx`/`Nrem` (×16) →
-/// `Px`, `N%` → `Percent`. Anything else returns `None`.
+/// Parse a CSS length string into a Style IR length: `Npx`/`Nrem`/`Nem`
+/// (`N * 16.0`) → `Px`, `N%` → `Percent`. Anything else returns `None`.
 fn parse_ir_length(value: &str) -> Option<IrLength> {
     let v = value.trim();
+    if let Some(em) = v.strip_suffix("em") {
+        return em
+            .trim()
+            .parse::<f32>()
+            .ok()
+            .map(|n| IrLength::Px { value: n * 16.0 });
+    }
     if let Some(r) = v.strip_suffix("rem") {
         return r
             .trim()

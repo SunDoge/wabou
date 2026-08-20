@@ -523,7 +523,7 @@ describe("host primitives", () => {
     );
   });
 
-  test("Icon defaults to 16px when size is not provided", () => {
+  test("Icon defaults to 1em when size is not provided", () => {
     const attributes: Array<[string, string]> = [];
     const style: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
@@ -547,14 +547,11 @@ describe("host primitives", () => {
       writer.setAttribute = setAttribute;
       writer.setStyle = setStyle;
     }
-    expect(attributes).toEqual([
-      ["width", "16"],
-      ["height", "16"],
-    ]);
+    expect(attributes).toEqual([]);
     expect(style).toEqual(
       expect.arrayContaining([
-        ["width", "16"],
-        ["height", "16"],
+        ["width", "1em"],
+        ["height", "1em"],
       ]),
     );
   });
@@ -601,6 +598,30 @@ describe("host primitives", () => {
       expect.arrayContaining([
         ["width", "1.5rem"],
         ["height", "1.5rem"],
+      ]),
+    );
+  });
+
+  test("Icon treats blank size as default", () => {
+    const styles: Array<[string, string]> = [];
+    const setStyle = writer.setStyle.bind(writer);
+    writer.setStyle = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        styles.push([name, value]);
+      }
+    };
+    try {
+      createRoot((dispose) => {
+        Icon({ source: "<svg/>", size: "" });
+        dispose();
+      });
+    } finally {
+      writer.setStyle = setStyle;
+    }
+    expect(styles).toEqual(
+      expect.arrayContaining([
+        ["width", "1em"],
+        ["height", "1em"],
       ]),
     );
   });

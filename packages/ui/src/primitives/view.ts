@@ -59,10 +59,10 @@ export interface IconProps extends Omit<SvgProps, "source"> {
   source: string;
   /**
    * Icon size in logical px number or supported CSS unit strings (`px`, `rem`,
-   * `%`).
+   * `%`, `em`). When omitted, icon size follows current text size (`1em`).
    */
   size?: number | string;
-  /** Optional explicit CSS size.  When omitted, falls back to 16px. */
+  /** Optional explicit CSS size.  When omitted, falls back to `1em`. */
   /** Override Lucide's root `fill="none"`, for example with currentColor. */
   fill?: "none" | "currentColor";
   /** Accessible name. Omit for a decorative icon. */
@@ -72,10 +72,10 @@ export interface IconProps extends Omit<SvgProps, "source"> {
 const ICON_SIZE_UNITLESS_RE = /^-?\d*\.?\d+$/;
 
 function normalizeIconSize(size: number | string | undefined): number | string {
-  if (size == null) return 16;
+  if (size == null) return "1em";
   if (typeof size === "number") return size;
   const value = size.trim();
-  if (!value) return 16;
+  if (!value) return "1em";
   const parsed = Number.parseFloat(value);
   if (Number.isFinite(parsed) && ICON_SIZE_UNITLESS_RE.test(value)) {
     return parsed;
