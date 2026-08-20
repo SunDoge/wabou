@@ -46,6 +46,7 @@ type ComponentId =
   | "tabs"
   | "progress"
   | "slider"
+  | "rating"
   | "fps"
   | "animation"
   | "platform"
@@ -139,6 +140,7 @@ const groups: Array<{
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
       { id: "slider", name: "Slider" },
+      { id: "rating", name: "Rating" },
       { id: "tabs", name: "Tabs" },
       { id: "kbd", name: "Kbd" },
       { id: "avatar", name: "Avatar" },
@@ -203,6 +205,8 @@ const descriptions: Record<ComponentId, string> = {
   progress: "Shows completion for a task or a long-running operation.",
   slider:
     "Selects a numeric value with pointer dragging and keyboard controls.",
+  rating:
+    "Selects a discrete rating with hover preview, roving focus and native radio semantics.",
   fps: "Measures native host frames and highlights performance regressions.",
   animation: "Pure JavaScript value animations rendered by the native host.",
   platform: "Native windows and Rust-powered custom widgets.",
@@ -281,6 +285,7 @@ import {
   PlatformPage,
   ProgressPage,
   RadioGroupPage,
+  RatingPage,
   ScrollAreaPage,
   SeparatorPage,
   SkeletonPage,
@@ -492,6 +497,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "slider"}>
                     <SliderPage />
+                  </Match>
+                  <Match when={selected() === "rating"}>
+                    <RatingPage />
                   </Match>
                   <Match when={selected() === "fps"}>
                     <FpsPage />

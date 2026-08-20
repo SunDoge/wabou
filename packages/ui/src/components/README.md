@@ -38,9 +38,10 @@ Applications define the palette names and semantic tokens in their Wabou Vite
 config. The gallery demonstrates `dark`, `light`, and `violet`; components do
 not contain theme-name-specific branches.
 
-Current components include Button, Toggle, Checkbox, RadioGroup, Switch, Tabs,
-Badge, Card, Alert, Input, TextArea, DirectoryPicker, Progress, Skeleton,
-Spinner, Kbd, FPS, and Separator. Run the gallery while developing:
+Current components include Button, Toggle, Checkbox, RadioGroup, Rating, Switch,
+Tabs, Badge, Card, Alert, Input, NumberField, TextArea, DirectoryPicker,
+Progress, Pagination, Skeleton, Spinner, Kbd, FPS, and Separator. Run the
+gallery while developing:
 
 `Pagination` supports both a legacy composition-only surface and managed,
 1-indexed state. Supplying `count` enables automatic boundary/sibling ranges;

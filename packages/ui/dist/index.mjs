@@ -1,6 +1,6 @@
 import { $ as createButton, A as isSelected, B as PathBuilder, C as OverlayPlaneProvider, D as Column, E as Center, F as Icon, G as View, H as Text, I as Image, J as createPresence, K as rotate2d$1, L as NetworkImage, M as createFormDraft, N as CollapsiblePresence, O as Row, P as CodeEditor, Q as Link, R as PasswordInput$1, S as createTransitionPresence, U as TextArea, V as Svg, W as TextInput, X as createMeasuredSize, Y as createContainerMatch, Z as Button$1, _ as createRetainedItems, a as ScrollArea, at as createAnimationFrame, b as Spin, ct as createLoop, dt as createSweep, et as createActive, ft as createTransition, g as createNotifications, gt as useReducedMotion, h as NotificationRegion, ht as useMotionConfig, i as createScrollReset, it as createFocusWithin, j as toggleSelection, k as createKeyedSelection, lt as createPulse, mt as MotionConfigProvider, n as createTabs, nt as createHover, o as Popover$1, ot as animate, pt as normalizeSweepGeometry, q as translate2d$1, r as createShortcuts, rt as createFocus, st as animateKeyframes, t as primitives_exports, tt as createPress, ut as createRotation, v as Pulse, w as createOverlayLayer, x as Modal, y as Ripple, z as Path } from "./primitives-BOL7Lcgh.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
-import { shadow } from "@wabou/core/style";
+import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { applyRef, createComponent as createComponent$1, createElement, createFps, insertNode, memo, mergeProps } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
@@ -14,6 +14,7 @@ import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
 import minus from "lucide-static/icons/minus.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
+import star from "lucide-static/icons/star.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
 import check from "lucide-static/icons/check.svg?raw";
@@ -3417,6 +3418,167 @@ function Progress(props) {
 	} }));
 }
 //#endregion
+//#region src/components/rating-state.ts
+function normalizeRatingMax(max) {
+	if (max === void 0 || !Number.isFinite(max)) return 5;
+	return Math.max(1, Math.min(20, Math.floor(max)));
+}
+function clampRatingValue(value, max) {
+	if (value === void 0 || !Number.isFinite(value)) return 0;
+	return Math.max(0, Math.min(normalizeRatingMax(max), Math.round(value)));
+}
+function ratingLabel(value) {
+	return `${value} ${value === 1 ? "star" : "stars"}`;
+}
+//#endregion
+//#region src/components/rating.tsx
+function RatingIcon(props) {
+	const reducedMotion = useReducedMotion();
+	const emphasis = createTransition(() => props.highlighted ? 1 : 0, {
+		duration: .12,
+		ease: "easeOut",
+		reducedMotion
+	});
+	return createComponent$1(Icon, {
+		"aria-hidden": "true",
+		source: star,
+		get size() {
+			return props.size;
+		},
+		get fill() {
+			return props.highlighted ? "currentColor" : "none";
+		},
+		get ["class"]() {
+			return props.highlighted ? "text-accent" : "text-muted";
+		},
+		get transform() {
+			return scale2d(.9 + emphasis.value() * .1);
+		}
+	});
+}
+function Rating(props) {
+	const max = () => normalizeRatingMax(props.max);
+	const normalize = (value) => clampRatingValue(value, max());
+	const state = createControllableState({
+		value: () => props.value === void 0 ? void 0 : normalize(props.value),
+		defaultValue: normalize(props.defaultValue),
+		disabled: () => (props.disabled ?? false) || (props.readOnly ?? false),
+		onChange: props.onValueChange
+	});
+	const value = () => normalize(state.value());
+	const [preview, setPreview] = createSignal();
+	let previewGeneration = 0;
+	const previewItem = (item) => {
+		previewGeneration++;
+		setPreview(item);
+	};
+	const clearPreviewAfterPointerDispatch = () => {
+		const generation = ++previewGeneration;
+		queueMicrotask(() => {
+			if (generation === previewGeneration) setPreview(void 0);
+		});
+	};
+	const shownValue = () => preview() ?? value();
+	const disabled = () => props.disabled ?? false;
+	const inert = () => disabled() || (props.readOnly ?? false);
+	const items = () => Array.from({ length: max() }, (_, index) => index + 1);
+	const select = (next) => {
+		if (inert()) return;
+		const normalized = normalize(next);
+		state.set(props.allowClear && normalized === value() ? 0 : normalized);
+	};
+	const roving = createRovingFocus({
+		orientation: () => "horizontal",
+		onMove: (id) => select(Number(id))
+	});
+	return createComponent$1(View, {
+		role: "radiogroup",
+		get ["aria-label"]() {
+			return props.label;
+		},
+		get ["aria-disabled"]() {
+			return disabled() || void 0;
+		},
+		"aria-orientation": "horizontal",
+		get ["class"]() {
+			return join("flex flex-col items-start gap-1.5", props.class);
+		},
+		get style() {
+			return { opacity: disabled() ? .45 : 1 };
+		},
+		get children() {
+			return createComponent$1(View, {
+				class: "flex flex-row items-center gap-0.5",
+				get children() {
+					return createComponent$1(For, {
+						get each() {
+							return items();
+						},
+						children: (item) => {
+							const checked = () => value() === item;
+							const highlighted = () => item <= shownValue();
+							let unregister;
+							onCleanup(() => unregister?.());
+							return createComponent$1(Button$1, {
+								unstyled: true,
+								role: "radio",
+								get ["aria-label"]() {
+									return ratingLabel(item);
+								},
+								get ["aria-checked"]() {
+									return checked();
+								},
+								get selected() {
+									return checked();
+								},
+								get disabled() {
+									return disabled();
+								},
+								get focusOrder() {
+									return memo(() => {
+										return !!disabled();
+									})() ? -1 : checked() || value() === 0 && item === 1 ? 0 : -1;
+								},
+								ref: (node) => {
+									unregister?.();
+									unregister = roving.register({
+										id: String(item),
+										target: node,
+										disabled: inert
+									});
+								},
+								class: (buttonState) => join("w-8 h-8 items-center justify-center rounded-md border border-transparent", match({
+									focused: buttonState.focusVisible,
+									hovered: buttonState.hovered
+								}).with({ focused: true }, () => "border-focus bg-control").with({ hovered: true }, () => "bg-control-hover").with({
+									focused: false,
+									hovered: false
+								}, () => "bg-transparent").exhaustive()),
+								onPointerEnter: () => !inert() && previewItem(item),
+								onPointerLeave: clearPreviewAfterPointerDispatch,
+								onClick: () => select(item),
+								onKeyDown: (event) => {
+									if (match(event.key).with(P.union("Home", "End", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"), () => roving.move(String(item), event.key)).otherwise(() => false)) event.preventDefault();
+								},
+								get children() {
+									return createComponent$1(RatingIcon, {
+										get highlighted() {
+											return highlighted();
+										},
+										get size() {
+											return props.size ?? 20;
+										}
+									});
+								}
+							});
+						}
+					});
+				}
+			});
+		}
+	});
+}
+//#endregion
 //#region src/components/resizable.tsx
 function finitePercentage(value, name) {
 	if (!Number.isFinite(value) || value < 0 || value > 100) throw new RangeError(`${name} must be a finite percentage from 0 to 100`);
@@ -5585,6 +5747,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, clampPage, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizePageCount, normalizeProgressValue, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

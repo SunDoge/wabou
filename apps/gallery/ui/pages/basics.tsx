@@ -29,6 +29,7 @@ import {
   px,
   RadioGroup,
   RadioGroupItem,
+  Rating,
   ScrollArea,
   SearchField,
   Separator,
@@ -600,6 +601,37 @@ function SliderPage() {
   );
 }
 
+function RatingPage() {
+  const [value, setValue] = createSignal(3);
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Interactive rating">
+        <View class="flex flex-col items-start gap-3">
+          <Rating
+            label="Framework rating"
+            value={value()}
+            allowClear
+            onValueChange={setValue}
+          />
+          <Text
+            role="status"
+            aria-label="Framework rating value"
+            class="text-sm text-secondary"
+          >
+            {value() === 0 ? "No rating" : `${value()} of 5 stars`}
+          </Text>
+        </View>
+      </Preview>
+      <Preview title="States">
+        <Rating label="Read-only rating" value={4} readOnly />
+        <Rating label="Disabled rating" value={2} disabled />
+      </Preview>
+      <PropertyRow name="value" value="number (controlled or uncontrolled)" />
+      <PropertyRow name="allowClear" value="boolean" />
+    </View>
+  );
+}
+
 function NumberFieldPage() {
   const [concurrency, setConcurrency] = createSignal(4);
   const [price, setPrice] = createSignal<number | null>(12.5);
@@ -957,6 +989,7 @@ export {
   PlatformPage,
   ProgressPage,
   RadioGroupPage,
+  RatingPage,
   ScrollAreaPage,
   SeparatorPage,
   SkeletonPage,
