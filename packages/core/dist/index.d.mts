@@ -29,6 +29,8 @@ declare global {
     headers: Record<string, string>;
     body: Uint8Array;
   }>;
+  function __wabou_crypto_random(output: Uint8Array): void;
+  function __wabou_crypto_digest(algorithm: number, input: Uint8Array): Promise<Uint8Array>;
   function __wabou_sleep(delayMs: number): Promise<void>;
   function __wabou_resize_observe(nodeLo: number, nodeHi: number): void;
   function __wabou_resize_unobserve(nodeLo: number, nodeHi: number): void;

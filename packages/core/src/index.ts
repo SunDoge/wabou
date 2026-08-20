@@ -11,6 +11,8 @@
 
 import "./host";
 import "./polyfills/abort-controller";
+import "./polyfills/dom-exception";
+import "./polyfills/crypto";
 
 // URL and URLSearchParams are installed by the host's core-prelude (platform.ts,
 // bundled with whatwg-url/@ungap via gen-core-prelude) BEFORE the app boots.

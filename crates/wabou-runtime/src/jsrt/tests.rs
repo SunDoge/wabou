@@ -181,6 +181,60 @@ fn layout_snapshot_fills_a_versioned_typed_array_without_json() {
 }
 
 #[test]
+fn web_crypto_uses_native_randomness_and_off_thread_digests() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let mut runtime = JsRuntime::new().expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot core fixture");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.cryptoResult = null;
+                const random = crypto.getRandomValues(new Uint8Array(64));
+                const uuid = crypto.randomUUID();
+                crypto.subtle.digest("SHA-256", new Uint8Array([97, 98, 99]))
+                  .then(value => globalThis.cryptoResult = {
+                    randomHasEntropy: random.some(byte => byte !== 0),
+                    uuid,
+                    digest: Array.from(new Uint8Array(value)),
+                  });
+                "#,
+            )
+        })
+        .expect("start native crypto operations");
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while runtime
+        .with(|ctx| ctx.eval::<bool, _>("globalThis.cryptoResult === null"))
+        .expect("inspect crypto result")
+    {
+        runtime.poll_async_runtime();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "native digest timed out"
+        );
+        std::thread::yield_now();
+    }
+    let result = runtime
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.cryptoResult)"))
+        .expect("serialize crypto result");
+    let result: serde_json::Value = serde_json::from_str(&result).expect("crypto result JSON");
+    assert_eq!(result["randomHasEntropy"], true);
+    assert!(
+        result["uuid"]
+            .as_str()
+            .is_some_and(|uuid| uuid.len() == 36 && uuid.as_bytes()[14] == b'4')
+    );
+    assert_eq!(
+        result["digest"],
+        serde_json::json!([
+            186, 120, 22, 191, 143, 1, 207, 234, 65, 65, 64, 222, 93, 174, 34, 35, 176, 3, 97, 163,
+            150, 23, 122, 156, 180, 16, 255, 97, 242, 0, 21, 173
+        ])
+    );
+}
+
+#[test]
 fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     let runtime = JsRuntime::new().expect("runtime");
     runtime

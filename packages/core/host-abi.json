@@ -148,6 +148,22 @@
       "returns": "Promise<{ status: number; statusText: string; headers: Record<string, string>; body: Uint8Array }>"
     },
     {
+      "name": "__wabou_crypto_random",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["output", "Uint8Array"]],
+      "returns": "void"
+    },
+    {
+      "name": "__wabou_crypto_digest",
+      "direction": "host",
+      "owner": "runtime",
+      "kind": "function",
+      "params": [["algorithm", "number"], ["input", "Uint8Array"]],
+      "returns": "Promise<Uint8Array>"
+    },
+    {
       "name": "__wabou_sleep",
       "direction": "host",
       "owner": "runtime",

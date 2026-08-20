@@ -2,7 +2,19 @@
 //! `jsrt.rs`. JavaScript names live at that registration boundary so stack
 //! traces and the installed global always use the same source of truth.
 
-use rquickjs::{Ctx, Result, TypedArray};
+use rquickjs::{Ctx, IntoJs, Result, TypedArray, Value};
+
+/// Rust-owned bytes converted directly into a JavaScript `Uint8Array`.
+///
+/// Async host functions can return this lifetime-free wrapper and let
+/// rquickjs allocate the typed array when their Promise settles.
+pub struct OwnedJsBytes(pub Vec<u8>);
+
+impl<'js> IntoJs<'js> for OwnedJsBytes {
+    fn into_js(self, ctx: &Ctx<'js>) -> Result<Value<'js>> {
+        TypedArray::new(ctx.clone(), self.0).map(TypedArray::into_value)
+    }
+}
 
 pub fn host_log(tag: String, msg: String) {
     match tag.as_str() {

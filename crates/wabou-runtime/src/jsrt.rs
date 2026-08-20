@@ -93,7 +93,7 @@ impl<'js> rquickjs::IntoJs<'js> for FetchResponse {
             headers.set(name, value)?;
         }
         value.set("headers", headers)?;
-        value.set("body", TypedArray::new(ctx.clone(), self.body)?)?;
+        value.set("body", crate::host_ffi::OwnedJsBytes(self.body))?;
         Ok(value.into_value())
     }
 }
@@ -600,6 +600,46 @@ impl JsRuntime {
             )?
             .with_name("__wabou_layout_snapshot")?,
         )?;
+        globals.set(
+            "__wabou_crypto_random",
+            rquickjs::Function::new(ctx.clone(), |output: TypedArray<u8>| -> JsResult<()> {
+                if output.len() > 65_536 {
+                    return Err(rquickjs::Error::new_from_js_message(
+                        "crypto.getRandomValues",
+                        "integer TypedArray",
+                        "requested byte length exceeds 65536",
+                    ));
+                }
+                crate::host_ffi::with_typed_array_prefix_mut(&output, output.len(), |bytes| {
+                    getrandom::fill(bytes)
+                })?
+                .map_err(|error| {
+                    rquickjs::Error::new_from_js_message(
+                        "system random source",
+                        "random bytes",
+                        error.to_string(),
+                    )
+                })
+            })?
+            .with_name("__wabou_crypto_random")?,
+        )?;
+        globals.set(
+            "__wabou_crypto_digest",
+            rquickjs::Function::new(
+                ctx.clone(),
+                rquickjs::prelude::Async(|algorithm: u8, input: TypedArray<u8>| -> _ {
+                    let bytes = input.as_bytes().map(<[u8]>::to_vec);
+                    async move {
+                        let bytes = bytes.ok_or(rquickjs::Error::Unknown)?;
+                        tokio::task::spawn_blocking(move || digest_bytes(algorithm, &bytes))
+                            .await
+                            .map_err(|_| rquickjs::Error::Unknown)?
+                            .map(crate::host_ffi::OwnedJsBytes)
+                    }
+                }),
+            )?
+            .with_name("__wabou_crypto_digest")?,
+        )?;
         Ok(())
     }
 
@@ -1039,6 +1079,25 @@ async fn fetch_request(
         headers,
         body,
     })
+}
+
+fn digest_bytes(algorithm: u8, bytes: &[u8]) -> JsResult<Vec<u8>> {
+    use sha1::Digest as _;
+
+    let digest = match algorithm {
+        1 => sha1::Sha1::digest(bytes).to_vec(),
+        2 => sha2::Sha256::digest(bytes).to_vec(),
+        3 => sha2::Sha384::digest(bytes).to_vec(),
+        4 => sha2::Sha512::digest(bytes).to_vec(),
+        _ => {
+            return Err(rquickjs::Error::new_from_js_message(
+                "crypto.subtle.digest",
+                "SHA-1, SHA-256, SHA-384, or SHA-512",
+                format!("unknown digest algorithm id {algorithm}"),
+            ));
+        }
+    };
+    Ok(digest)
 }
 
 #[cfg(test)]

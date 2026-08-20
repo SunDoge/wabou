@@ -123,6 +123,18 @@ pub(crate) const HOST_ABI: &[HostAbiEntry] = &[
         feature: None,
     },
     HostAbiEntry {
+        name: "__wabou_crypto_random",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
+        name: "__wabou_crypto_digest",
+        direction: Direction::Host,
+        owner: "runtime",
+        feature: None,
+    },
+    HostAbiEntry {
         name: "__wabou_sleep",
         direction: Direction::Host,
         owner: "runtime",

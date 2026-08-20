@@ -14,6 +14,7 @@ bitflags = { workspace = true }
 bon = { workspace = true }
 foyer = "0.22.3"
 futures-lite = "2"
+getrandom = { workspace = true }
 jiff = { workspace = true }
 lasso = "0.7.3"
 open = { workspace = true }
@@ -31,6 +32,8 @@ rquickjs-serde = "0.6.1"
 serde = { workspace = true, features = ["derive"] }
 serde_ignored = { workspace = true }
 serde_json = { workspace = true }
+sha1 = { workspace = true }
+sha2 = { workspace = true }
 snafu = { workspace = true }
 slotmap = { workspace = true }
 sourcemap = "9.2.2"

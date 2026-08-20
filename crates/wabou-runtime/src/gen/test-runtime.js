@@ -563,6 +563,87 @@
   }
   installAbortControllerPolyfill();
 
+  // packages/core/src/polyfills/dom-exception.ts
+  class WabouDOMException extends Error {
+    code = 0;
+    constructor(message = "", name = "Error") {
+      super(message);
+      this.name = name;
+    }
+  }
+  function installDOMExceptionPolyfill() {
+    if (!("DOMException" in globalThis)) {
+      Object.defineProperty(globalThis, "DOMException", {
+        configurable: true,
+        writable: true,
+        value: WabouDOMException
+      });
+    }
+  }
+  installDOMExceptionPolyfill();
+
+  // packages/core/src/polyfills/crypto.ts
+  var DIGEST_IDS = {
+    "SHA-1": 1,
+    "SHA-256": 2,
+    "SHA-384": 3,
+    "SHA-512": 4
+  };
+  function digestName(algorithm) {
+    const raw = typeof algorithm === "string" ? algorithm : algorithm.name;
+    const name = raw.toUpperCase();
+    if (!(name in DIGEST_IDS))
+      throw new DOMException(`Unsupported digest algorithm: ${raw}`, "NotSupportedError");
+    return name;
+  }
+  function bytesOf(source) {
+    if (ArrayBuffer.isView(source))
+      return new Uint8Array(source.buffer, source.byteOffset, source.byteLength);
+    return new Uint8Array(source);
+  }
+  function isIntegerArray(value) {
+    return value instanceof Int8Array || value instanceof Uint8Array || value instanceof Uint8ClampedArray || value instanceof Int16Array || value instanceof Uint16Array || value instanceof Int32Array || value instanceof Uint32Array || typeof BigInt64Array !== "undefined" && value instanceof BigInt64Array || typeof BigUint64Array !== "undefined" && value instanceof BigUint64Array;
+  }
+
+  class WabouSubtleCrypto {
+    async digest(algorithm, data) {
+      const name = digestName(algorithm);
+      const result = await globalThis.__wabou_crypto_digest(DIGEST_IDS[name], bytesOf(data));
+      return result.buffer;
+    }
+  }
+
+  class WabouCrypto {
+    subtle = new WabouSubtleCrypto;
+    getRandomValues(array) {
+      if (array === null || !isIntegerArray(array))
+        throw new DOMException("getRandomValues requires an integer TypedArray", "TypeMismatchError");
+      if (array.byteLength > 65536)
+        throw new DOMException("getRandomValues cannot fill more than 65536 bytes", "QuotaExceededError");
+      globalThis.__wabou_crypto_random(bytesOf(array));
+      return array;
+    }
+    randomUUID() {
+      const bytes = this.getRandomValues(new Uint8Array(16));
+      bytes[6] = bytes[6] & 15 | 64;
+      bytes[8] = bytes[8] & 63 | 128;
+      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+      return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+    }
+  }
+  function installCryptoPolyfill() {
+    if (!("__wabou_crypto_random" in globalThis))
+      return;
+    if (!("crypto" in globalThis)) {
+      Object.defineProperty(globalThis, "crypto", {
+        configurable: true,
+        writable: true,
+        value: new WabouCrypto
+      });
+    }
+  }
+  installCryptoPolyfill();
+
   // packages/core/src/polyfills/fetch.ts
   function normalizeHeaderName(name) {
     return String(name).toLowerCase();

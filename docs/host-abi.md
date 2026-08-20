@@ -23,6 +23,8 @@ Source of truth: `packages/core/host-abi.json`.
 | `__wabou_utf8_encode` | host | runtime | always |
 | `__wabou_utf8_decode` | host | runtime | always |
 | `__wabou_fetch` | host | runtime | always |
+| `__wabou_crypto_random` | host | runtime | always |
+| `__wabou_crypto_digest` | host | runtime | always |
 | `__wabou_sleep` | host | runtime | always |
 | `__wabou_resize_observe` | host | runtime | always |
 | `__wabou_resize_unobserve` | host | runtime | always |
