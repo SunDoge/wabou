@@ -562,6 +562,19 @@ function createPresence(open) {
 }
 //#endregion
 //#region src/primitives/view.ts
+const ICON_SIZE_UNITLESS_RE = /^-?\d*\.?\d+$/;
+function normalizeIconSize(size) {
+	if (size == null) return "1em";
+	if (typeof size === "number") return size;
+	const value = size.trim();
+	if (!value) return "1em";
+	const parsed = Number.parseFloat(value);
+	if (Number.isFinite(parsed) && ICON_SIZE_UNITLESS_RE.test(value)) return parsed;
+	return value;
+}
+function applyIconFill(source, fill) {
+	return source.replace(/fill=(["'])none\1/, `fill="${fill}"`);
+}
 function primitive(tag, props) {
 	const node = createElement(tag);
 	spread(node, props, false);
@@ -615,18 +628,37 @@ function Path(props) {
 }
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 function Icon(props) {
-	const rest = omit(props, "source", "size", "fill", "label");
+	const rest = omit(props, "source", "size", "fill", "label", "class");
 	const node = createElement("svg");
 	spread(node, rest, false);
 	spread(node, {
-		get source() {
-			return props.fill && props.fill !== "none" ? props.source.replace("fill=\"none\"", `fill="${props.fill}"`) : props.source;
+		get class() {
+			return props.class ? `self-center shrink-0 ${props.class}` : "self-center shrink-0";
+		},
+		get style() {
+			const iconSize = normalizeIconSize(props.size);
+			return {
+				display: "inline-flex",
+				"align-items": "center",
+				"justify-content": "center",
+				"align-self": "center",
+				width: iconSize,
+				height: iconSize,
+				"flex-shrink": 0,
+				"line-height": "1",
+				...props.style ?? {}
+			};
 		},
 		get width() {
-			return String(props.size ?? 24);
+			const iconSize = normalizeIconSize(props.size);
+			return typeof iconSize === "number" ? String(iconSize) : void 0;
+		},
+		get source() {
+			return props.fill && props.fill !== "none" ? applyIconFill(props.source, props.fill) : props.source;
 		},
 		get height() {
-			return String(props.size ?? 24);
+			const iconSize = normalizeIconSize(props.size);
+			return typeof iconSize === "number" ? String(iconSize) : void 0;
 		},
 		get role() {
 			return props.label ? "img" : void 0;
@@ -1882,4 +1914,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createHover as $, Row as A, Text as B, Spin as C, useOverlayPlane as D, createOverlayLayer as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, Button as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, Center as O, Image as P, createPress as Q, PathBuilder as R, Ripple as S, OverlayPlaneProvider as T, View as U, TextArea as V, rotate2d$1 as W, createButton as X, Link as Y, createActive as Z, shift as _, createKeyedSelection as a, createLoop as at, createNotifications as b, createFormDraft as c, createTransition as ct, arrow as d, createFocus as et, autoPlacement as f, offset as g, flip as h, createScrollReset as i, animateKeyframes as it, CollapsiblePresence as j, Column as k, ScrollArea as l, computeHostFloatingPosition as m, createTabs as n, createAnimationFrame as nt, isSelected as o, createPulse as ot, computeFloatingPosition as p, createMeasuredSize as q, createShortcuts as r, animate as rt, toggleSelection as s, createRotation as st, primitives_exports as t, createFocusWithin as tt, Popover as u, size as v, Modal as w, Pulse as x, NotificationRegion as y, Svg as z };
 
-//# sourceMappingURL=primitives-bj2dZvzt.mjs.map
+//# sourceMappingURL=primitives-BoIsDtYR.mjs.map

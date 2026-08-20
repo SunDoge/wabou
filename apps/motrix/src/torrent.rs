@@ -15,19 +15,24 @@ enum BencodeValue {
 const MAX_TORRENT_SIZE: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct TorrentPreview {
     pub name: String,
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub total_length: u64,
     pub files: Vec<TorrentFilePreview>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct TorrentFilePreview {
     /// User-facing BitTorrent file index. These indices are one-based.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub index: u64,
     pub path: String,
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub length: u64,
 }
 

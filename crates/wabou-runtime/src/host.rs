@@ -50,6 +50,7 @@ use crate::asset_cache::ResourceCache;
 use crate::bundle;
 use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
+use crate::native_capability::NativeCapability;
 use crate::{HostMessageContext, HostMessageRouter};
 use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
 use wabou_shell::{Widget, WidgetFactory};
@@ -695,6 +696,22 @@ impl HostBuilder {
         self.mount_capability(contract.name(), move |ctx, object| {
             object.set("__wabouCapabilityVersion", contract.version())?;
             mount(JsonCapability { ctx, object })
+        })
+    }
+
+    /// Mount typed asynchronous methods that exchange structured QuickJS
+    /// values directly without JSON text encoding.
+    pub fn native_capability<F>(self, contract: JsonCapabilityContract, mount: F) -> Self
+    where
+        F: for<'js> Fn(NativeCapability<'js>) -> rquickjs::Result<()>
+            + rquickjs::markers::ParallelSend
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.mount_capability(contract.name(), move |ctx, object| {
+            object.set("__wabouCapabilityVersion", contract.version())?;
+            mount(NativeCapability { ctx, object })
         })
     }
 

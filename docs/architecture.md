@@ -107,6 +107,17 @@ The protocol transports explicit facts. For example, JS sends focusability and
 focus order as an interaction policy. Rust validates and applies that policy;
 it does not derive focusability from a button-like role.
 
+### Future host actors
+
+TODO: evaluate Kameo as the runtime behind long-lived application services.
+Wabou would keep ownership of the public contract layer: explicitly exported
+ask, tell, and event messages would carry stable names and versions, feed
+Specta/TypeScript generation, and map onto JSON capabilities and host messages.
+Internal actor messages would remain ordinary Rust types and would not become
+part of the JavaScript API. The experiment must demonstrate that it removes a
+real hand-written command loop without duplicating `HostService` lifecycle,
+cancellation, or shutdown semantics before it becomes framework API.
+
 ## Tooling contract
 
 The CLI is the orchestration boundary. `wabou dev`, `test`, `build`, `package`,

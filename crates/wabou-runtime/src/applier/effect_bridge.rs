@@ -111,8 +111,21 @@ impl EffectBridge {
     }
 
     pub(super) fn take(&self, js: &JsRuntime) -> Option<EffectRequest> {
+        let mut delivered_replay = false;
         while let Some(completion) = self.replay_completions.borrow_mut().pop_front() {
             self.deliver_if_pending(js, &completion);
+            delivered_replay = true;
+        }
+        if delivered_replay {
+            // Replay resolves the same Promise as a live native completion,
+            // but does so synchronously while the shell drains effects. Run a
+            // bounded microtask checkpoint before the next test action can
+            // inspect state, then wake the shell for rendering or any work
+            // left by the scheduler budget.
+            js.poll_async_runtime();
+            if let Some(wake) = self.action_wake.borrow().as_ref() {
+                wake();
+            }
         }
         self.effects.borrow_mut().pop_front()
     }

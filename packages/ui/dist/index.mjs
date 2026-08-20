@@ -1,4 +1,4 @@
-import { $ as createHover, A as Row, B as Text, C as Spin, E as createOverlayLayer, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as Button$1, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as Center, P as Image, Q as createPress, R as PathBuilder, S as Ripple, T as OverlayPlaneProvider, U as View, V as TextArea, W as rotate2d$1, X as createButton, Y as Link, Z as createActive, a as createKeyedSelection, at as createLoop, b as createNotifications, c as createFormDraft, ct as createTransition, et as createFocus, i as createScrollReset, it as animateKeyframes, j as CollapsiblePresence, k as Column, l as ScrollArea, n as createTabs, nt as createAnimationFrame, o as isSelected, ot as createPulse, q as createMeasuredSize, r as createShortcuts, rt as animate, s as toggleSelection, st as createRotation, t as primitives_exports, tt as createFocusWithin, u as Popover, w as Modal, x as Pulse, y as NotificationRegion, z as Svg } from "./primitives-bj2dZvzt.mjs";
+import { $ as createHover, A as Row, B as Text, C as Spin, E as createOverlayLayer, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as Button$1, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as Center, P as Image, Q as createPress, R as PathBuilder, S as Ripple, T as OverlayPlaneProvider, U as View, V as TextArea, W as rotate2d$1, X as createButton, Y as Link, Z as createActive, a as createKeyedSelection, at as createLoop, b as createNotifications, c as createFormDraft, ct as createTransition, et as createFocus, i as createScrollReset, it as animateKeyframes, j as CollapsiblePresence, k as Column, l as ScrollArea, n as createTabs, nt as createAnimationFrame, o as isSelected, ot as createPulse, q as createMeasuredSize, r as createShortcuts, rt as animate, s as toggleSelection, st as createRotation, t as primitives_exports, tt as createFocusWithin, u as Popover, w as Modal, x as Pulse, y as NotificationRegion, z as Svg } from "./primitives-BoIsDtYR.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -2725,10 +2725,7 @@ function matchView(router, index) {
 /** Preserve a matched component while its route and selected view are stable. */
 function RouteMatch(props) {
 	const match = () => props.router.state.matches[props.index];
-	const outlet = createComponent(RouteOutlet, {
-		router: props.router,
-		index: props.index + 1
-	});
+	let outlet;
 	return createComponent(Show, {
 		get when() {
 			return matchView(props.router, props.index);
@@ -2739,7 +2736,10 @@ function RouteMatch(props) {
 				return match()?.error;
 			},
 			get children() {
-				return outlet;
+				return outlet ??= createComponent(RouteOutlet, {
+					router: props.router,
+					index: props.index + 1
+				});
 			}
 		})
 	});

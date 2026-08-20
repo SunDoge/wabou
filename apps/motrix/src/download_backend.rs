@@ -6,7 +6,7 @@
 
 use std::{
     path::{Path, PathBuf},
-    sync::{Arc, mpsc},
+    sync::Arc,
     thread,
 };
 
@@ -15,9 +15,15 @@ use gosh_dl::{
     DownloadState, EngineConfig,
 };
 use serde::Serialize;
-use tokio::sync::{broadcast, mpsc as tokio_mpsc, oneshot};
+use tokio::sync::{broadcast, oneshot};
 
 use crate::config::{AppConfig, parse_byte_size};
+
+// Commands are low-volume application operations, but the queue must still be
+// bounded so a stalled engine cannot turn a burst of host requests into
+// unbounded memory growth. Progress does not use this queue.
+const COMMAND_CAPACITY: usize = 256;
+const EVENT_CAPACITY: usize = 512;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -140,7 +146,7 @@ enum Command {
 /// Thread-safe handle to the Tokio-owned embedded download engine.
 #[derive(Clone)]
 pub struct GoshBackend {
-    commands: tokio_mpsc::UnboundedSender<Command>,
+    commands: flume::Sender<Command>,
     events: broadcast::Sender<DownloadEvent>,
     default_connections: usize,
 }
@@ -149,10 +155,10 @@ impl GoshBackend {
     pub fn start(config: &AppConfig, data_dir: &Path) -> Result<Self, String> {
         let engine_config = engine_config(config, data_dir);
         let default_connections = engine_config.max_connections_per_download;
-        let (commands, receiver) = tokio_mpsc::unbounded_channel();
-        let (events, _) = broadcast::channel(512);
+        let (commands, receiver) = flume::bounded(COMMAND_CAPACITY);
+        let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let event_output = events.clone();
-        let (ready_tx, ready_rx) = mpsc::sync_channel(1);
+        let (ready_tx, ready_rx) = flume::bounded(1);
 
         thread::Builder::new()
             .name("motrix-gosh-dl".to_owned())
@@ -284,7 +290,8 @@ impl GoshBackend {
     ) -> Result<T, String> {
         let (reply, response) = oneshot::channel();
         self.commands
-            .send(command(reply))
+            .send_async(command(reply))
+            .await
             .map_err(|_| "download engine is not running".to_owned())?;
         response
             .await
@@ -321,9 +328,9 @@ fn parse_nonzero_byte_size(value: &str) -> Option<u64> {
 
 fn run_engine(
     config: EngineConfig,
-    mut commands: tokio_mpsc::UnboundedReceiver<Command>,
+    commands: flume::Receiver<Command>,
     events: broadcast::Sender<DownloadEvent>,
-    ready: mpsc::SyncSender<Result<(), String>>,
+    ready: flume::Sender<Result<(), String>>,
 ) {
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -363,8 +370,8 @@ fn run_engine(
                     }
                     Err(broadcast::error::RecvError::Closed) => break,
                 },
-                command = commands.recv() => {
-                    let Some(command) = command else { break };
+                command = commands.recv_async() => {
+                    let Ok(command) = command else { break };
                     if handle_command(&engine, command).await { break; }
                 }
             }

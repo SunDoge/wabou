@@ -238,7 +238,8 @@ export function DownloadsPage() {
             size="sm"
             variant="ghost"
             disabled={
-              !downloads.snapshot().connected || taskActions.pending("global")
+              downloads.snapshot().status !== "ready" ||
+              taskActions.pending("global")
             }
             onClick={() =>
               executeAction("global", async () => {
@@ -253,7 +254,8 @@ export function DownloadsPage() {
             size="sm"
             variant="ghost"
             disabled={
-              !downloads.snapshot().connected || taskActions.pending("global")
+              downloads.snapshot().status !== "ready" ||
+              taskActions.pending("global")
             }
             onClick={() =>
               executeAction("global", async () => {

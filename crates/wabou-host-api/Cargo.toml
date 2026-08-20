@@ -5,12 +5,18 @@ edition = "2024"
 license.workspace = true
 
 [features]
-bindings = ["dep:wabou-bindgen", "wabou-bindgen/generate"]
+bindings = [
+  "dep:specta",
+  "dep:specta-typescript",
+  "dep:wabou-bindgen",
+  "wabou-bindgen/generate",
+]
 specta = ["dep:specta"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 specta = { workspace = true, optional = true }
+specta-typescript = { workspace = true, optional = true }
 wabou-bindgen = { workspace = true, optional = true }
 
 [dev-dependencies]

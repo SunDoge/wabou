@@ -9,12 +9,14 @@ path = "src/main.rs"
 
 [dependencies]
 directories = { workspace = true }
+flume = { workspace = true }
 gosh-dl = { workspace = true }
 jiff = { workspace = true }
 open = { workspace = true }
 portmapper = "0.19.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+specta = { workspace = true, optional = true }
 snafu = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 trash = { workspace = true }
@@ -22,3 +24,12 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4"] }
 wabou = { workspace = true, features = ["tray"] }
+specta-typescript = { workspace = true, optional = true }
+
+[features]
+bindings = ["wabou/bindings", "dep:specta", "dep:specta-typescript"]
+
+[[example]]
+name = "native-bindings"
+path = "examples/native-bindings.rs"
+required-features = ["bindings"]

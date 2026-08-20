@@ -166,6 +166,65 @@ impl<Response> JsonMethod<(), Response> {
     }
 }
 
+/// One direct-value native method shared by QuickJS registration and an
+/// explicitly written TypeScript facade.
+///
+/// Unlike [`JsonMethod`], values cross the in-process boundary as JavaScript
+/// objects rather than JSON text. Specta generates the request and response
+/// DTO declarations; function names and sync/async semantics remain explicit.
+pub struct HostMethod<Request, Response> {
+    name: &'static str,
+    has_request: bool,
+    marker: PhantomData<fn(Request) -> Response>,
+}
+
+impl<Request, Response> Copy for HostMethod<Request, Response> {}
+
+impl<Request, Response> Clone for HostMethod<Request, Response> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<Request, Response> HostMethod<Request, Response> {
+    /// Define a direct-value method accepting one structured request object.
+    pub const fn new(name: &'static str) -> Self
+    where
+        Request: DeserializeOwned,
+        Response: Serialize,
+    {
+        Self {
+            name,
+            has_request: true,
+            marker: PhantomData,
+        }
+    }
+
+    /// Return the native property name.
+    pub const fn name(self) -> &'static str {
+        self.name
+    }
+
+    /// Return whether the method accepts a request argument.
+    pub const fn has_request(self) -> bool {
+        self.has_request
+    }
+}
+
+impl<Response> HostMethod<(), Response> {
+    /// Define a direct-value method without a request argument.
+    pub const fn no_request(name: &'static str) -> Self
+    where
+        Response: Serialize,
+    {
+        Self {
+            name,
+            has_request: false,
+            marker: PhantomData,
+        }
+    }
+}
+
 /// One explicitly described function in a flat native interface.
 ///
 /// Unlike [`JsonMethod`], this contract deliberately does not infer
@@ -381,6 +440,31 @@ impl FunctionModule {
             response: method.response.to_owned(),
             asyncness: method.asyncness,
         });
+        self
+    }
+
+    /// Add request DTO declarations from their Serde deserialization shape.
+    ///
+    /// Native function signatures remain explicit; this only removes the
+    /// duplicated hand-written TypeScript declarations for structured values.
+    pub fn request_dto<T: Type>(mut self) -> Self {
+        let mut types = Types::default();
+        T::definition(&mut types);
+        merge_declarations(
+            &mut self.declarations,
+            specta_declarations(&types, specta_serde::Phase::Deserialize),
+        );
+        self
+    }
+
+    /// Add response DTO declarations from their Serde serialization shape.
+    pub fn response_dto<T: Type>(mut self) -> Self {
+        let mut types = Types::default();
+        T::definition(&mut types);
+        merge_declarations(
+            &mut self.declarations,
+            specta_declarations(&types, specta_serde::Phase::Serialize),
+        );
         self
     }
 
@@ -1193,6 +1277,23 @@ mod tests {
         assert!(output.contains("export interface FunctionRequest { path: string; }"));
         assert!(output.contains("updateFile(request: FunctionRequest): Promise<FunctionResponse>"));
         assert!(output.contains("currentStatus(): FunctionResponse"));
+    }
+
+    #[test]
+    fn flat_function_modules_generate_directional_dtos_with_specta() {
+        let output = FunctionModule::new("NativeFiles")
+            .request_dto::<FunctionRequest>()
+            .response_dto::<FunctionResponse>()
+            .method(NativeMethod::asynchronous(
+                "updateFile",
+                &[("request", "FunctionRequest")],
+                "FunctionResponse",
+            ))
+            .render();
+
+        assert!(output.contains("displayName: string"));
+        assert!(output.contains("accepted: boolean"));
+        assert!(output.contains("updateFile(request: FunctionRequest): Promise<FunctionResponse>"));
     }
 
     #[test]

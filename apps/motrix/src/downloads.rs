@@ -9,10 +9,12 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "bindings")]
+use wabou::{FunctionModule, NativeMethod};
 use wabou::{
-    HostMessageContext, HostService, HostServiceHandle, JsonCapability, JsonCapabilityContract,
-    JsonMethod, ManagedHostService, RevisionedHostPublisher, RevisionedHostSnapshot,
-    managed_host_service, rquickjs,
+    HostMessageContext, HostMethod, HostService, HostServiceHandle, JsonCapability,
+    JsonCapabilityContract, JsonMethod, ManagedHostService, NativeCapability,
+    RevisionedHostPublisher, RevisionedHostSnapshot, managed_host_service, rquickjs,
 };
 
 use crate::{
@@ -24,6 +26,8 @@ use crate::{
 };
 
 pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("downloads", 1);
+pub const NATIVE_CAPABILITY: JsonCapabilityContract =
+    JsonCapabilityContract::new("downloadsNative", 1);
 const SNAPSHOT: &str = "downloads.snapshot";
 const SNAPSHOT_PATCH: &str = "downloads.snapshot.patch";
 pub const QUIT_REQUESTED: &str = "motrix.quitRequested";
@@ -31,8 +35,8 @@ pub const QUIT_REQUESTED: &str = "motrix.quitRequested";
 const GET_SNAPSHOT: JsonMethod<(), Snapshot> = JsonMethod::no_request("getSnapshot");
 const ADD_URI: JsonMethod<AddUriRequest, Vec<String>> = JsonMethod::new("addUri");
 const ADD_TORRENT: JsonMethod<AddTorrentRequest, String> = JsonMethod::new("addTorrent");
-const INSPECT_TORRENT: JsonMethod<InspectTorrentRequest, TorrentPreview> =
-    JsonMethod::new("inspectTorrent");
+const INSPECT_TORRENT: HostMethod<InspectTorrentRequest, TorrentPreview> =
+    HostMethod::new("inspectTorrent");
 const TASK_ACTION: JsonMethod<TaskActionRequest, ()> = JsonMethod::new("taskAction");
 const BATCH_TASK_ACTION: JsonMethod<BatchTaskActionRequest, Vec<String>> =
     JsonMethod::new("batchTaskAction");
@@ -203,15 +207,12 @@ impl DownloadService {
         };
         Snapshot {
             revision,
-            connected: true,
-            endpoint: "embedded://gosh-dl".to_owned(),
+            status: ServiceStatus::Ready,
             version: Some("gosh-dl 0.5.0".to_owned()),
             error: None,
             download_speed,
             upload_speed,
             tasks,
-            managed: true,
-            engine_running: true,
             activity,
             downloaded_today,
             downloaded_total,
@@ -276,15 +277,12 @@ fn engine_restart_required(previous: &AppConfig, next: &AppConfig) -> bool {
 #[serde(rename_all = "camelCase")]
 struct Snapshot {
     revision: u64,
-    connected: bool,
-    endpoint: String,
+    status: ServiceStatus,
     version: Option<String>,
     error: Option<String>,
     download_speed: u64,
     upload_speed: u64,
     tasks: Vec<TaskSnapshot>,
-    managed: bool,
-    engine_running: bool,
     activity: Vec<u64>,
     downloaded_today: u64,
     downloaded_total: u64,
@@ -292,19 +290,23 @@ struct Snapshot {
     nat: NatStatus,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum ServiceStatus {
+    Ready,
+    Failed,
+}
+
 impl Snapshot {
     fn disconnected(revision: u64, error: String) -> Self {
         Self {
             revision,
-            connected: false,
-            endpoint: "embedded://gosh-dl".to_owned(),
+            status: ServiceStatus::Failed,
             version: None,
             error: Some(error),
             download_speed: 0,
             upload_speed: 0,
             tasks: Vec::new(),
-            managed: true,
-            engine_running: false,
             activity: vec![0; 364],
             downloaded_today: 0,
             downloaded_total: 0,
@@ -386,14 +388,11 @@ impl From<DownloadTask> for TaskSnapshot {
 struct SnapshotPatch {
     base_revision: u64,
     revision: u64,
-    connected: bool,
-    endpoint: String,
+    status: ServiceStatus,
     version: Option<String>,
     error: Option<String>,
     download_speed: u64,
     upload_speed: u64,
-    managed: bool,
-    engine_running: bool,
     activity: Vec<u64>,
     downloaded_today: u64,
     downloaded_total: u64,
@@ -415,14 +414,11 @@ impl SnapshotPatch {
         Self {
             base_revision: previous.revision,
             revision: next.revision,
-            connected: next.connected,
-            endpoint: next.endpoint.clone(),
+            status: next.status,
             version: next.version.clone(),
             error: next.error.clone(),
             download_speed: next.download_speed,
             upload_speed: next.upload_speed,
-            managed: next.managed,
-            engine_running: next.engine_running,
             activity: next.activity.clone(),
             downloaded_today: next.downloaded_today,
             downloaded_total: next.downloaded_total,
@@ -463,8 +459,9 @@ struct AddTorrentRequest {
     selected_files: Option<Vec<u64>>,
 }
 #[derive(Deserialize)]
-struct InspectTorrentRequest {
-    path: String,
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+pub struct InspectTorrentRequest {
+    pub path: String,
 }
 #[derive(Deserialize)]
 struct GetTaskDetailsRequest {
@@ -617,12 +614,6 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
                 .await
         }
     })?;
-    capability.method(
-        INSPECT_TORRENT,
-        move |request: InspectTorrentRequest| async move {
-            read_torrent(Path::new(&request.path)).map(|(_, preview)| preview)
-        },
-    )?;
     let action = service.clone();
     capability.method(TASK_ACTION, move |request: TaskActionRequest| {
         let service = action.clone();
@@ -682,6 +673,27 @@ pub fn mount(capability: JsonCapability<'_>, service: DownloadService) -> rquick
                 .map_err(|error| error.to_string())
         }
     })
+}
+
+pub fn mount_native(capability: NativeCapability<'_>) -> rquickjs::Result<()> {
+    capability.method(
+        INSPECT_TORRENT,
+        move |request: InspectTorrentRequest| async move {
+            read_torrent(Path::new(&request.path)).map(|(_, preview)| preview)
+        },
+    )
+}
+
+#[cfg(feature = "bindings")]
+pub fn native_bindings() -> FunctionModule {
+    FunctionModule::new("NativeDownloadsApi")
+        .request_dto::<InspectTorrentRequest>()
+        .response_dto::<TorrentPreview>()
+        .method(NativeMethod::asynchronous(
+            "inspectTorrent",
+            &[("request", "InspectTorrentRequest")],
+            "TorrentPreview",
+        ))
 }
 
 pub fn stream_snapshots(context: HostMessageContext, service: DownloadService) {

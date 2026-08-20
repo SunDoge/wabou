@@ -16,7 +16,9 @@ test("Motrix dashboard reflows at its minimum window size", async ({
     "page",
   );
   await expect(page.getByRole("button", { name: "Plugins" })).toBeAbsent();
-  const engine = page.getByRole("group", { name: "ENGINE statistic" });
+  const engine = page.getByRole("group", {
+    name: "DOWNLOAD SERVICE statistic",
+  });
   const upload = page.getByRole("group", { name: "UPLOAD statistic" });
   const uploadCharts = page.getByRole("img", {
     name: "Upload throughput chart",

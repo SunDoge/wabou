@@ -1,7 +1,7 @@
 import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, m as NodeKeyTable, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-B5PLhBe8.mjs";
 import { a as bool, c as number, d as rgba, f as rotate2d, g as INLINE_STYLE_CONTRACT, h as translate2d, i as auto, l as percent, m as shadow, n as StyleValueKind, o as classes, p as scale2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-D3b6x0_C.mjs";
 import { A as createFps, C as render, D as spread, E as setTransform2D, F as PathBuilder, I as isVectorPath, M as HostProvider, N as defaultHost, O as writer, P as useHost, S as removeNode, T as setProp, _ as mergeProps, a as createElement, b as registerRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as Portal, k as VirtualList, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as runSweep, x as releaseOverlayRoot, y as ref } from "./renderer-DSjeItPz.mjs";
-import { n as effectOps } from "./effect-abi-BOekrNqF.mjs";
+import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
 import { createComponent as createComponent$1, createContext, createEffect, createSignal, flush, getOwner, onCleanup, untrack, useContext } from "solid-js";
@@ -523,7 +523,7 @@ function usePlatformServices() {
 //#region src/glue/effects.ts
 const pending = /* @__PURE__ */ new Map();
 function assertAbi() {
-	if (__wabou_effect_abi !== 5) throw new Error(`Wabou effect ABI mismatch: bundle=5, host=${__wabou_effect_abi}`);
+	if (__wabou_effect_abi !== 6) throw new Error(`Wabou effect ABI mismatch: bundle=6, host=${__wabou_effect_abi}`);
 }
 function submit(op, payload) {
 	assertAbi();
@@ -585,7 +585,8 @@ function handle(id) {
 			windowId: id,
 			title
 		}),
-		startDragging: () => dispatchFireAndForget(effectOps.windowStartDragging, { windowId: id })
+		startDragging: () => dispatchFireAndForget(effectOps.windowStartDragging, { windowId: id }),
+		show: () => dispatchFireAndForget(effectOps.windowShow, { windowId: id })
 	});
 }
 /** Create an independent native window running this application's bundle. */
@@ -666,6 +667,7 @@ const state = {
 	setMaximized: (value) => currentWindow().setMaximized(value),
 	setTitle: (title) => currentWindow().setTitle(title),
 	startDragging: () => currentWindow().startDragging(),
+	show: () => currentWindow().show(),
 	metrics,
 	width: () => metrics().logicalWidth,
 	height: () => metrics().logicalHeight,

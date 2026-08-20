@@ -1,10 +1,4 @@
-mod activity;
-mod config;
-pub mod download_backend;
-mod downloads;
-mod nat;
-mod torrent;
-
+use motrix_wabou::downloads;
 use snafu::{ResultExt, Whatever};
 use wabou::{
     AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
@@ -84,6 +78,7 @@ fn main() -> Result<(), Whatever> {
         .json_capability(downloads::CAPABILITY, move |capability| {
             downloads::mount(capability, capability_service.clone())
         })
+        .native_capability(downloads::NATIVE_CAPABILITY, downloads::mount_native)
         .extension(tray)
         .host_message_router(application_messages)
         .host_message_producer(move |context| {

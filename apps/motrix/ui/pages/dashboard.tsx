@@ -40,6 +40,7 @@ export function DashboardPage() {
   const short = createWindowMatch({ maxHeight: 700 });
   const downloads = useDownloads();
   const snapshot = downloads.snapshot;
+  const serviceReady = () => snapshot().status === "ready";
   const speedLimit = () => downloads.config().maxOverallDownloadLimit;
   const uploadLimit = () => downloads.config().maxOverallUploadLimit;
   const activeSpeedProfile = createMemo(() => {
@@ -99,9 +100,9 @@ export function DashboardPage() {
             A clear view of your downloads and transfer activity.
           </Text>
         </View>
-        <Badge variant={snapshot().connected ? "success" : "secondary"}>
+        <Badge variant={serviceReady() ? "success" : "secondary"}>
           <View class="relative w-3 h-3 flex items-center justify-center">
-            <Show when={snapshot().connected}>
+            <Show when={serviceReady()}>
               <Ripple
                 aria-hidden
                 duration={1.4}
@@ -111,12 +112,12 @@ export function DashboardPage() {
             <View
               class="w-2 h-2 rounded-full"
               classList={{
-                "bg-success-primary": snapshot().connected,
-                "bg-muted": !snapshot().connected,
+                "bg-success-primary": serviceReady(),
+                "bg-muted": !serviceReady(),
               }}
             />
           </View>
-          {snapshot().connected ? "Engine ready" : "Engine offline"}
+          {serviceReady() ? "Downloads ready" : "Downloads unavailable"}
         </Badge>
       </View>
 
@@ -127,15 +128,15 @@ export function DashboardPage() {
       >
         <StatCard
           dense={short()}
-          label="ENGINE"
-          accent={snapshot().connected ? "green" : "neutral"}
-          value={snapshot().connected ? "Ready" : "Offline"}
-          detail={snapshot().version ?? snapshot().endpoint}
+          label="DOWNLOAD SERVICE"
+          accent={serviceReady() ? "green" : "neutral"}
+          value={serviceReady() ? "Ready" : "Unavailable"}
+          detail={snapshot().version ?? "Embedded Rust service"}
         >
           <Text class="text-xs text-secondary">
-            {snapshot().connected
-              ? "Embedded Rust engine is responding"
-              : "Starting the embedded download engine"}
+            {serviceReady()
+              ? "Embedded downloader is responding"
+              : snapshot().error ?? "Starting the embedded downloader"}
           </Text>
         </StatCard>
         <StatCard

@@ -353,8 +353,12 @@ function SettingsForm() {
             Configure Motrix and the downloads engine from one place.
           </Text>
         </View>
-        <Badge variant={snapshot().connected ? "success" : "secondary"}>
-          {snapshot().connected ? "Engine connected" : "Engine offline"}
+        <Badge
+          variant={snapshot().status === "ready" ? "success" : "secondary"}
+        >
+          {snapshot().status === "ready"
+            ? "Downloads ready"
+            : "Downloads unavailable"}
         </Badge>
       </View>
 
@@ -692,12 +696,12 @@ function SettingsForm() {
           <Show when={section() === "integration"}>
             <SectionHeading
               title="Integration"
-              detail="Motrix embeds gosh-dl by default and shuts it down cleanly on exit."
+              detail="The app embeds gosh-dl and shuts it down cleanly on exit."
             />
             <View class="w-full min-w-0 grid grid-cols-2 gap-4">
               <InfoCard
                 title="Command line"
-                detail="Launch with Wabou during development or run the packaged Motrix binary directly."
+                detail="Launch with Wabou during development or run the packaged application directly."
               />
               <InfoCard
                 title="Desktop services"
@@ -713,17 +717,21 @@ function SettingsForm() {
             />
             <View class="p-4 flex items-center justify-between rounded-lg border border-subtle bg-surface-muted">
               <View class="min-w-0 flex flex-col gap-1">
-                <Text class="font-semibold">Download engine</Text>
+                <Text class="font-semibold">Download service</Text>
                 <Text class="truncate text-sm text-muted">
-                  Embedded locally · {snapshot().endpoint}
+                  Embedded locally · {snapshot().version ?? "gosh-dl"}
                 </Text>
               </View>
-              <Badge variant={snapshot().connected ? "success" : "secondary"}>
-                {snapshot().connected
-                  ? "Connected"
-                  : snapshot().engineRunning
-                    ? "Connecting"
-                    : "Stopped"}
+              <Badge
+                variant={
+                  snapshot().status === "ready" ? "success" : "secondary"
+                }
+              >
+                {snapshot().status === "ready"
+                  ? "Ready"
+                  : snapshot().status === "starting"
+                    ? "Starting"
+                    : "Unavailable"}
               </Badge>
             </View>
             <View class="border-t border-subtle" />

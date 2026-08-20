@@ -400,6 +400,63 @@ fn dialog_and_notification_bridges_route_typed_effects_and_completions() {
 }
 
 #[test]
+fn replayed_effect_completion_wakes_javascript_jobs() {
+    const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    applier
+        .boot(CORE_FIXTURE)
+        .expect("boot public core fixture");
+
+    let trace = crate::effect_trace::EffectTrace::fixtures();
+    trace
+        .enqueue_fixture(
+            wabou_shell::effect::builtin::DIALOG_PICK_DIRECTORY,
+            wabou_shell::EffectResult::DialogPaths(Some(vec!["/tmp/wabou".into()])),
+        )
+        .expect("queue dialog fixture");
+    applier.runtime.effect_bridge.set_trace(trace);
+
+    let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let callback_wakes = wakes.clone();
+    FrameSource::set_wake_callback(
+        &mut applier,
+        Arc::new(move || {
+            callback_wakes.fetch_add(1, Ordering::Release);
+        }),
+    );
+    applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                r#"
+                globalThis.replayedDirectory = null;
+                __wabou_test_host_api.dialog.pickDirectory().then(
+                  path => { replayedDirectory = path; },
+                );
+                "#,
+            )
+        })
+        .expect("submit replayed dialog effect");
+
+    wakes.store(0, Ordering::Release);
+    assert!(
+        applier.take_effect().is_none(),
+        "fixture must replace live IO"
+    );
+    assert_eq!(wakes.load(Ordering::Acquire), 1);
+    assert_eq!(
+        applier
+            .runtime
+            .js
+            .with(|ctx| ctx.eval::<String, _>("replayedDirectory"))
+            .expect("replayed directory"),
+        "/tmp/wabou"
+    );
+}
+
+#[test]
 fn applier_host_ffi_surface_matches_the_generated_schema() {
     let mut expected = crate::host_abi::HOST_ABI
         .iter()

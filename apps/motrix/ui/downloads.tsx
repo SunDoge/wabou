@@ -19,6 +19,13 @@ import {
   type ParentProps,
   useContext,
 } from "solid-js";
+import type {
+  NativeDownloadsApi,
+  TorrentFilePreview,
+  TorrentPreview,
+} from "./generated/native-downloads";
+
+export type { TorrentFilePreview, TorrentPreview } from "./generated/native-downloads";
 
 export interface DownloadTask {
   id: string;
@@ -45,15 +52,12 @@ export interface DownloadTask {
 
 export interface DownloadSnapshot {
   revision: number;
-  connected: boolean;
-  endpoint: string;
+  status: "starting" | "ready" | "failed";
   version?: string;
   error?: string;
   downloadSpeed: number;
   uploadSpeed: number;
   tasks: DownloadTask[];
-  managed: boolean;
-  engineRunning: boolean;
   activity: number[];
   downloadedToday: number;
   downloadedTotal: number;
@@ -217,7 +221,6 @@ interface NativeDownloadsCapability extends NativeJsonCapability {
   getSnapshot(): string | PromiseLike<string>;
   addUri(request: string): string | PromiseLike<string>;
   addTorrent(request: string): string | PromiseLike<string>;
-  inspectTorrent(request: string): string | PromiseLike<string>;
   taskAction(request: string): string | PromiseLike<string>;
   batchTaskAction(request: string): string | PromiseLike<string>;
   getConfig(): string | PromiseLike<string>;
@@ -231,6 +234,9 @@ interface NativeDownloadsCapability extends NativeJsonCapability {
 
 interface DownloadsHost extends Host {
   downloads: NativeDownloadsCapability;
+  downloadsNative: NativeDownloadsApi & {
+    __wabouCapabilityVersion: number;
+  };
 }
 
 export type DownloadAction =
@@ -286,18 +292,6 @@ export interface SetConfigResult {
   restartRequired: boolean;
 }
 
-export interface TorrentFilePreview {
-  index: number;
-  path: string;
-  length: number;
-}
-
-export interface TorrentPreview {
-  name: string;
-  totalLength: number;
-  files: TorrentFilePreview[];
-}
-
 export function snapshotReflectsTaskAction(
   snapshot: DownloadSnapshot,
   id: string,
@@ -321,14 +315,11 @@ export interface AddUrisRequest {
 
 const disconnected: DownloadSnapshot = {
   revision: 0,
-  connected: false,
-  endpoint: "embedded://gosh-dl",
+  status: "starting",
   error: "Starting download engine…",
   downloadSpeed: 0,
   uploadSpeed: 0,
   tasks: [],
-  managed: false,
-  engineRunning: false,
   activity: Array(364).fill(0),
   downloadedToday: 0,
   downloadedTotal: 0,
@@ -503,7 +494,7 @@ export function DownloadsProvider(props: ParentProps) {
       );
       return id;
     },
-    inspectTorrent: (path) => call("inspectTorrent", { path }),
+    inspectTorrent: (path) => host.downloadsNative.inspectTorrent({ path }),
     taskDetails: (id) => call("getTaskDetails", { id }),
     taskAction: async (id, action, options) => {
       await call("taskAction", {

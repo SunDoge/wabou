@@ -2272,6 +2272,9 @@ name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+dependencies = [
+ "getrandom 0.4.3",
+]
 
 [[package]]
 name = "fdeflate"
@@ -2342,6 +2345,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e139bc46ca777eb5efaf62df0ab8cc5fd400866427e56c68b22e414e53bd3be"
 dependencies = [
+ "fastrand",
  "futures-core",
  "futures-sink",
  "spin 0.9.9",
@@ -4543,6 +4547,7 @@ name = "motrix-wabou"
 version = "0.1.0"
 dependencies = [
  "directories",
+ "flume",
  "gosh-dl",
  "jiff",
  "open",
@@ -4550,6 +4555,8 @@ dependencies = [
  "serde",
  "serde_json",
  "snafu",
+ "specta",
+ "specta-typescript",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -6732,6 +6739,16 @@ dependencies = [
  "quote",
  "rquickjs-core",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "rquickjs-serde"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04cf0aa631f8d0c5051db35f9f59899c34074d7b6be280c03fd4ce6165d0ed35"
+dependencies = [
+ "rquickjs",
+ "serde",
 ]
 
 [[package]]
@@ -9070,6 +9087,7 @@ dependencies = [
  "serde",
  "serde_json",
  "specta",
+ "specta-typescript",
  "wabou-bindgen",
 ]
 
@@ -9087,6 +9105,7 @@ dependencies = [
  "parley",
  "reqwest",
  "rquickjs",
+ "rquickjs-serde",
  "serde",
  "serde_ignored",
  "serde_json",

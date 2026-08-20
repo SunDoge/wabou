@@ -1,5 +1,5 @@
 //#region src/generated/effect-abi.d.ts
-declare const EFFECT_ABI_VERSION: 5;
+declare const EFFECT_ABI_VERSION: 6;
 declare const effectOps: Readonly<{
   readonly clipboardRead: {
     readonly capability: 1;
@@ -32,6 +32,10 @@ declare const effectOps: Readonly<{
   readonly windowStartDragging: {
     readonly capability: 2;
     readonly method: 6;
+  };
+  readonly windowShow: {
+    readonly capability: 2;
+    readonly method: 7;
   };
   readonly contextMenuShow: {
     readonly capability: 3;

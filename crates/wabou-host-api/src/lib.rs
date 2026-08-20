@@ -133,7 +133,7 @@ mod resource_key_tests {
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize)]
-#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Full-width generational identity for one retained node.
 pub struct NodeKey {
     /// Slot index. Zero is reserved by the wire protocol.
@@ -200,17 +200,23 @@ impl std::fmt::Display for NodeKey {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Timing and scene-size metrics for the most recently presented frame.
 pub struct FrameStats {
     /// Total Rust frame construction time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub build_frame_ms: f64,
     /// QuickJS animation-frame callback time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub js_tick_ms: f64,
     /// Vello scene construction time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub scene_ms: f64,
     /// Surface rendering and presentation time in milliseconds.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub present_ms: f64,
     /// Number of retained nodes in the frame.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub node_count: usize,
     /// Logical viewport width.
     pub viewport_w: u32,
@@ -219,19 +225,25 @@ pub struct FrameStats {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Axis-aligned rectangle in logical window coordinates.
 pub struct LayoutRect {
     /// Left edge.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub x: f32,
     /// Top edge.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub y: f32,
     /// Non-negative width.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub width: f32,
     /// Non-negative height.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub height: f32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Layout and effective clipping geometry for one Solid node.
 pub struct LayoutNodeMetrics {
     /// Solid-side node identifier.
@@ -243,9 +255,11 @@ pub struct LayoutNodeMetrics {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// Immutable layout projection returned by the synchronous host API.
 pub struct LayoutSnapshot {
     /// Monotonic layout revision used to detect stale snapshots.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub revision: u64,
     /// Current logical viewport.
     pub viewport: LayoutRect,
@@ -254,6 +268,7 @@ pub struct LayoutSnapshot {
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[cfg_attr(any(feature = "bindings", feature = "specta"), derive(specta::Type))]
 /// A Gregorian calendar date without a time or time zone.
 pub struct CalendarDateInfo {
     /// Proleptic Gregorian year.
@@ -280,53 +295,15 @@ mod contract {
     pub const SYSTEM_TIME_ZONE: NativeMethod = NativeMethod::sync("systemTimeZone", &[], "string");
     pub const SYSTEM_CALENDAR_DATE: NativeMethod =
         NativeMethod::sync("systemCalendarDate", &[], "CalendarDateInfo");
-
-    pub const CALENDAR_DATE_INFO: &str = r#"interface CalendarDateInfo {
-  year: number;
-  month: number;
-  day: number;
-}"#;
-    pub const FRAME_STATS_TYPE: &str = r#"interface FrameStats {
-  build_frame_ms: number;
-  js_tick_ms: number;
-  scene_ms: number;
-  present_ms: number;
-  node_count: number;
-  viewport_w: number;
-  viewport_h: number;
-}"#;
-    pub const LAYOUT_RECT: &str = r#"interface LayoutRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}"#;
-    pub const NODE_KEY: &str = r#"interface NodeKey {
-  readonly lo: number;
-  readonly hi: number;
-}"#;
-    pub const LAYOUT_NODE_METRICS: &str = r#"interface LayoutNodeMetrics {
-  id: NodeKey;
-  rect: LayoutRect;
-  clip: LayoutRect;
-}"#;
-    pub const LAYOUT_SNAPSHOT_TYPE: &str = r#"interface LayoutSnapshot {
-  revision: number;
-  viewport: LayoutRect;
-  nodes: LayoutNodeMetrics[];
-}"#;
 }
 
 #[cfg(feature = "bindings")]
 /// Generate the TypeScript contract for the synchronous native host API.
 pub fn bindings() -> FunctionModule {
     FunctionModule::new("NativeHostApi")
-        .declaration("CalendarDateInfo", contract::CALENDAR_DATE_INFO)
-        .declaration("FrameStats", contract::FRAME_STATS_TYPE)
-        .declaration("NodeKey", contract::NODE_KEY)
-        .declaration("LayoutRect", contract::LAYOUT_RECT)
-        .declaration("LayoutNodeMetrics", contract::LAYOUT_NODE_METRICS)
-        .declaration("LayoutSnapshot", contract::LAYOUT_SNAPSHOT_TYPE)
+        .response_dto::<CalendarDateInfo>()
+        .response_dto::<FrameStats>()
+        .response_dto::<LayoutSnapshot>()
         .method(contract::OPEN_URL)
         .method(contract::LOAD_FONT)
         .method(contract::FRAME_STATS)

@@ -92,6 +92,8 @@ interface WindowHandle {
   setTitle(title: string): void;
   /** Begin a compositor-managed move operation for a custom title bar. */
   startDragging(): void;
+  /** Restore this window if it was hidden or released to the tray. */
+  show(): void;
 }
 /** Create an independent native window running this application's bundle. */
 declare function createWindow(options?: CreateWindowOptions): Promise<WindowHandle>;

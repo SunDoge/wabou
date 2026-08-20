@@ -1,5 +1,5 @@
 //#region src/generated/effect-abi.ts
-const EFFECT_ABI_VERSION = 5;
+const EFFECT_ABI_VERSION = 6;
 const effectOps = Object.freeze({
 	clipboardRead: {
 		capability: 1,
@@ -32,6 +32,10 @@ const effectOps = Object.freeze({
 	windowStartDragging: {
 		capability: 2,
 		method: 6
+	},
+	windowShow: {
+		capability: 2,
+		method: 7
 	},
 	contextMenuShow: {
 		capability: 3,
@@ -73,4 +77,4 @@ const effectOps = Object.freeze({
 //#endregion
 export { effectOps as n, EFFECT_ABI_VERSION as t };
 
-//# sourceMappingURL=effect-abi-BOekrNqF.mjs.map
+//# sourceMappingURL=effect-abi-BzPW8STE.mjs.map

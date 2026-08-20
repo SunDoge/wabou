@@ -24,6 +24,7 @@ mod host_message;
 mod inline_context;
 mod json_capability;
 mod jsrt;
+mod native_capability;
 mod protocol;
 pub mod resource;
 mod source_map;
@@ -54,6 +55,7 @@ pub use host_message::{
 };
 pub use json_capability::JsonCapability;
 pub use jsrt::JsRuntime;
+pub use native_capability::NativeCapability;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;
 pub use rquickjs;

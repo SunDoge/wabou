@@ -105,10 +105,11 @@ declare module "@wabou/core/registry" {
 }
 ```
 
-Rust remains the source of truth for serialized request, response, event DTOs
-and exported method contracts. Every application capability method is one
-`JsonMethod<Request, Response>` constant shared by bindgen and runtime
-registration. Wabou pins the validated Specta 2 RC and uses `specta-serde`
+Rust remains the source of truth for request, response, and event DTOs.
+Application methods choose one of two typed boundaries: `JsonMethod` for
+low-frequency capability calls that benefit from a stable JSON envelope, or
+`HostMethod` for direct in-process QuickJS calls where encoding JSON text is
+unnecessary. Wabou pins the validated Specta 2 RC and uses `specta-serde`
 only to reflect its explicitly annotated bridge DTOs; it does not maintain
 fake contract-only functions. Request types are exported using their serde
 deserialization shape,
@@ -167,13 +168,20 @@ an explicit `write` operation; the corresponding `check` operation generates
 in memory and fails when the committed output differs. Ordinary compilation
 and build scripts must not rewrite the source tree.
 
-Framework-owned synchronous host calls use a flat `FunctionModule` rather than
-an async capability client. Its `NativeMethod` signatures and supporting
-TypeScript declarations are written explicitly beside the Rust host types;
-Specta does not infer FFI semantics. This deliberately makes the author review
-argument conversion, sync/async behavior and error policy, while generated-file
-drift checks still keep the committed adapter declaration reproducible. This is
-a framework-internal path; application APIs use `JsonMethod` contracts. Per-frame
-binary rendering operations and guest callbacks remain a separate, versioned
-ABI because routing those through JSON RPC would add cost and erase useful
-protocol constraints.
+Direct native calls use a flat `FunctionModule`. Its `NativeMethod` function
+names, argument lists, sync/async behavior, and return spellings remain
+explicit, while structured request and response DTO declarations come from the
+same Specta and Serde types used by Rust. At runtime the matching
+`HostMethod<Request, Response>` is mounted through `NativeCapability`, which
+converts structured QuickJS values directly instead of serializing JSON text.
+This path is available to applications as well as framework code; Motrix's
+torrent inspection is the reference integration. It removes duplicated object
+shapes without pretending that a Rust function's conversion, scheduling, or
+error policy can be inferred. Generated-file drift checks keep the committed
+adapter declaration reproducible.
+
+Prefer direct native methods for hot calls or stable, strongly typed object
+operations. Keep low-frequency configuration, coarse commands, and APIs that
+need JSON's transport/debugging envelope on `JsonMethod`. Per-frame rendering
+and other batchable operations remain a separate versioned binary opcode ABI;
+neither capability mechanism replaces it.
