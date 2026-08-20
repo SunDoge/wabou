@@ -19,6 +19,11 @@ import {
   Kbd,
   KbdGroup,
   Progress,
+  ProgressFill,
+  ProgressLabel,
+  ProgressRoot,
+  ProgressTrack,
+  ProgressValueLabel,
   px,
   RadioGroup,
   RadioGroupItem,
@@ -451,33 +456,67 @@ function ProgressPage() {
   };
   onCleanup(() => animation?.stop());
   return (
-    <Preview title="Interactive">
-      <View class="w-96 flex flex-col gap-4">
-        <View class="flex justify-between gap-4">
-          <ThemeText
-            dark="text-sm text-slate-200"
-            light="text-sm text-slate-700"
-          >
-            Building application
-          </ThemeText>
-          <ThemeText
-            dark="text-sm font-mono text-slate-400"
-            light="text-sm font-mono text-slate-500"
-          >
-            {value()}%
-          </ThemeText>
+    <View class="flex flex-col gap-5">
+      <Preview title="Interactive shorthand">
+        <View class="w-96 flex flex-col gap-4">
+          <View class="flex justify-between gap-4">
+            <ThemeText
+              dark="text-sm text-slate-200"
+              light="text-sm text-slate-700"
+            >
+              Building application
+            </ThemeText>
+            <ThemeText
+              dark="text-sm font-mono text-slate-400"
+              light="text-sm font-mono text-slate-500"
+            >
+              {value()}%
+            </ThemeText>
+          </View>
+          <Progress label="Build progress" value={value()} />
+          <View class="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => moveTo(Math.min(100, value() + 10))}
+            >
+              Advance
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => moveTo(0)}>
+              Reset
+            </Button>
+          </View>
         </View>
-        <Progress label="Build progress" value={value()} />
-        <View class="flex gap-2">
-          <Button size="sm" onClick={() => moveTo(Math.min(100, value() + 10))}>
-            Advance
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => moveTo(0)}>
-            Reset
-          </Button>
+      </Preview>
+      <Preview title="Composable and indeterminate">
+        <View class="w-96 flex flex-col gap-5">
+          <ProgressRoot
+            label="Downloaded release archive"
+            value={48}
+            maxValue={64}
+            getValueLabel={({ value: current, max }) =>
+              `${current} of ${max} MiB`
+            }
+          >
+            <View class="flex items-center justify-between gap-3">
+              <ProgressLabel />
+              <ProgressValueLabel />
+            </View>
+            <ProgressTrack>
+              <ProgressFill />
+            </ProgressTrack>
+          </ProgressRoot>
+          <ProgressRoot label="Resolving dependencies" indeterminate>
+            <View class="flex items-center justify-between gap-3">
+              <ProgressLabel />
+              <ProgressValueLabel />
+            </View>
+            <ProgressTrack>
+              <ProgressFill />
+            </ProgressTrack>
+          </ProgressRoot>
         </View>
-      </View>
-    </Preview>
+      </Preview>
+    </View>
   );
 }
 

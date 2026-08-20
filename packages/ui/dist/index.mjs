@@ -27,30 +27,6 @@ function join(...values) {
 	return values.filter(Boolean).join(" ");
 }
 //#endregion
-//#region src/components/range.ts
-function finiteOr(value, fallback) {
-	return value !== void 0 && Number.isFinite(value) ? value : fallback;
-}
-function normalizePercentage(value) {
-	return Math.max(0, Math.min(100, finiteOr(value, 0)));
-}
-function normalizeRange(minValue, maxValue, stepValue) {
-	const min = finiteOr(minValue, 0);
-	const max = Math.max(min, finiteOr(maxValue, 100));
-	const candidateStep = finiteOr(stepValue, 1);
-	return {
-		min,
-		max,
-		step: candidateStep > 0 ? candidateStep : 1
-	};
-}
-function decimalPlaces(value) {
-	const [coefficient, exponentText] = String(value).toLowerCase().split("e");
-	const fractionLength = coefficient.split(".")[1]?.length ?? 0;
-	const exponent = exponentText === void 0 ? 0 : Number(exponentText);
-	return Math.max(0, Math.min(100, fractionLength - exponent));
-}
-//#endregion
 //#region src/components/theme.ts
 /**
 * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
@@ -2901,6 +2877,189 @@ function PopoverFooter(props) {
 	});
 }
 //#endregion
+//#region src/components/range.ts
+function finiteOr(value, fallback) {
+	return value !== void 0 && Number.isFinite(value) ? value : fallback;
+}
+function normalizeRange(minValue, maxValue, stepValue) {
+	const min = finiteOr(minValue, 0);
+	const max = Math.max(min, finiteOr(maxValue, 100));
+	const candidateStep = finiteOr(stepValue, 1);
+	return {
+		min,
+		max,
+		step: candidateStep > 0 ? candidateStep : 1
+	};
+}
+function decimalPlaces(value) {
+	const [coefficient, exponentText] = String(value).toLowerCase().split("e");
+	const fractionLength = coefficient.split(".")[1]?.length ?? 0;
+	const exponent = exponentText === void 0 ? 0 : Number(exponentText);
+	return Math.max(0, Math.min(100, fractionLength - exponent));
+}
+//#endregion
+//#region src/components/progress.tsx
+const ProgressContext = createContext();
+function useProgressContext() {
+	const context = useContext(ProgressContext);
+	if (!context) throw new Error("Progress parts must be used inside ProgressRoot");
+	return context;
+}
+function normalizeProgressValue(value, minValue, maxValue) {
+	const min = finiteOr(minValue, 0);
+	const requestedMax = finiteOr(maxValue, 100);
+	const max = requestedMax > min ? requestedMax : min + 1;
+	const normalizedValue = Math.max(min, Math.min(max, finiteOr(value, min)));
+	return {
+		value: normalizedValue,
+		min,
+		max,
+		percent: (normalizedValue - min) / (max - min) * 100
+	};
+}
+/** Semantic progress state with explicit, composable visual parts. */
+function ProgressRoot(props) {
+	const [trackWidth, setTrackWidth] = createSignal(0, { ownedWrite: true });
+	const forwarded = omit(props, "value", "minValue", "maxValue", "indeterminate", "label", "getValueLabel", "children", "class");
+	const details = () => normalizeProgressValue(props.value, props.minValue, props.maxValue);
+	const indeterminate = () => props.indeterminate ?? false;
+	const defaultValueLabel = () => `${Math.round(details().percent)} percent`;
+	const context = {
+		value: () => details().value,
+		min: () => details().min,
+		max: () => details().max,
+		percent: () => details().percent,
+		indeterminate,
+		label: () => props.label ?? "Progress",
+		valueLabel: () => indeterminate() ? void 0 : props.getValueLabel?.(details()) ?? defaultValueLabel(),
+		trackWidth,
+		setTrackWidth
+	};
+	return createComponent$1(ProgressContext, {
+		value: context,
+		get children() {
+			return createComponent$1(View, mergeProps(forwarded, {
+				role: "progressbar",
+				get ["aria-label"]() {
+					return context.label();
+				},
+				get ["aria-valuemin"]() {
+					return context.min();
+				},
+				get ["aria-valuemax"]() {
+					return context.max();
+				},
+				get ["aria-valuenow"]() {
+					return memo(() => {
+						return !!indeterminate();
+					})() ? void 0 : context.value();
+				},
+				get ["aria-valuetext"]() {
+					return context.valueLabel();
+				},
+				get ["class"]() {
+					return join("w-full min-w-0 flex flex-col gap-2", props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			}));
+		}
+	});
+}
+function ProgressTrack(props) {
+	const context = useProgressContext();
+	const measured = createMeasuredSize({ onChange: ({ width }) => context.setTrackWidth(width) });
+	return createComponent$1(View, mergeProps(props, {
+		ref: (node) => {
+			measured.ref(node);
+			props.ref?.(node);
+		},
+		"aria-hidden": "true",
+		get ["class"]() {
+			return join("w-full h-2 flex-none overflow-hidden rounded-full bg-control", props.class);
+		}
+	}));
+}
+function IndeterminateProgressFill(props) {
+	const context = useProgressContext();
+	const sweep = createLoop({
+		duration: 1.35,
+		ease: "easeInOut"
+	});
+	const offset = () => context.trackWidth() * (sweep.value() * 1.4 - .4);
+	return createComponent$1(View, mergeProps(props, {
+		"aria-hidden": "true",
+		get ["class"]() {
+			return join("w-2/5 h-full rounded-full bg-accent", props.class);
+		},
+		get transform() {
+			return translate2d(offset(), 0);
+		}
+	}));
+}
+function ProgressFill(props) {
+	const context = useProgressContext();
+	return createComponent$1(Show, {
+		get when() {
+			return !context.indeterminate();
+		},
+		get fallback() {
+			return createComponent$1(IndeterminateProgressFill, props);
+		},
+		get children() {
+			return createComponent$1(View, mergeProps(props, {
+				"aria-hidden": "true",
+				get ["class"]() {
+					return join("h-full rounded-full bg-accent", props.class);
+				},
+				get style() {
+					return {
+						width: `${context.percent()}%`,
+						...props.style
+					};
+				}
+			}));
+		}
+	});
+}
+function ProgressLabel(props) {
+	const context = useProgressContext();
+	return createComponent$1(Text, mergeProps(props, {
+		get ["class"]() {
+			return join("min-w-0 text-sm text-secondary", props.class);
+		},
+		get children() {
+			return props.children ?? context.label();
+		}
+	}));
+}
+function ProgressValueLabel(props) {
+	const context = useProgressContext();
+	return createComponent$1(Text, mergeProps(props, {
+		get ["class"]() {
+			return join("flex-none text-sm font-mono text-muted", props.class);
+		},
+		get children() {
+			return props.children ?? context.valueLabel() ?? "In progress";
+		}
+	}));
+}
+/** Compact progress bar; use ProgressRoot and parts for custom composition. */
+function Progress(props) {
+	const forwarded = omit(props, "class");
+	return createComponent$1(ProgressRoot, mergeProps(forwarded, { get children() {
+		return createComponent$1(ProgressTrack, {
+			get ["class"]() {
+				return props.class;
+			},
+			get children() {
+				return createComponent$1(ProgressFill, {});
+			}
+		});
+	} }));
+}
+//#endregion
 //#region src/components/resizable.tsx
 function finitePercentage(value, name) {
 	if (!Number.isFinite(value) || value < 0 || value > 100) throw new RangeError(`${name} must be a finite percentage from 0 to 100`);
@@ -4894,35 +5053,6 @@ function Switch(props) {
 		}
 	});
 }
-function Progress(props) {
-	const value = () => normalizePercentage(props.value);
-	return createComponent$1(View, {
-		role: "progressbar",
-		get ["aria-label"]() {
-			return props.label ?? "Progress";
-		},
-		"aria-valuemin": 0,
-		"aria-valuemax": 100,
-		get ["aria-valuenow"]() {
-			return value();
-		},
-		get ["aria-valuetext"]() {
-			return `${value()} percent`;
-		},
-		get ["class"]() {
-			return join("w-full h-2 overflow-hidden rounded-full", "bg-control", props.class);
-		},
-		get children() {
-			return createComponent$1(View, {
-				"aria-hidden": "true",
-				class: "h-full bg-accent rounded-full",
-				get style() {
-					return { width: `${value()}%` };
-				}
-			});
-		}
-	});
-}
 //#endregion
 //#region src/router/data.tsx
 globalThis.scrollTo ??= () => {};
@@ -5082,6 +5212,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTransition, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRotation, createScrollReset, createShortcuts, createTabs, createToasts, createTransition, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizeProgressValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

@@ -22,7 +22,6 @@ import {
   type ViewProps,
 } from "../primitives";
 import { join } from "./class-names";
-import { normalizePercentage } from "./range";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export * from "./alert-dialog";
@@ -46,6 +45,7 @@ export * from "./menubar";
 export * from "./navigation";
 export * from "./page";
 export * from "./popover";
+export * from "./progress";
 export * from "./resizable";
 export * from "./search-field";
 export * from "./select";
@@ -434,35 +434,6 @@ export function Switch(props: SwitchProps): JSX.Element {
           {props.label}
         </Text>
       )}
-    </View>
-  );
-}
-
-export function Progress(props: {
-  value?: number;
-  label?: string;
-  class?: string;
-}): JSX.Element {
-  const value = () => normalizePercentage(props.value);
-  return (
-    <View
-      role="progressbar"
-      aria-label={props.label ?? "Progress"}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuenow={value()}
-      aria-valuetext={`${value()} percent`}
-      class={join(
-        "w-full h-2 overflow-hidden rounded-full",
-        "bg-control",
-        props.class,
-      )}
-    >
-      <View
-        aria-hidden="true"
-        class="h-full bg-accent rounded-full"
-        style={{ width: `${value()}%` }}
-      />
     </View>
   );
 }
