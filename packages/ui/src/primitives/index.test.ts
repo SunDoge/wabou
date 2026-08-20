@@ -473,8 +473,8 @@ describe("host primitives", () => {
 
   test("Icon always adds alignment defaults and preserves custom class", () => {
     const classes: Array<[string, string]> = [];
-    const size: Array<[string, string]> = [];
-    const styles: Array<[string, string]> = [];
+    const attributes: Array<[string, string]> = [];
+    const style: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
     const setClassName = writer.setClassName.bind(writer);
     const setStyle = writer.setStyle.bind(writer);
@@ -483,11 +483,11 @@ describe("host primitives", () => {
     };
     writer.setAttribute = (_id, name, value) => {
       if (name === "width" || name === "height") {
-        size.push([name, value]);
+        attributes.push([name, value]);
       }
     };
     writer.setStyle = (_id, name, value) => {
-      styles.push([name, value]);
+      style.push([name, value]);
     };
     try {
       createRoot((dispose) => {
@@ -505,28 +505,37 @@ describe("host primitives", () => {
       writer.setStyle = setStyle;
     }
     expect(classes).toEqual([["class", "self-center shrink-0 text-accent"]]);
-    expect(size).toEqual([
+    expect(attributes).toEqual([
       ["width", "14"],
       ["height", "14"],
     ]);
-    expect(styles).toEqual(
+    expect(style).toEqual(
       expect.arrayContaining([
         ["display", "inline-flex"],
         ["align-items", "center"],
         ["justify-content", "center"],
         ["align-self", "center"],
         ["flex-shrink", "0"],
+        ["width", "14"],
+        ["height", "14"],
         ["line-height", "1"],
       ]),
     );
   });
 
-  test("Icon defaults to 1em when size is not provided", () => {
-    const size: Array<[string, string]> = [];
+  test("Icon defaults to 16px when size is not provided", () => {
+    const attributes: Array<[string, string]> = [];
+    const style: Array<[string, string]> = [];
     const setAttribute = writer.setAttribute.bind(writer);
+    const setStyle = writer.setStyle.bind(writer);
     writer.setAttribute = (_id, name, value) => {
       if (name === "width" || name === "height") {
-        size.push([name, value]);
+        attributes.push([name, value]);
+      }
+    };
+    writer.setStyle = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        style.push([name, value]);
       }
     };
     try {
@@ -536,10 +545,17 @@ describe("host primitives", () => {
       });
     } finally {
       writer.setAttribute = setAttribute;
+      writer.setStyle = setStyle;
     }
-    expect(size).toEqual([
-      ["width", "1em"],
-      ["height", "1em"],
+    expect(attributes).toEqual([
+      ["width", "16"],
+      ["height", "16"],
     ]);
+    expect(style).toEqual(
+      expect.arrayContaining([
+        ["width", "16"],
+        ["height", "16"],
+      ]),
+    );
   });
 });

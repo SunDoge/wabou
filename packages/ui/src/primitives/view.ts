@@ -57,7 +57,11 @@ export interface PathProps extends Omit<PrimitiveProps, "children"> {
 
 export interface IconProps extends Omit<SvgProps, "source"> {
   source: string;
-  size?: number | "1em";
+  /**
+   * Icon size in logical px number or supported CSS unit strings (`px`, `rem`,
+   * `%`).
+   */
+  size?: number | string;
   /** Optional explicit CSS size.  When omitted, fallback to `1em` for
    *  text-sized UI alignment. */
   /** Override Lucide's root `fill="none"`, for example with currentColor. */
@@ -213,7 +217,8 @@ export function Path(props: PathProps): JSX.Element {
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 export function Icon(props: IconProps): JSX.Element {
   const rest = omit(props, "source", "size", "fill", "label", "class");
-  const iconSize = props.size ?? "1em";
+  const iconSize = props.size ?? 16;
+  const explicitPixelSize = typeof iconSize === "number";
   const node = createElement("svg");
   spread(node, rest, false);
   spread(
@@ -230,13 +235,15 @@ export function Icon(props: IconProps): JSX.Element {
           "align-items": "center",
           "justify-content": "center",
           "align-self": "center",
+          width: iconSize,
+          height: iconSize,
           "flex-shrink": 0,
           "line-height": "1",
           ...(props.style ?? {}),
         };
       },
-      get width(): string {
-        return typeof iconSize === "number" ? String(iconSize) : iconSize;
+      get width(): string | undefined {
+        return explicitPixelSize ? String(iconSize) : undefined;
       },
       get source() {
         return props.fill && props.fill !== "none"
@@ -244,7 +251,7 @@ export function Icon(props: IconProps): JSX.Element {
           : props.source;
       },
       get height() {
-        return typeof iconSize === "number" ? String(iconSize) : iconSize;
+        return explicitPixelSize ? String(iconSize) : undefined;
       },
       get role() {
         return props.label ? "img" : undefined;
