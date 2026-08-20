@@ -22,6 +22,7 @@ interface AuthoredNode {
   interactionBlocked: boolean;
   focusContained: boolean;
   className: string;
+  transform: readonly [number, number, number, number, number, number] | null;
   text: string;
 }
 
@@ -60,6 +61,10 @@ export interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Last runtime affine transform emitted through the native protocol. */
+  readonly transform:
+    | readonly [number, number, number, number, number, number]
+    | null;
   /** Whether this locator owns the harness's native focus simulation. */
   readonly focused: boolean;
   /** Native tab order emitted through Wabou's interaction policy protocol. */
@@ -265,6 +270,7 @@ export function renderComponent(
     setAttribute: writer.setAttribute,
     removeAttribute: writer.removeAttribute,
     setClassName: writer.setClassName,
+    setTransform2D: writer.setTransform2D,
     setInteractionPolicy: writer.setInteractionPolicy,
     dropNode: writer.dropNode,
     focusNode: writer.focusNode,
@@ -281,6 +287,7 @@ export function renderComponent(
       interactionBlocked: false,
       focusContained: false,
       className: "",
+      transform: null,
       text,
     });
   };
@@ -341,6 +348,11 @@ export function renderComponent(
     const node = nodes.get(key(id));
     if (node) node.className = value;
     originals.setClassName.call(writer, id, value);
+  };
+  writer.setTransform2D = (id, value) => {
+    const node = nodes.get(key(id));
+    if (node) node.transform = [...value];
+    originals.setTransform2D.call(writer, id, value);
   };
   writer.setInteractionPolicy = (id, flags, focusOrder) => {
     const node = nodes.get(key(id));
@@ -593,6 +605,9 @@ export function renderComponent(
       },
       get className() {
         return node.className;
+      },
+      get transform() {
+        return node.transform;
       },
       get focused() {
         return focusedNode === node;

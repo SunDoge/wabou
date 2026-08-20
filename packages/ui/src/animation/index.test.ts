@@ -4,7 +4,9 @@ import {
   createLoop,
   createPulse,
   createRotation,
+  createSweep,
   createTransition,
+  normalizeSweepGeometry,
 } from "./index";
 
 describe("Solid animation primitives", () => {
@@ -25,6 +27,34 @@ describe("Solid animation primitives", () => {
       dispose();
       expect(rotation.controls.state).toBe("idle");
     }));
+
+  test("sweeps fully outside a measured axis without changing layout", () =>
+    createRoot((dispose) => {
+      const [extent, setExtent] = createSignal(100);
+      const sweep = createSweep({
+        extent,
+        itemRatio: 0.25,
+        axis: "vertical",
+        autoplay: false,
+      });
+      expect(sweep.offset()).toBe(-25);
+      expect(sweep.transform()).toEqual([1, 0, 0, 1, 0, -25]);
+      setExtent(200);
+      flush();
+      expect(sweep.transform()).toEqual([1, 0, 0, 1, 0, -50]);
+      dispose();
+    }));
+
+  test("normalizes unsafe sweep geometry", () => {
+    expect(normalizeSweepGeometry(Number.NaN, 0)).toEqual({
+      extent: 0,
+      itemRatio: 0.4,
+    });
+    expect(normalizeSweepGeometry(-20, 3)).toEqual({
+      extent: 0,
+      itemRatio: 1,
+    });
+  });
 
   test("starts a pulse at its authored lower opacity", () =>
     createRoot((dispose) => {

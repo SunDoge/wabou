@@ -21,6 +21,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Last runtime affine transform emitted through the native protocol. */
+  readonly transform: readonly [number, number, number, number, number, number] | null;
   /** Whether this locator owns the harness's native focus simulation. */
   readonly focused: boolean;
   /** Native tab order emitted through Wabou's interaction policy protocol. */

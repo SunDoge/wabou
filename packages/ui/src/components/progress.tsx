@@ -7,12 +7,11 @@ import {
   Show,
   useContext,
 } from "solid-js";
-import { createLoop } from "../animation";
+import { createSweep } from "../animation";
 import {
   createMeasuredSize,
   Text,
   type TextProps,
-  translate2d,
   View,
   type ViewProps,
 } from "../primitives";
@@ -151,14 +150,18 @@ export function ProgressTrack(props: ViewProps): JSX.Element {
 
 function IndeterminateProgressFill(props: ViewProps): JSX.Element {
   const context = useProgressContext();
-  const sweep = createLoop({ duration: 1.35, ease: "easeInOut" });
-  const offset = () => context.trackWidth() * (sweep.value() * 1.4 - 0.4);
+  const sweep = createSweep({
+    extent: context.trackWidth,
+    itemRatio: 0.4,
+    duration: 1.35,
+    ease: "easeInOut",
+  });
   return (
     <View
       {...props}
       aria-hidden="true"
       class={join("w-2/5 h-full rounded-full bg-accent", props.class)}
-      transform={translate2d(offset(), 0)}
+      transform={sweep.transform()}
     />
   );
 }

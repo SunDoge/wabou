@@ -1,6 +1,6 @@
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.mjs";
 import { PathBuilder } from "@wabou/core";
-import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d } from "@wabou/core/style";
+import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
 import { animateValue } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
@@ -166,6 +166,31 @@ function createLoop(options = {}) {
 	return {
 		value,
 		controls
+	};
+}
+function normalizeSweepGeometry(extent, itemRatio) {
+	return {
+		extent: Number.isFinite(extent) ? Math.max(0, extent) : 0,
+		itemRatio: Number.isFinite(itemRatio) && itemRatio > 0 ? Math.min(1, itemRatio) : .4
+	};
+}
+/**
+* Move an item completely across one measured axis using only a runtime
+* transform. Both repeat boundaries remain outside the container, avoiding a
+* visible reset and avoiding per-frame layout invalidation.
+*/
+function createSweep(options) {
+	const { extent, itemRatio, axis = "horizontal", ...loopOptions } = options;
+	const loop = createLoop(loopOptions);
+	const geometry = () => normalizeSweepGeometry(read(extent, 0), read(itemRatio, .4));
+	const offset = () => {
+		const current = geometry();
+		return current.extent * (loop.value() * (1 + current.itemRatio) - current.itemRatio);
+	};
+	return {
+		...loop,
+		offset,
+		transform: () => axis === "vertical" ? translate2d(0, offset()) : translate2d(offset(), 0)
 	};
 }
 /** Repeating center-pivoted rotation backed by Motion value animation. */
@@ -2073,10 +2098,10 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	rotate2d: () => rotate2d$1,
 	shift: () => shift,
 	size: () => size,
-	translate2d: () => translate2d,
+	translate2d: () => translate2d$1,
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createTransition as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
+export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d$1 as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, normalizeSweepGeometry as dt, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createSweep as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, createTransition as ut, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-BcqZhA-c.mjs.map
+//# sourceMappingURL=primitives-B7idTNZd.mjs.map

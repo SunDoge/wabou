@@ -1,15 +1,15 @@
 import "@wabou/core";
-import { rotate2d, type Affine2D } from "@wabou/core/style";
+import { type Affine2D, rotate2d, translate2d } from "@wabou/core/style";
 import type {
   AnimationPlaybackControlsWithThen as MotionControls,
   ValueAnimationOptions,
 } from "motion-dom";
 import { animateValue } from "motion-dom";
 import {
+  type Accessor,
   createEffect,
   createSignal,
   onCleanup,
-  type Accessor,
   untrack,
 } from "solid-js";
 
@@ -304,6 +304,64 @@ export interface RotationOptions extends Omit<LoopOptions, "from" | "to"> {
 export interface RotationAnimation extends ReactiveAnimation<number> {
   angle: Accessor<number>;
   transform: Accessor<Affine2D>;
+}
+
+export type SweepAxis = "horizontal" | "vertical";
+
+export interface SweepGeometry {
+  extent: number;
+  itemRatio: number;
+}
+
+export function normalizeSweepGeometry(
+  extent: number,
+  itemRatio: number,
+): SweepGeometry {
+  return {
+    extent: Number.isFinite(extent) ? Math.max(0, extent) : 0,
+    itemRatio:
+      Number.isFinite(itemRatio) && itemRatio > 0
+        ? Math.min(1, itemRatio)
+        : 0.4,
+  };
+}
+
+export interface SweepOptions extends LoopOptions {
+  /** Current container width or height in logical pixels. */
+  extent: MaybeAccessor<number>;
+  /** Moving item's size as a fraction of the container. Defaults to 0.4. */
+  itemRatio?: MaybeAccessor<number>;
+  axis?: SweepAxis;
+}
+
+export interface SweepAnimation extends ReactiveAnimation<number> {
+  offset: Accessor<number>;
+  transform: Accessor<Affine2D>;
+}
+
+/**
+ * Move an item completely across one measured axis using only a runtime
+ * transform. Both repeat boundaries remain outside the container, avoiding a
+ * visible reset and avoiding per-frame layout invalidation.
+ */
+export function createSweep(options: SweepOptions): SweepAnimation {
+  const { extent, itemRatio, axis = "horizontal", ...loopOptions } = options;
+  const loop = createLoop(loopOptions);
+  const geometry = () =>
+    normalizeSweepGeometry(read(extent, 0), read(itemRatio, 0.4));
+  const offset = () => {
+    const current = geometry();
+    return (
+      current.extent *
+      (loop.value() * (1 + current.itemRatio) - current.itemRatio)
+    );
+  };
+  return {
+    ...loop,
+    offset,
+    transform: () =>
+      axis === "vertical" ? translate2d(0, offset()) : translate2d(offset(), 0),
+  };
 }
 
 /** Repeating center-pivoted rotation backed by Motion value animation. */

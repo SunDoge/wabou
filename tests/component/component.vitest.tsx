@@ -153,6 +153,20 @@ test("publishes deterministic native measurements to a component", () => {
   expect(screen.getByRole("status", { name: "Width 240" }).text).toBe("240");
 });
 
+test("observes runtime transforms without decoding protocol bytes", () => {
+  const screen = renderComponent(() => (
+    <View
+      role="group"
+      aria-label="Animated panel"
+      transform={[1, 0, 0, 1, 24, -8]}
+    />
+  ));
+
+  expect(
+    screen.getByRole("group", { name: "Animated panel" }).transform,
+  ).toEqual([1, 0, 0, 1, 24, -8]);
+});
+
 test("enters text through the real controlled-input event path", () => {
   const Form = () => {
     const [name, setName] = createSignal("");

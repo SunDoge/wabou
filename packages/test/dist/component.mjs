@@ -120,6 +120,7 @@ function renderComponent(render, options = {}) {
 		setAttribute: writer.setAttribute,
 		removeAttribute: writer.removeAttribute,
 		setClassName: writer.setClassName,
+		setTransform2D: writer.setTransform2D,
 		setInteractionPolicy: writer.setInteractionPolicy,
 		dropNode: writer.dropNode,
 		focusNode: writer.focusNode
@@ -135,6 +136,7 @@ function renderComponent(render, options = {}) {
 			interactionBlocked: false,
 			focusContained: false,
 			className: "",
+			transform: null,
 			text
 		});
 	};
@@ -192,6 +194,11 @@ function renderComponent(render, options = {}) {
 		const node = nodes.get(key(id));
 		if (node) node.className = value;
 		originals.setClassName.call(writer, id, value);
+	};
+	writer.setTransform2D = (id, value) => {
+		const node = nodes.get(key(id));
+		if (node) node.transform = [...value];
+		originals.setTransform2D.call(writer, id, value);
 	};
 	writer.setInteractionPolicy = (id, flags, focusOrder) => {
 		const node = nodes.get(key(id));
@@ -362,6 +369,9 @@ function renderComponent(render, options = {}) {
 			},
 			get className() {
 				return node.className;
+			},
+			get transform() {
+				return node.transform;
 			},
 			get focused() {
 				return focusedNode === node;

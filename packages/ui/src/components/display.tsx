@@ -1,16 +1,30 @@
-import { Pulse, Spin, Text, View } from "../primitives";
-import type { JSX } from "solid-js";
+import { createSignal, type JSX } from "solid-js";
+import { createSweep } from "../animation";
+import { createMeasuredSize, Spin, Text, View } from "../primitives";
 import { join } from "./class-names";
 
 export function Skeleton(props: { class?: string }): JSX.Element {
+  const [width, setWidth] = createSignal(0, { ownedWrite: true });
+  const measured = createMeasuredSize({
+    onChange: (size) => setWidth(size.width),
+  });
+  const sweep = createSweep({
+    extent: width,
+    itemRatio: 0.4,
+    duration: 1.6,
+    ease: "easeInOut",
+  });
   return (
-    <Pulse
+    <View
+      ref={measured.ref}
       aria-hidden="true"
-      class={join("rounded-md bg-control", props.class)}
-      from={0.45}
-      to={0.85}
-      duration={1.8}
-    />
+      class={join("overflow-hidden rounded-md bg-control", props.class)}
+    >
+      <View
+        class="w-2/5 h-full flex-none bg-control-hover"
+        transform={sweep.transform()}
+      />
+    </View>
   );
 }
 
