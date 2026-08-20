@@ -85,6 +85,24 @@ async function pollUntil(read, matches, options = {}, beforeRead) {
 }
 //#endregion
 //#region src/replay.ts
+function locatorForAction(page, action) {
+	const scopedPage = page.forWindow(action.windowId);
+	let owner;
+	for (const selector of action.scope ?? []) owner = owner ? owner.getByRole(selector.role, {
+		name: selector.name,
+		index: selector.index
+	}) : scopedPage.getByRole(selector.role, {
+		name: selector.name,
+		index: selector.index
+	});
+	return owner ? owner.getByRole(action.role, {
+		name: action.label,
+		index: action.index
+	}) : scopedPage.getByRole(action.role, {
+		name: action.label,
+		index: action.index
+	});
+}
 /** Execute a recorded trace against explicit page and window capabilities. */
 async function replayActions(actions, page, window, assertLocator, assertWindow) {
 	for (const action of actions) if (action.action === "respondToEffect") page.effects.respond(action.operation, action.result);
@@ -92,24 +110,12 @@ async function replayActions(actions, page, window, assertLocator, assertWindow)
 	else if (action.action === "showWindow") await window.show(action.windowId);
 	else if (action.action === "resizeWindow") await window.resize(action.windowId, action.width, action.height);
 	else if (action.action === "fileDrop") await window.fileDrop(action.windowId, action.phase, action.paths);
-	else if (action.action === "clickByRole") await page.forWindow(action.windowId).getByRole(action.role, {
-		name: action.label,
-		index: action.index
-	}).click(action.wait);
-	else if (action.action === "waitForByRole") await page.forWindow(action.windowId).getByRole(action.role, {
-		name: action.label,
-		index: action.index
-	}).waitFor(action.wait);
-	else if (action.action === "assertByRole") await assertLocator(page.forWindow(action.windowId).getByRole(action.role, {
-		name: action.label,
-		index: action.index
-	}), action);
+	else if (action.action === "clickByRole") await locatorForAction(page, action).click(action.wait);
+	else if (action.action === "waitForByRole") await locatorForAction(page, action).waitFor(action.wait);
+	else if (action.action === "assertByRole") await assertLocator(locatorForAction(page, action), action);
 	else if (action.action === "assertWindowState") await assertWindow(window, action);
 	else {
-		const locator = page.forWindow(action.windowId).getByRole(action.role, {
-			name: action.label,
-			index: action.index
-		});
+		const locator = locatorForAction(page, action);
 		const input = action.input;
 		if (input.type === "probe") await locator.waitFor(action.wait);
 		else if (input.type === "drag") await locator.dragBy(input.deltaX, input.deltaY, action.wait);
@@ -260,7 +266,7 @@ function decodeWindowViewport(windowId) {
 	if (viewport.width < 0 || viewport.height < 0) throw new Error(`native window ${windowLabel(windowId)} returned a negative viewport`);
 	return viewport;
 }
-function createPage(windowId) {
+function createPage(windowId, scope = []) {
 	validateWindowKey(windowId);
 	return {
 		effects,
@@ -278,16 +284,19 @@ function createPage(windowId) {
 			const index = options.index;
 			if (index !== void 0 && (!Number.isSafeInteger(index) || index < 0 || index > MAX_LOCATOR_INDEX)) throw new RangeError(`locator index must be an integer between 0 and ${MAX_LOCATOR_INDEX}`);
 			const locatorLabel = `${role} named ${JSON.stringify(options.name)}${index === void 0 ? "" : ` at index ${index}`}`;
-			const description = `${locatorLabel} in window ${windowLabel(windowId)}`;
+			const scopeLabel = scope.map((selector) => `${selector.role} named ${JSON.stringify(selector.name)}${selector.index === void 0 ? "" : ` at index ${selector.index}`}`).join(" within ");
+			const description = `${locatorLabel}${scopeLabel ? ` within ${scopeLabel}` : ""} in window ${windowLabel(windowId)}`;
+			const encodedScope = JSON.stringify(scope);
+			const traceScope = scope.length > 0 ? [...scope] : void 0;
 			const sendInput = async (value) => {
-				if (!await capability().inputByRole(windowId.lo, windowId.hi, role, options.name, JSON.stringify(value), index ?? null)) return false;
+				if (!await capability().inputByRole(windowId.lo, windowId.hi, role, options.name, JSON.stringify(value), index ?? null, encodedScope)) return false;
 				return true;
 			};
 			const input = async (value) => {
 				if (!await sendInput(value)) throw new Error(`no enabled ${locatorLabel}`);
 			};
 			const probe = async () => {
-				return decodeLocatorQuery(await capability().queryByRole(windowId.lo, windowId.hi, role, options.name, index ?? null), description, index);
+				return decodeLocatorQuery(await capability().queryByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope), description, index);
 			};
 			const snapshot = async () => {
 				const value = await probe();
@@ -330,6 +339,14 @@ function createPage(windowId) {
 				role,
 				name: options.name,
 				index,
+				scope,
+				getByRole(childRole, childOptions) {
+					return createPage(windowId, [...scope, {
+						role,
+						name: options.name,
+						index
+					}]).getByRole(childRole, childOptions);
+				},
 				async click(assertionOptions) {
 					const wait = resolvePollOptions(assertionOptions);
 					trace.push({
@@ -338,10 +355,11 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						wait
 					});
 					await waitUntilActionable(wait);
-					if (!await capability().clickByRole(windowId.lo, windowId.hi, role, options.name, index ?? null)) throw new Error(`no enabled ${locatorLabel}`);
+					if (!await capability().clickByRole(windowId.lo, windowId.hi, role, options.name, index ?? null, encodedScope)) throw new Error(`no enabled ${locatorLabel}`);
 				},
 				async dragBy(deltaX, deltaY, assertionOptions) {
 					validateInputDeltas("drag", deltaX, deltaY);
@@ -352,6 +370,7 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						input: {
 							type: "drag",
 							deltaX,
@@ -376,6 +395,7 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						input: {
 							type: "key",
 							key,
@@ -398,6 +418,7 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						input: {
 							type: "text",
 							text
@@ -418,6 +439,7 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						input: {
 							type: "paste",
 							text
@@ -438,6 +460,7 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						input: {
 							type: "ime",
 							text
@@ -459,6 +482,7 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						input: {
 							type: "wheel",
 							deltaX,
@@ -481,6 +505,7 @@ function createPage(windowId) {
 						role,
 						label: options.name,
 						index,
+						scope: traceScope,
 						wait
 					});
 					let ambiguity;
@@ -647,7 +672,7 @@ function locatorAssertionDiagnostic(assertion, state, viewport) {
 	return state.focused === assertion.expected ? null : `expected locator to be ${assertion.expected ? "focused" : "blurred"}`;
 }
 async function locatorAbsenceDiagnostic(target) {
-	const raw = await capability().queryByRole(target.windowId.lo, target.windowId.hi, target.role, target.name, target.index ?? null);
+	const raw = await capability().queryByRole(target.windowId.lo, target.windowId.hi, target.role, target.name, target.index ?? null, JSON.stringify(target.scope));
 	if (locatorQueryIsAbsent(raw, target.index)) return null;
 	const query = decodeNativeLocatorQuery(raw);
 	if (query === null) throw new Error("unreachable absent locator query");
@@ -656,7 +681,7 @@ async function locatorAbsenceDiagnostic(target) {
 }
 async function locatorCountDiagnostic(target, expected) {
 	if (target.index !== void 0) throw new Error("toHaveCount requires an unindexed locator");
-	const actual = locatorQueryMatchCount(await capability().queryByRole(target.windowId.lo, target.windowId.hi, target.role, target.name, null));
+	const actual = locatorQueryMatchCount(await capability().queryByRole(target.windowId.lo, target.windowId.hi, target.role, target.name, null, JSON.stringify(target.scope)));
 	return actual === expected ? null : `expected ${target.role} named ${JSON.stringify(target.name)} to have ${expected} ${expected === 1 ? "match" : "matches"}, found ${actual}`;
 }
 async function assertLocatorEventually(target, assertion, options = {}) {
@@ -667,6 +692,7 @@ async function assertLocatorEventually(target, assertion, options = {}) {
 		role: target.role,
 		label: target.name,
 		index: target.index,
+		scope: target.scope.length > 0 ? [...target.scope] : void 0,
 		assertion,
 		wait
 	});
@@ -675,7 +701,7 @@ async function assertLocatorEventually(target, assertion, options = {}) {
 		if (assertion.type === "count") return locatorCountDiagnostic(target, assertion.expected);
 		try {
 			if (assertion.type === "notOverlap" || assertion.type === "sameBounds") {
-				const other = createPage(target.windowId).getByRole(assertion.other.role, {
+				const other = createPage(target.windowId, assertion.other.scope).getByRole(assertion.other.role, {
 					name: assertion.other.name,
 					index: assertion.other.index
 				});
@@ -920,7 +946,8 @@ function expect(actual) {
 				other: {
 					role: other.role,
 					name: other.name,
-					index: other.index
+					index: other.index,
+					scope: other.scope.length > 0 ? [...other.scope] : void 0
 				},
 				tolerance
 			}, options);
@@ -948,7 +975,8 @@ function expect(actual) {
 				other: {
 					role: other.role,
 					name: other.name,
-					index: other.index
+					index: other.index,
+					scope: other.scope.length > 0 ? [...other.scope] : void 0
 				},
 				fields: [...fields],
 				tolerance

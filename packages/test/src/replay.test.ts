@@ -15,13 +15,28 @@ test("replay preserves the logical window for every action", async () => {
     role: string,
     name: string,
     index?: number,
+    scope: Locator["scope"] = [],
   ): Locator => ({
     windowId,
     role: role as Locator["role"],
     name,
     index,
+    scope,
+    getByRole: (childRole, options) =>
+      locator(windowId, childRole, options.name, options.index, [
+        ...scope,
+        { role: role as Locator["role"], name, index },
+      ]),
     click: async (wait) =>
-      record(keyLabel(windowId), role, name, index, "click", wait),
+      record(
+        keyLabel(windowId),
+        scope.map((selector) => `${selector.role}:${selector.name}`),
+        role,
+        name,
+        index,
+        "click",
+        wait,
+      ),
     dragBy: async (x, y, wait) =>
       record(keyLabel(windowId), role, name, "drag", x, y, wait),
     press: async (key, modifiers, wait) =>
@@ -106,6 +121,7 @@ test("replay preserves the logical window for every action", async () => {
       role: "button",
       label: "Save",
       index: 1,
+      scope: [{ role: "dialog", name: "Settings" }],
       wait: { timeout: 2_000, interval: 20, stableFor: 0 },
     },
     {
@@ -163,6 +179,7 @@ test("replay preserves the logical window for every action", async () => {
     ["9v1", "fileDrop", "dropped", ["/tmp/example.torrent"]],
     [
       "2v3",
+      ["dialog:Settings"],
       "button",
       "Save",
       1,

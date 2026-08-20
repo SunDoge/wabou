@@ -25,6 +25,14 @@ const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
 static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 type WindowKey = wabou_shell::WindowResourceKey;
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TestLocatorSelector {
+    role: String,
+    name: String,
+    index: Option<usize>,
+}
+
 fn window_key(lo: u32, hi: u32) -> Option<WindowKey> {
     WindowKey::from_parts(lo, hi)
 }
@@ -52,6 +60,7 @@ enum TestActionKind {
         role: String,
         label: String,
         index: Option<usize>,
+        scope: Vec<TestLocatorSelector>,
     },
     InputByRole {
         window_key: WindowKey,
@@ -59,12 +68,14 @@ enum TestActionKind {
         label: String,
         input: TestInput,
         index: Option<usize>,
+        scope: Vec<TestLocatorSelector>,
     },
     QueryByRole {
         window_key: WindowKey,
         role: String,
         label: String,
         index: Option<usize>,
+        scope: Vec<TestLocatorSelector>,
     },
 }
 
@@ -411,14 +422,17 @@ impl TestController {
                               hi: u32,
                               role: String,
                               label: String,
-                              index: Option<usize>| {
-                            let receiver = window_key(lo, hi).map(|window_key| {
-                                click.request(TestActionKind::ClickByRole {
+                              index: Option<usize>,
+                              scope_json: String| {
+                            let receiver = window_key(lo, hi).and_then(|window_key| {
+                                let scope = serde_json::from_str(&scope_json).ok()?;
+                                Some(click.request(TestActionKind::ClickByRole {
                                     window_key,
                                     role,
                                     label,
                                     index,
-                                })
+                                    scope,
+                                }))
                             });
                             async move {
                                 match receiver {
@@ -447,8 +461,10 @@ impl TestController {
                               role: String,
                               label: String,
                               raw: String,
-                              index: Option<usize>| {
+                              index: Option<usize>,
+                              scope_json: String| {
                             let receiver = window_key(lo, hi).and_then(|window_key| {
+                                let scope = serde_json::from_str(&scope_json).ok()?;
                                 serde_json::from_str::<TestInput>(&raw).ok().map(|action| {
                                     input.request(TestActionKind::InputByRole {
                                         window_key,
@@ -456,6 +472,7 @@ impl TestController {
                                         label,
                                         input: action,
                                         index,
+                                        scope,
                                     })
                                 })
                             });
@@ -524,14 +541,17 @@ impl TestController {
                               hi: u32,
                               role: String,
                               label: String,
-                              index: Option<usize>| {
-                            let receiver = window_key(lo, hi).map(|window_key| {
-                                query.request(TestActionKind::QueryByRole {
+                              index: Option<usize>,
+                              scope_json: String| {
+                            let receiver = window_key(lo, hi).and_then(|window_key| {
+                                let scope = serde_json::from_str(&scope_json).ok()?;
+                                Some(query.request(TestActionKind::QueryByRole {
                                     window_key,
                                     role,
                                     label,
                                     index,
-                                })
+                                    scope,
+                                }))
                             });
                             async move {
                                 match receiver {
@@ -632,8 +652,9 @@ impl TestController {
                         role,
                         label,
                         index,
+                        scope,
                     } if *target_window == window_key => {
-                        semantic_target(snapshot, role, label, *index)
+                        semantic_target(snapshot, role, label, *index, scope)
                     }
                     _ => None,
                 })
@@ -670,29 +691,38 @@ impl TestController {
             }
             (
                 TestActionKind::ClickByRole {
-                    role, label, index, ..
+                    role,
+                    label,
+                    index,
+                    scope,
+                    ..
                 },
                 Some(snapshot),
-            ) => click_semantic_target(source, snapshot, role, label, *index),
+            ) => click_semantic_target(source, snapshot, role, label, *index, scope),
             (
                 TestActionKind::InputByRole {
                     role,
                     label,
                     input,
                     index,
+                    scope,
                     ..
                 },
                 Some(snapshot),
-            ) => input_semantic_target(source, snapshot, role, label, input, *index),
+            ) => input_semantic_target(source, snapshot, role, label, input, *index, scope),
             _ => false,
         };
         let result = match (&action.kind, snapshot.as_deref()) {
             (
                 TestActionKind::QueryByRole {
-                    role, label, index, ..
+                    role,
+                    label,
+                    index,
+                    scope,
+                    ..
                 },
                 Some(snapshot),
-            ) => TestActionResult::Query(locator_query_json(snapshot, role, label, *index)),
+            ) => TestActionResult::Query(locator_query_json(snapshot, role, label, *index, scope)),
             _ => TestActionResult::Handled(handled),
         };
         let _ = action.completion.send(result);
@@ -786,10 +816,10 @@ fn locator_query_json(
     role: &str,
     label: &str,
     index: Option<usize>,
+    scope: &[TestLocatorSelector],
 ) -> Option<String> {
     let role = SemanticRole::from_name(role)?;
-    let matches = snapshot
-        .exposed_nodes()
+    let matches = scoped_candidates(snapshot, scope)?
         .into_iter()
         .filter(|node| node.role == role && node.label.as_deref() == Some(label))
         .collect::<Vec<_>>();
@@ -815,6 +845,57 @@ fn locator_query_json(
         })
         .to_string(),
     )
+}
+
+fn scoped_candidates<'a>(
+    snapshot: &'a SemanticSnapshot,
+    scope: &[TestLocatorSelector],
+) -> Option<Vec<&'a wabou_shell::SemanticNode>> {
+    let mut candidates = snapshot.exposed_nodes();
+    for selector in scope {
+        let role = SemanticRole::from_name(&selector.role)?;
+        let matches = candidates
+            .into_iter()
+            .filter(|node| node.role == role && node.label.as_deref() == Some(&selector.name))
+            .collect::<Vec<_>>();
+        let owner = match selector.index {
+            Some(index) => matches.get(index).copied(),
+            None if matches.len() == 1 => matches.first().copied(),
+            None => None,
+        }?;
+        candidates = semantic_descendants(snapshot, owner.id);
+    }
+    Some(candidates)
+}
+
+fn semantic_descendants(
+    snapshot: &SemanticSnapshot,
+    owner: u64,
+) -> Vec<&wabou_shell::SemanticNode> {
+    let by_id = snapshot
+        .nodes
+        .iter()
+        .map(|node| (node.id, node))
+        .collect::<HashMap<_, _>>();
+    let mut stack = by_id
+        .get(&owner)
+        .into_iter()
+        .flat_map(|node| node.children.iter().rev().copied())
+        .collect::<Vec<_>>();
+    let mut descendants = std::collections::HashSet::new();
+    while let Some(id) = stack.pop() {
+        if !descendants.insert(id) {
+            continue;
+        }
+        if let Some(node) = by_id.get(&id) {
+            stack.extend(node.children.iter().rev().copied());
+        }
+    }
+    snapshot
+        .nodes
+        .iter()
+        .filter(|node| descendants.contains(&node.id))
+        .collect()
 }
 
 fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) -> serde_json::Value {
@@ -939,8 +1020,9 @@ fn click_semantic_target(
     role: &str,
     label: &str,
     index: Option<usize>,
+    scope: &[TestLocatorSelector],
 ) -> bool {
-    let Some(node) = semantic_target(snapshot, role, label, index) else {
+    let Some(node) = semantic_target(snapshot, role, label, index, scope) else {
         return false;
     };
     let point = Point {
@@ -971,11 +1053,12 @@ fn input_semantic_target(
     label: &str,
     input: &TestInput,
     index: Option<usize>,
+    scope: &[TestLocatorSelector],
 ) -> bool {
     let node = if input_allows_disabled_target(input) {
-        semantic_query_target(snapshot, role, label, index)
+        semantic_query_target(snapshot, role, label, index, scope)
     } else {
-        semantic_target(snapshot, role, label, index)
+        semantic_target(snapshot, role, label, index, scope)
     };
     let Some(node) = node else {
         return false;
@@ -1014,8 +1097,9 @@ fn semantic_target<'a>(
     role: &str,
     label: &str,
     index: Option<usize>,
+    scope: &[TestLocatorSelector],
 ) -> Option<&'a wabou_shell::SemanticNode> {
-    let node = semantic_query_target(snapshot, role, label, index)?;
+    let node = semantic_query_target(snapshot, role, label, index, scope)?;
     (!node.disabled).then_some(node)
 }
 
@@ -1024,8 +1108,19 @@ fn semantic_query_target<'a>(
     role: &str,
     label: &str,
     index: Option<usize>,
+    scope: &[TestLocatorSelector],
 ) -> Option<&'a wabou_shell::SemanticNode> {
-    snapshot.node_by_role(SemanticRole::from_name(role)?, label, index)
+    let role = SemanticRole::from_name(role)?;
+    let mut matches = scoped_candidates(snapshot, scope)?
+        .into_iter()
+        .filter(|node| node.role == role && node.label.as_deref() == Some(label));
+    match index {
+        Some(index) => matches.nth(index),
+        None => {
+            let node = matches.next()?;
+            matches.next().is_none().then_some(node)
+        }
+    }
 }
 
 pub(crate) struct TestDriver {
@@ -1137,23 +1232,28 @@ impl ShellExtension for TestDriver {
                     role,
                     label,
                     index,
-                } => TestActionResult::Handled(match index {
-                    Some(index) => context.click_by_role_at(window_key, &role, &label, index),
-                    None => context.click_by_role(window_key, &role, &label),
-                }),
+                    scope,
+                } => {
+                    let node = context.semantic_snapshot(window_key).and_then(|snapshot| {
+                        semantic_target(&snapshot, &role, &label, index, &scope).cloned()
+                    });
+                    TestActionResult::Handled(node.is_some_and(|node| {
+                        click_events(&node)
+                            .into_iter()
+                            .all(|event| context.dispatch_event(window_key, event))
+                    }))
+                }
                 TestActionKind::InputByRole {
                     window_key,
                     role,
                     label,
                     input,
                     index,
+                    scope,
                 } => {
-                    let node = match index {
-                        Some(index) => {
-                            context.semantic_node_by_role_at(window_key, &role, &label, index)
-                        }
-                        None => context.semantic_node_by_role(window_key, &role, &label),
-                    };
+                    let node = context.semantic_snapshot(window_key).and_then(|snapshot| {
+                        semantic_query_target(&snapshot, &role, &label, index, &scope).cloned()
+                    });
                     let Some(node) = node else {
                         let _ = action.completion.send(TestActionResult::Handled(false));
                         continue;
@@ -1183,11 +1283,10 @@ impl ShellExtension for TestDriver {
                     role,
                     label,
                     index,
-                } => TestActionResult::Query(
-                    context
-                        .semantic_snapshot(window_key)
-                        .and_then(|snapshot| locator_query_json(&snapshot, &role, &label, index)),
-                ),
+                    scope,
+                } => TestActionResult::Query(context.semantic_snapshot(window_key).and_then(
+                    |snapshot| locator_query_json(&snapshot, &role, &label, index, &scope),
+                )),
             };
             let _ = action.completion.send(result);
         }
@@ -1285,6 +1384,29 @@ fn test_input_events(node: &wabou_shell::SemanticNode, input: &TestInput) -> Vec
             modifiers: Modifiers::default(),
         })],
     }
+}
+
+fn click_events(node: &wabou_shell::SemanticNode) -> [UiEvent; 2] {
+    let position = Point {
+        x: f64::from((node.bounds[0] + node.bounds[2]) * 0.5),
+        y: f64::from((node.bounds[1] + node.bounds[3]) * 0.5),
+    };
+    [
+        UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Down,
+            position,
+            button: Some(PointerButton::Primary),
+            buttons: 1,
+            modifiers: Modifiers::default(),
+        }),
+        UiEvent::Pointer(PointerEvent {
+            phase: PointerPhase::Up,
+            position,
+            button: Some(PointerButton::Primary),
+            buttons: 0,
+            modifiers: Modifiers::default(),
+        }),
+    ]
 }
 
 #[cfg(test)]
@@ -1495,8 +1617,8 @@ mod tests {
             ..SemanticSnapshot::default()
         };
 
-        assert!(semantic_target(&snapshot, "alert", "Failed", None).is_some());
-        assert!(semantic_target(&snapshot, "status", "Saved", None).is_some());
+        assert!(semantic_target(&snapshot, "alert", "Failed", None, &[]).is_some());
+        assert!(semantic_target(&snapshot, "status", "Saved", None, &[]).is_some());
     }
 
     #[test]
@@ -1535,7 +1657,7 @@ mod tests {
 
         for (role, _) in roles {
             assert!(
-                semantic_target(&snapshot, role, "Target", None).is_some(),
+                semantic_target(&snapshot, role, "Target", None, &[]).is_some(),
                 "missing locator role {role}"
             );
         }
@@ -1550,12 +1672,14 @@ mod tests {
             label: "Appears later".into(),
             input: TestInput::Probe,
             index: None,
+            scope: vec![],
         };
         let click = TestActionKind::ClickByRole {
             window_key: key(1),
             role: "button".into(),
             label: "Appears later".into(),
             index: None,
+            scope: vec![],
         };
 
         assert!(action_ready(&probe, Some(&snapshot)));
@@ -1571,12 +1695,14 @@ mod tests {
             role: "textbox".into(),
             label: "First".into(),
             index: None,
+            scope: vec![],
         });
         let second = controller.request(TestActionKind::QueryByRole {
             window_key: key(2),
             role: "textbox".into(),
             label: "Second".into(),
             index: None,
+            scope: vec![],
         });
         let snapshot = |label: &str, value: &str| {
             let mut target = node();
@@ -1623,15 +1749,57 @@ mod tests {
         };
 
         let query = serde_json::from_str::<serde_json::Value>(
-            &locator_query_json(&snapshot, "textbox", "Editor", None).unwrap(),
+            &locator_query_json(&snapshot, "textbox", "Editor", None, &[]).unwrap(),
         )
         .unwrap();
         assert_eq!(query["matchCount"], 2);
-        assert!(semantic_query_target(&snapshot, "textbox", "Editor", None).is_none());
-        assert!(semantic_target(&snapshot, "textbox", "Editor", None).is_none());
+        assert!(semantic_query_target(&snapshot, "textbox", "Editor", None, &[]).is_none());
+        assert!(semantic_target(&snapshot, "textbox", "Editor", None, &[]).is_none());
         assert_eq!(
-            semantic_query_target(&snapshot, "textbox", "Editor", Some(1)).map(|node| node.id),
+            semantic_query_target(&snapshot, "textbox", "Editor", Some(1), &[]).map(|node| node.id),
             Some(8)
+        );
+    }
+
+    #[test]
+    fn scoped_locators_resolve_duplicate_names_within_one_semantic_subtree() {
+        let mut first_group = node();
+        first_group.id = 10;
+        first_group.role = SemanticRole::RadioGroup;
+        first_group.label = Some("Primary rating".into());
+        first_group.children = vec![11];
+        let mut first_radio = node();
+        first_radio.id = 11;
+        first_radio.role = SemanticRole::RadioButton;
+        first_radio.label = Some("4 stars".into());
+
+        let mut second_group = first_group.clone();
+        second_group.id = 20;
+        second_group.label = Some("Secondary rating".into());
+        second_group.children = vec![21];
+        let mut second_radio = first_radio.clone();
+        second_radio.id = 21;
+
+        let snapshot = SemanticSnapshot {
+            nodes: vec![first_group, first_radio, second_group, second_radio],
+            root_children: vec![10, 20],
+            ..SemanticSnapshot::default()
+        };
+        assert!(semantic_query_target(&snapshot, "radio", "4 stars", None, &[]).is_none());
+
+        let scope = [TestLocatorSelector {
+            role: "radiogroup".into(),
+            name: "Secondary rating".into(),
+            index: None,
+        }];
+        assert_eq!(
+            semantic_query_target(&snapshot, "radio", "4 stars", None, &scope).map(|node| node.id),
+            Some(21)
+        );
+        let query = locator_query_json(&snapshot, "radio", "4 stars", None, &scope).unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&query).unwrap()["matchCount"],
+            1
         );
     }
 
@@ -1652,9 +1820,9 @@ mod tests {
             ..SemanticSnapshot::default()
         };
 
-        assert!(locator_query_json(&snapshot, "button", "Background", None).is_none());
-        assert!(semantic_target(&snapshot, "button", "Background", None).is_none());
-        assert!(semantic_target(&snapshot, "dialog", "Settings", None).is_some());
+        assert!(locator_query_json(&snapshot, "button", "Background", None, &[]).is_none());
+        assert!(semantic_target(&snapshot, "button", "Background", None, &[]).is_none());
+        assert!(semantic_target(&snapshot, "dialog", "Settings", None, &[]).is_some());
     }
 
     #[test]
@@ -1686,12 +1854,14 @@ mod tests {
             role: "button".into(),
             label: "Late action".into(),
             index: None,
+            scope: vec![],
         });
         let pending_query = controller.request(TestActionKind::QueryByRole {
             window_key: key(1),
             role: "textbox".into(),
             label: "Late query".into(),
             index: None,
+            scope: vec![],
         });
 
         assert!(controller.finish("first report".into()));

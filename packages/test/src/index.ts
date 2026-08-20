@@ -76,6 +76,7 @@ interface NativeTestCapability {
     role: string,
     label: string,
     index: number | null,
+    scope: string,
   ): Promise<boolean>;
   inputByRole(
     lo: number,
@@ -84,6 +85,7 @@ interface NativeTestCapability {
     label: string,
     input: string,
     index: number | null,
+    scope: string,
   ): Promise<boolean>;
   queryByRole(
     lo: number,
@@ -91,6 +93,7 @@ interface NativeTestCapability {
     role: string,
     label: string,
     index: number | null,
+    scope: string,
   ): Promise<string | null | undefined>;
   queueEffect(
     capability: number,
@@ -180,6 +183,12 @@ export interface Locator {
   readonly role: SemanticRole;
   readonly name: string;
   readonly index?: number;
+  /** Ancestor selector chain used to resolve this locator's semantic subtree. */
+  readonly scope: readonly LocatorSelector[];
+  getByRole(
+    role: SemanticRole,
+    options: { name: string; index?: number },
+  ): Locator;
   click(options?: LocatorWaitOptions): Promise<void>;
   dragBy(
     deltaX: number,
@@ -288,12 +297,12 @@ export type LocatorAssertion =
     }
   | {
       type: "notOverlap";
-      other: Pick<Locator, "role" | "name" | "index">;
+      other: LocatorReference;
       tolerance: number;
     }
   | {
       type: "sameBounds";
-      other: Pick<Locator, "role" | "name" | "index">;
+      other: LocatorReference;
       fields: LocatorBoundsField[];
       tolerance: number;
     }
@@ -310,6 +319,16 @@ export interface NumericRangeAssertionOptions extends LocatorAssertionOptions {
 }
 
 export const TEST_ARTIFACT_VERSION = 1 as const;
+
+export interface LocatorSelector {
+  role: SemanticRole;
+  name: string;
+  index?: number;
+}
+
+export interface LocatorReference extends LocatorSelector {
+  scope?: LocatorSelector[];
+}
 
 export interface TestEnvironment {
   backend: "deterministic" | "native";
@@ -367,6 +386,7 @@ export type TestAction =
       role: SemanticRole;
       label: string;
       index?: number;
+      scope?: LocatorSelector[];
       wait?: ResolvedPollOptions;
     }
   | {
@@ -375,6 +395,7 @@ export type TestAction =
       role: SemanticRole;
       label: string;
       index?: number;
+      scope?: LocatorSelector[];
       input: TestInput;
       wait?: ResolvedPollOptions;
     }
@@ -384,6 +405,7 @@ export type TestAction =
       role: SemanticRole;
       label: string;
       index?: number;
+      scope?: LocatorSelector[];
       wait: ResolvedPollOptions;
     }
   | {
@@ -392,6 +414,7 @@ export type TestAction =
       role: SemanticRole;
       label: string;
       index?: number;
+      scope?: LocatorSelector[];
       assertion: LocatorAssertion;
       wait: ResolvedPollOptions;
     }
@@ -481,7 +504,10 @@ function decodeWindowViewport(windowId: WindowKey): LocatorBounds {
   return viewport;
 }
 
-function createPage(windowId: WindowKey): TestPage {
+function createPage(
+  windowId: WindowKey,
+  scope: readonly LocatorSelector[] = [],
+): TestPage {
   validateWindowKey(windowId);
   return {
     effects,
@@ -517,7 +543,15 @@ function createPage(windowId: WindowKey): TestPage {
         );
       }
       const locatorLabel = `${role} named ${JSON.stringify(options.name)}${index === undefined ? "" : ` at index ${index}`}`;
-      const description = `${locatorLabel} in window ${windowLabel(windowId)}`;
+      const scopeLabel = scope
+        .map(
+          (selector) =>
+            `${selector.role} named ${JSON.stringify(selector.name)}${selector.index === undefined ? "" : ` at index ${selector.index}`}`,
+        )
+        .join(" within ");
+      const description = `${locatorLabel}${scopeLabel ? ` within ${scopeLabel}` : ""} in window ${windowLabel(windowId)}`;
+      const encodedScope = JSON.stringify(scope);
+      const traceScope = scope.length > 0 ? [...scope] : undefined;
       const sendInput = async (value: TestInput): Promise<boolean> => {
         if (
           !(await capability().inputByRole(
@@ -527,6 +561,7 @@ function createPage(windowId: WindowKey): TestPage {
             options.name,
             JSON.stringify(value),
             index ?? null,
+            encodedScope,
           ))
         ) {
           return false;
@@ -545,6 +580,7 @@ function createPage(windowId: WindowKey): TestPage {
           role,
           options.name,
           index ?? null,
+          encodedScope,
         );
         return decodeLocatorQuery<LocatorSnapshot>(result, description, index);
       };
@@ -618,6 +654,13 @@ function createPage(windowId: WindowKey): TestPage {
         role,
         name: options.name,
         index,
+        scope,
+        getByRole(childRole, childOptions) {
+          return createPage(windowId, [
+            ...scope,
+            { role, name: options.name, index },
+          ]).getByRole(childRole, childOptions);
+        },
         async click(assertionOptions) {
           const wait = resolvePollOptions(assertionOptions);
           trace.push({
@@ -626,6 +669,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             wait,
           });
           await waitUntilActionable(wait);
@@ -636,6 +680,7 @@ function createPage(windowId: WindowKey): TestPage {
               role,
               options.name,
               index ?? null,
+              encodedScope,
             ))
           ) {
             throw new Error(`no enabled ${locatorLabel}`);
@@ -650,6 +695,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             input: { type: "drag", deltaX, deltaY },
             wait,
           });
@@ -670,6 +716,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             input: { type: "key", key, modifiers: bits },
             wait,
           });
@@ -684,6 +731,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             input: { type: "text", text },
             wait,
           });
@@ -698,6 +746,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             input: { type: "paste", text },
             wait,
           });
@@ -712,6 +761,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             input: { type: "ime", text },
             wait,
           });
@@ -727,6 +777,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             input: { type: "wheel", deltaX, deltaY },
             wait,
           });
@@ -745,6 +796,7 @@ function createPage(windowId: WindowKey): TestPage {
             role,
             label: options.name,
             index,
+            scope: traceScope,
             wait,
           });
           let ambiguity: string | undefined;
@@ -1022,6 +1074,7 @@ async function locatorAbsenceDiagnostic(
     target.role,
     target.name,
     target.index ?? null,
+    JSON.stringify(target.scope),
   );
   if (locatorQueryIsAbsent(raw, target.index)) {
     return null;
@@ -1046,6 +1099,7 @@ async function locatorCountDiagnostic(
     target.role,
     target.name,
     null,
+    JSON.stringify(target.scope),
   );
   const actual = locatorQueryMatchCount(raw);
   return actual === expected
@@ -1065,6 +1119,7 @@ async function assertLocatorEventually(
     role: target.role,
     label: target.name,
     index: target.index,
+    scope: target.scope.length > 0 ? [...target.scope] : undefined,
     assertion,
     wait,
   });
@@ -1081,13 +1136,13 @@ async function assertLocatorEventually(
           assertion.type === "notOverlap" ||
           assertion.type === "sameBounds"
         ) {
-          const other = createPage(target.windowId).getByRole(
-            assertion.other.role,
-            {
-              name: assertion.other.name,
-              index: assertion.other.index,
-            },
-          );
+          const other = createPage(
+            target.windowId,
+            assertion.other.scope,
+          ).getByRole(assertion.other.role, {
+            name: assertion.other.name,
+            index: assertion.other.index,
+          });
           const [first, second] = await Promise.all([
             target.snapshot(),
             other.snapshot(),
@@ -1486,7 +1541,12 @@ export function expect<T>(actual: T) {
         target,
         {
           type: "notOverlap",
-          other: { role: other.role, name: other.name, index: other.index },
+          other: {
+            role: other.role,
+            name: other.name,
+            index: other.index,
+            scope: other.scope.length > 0 ? [...other.scope] : undefined,
+          },
           tolerance,
         },
         options,
@@ -1524,7 +1584,12 @@ export function expect<T>(actual: T) {
         target,
         {
           type: "sameBounds",
-          other: { role: other.role, name: other.name, index: other.index },
+          other: {
+            role: other.role,
+            name: other.name,
+            index: other.index,
+            scope: other.scope.length > 0 ? [...other.scope] : undefined,
+          },
           fields: [...fields],
           tolerance,
         },

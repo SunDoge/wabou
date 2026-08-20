@@ -1,5 +1,36 @@
 import type { Locator, TestAction, TestContext, TestPage } from "./index";
 
+function locatorForAction(
+  page: TestPage,
+  action: Extract<
+    TestAction,
+    { action: "clickByRole" | "inputByRole" | "waitForByRole" | "assertByRole" }
+  >,
+): Locator {
+  const scopedPage = page.forWindow(action.windowId);
+  let owner: Locator | undefined;
+  for (const selector of action.scope ?? []) {
+    owner = owner
+      ? owner.getByRole(selector.role, {
+          name: selector.name,
+          index: selector.index,
+        })
+      : scopedPage.getByRole(selector.role, {
+          name: selector.name,
+          index: selector.index,
+        });
+  }
+  return owner
+    ? owner.getByRole(action.role, {
+        name: action.label,
+        index: action.index,
+      })
+    : scopedPage.getByRole(action.role, {
+        name: action.label,
+        index: action.index,
+      });
+}
+
 export type ReplayLocatorAssertion = (
   locator: Locator,
   action: Extract<TestAction, { action: "assertByRole" }>,
@@ -30,28 +61,15 @@ export async function replayActions(
     } else if (action.action === "fileDrop") {
       await window.fileDrop(action.windowId, action.phase, action.paths);
     } else if (action.action === "clickByRole") {
-      await page
-        .forWindow(action.windowId)
-        .getByRole(action.role, { name: action.label, index: action.index })
-        .click(action.wait);
+      await locatorForAction(page, action).click(action.wait);
     } else if (action.action === "waitForByRole") {
-      await page
-        .forWindow(action.windowId)
-        .getByRole(action.role, { name: action.label, index: action.index })
-        .waitFor(action.wait);
+      await locatorForAction(page, action).waitFor(action.wait);
     } else if (action.action === "assertByRole") {
-      await assertLocator(
-        page
-          .forWindow(action.windowId)
-          .getByRole(action.role, { name: action.label, index: action.index }),
-        action,
-      );
+      await assertLocator(locatorForAction(page, action), action);
     } else if (action.action === "assertWindowState") {
       await assertWindow(window, action);
     } else {
-      const locator = page
-        .forWindow(action.windowId)
-        .getByRole(action.role, { name: action.label, index: action.index });
+      const locator = locatorForAction(page, action);
       const input = action.input;
       if (input.type === "probe") await locator.waitFor(action.wait);
       else if (input.type === "drag")

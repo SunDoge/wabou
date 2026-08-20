@@ -27,9 +27,9 @@ interface NativeTestCapability {
   fileDrop(lo: number, hi: number, phase: TestFileDropPhase, paths: string): Promise<boolean>;
   windowState(lo: number, hi: number): string;
   windowViewport(lo: number, hi: number): string;
-  clickByRole(lo: number, hi: number, role: string, label: string, index: number | null): Promise<boolean>;
-  inputByRole(lo: number, hi: number, role: string, label: string, input: string, index: number | null): Promise<boolean>;
-  queryByRole(lo: number, hi: number, role: string, label: string, index: number | null): Promise<string | null | undefined>;
+  clickByRole(lo: number, hi: number, role: string, label: string, index: number | null, scope: string): Promise<boolean>;
+  inputByRole(lo: number, hi: number, role: string, label: string, input: string, index: number | null, scope: string): Promise<boolean>;
+  queryByRole(lo: number, hi: number, role: string, label: string, index: number | null, scope: string): Promise<string | null | undefined>;
   queueEffect(capability: number, method: number, result: string): string | null;
   takePendingEffectFixtures(): string;
   finish(report: string): boolean;
@@ -93,6 +93,12 @@ interface Locator {
   readonly role: SemanticRole;
   readonly name: string;
   readonly index?: number;
+  /** Ancestor selector chain used to resolve this locator's semantic subtree. */
+  readonly scope: readonly LocatorSelector[];
+  getByRole(role: SemanticRole, options: {
+    name: string;
+    index?: number;
+  }): Locator;
   click(options?: LocatorWaitOptions): Promise<void>;
   dragBy(deltaX: number, deltaY: number, options?: LocatorWaitOptions): Promise<void>;
   press(key: string, modifiers?: {
@@ -208,11 +214,11 @@ type LocatorAssertion = {
   tolerance: number;
 } | {
   type: "notOverlap";
-  other: Pick<Locator, "role" | "name" | "index">;
+  other: LocatorReference;
   tolerance: number;
 } | {
   type: "sameBounds";
-  other: Pick<Locator, "role" | "name" | "index">;
+  other: LocatorReference;
   fields: LocatorBoundsField[];
   tolerance: number;
 } | {
@@ -228,6 +234,14 @@ interface NumericRangeAssertionOptions extends LocatorAssertionOptions {
   tolerance?: number;
 }
 declare const TEST_ARTIFACT_VERSION: 1;
+interface LocatorSelector {
+  role: SemanticRole;
+  name: string;
+  index?: number;
+}
+interface LocatorReference extends LocatorSelector {
+  scope?: LocatorSelector[];
+}
 interface TestEnvironment {
   backend: "deterministic" | "native";
   os: string;
@@ -278,6 +292,7 @@ type TestAction = {
   role: SemanticRole;
   label: string;
   index?: number;
+  scope?: LocatorSelector[];
   wait?: ResolvedPollOptions;
 } | {
   action: "inputByRole";
@@ -285,6 +300,7 @@ type TestAction = {
   role: SemanticRole;
   label: string;
   index?: number;
+  scope?: LocatorSelector[];
   input: TestInput;
   wait?: ResolvedPollOptions;
 } | {
@@ -293,6 +309,7 @@ type TestAction = {
   role: SemanticRole;
   label: string;
   index?: number;
+  scope?: LocatorSelector[];
   wait: ResolvedPollOptions;
 } | {
   action: "assertByRole";
@@ -300,6 +317,7 @@ type TestAction = {
   role: SemanticRole;
   label: string;
   index?: number;
+  scope?: LocatorSelector[];
   assertion: LocatorAssertion;
   wait: ResolvedPollOptions;
 } | {
@@ -355,5 +373,5 @@ declare namespace expect {
   };
 }
 //#endregion
-export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorBoundsField, LocatorCurrent, LocatorNumericRange, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFileDropPhase, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
+export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorBoundsField, LocatorCurrent, LocatorNumericRange, LocatorReference, LocatorSelector, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFileDropPhase, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
 //# sourceMappingURL=index.d.mts.map
