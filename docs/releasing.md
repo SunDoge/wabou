@@ -13,21 +13,13 @@ until the Rust crate boundaries stabilize.
 4. Run the same gates as CI:
 
    ```bash
-   mise exec -- bun install --frozen-lockfile
-   cargo fmt --all -- --check
-   cargo check --workspace --all-targets
-   cargo clippy --workspace --all-targets --all-features -- -D warnings
-   cargo test --workspace --all-targets
-   mise exec -- bun run check
-   mise exec -- bun run packages:build
-   git diff --exit-code -- packages/*/dist
-   mise exec -- bun run packages:check
-   mise exec -- bun run scripts/publish-packages.ts --dry-run
-   mise exec -- bun run test
-   mise exec -- bun run test:hmr
-   mise exec -- bun run gen
+   bun install --frozen-lockfile
+   bun run verify
    git diff --exit-code
    ```
+
+   `verify` is read-only: stale generated files fail with the command needed to
+   refresh them. Run `bun run gen`, review the result, and repeat `verify`.
 
 5. Build both example frontends and inspect Gallery renders at 1× and 2×.
 6. Run `wabou new` against the candidate Git revision, then verify `bun

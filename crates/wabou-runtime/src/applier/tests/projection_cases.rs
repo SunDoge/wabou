@@ -381,7 +381,7 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
         snapshot.status.text_outline_fallback.as_str(),
         "direct-native-weight" | "retained-synthetic-weight"
     ));
-    let json = serde_json::to_value(&snapshot).unwrap();
+    let json = serde_json::to_value(snapshot).unwrap();
     assert_eq!(json["status"]["textBackend"], "swash");
     assert!(json["nodes"].as_array().unwrap().iter().any(|node| {
         node["id"]["lo"] == 2

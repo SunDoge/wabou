@@ -10,12 +10,18 @@ Install the repository toolchain with [mise](https://mise.jdx.dev/):
 mise install
 ```
 
-Run the relevant focused tests before opening a pull request. For a broad check:
+Run the relevant focused tests while iterating. Before opening a pull request,
+run the repository verification contract used by CI:
 
 ```bash
-cargo test --workspace
-mise exec -- bun x tsc --noEmit
+bun run verify
 ```
+
+`bun run verify:js` and `bun run verify:rust` are available when a change only
+needs one side of the boundary. The full command checks formatting, types,
+generated bindings, package tarballs, unit tests, Clippy, and every Rust target.
+It reports stale generated output instead of rewriting the worktree; run
+`bun run gen` explicitly when that diagnostic is expected.
 
 To run the GitHub Actions workflow locally, use the repository's `act`
 wrapper. It uses Docker's host network and forwards the host proxy at

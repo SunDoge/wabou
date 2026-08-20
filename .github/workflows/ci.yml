@@ -48,12 +48,11 @@ jobs:
       - name: Build JavaScript packages
         run: bun run packages:build
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
+      - name: Verify Rust workspace
+        run: bun run verify:rust
 
-      - name: Check workspace
+      - name: Check lightweight runtime dependency graph
         run: |
-          cargo check --workspace --all-targets
           # Gallery and DevTools enable the Specta exporter. Check the ordinary
           # runtime/facade dependency path independently of workspace features.
           cargo check -p wabou-bindgen --no-default-features
@@ -71,12 +70,6 @@ jobs:
           cargo run -p wabou-host-api --features bindings --example native-host-bindings -- check
           cargo run -p wabou-cli -- bindings check apps/gallery
           cargo run -p wabou-cli -- bindings check apps/devtools
-
-      - name: Lint workspace
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-
-      - name: Test workspace
-        run: cargo test --workspace --all-targets
 
       - name: Test native application behavior
         run: |
@@ -165,20 +158,8 @@ jobs:
       - name: Build packages
         run: bun run packages:build
 
-      - name: Check types
-        run: bun run check
-
-      - name: Check package boundaries
-        run: bun run packages:check
-
-      - name: Check publish tarballs
-        run: bun run scripts/publish-packages.ts --dry-run
-
-      - name: Test packages
-        run: bun run test
-
-      - name: Test development HMR integration
-        run: bun run test:hmr
+      - name: Verify JavaScript workspace
+        run: bun run verify:js
 
       - name: Build application frontends
         run: |
@@ -190,6 +171,3 @@ jobs:
           bun run size:report -- \
             dist/gallery/resources/bundle.js \
             dist/hackernews/resources/bundle.js
-
-      - name: Check generated artifacts
-        run: bun run gen:check
