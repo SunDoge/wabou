@@ -4,7 +4,7 @@ import "virtual:wabou-stylesheet";
 import {
   PrimitiveButton as Button,
   mount,
-  Popover,
+  PrimitivePopover,
   Text,
   PrimitiveTextInput as TextInput,
   View,
@@ -20,12 +20,12 @@ import {
   Show,
 } from "solid-js";
 import {
-  useDevtoolsClient,
   type DebugClip,
   type DebugFrame,
   type DebugNode,
   type DebugStatus,
   type NodeKey,
+  useDevtoolsClient,
 } from "./generated/host-bindings";
 import { overlayStyle } from "./model";
 
@@ -284,7 +284,7 @@ function App() {
         >
           Capture
         </Button>
-        <Popover
+        <PrimitivePopover
           aria-label="Help"
           placement="bottom-end"
           trigger={(triggerProps) => (
@@ -311,7 +311,7 @@ function App() {
           <Text class="text-xs text-slate-400">
             Positioned from Wabou layout snapshots with Floating UI core.
           </Text>
-        </Popover>
+        </PrimitivePopover>
         <Text class="text-xs text-slate-400 whitespace-nowrap">
           <Show when={status()} fallback="disconnected">
             {(current) => `pid ${current().pid} · r${current().revision}`}

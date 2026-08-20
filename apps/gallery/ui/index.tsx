@@ -64,6 +64,7 @@ type ComponentId =
   | "sheet"
   | "toast"
   | "tooltip"
+  | "popover"
   | "breadcrumb"
   | "pagination"
   | "dropdown-menu"
@@ -97,6 +98,7 @@ const groups: Array<{
       { id: "command", name: "Command" },
       { id: "sheet", name: "Sheet" },
       { id: "toast", name: "Toast" },
+      { id: "popover", name: "Popover" },
     ],
   },
   {
@@ -209,6 +211,8 @@ const descriptions: Record<ComponentId, string> = {
   toast: "Shows non-blocking feedback with queueing, actions and timeouts.",
   tooltip:
     "A delayed floating label for pointer hover and keyboard focus targets.",
+  popover:
+    "Displays composed interactive content in a collision-aware floating surface.",
   breadcrumb:
     "Shows the current location while leaving navigation behavior to the application.",
   pagination: "Composes explicit controls for navigating a paged collection.",
@@ -282,6 +286,7 @@ import {
   EmptyPage,
   FieldPage,
   PaginationPage,
+  PopoverPage,
   SelectPage,
   SheetPage,
   ToastPage,
@@ -511,6 +516,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "tooltip"}>
                     <TooltipPage />
+                  </Match>
+                  <Match when={selected() === "popover"}>
+                    <PopoverPage />
                   </Match>
                   <Match when={selected() === "breadcrumb"}>
                     <BreadcrumbPageDemo />

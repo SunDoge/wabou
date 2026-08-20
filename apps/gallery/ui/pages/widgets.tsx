@@ -62,6 +62,11 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
+  Popover,
+  PopoverDescription,
+  PopoverFooter,
+  PopoverHeader,
+  PopoverTitle,
   Select,
   Sheet,
   SheetDescription,
@@ -243,6 +248,45 @@ export function TooltipPage() {
         >
           Placement is resolved from the completed native layout.
         </Tooltip>
+      </View>
+    </Preview>
+  );
+}
+
+export function PopoverPage() {
+  const [saved, setSaved] = createSignal("No changes saved");
+  return (
+    <Preview title="Composed floating panel">
+      <View class="flex flex-col items-start gap-4">
+        <Popover
+          aria-label="Workspace options"
+          placement="bottom-start"
+          contentClass="w-72"
+          trigger={(trigger) => (
+            <Button variant="outline" {...trigger}>
+              Workspace options
+            </Button>
+          )}
+        >
+          <PopoverHeader>
+            <PopoverTitle>Workspace options</PopoverTitle>
+            <PopoverDescription>
+              Configure this workspace without leaving the current view.
+            </PopoverDescription>
+          </PopoverHeader>
+          <Field>
+            <FieldLabel>Display name</FieldLabel>
+            <Input aria-label="Workspace display name" value="Wabou" />
+          </Field>
+          <PopoverFooter>
+            <Button size="sm" onClick={() => setSaved("Workspace saved")}>
+              Save
+            </Button>
+          </PopoverFooter>
+        </Popover>
+        <Text role="status" class="text-sm text-secondary">
+          {saved()}
+        </Text>
       </View>
     </Preview>
   );
