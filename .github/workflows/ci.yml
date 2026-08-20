@@ -86,6 +86,10 @@ jobs:
             --app apps/gallery
           cargo run -p wabou-cli -- test apps/7guis
           cargo run -p wabou-cli -- test apps/vlist
+          cargo run -p wabou-cli -- test apps/motrix
+          WABOU_MOTRIX_TEST_ENGINE_FAILURE=1 cargo run -p wabou-cli -- test \
+            apps/motrix/tests/engine-failure.scenario.ts \
+            --artifacts target/wabou-test/motrix/engine-failure-artifacts
 
       - name: Upload behavior-test diagnostics
         if: failure()
@@ -95,6 +99,7 @@ jobs:
           path: |
             target/wabou-test/*/artifacts/
             target/wabou-test/*/replay-artifacts/
+            target/wabou-test/*/*-artifacts/
           if-no-files-found: ignore
 
       - name: Test standalone project scaffold

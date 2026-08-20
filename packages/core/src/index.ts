@@ -33,18 +33,6 @@ import "./glue/dialog";
 import "./glue/notification";
 import "./glue/intl";
 
-// The renderer and typed style surface are re-exported here so application
-// code has one stable runtime entry point. Separate source workspaces remain
-// an implementation detail and are bundled into this package for release.
-export * from "./renderer";
-export * from "./registry";
-export * from "./style";
-export * from "./vector-path";
-export { type Application, application } from "./glue/application";
-export {
-  type CalendarDateFields,
-  intl,
-} from "./glue/intl";
 export {
   type AppDirectories,
   appCacheDir,
@@ -57,15 +45,16 @@ export {
   resourceDir,
   tempDir,
 } from "./glue/app-dirs";
-export { type Clipboard, clipboard, useClipboard } from "./glue/clipboard";
+export { type Application, application } from "./glue/application";
 export {
-  type FileDropEvent,
-  type FileDropHandler,
-  type FileDropPhase,
-  type FileDropPosition,
-  subscribeFileDrop,
-  useFileDrop,
-} from "./glue/file-drop";
+  type AsyncAction,
+  AsyncActionConflictError,
+  type AsyncActionResult,
+  createAsyncAction,
+  createKeyedAsyncAction,
+  type KeyedAsyncAction,
+} from "./glue/async-action";
+export { type Clipboard, clipboard, useClipboard } from "./glue/clipboard";
 export {
   type ColorPalette,
   type ColorThemeAnimation,
@@ -89,7 +78,20 @@ export {
   type SaveDialogOptions,
   useDialog,
 } from "./glue/dialog";
+export {
+  type FileDropEvent,
+  type FileDropHandler,
+  type FileDropPhase,
+  type FileDropPosition,
+  subscribeFileDrop,
+  useFileDrop,
+} from "./glue/file-drop";
+export {
+  createEventEffect,
+  type EventEffectOptions,
+} from "./glue/event-effect";
 export type {
+  HostJsonSubscriptionOptions,
   HostMessage,
   HostMessageAllHandler,
   HostMessageHandler,
@@ -98,7 +100,36 @@ export {
   hostMessages,
   subscribe as subscribeHostMessages,
   subscribeAll as subscribeAllHostMessages,
+  subscribeJson as subscribeJsonHostMessages,
 } from "./glue/host-messages";
+export {
+  createRevisionedHostResource,
+  RevisionedHostWaitError,
+  type RevisionedHostPatch,
+  type RevisionedHostResource,
+  type RevisionedHostResourceOptions,
+  type RevisionedHostWaitOptions,
+  type RevisionedHostWaitErrorReason,
+  type RevisionedHostValue,
+} from "./glue/host-resource";
+export {
+  type CalendarDateFields,
+  intl,
+} from "./glue/intl";
+export {
+  bindJsonCapability,
+  type JsonCapabilityClient,
+  type JsonCapabilityClientOptions,
+  JsonCapabilityError,
+  type JsonCapabilityMethodName,
+  type NativeJsonCapability,
+} from "./glue/json-capability";
+export {
+  createLatestAsyncResource,
+  type LatestAsyncResource,
+  type LatestAsyncResourceOptions,
+  type LatestAsyncResourceStatus,
+} from "./glue/latest-async-resource";
 export {
   type NativeMenuItem,
   type NativeMenuOptions,
@@ -120,8 +151,8 @@ export {
   type CreateWindowOptions,
   createWindow,
   currentWindow,
-  type WindowKey,
   type WindowHandle,
+  type WindowKey,
 } from "./glue/window";
 export {
   createWindowMatch,
@@ -130,3 +161,11 @@ export {
   type WindowSizeQuery,
   type WindowState,
 } from "./glue/window-metrics";
+export * from "./keyed-list";
+export * from "./registry";
+// The renderer and typed style surface are re-exported here so application
+// code has one stable runtime entry point. Separate source workspaces remain
+// an implementation detail and are bundled into this package for release.
+export * from "./renderer";
+export * from "./style";
+export * from "./vector-path";

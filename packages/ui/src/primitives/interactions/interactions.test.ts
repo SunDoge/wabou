@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { createRoot, flush } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { match } from "ts-pattern";
 import {
   createCollection,
+  createKeyedSelection,
   createMachine,
   createRovingFocus,
   createTypeahead,
@@ -73,6 +74,46 @@ describe("selection and disclosure", () => {
   test("supports single and multiple selection", () => {
     expect(toggleSelection("one", "one", "single", true)).toBeUndefined();
     expect(toggleSelection(["one"], "two", "multiple")).toEqual(["one", "two"]);
+  });
+
+  test("keyed selection resolves replacement objects and removes deleted keys", () => {
+    createRoot((dispose) => {
+      const [items, setItems] = createSignal([
+        { id: "one", value: 1 },
+        { id: "two", value: 2 },
+      ]);
+      const single = createKeyedSelection({
+        items,
+        key: (item) => item.id,
+        mode: "single",
+      });
+      const multiple = createKeyedSelection({
+        items,
+        key: (item) => item.id,
+        mode: "multiple",
+      });
+      flush();
+
+      single.select("one");
+      multiple.set(["one", "two", "missing"]);
+      flush();
+      expect(single.item()).toEqual({ id: "one", value: 1 });
+      expect([...multiple.keys()]).toEqual(["one", "two"]);
+
+      setItems([
+        { id: "two", value: 20 },
+        { id: "one", value: 10 },
+      ]);
+      flush();
+      expect(single.item()).toEqual({ id: "one", value: 10 });
+      expect(multiple.items().map((item) => item.value)).toEqual([20, 10]);
+
+      setItems([{ id: "two", value: 21 }]);
+      flush();
+      expect(single.item()).toBeUndefined();
+      expect([...multiple.keys()]).toEqual(["two"]);
+      dispose();
+    });
   });
 
   test("keeps disabled disclosure transitions explicit", () => {

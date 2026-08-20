@@ -188,6 +188,7 @@ impl Applier {
             match decoded {
                 Ok(frame) => {
                     self.runtime.protocol_revision = self.runtime.protocol_revision.wrapping_add(1);
+                    #[cfg(any(feature = "devtools", test))]
                     if let Some(state) = &self.frame.projections.debug_state
                         && let Ok(mut state) = state.write()
                     {
@@ -478,6 +479,7 @@ impl FrameSource for Applier {
             self.frame.projections.semantics_dirty = false;
             // After paint applied pending edits, sync widget values → JS.
             self.flush_value_sync();
+            #[cfg(any(feature = "devtools", test))]
             if projection_dirty || self.frame.projections.debug_dirty {
                 self.publish_debug_snapshot(&placed);
                 self.frame.projections.debug_dirty = false;
@@ -575,6 +577,7 @@ impl FrameSource for Applier {
         self.interaction.ime_cursor_area
     }
 
+    #[cfg(any(feature = "devtools", test))]
     fn paint_debug_overlay(
         &mut self,
         scene: &mut Scene,
@@ -691,6 +694,16 @@ impl FrameSource for Applier {
         }
     }
 
+    #[cfg(not(any(feature = "devtools", test)))]
+    fn paint_debug_overlay(
+        &mut self,
+        _scene: &mut Scene,
+        _placed: &[PlacedNode],
+        _tcx: &mut TextContext,
+        _device_scale: f64,
+    ) {
+    }
+
     fn push_frame_stats(&mut self, stats: &FrameStats) {
         if let Some(cell) = &self.runtime.frame_stats {
             // The app fills build_frame/scene/present/node_count; fold in the
@@ -774,6 +787,7 @@ impl FrameSource for Applier {
     }
 
     fn set_wake_callback(&mut self, wake: WakeCallback) {
+        #[cfg(any(feature = "devtools", test))]
         if let Some(state) = &self.frame.projections.debug_state
             && let Ok(mut state) = state.write()
         {
@@ -812,6 +826,7 @@ impl FrameSource for Applier {
             };
             widget_woken |= self.dispatch_json(target, event.event_code, &event.json);
         }
+        #[cfg(any(feature = "devtools", test))]
         let screenshot_pending = self
             .frame
             .projections
@@ -819,6 +834,9 @@ impl FrameSource for Applier {
             .as_ref()
             .and_then(|state| state.read().ok())
             .is_some_and(|state| state.has_screenshot_request());
+        #[cfg(not(any(feature = "devtools", test)))]
+        let screenshot_pending = false;
+        #[cfg(any(feature = "devtools", test))]
         let overlay_changed = self
             .frame
             .projections
@@ -826,6 +844,8 @@ impl FrameSource for Applier {
             .as_ref()
             .and_then(|state| state.write().ok())
             .is_some_and(|mut state| state.take_overlay_change());
+        #[cfg(not(any(feature = "devtools", test)))]
+        let overlay_changed = false;
         widget_woken || was_woken || screenshot_pending || overlay_changed
     }
 
@@ -870,6 +890,7 @@ impl FrameSource for Applier {
             .complete(&self.runtime.js, completion);
     }
 
+    #[cfg(any(feature = "devtools", test))]
     fn take_screenshot_request(&mut self) -> Option<std::path::PathBuf> {
         self.frame
             .projections
@@ -880,6 +901,12 @@ impl FrameSource for Applier {
             .take_screenshot_request()
     }
 
+    #[cfg(not(any(feature = "devtools", test)))]
+    fn take_screenshot_request(&mut self) -> Option<std::path::PathBuf> {
+        None
+    }
+
+    #[cfg(any(feature = "devtools", test))]
     fn complete_screenshot(&mut self, result: Result<std::path::PathBuf, String>) {
         if let Some(state) = &self.frame.projections.debug_state
             && let Ok(mut state) = state.write()
@@ -888,8 +915,14 @@ impl FrameSource for Applier {
         }
     }
 
+    #[cfg(not(any(feature = "devtools", test)))]
+    fn complete_screenshot(&mut self, _result: Result<std::path::PathBuf, String>) {}
+
     fn handle_event(&mut self, input: UiEvent) -> EventResponse {
-        self.frame.projections.debug_dirty |= self.frame.projections.debug_state.is_some();
+        #[cfg(any(feature = "devtools", test))]
+        {
+            self.frame.projections.debug_dirty |= self.frame.projections.debug_state.is_some();
+        }
         if let UiEvent::WindowMetrics(metrics) = &input {
             return self.handle_window_metrics(*metrics);
         }

@@ -25,6 +25,11 @@
       "types": "./dist/protocol.d.mts",
       "import": "./dist/protocol.mjs"
     },
+    "./effects": {
+      "wabou-source": "./src/effects.ts",
+      "types": "./dist/effects.d.mts",
+      "import": "./dist/effects.mjs"
+    },
     "./registry": {
       "wabou-source": "./src/registry.ts",
       "types": "./dist/registry.d.mts",

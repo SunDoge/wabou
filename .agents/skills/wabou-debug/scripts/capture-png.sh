@@ -24,10 +24,14 @@ args=(
   --window-id "${WABOU_CAPTURE_WINDOW_ID:-1}"
   --scale-factor "${WABOU_CAPTURE_SCALE_FACTOR:-1}"
 )
+if (( $# != 6 )) && [[ "${WABOU_CAPTURE_BUNDLE_ONLY:-0}" != "1" ]]; then
+  args+=(--with-host)
+fi
 if [[ -n "${WABOU_CAPTURE_MODE:-}" ]]; then
   args+=(--mode "$WABOU_CAPTURE_MODE")
 fi
 if (( $# == 6 )); then
+  # Coordinate replay currently uses the faster bundle-only renderer.
   args+=(--click "$5" "$6")
 fi
 

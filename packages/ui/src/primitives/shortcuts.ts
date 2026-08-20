@@ -17,7 +17,7 @@ export interface ShortcutEvent {
   preventDefault(): void;
 }
 
-export type ShortcutHandler = (event: ShortcutEvent) => void;
+export type ShortcutHandler = (event: ShortcutEvent) => unknown;
 
 export interface ShortcutDefinition {
   handler: ShortcutHandler;
@@ -32,7 +32,7 @@ export type ShortcutMap = Record<string, ShortcutHandler | ShortcutDefinition>;
 export interface ShortcutsResult {
   handleKeyDown: (event: ShortcutEvent) => boolean;
   bindings: {
-    onKeyDown: (event: ShortcutEvent) => void;
+    onKeyDown: (event: ShortcutEvent) => unknown;
   };
 }
 
@@ -56,7 +56,9 @@ export function createShortcuts(shortcuts: ShortcutMap): ShortcutsResult {
   );
   assertNoAmbiguousShortcuts(compiled);
 
-  const handleKeyDown = (event: ShortcutEvent) => {
+  const invokeKeyDown = (
+    event: ShortcutEvent,
+  ): { handled: boolean; result?: unknown } => {
     const key = normalizeKey(event.key);
     const modifiers = event.mods & ALL_MODIFIERS;
     const shortcut = compiled.find(
@@ -70,16 +72,17 @@ export function createShortcuts(shortcuts: ShortcutMap): ShortcutsResult {
           : candidate.modifierMasks.includes(modifiers)),
     );
     if (shortcut === undefined || (event.repeat && !shortcut.allowRepeat)) {
-      return false;
+      return { handled: false };
     }
     if (shortcut.preventDefault !== false) event.preventDefault();
-    shortcut.handler(event);
-    return true;
+    return { handled: true, result: shortcut.handler(event) };
   };
 
   return {
-    handleKeyDown,
-    bindings: { onKeyDown: handleKeyDown },
+    handleKeyDown: (event) => invokeKeyDown(event).handled,
+    // Preserve the handler's thenable so the renderer can attach its
+    // event-context rejection diagnostic.
+    bindings: { onKeyDown: (event) => invokeKeyDown(event).result },
   };
 }
 

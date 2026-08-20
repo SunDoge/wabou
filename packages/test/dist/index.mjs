@@ -1,5 +1,11 @@
+import { effectOps } from "@wabou/core/effects";
 import { defaultHost } from "@wabou/core/renderer";
 import { isResourceKeyParts } from "@wabou/core/protocol";
+//#region src/locator-bounds.ts
+function containmentDiagnostic(inner, outer, tolerance, description) {
+	return inner.x < outer.x - tolerance || inner.y < outer.y - tolerance || inner.x + inner.width > outer.x + outer.width + tolerance || inner.y + inner.height > outer.y + outer.height + tolerance ? `expected locator bounds ${JSON.stringify(inner)} to be ${description} ${JSON.stringify(outer)} (tolerance ${tolerance}px)` : null;
+}
+//#endregion
 //#region src/locator-query.ts
 var LocatorAmbiguousError = class extends Error {};
 /** Decode and validate the request-scoped envelope without choosing a match. */
@@ -36,37 +42,48 @@ function duration(value, fallback, name) {
 }
 /** Resolve defaults before an operation is recorded so replay is deterministic. */
 function resolvePollOptions(options = {}) {
-	return {
+	const resolved = {
 		timeout: duration(options.timeout, 1e3, "timeout"),
-		interval: duration(options.interval, 16, "interval")
+		interval: duration(options.interval, 16, "interval"),
+		stableFor: duration(options.stableFor, 0, "stableFor")
 	};
+	if (resolved.stableFor > resolved.timeout) throw new RangeError("stableFor cannot exceed timeout");
+	return resolved;
 }
 /** Poll an observable value with one explicit clock and retry policy. */
 async function pollUntil(read, matches, options = {}, beforeRead) {
-	const { timeout, interval } = resolvePollOptions(options);
+	const { timeout, interval, stableFor } = resolvePollOptions(options);
 	const deadline = performance.now() + timeout;
+	let matchedSince;
 	let value;
 	for (;;) {
 		await beforeRead?.();
 		value = await read();
-		if (matches(value)) return {
-			matched: true,
-			value
-		};
-		const remaining = deadline - performance.now();
+		const now = performance.now();
+		if (matches(value)) {
+			matchedSince ??= now;
+			if (now - matchedSince >= stableFor) return {
+				matched: true,
+				value
+			};
+		} else matchedSince = void 0;
+		const remaining = deadline - now;
 		if (remaining <= 0) return {
 			matched: false,
 			value
 		};
-		await new Promise((resolve) => setTimeout(resolve, Math.min(interval, remaining)));
+		const stabilityRemaining = matchedSince === void 0 ? remaining : Math.max(0, stableFor - (now - matchedSince));
+		await new Promise((resolve) => setTimeout(resolve, Math.min(interval, remaining, stabilityRemaining)));
 	}
 }
 //#endregion
 //#region src/replay.ts
 /** Execute a recorded trace against explicit page and window capabilities. */
 async function replayActions(actions, page, window, assertLocator, assertWindow) {
-	for (const action of actions) if (action.action === "nativeClose") await window.nativeClose(action.windowId, action.platform);
+	for (const action of actions) if (action.action === "respondToEffect") page.effects.respond(action.operation, action.result);
+	else if (action.action === "nativeClose") await window.nativeClose(action.windowId, action.platform);
 	else if (action.action === "showWindow") await window.show(action.windowId);
+	else if (action.action === "resizeWindow") await window.resize(action.windowId, action.width, action.height);
 	else if (action.action === "clickByRole") await page.forWindow(action.windowId).getByRole(action.role, {
 		name: action.label,
 		index: action.index
@@ -183,6 +200,35 @@ const testNames = /* @__PURE__ */ new Set();
 const registrationErrors = [];
 const trace = [];
 const MAX_LOCATOR_INDEX = 4294967295;
+function encodedEffectResult(operation, result) {
+	if (operation === "clipboardRead") return {
+		kind: "clipboardText",
+		value: result
+	};
+	if (operation === "contextMenuShow") return {
+		kind: "contextMenuSelection",
+		value: result
+	};
+	if (operation === "dialogOpen" || operation === "dialogSave" || operation === "dialogPickDirectory") return {
+		kind: "dialogPaths",
+		value: result
+	};
+	if (operation === "dialogMessage") return {
+		kind: "dialogMessage",
+		value: result
+	};
+	return { kind: "unit" };
+}
+const effects = { respond(operation, result) {
+	const op = effectOps[operation];
+	const error = capability().queueEffect(op.capability, op.method, JSON.stringify(encodedEffectResult(operation, result)));
+	if (error) throw new Error(error);
+	trace.push({
+		action: "respondToEffect",
+		operation,
+		result
+	});
+} };
 var LocatorNotFoundError = class extends Error {};
 function capability() {
 	const value = defaultHost.test;
@@ -192,16 +238,33 @@ function capability() {
 function windowLabel(windowId) {
 	return `${windowId.lo}v${windowId.hi}`;
 }
+function decodeWindowViewport(windowId) {
+	const raw = capability().windowViewport(windowId.lo, windowId.hi);
+	const value = JSON.parse(raw);
+	if (!value) throw new Error(`native window ${windowLabel(windowId)} has no visible viewport`);
+	for (const key of [
+		"x",
+		"y",
+		"width",
+		"height"
+	]) if (!Number.isFinite(value[key])) throw new Error(`native window ${windowLabel(windowId)} returned an invalid viewport`);
+	const viewport = value;
+	if (viewport.width < 0 || viewport.height < 0) throw new Error(`native window ${windowLabel(windowId)} returned a negative viewport`);
+	return viewport;
+}
 function createPage(windowId) {
 	validateWindowKey(windowId);
 	return {
+		effects,
 		forWindow(nextWindowId) {
 			return createPage(nextWindowId);
 		},
 		async waitForIdle() {
-			await Promise.resolve();
-			await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-			if (!await capability().waitForIdle(windowId.lo, windowId.hi)) throw new Error(`native window ${windowLabel(windowId)} did not become idle`);
+			for (let frame = 0; frame < 2; frame++) {
+				await Promise.resolve();
+				await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+				if (!await capability().waitForIdle(windowId.lo, windowId.hi)) throw new Error(`native window ${windowLabel(windowId)} did not complete frame ${frame + 1} of 2`);
+			}
 		},
 		getByRole(role, options) {
 			const index = options.index;
@@ -238,6 +301,21 @@ function createPage(windowId) {
 					}
 				}, (state) => state !== null && !state.disabled, wait, () => createPage(windowId).waitForIdle())).matched) return;
 				throw new Error((ambiguity === void 0 ? void 0 : `${ambiguity} after ${wait.timeout}ms`) ?? `no enabled ${locatorLabel} after ${wait.timeout}ms`);
+			};
+			const waitUntilPresent = async (assertionOptions = {}) => {
+				const wait = resolvePollOptions(assertionOptions);
+				let ambiguity;
+				if (!(await pollUntil(async () => {
+					try {
+						const value = await probe();
+						ambiguity = void 0;
+						return value;
+					} catch (error) {
+						if (!(error instanceof LocatorAmbiguousError)) throw error;
+						ambiguity = error.message;
+						return null;
+					}
+				}, (state) => state !== null, wait, () => createPage(windowId).waitForIdle())).matched) throw new Error(ambiguity === void 0 ? `no ${locatorLabel} after ${wait.timeout}ms` : `${ambiguity} after ${wait.timeout}ms`);
 			};
 			return {
 				windowId,
@@ -380,12 +458,12 @@ function createPage(windowId) {
 						},
 						wait
 					});
-					await waitUntilActionable(wait);
-					await input({
+					await waitUntilPresent(wait);
+					if (!await sendInput({
 						type: "wheel",
 						deltaX,
 						deltaY
-					});
+					})) throw new Error(`cannot wheel ${locatorLabel}`);
 				},
 				async waitFor(assertionOptions = {}) {
 					const wait = resolvePollOptions(assertionOptions);
@@ -443,11 +521,31 @@ const context = {
 			});
 			if (!await capability().showWindow(windowId.lo, windowId.hi)) throw new Error(`failed to enqueue show for window ${windowLabel(windowId)}`);
 		},
+		async resize(windowId, width, height) {
+			validateWindowKey(windowId);
+			for (const [name, value] of [["width", width], ["height", height]]) if (!Number.isSafeInteger(value) || value <= 0 || value > 4294967295) throw new RangeError(`${name} must be an integer between 1 and 4294967295`);
+			await createPage(windowId).waitForIdle();
+			trace.push({
+				action: "resizeWindow",
+				windowId,
+				width,
+				height
+			});
+			if (!await capability().resizeWindow(windowId.lo, windowId.hi, width, height)) throw new Error(`failed to resize visible window ${windowLabel(windowId)}`);
+			await createPage(windowId).waitForIdle();
+		},
 		state(windowId) {
 			validateWindowKey(windowId);
 			return JSON.parse(capability().windowState(windowId.lo, windowId.hi));
 		}
-	}
+	},
+	effects,
+	files: { writeText(relativePath, contents) {
+		const result = JSON.parse(capability().writeTextFile(relativePath, contents));
+		if (result.error) throw new Error(result.error);
+		if (!result.path) throw new Error("native test fixture omitted its path");
+		return result.path;
+	} }
 };
 function test(name, body, options = {}) {
 	if (name.trim() === "") {
@@ -472,7 +570,7 @@ function test(name, body, options = {}) {
 		timeout
 	});
 }
-function locatorAssertionDiagnostic(assertion, state) {
+function locatorAssertionDiagnostic(assertion, state, viewport) {
 	if (assertion.type === "absent" || assertion.type === "count") throw new Error(`${assertion.type} assertions do not accept a locator snapshot`);
 	if (assertion.type === "text") {
 		const value = state.value ?? state.name;
@@ -498,6 +596,7 @@ function locatorAssertionDiagnostic(assertion, state) {
 	if (assertion.type === "disabled") return state.disabled === assertion.expected ? null : `expected locator to be ${assertion.expected ? "disabled" : "enabled"}`;
 	if (assertion.type === "checked") return state.checked === assertion.expected ? null : `expected locator to be ${assertion.expected === "mixed" ? "indeterminate" : assertion.expected ? "checked" : "unchecked"}, received ${JSON.stringify(state.checked)}`;
 	if (assertion.type === "selected") return state.selected === assertion.expected ? null : `expected locator to be ${assertion.expected ? "selected" : "deselected"}, received ${JSON.stringify(state.selected)}`;
+	if (assertion.type === "current") return state.current === assertion.expected ? null : `expected locator current state to be ${JSON.stringify(assertion.expected)}, received ${JSON.stringify(state.current)}`;
 	if (assertion.type === "expanded") return state.expanded === assertion.expected ? null : `expected locator to be ${assertion.expected ? "expanded" : "collapsed"}, received ${JSON.stringify(state.expanded)}`;
 	if (assertion.type === "pressed") return state.pressed === assertion.expected ? null : `expected locator to be ${assertion.expected ? "pressed" : "unpressed"}, received ${JSON.stringify(state.pressed)}`;
 	if (assertion.type === "bounds") {
@@ -511,6 +610,11 @@ function locatorAssertionDiagnostic(assertion, state) {
 			if (expected !== void 0 && Math.abs(state.bounds[key] - expected) > assertion.tolerance) return `expected locator bounds.${key} ${state.bounds[key]} to be within ${assertion.tolerance}px of ${expected}`;
 		}
 		return null;
+	}
+	if (assertion.type === "withinBounds") return containmentDiagnostic(state.bounds, assertion.expected, assertion.tolerance, "within");
+	if (assertion.type === "viewport") {
+		if (!viewport) throw new Error("native window viewport is unavailable");
+		return containmentDiagnostic(state.bounds, viewport, assertion.tolerance, "inside viewport");
 	}
 	return state.focused === assertion.expected ? null : `expected locator to be ${assertion.expected ? "focused" : "blurred"}`;
 }
@@ -542,7 +646,8 @@ async function assertLocatorEventually(target, assertion, options = {}) {
 		if (assertion.type === "absent") return locatorAbsenceDiagnostic(target);
 		if (assertion.type === "count") return locatorCountDiagnostic(target, assertion.expected);
 		try {
-			return locatorAssertionDiagnostic(assertion, await target.snapshot());
+			const viewport = assertion.type === "viewport" ? decodeWindowViewport(target.windowId) : void 0;
+			return locatorAssertionDiagnostic(assertion, await target.snapshot(), viewport);
 		} catch (error) {
 			if (!(error instanceof LocatorNotFoundError) && !(error instanceof LocatorAmbiguousError)) throw error;
 			return error.message;
@@ -682,6 +787,18 @@ function expect(actual) {
 				expected: false
 			}, options);
 		},
+		toBeCurrent(expected = "true", options) {
+			return assertLocatorEventually(locator(), {
+				type: "current",
+				expected
+			}, options);
+		},
+		toNotBeCurrent(options) {
+			return assertLocatorEventually(locator(), {
+				type: "current",
+				expected: null
+			}, options);
+		},
 		toBeExpanded(options) {
 			return assertLocatorEventually(locator(), {
 				type: "expanded",
@@ -736,6 +853,30 @@ function expect(actual) {
 				expected: { ...expected },
 				tolerance
 			}, options);
+		},
+		toBeWithinBounds(expected, options = {}) {
+			for (const key of [
+				"x",
+				"y",
+				"width",
+				"height"
+			]) if (!Number.isFinite(expected[key])) throw new RangeError("containing bounds must contain finite numbers");
+			if (expected.width < 0 || expected.height < 0) throw new RangeError("containing bounds width and height cannot be negative");
+			const tolerance = options.tolerance ?? .5;
+			validateTolerance("locator containing bounds", tolerance);
+			return assertLocatorEventually(locator(), {
+				type: "withinBounds",
+				expected: { ...expected },
+				tolerance
+			}, options);
+		},
+		toBeInViewport(options = {}) {
+			const tolerance = options.tolerance ?? .5;
+			validateTolerance("locator viewport", tolerance);
+			return assertLocatorEventually(locator(), {
+				type: "viewport",
+				tolerance
+			}, options);
 		}
 	};
 }
@@ -779,6 +920,8 @@ async function run() {
 				};
 				try {
 					await withTestTimeout(entry.name, entry.timeout, () => entry.body(context));
+					const pendingEffects = capability().takePendingEffectFixtures();
+					if (pendingEffects !== "") throw new Error(`native effect fixture was not consumed: ${pendingEffects}`);
 					results.push({
 						name: entry.name,
 						passed: true,
@@ -787,6 +930,7 @@ async function run() {
 						durationMs: performance.now() - startedAt
 					});
 				} catch (error) {
+					capability().takePendingEffectFixtures();
 					results.push({
 						name: entry.name,
 						passed: false,

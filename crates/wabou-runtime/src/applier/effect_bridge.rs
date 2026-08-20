@@ -256,6 +256,7 @@ pub(super) fn decode_effect_payload(
                 .unwrap_or_else(|error| invalid(error.to_string()))
         }
         wabou_shell::effect::builtin::APPLICATION_EXIT => EffectPayload::ApplicationExit,
+        wabou_shell::effect::builtin::APPLICATION_RELAUNCH => EffectPayload::ApplicationRelaunch,
         _ => EffectPayload::Extension {
             op,
             bytes: payload_json.into_bytes(),

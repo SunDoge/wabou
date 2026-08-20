@@ -144,6 +144,7 @@ pub struct JsRuntime {
     atoms: Rc<RefCell<AtomPool>>,
     host_frame_sequence: u64,
     host_frame_epoch: std::time::Instant,
+    #[cfg(any(feature = "devtools", test))]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     resize_targets: ResizeTargets,
     runtime_wake: Arc<RuntimeWake>,
@@ -222,6 +223,7 @@ impl JsRuntime {
             atoms: Rc::new(RefCell::new(AtomPool::default())),
             host_frame_sequence: 0,
             host_frame_epoch: std::time::Instant::now(),
+            #[cfg(any(feature = "devtools", test))]
             debug_state: None,
             resize_targets,
             runtime_wake,
@@ -665,6 +667,7 @@ impl JsRuntime {
         self._tokio.handle().clone()
     }
 
+    #[cfg(any(feature = "devtools", test))]
     pub(crate) fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
         self.debug_state = Some(state);
     }
@@ -817,6 +820,7 @@ impl JsRuntime {
             events,
         )
         .map_err(|_| rquickjs::Error::Unknown)?;
+        #[cfg(any(feature = "devtools", test))]
         if let Some(state) = &self.debug_state
             && let Ok(mut state) = state.write()
         {

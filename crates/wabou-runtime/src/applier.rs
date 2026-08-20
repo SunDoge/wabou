@@ -27,8 +27,12 @@ use parley::{
 use taffy::TraversePartialTree;
 use taffy::{NodeId, TaffyTree};
 use vello::Scene;
-use vello::kurbo::{Affine, Point, Rect, Stroke};
-use vello::peniko::{Color, Fill};
+use vello::kurbo::{Affine, Point};
+#[cfg(any(feature = "devtools", test))]
+use vello::kurbo::{Rect, Stroke};
+use vello::peniko::Color;
+#[cfg(any(feature = "devtools", test))]
+use vello::peniko::Fill;
 use wabou_shell::layout::{self, PlacedNode, SubtreeEvent, subtree_events};
 use wabou_shell::scrollbar::{
     ScrollAxis, ScrollbarPart, ScrollbarTarget, drag_ratio as scrollbar_drag_ratio,
@@ -38,7 +42,9 @@ use wabou_shell::style::{
     self, DeclaredPaint, HostPaint, InheritedPaint, IrValue, OverlayPlane, Paint, PaintTransform,
     ScrollbarStyle, ScrollbarVisibility, TextAlign,
 };
-use wabou_shell::text::{TextContext, layout_text_styled};
+use wabou_shell::text::TextContext;
+#[cfg(any(feature = "devtools", test))]
+use wabou_shell::text::layout_text_styled;
 use wabou_shell::{
     EventResponse, FrameSource, FrameStats, KeyPhase, Modifiers, PointerButton, PointerPhase,
     SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
@@ -49,6 +55,7 @@ use crate::asset_cache::ResourceCache;
 use crate::host_frame::{HostEvent, HostNodeEvent, NodeEventPayload, ResizeObservation};
 use crate::protocol::NodeKey;
 
+#[cfg(any(feature = "devtools", test))]
 mod debug_projection;
 mod effect_bridge;
 mod focus;
@@ -340,11 +347,18 @@ struct RuntimeSession {
     host_message_inbox: HostMessageInbox,
     host_message_handle: HostMessageHandle,
     host_message_cancellation: CancellationToken,
+    host_tasks: Arc<crate::host_message::HostTaskTracker>,
 }
 
 impl Drop for RuntimeSession {
     fn drop(&mut self) {
         self.host_message_cancellation.cancel();
+        if !self
+            .host_tasks
+            .wait_for_idle(std::time::Duration::from_secs(1))
+        {
+            tracing::warn!("host message producers did not stop before runtime shutdown");
+        }
     }
 }
 
@@ -375,6 +389,7 @@ impl RuntimeSession {
             host_message_inbox,
             host_message_handle,
             host_message_cancellation: CancellationToken::new(),
+            host_tasks: Arc::new(crate::host_message::HostTaskTracker::default()),
         }
     }
 }
@@ -630,6 +645,7 @@ impl Applier {
     }
 
     /// Attach the immutable snapshot store published through DevTools.
+    #[cfg(any(feature = "devtools", test))]
     pub fn set_debug_state(&mut self, state: wabou_devtools::SharedDebugState) {
         self.runtime.js.set_debug_state(state.clone());
         self.frame.projections.debug_state = Some(state);
@@ -651,6 +667,7 @@ impl Applier {
             self.host_message_handle(),
             self.runtime.host_message_cancellation.clone(),
             self.runtime.js.tokio_handle(),
+            self.runtime.host_tasks.clone(),
         )
     }
 

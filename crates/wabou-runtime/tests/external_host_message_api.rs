@@ -1,5 +1,6 @@
 use wabou_runtime::{
     HostBuilder, HostMessage, HostMessageContext, HostMessageError, HostMessagePayload,
+    HostMessageRouter,
 };
 
 #[test]
@@ -16,4 +17,12 @@ fn application_can_register_a_typed_host_message_producer() {
     let message = HostMessage::str("example:status", "ready");
     assert_eq!(message.payload, HostMessagePayload::Str("ready".into()));
     let _error = HostMessageError::Full;
+
+    let router = HostMessageRouter::new();
+    let _builder = HostBuilder::new().host_message_router(router.clone());
+    let unavailable = router.send_to(
+        wabou_runtime::initial_window_resource_key(0),
+        HostMessage::null("example:not-ready"),
+    );
+    assert_eq!(unavailable, Err(HostMessageError::WindowUnavailable));
 }

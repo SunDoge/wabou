@@ -1,9 +1,4 @@
 import type { Handle } from "@wabou/core/renderer";
-import { Button as HeadlessButton, Text, View } from "../primitives";
-import {
-  createControllableState,
-  createRovingFocus,
-} from "../primitives/interactions";
 import {
   createComponent,
   createContext,
@@ -12,6 +7,16 @@ import {
   useContext,
 } from "solid-js";
 import { match } from "ts-pattern";
+import {
+  type ButtonState,
+  Button as HeadlessButton,
+  Text,
+  View,
+} from "../primitives";
+import {
+  createControllableState,
+  createRovingFocus,
+} from "../primitives/interactions";
 import { join } from "./class-names";
 
 const orientationClass = (
@@ -88,6 +93,8 @@ export function Tabs(props: TabsProps): JSX.Element {
 
 export function TabsList(props: {
   variant?: "default" | "line";
+  /** Keep tab semantics and roving focus while leaving layout and paint to the caller. */
+  unstyled?: boolean;
   "aria-label"?: string;
   class?: string;
   children?: JSX.Element;
@@ -99,15 +106,19 @@ export function TabsList(props: {
       role="tablist"
       aria-label={props["aria-label"]}
       aria-orientation={context.orientation()}
-      class={join(
-        "flex-none flex items-center gap-1",
-        orientationClass(context.orientation(), "flex-row", "flex-col"),
-        match(props.variant ?? "default")
-          .with("default", () => "p-0.5 rounded-md bg-control")
-          .with("line", () => "bg-transparent")
-          .exhaustive(),
-        props.class,
-      )}
+      class={
+        props.unstyled
+          ? props.class
+          : join(
+              "flex-none flex items-center gap-1",
+              orientationClass(context.orientation(), "flex-row", "flex-col"),
+              match(props.variant ?? "default")
+                .with("default", () => "p-0.5 rounded-md bg-control")
+                .with("line", () => "bg-transparent")
+                .exhaustive(),
+              props.class,
+            )
+      }
     >
       {props.children}
     </View>
@@ -117,7 +128,10 @@ export function TabsList(props: {
 export interface TabsTriggerProps {
   value: string;
   disabled?: boolean;
-  class?: string;
+  /** Keep tab behavior and semantics without applying the component skin. */
+  unstyled?: boolean;
+  "aria-label"?: string;
+  class?: string | ((state: ButtonState) => string);
   children?: JSX.Element;
 }
 
@@ -131,6 +145,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
     <HeadlessButton
       unstyled
       role="tab"
+      aria-label={props["aria-label"]}
       disabled={props.disabled}
       selected={selected()}
       aria-selected={selected()}
@@ -143,15 +158,24 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
         );
       }}
       class={(state) =>
-        join(
-          "h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
-          match({ selected: selected(), hovered: state.hovered })
-            .with({ selected: true }, () => "bg-surface text-primary shadow-xs")
-            .with({ hovered: true }, () => "bg-control-hover text-primary")
-            .otherwise(() => "bg-transparent text-muted"),
-          state.focusVisible && "border-focus",
-          props.class,
-        )
+        props.unstyled
+          ? typeof props.class === "function"
+            ? props.class(state)
+            : (props.class ?? "")
+          : join(
+              "h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
+              match({ selected: selected(), hovered: state.hovered })
+                .with(
+                  { selected: true },
+                  () => "bg-surface text-primary shadow-xs",
+                )
+                .with({ hovered: true }, () => "bg-control-hover text-primary")
+                .otherwise(() => "bg-transparent text-muted"),
+              state.focusVisible && "border-focus",
+              typeof props.class === "function"
+                ? props.class(state)
+                : props.class,
+            )
       }
       style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
       onClick={() => context.select(props.value)}

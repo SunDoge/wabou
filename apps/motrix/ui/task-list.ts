@@ -1,4 +1,4 @@
-import type { Aria2Task } from "./aria2";
+import type { DownloadTask } from "./downloads";
 
 export type TaskFilter = "all" | "active" | "waiting" | "complete" | "stopped";
 export type TaskSort = "queue" | "name" | "size" | "progress" | "speed";
@@ -7,7 +7,7 @@ export type RestartTaskAction = "retry" | "reseed";
 export type PrimaryTaskAction = "pause" | "resume" | "stopSeeding";
 
 export function primaryTaskAction(
-  task: Aria2Task,
+  task: DownloadTask,
 ): PrimaryTaskAction | undefined {
   if (task.status === "active" || task.status === "waiting") return "pause";
   if (task.status === "paused") return "resume";
@@ -21,7 +21,7 @@ export function primaryTaskActionLabel(action: PrimaryTaskAction): string {
 }
 
 export function restartTaskAction(
-  task: Aria2Task,
+  task: DownloadTask,
 ): RestartTaskAction | undefined {
   if (!task.retryable) return undefined;
   if (task.status === "error" || task.status === "removed") return "retry";
@@ -30,7 +30,7 @@ export function restartTaskAction(
 }
 
 export function taskMatchesFilter(
-  task: Aria2Task,
+  task: DownloadTask,
   filter: TaskFilter,
 ): boolean {
   if (filter === "all") return true;
@@ -43,16 +43,16 @@ export function taskMatchesFilter(
   return task.status === filter;
 }
 
-function progress(task: Aria2Task): number {
+function progress(task: DownloadTask): number {
   return task.totalLength > 0 ? task.completedLength / task.totalLength : 0;
 }
 
 export function projectTasks(
-  tasks: readonly Aria2Task[],
+  tasks: readonly DownloadTask[],
   filter: TaskFilter,
   query: string,
   sort: TaskSort,
-): Aria2Task[] {
+): DownloadTask[] {
   const needle = query.trim().toLocaleLowerCase();
   const projected = tasks.filter(
     (task) =>
@@ -69,6 +69,6 @@ export function projectTasks(
           : sort === "progress"
             ? progress(right) - progress(left)
             : right.downloadSpeed - left.downloadSpeed;
-    return order || left.gid.localeCompare(right.gid);
+    return order || left.id.localeCompare(right.id);
   });
 }

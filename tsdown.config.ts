@@ -7,6 +7,7 @@ const packages: Record<string, UserConfig["entry"]> = {
   core: {
     index: "src/index.ts",
     protocol: "src/protocol.ts",
+    effects: "src/effects.ts",
     registry: "src/registry.ts",
     renderer: "src/renderer.ts",
     style: "src/style.ts",

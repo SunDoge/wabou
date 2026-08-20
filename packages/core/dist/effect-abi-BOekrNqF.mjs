@@ -1,0 +1,76 @@
+//#region src/generated/effect-abi.ts
+const EFFECT_ABI_VERSION = 5;
+const effectOps = Object.freeze({
+	clipboardRead: {
+		capability: 1,
+		method: 1
+	},
+	clipboardWrite: {
+		capability: 1,
+		method: 2
+	},
+	windowCreate: {
+		capability: 2,
+		method: 1
+	},
+	windowClose: {
+		capability: 2,
+		method: 2
+	},
+	windowSetMaximized: {
+		capability: 2,
+		method: 3
+	},
+	windowSetTitle: {
+		capability: 2,
+		method: 4
+	},
+	windowMinimize: {
+		capability: 2,
+		method: 5
+	},
+	windowStartDragging: {
+		capability: 2,
+		method: 6
+	},
+	contextMenuShow: {
+		capability: 3,
+		method: 1
+	},
+	appDirsResolve: {
+		capability: 4,
+		method: 1
+	},
+	dialogOpen: {
+		capability: 5,
+		method: 1
+	},
+	dialogSave: {
+		capability: 5,
+		method: 2
+	},
+	dialogPickDirectory: {
+		capability: 5,
+		method: 3
+	},
+	dialogMessage: {
+		capability: 5,
+		method: 4
+	},
+	notificationShow: {
+		capability: 6,
+		method: 1
+	},
+	applicationExit: {
+		capability: 7,
+		method: 1
+	},
+	applicationRelaunch: {
+		capability: 7,
+		method: 2
+	}
+});
+//#endregion
+export { effectOps as n, EFFECT_ABI_VERSION as t };
+
+//# sourceMappingURL=effect-abi-BOekrNqF.mjs.map

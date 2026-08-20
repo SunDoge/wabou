@@ -81,7 +81,11 @@ where
     Handler: Fn(Request) -> HandlerFuture,
     HandlerFuture: Future<Output = Result<Response, Error>>,
 {
-    let request = match serde_json::from_str(raw) {
+    let mut deserializer = serde_json::Deserializer::from_str(raw);
+    let mut ignored = Vec::new();
+    let request = match serde_ignored::deserialize(&mut deserializer, |path| {
+        ignored.push(path.to_string());
+    }) {
         Ok(request) => request,
         Err(error) => {
             return json_capability_error(
@@ -90,6 +94,26 @@ where
             );
         }
     };
+    if let Err(error) = deserializer.end() {
+        return json_capability_error(
+            JsonCapabilityErrorCode::InvalidRequest,
+            format!("invalid capability request: {error}"),
+        );
+    }
+    if !ignored.is_empty() {
+        return json_capability_error(
+            JsonCapabilityErrorCode::InvalidRequest,
+            format!(
+                "unknown capability request {}: {}",
+                if ignored.len() == 1 {
+                    "field"
+                } else {
+                    "fields"
+                },
+                ignored.join(", ")
+            ),
+        );
+    }
     match handler(request).await {
         Ok(value) => match serde_json::to_value(value) {
             Ok(value) => serde_json::json!({ "ok": true, "value": value }).to_string(),

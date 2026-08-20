@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
-import { Button } from "@wabou/ui/primitives";
-import { writer } from "@wabou/core/renderer";
+// This test intentionally exercises the publishable artifacts. Explicit paths
+// keep the workspace-wide `wabou-source` test condition from changing what is
+// under test.
+// The built UI artifact leaves @wabou/core external, so under the repository's
+// source condition it shares this exact writer instance.
+import { writer } from "../../../core/src/renderer.ts";
+import { Button } from "../../dist/primitives.mjs";
 import { createComponent, createRoot } from "solid-js";
 
 test("published Button forwards native focus and accessibility state", () => {

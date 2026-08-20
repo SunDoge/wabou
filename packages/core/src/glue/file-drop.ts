@@ -1,5 +1,5 @@
 import { onCleanup } from "solid-js";
-import { subscribe } from "./host-messages";
+import { subscribeJson } from "./host-messages";
 
 export type FileDropPhase = "entered" | "moved" | "left" | "dropped";
 
@@ -19,41 +19,39 @@ export interface FileDropEvent {
 
 export type FileDropHandler = (event: FileDropEvent) => void;
 
-function decodeFileDrop(payload: unknown): FileDropEvent | null {
-  if (typeof payload !== "string") return null;
-  const value = JSON.parse(payload) as Partial<FileDropEvent>;
+function decodeFileDrop(value: unknown): FileDropEvent {
+  if (typeof value !== "object" || value === null)
+    throw new TypeError("file drop event must be an object");
+  const event = value as Partial<FileDropEvent>;
   if (
-    value.phase !== "entered" &&
-    value.phase !== "moved" &&
-    value.phase !== "left" &&
-    value.phase !== "dropped"
+    event.phase !== "entered" &&
+    event.phase !== "moved" &&
+    event.phase !== "left" &&
+    event.phase !== "dropped"
   ) {
-    return null;
+    throw new TypeError("file drop event has an invalid phase");
   }
   if (
-    !Array.isArray(value.paths) ||
-    !value.paths.every((path) => typeof path === "string")
+    !Array.isArray(event.paths) ||
+    !event.paths.every((path) => typeof path === "string")
   ) {
-    return null;
+    throw new TypeError("file drop event paths must be strings");
   }
-  const position = value.position;
+  const position = event.position;
   if (
     position !== null &&
     (typeof position !== "object" ||
       typeof position.x !== "number" ||
       typeof position.y !== "number")
   ) {
-    return null;
+    throw new TypeError("file drop event position must be logical coordinates");
   }
-  return { phase: value.phase, paths: value.paths, position: position ?? null };
+  return { phase: event.phase, paths: event.paths, position: position ?? null };
 }
 
 /** Subscribe to native file drag-and-drop events for the current window. */
 export function subscribeFileDrop(handler: FileDropHandler): () => void {
-  return subscribe("wabou:file-drop", (payload) => {
-    const event = decodeFileDrop(payload);
-    if (event) handler(event);
-  });
+  return subscribeJson("wabou:file-drop", handler, { decode: decodeFileDrop });
 }
 
 /**

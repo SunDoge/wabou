@@ -32,8 +32,8 @@ pub mod window_lifecycle;
 mod window_state;
 
 pub use app::{
-    ExtensionContext, FrameSourceFactory, ShellExtension, run_window, run_window_with_options,
-    run_window_with_size, run_windows, run_windows_with_factory,
+    ExtensionContext, FrameSourceFactory, RunOutcome, ShellExtension, run_window,
+    run_window_with_options, run_window_with_size, run_windows, run_windows_with_factory,
     run_windows_with_factory_and_extensions,
 };
 pub use app_dirs::{AppDirectories, AppDirectoryConfig};

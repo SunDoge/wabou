@@ -32,6 +32,23 @@ The public `HostMessageHandle` producer API sends messages as
 `ApplicationMessage` records in the unified frame. `HostMessageContext` binds
 each producer to a window, its Tokio runtime and window-lifetime cancellation.
 
+Native event callbacks that do not originate inside a producer—tray items,
+service callbacks, or platform integrations—can retain a `HostMessageRouter`.
+Register it once with `HostBuilder::host_message_router`; Wabou installs and
+removes the route for each window runtime automatically. `send_to(window_key,
+message)` remains non-blocking and never calls QuickJS from the native callback
+thread. Sending while that window has no runtime returns
+`HostMessageError::WindowUnavailable` instead of requiring an application-side
+polling flag.
+
+For state that is exposed as a full snapshot plus incremental patches,
+`RevisionedHostPublisher` owns the native publication baseline. It emits a
+patch only when the next revision is contiguous, falls back to a full snapshot
+after a revision gap, and advances its baseline only after the bounded queue
+accepts the message. Equal or regressing revisions are ignored without moving
+the baseline. The application still owns when to sample or react to
+backend events; the framework owns the cross-language consistency invariant.
+
 ## Ownership boundary
 
 The Host owns facts and mechanisms:
@@ -288,6 +305,12 @@ registration. Generated clients check its ABI version before the first call,
 so a stale frontend bundle reports `incompatibleHost` instead of failing later
 with an undefined native method.
 
+Request decoding is strict at the capability boundary. A field that the Rust
+DTO does not consume is rejected as `invalidRequest` before the handler runs,
+including its full nested path. This prevents a stale or hand-written client
+from appearing to configure an option that the host silently ignored. Use an
+explicit flattened map in the DTO only when extension fields are intentional.
+
 Application capabilities have one public registration path. They are
 asynchronous JSON methods with explicit request and response DTOs; applications
 cannot mount arbitrary `rquickjs::Function` values through `HostBuilder`.
@@ -295,6 +318,21 @@ Framework-owned synchronous functions use the separately declared native host
 API, whose TypeScript signature is reviewed explicitly beside its Rust
 implementation. Numeric effects remain private framework ABI for replayable OS
 operations. There is no generic public `invoke(string, unknown)` entry point.
+
+## Host service failure policy
+
+`HostBuilder::service` is for resources without which the application cannot
+operate; a startup failure stops the host and shuts down earlier services in
+reverse order. `HostBuilder::recoverable_service` keeps windows and JavaScript
+available after startup failure, logs the failure, and preserves its diagnostic
+on the corresponding `HostServiceHandle`. A retained clone of the
+`ManagedHostService` may call `retry()`; it reuses the original host context and
+updates every cloned handle when startup succeeds. A capability handler should
+prefer `retry_async()` so synchronous database, process, or network setup does
+not block QuickJS. Use the recoverable form
+only when the UI and its capabilities have a meaningful degraded state.
+Services that did start are still shut down exactly once in reverse
+registration order.
 
 ## Subscriptions and lifetime
 

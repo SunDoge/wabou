@@ -26,11 +26,11 @@ mod render_metrics;
 mod scaffold;
 
 use artifact::{
-    app_binary, app_bindings_target, app_profiling_feature, app_vite_feature,
+    app_binary, app_bindings_target, app_dev_features, app_profiling_feature,
     artifact_from_metadata, cargo_metadata, optional_app_bindings_target,
 };
 #[cfg(test)]
-use artifact::{binary_target, bindings_target, framework_feature, vite_feature};
+use artifact::{binary_target, bindings_target, dev_features, framework_feature};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
     BuildProfile, PackageFormat, bundle_path, configured_source_map, load_package_config,
@@ -45,9 +45,7 @@ use headless_render::{
 use process::{
     ManagedChild, configure_test_backend, supervise, wait_for_managed_child, wait_for_vite,
 };
-#[cfg(test)]
-use project::find_app_root;
-use project::{App, ensure_workspace_package_exports, find_workspace, load_app};
+use project::{App, ensure_workspace_package_exports, find_app_root, find_workspace, load_app};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
@@ -179,8 +177,15 @@ enum Commands {
         /// Vite mode used to select an application-owned render fixture.
         #[arg(long)]
         mode: Option<String>,
-        /// Keep driving asynchronous JavaScript work before capture.
-        #[arg(long, default_value_t = 0)]
+        /// Run the application's Rust host registrations before capturing.
+        #[arg(long)]
+        with_host: bool,
+        /// Run an authored @wabou/test scenario before a host-backed capture.
+        #[arg(long, value_name = "TS", requires = "with_host")]
+        scenario: Option<PathBuf>,
+        /// Keep driving frames before capture so finite UI transitions can settle.
+        /// Use zero to capture the earliest available frame.
+        #[arg(long, default_value_t = 1_000)]
         wait_ms: u64,
         /// Write non-blocking headless build/scene timing samples as JSON.
         #[arg(long, value_name = "JSON")]
@@ -244,6 +249,27 @@ struct TestOptions {
     mode: Option<String>,
     failure_screenshot: bool,
     native: bool,
+}
+
+fn resolve_behavior_test_target(
+    explicit_app: Option<&Path>,
+    target: Option<PathBuf>,
+) -> (Option<PathBuf>, Option<PathBuf>) {
+    if let Some(app) = explicit_app {
+        return (Some(app.to_path_buf()), target);
+    }
+    let Some(target) = target else {
+        return (None, None);
+    };
+    if is_wabou_app_directory(&target) {
+        return (Some(target), None);
+    }
+    let search_from = if target.is_dir() {
+        target.as_path()
+    } else {
+        target.parent().unwrap_or(target.as_path())
+    };
+    (find_app_root(search_from), Some(target))
 }
 
 fn main() -> Result<()> {
@@ -315,16 +341,10 @@ fn main() -> Result<()> {
             native,
         } => {
             let target = scenario.map(|path| cwd.join(path));
-            let positional_app =
-                app.is_none() && target.as_deref().is_some_and(is_wabou_app_directory);
-            let app_path = if positional_app {
-                target.as_deref()
-            } else {
-                app.as_deref()
-            };
-            let (workspace, app) = resolve_app(app_path)?;
+            let (app_path, scenario) = resolve_behavior_test_target(app.as_deref(), target);
+            let (workspace, app) = resolve_app(app_path.as_deref())?;
             let options = TestOptions {
-                scenario: if positional_app { None } else { target },
+                scenario,
                 replay: replay.map(|path| cwd.join(path)),
                 replay_test,
                 artifacts,
@@ -349,6 +369,8 @@ fn main() -> Result<()> {
             window_id,
             scale_factor,
             mode,
+            with_host,
+            scenario,
             wait_ms,
             metrics,
             samples,
@@ -368,6 +390,8 @@ fn main() -> Result<()> {
                     window_id,
                     scale_factor,
                     mode,
+                    with_host,
+                    scenario,
                     wait_ms,
                     metrics,
                     samples,
@@ -577,6 +601,13 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
         "--format=iife",
         &format!("--outfile={}", scenario_bundle.display()),
     ]);
+    if workspace.join("packages/test/src/index.ts").is_file() {
+        // Repository scenarios must observe the source being edited. Importing
+        // stale package artifacts makes framework tests fail for the wrong
+        // reason; installed packages do not ship this source path and continue
+        // to resolve their normal `import` export.
+        bun.arg("--conditions=wabou-source");
+    }
     ensure(bun.status()?, "test scenario build")?;
 
     let manifest = manifest(app);
@@ -813,7 +844,7 @@ fn dev(
 
     let app_manifest = manifest(&app);
     let binary = app_binary(workspace, &app)?;
-    let vite_feature = app_vite_feature(workspace, &app)?;
+    let dev_features = app_dev_features(workspace, &app)?;
     let mut host_command = Command::new("cargo");
     host_command
         .current_dir(workspace)
@@ -824,7 +855,7 @@ fn dev(
             "--bin",
             &binary,
             "--features",
-            &vite_feature,
+            &dev_features,
         ])
         .env("WABOU_VITE_URL", &url)
         .env("WABOU_VITE_ENTRY", &app.entry);
@@ -986,6 +1017,9 @@ mod tests {
                     window_id,
                     scale_factor,
                     mode,
+                    with_host,
+                    scenario,
+                    wait_ms,
                     click,
                     wheel,
                     key,
@@ -998,6 +1032,9 @@ mod tests {
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
         assert_eq!(mode, None);
+        assert!(!with_host);
+        assert_eq!(scenario, None);
+        assert_eq!(wait_ms, 1_000);
         assert!(click.is_empty());
         assert!(wheel.is_empty());
         assert!(key.is_empty());
@@ -1008,6 +1045,9 @@ mod tests {
                     window_id,
                     scale_factor,
                     mode,
+                    with_host,
+                    scenario,
+                    wait_ms,
                     click,
                     wheel,
                     key,
@@ -1024,6 +1064,11 @@ mod tests {
             "2",
             "--mode",
             "ui-test",
+            "--with-host",
+            "--scenario",
+            "captures/downloads.ts",
+            "--wait-ms",
+            "250",
             "--click",
             "10",
             "20",
@@ -1047,6 +1092,9 @@ mod tests {
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
         assert_eq!(mode.as_deref(), Some("ui-test"));
+        assert!(with_host);
+        assert_eq!(scenario, Some(PathBuf::from("captures/downloads.ts")));
+        assert_eq!(wait_ms, 250);
         assert_eq!(click, [10.0, 20.0, 30.0, 40.0]);
         assert_eq!(wheel, [100.0, 200.0, 0.0, 360.0]);
         assert_eq!(key, ["Enter", "Escape"]);
@@ -1150,6 +1198,34 @@ mod tests {
             panic!("expected test command");
         };
         assert!(scenario.is_none());
+    }
+
+    #[test]
+    fn infers_the_application_owning_a_behavior_scenario() {
+        let root = tempfile::tempdir().unwrap();
+        let app = root.path().join("apps/motrix");
+        let tests = app.join("tests/nested");
+        fs::create_dir_all(&tests).unwrap();
+        fs::write(app.join("Cargo.toml"), "[package]\nname = \"motrix\"\n").unwrap();
+        fs::write(app.join("package.json"), "{}").unwrap();
+        let scenario = tests.join("navigation.behavior.ts");
+        fs::write(&scenario, "").unwrap();
+
+        let (resolved_app, resolved_scenario) =
+            resolve_behavior_test_target(None, Some(scenario.clone()));
+        assert_eq!(resolved_app.as_deref(), Some(app.as_path()));
+        assert_eq!(resolved_scenario.as_deref(), Some(scenario.as_path()));
+
+        let explicit = root.path().join("apps/other");
+        let (resolved_app, resolved_scenario) =
+            resolve_behavior_test_target(Some(&explicit), Some(scenario.clone()));
+        assert_eq!(resolved_app.as_deref(), Some(explicit.as_path()));
+        assert_eq!(resolved_scenario.as_deref(), Some(scenario.as_path()));
+
+        let (resolved_app, resolved_scenario) =
+            resolve_behavior_test_target(None, Some(app.clone()));
+        assert_eq!(resolved_app.as_deref(), Some(app.as_path()));
+        assert!(resolved_scenario.is_none());
     }
 
     #[test]
@@ -1424,7 +1500,7 @@ out-dir = "dist/resources"
     }
 
     #[test]
-    fn selects_the_facade_vite_feature_for_new_apps() {
+    fn selects_facade_development_features_for_new_apps() {
         let metadata = serde_json::json!({
             "packages": [{
                 "manifest_path": "/workspace/apps/gallery/Cargo.toml",
@@ -1432,8 +1508,8 @@ out-dir = "dist/resources"
             }]
         });
         assert_eq!(
-            vite_feature(&metadata, Path::new("/workspace/apps/gallery/Cargo.toml")),
-            Some("wabou/vite")
+            dev_features(&metadata, Path::new("/workspace/apps/gallery/Cargo.toml")),
+            Some("wabou/vite,wabou/devtools".into())
         );
     }
 
@@ -1499,7 +1575,7 @@ out-dir = "dist/resources"
     }
 
     #[test]
-    fn selects_the_direct_runtime_vite_feature() {
+    fn selects_direct_runtime_development_features() {
         let metadata = serde_json::json!({
             "packages": [{
                 "manifest_path": "/workspace/apps/runtime/Cargo.toml",
@@ -1507,8 +1583,8 @@ out-dir = "dist/resources"
             }]
         });
         assert_eq!(
-            vite_feature(&metadata, Path::new("/workspace/apps/runtime/Cargo.toml")),
-            Some("wabou-runtime/vite")
+            dev_features(&metadata, Path::new("/workspace/apps/runtime/Cargo.toml")),
+            Some("wabou-runtime/vite,wabou-runtime/devtools".into())
         );
     }
 

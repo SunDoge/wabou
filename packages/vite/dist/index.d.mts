@@ -33,11 +33,18 @@ interface WabouIntlOptions {
   /** Time-zone data set. `golden` is the compact recommended default. */
   timeZones?: "golden" | "all";
 }
+/**
+ * Semantic colors used by `@wabou/ui` when an application does not provide a
+ * theme. Keeping this at the Vite boundary means every official component is
+ * usable in a minimal project while applications can still replace the whole
+ * token contract explicitly.
+ */
+declare const defaultWabouColorThemes: WabouColorThemeOptions;
 type WabouViteOptionsExport = WabouViteOptions | ((environment: ConfigEnv) => WabouViteOptions);
 /** Plugins required for Solid to target Wabou instead of the browser DOM. */
 declare function wabouPlugins(root?: string, theme?: WabouColorThemeOptions, ignoreClasses?: string[], intl?: WabouIntlOptions, entry?: string): Plugin[];
 /** Define the complete conventional Vite configuration for a Wabou app. */
 declare function defineWabouConfig(options: WabouViteOptionsExport): UserConfigExport;
 //#endregion
-export { WabouIntlOptions, WabouViteOptions, WabouViteOptionsExport, defineWabouConfig, wabouPlugins };
+export { WabouIntlOptions, WabouViteOptions, WabouViteOptionsExport, defaultWabouColorThemes, defineWabouConfig, wabouPlugins };
 //# sourceMappingURL=index.d.mts.map

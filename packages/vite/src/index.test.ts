@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import type { ConfigEnv, Plugin, UserConfig, UserConfigExport } from "vite";
-import { defineWabouConfig, wabouPlugins } from "./index";
+import { compileColorThemes } from "./style-compiler";
+import {
+  defaultWabouColorThemes,
+  defineWabouConfig,
+  wabouPlugins,
+} from "./index";
 
 describe("@wabou/vite", () => {
   const buildEnvironment = [
@@ -43,6 +49,42 @@ describe("@wabou/vite", () => {
     ]);
   });
 
+  test("ships the semantic color contract required by official UI components", () => {
+    const compiled = compileColorThemes(defaultWabouColorThemes);
+    expect(compiled?.default).toBe("dark");
+    for (const theme of Object.values(compiled?.themes ?? {})) {
+      expect(Object.keys(theme.colors).sort()).toEqual(
+        [
+          "accent",
+          "accent-hover",
+          "accent-pressed",
+          "canvas",
+          "control",
+          "control-hover",
+          "control-pressed",
+          "danger",
+          "danger-hover",
+          "danger-pressed",
+          "danger-primary",
+          "danger-surface",
+          "focus",
+          "input",
+          "muted",
+          "on-accent",
+          "primary",
+          "secondary",
+          "selected",
+          "strong",
+          "subtle",
+          "success-primary",
+          "success-surface",
+          "surface",
+          "surface-muted",
+        ].sort(),
+      );
+    }
+  });
+
   test("defines conventional entry and bundle output", async () => {
     const config = await resolveConfig(
       defineWabouConfig({
@@ -58,10 +100,12 @@ describe("@wabou/vite", () => {
       formats: ["iife"],
       name: "WabouApp",
     });
-    expect(config.resolve?.alias).toMatchObject({
-      "@wabou/core/renderer": expect.stringContaining("core/dist/renderer"),
-      "solid-js/web": expect.stringContaining("core/dist/renderer"),
-    });
+    const aliases = config.resolve?.alias as Record<string, string>;
+    const renderer = aliases["@wabou/core/renderer"];
+    expect(renderer).toBeString();
+    expect(aliases["solid-js/web"]).toBe(renderer);
+    expect(renderer).toMatch(/core\/(?:src|dist)\/renderer(?:\.ts|\.mjs)$/);
+    expect(existsSync(renderer)).toBe(true);
     expect(config.optimizeDeps).toMatchObject({
       noDiscovery: true,
       include: ["@tanstack/router-core"],

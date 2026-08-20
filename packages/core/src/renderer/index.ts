@@ -16,8 +16,8 @@ import {
   EVENT_CODE,
   type EventType,
   formatNodeKey,
-  GRAPHIC_SOURCE,
   GRAPHIC_DATA,
+  GRAPHIC_SOURCE,
   INTERACTION_POLICY,
   type NodeKey,
   NodeKeyAllocator,
@@ -37,7 +37,6 @@ export {
 
 import { createMemo, omit, untrack } from "solid-js";
 import type { HostCapabilities, WabouIntrinsicElements } from "../registry";
-import { isVectorPath, type VectorPath } from "../vector-path";
 import {
   type Affine2D,
   assertInlineStyleValue,
@@ -45,6 +44,7 @@ import {
   type Shadow,
   type WabouStyle,
 } from "../style";
+import { isVectorPath, type VectorPath } from "../vector-path";
 
 export type {
   HostCapabilities,
@@ -120,7 +120,11 @@ export type WabouExposedSemanticRole = Exclude<
   "none" | "presentation"
 >;
 
-type EventHandler<E> = { bivarianceHack(event: E): void }["bivarianceHack"];
+type EventHandler<E> = {
+  // Event return values have no synchronous meaning. Runtime dispatch still
+  // observes thenables so async failures retain their native event context.
+  bivarianceHack(event: E): unknown;
+}["bivarianceHack"];
 
 /** Props shared by low-level native JSX elements. */
 export interface WabouElementProps {
@@ -214,7 +218,7 @@ export interface WabouSvgShapeProps extends WabouElementProps {
 
 /** Event shape emitted by a native Wabou node or custom widget. */
 export interface WabouEventTarget {
-  readonly id: number;
+  readonly id: NodeKey;
 }
 
 export interface WabouNodeEvent<T extends object = object> {
@@ -227,6 +231,13 @@ export interface WabouNodeEvent<T extends object = object> {
   stopPropagation(): void;
   stopImmediatePropagation(): void;
   readonly payload: T;
+}
+
+/** Whether a bubbled handler is running on the node originally hit. */
+export function isDirectEvent(
+  event: Pick<WabouNodeEvent, "target" | "currentTarget">,
+): boolean {
+  return nodeKeyEquals(event.target.id, event.currentTarget.id);
 }
 
 export interface WabouPositionedEvent extends WabouNodeEvent {
@@ -529,9 +540,11 @@ function applyProperty(
     if (node.tag === "vector-path") {
       if (value == null || value === false)
         writer.clearGraphicData(node.id, GRAPHIC_DATA.VectorPath);
-      else if (isVectorPath(value))
-        writer.setGraphicData(node.id, GRAPHIC_DATA.VectorPath, value.data);
-      else throw new TypeError("invalid native vector path source");
+      else if (isVectorPath(value)) {
+        if (value.drawable)
+          writer.setGraphicData(node.id, GRAPHIC_DATA.VectorPath, value.data);
+        else writer.clearGraphicData(node.id, GRAPHIC_DATA.VectorPath);
+      } else throw new TypeError("invalid native vector path source");
       return;
     }
     if (node.tag === "svg") {
@@ -1040,21 +1053,44 @@ function bubble(nodeId: NodeKey, code: number, ev: any): void {
     const fn = m?.get(code);
     if (fn) {
       try {
-        fn(ev);
+        const result = fn(ev);
+        if (isPromiseLike(result)) {
+          const current = cur;
+          void Promise.resolve(result).then(undefined, (error) =>
+            logEventHandlerFailure(code, current, nodeId, error),
+          );
+        }
       } catch (e) {
-        const detail =
-          e && typeof e === "object" && "stack" in e
-            ? String((e as { stack?: unknown }).stack ?? e)
-            : String(e);
-        __wabou_log(
-          "error",
-          `[wabou-event] ${eventName(code)} handler failed at node ${formatNodeKey(cur)} (target ${formatNodeKey(nodeId)})\n${detail}`,
-        );
+        logEventHandlerFailure(code, cur, nodeId, e);
       }
     }
     if (ev.propagationStopped) return;
     cur = derefHandle(cur)?.parent?.id ?? null;
   }
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return (
+    value !== null &&
+    (typeof value === "object" || typeof value === "function") &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
+function logEventHandlerFailure(
+  code: number,
+  current: NodeKey,
+  target: NodeKey,
+  error: unknown,
+): void {
+  const detail =
+    error && typeof error === "object" && "stack" in error
+      ? String((error as { stack?: unknown }).stack ?? error)
+      : String(error);
+  __wabou_log(
+    "error",
+    `[wabou-event] ${eventName(code)} handler failed at node ${formatNodeKey(current)} (target ${formatNodeKey(target)})\n${detail}`,
+  );
 }
 
 /** event code -> DOM event name (for ev.type). */

@@ -11,6 +11,7 @@ import {
   useLocation,
   useNavigate,
   useParams,
+  useRouteActive,
   useRouter,
 } from "./data";
 
@@ -27,9 +28,13 @@ test.skipIf(isServer)(
     const seen: string[] = [];
     let rootMounts = 0;
     let navigate: ReturnType<typeof useNavigate> | undefined;
+    let projectsActive: (() => boolean) | undefined;
+    let settingsActive: (() => boolean) | undefined;
 
     function Layout(props: { children?: unknown }) {
       rootMounts++;
+      projectsActive = useRouteActive("/projects");
+      settingsActive = useRouteActive("/settings", { exact: true });
       return props.children as never;
     }
 
@@ -92,11 +97,15 @@ test.skipIf(isServer)(
     const dispose = mount(() => createComponent(RouterProvider, { router }));
     await settle();
     expect(seen).toContain("/projects/alpha:alpha:2");
+    expect(projectsActive?.()).toBe(true);
+    expect(settingsActive?.()).toBe(false);
     expect(rootMounts).toBe(1);
 
     await navigate?.({ to: "/settings" });
     await settle();
     expect(seen).toContain("/settings");
+    expect(projectsActive?.()).toBe(false);
+    expect(settingsActive?.()).toBe(true);
     expect(rootMounts).toBe(1);
     dispose();
   },

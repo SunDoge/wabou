@@ -12,7 +12,6 @@ pub struct NatStatus {
     pub state: NatState,
     pub tcp_external_address: Option<String>,
     pub udp_external_address: Option<String>,
-    pub dht_external_address: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -33,7 +32,6 @@ impl Default for NatStatus {
             state: NatState::Disabled,
             tcp_external_address: None,
             udp_external_address: None,
-            dht_external_address: None,
         }
     }
 }
@@ -42,9 +40,7 @@ struct Clients {
     protocol: NatProtocol,
     tcp: Client,
     udp: Client,
-    dht_udp: Option<Client>,
     listen_port: u16,
-    dht_listen_port: u16,
 }
 
 #[derive(Default)]
@@ -63,9 +59,6 @@ impl NatManager {
             if let Some(clients) = slot.take() {
                 clients.tcp.deactivate();
                 clients.udp.deactivate();
-                if let Some(dht) = clients.dht_udp {
-                    dht.deactivate()
-                }
             }
             return;
         }
@@ -78,10 +71,7 @@ impl NatManager {
                 protocol: config.nat_protocol,
                 tcp: Client::new(mapping_config(Protocol::Tcp)),
                 udp: Client::new(mapping_config(Protocol::Udp)),
-                dht_udp: (config.dht_listen_port != config.listen_port)
-                    .then(|| Client::new(mapping_config(Protocol::Udp))),
                 listen_port: 0,
-                dht_listen_port: 0,
             });
         }
         let Some(clients) = slot.as_mut() else { return };
@@ -90,27 +80,6 @@ impl NatManager {
             clients.tcp.update_local_port(port);
             clients.udp.update_local_port(port);
             clients.listen_port = config.listen_port;
-        }
-        if config.dht_listen_port == config.listen_port {
-            clients.dht_udp = None;
-            clients.dht_listen_port = config.listen_port;
-        } else {
-            if clients.dht_udp.is_none() {
-                clients.dht_udp = Some(Client::new(protocol_config(
-                    config.nat_protocol,
-                    Protocol::Udp,
-                )));
-            }
-            if clients.dht_listen_port != config.dht_listen_port {
-                clients
-                    .dht_udp
-                    .as_ref()
-                    .expect("DHT client")
-                    .update_local_port(
-                        NonZeroU16::new(config.dht_listen_port).expect("validated DHT port"),
-                    );
-                clients.dht_listen_port = config.dht_listen_port;
-            }
         }
     }
 
@@ -138,17 +107,15 @@ impl NatManager {
         };
         let tcp = external_address(&clients.tcp);
         let udp = external_address(&clients.udp);
-        let dht = clients.dht_udp.as_ref().and_then(external_address);
         NatStatus {
             enabled: true,
-            state: if tcp.is_some() || udp.is_some() || dht.is_some() {
+            state: if tcp.is_some() || udp.is_some() {
                 NatState::Mapped
             } else {
                 NatState::Mapping
             },
             tcp_external_address: tcp,
             udp_external_address: udp,
-            dht_external_address: dht,
         }
     }
 }

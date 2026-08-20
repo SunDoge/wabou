@@ -110,6 +110,18 @@ export {
 } from "./press";
 export { ScrollArea, type ScrollAreaProps } from "./scroll-area";
 export {
+  createFormDraft,
+  type FormDraft,
+  type FormDraftErrors,
+  type FormDraftFieldUpdater,
+  type FormDraftOptions,
+} from "./interactions/form-draft";
+export {
+  createKeyedSelection,
+  type KeyedSelection,
+  type KeyedSelectionOptions,
+} from "./interactions/selection";
+export {
   createScrollReset,
   type ScrollResetOptions,
   type ScrollResetTarget,

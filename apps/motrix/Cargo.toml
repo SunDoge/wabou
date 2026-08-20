@@ -8,11 +8,10 @@ name = "motrix-wabou"
 path = "src/main.rs"
 
 [dependencies]
-aria2-ws = { workspace = true }
 directories = { workspace = true }
+gosh-dl = { workspace = true }
 jiff = { workspace = true }
 open = { workspace = true }
-process-wrap = { version = "9.1.0", features = ["std"] }
 portmapper = "0.19.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -22,5 +21,4 @@ trash = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 uuid = { workspace = true, features = ["v4"] }
-wabou = { workspace = true }
-wabou-tray = { workspace = true }
+wabou = { workspace = true, features = ["tray"] }

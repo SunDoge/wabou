@@ -1,5 +1,10 @@
 import type { WindowKey } from "@wabou/core";
-import { defaultHost, type WabouExposedSemanticRole } from "@wabou/core/renderer";
+import { effectOps } from "@wabou/core/effects";
+import {
+  defaultHost,
+  type WabouExposedSemanticRole,
+} from "@wabou/core/renderer";
+import { containmentDiagnostic } from "./locator-bounds";
 import {
   decodeLocatorQuery,
   decodeNativeLocatorQuery,
@@ -39,10 +44,22 @@ export interface NativeWindowState {
 }
 
 interface NativeTestCapability {
+  writeTextFile(relativePath: string, contents: string): string;
   waitForIdle(lo: number, hi: number): Promise<boolean>;
-  nativeClose(lo: number, hi: number, mutableVisibility: boolean): Promise<boolean>;
+  nativeClose(
+    lo: number,
+    hi: number,
+    mutableVisibility: boolean,
+  ): Promise<boolean>;
   showWindow(lo: number, hi: number): Promise<boolean>;
+  resizeWindow(
+    lo: number,
+    hi: number,
+    width: number,
+    height: number,
+  ): Promise<boolean>;
   windowState(lo: number, hi: number): string;
+  windowViewport(lo: number, hi: number): string;
   clickByRole(
     lo: number,
     hi: number,
@@ -65,6 +82,12 @@ interface NativeTestCapability {
     label: string,
     index: number | null,
   ): Promise<string | null | undefined>;
+  queueEffect(
+    capability: number,
+    method: number,
+    result: string,
+  ): string | null;
+  takePendingEffectFixtures(): string;
   finish(report: string): boolean;
 }
 
@@ -77,6 +100,34 @@ declare module "@wabou/core/registry" {
 export interface TestContext {
   readonly page: TestPage;
   readonly window: TestWindow;
+  readonly effects: TestEffects;
+  readonly files: TestFiles;
+}
+
+export interface TestFiles {
+  /** Write exact UTF-8 contents beneath this run's isolated temporary root. */
+  writeText(relativePath: string, contents: string): string;
+}
+
+export interface TestEffectResponseMap {
+  clipboardRead: string | null;
+  clipboardWrite: null;
+  contextMenuShow: string | null;
+  dialogOpen: string[] | null;
+  dialogSave: string[] | null;
+  dialogPickDirectory: string[] | null;
+  dialogMessage: "ok" | "cancel" | "yes" | "no" | "custom";
+  notificationShow: null;
+}
+
+export type TestEffectOperation = keyof TestEffectResponseMap;
+
+export interface TestEffects {
+  /** Queue one deterministic response for the next matching native effect. */
+  respond<K extends TestEffectOperation>(
+    operation: K,
+    result: TestEffectResponseMap[K],
+  ): void;
 }
 
 export interface TestWindow {
@@ -87,10 +138,13 @@ export interface TestWindow {
     platform: "wayland" | "mutable-visibility",
   ): Promise<void>;
   show(windowId: WindowKey): Promise<void>;
+  /** Resize a visible window in logical pixels through the native surface path. */
+  resize(windowId: WindowKey, width: number, height: number): Promise<void>;
   state(windowId: WindowKey): NativeWindowState | null;
 }
 
 export interface TestPage {
+  readonly effects: TestEffects;
   /** Bind subsequent locators and frame barriers to one logical window. */
   forWindow(windowId: WindowKey): TestPage;
   getByRole(
@@ -146,9 +200,18 @@ export interface LocatorSnapshot {
   checked: boolean | "mixed" | null;
   pressed: boolean | "mixed" | null;
   selected: boolean | null;
+  current: LocatorCurrent | null;
   expanded: boolean | null;
   focused: boolean;
 }
+
+export type LocatorCurrent =
+  | "true"
+  | "page"
+  | "step"
+  | "location"
+  | "date"
+  | "time";
 
 export interface LocatorBounds {
   x: number;
@@ -188,6 +251,7 @@ export type LocatorAssertion =
   | { type: "disabled"; expected: boolean }
   | { type: "checked"; expected: boolean | "mixed" }
   | { type: "selected"; expected: boolean }
+  | { type: "current"; expected: LocatorCurrent | null }
   | { type: "expanded"; expected: boolean }
   | { type: "pressed"; expected: boolean }
   | { type: "focused"; expected: boolean }
@@ -195,7 +259,13 @@ export type LocatorAssertion =
       type: "bounds";
       expected: Partial<LocatorBounds>;
       tolerance: number;
-    };
+    }
+  | {
+      type: "withinBounds";
+      expected: LocatorBounds;
+      tolerance: number;
+    }
+  | { type: "viewport"; tolerance: number };
 
 export interface BoundsAssertionOptions extends LocatorAssertionOptions {
   /** Maximum absolute difference for supplied coordinates, in logical pixels. */
@@ -237,11 +307,22 @@ export interface TestResult {
 
 export type TestAction =
   | {
+      action: "respondToEffect";
+      operation: TestEffectOperation;
+      result: TestEffectResponseMap[TestEffectOperation];
+    }
+  | {
       action: "nativeClose";
       windowId: WindowKey;
       platform: "wayland" | "mutable-visibility";
     }
   | { action: "showWindow"; windowId: WindowKey }
+  | {
+      action: "resizeWindow";
+      windowId: WindowKey;
+      width: number;
+      height: number;
+    }
   | {
       action: "clickByRole";
       windowId: WindowKey;
@@ -294,6 +375,38 @@ const registrationErrors: string[] = [];
 const trace: TestAction[] = [];
 const MAX_LOCATOR_INDEX = 0xffff_ffff;
 
+function encodedEffectResult(
+  operation: TestEffectOperation,
+  result: TestEffectResponseMap[TestEffectOperation],
+): unknown {
+  if (operation === "clipboardRead")
+    return { kind: "clipboardText", value: result };
+  if (operation === "contextMenuShow")
+    return { kind: "contextMenuSelection", value: result };
+  if (
+    operation === "dialogOpen" ||
+    operation === "dialogSave" ||
+    operation === "dialogPickDirectory"
+  )
+    return { kind: "dialogPaths", value: result };
+  if (operation === "dialogMessage")
+    return { kind: "dialogMessage", value: result };
+  return { kind: "unit" };
+}
+
+const effects: TestEffects = {
+  respond(operation, result) {
+    const op = effectOps[operation];
+    const error = capability().queueEffect(
+      op.capability,
+      op.method,
+      JSON.stringify(encodedEffectResult(operation, result)),
+    );
+    if (error) throw new Error(error);
+    trace.push({ action: "respondToEffect", operation, result });
+  },
+};
+
 class LocatorNotFoundError extends Error {}
 
 function capability(): NativeTestCapability {
@@ -306,22 +419,53 @@ function windowLabel(windowId: WindowKey): string {
   return `${windowId.lo}v${windowId.hi}`;
 }
 
+function decodeWindowViewport(windowId: WindowKey): LocatorBounds {
+  const raw = capability().windowViewport(windowId.lo, windowId.hi);
+  const value = JSON.parse(raw) as Partial<LocatorBounds> | null;
+  if (!value) {
+    throw new Error(
+      `native window ${windowLabel(windowId)} has no visible viewport`,
+    );
+  }
+  for (const key of ["x", "y", "width", "height"] as const) {
+    if (!Number.isFinite(value[key])) {
+      throw new Error(
+        `native window ${windowLabel(windowId)} returned an invalid viewport`,
+      );
+    }
+  }
+  const viewport = value as LocatorBounds;
+  if (viewport.width < 0 || viewport.height < 0) {
+    throw new Error(
+      `native window ${windowLabel(windowId)} returned a negative viewport`,
+    );
+  }
+  return viewport;
+}
+
 function createPage(windowId: WindowKey): TestPage {
   validateWindowKey(windowId);
   return {
+    effects,
     forWindow(nextWindowId) {
       return createPage(nextWindowId);
     },
     async waitForIdle() {
-      // Let queued Solid work reach the renderer, then wait for the native test
-      // driver to observe a complete frame. A pair of JS animation frames alone
-      // cannot prove that layout and semantics have caught up.
-      await Promise.resolve();
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => resolve()),
-      );
-      if (!(await capability().waitForIdle(windowId.lo, windowId.hi))) {
-        throw new Error(`native window ${windowLabel(windowId)} did not become idle`);
+      // Cross two complete JS/native frame boundaries. One frame publishes
+      // host inputs such as WindowMetrics into Solid; the next projects the
+      // resulting responsive tree into layout and semantics. Waiting for all
+      // animation to stop is intentionally not part of this contract because
+      // applications may own infinite loops such as spinners and ripples.
+      for (let frame = 0; frame < 2; frame++) {
+        await Promise.resolve();
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+        if (!(await capability().waitForIdle(windowId.lo, windowId.hi))) {
+          throw new Error(
+            `native window ${windowLabel(windowId)} did not complete frame ${frame + 1} of 2`,
+          );
+        }
       }
     },
     getByRole(role, options) {
@@ -401,6 +545,35 @@ function createPage(windowId: WindowKey): TestPage {
             : `${ambiguity} after ${wait.timeout}ms`) ??
             `no enabled ${locatorLabel} after ${wait.timeout}ms`,
         );
+      };
+      const waitUntilPresent = async (
+        assertionOptions: LocatorWaitOptions = {},
+      ): Promise<void> => {
+        const wait = resolvePollOptions(assertionOptions);
+        let ambiguity: string | undefined;
+        const result = await pollUntil(
+          async () => {
+            try {
+              const value = await probe();
+              ambiguity = undefined;
+              return value;
+            } catch (error) {
+              if (!(error instanceof LocatorAmbiguousError)) throw error;
+              ambiguity = error.message;
+              return null;
+            }
+          },
+          (state) => state !== null,
+          wait,
+          () => createPage(windowId).waitForIdle(),
+        );
+        if (!result.matched) {
+          throw new Error(
+            ambiguity === undefined
+              ? `no ${locatorLabel} after ${wait.timeout}ms`
+              : `${ambiguity} after ${wait.timeout}ms`,
+          );
+        }
       };
       return {
         windowId,
@@ -519,8 +692,12 @@ function createPage(windowId: WindowKey): TestPage {
             input: { type: "wheel", deltaX, deltaY },
             wait,
           });
-          await waitUntilActionable(wait);
-          await input({ type: "wheel", deltaX, deltaY });
+          // Wheel input is positional and may scroll an enabled ancestor even
+          // when the semantic node under the pointer is disabled.
+          await waitUntilPresent(wait);
+          if (!(await sendInput({ type: "wheel", deltaX, deltaY }))) {
+            throw new Error(`cannot wheel ${locatorLabel}`);
+          }
         },
         async waitFor(assertionOptions = {}) {
           const wait = resolvePollOptions(assertionOptions);
@@ -576,7 +753,13 @@ const context: TestContext = {
     async nativeClose(windowId, platform) {
       validateWindowKey(windowId);
       trace.push({ action: "nativeClose", windowId, platform });
-      if (!(await capability().nativeClose(windowId.lo, windowId.hi, platform !== "wayland"))) {
+      if (
+        !(await capability().nativeClose(
+          windowId.lo,
+          windowId.hi,
+          platform !== "wayland",
+        ))
+      ) {
         throw new Error(
           `failed to enqueue native close for window ${windowLabel(windowId)}`,
         );
@@ -586,14 +769,57 @@ const context: TestContext = {
       validateWindowKey(windowId);
       trace.push({ action: "showWindow", windowId });
       if (!(await capability().showWindow(windowId.lo, windowId.hi))) {
-        throw new Error(`failed to enqueue show for window ${windowLabel(windowId)}`);
+        throw new Error(
+          `failed to enqueue show for window ${windowLabel(windowId)}`,
+        );
       }
+    },
+    async resize(windowId, width, height) {
+      validateWindowKey(windowId);
+      for (const [name, value] of [
+        ["width", width],
+        ["height", height],
+      ] as const) {
+        if (!Number.isSafeInteger(value) || value <= 0 || value > 0xffff_ffff)
+          throw new RangeError(
+            `${name} must be an integer between 1 and 4294967295`,
+          );
+      }
+      // A scenario is evaluated while the first native surface may still be
+      // completing creation. Cross one full source/native frame boundary so
+      // resize is valid even as the first authored test action.
+      await createPage(windowId).waitForIdle();
+      trace.push({ action: "resizeWindow", windowId, width, height });
+      if (
+        !(await capability().resizeWindow(
+          windowId.lo,
+          windowId.hi,
+          width,
+          height,
+        ))
+      ) {
+        throw new Error(
+          `failed to resize visible window ${windowLabel(windowId)}`,
+        );
+      }
+      await createPage(windowId).waitForIdle();
     },
     state(windowId) {
       validateWindowKey(windowId);
       return JSON.parse(
         capability().windowState(windowId.lo, windowId.hi),
       ) as NativeWindowState | null;
+    },
+  },
+  effects,
+  files: {
+    writeText(relativePath, contents) {
+      const result = JSON.parse(
+        capability().writeTextFile(relativePath, contents),
+      ) as { path?: string; error?: string };
+      if (result.error) throw new Error(result.error);
+      if (!result.path) throw new Error("native test fixture omitted its path");
+      return result.path;
     },
   },
 };
@@ -627,6 +853,7 @@ export function test(
 function locatorAssertionDiagnostic(
   assertion: LocatorAssertion,
   state: LocatorSnapshot,
+  viewport?: LocatorBounds,
 ): string | null {
   if (assertion.type === "absent" || assertion.type === "count") {
     throw new Error(
@@ -673,6 +900,10 @@ function locatorAssertionDiagnostic(
     return state.selected === assertion.expected
       ? null
       : `expected locator to be ${assertion.expected ? "selected" : "deselected"}, received ${JSON.stringify(state.selected)}`;
+  if (assertion.type === "current")
+    return state.current === assertion.expected
+      ? null
+      : `expected locator current state to be ${JSON.stringify(assertion.expected)}, received ${JSON.stringify(state.current)}`;
   if (assertion.type === "expanded")
     return state.expanded === assertion.expected
       ? null
@@ -692,6 +923,23 @@ function locatorAssertionDiagnostic(
       }
     }
     return null;
+  }
+  if (assertion.type === "withinBounds") {
+    return containmentDiagnostic(
+      state.bounds,
+      assertion.expected,
+      assertion.tolerance,
+      "within",
+    );
+  }
+  if (assertion.type === "viewport") {
+    if (!viewport) throw new Error("native window viewport is unavailable");
+    return containmentDiagnostic(
+      state.bounds,
+      viewport,
+      assertion.tolerance,
+      "inside viewport",
+    );
   }
   return state.focused === assertion.expected
     ? null
@@ -762,7 +1010,15 @@ async function assertLocatorEventually(
         return locatorCountDiagnostic(target, assertion.expected);
       }
       try {
-        return locatorAssertionDiagnostic(assertion, await target.snapshot());
+        const viewport =
+          assertion.type === "viewport"
+            ? decodeWindowViewport(target.windowId)
+            : undefined;
+        return locatorAssertionDiagnostic(
+          assertion,
+          await target.snapshot(),
+          viewport,
+        );
       } catch (error) {
         if (
           !(error instanceof LocatorNotFoundError) &&
@@ -1003,6 +1259,23 @@ export function expect<T>(actual: T) {
         options,
       );
     },
+    toBeCurrent(
+      expected: LocatorCurrent = "true",
+      options?: LocatorAssertionOptions,
+    ): Promise<void> {
+      return assertLocatorEventually(
+        locator(),
+        { type: "current", expected },
+        options,
+      );
+    },
+    toNotBeCurrent(options?: LocatorAssertionOptions): Promise<void> {
+      return assertLocatorEventually(
+        locator(),
+        { type: "current", expected: null },
+        options,
+      );
+    },
     toBeExpanded(options?: LocatorAssertionOptions): Promise<void> {
       return assertLocatorEventually(
         locator(),
@@ -1070,6 +1343,35 @@ export function expect<T>(actual: T) {
         options,
       );
     },
+    toBeWithinBounds(
+      expected: LocatorBounds,
+      options: BoundsAssertionOptions = {},
+    ): Promise<void> {
+      for (const key of ["x", "y", "width", "height"] as const) {
+        if (!Number.isFinite(expected[key]))
+          throw new RangeError("containing bounds must contain finite numbers");
+      }
+      if (expected.width < 0 || expected.height < 0)
+        throw new RangeError(
+          "containing bounds width and height cannot be negative",
+        );
+      const tolerance = options.tolerance ?? 0.5;
+      validateTolerance("locator containing bounds", tolerance);
+      return assertLocatorEventually(
+        locator(),
+        { type: "withinBounds", expected: { ...expected }, tolerance },
+        options,
+      );
+    },
+    toBeInViewport(options: BoundsAssertionOptions = {}): Promise<void> {
+      const tolerance = options.tolerance ?? 0.5;
+      validateTolerance("locator viewport", tolerance);
+      return assertLocatorEventually(
+        locator(),
+        { type: "viewport", tolerance },
+        options,
+      );
+    },
   };
 }
 
@@ -1130,6 +1432,12 @@ async function run(): Promise<void> {
               await withTestTimeout(entry.name, entry.timeout, () =>
                 entry.body(context),
               );
+              const pendingEffects = capability().takePendingEffectFixtures();
+              if (pendingEffects !== "") {
+                throw new Error(
+                  `native effect fixture was not consumed: ${pendingEffects}`,
+                );
+              }
               results.push({
                 name: entry.name,
                 passed: true,
@@ -1138,6 +1446,7 @@ async function run(): Promise<void> {
                 durationMs: performance.now() - startedAt,
               });
             } catch (error) {
+              capability().takePendingEffectFixtures();
               results.push({
                 name: entry.name,
                 passed: false,

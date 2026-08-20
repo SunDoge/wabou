@@ -130,10 +130,12 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
             )
         })
         .unwrap();
-    assert!(payload.contains("logicalWidth"));
-    assert!(payload.contains("\"windowId\":{\"hi\":1,\"lo\":1}"));
-    assert!(payload.contains("\"scaleFactor\":2.0"));
-    assert!(payload.contains("\"colorScheme\":\"dark\""));
+    let payload: serde_json::Value = serde_json::from_str(&payload).expect("window metrics JSON");
+    assert_eq!(payload["windowId"]["lo"], 1);
+    assert_eq!(payload["windowId"]["hi"], 1);
+    assert_eq!(payload["logicalWidth"], 800);
+    assert_eq!(payload["scaleFactor"], 2.0);
+    assert_eq!(payload["colorScheme"], "dark");
 }
 
 #[test]

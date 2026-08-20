@@ -67,10 +67,12 @@ the selected application, and generated workspace package artifacts. It exits
 with a nonzero status when a required check fails, so it is also suitable for
 setup scripts and CI diagnostics.
 
-Development starts Vite and compiles the Rust host with the `wabou/vite`
-facade feature. QuickJS imports the live Vite graph and receives HMR updates.
-No JavaScript production build is required before Rust compilation. Ctrl-C
-terminates Vite, the host, and the optional inspector.
+Development starts Vite and compiles the Rust host with the `wabou/vite` and
+`wabou/devtools` facade features. QuickJS imports the live Vite graph and
+receives HMR updates, while `wabou inspect` can discover the local DevTools
+socket. `--devtools` additionally opens the visual inspector; it is not needed
+for the socket. No JavaScript production build is required before Rust
+compilation. Ctrl-C terminates Vite, the host, and the optional inspector.
 
 The CLI invokes the project-local Vite executable directly. An application
 does not need specially named `build` or `dev` package scripts; those scripts
@@ -204,11 +206,14 @@ focused debugging:
 
 ```bash
 bun run wabou test /path/to/app
-bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts \
-  --app /path/to/app
+bun run wabou test /path/to/app/tests/window-lifecycle.behavior.ts
 bun run wabou test --replay target/wabou-test/app/artifacts/trace.json \
   --app /path/to/app
 ```
+
+For a scenario nested beneath a Wabou application, the CLI infers the nearest
+application root. Use `--app` when the authored scenario lives elsewhere or
+when intentionally running it against a different application.
 
 The default deterministic backend does not require a display server. Use
 `--native` for a real platform smoke test. See the [behavior testing

@@ -27,6 +27,9 @@ enum TraceMode {
         recorded_ops: HashSet<EffectOp>,
         request_ids: HashMap<u32, u32>,
     },
+    Fixtures {
+        entries: VecDeque<(EffectOp, EffectResult)>,
+    },
 }
 
 #[derive(Clone)]
@@ -38,6 +41,34 @@ pub(crate) enum TraceSubmission {
 }
 
 impl EffectTrace {
+    pub(crate) fn fixtures() -> Self {
+        Self(Arc::new(Mutex::new(TraceMode::Fixtures {
+            entries: VecDeque::new(),
+        })))
+    }
+
+    pub(crate) fn enqueue_fixture(&self, op: EffectOp, result: EffectResult) -> Result<(), String> {
+        let mut mode = self.0.lock().map_err(|_| "effect fixture mutex poisoned")?;
+        let TraceMode::Fixtures { entries } = &mut *mode else {
+            return Err(
+                "effect fixtures are unavailable while recording or replaying an effect tape"
+                    .to_owned(),
+            );
+        };
+        entries.push_back((op, result));
+        Ok(())
+    }
+
+    pub(crate) fn take_pending_fixtures(&self) -> Vec<EffectOp> {
+        let Ok(mut mode) = self.0.lock() else {
+            return Vec::new();
+        };
+        match &mut *mode {
+            TraceMode::Fixtures { entries } => entries.drain(..).map(|(op, _)| op).collect(),
+            _ => Vec::new(),
+        }
+    }
+
     pub(crate) fn record(record_all: bool) -> Self {
         Self(Arc::new(Mutex::new(TraceMode::Record {
             entries: Vec::new(),
@@ -132,6 +163,33 @@ impl EffectTrace {
                 }
                 TraceSubmission::Replay(completions)
             }
+            TraceMode::Fixtures { entries } => {
+                let Some((expected_op, _)) = entries.front() else {
+                    return TraceSubmission::Live;
+                };
+                if *expected_op == request.payload.op() {
+                    let (_, result) = entries.pop_front().expect("fixture entry disappeared");
+                    TraceSubmission::Replay(vec![EffectCompletion {
+                        id: request.id,
+                        op: request.payload.op(),
+                        result,
+                    }])
+                } else if entries.iter().any(|(op, _)| *op == request.payload.op()) {
+                    TraceSubmission::Replay(vec![EffectCompletion {
+                        id: request.id,
+                        op: request.payload.op(),
+                        result: EffectResult::Error {
+                            code: EffectErrorCode::ReplayDiverged,
+                            message: format!(
+                                "effect fixture order diverged: expected {expected_op:?}, received {:?}",
+                                request.payload.op()
+                            ),
+                        },
+                    }])
+                } else {
+                    TraceSubmission::Live
+                }
+            }
         }
     }
 
@@ -222,7 +280,7 @@ mod tests {
 
         let entries = match &*trace.0.lock().unwrap() {
             TraceMode::Record { entries, .. } => entries.clone(),
-            TraceMode::Replay { .. } => unreachable!(),
+            TraceMode::Replay { .. } | TraceMode::Fixtures { .. } => unreachable!(),
         };
         let recorded_ops = entries
             .iter()
@@ -265,9 +323,41 @@ mod tests {
         trace.complete(&completion(&request));
         let is_empty = match &*trace.0.lock().unwrap() {
             TraceMode::Record { entries, .. } => entries.is_empty(),
-            TraceMode::Replay { .. } => unreachable!(),
+            TraceMode::Replay { .. } | TraceMode::Fixtures { .. } => unreachable!(),
         };
         assert!(is_empty);
+    }
+
+    #[test]
+    fn fixtures_complete_matching_effects_without_dispatching_native_ui() {
+        let trace = EffectTrace::fixtures();
+        trace
+            .enqueue_fixture(
+                wabou_shell::effect::builtin::DIALOG_PICK_DIRECTORY,
+                EffectResult::DialogPaths(Some(vec!["/tmp/downloads".to_owned()])),
+            )
+            .unwrap();
+        let request = EffectRequest {
+            id: EffectId(41),
+            scope: EffectScope::Window(wabou_shell::initial_window_resource_key(0)),
+            payload: wabou_shell::EffectPayload::DialogPickDirectory(
+                wabou_shell::PickDirectoryRequest {
+                    title: Some("Downloads".to_owned()),
+                    directory: None,
+                },
+            ),
+        };
+
+        let TraceSubmission::Replay(completions) = trace.submit(&request) else {
+            panic!("fixture must intercept the matching native effect")
+        };
+        assert_eq!(completions.len(), 1);
+        assert_eq!(completions[0].id, request.id);
+        assert_eq!(
+            completions[0].result,
+            EffectResult::DialogPaths(Some(vec!["/tmp/downloads".to_owned()]))
+        );
+        assert!(trace.take_pending_fixtures().is_empty());
     }
 
     #[test]

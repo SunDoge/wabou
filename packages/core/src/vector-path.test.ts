@@ -29,8 +29,50 @@ describe("PathBuilder", () => {
     expect(new DataView(first.data.buffer).getUint32(8, true)).toBe(1);
   });
 
+  test("marks non-drawing snapshots so the renderer can clear stale geometry", () => {
+    const empty = new PathBuilder();
+    expect(empty.hasCurrentPoint).toBe(false);
+    expect(empty.build().drawable).toBe(false);
+    const point = new PathBuilder().moveTo(1, 2);
+    expect(point.hasCurrentPoint).toBe(true);
+    expect(point.build().drawable).toBe(false);
+    expect(new PathBuilder().moveTo(1, 2).lineTo(3, 4).build().drawable).toBe(
+      true,
+    );
+    point.close();
+    expect(point.hasCurrentPoint).toBe(false);
+  });
+
   test("rejects non-finite geometry and invalid paint", () => {
-    expect(() => new PathBuilder().lineTo(Number.NaN, 0)).toThrow(/finite/);
-    expect(() => new PathBuilder().build({ strokeWidth: 0 })).toThrow(/positive/);
+    expect(() => new PathBuilder().lineTo(1, 2)).toThrow(/moveTo first/);
+    expect(() => new PathBuilder().moveTo(0, 0).lineTo(Number.NaN, 0)).toThrow(
+      /finite/,
+    );
+    expect(() => new PathBuilder().close()).toThrow(/moveTo first/);
+    expect(() => new PathBuilder().build({ strokeWidth: 0 })).toThrow(
+      /positive/,
+    );
+    expect(() => new PathBuilder().splineThrough([], Number.NaN)).toThrow(
+      /finite/,
+    );
+  });
+
+  test("builds reusable smooth splines with explicit empty-data semantics", () => {
+    const empty = new PathBuilder().splineThrough([]);
+    expect(empty.hasCurrentPoint).toBe(false);
+    expect(empty.build().drawable).toBe(false);
+
+    const point = new PathBuilder().splineThrough([{ x: 2, y: 3 }]);
+    expect(point.hasCurrentPoint).toBe(true);
+    expect(point.build().drawable).toBe(false);
+
+    const curve = new PathBuilder().splineThrough([
+      { x: 0, y: 4 },
+      { x: 3, y: 1 },
+      { x: 6, y: 5 },
+    ]);
+    const source = curve.build();
+    expect(source.drawable).toBe(true);
+    expect(new DataView(source.data.buffer).getUint32(8, true)).toBe(3);
   });
 });

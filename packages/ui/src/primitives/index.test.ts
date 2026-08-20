@@ -204,6 +204,22 @@ describe("shortcuts primitive", () => {
     expect(prevented).toBe(false);
   });
 
+  test("JSX bindings preserve async handler results for event diagnostics", () => {
+    const result = Promise.resolve("navigated");
+    const shortcuts = createShortcuts({
+      "Primary+L": () => result,
+    });
+
+    expect(
+      shortcuts.bindings.onKeyDown({
+        key: "l",
+        mods: 2,
+        primary: true,
+        preventDefault: () => {},
+      }),
+    ).toBe(result);
+  });
+
   test("rejects invalid and overlapping shortcut declarations", () => {
     expect(() => createShortcuts({ "Hyper+T": () => {} })).toThrow(
       "Unknown shortcut modifier",

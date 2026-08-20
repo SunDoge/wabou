@@ -15,13 +15,16 @@ export interface ControllableState<T> {
 export function createControllableState<T>(
   options: ControllableStateOptions<T>,
 ): ControllableState<T> {
-  const [local, setLocal] = createSignal<T>(() => options.defaultValue);
-  const value = () => options.value() ?? local();
+  // Solid 2 treats a function passed to createSignal as a computation. Keep
+  // the generic value in an object so both ordinary and function-valued state
+  // remain writable without relying on setter/update-function ambiguity.
+  const [local, setLocal] = createSignal({ value: options.defaultValue });
+  const value = () => options.value() ?? local().value;
   return {
     value,
     set(next) {
       if (options.disabled?.() || Object.is(value(), next)) return false;
-      if (options.value() === undefined) setLocal(() => next);
+      if (options.value() === undefined) setLocal({ value: next });
       options.onChange?.(next);
       return true;
     },

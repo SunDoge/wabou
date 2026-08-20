@@ -45,3 +45,20 @@ test("native window size queries are reactive and reject invalid ranges", () => 
     createWindowMatch({ minWidth: 900, maxWidth: 800 }, window),
   ).toThrow("minWidth cannot exceed maxWidth");
 });
+
+test("invalid native metrics do not replace the last valid snapshot", () => {
+  const window = useWindow();
+  const previous = window.metrics();
+  const originalError = console.error;
+  console.error = () => undefined;
+  try {
+    dispatchHostMessage(
+      "wabou:window-metrics",
+      JSON.stringify({ ...previous, scaleFactor: "2" }),
+    );
+  } finally {
+    console.error = originalError;
+  }
+  flush();
+  expect(window.metrics()).toBe(previous);
+});

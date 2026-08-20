@@ -25,7 +25,7 @@ pub struct TorrentPreview {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TorrentFilePreview {
-    /// aria2's BitTorrent file index. These indices are one-based.
+    /// User-facing BitTorrent file index. These indices are one-based.
     pub index: u64,
     pub path: String,
     pub length: u64,
@@ -109,7 +109,7 @@ fn walk_v2_tree(
     files: &mut Vec<TorrentFilePreview>,
 ) -> Result<(), String> {
     let mut entries = tree.iter().collect::<Vec<_>>();
-    entries.sort_by(|(left, _), (right, _)| left.cmp(right));
+    entries.sort_by_key(|(component, _)| *component);
     for (component, value) in entries {
         if component.is_empty() {
             let attributes = dictionary(value, "torrent v2 file attributes")?;
@@ -338,6 +338,20 @@ mod tests {
                 length: 7
             }
         );
+    }
+
+    #[test]
+    fn parses_many_file_fixture_used_by_behavior_tests() {
+        let entries = (1..=30)
+            .map(|index| {
+                let path = format!("folder-{index:02}/file-{index:02}.bin");
+                format!("d6:lengthi{index}e4:pathl{}:{path}ee", path.len())
+            })
+            .collect::<String>();
+        let bytes = format!("d4:infod5:filesl{entries}e4:name12:fixture-packee");
+        let preview = parse_torrent(bytes.as_bytes()).expect("valid fixture");
+        assert_eq!(preview.files.len(), 30);
+        assert_eq!(preview.total_length, 465);
     }
 
     #[test]

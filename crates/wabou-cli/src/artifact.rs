@@ -25,12 +25,19 @@ pub(super) fn app_binary(workspace: &Path, app: &App) -> Result<String> {
         .ok_or_else(|| "application binary target has no name".into())
 }
 
-pub(super) fn app_vite_feature(workspace: &Path, app: &App) -> Result<String> {
+pub(super) fn app_dev_features(workspace: &Path, app: &App) -> Result<String> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    vite_feature(&metadata, &manifest_path)
-        .map(str::to_owned)
+    dev_features(&metadata, &manifest_path)
         .ok_or_else(|| "application must depend on `wabou` or `wabou-runtime`".into())
+}
+
+pub(super) fn dev_features(metadata: &Value, manifest_path: &Path) -> Option<String> {
+    Some(format!(
+        "{},{}",
+        framework_feature(metadata, manifest_path, "vite")?,
+        framework_feature(metadata, manifest_path, "devtools")?
+    ))
 }
 
 pub(super) fn app_profiling_feature(workspace: &Path, app: &App) -> Result<String> {
@@ -70,23 +77,6 @@ pub(super) fn framework_feature(
         .any(|dependency| dependency["name"] == "wabou-runtime")
     {
         Some(format!("wabou-runtime/{feature}"))
-    } else {
-        None
-    }
-}
-
-pub(super) fn vite_feature<'a>(metadata: &'a Value, manifest_path: &Path) -> Option<&'a str> {
-    let dependencies = package_metadata(metadata, manifest_path)?["dependencies"].as_array()?;
-    if dependencies
-        .iter()
-        .any(|dependency| dependency["name"] == "wabou")
-    {
-        Some("wabou/vite")
-    } else if dependencies
-        .iter()
-        .any(|dependency| dependency["name"] == "wabou-runtime")
-    {
-        Some("wabou-runtime/vite")
     } else {
         None
     }

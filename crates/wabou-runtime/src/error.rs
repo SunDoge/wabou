@@ -72,6 +72,13 @@ pub enum Error {
         message: String,
     },
 
+    /// One or more application-owned services failed during orderly shutdown.
+    #[snafu(display("host service shutdown failed: {message}"))]
+    HostServiceShutdown {
+        /// All shutdown failures, after every service received a stop request.
+        message: String,
+    },
+
     /// Built-in behavior test scenario reported failure.
     #[snafu(display("test scenario failed: {message}"))]
     TestScenario {

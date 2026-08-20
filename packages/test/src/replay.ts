@@ -19,10 +19,14 @@ export async function replayActions(
   assertWindow: ReplayWindowAssertion,
 ): Promise<void> {
   for (const action of actions) {
-    if (action.action === "nativeClose") {
+    if (action.action === "respondToEffect") {
+      page.effects.respond(action.operation, action.result as never);
+    } else if (action.action === "nativeClose") {
       await window.nativeClose(action.windowId, action.platform);
     } else if (action.action === "showWindow") {
       await window.show(action.windowId);
+    } else if (action.action === "resizeWindow") {
+      await window.resize(action.windowId, action.width, action.height);
     } else if (action.action === "clickByRole") {
       await page
         .forWindow(action.windowId)

@@ -1,10 +1,10 @@
 // Virtual-list UI demo — 10,000 rows, only the viewport slice is materialised.
-// Scrolling recycles slots via SolidJS `<Index>` (no create/drop churn), and
-// the host clips with `overflow: hidden`. Pure SolidJS-as-DSL: no Rust widget,
-// no native scroll container.
+// Scrolling recycles keyed Solid rows, and the host owns clipping, scrolling
+// and its native scrollbar. Pure SolidJS-as-DSL: no Rust list widget.
 
 import "virtual:wabou-stylesheet";
-import { createFps, mount, Text, View, VirtualList } from "@wabou/ui";
+import { Button, createFps, mount, Text, View, VirtualList } from "@wabou/ui";
+import { createMemo, createSignal } from "solid-js";
 
 const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
   const tag = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta"][
@@ -15,17 +15,29 @@ const ROWS: readonly string[] = Array.from({ length: 10_000 }, (_, i) => {
 
 function App() {
   const fps = createFps();
+  const [condensed, setCondensed] = createSignal(false);
+  const rows = createMemo(() => (condensed() ? ROWS.slice(0, 24) : ROWS));
   return (
     <View class="w-full h-full flex flex-col bg-slate-950 text-slate-100">
       <View class="flex-none px-4 py-2 flex items-center justify-between border-b border-slate-700">
         <Text class="text-base font-semibold">Virtual list — 10,000 rows</Text>
-        <Text class="text-xs font-mono text-slate-400">
-          {ROWS.length} items · {fps()} fps
-        </Text>
+        <View class="flex items-center gap-3">
+          <Text class="text-xs font-mono text-slate-400">
+            {rows().length} items · {fps()} fps
+          </Text>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setCondensed((value) => !value)}
+          >
+            {condensed() ? "Show all rows" : "Show 24 rows"}
+          </Button>
+        </View>
       </View>
       <View class="flex-1 min-h-0">
         <VirtualList
-          items={() => ROWS}
+          items={rows}
+          getItemKey={(_, index) => index}
           itemHeight={32}
           viewportHeight={540}
           overscan={6}
@@ -35,16 +47,16 @@ function App() {
           {(text, i) => (
             <View
               role="option"
-              aria-label={text}
+              aria-label={text()}
               class={`flex items-center h-full px-4 ${
-                i % 2 ? "bg-slate-900" : "bg-slate-800/60"
+                i() % 2 ? "bg-slate-900" : "bg-slate-800/60"
               }`}
             >
               <Text class="w-20 flex-none text-slate-500 font-mono text-xs">
-                {String(i).padStart(5, "0")}
+                {String(i()).padStart(5, "0")}
               </Text>
               <Text class="overflow-hidden whitespace-nowrap text-sm">
-                {text}
+                {text()}
               </Text>
             </View>
           )}

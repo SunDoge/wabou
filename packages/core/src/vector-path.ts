@@ -28,9 +28,16 @@ export interface VectorPathPaint {
   miterLimit?: number;
 }
 
+export interface PathPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
 /** Immutable path snapshot suitable for signals, memos, and component props. */
 export interface VectorPath {
   readonly kind: "wabou-vector-path";
+  /** Whether the command stream contains at least one drawable segment. */
+  readonly drawable: boolean;
   readonly data: Uint8Array;
 }
 
@@ -56,22 +63,34 @@ function positive(name: string, value: number): number {
 
 export class PathBuilder {
   readonly #commands: Command[] = [];
+  #hasSubpath = false;
+  #drawable = false;
+
+  /** Whether line/curve/close commands currently have an active subpath. */
+  get hasCurrentPoint(): boolean {
+    return this.#hasSubpath;
+  }
 
   moveTo(x: number, y: number): this {
     finite("moveTo", [x, y]);
     this.#commands.push([COMMAND.MoveTo, x, y]);
+    this.#hasSubpath = true;
     return this;
   }
 
   lineTo(x: number, y: number): this {
+    if (!this.#hasSubpath) throw new TypeError("lineTo requires moveTo first");
     finite("lineTo", [x, y]);
     this.#commands.push([COMMAND.LineTo, x, y]);
+    this.#drawable = true;
     return this;
   }
 
   quadTo(cx: number, cy: number, x: number, y: number): this {
+    if (!this.#hasSubpath) throw new TypeError("quadTo requires moveTo first");
     finite("quadTo", [cx, cy, x, y]);
     this.#commands.push([COMMAND.QuadTo, cx, cy, x, y]);
+    this.#drawable = true;
     return this;
   }
 
@@ -83,13 +102,41 @@ export class PathBuilder {
     x: number,
     y: number,
   ): this {
+    if (!this.#hasSubpath) throw new TypeError("cubicTo requires moveTo first");
     finite("cubicTo", [c1x, c1y, c2x, c2y, x, y]);
     this.#commands.push([COMMAND.CubicTo, c1x, c1y, c2x, c2y, x, y]);
+    this.#drawable = true;
     return this;
   }
 
   close(): this {
+    if (!this.#hasSubpath) throw new TypeError("close requires moveTo first");
     this.#commands.push([COMMAND.Close]);
+    this.#hasSubpath = false;
+    return this;
+  }
+
+  /** Append a Catmull–Rom spline converted to native cubic Bézier segments. */
+  splineThrough(points: readonly PathPoint[], tension = 1): this {
+    finite("splineThrough tension", [tension]);
+    if (points.length === 0) return this;
+    this.moveTo(points[0].x, points[0].y);
+    if (points.length === 1) return this;
+    const scale = tension / 6;
+    for (let index = 0; index < points.length - 1; index++) {
+      const before = points[Math.max(0, index - 1)];
+      const start = points[index];
+      const end = points[index + 1];
+      const after = points[Math.min(points.length - 1, index + 2)];
+      this.cubicTo(
+        start.x + (end.x - before.x) * scale,
+        start.y + (end.y - before.y) * scale,
+        end.x - (after.x - start.x) * scale,
+        end.y - (after.y - start.y) * scale,
+        end.x,
+        end.y,
+      );
+    }
     return this;
   }
 
@@ -104,10 +151,12 @@ export class PathBuilder {
       lineJoin: paint.lineJoin ?? "miter",
       miterLimit: positive("miterLimit", paint.miterLimit ?? 4),
     });
-    const byteLength = HEADER_SIZE + this.#commands.reduce(
-      (size, command) => size + 4 + (command.length - 1) * 4,
-      0,
-    );
+    const byteLength =
+      HEADER_SIZE +
+      this.#commands.reduce(
+        (size, command) => size + 4 + (command.length - 1) * 4,
+        0,
+      );
     if (byteLength > MAX_PATH_BYTES)
       throw new RangeError("vector path exceeds the 16 MiB protocol limit");
     const data = new Uint8Array(byteLength);
@@ -121,8 +170,14 @@ export class PathBuilder {
     view.setUint32(20, resolved.stroke, true);
     view.setFloat32(24, resolved.strokeWidth, true);
     view.setUint8(28, resolved.fillRule === "evenodd" ? 1 : 0);
-    view.setUint8(29, resolved.lineCap === "round" ? 1 : resolved.lineCap === "square" ? 2 : 0);
-    view.setUint8(30, resolved.lineJoin === "round" ? 1 : resolved.lineJoin === "bevel" ? 2 : 0);
+    view.setUint8(
+      29,
+      resolved.lineCap === "round" ? 1 : resolved.lineCap === "square" ? 2 : 0,
+    );
+    view.setUint8(
+      30,
+      resolved.lineJoin === "round" ? 1 : resolved.lineJoin === "bevel" ? 2 : 0,
+    );
     view.setUint8(31, 0);
     view.setFloat32(32, resolved.miterLimit, true);
     let offset = HEADER_SIZE;
@@ -136,6 +191,7 @@ export class PathBuilder {
     }
     return Object.freeze({
       kind: "wabou-vector-path" as const,
+      drawable: this.#drawable,
       get data() {
         return data.slice();
       },
@@ -148,6 +204,7 @@ export function isVectorPath(value: unknown): value is VectorPath {
     typeof value === "object" &&
     value !== null &&
     (value as { kind?: unknown }).kind === "wabou-vector-path" &&
+    typeof (value as { drawable?: unknown }).drawable === "boolean" &&
     (value as { data?: unknown }).data instanceof Uint8Array
   );
 }

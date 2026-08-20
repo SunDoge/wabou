@@ -49,16 +49,27 @@ pub(super) fn prepare_artifact_dir(directory: &Path) -> Result<()> {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "action", rename_all_fields = "camelCase", deny_unknown_fields)]
 enum ReplayAction {
+    #[serde(rename = "respondToEffect")]
+    RespondToEffect {
+        operation: ReplayEffectOperation,
+        result: Value,
+    },
     #[serde(rename = "nativeClose")]
     NativeClose {
-        window_id: u64,
+        window_id: ReplayWindowId,
         platform: ReplayPlatform,
     },
     #[serde(rename = "showWindow")]
-    ShowWindow { window_id: u64 },
+    ShowWindow { window_id: ReplayWindowId },
+    #[serde(rename = "resizeWindow")]
+    ResizeWindow {
+        window_id: ReplayWindowId,
+        width: u64,
+        height: u64,
+    },
     #[serde(rename = "clickByRole")]
     ClickByRole {
-        window_id: u64,
+        window_id: ReplayWindowId,
         role: ReplayRole,
         label: String,
         #[serde(default)]
@@ -68,7 +79,7 @@ enum ReplayAction {
     },
     #[serde(rename = "inputByRole")]
     InputByRole {
-        window_id: u64,
+        window_id: ReplayWindowId,
         role: ReplayRole,
         label: String,
         #[serde(default)]
@@ -79,7 +90,7 @@ enum ReplayAction {
     },
     #[serde(rename = "waitForByRole")]
     WaitForByRole {
-        window_id: u64,
+        window_id: ReplayWindowId,
         role: ReplayRole,
         label: String,
         #[serde(default)]
@@ -88,7 +99,7 @@ enum ReplayAction {
     },
     #[serde(rename = "assertByRole")]
     AssertByRole {
-        window_id: u64,
+        window_id: ReplayWindowId,
         role: ReplayRole,
         label: String,
         #[serde(default)]
@@ -98,10 +109,30 @@ enum ReplayAction {
     },
     #[serde(rename = "assertWindowState")]
     AssertWindowState {
-        window_id: u64,
+        window_id: ReplayWindowId,
         expected: ReplayWindowState,
         wait: ReplayWait,
     },
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum ReplayEffectOperation {
+    ClipboardRead,
+    ClipboardWrite,
+    ContextMenuShow,
+    DialogOpen,
+    DialogSave,
+    DialogPickDirectory,
+    DialogMessage,
+    NotificationShow,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(untagged)]
+enum ReplayWindowId {
+    Parts { lo: u32, hi: u32 },
+    Legacy(u64),
 }
 
 #[derive(Debug, Deserialize)]
@@ -154,6 +185,8 @@ enum ReplayRole {
 struct ReplayWait {
     timeout: f64,
     interval: f64,
+    #[serde(default, rename = "stableFor")]
+    stable_for: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -199,6 +232,9 @@ enum ReplayLocatorAssertion {
     Selected {
         expected: bool,
     },
+    Current {
+        expected: Option<ReplayLocatorCurrent>,
+    },
     Expanded {
         expected: bool,
     },
@@ -210,6 +246,13 @@ enum ReplayLocatorAssertion {
     },
     Bounds {
         expected: ReplayBounds,
+        tolerance: f64,
+    },
+    WithinBounds {
+        expected: ReplayContainingBounds,
+        tolerance: f64,
+    },
+    Viewport {
         tolerance: f64,
     },
 }
@@ -229,6 +272,15 @@ struct ReplayBounds {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReplayContainingBounds {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ReplayNumericRange {
     #[serde(default)]
     value: Option<f64>,
@@ -243,6 +295,18 @@ struct ReplayNumericRange {
 enum ReplayToggleState {
     Boolean(bool),
     Mixed(ReplayMixedState),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ReplayLocatorCurrent {
+    #[serde(rename = "true")]
+    True,
+    Page,
+    Step,
+    Location,
+    Date,
+    Time,
 }
 
 #[derive(Debug, Deserialize)]
@@ -279,7 +343,11 @@ fn validate_index(index: Option<u64>) -> std::result::Result<(), String> {
 
 impl ReplayAction {
     fn validate(&self) -> std::result::Result<(), String> {
+        if let Self::RespondToEffect { operation, result } = self {
+            return operation.validate(result);
+        }
         let (window_id, wait) = match self {
+            Self::RespondToEffect { .. } => unreachable!(),
             Self::NativeClose {
                 window_id,
                 platform,
@@ -288,6 +356,21 @@ impl ReplayAction {
                 (*window_id, None)
             }
             Self::ShowWindow { window_id } => (*window_id, None),
+            Self::ResizeWindow {
+                window_id,
+                width,
+                height,
+            } => {
+                for (name, value) in [("width", width), ("height", height)] {
+                    if *value == 0 || *value > u64::from(u32::MAX) {
+                        return Err(format!(
+                            "{name} must be an integer between 1 and {}",
+                            u32::MAX
+                        ));
+                    }
+                }
+                (*window_id, None)
+            }
             Self::ClickByRole {
                 window_id,
                 role,
@@ -348,15 +431,45 @@ impl ReplayAction {
                 (*window_id, Some(wait))
             }
         };
-        if window_id == 0 || window_id > MAX_SAFE_JAVASCRIPT_INTEGER {
-            return Err(format!(
-                "windowId must be an integer between 1 and {MAX_SAFE_JAVASCRIPT_INTEGER}"
-            ));
-        }
+        window_id.validate()?;
         if let Some(wait) = wait {
             wait.validate()?;
         }
         Ok(())
+    }
+}
+
+impl ReplayWindowId {
+    fn validate(self) -> std::result::Result<(), String> {
+        let valid = match self {
+            Self::Parts { lo, hi } => lo != 0 && hi & 1 == 1,
+            Self::Legacy(value) => value != 0 && value <= MAX_SAFE_JAVASCRIPT_INTEGER,
+        };
+        valid.then_some(()).ok_or_else(|| {
+            "windowId must be a {lo,hi} key with a non-zero slot and odd generation".to_owned()
+        })
+    }
+}
+
+impl ReplayEffectOperation {
+    fn validate(self, result: &Value) -> std::result::Result<(), String> {
+        let valid = match self {
+            Self::ClipboardRead | Self::ContextMenuShow => result.is_null() || result.is_string(),
+            Self::ClipboardWrite | Self::NotificationShow => result.is_null(),
+            Self::DialogOpen | Self::DialogSave | Self::DialogPickDirectory => {
+                result.is_null()
+                    || result
+                        .as_array()
+                        .is_some_and(|paths| paths.iter().all(Value::is_string))
+            }
+            Self::DialogMessage => matches!(
+                result.as_str(),
+                Some("ok" | "cancel" | "yes" | "no" | "custom")
+            ),
+        };
+        valid
+            .then_some(())
+            .ok_or_else(|| format!("invalid response for native effect fixture {self:?}"))
     }
 }
 
@@ -365,10 +478,14 @@ impl ReplayWait {
         for (name, value) in [
             ("wait.timeout", self.timeout),
             ("wait.interval", self.interval),
+            ("wait.stableFor", self.stable_for),
         ] {
             if !value.is_finite() || value < 0.0 {
                 return Err(format!("{name} must be a finite non-negative number"));
             }
+        }
+        if self.stable_for > self.timeout {
+            return Err("wait.stableFor cannot exceed wait.timeout".into());
         }
         Ok(())
     }
@@ -446,6 +563,9 @@ impl ReplayLocatorAssertion {
                     let _ = value;
                 }
             },
+            Self::Current { expected } => {
+                let _ = expected;
+            }
             Self::Bounds {
                 expected,
                 tolerance,
@@ -460,6 +580,31 @@ impl ReplayLocatorAssertion {
                 if !tolerance.is_finite() || *tolerance < 0.0 {
                     return Err(
                         "bounds assertion tolerance must be a finite non-negative number".into(),
+                    );
+                }
+            }
+            Self::WithinBounds {
+                expected,
+                tolerance,
+            } => {
+                let values = [expected.x, expected.y, expected.width, expected.height];
+                if values.into_iter().any(|value| !value.is_finite()) {
+                    return Err("containing bounds must contain finite numbers".into());
+                }
+                if expected.width < 0.0 || expected.height < 0.0 {
+                    return Err("containing bounds width and height cannot be negative".into());
+                }
+                if !tolerance.is_finite() || *tolerance < 0.0 {
+                    return Err(
+                        "locator containing bounds tolerance must be a finite non-negative number"
+                            .into(),
+                    );
+                }
+            }
+            Self::Viewport { tolerance } => {
+                if !tolerance.is_finite() || *tolerance < 0.0 {
+                    return Err(
+                        "locator viewport tolerance must be a finite non-negative number".into(),
                     );
                 }
             }

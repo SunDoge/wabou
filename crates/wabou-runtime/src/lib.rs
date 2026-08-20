@@ -40,13 +40,17 @@ pub mod widget_api;
 pub use applier::{Applier, ComputedNodeSnapshot, HmrDrainResult, ReloadHandle, ReloadMsg};
 pub use config::AppConfig;
 pub use error::{Error, Result};
-pub use host::{HostBuilder, HostService};
+pub use host::{
+    HostBuilder, HostService, HostServiceContext, HostServiceHandle, ManagedHostService,
+    managed_host_service,
+};
 pub use host_frame::{
     HostEvent, HostFrameError, HostNodeEvent, NodeEventPayload, ResizeObservation,
 };
 pub use host_message::{
     DEFAULT_HOST_MESSAGE_CAPACITY, HostMessage, HostMessageContext, HostMessageError,
-    HostMessageHandle, HostMessagePayload, MAX_HOST_MESSAGES_PER_FRAME,
+    HostMessageHandle, HostMessagePayload, HostMessageRouter, MAX_HOST_MESSAGES_PER_FRAME,
+    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
 };
 pub use json_capability::JsonCapability;
 pub use jsrt::JsRuntime;
@@ -56,7 +60,7 @@ pub use rquickjs;
 pub use vello;
 pub use wabou_shell::{
     AppDirectories, AppDirectoryConfig, ExtensionContext, FrameSource, FrameSourceFactory,
-    ShellExtension, TextContext, WindowMetrics, WindowOptions, WindowResourceKey,
+    RunOutcome, ShellExtension, TextContext, WindowMetrics, WindowOptions, WindowResourceKey,
     initial_window_resource_key, run_window, run_window_with_options, run_window_with_size,
     run_windows, run_windows_with_factory, run_windows_with_factory_and_extensions, style,
 };

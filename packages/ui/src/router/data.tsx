@@ -285,6 +285,37 @@ export function useLocation(): Accessor<AnyRouter["state"]["location"]> {
   return createMemo(() => router.state.location);
 }
 
+export interface RouteActiveOptions {
+  /** Match only this path instead of descendant routes. Defaults to true for `/`. */
+  exact?: boolean;
+  /** Include the target's search parameters in the match. Defaults to false. */
+  includeSearch?: boolean;
+  /** Match the pending destination while navigation is loading. */
+  pending?: boolean;
+}
+
+/**
+ * Reactively report whether a native router destination is active.
+ *
+ * This delegates path, base-path, parameter, and trailing-slash behavior to
+ * Router Core instead of duplicating pathname comparisons in navigation UI.
+ */
+export function useRouteActive(
+  to: string,
+  options: RouteActiveOptions = {},
+): Accessor<boolean> {
+  const router = requireDataRouter();
+  const exact = options.exact ?? to === "/";
+  return createMemo(
+    () =>
+      router.matchRoute({ to } as never, {
+        fuzzy: !exact,
+        includeSearch: options.includeSearch ?? false,
+        pending: options.pending,
+      }) !== false,
+  );
+}
+
 export function useParams<
   T extends Record<string, string> = Record<string, string>,
 >(): Accessor<T> {

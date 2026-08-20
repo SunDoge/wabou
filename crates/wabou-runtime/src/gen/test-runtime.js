@@ -513,7 +513,7 @@
     });
   }
 
-  class AbortController {
+  class AbortController2 {
     constructor() {
       signals.set(this, createAbortSignal());
     }
@@ -532,17 +532,17 @@
     }
     return signal;
   }
-  Object.defineProperties(AbortController.prototype, {
+  Object.defineProperties(AbortController2.prototype, {
     signal: { enumerable: true },
     abort: { enumerable: true }
   });
   if (typeof Symbol === "function" && typeof Symbol.toStringTag === "symbol") {
-    Object.defineProperty(AbortController.prototype, Symbol.toStringTag, {
+    Object.defineProperty(AbortController2.prototype, Symbol.toStringTag, {
       configurable: true,
       value: "AbortController"
     });
   }
-  var abort_controller_default = AbortController;
+  var abort_controller_default = AbortController2;
 
   // packages/core/src/polyfills/abort-controller.ts
   function installAbortControllerPolyfill() {
@@ -4658,110 +4658,6 @@
       console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
   }
 
-  // packages/core/src/vector-path.ts
-  var PATH_MAGIC = 827343447;
-  var PATH_VERSION = 1;
-  var HEADER_SIZE = 36;
-  var MAX_PATH_BYTES = 16 * 1024 * 1024;
-  var COMMAND = {
-    MoveTo: 1,
-    LineTo: 2,
-    QuadTo: 3,
-    CubicTo: 4,
-    Close: 5
-  };
-  function finite(name, values) {
-    if (!values.every(Number.isFinite))
-      throw new RangeError(`${name} requires finite coordinates`);
-  }
-  function rgba(value, fallback) {
-    if (value === undefined)
-      return fallback;
-    if (!Number.isInteger(value) || value < 0 || value > 4294967295)
-      throw new RangeError("path colors must be packed 32-bit RGBA values");
-    return value >>> 0;
-  }
-  function positive(name, value) {
-    if (!Number.isFinite(value) || value <= 0)
-      throw new RangeError(`${name} must be a positive finite number`);
-    return value;
-  }
-
-  class PathBuilder {
-    #commands = [];
-    moveTo(x, y) {
-      finite("moveTo", [x, y]);
-      this.#commands.push([COMMAND.MoveTo, x, y]);
-      return this;
-    }
-    lineTo(x, y) {
-      finite("lineTo", [x, y]);
-      this.#commands.push([COMMAND.LineTo, x, y]);
-      return this;
-    }
-    quadTo(cx, cy, x, y) {
-      finite("quadTo", [cx, cy, x, y]);
-      this.#commands.push([COMMAND.QuadTo, cx, cy, x, y]);
-      return this;
-    }
-    cubicTo(c1x, c1y, c2x, c2y, x, y) {
-      finite("cubicTo", [c1x, c1y, c2x, c2y, x, y]);
-      this.#commands.push([COMMAND.CubicTo, c1x, c1y, c2x, c2y, x, y]);
-      return this;
-    }
-    close() {
-      this.#commands.push([COMMAND.Close]);
-      return this;
-    }
-    build(paint = {}) {
-      const resolved = Object.freeze({
-        fill: rgba(paint.fill, 0),
-        stroke: rgba(paint.stroke, 0),
-        strokeWidth: positive("strokeWidth", paint.strokeWidth ?? 1),
-        fillRule: paint.fillRule ?? "nonzero",
-        lineCap: paint.lineCap ?? "butt",
-        lineJoin: paint.lineJoin ?? "miter",
-        miterLimit: positive("miterLimit", paint.miterLimit ?? 4)
-      });
-      const byteLength = HEADER_SIZE + this.#commands.reduce((size, command) => size + 4 + (command.length - 1) * 4, 0);
-      if (byteLength > MAX_PATH_BYTES)
-        throw new RangeError("vector path exceeds the 16 MiB protocol limit");
-      const data = new Uint8Array(byteLength);
-      const view = new DataView(data.buffer);
-      view.setUint32(0, PATH_MAGIC, true);
-      view.setUint16(4, PATH_VERSION, true);
-      view.setUint16(6, 0, true);
-      view.setUint32(8, this.#commands.length, true);
-      view.setUint32(12, byteLength, true);
-      view.setUint32(16, resolved.fill, true);
-      view.setUint32(20, resolved.stroke, true);
-      view.setFloat32(24, resolved.strokeWidth, true);
-      view.setUint8(28, resolved.fillRule === "evenodd" ? 1 : 0);
-      view.setUint8(29, resolved.lineCap === "round" ? 1 : resolved.lineCap === "square" ? 2 : 0);
-      view.setUint8(30, resolved.lineJoin === "round" ? 1 : resolved.lineJoin === "bevel" ? 2 : 0);
-      view.setUint8(31, 0);
-      view.setFloat32(32, resolved.miterLimit, true);
-      let offset = HEADER_SIZE;
-      for (const command of this.#commands) {
-        view.setUint8(offset, command[0]);
-        offset += 4;
-        for (let index = 1;index < command.length; index++) {
-          view.setFloat32(offset, command[index], true);
-          offset += 4;
-        }
-      }
-      return Object.freeze({
-        kind: "wabou-vector-path",
-        get data() {
-          return data.slice();
-        }
-      });
-    }
-  }
-  function isVectorPath(value) {
-    return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && value.data instanceof Uint8Array;
-  }
-
   // packages/core/src/style/generated/style-properties.ts
   var INLINE_STYLE_CONTRACT = {
     "align-content": {
@@ -5131,6 +5027,146 @@
     }
     throw new TypeError(`invalid inline style value for ${property}`);
   }
+  // packages/core/src/vector-path.ts
+  var PATH_MAGIC = 827343447;
+  var PATH_VERSION = 1;
+  var HEADER_SIZE = 36;
+  var MAX_PATH_BYTES = 16 * 1024 * 1024;
+  var COMMAND = {
+    MoveTo: 1,
+    LineTo: 2,
+    QuadTo: 3,
+    CubicTo: 4,
+    Close: 5
+  };
+  function finite(name, values) {
+    if (!values.every(Number.isFinite))
+      throw new RangeError(`${name} requires finite coordinates`);
+  }
+  function rgba(value, fallback) {
+    if (value === undefined)
+      return fallback;
+    if (!Number.isInteger(value) || value < 0 || value > 4294967295)
+      throw new RangeError("path colors must be packed 32-bit RGBA values");
+    return value >>> 0;
+  }
+  function positive(name, value) {
+    if (!Number.isFinite(value) || value <= 0)
+      throw new RangeError(`${name} must be a positive finite number`);
+    return value;
+  }
+
+  class PathBuilder {
+    #commands = [];
+    #hasSubpath = false;
+    #drawable = false;
+    get hasCurrentPoint() {
+      return this.#hasSubpath;
+    }
+    moveTo(x, y) {
+      finite("moveTo", [x, y]);
+      this.#commands.push([COMMAND.MoveTo, x, y]);
+      this.#hasSubpath = true;
+      return this;
+    }
+    lineTo(x, y) {
+      if (!this.#hasSubpath)
+        throw new TypeError("lineTo requires moveTo first");
+      finite("lineTo", [x, y]);
+      this.#commands.push([COMMAND.LineTo, x, y]);
+      this.#drawable = true;
+      return this;
+    }
+    quadTo(cx, cy, x, y) {
+      if (!this.#hasSubpath)
+        throw new TypeError("quadTo requires moveTo first");
+      finite("quadTo", [cx, cy, x, y]);
+      this.#commands.push([COMMAND.QuadTo, cx, cy, x, y]);
+      this.#drawable = true;
+      return this;
+    }
+    cubicTo(c1x, c1y, c2x, c2y, x, y) {
+      if (!this.#hasSubpath)
+        throw new TypeError("cubicTo requires moveTo first");
+      finite("cubicTo", [c1x, c1y, c2x, c2y, x, y]);
+      this.#commands.push([COMMAND.CubicTo, c1x, c1y, c2x, c2y, x, y]);
+      this.#drawable = true;
+      return this;
+    }
+    close() {
+      if (!this.#hasSubpath)
+        throw new TypeError("close requires moveTo first");
+      this.#commands.push([COMMAND.Close]);
+      this.#hasSubpath = false;
+      return this;
+    }
+    splineThrough(points, tension = 1) {
+      finite("splineThrough tension", [tension]);
+      if (points.length === 0)
+        return this;
+      this.moveTo(points[0].x, points[0].y);
+      if (points.length === 1)
+        return this;
+      const scale = tension / 6;
+      for (let index = 0;index < points.length - 1; index++) {
+        const before = points[Math.max(0, index - 1)];
+        const start = points[index];
+        const end = points[index + 1];
+        const after = points[Math.min(points.length - 1, index + 2)];
+        this.cubicTo(start.x + (end.x - before.x) * scale, start.y + (end.y - before.y) * scale, end.x - (after.x - start.x) * scale, end.y - (after.y - start.y) * scale, end.x, end.y);
+      }
+      return this;
+    }
+    build(paint = {}) {
+      const resolved = Object.freeze({
+        fill: rgba(paint.fill, 0),
+        stroke: rgba(paint.stroke, 0),
+        strokeWidth: positive("strokeWidth", paint.strokeWidth ?? 1),
+        fillRule: paint.fillRule ?? "nonzero",
+        lineCap: paint.lineCap ?? "butt",
+        lineJoin: paint.lineJoin ?? "miter",
+        miterLimit: positive("miterLimit", paint.miterLimit ?? 4)
+      });
+      const byteLength = HEADER_SIZE + this.#commands.reduce((size, command) => size + 4 + (command.length - 1) * 4, 0);
+      if (byteLength > MAX_PATH_BYTES)
+        throw new RangeError("vector path exceeds the 16 MiB protocol limit");
+      const data = new Uint8Array(byteLength);
+      const view = new DataView(data.buffer);
+      view.setUint32(0, PATH_MAGIC, true);
+      view.setUint16(4, PATH_VERSION, true);
+      view.setUint16(6, 0, true);
+      view.setUint32(8, this.#commands.length, true);
+      view.setUint32(12, byteLength, true);
+      view.setUint32(16, resolved.fill, true);
+      view.setUint32(20, resolved.stroke, true);
+      view.setFloat32(24, resolved.strokeWidth, true);
+      view.setUint8(28, resolved.fillRule === "evenodd" ? 1 : 0);
+      view.setUint8(29, resolved.lineCap === "round" ? 1 : resolved.lineCap === "square" ? 2 : 0);
+      view.setUint8(30, resolved.lineJoin === "round" ? 1 : resolved.lineJoin === "bevel" ? 2 : 0);
+      view.setUint8(31, 0);
+      view.setFloat32(32, resolved.miterLimit, true);
+      let offset = HEADER_SIZE;
+      for (const command of this.#commands) {
+        view.setUint8(offset, command[0]);
+        offset += 4;
+        for (let index = 1;index < command.length; index++) {
+          view.setFloat32(offset, command[index], true);
+          offset += 4;
+        }
+      }
+      return Object.freeze({
+        kind: "wabou-vector-path",
+        drawable: this.#drawable,
+        get data() {
+          return data.slice();
+        }
+      });
+    }
+  }
+  function isVectorPath(value) {
+    return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && typeof value.drawable === "boolean" && value.data instanceof Uint8Array;
+  }
+
   // node_modules/.bun/@solidjs+universal@2.0.0-rc.0+6b48b9f3356e564b/node_modules/@solidjs/universal/dist/dev.js
   var transparentOptions = {
     transparent: true,
@@ -5706,9 +5742,12 @@
       if (node.tag === "vector-path") {
         if (value == null || value === false)
           writer.clearGraphicData(node.id, GRAPHIC_DATA.VectorPath);
-        else if (isVectorPath(value))
-          writer.setGraphicData(node.id, GRAPHIC_DATA.VectorPath, value.data);
-        else
+        else if (isVectorPath(value)) {
+          if (value.drawable)
+            writer.setGraphicData(node.id, GRAPHIC_DATA.VectorPath, value.data);
+          else
+            writer.clearGraphicData(node.id, GRAPHIC_DATA.VectorPath);
+        } else
           throw new TypeError("invalid native vector path source");
         return;
       }
@@ -6058,17 +6097,27 @@
       const fn = m?.get(code);
       if (fn) {
         try {
-          fn(ev);
+          const result = fn(ev);
+          if (isPromiseLike(result)) {
+            const current = cur;
+            Promise.resolve(result).then(undefined, (error) => logEventHandlerFailure(code, current, nodeId, error));
+          }
         } catch (e) {
-          const detail = e && typeof e === "object" && "stack" in e ? String(e.stack ?? e) : String(e);
-          __wabou_log("error", `[wabou-event] ${eventName(code)} handler failed at node ${formatNodeKey(cur)} (target ${formatNodeKey(nodeId)})
-${detail}`);
+          logEventHandlerFailure(code, cur, nodeId, e);
         }
       }
       if (ev.propagationStopped)
         return;
       cur = derefHandle(cur)?.parent?.id ?? null;
     }
+  }
+  function isPromiseLike(value) {
+    return value !== null && (typeof value === "object" || typeof value === "function") && typeof value.then === "function";
+  }
+  function logEventHandlerFailure(code, current, target, error) {
+    const detail = error && typeof error === "object" && "stack" in error ? String(error.stack ?? error) : String(error);
+    __wabou_log("error", `[wabou-event] ${eventName(code)} handler failed at node ${formatNodeKey(current)} (target ${formatNodeKey(target)})
+${detail}`);
   }
   function eventName(code) {
     for (const [name, c] of Object.entries(EVENT_CODE)) {
@@ -6222,6 +6271,7 @@ ${detail}`);
   // packages/core/src/glue/host-messages.ts
   var listeners = new Map;
   var allListeners = new Set;
+  var utf8 = new TextDecoder;
   function subscribe(topic, handler) {
     let set = listeners.get(topic);
     if (!set) {
@@ -6234,6 +6284,22 @@ ${detail}`);
       if (set.size === 0)
         listeners.delete(topic);
     };
+  }
+  function subscribeJson(topic, handler, options = {}) {
+    return subscribe(topic, (payload) => {
+      try {
+        const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : undefined;
+        if (source === undefined)
+          throw new TypeError(`host message "${topic}" does not contain JSON text`);
+        const parsed = JSON.parse(source);
+        handler(options.decode ? options.decode(parsed) : parsed);
+      } catch (error) {
+        if (options.onError)
+          options.onError(error, payload);
+        else
+          console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
+      }
+    });
   }
   function dispatchHostMessage(topic, payload) {
     const set = listeners.get(topic);
@@ -6445,7 +6511,7 @@ ${detail}`);
   }
 
   // packages/core/src/generated/effect-abi.ts
-  var EFFECT_ABI_VERSION = 4;
+  var EFFECT_ABI_VERSION = 5;
   var effectOps = Object.freeze({
     clipboardRead: { capability: 1, method: 1 },
     clipboardWrite: { capability: 1, method: 2 },
@@ -6462,7 +6528,8 @@ ${detail}`);
     dialogPickDirectory: { capability: 5, method: 3 },
     dialogMessage: { capability: 5, method: 4 },
     notificationShow: { capability: 6, method: 1 },
-    applicationExit: { capability: 7, method: 1 }
+    applicationExit: { capability: 7, method: 1 },
+    applicationRelaunch: { capability: 7, method: 2 }
   });
   // packages/core/src/glue/effects.ts
   var pending = new Map;
@@ -6554,11 +6621,34 @@ ${detail}`);
     colorScheme: "light"
   };
   var [metrics, setMetrics] = createSignal2(initial, { equals: false });
-  subscribe("wabou:window-metrics", (payload) => {
-    if (typeof payload !== "string")
-      return;
-    const next = JSON.parse(payload);
-    setMetrics({ ...next, windowId: windowKeyFromJSON(next.windowId) });
+  function decodeWindowMetrics(value) {
+    if (typeof value !== "object" || value === null)
+      throw new TypeError("window metrics must be an object");
+    const next = value;
+    const finiteNumber = (field) => {
+      const number = next[field];
+      if (typeof number !== "number" || !Number.isFinite(number))
+        throw new TypeError(`window metrics ${field} must be a finite number`);
+      return number;
+    };
+    if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean")
+      throw new TypeError("window metrics flags must be booleans");
+    if (next.colorScheme !== null && next.colorScheme !== "light" && next.colorScheme !== "dark")
+      throw new TypeError("window metrics colorScheme is invalid");
+    return {
+      windowId: windowKeyFromJSON(next.windowId),
+      logicalWidth: finiteNumber("logicalWidth"),
+      logicalHeight: finiteNumber("logicalHeight"),
+      physicalWidth: finiteNumber("physicalWidth"),
+      physicalHeight: finiteNumber("physicalHeight"),
+      scaleFactor: finiteNumber("scaleFactor"),
+      maximized: next.maximized,
+      focused: next.focused,
+      colorScheme: next.colorScheme
+    };
+  }
+  subscribeJson("wabou:window-metrics", setMetrics, {
+    decode: decodeWindowMetrics
   });
   var state = {
     get id() {
@@ -6614,7 +6704,8 @@ ${detail}`);
 
   // packages/core/src/glue/application.ts
   var application = Object.freeze({
-    exit: () => dispatchFireAndForget(effectOps.applicationExit)
+    exit: () => dispatchFireAndForget(effectOps.applicationExit),
+    relaunch: () => dispatchFireAndForget(effectOps.applicationRelaunch)
   });
 
   // packages/core/src/glue/dialog.ts

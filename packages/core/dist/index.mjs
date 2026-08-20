@@ -1,9 +1,10 @@
 import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, m as NodeKeyTable, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-B5PLhBe8.mjs";
-import { A as Portal, C as runSweep, D as writer, E as spread, F as isVectorPath, M as defaultHost, N as useHost, O as VirtualList, P as PathBuilder, S as render, T as setTransform2D, _ as mount, a as createElement, b as releaseOverlayRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as mergeProps, h as memo, i as createComponent, j as HostProvider, k as createFps, l as effect, m as isServer, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as ref, w as setProp, x as removeNode, y as registerRoot } from "./renderer-EI5N2oES.mjs";
 import { a as bool, c as number, d as rgba, f as rotate2d, g as INLINE_STYLE_CONTRACT, h as translate2d, i as auto, l as percent, m as shadow, n as StyleValueKind, o as classes, p as scale2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-D3b6x0_C.mjs";
+import { A as createFps, C as render, D as spread, E as setTransform2D, F as PathBuilder, I as isVectorPath, M as HostProvider, N as defaultHost, O as writer, P as useHost, S as removeNode, T as setProp, _ as mergeProps, a as createElement, b as registerRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as Portal, k as VirtualList, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as runSweep, x as releaseOverlayRoot, y as ref } from "./renderer-DSjeItPz.mjs";
+import { n as effectOps } from "./effect-abi-BOekrNqF.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
-import { createComponent as createComponent$1, createContext, createEffect, createSignal, flush, getOwner, onCleanup, useContext } from "solid-js";
+import { createComponent as createComponent$1, createContext, createEffect, createSignal, flush, getOwner, onCleanup, untrack, useContext } from "solid-js";
 //#region src/polyfills/abort-controller.ts
 /** Install cancellation primitives when the embedding runtime lacks them. */
 function installAbortControllerPolyfill() {
@@ -273,6 +274,7 @@ globalThis.ResizeObserver = WabouResizeObserver;
 //#region src/glue/host-messages.ts
 const listeners = /* @__PURE__ */ new Map();
 const allListeners = /* @__PURE__ */ new Set();
+const utf8 = new TextDecoder();
 /**
 * Subscribe to host messages on `topic`.
 * Returns an unsubscribe function.
@@ -296,6 +298,20 @@ function subscribeAll(handler) {
 		allListeners.delete(handler);
 	};
 }
+/** Subscribe to a host topic carrying JSON text or UTF-8 bytes. */
+function subscribeJson(topic, handler, options = {}) {
+	return subscribe(topic, (payload) => {
+		try {
+			const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : void 0;
+			if (source === void 0) throw new TypeError(`host message "${topic}" does not contain JSON text`);
+			const parsed = JSON.parse(source);
+			handler(options.decode ? options.decode(parsed) : parsed);
+		} catch (error) {
+			if (options.onError) options.onError(error, payload);
+			else console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
+		}
+	});
+}
 function dispatchHostMessage(topic, payload) {
 	const set = listeners.get(topic);
 	if (set) for (const handler of set) try {
@@ -311,7 +327,8 @@ function dispatchHostMessage(topic, payload) {
 }
 const hostMessages = {
 	subscribe,
-	subscribeAll
+	subscribeAll,
+	subscribeJson
 };
 //#endregion
 //#region src/glue/host-frame.ts
@@ -503,78 +520,10 @@ function usePlatformServices() {
 	return getOwner() ? useContext(PlatformContext) : {};
 }
 //#endregion
-//#region src/generated/effect-abi.ts
-const effectOps = Object.freeze({
-	clipboardRead: {
-		capability: 1,
-		method: 1
-	},
-	clipboardWrite: {
-		capability: 1,
-		method: 2
-	},
-	windowCreate: {
-		capability: 2,
-		method: 1
-	},
-	windowClose: {
-		capability: 2,
-		method: 2
-	},
-	windowSetMaximized: {
-		capability: 2,
-		method: 3
-	},
-	windowSetTitle: {
-		capability: 2,
-		method: 4
-	},
-	windowMinimize: {
-		capability: 2,
-		method: 5
-	},
-	windowStartDragging: {
-		capability: 2,
-		method: 6
-	},
-	contextMenuShow: {
-		capability: 3,
-		method: 1
-	},
-	appDirsResolve: {
-		capability: 4,
-		method: 1
-	},
-	dialogOpen: {
-		capability: 5,
-		method: 1
-	},
-	dialogSave: {
-		capability: 5,
-		method: 2
-	},
-	dialogPickDirectory: {
-		capability: 5,
-		method: 3
-	},
-	dialogMessage: {
-		capability: 5,
-		method: 4
-	},
-	notificationShow: {
-		capability: 6,
-		method: 1
-	},
-	applicationExit: {
-		capability: 7,
-		method: 1
-	}
-});
-//#endregion
 //#region src/glue/effects.ts
 const pending = /* @__PURE__ */ new Map();
 function assertAbi() {
-	if (__wabou_effect_abi !== 4) throw new Error(`Wabou effect ABI mismatch: bundle=4, host=${__wabou_effect_abi}`);
+	if (__wabou_effect_abi !== 5) throw new Error(`Wabou effect ABI mismatch: bundle=5, host=${__wabou_effect_abi}`);
 }
 function submit(op, payload) {
 	assertAbi();
@@ -685,14 +634,29 @@ const initial = {
 	colorScheme: "light"
 };
 const [metrics, setMetrics] = createSignal(initial, { equals: false });
-subscribe("wabou:window-metrics", (payload) => {
-	if (typeof payload !== "string") return;
-	const next = JSON.parse(payload);
-	setMetrics({
-		...next,
-		windowId: windowKeyFromJSON(next.windowId)
-	});
-});
+function decodeWindowMetrics(value) {
+	if (typeof value !== "object" || value === null) throw new TypeError("window metrics must be an object");
+	const next = value;
+	const finiteNumber = (field) => {
+		const number = next[field];
+		if (typeof number !== "number" || !Number.isFinite(number)) throw new TypeError(`window metrics ${field} must be a finite number`);
+		return number;
+	};
+	if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean") throw new TypeError("window metrics flags must be booleans");
+	if (next.colorScheme !== null && next.colorScheme !== "light" && next.colorScheme !== "dark") throw new TypeError("window metrics colorScheme is invalid");
+	return {
+		windowId: windowKeyFromJSON(next.windowId),
+		logicalWidth: finiteNumber("logicalWidth"),
+		logicalHeight: finiteNumber("logicalHeight"),
+		physicalWidth: finiteNumber("physicalWidth"),
+		physicalHeight: finiteNumber("physicalHeight"),
+		scaleFactor: finiteNumber("scaleFactor"),
+		maximized: next.maximized,
+		focused: next.focused,
+		colorScheme: next.colorScheme
+	};
+}
+subscribeJson("wabou:window-metrics", setMetrics, { decode: decodeWindowMetrics });
 const state = {
 	get id() {
 		return metrics().windowId;
@@ -716,25 +680,22 @@ function useWindow() {
 }
 //#endregion
 //#region src/glue/file-drop.ts
-function decodeFileDrop(payload) {
-	if (typeof payload !== "string") return null;
-	const value = JSON.parse(payload);
-	if (value.phase !== "entered" && value.phase !== "moved" && value.phase !== "left" && value.phase !== "dropped") return null;
-	if (!Array.isArray(value.paths) || !value.paths.every((path) => typeof path === "string")) return null;
-	const position = value.position;
-	if (position !== null && (typeof position !== "object" || typeof position.x !== "number" || typeof position.y !== "number")) return null;
+function decodeFileDrop(value) {
+	if (typeof value !== "object" || value === null) throw new TypeError("file drop event must be an object");
+	const event = value;
+	if (event.phase !== "entered" && event.phase !== "moved" && event.phase !== "left" && event.phase !== "dropped") throw new TypeError("file drop event has an invalid phase");
+	if (!Array.isArray(event.paths) || !event.paths.every((path) => typeof path === "string")) throw new TypeError("file drop event paths must be strings");
+	const position = event.position;
+	if (position !== null && (typeof position !== "object" || typeof position.x !== "number" || typeof position.y !== "number")) throw new TypeError("file drop event position must be logical coordinates");
 	return {
-		phase: value.phase,
-		paths: value.paths,
+		phase: event.phase,
+		paths: event.paths,
 		position: position ?? null
 	};
 }
 /** Subscribe to native file drag-and-drop events for the current window. */
 function subscribeFileDrop(handler) {
-	return subscribe("wabou:file-drop", (payload) => {
-		const event = decodeFileDrop(payload);
-		if (event) handler(event);
-	});
+	return subscribeJson("wabou:file-drop", handler, { decode: decodeFileDrop });
 }
 /**
 * Subscribe for the lifetime of the current Solid owner.
@@ -779,7 +740,10 @@ const resourceDir = appDirs.resource;
 const tempDir = appDirs.temp;
 //#endregion
 //#region src/glue/application.ts
-const application = Object.freeze({ exit: () => dispatchFireAndForget(effectOps.applicationExit) });
+const application = Object.freeze({
+	exit: () => dispatchFireAndForget(effectOps.applicationExit),
+	relaunch: () => dispatchFireAndForget(effectOps.applicationRelaunch)
+});
 //#endregion
 //#region src/glue/dialog.ts
 function normalizeFilters(filters) {
@@ -846,6 +810,157 @@ const intl = Object.freeze({
 		return defaultHost.intl.today();
 	}
 });
+//#endregion
+//#region src/glue/async-action.ts
+/** A concurrent call tried to replace the arguments of an in-flight action. */
+var AsyncActionConflictError = class extends Error {
+	constructor() {
+		super("async action is already running with different arguments; use a keyed action for independent operations");
+		this.name = "AsyncActionConflictError";
+	}
+};
+/**
+* Run an imperative async operation as a single flight with explicit state.
+* Repeated calls with the same argument identities join the pending operation.
+* A call with different arguments returns [`AsyncActionConflictError`] rather
+* than silently discarding those arguments. Use `createKeyedAsyncAction` when
+* independently keyed operations should run concurrently.
+*/
+function createAsyncAction(action) {
+	const [pending, setPending] = createSignal(false);
+	const [error, setError] = createSignal();
+	let disposed = false;
+	let inFlight;
+	let inFlightArgs;
+	const run = (...args) => {
+		if (disposed) return Promise.resolve({
+			ok: false,
+			error: /* @__PURE__ */ new Error("cannot run a disposed async action")
+		});
+		if (inFlight) {
+			if (sameArguments(inFlightArgs, args)) return inFlight;
+			return Promise.resolve({
+				ok: false,
+				error: new AsyncActionConflictError()
+			});
+		}
+		setPending(true);
+		setError(void 0);
+		inFlightArgs = args;
+		inFlight = Promise.resolve().then(() => action(...args)).then((value) => ({
+			ok: true,
+			value
+		}), (cause) => {
+			if (!disposed) setError(cause);
+			return {
+				ok: false,
+				error: cause
+			};
+		}).finally(() => {
+			inFlight = void 0;
+			inFlightArgs = void 0;
+			if (!disposed) setPending(false);
+		});
+		return inFlight;
+	};
+	const reset = () => {
+		if (!disposed) setError(void 0);
+	};
+	if (getOwner()) onCleanup(() => {
+		disposed = true;
+		setPending(false);
+		setError(void 0);
+	});
+	return {
+		pending,
+		error,
+		run,
+		reset
+	};
+}
+function sameArguments(previous, next) {
+	return previous !== void 0 && previous.length === next.length && previous.every((value, index) => Object.is(value, next[index]));
+}
+/**
+* Run one async single-flight per stable key. Calls for the same key join the
+* existing operation, while unrelated keys remain independently concurrent.
+*/
+function createKeyedAsyncAction(keyOf, action) {
+	const [pendingKeys, setPendingKeys] = createSignal(/* @__PURE__ */ new Set());
+	const [errors, setErrors] = createSignal(/* @__PURE__ */ new Map());
+	const inFlight = /* @__PURE__ */ new Map();
+	let disposed = false;
+	const run = (...args) => {
+		if (disposed) return Promise.resolve({
+			ok: false,
+			error: /* @__PURE__ */ new Error("cannot run a disposed keyed async action")
+		});
+		let key;
+		try {
+			key = keyOf(...args);
+		} catch (error) {
+			return Promise.resolve({
+				ok: false,
+				error
+			});
+		}
+		const existing = inFlight.get(key);
+		if (existing) return existing;
+		setPendingKeys((current) => /* @__PURE__ */ new Set([...current, key]));
+		setErrors((current) => {
+			if (!current.has(key)) return current;
+			const next = new Map(current);
+			next.delete(key);
+			return next;
+		});
+		const request = Promise.resolve().then(() => action(...args)).then((value) => ({
+			ok: true,
+			value
+		}), (cause) => {
+			if (!disposed) setErrors((current) => new Map(current).set(key, cause));
+			return {
+				ok: false,
+				error: cause
+			};
+		}).finally(() => {
+			inFlight.delete(key);
+			if (!disposed) setPendingKeys((current) => {
+				if (!current.has(key)) return current;
+				const next = new Set(current);
+				next.delete(key);
+				return next;
+			});
+		});
+		inFlight.set(key, request);
+		return request;
+	};
+	const reset = (key) => {
+		if (disposed) return;
+		setErrors((current) => {
+			if (!current.has(key)) return current;
+			const next = new Map(current);
+			next.delete(key);
+			return next;
+		});
+	};
+	const resetAll = () => {
+		if (!disposed) setErrors(/* @__PURE__ */ new Map());
+	};
+	if (getOwner()) onCleanup(() => {
+		disposed = true;
+		inFlight.clear();
+		setPendingKeys(/* @__PURE__ */ new Set());
+		setErrors(/* @__PURE__ */ new Map());
+	});
+	return {
+		pendingKeys,
+		pending: (key) => pendingKeys().has(key),
+		error: (key) => errors().get(key),
+		run,
+		reset,
+		resetAll
+	};
+}
 //#endregion
 //#region src/glue/color-theme.tsx
 const [current, setCurrent] = createSignal();
@@ -1017,6 +1132,344 @@ function useColorTheme() {
 	return useContext(ColorThemeContext);
 }
 //#endregion
+//#region src/glue/event-effect.ts
+/**
+* Consume every new event from a retained feed exactly once and in sequence
+* order. This avoids losing events when several feed updates are batched into
+* one reactive notification.
+*/
+function createEventEffect(options) {
+	const initial = untrack(options.source);
+	let cursor = options.consumeInitial ? Number.NEGATIVE_INFINITY : latestSequence(initial, options.sequence);
+	createEffect(options.source, (events) => {
+		const pending = events.map((event) => ({
+			event,
+			sequence: options.sequence(event)
+		})).filter((candidate) => candidate.sequence > cursor).sort((left, right) => left.sequence - right.sequence);
+		for (const candidate of pending) {
+			if (candidate.sequence <= cursor) continue;
+			cursor = candidate.sequence;
+			try {
+				const result = options.onEvent(candidate.event);
+				if (isPromiseLike(result)) Promise.resolve(result).catch((error) => reportError(options, error, candidate.event, candidate.sequence));
+			} catch (error) {
+				reportError(options, error, candidate.event, candidate.sequence);
+			}
+		}
+	});
+}
+function isPromiseLike(value) {
+	return (typeof value === "object" || typeof value === "function") && value !== null && typeof value.then === "function";
+}
+function reportError(options, error, event, sequence) {
+	if (options.onError) try {
+		options.onError(error, event);
+		return;
+	} catch (reportingError) {
+		console.error(`[wabou-event-effect] onError failed for sequence ${sequence}`, reportingError);
+	}
+	console.error(`[wabou-event-effect] handler failed for sequence ${sequence}`, error);
+}
+function latestSequence(events, sequence) {
+	let latest = Number.NEGATIVE_INFINITY;
+	for (const event of events) latest = Math.max(latest, sequence(event));
+	return latest;
+}
+//#endregion
+//#region src/glue/host-resource.ts
+var RevisionedHostWaitError = class extends Error {
+	reason;
+	constructor(reason, message) {
+		super(message);
+		this.name = "RevisionedHostWaitError";
+		this.reason = reason;
+	}
+};
+/**
+* Keep a Solid value synchronized with a host-owned revisioned snapshot.
+*
+* A revision identifies the exact snapshot contents. After the first host
+* value, producers must increase it whenever those contents can change;
+* another payload with the same revision is treated as a duplicate.
+*
+* The initial RPC closes the subscription race by ignoring results older than
+* an already received host push. A patch whose base revision no longer
+* matches automatically falls back to one coalesced full refresh.
+*/
+function createRevisionedHostResource(options) {
+	const [value, setValue] = createSignal(options.initial, { equals: false });
+	const [loading, setLoading] = createSignal(false);
+	const [error, setError] = createSignal();
+	let disposed = false;
+	let refreshPromise;
+	let hostGeneration = 0;
+	let hasAcceptedHostValue = false;
+	const waiters = /* @__PURE__ */ new Set();
+	const removeWaiter = (waiter) => {
+		waiters.delete(waiter);
+		if (waiter.timer !== void 0) clearTimeout(waiter.timer);
+		if (waiter.signal && waiter.onAbort) waiter.signal.removeEventListener("abort", waiter.onAbort);
+	};
+	const rejectWaiter = (waiter, error) => {
+		removeWaiter(waiter);
+		waiter.reject(error);
+	};
+	const notifyWaiters = (next) => {
+		for (const waiter of [...waiters]) {
+			let matches;
+			try {
+				matches = waiter.predicate(next);
+			} catch (cause) {
+				rejectWaiter(waiter, cause instanceof Error ? cause : new Error(String(cause)));
+				continue;
+			}
+			if (matches) {
+				removeWaiter(waiter);
+				waiter.resolve(next);
+			}
+		}
+	};
+	const reportError = (next, source) => {
+		if (disposed) return;
+		setError(next);
+		options.onError?.(next, source);
+	};
+	const accept = (next, source) => {
+		if (disposed || next.revision < value().revision) return void 0;
+		if (hasAcceptedHostValue && next.revision === value().revision) {
+			setError(void 0);
+			return value();
+		}
+		hasAcceptedHostValue = true;
+		setError(void 0);
+		setValue(next);
+		options.onValue?.(next, source);
+		notifyWaiters(next);
+		return next;
+	};
+	const waitForPush = (predicate, waitOptions = {}) => {
+		if (disposed) return Promise.reject(new RevisionedHostWaitError("disposed", "revisioned host resource is disposed"));
+		let matches;
+		try {
+			matches = predicate(value());
+		} catch (cause) {
+			return Promise.reject(cause instanceof Error ? cause : new Error(String(cause)));
+		}
+		if (matches) return Promise.resolve(value());
+		if (waitOptions.signal?.aborted) return Promise.reject(new RevisionedHostWaitError("aborted", "revisioned host resource wait aborted"));
+		return new Promise((resolve, reject) => {
+			const waiter = {
+				predicate,
+				resolve,
+				reject,
+				signal: waitOptions.signal
+			};
+			if (waitOptions.timeout !== void 0) waiter.timer = setTimeout(() => rejectWaiter(waiter, new RevisionedHostWaitError("timeout", `revisioned host resource wait timed out after ${waitOptions.timeout}ms`)), Math.max(0, waitOptions.timeout));
+			if (waitOptions.signal) {
+				waiter.onAbort = () => rejectWaiter(waiter, new RevisionedHostWaitError("aborted", "revisioned host resource wait aborted"));
+				waitOptions.signal.addEventListener("abort", waiter.onAbort, { once: true });
+			}
+			waiters.add(waiter);
+		});
+	};
+	const refresh = () => {
+		if (disposed) return Promise.resolve(void 0);
+		if (refreshPromise) return refreshPromise;
+		const generationAtStart = hostGeneration;
+		setLoading(true);
+		refreshPromise = options.load().then((next) => {
+			if (hostGeneration !== generationAtStart && next.revision <= value().revision) return void 0;
+			return accept(next, "load");
+		}).catch((cause) => {
+			reportError(cause, "load");
+			throw cause;
+		}).finally(() => {
+			refreshPromise = void 0;
+			if (!disposed) setLoading(false);
+		});
+		return refreshPromise;
+	};
+	const waitFor = async (predicate, waitOptions = {}) => {
+		try {
+			return await waitForPush(predicate, waitOptions);
+		} catch (cause) {
+			if (!(cause instanceof RevisionedHostWaitError) || cause.reason !== "timeout" || !waitOptions.refreshOnTimeout) throw cause;
+			if (waitOptions.signal?.aborted) throw new RevisionedHostWaitError("aborted", "revisioned host resource wait aborted");
+			const existingRefresh = refreshPromise;
+			if (existingRefresh) {
+				try {
+					await existingRefresh;
+				} catch {}
+				if (predicate(value())) return value();
+				if (waitOptions.signal?.aborted) throw new RevisionedHostWaitError("aborted", "revisioned host resource wait aborted");
+			}
+			const current = await refresh() ?? value();
+			if (predicate(current)) return current;
+			throw cause;
+		}
+	};
+	const unsubscribers = [subscribeJson(options.snapshotTopic, (next) => {
+		hostGeneration++;
+		accept(next, "snapshot");
+	}, {
+		decode: options.decodeSnapshot,
+		onError: (cause) => reportError(cause, "snapshot")
+	})];
+	const applyPatch = options.applyPatch;
+	if (options.patchTopic && applyPatch) unsubscribers.push(subscribeJson(options.patchTopic, (patch) => {
+		hostGeneration++;
+		if (patch.baseRevision !== value().revision) {
+			refresh().catch(() => void 0);
+			return;
+		}
+		try {
+			const next = applyPatch(value(), patch);
+			if (next) accept(next, "patch");
+			else refresh().catch(() => void 0);
+		} catch (cause) {
+			reportError(cause, "patch");
+			refresh().catch(() => void 0);
+		}
+	}, {
+		decode: options.decodePatch,
+		onError: (cause) => reportError(cause, "patch")
+	}));
+	const dispose = () => {
+		if (disposed) return;
+		disposed = true;
+		for (const unsubscribe of unsubscribers) unsubscribe();
+		for (const waiter of [...waiters]) rejectWaiter(waiter, new RevisionedHostWaitError("disposed", "revisioned host resource is disposed"));
+	};
+	if (getOwner()) onCleanup(dispose);
+	if (options.autoLoad !== false) queueMicrotask(() => void refresh().catch(() => void 0));
+	return {
+		value,
+		loading,
+		error,
+		refresh,
+		waitFor,
+		dispose
+	};
+}
+//#endregion
+//#region src/glue/json-capability.ts
+var JsonCapabilityError = class extends Error {
+	code;
+	constructor(message, code) {
+		super(message);
+		this.name = "JsonCapabilityError";
+		this.code = code;
+	}
+};
+/** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
+function bindJsonCapability(capability, options) {
+	return async (method, request) => {
+		if (capability?.__wabouCapabilityVersion !== options.version) throw new JsonCapabilityError(`The native ${options.name} capability version ${options.version} is unavailable`, "capability_unavailable");
+		const functionValue = capability[method];
+		if (typeof functionValue !== "function") throw new JsonCapabilityError(`The native ${options.name}.${method} method is unavailable`, "method_unavailable");
+		const raw = await (request === void 0 ? functionValue.call(capability) : functionValue.call(capability, JSON.stringify(request)));
+		if (typeof raw !== "string") throw new JsonCapabilityError(`The native ${options.name}.${method} method returned a non-string response`, "invalid_response");
+		let envelope;
+		try {
+			envelope = JSON.parse(raw);
+		} catch {
+			throw new JsonCapabilityError(`The native ${options.name}.${method} method returned invalid JSON`, "invalid_response");
+		}
+		if (typeof envelope !== "object" || envelope === null || !("ok" in envelope)) throw new JsonCapabilityError(`The native ${options.name}.${method} method returned an invalid response envelope`, "invalid_response");
+		if (envelope.ok === true) {
+			if (!("value" in envelope)) throw new JsonCapabilityError(`The native ${options.name}.${method} method returned a success envelope without a value`, "invalid_response");
+			return envelope.value;
+		}
+		const error = envelope.error;
+		const code = typeof error?.code === "string" ? error.code : void 0;
+		throw new JsonCapabilityError(typeof error?.message === "string" ? error.message : `${options.name}.${method} failed`, code);
+	};
+}
+//#endregion
+//#region src/glue/latest-async-resource.ts
+/**
+* Load the latest reactive key while exposing ordinary, non-suspending state.
+* Older requests are aborted when possible and can never overwrite newer data.
+*/
+function createLatestAsyncResource(options) {
+	const initialBox = Object.hasOwn(options, "initialValue") ? { value: options.initialValue } : void 0;
+	const [valueBox, setValueBox] = createSignal(initialBox);
+	const [loading, setLoading] = createSignal(false);
+	const [error, setError] = createSignal();
+	const [status, setStatus] = createSignal("idle");
+	let currentKey;
+	let generation = 0;
+	let controller;
+	let disposed = false;
+	const refresh = async () => {
+		const key = currentKey;
+		if (disposed || key === void 0) return void 0;
+		const request = ++generation;
+		controller?.abort();
+		controller = new AbortController();
+		const signal = controller.signal;
+		setLoading(true);
+		setError(void 0);
+		setStatus("pending");
+		try {
+			const next = await options.load(key, { signal });
+			if (disposed || request !== generation) return void 0;
+			setValueBox({ value: next });
+			setStatus("ready");
+			return next;
+		} catch (cause) {
+			if (disposed || request !== generation || signal.aborted) return void 0;
+			setError(cause);
+			setStatus("error");
+			return;
+		} finally {
+			if (!disposed && request === generation) {
+				controller = void 0;
+				setLoading(false);
+			}
+		}
+	};
+	createEffect(options.source, (key) => {
+		if (Object.is(key, currentKey)) return;
+		generation++;
+		controller?.abort();
+		controller = void 0;
+		currentKey = key;
+		setError(void 0);
+		setLoading(false);
+		setStatus("idle");
+		if (!options.retainPrevious) setValueBox(initialBox);
+		if (key !== void 0 && options.autoLoad !== false) refresh();
+	});
+	const mutate = (next) => {
+		if (disposed) return;
+		generation++;
+		controller?.abort();
+		controller = void 0;
+		setValueBox({ value: next });
+		setError(void 0);
+		setLoading(false);
+		setStatus("ready");
+	};
+	const dispose = () => {
+		if (disposed) return;
+		disposed = true;
+		generation++;
+		controller?.abort();
+		controller = void 0;
+	};
+	if (getOwner()) onCleanup(dispose);
+	return {
+		value: () => valueBox()?.value,
+		loading,
+		error,
+		status,
+		refresh,
+		mutate,
+		dispose
+	};
+}
+//#endregion
 //#region src/glue/native-menu.ts
 /** Show a platform context menu and resolve with the selected item id. */
 function showNativeMenu(options) {
@@ -1027,6 +1480,29 @@ function showNativeMenu(options) {
 	});
 }
 //#endregion
-export { ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, OP, PathBuilder, PlatformProvider, Portal, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
+//#region src/keyed-list.ts
+/**
+* Reconcile a host-owned keyed list while validating its complete order.
+* Returns `undefined` for duplicate, missing, or unaccounted-for keys so the
+* caller can request a full snapshot instead of accepting divergent state.
+*/
+function reconcileKeyedList(current, patch, keyOf) {
+	const values = new Map(current.map((value) => [keyOf(value), value]));
+	for (const key of patch.removed) values.delete(key);
+	for (const value of patch.upserted) values.set(keyOf(value), value);
+	if (patch.order.length !== values.size) return void 0;
+	const seen = /* @__PURE__ */ new Set();
+	const ordered = [];
+	for (const key of patch.order) {
+		if (seen.has(key)) return void 0;
+		const value = values.get(key);
+		if (value === void 0) return void 0;
+		seen.add(key);
+		ordered.push(value);
+	}
+	return ordered;
+}
+//#endregion
+export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
 
 //# sourceMappingURL=index.mjs.map

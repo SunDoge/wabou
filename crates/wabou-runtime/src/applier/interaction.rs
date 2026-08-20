@@ -16,7 +16,8 @@ impl Applier {
                 self.dispatch_json(target, event::RESOURCEREADY, &payload);
             }
             Err(error) => {
-                let payload = serde_json::json!({ "url": url, "error": error }).to_string();
+                let payload =
+                    serde_json::json!({ "url": url, "error": error.as_ref() }).to_string();
                 self.dispatch_json(target, event::RESOURCEERROR, &payload);
             }
         }

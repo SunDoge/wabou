@@ -1,15 +1,16 @@
 mod activity;
-mod aria2;
 mod config;
+pub mod download_backend;
+mod downloads;
 mod nat;
-mod task_archive;
 mod torrent;
 
-use snafu::{OptionExt, ResultExt, Whatever};
+use snafu::{ResultExt, Whatever};
 use wabou::{
-    AppDirectories, AppDirectoryConfig, HostBuilder, WindowOptions, initial_window_resource_key,
+    AppDirectoryConfig, HostBuilder, HostMessage, HostMessageRouter, WindowOptions,
+    initial_window_resource_key,
 };
-use wabou_tray::{SystemTray, TrayImage};
+use wabou::{SystemTray, TrayImage};
 
 fn tray_icon() -> TrayImage {
     const SIZE: u32 = 32;
@@ -18,22 +19,10 @@ fn tray_icon() -> TrayImage {
         let offset = ((y * SIZE + x) * 4) as usize;
         rgba[offset..offset + 4].copy_from_slice(&color);
     };
-    for y in 2..30 {
-        for x in 2..30 {
-            let corner_x = if x < 7 {
-                7 - x
-            } else if x > 24 {
-                x - 24
-            } else {
-                0
-            };
-            let corner_y = if y < 7 {
-                7 - y
-            } else if y > 24 {
-                y - 24
-            } else {
-                0
-            };
+    for y in 2_u32..30 {
+        for x in 2_u32..30 {
+            let corner_x = if x < 7 { 7 - x } else { x.saturating_sub(24) };
+            let corner_y = if y < 7 { 7 - y } else { y.saturating_sub(24) };
             if corner_x * corner_x + corner_y * corner_y <= 25 {
                 set(&mut rgba, x, y, [47, 134, 246, 255]);
             }
@@ -59,24 +48,12 @@ fn tray_icon() -> TrayImage {
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     let directory_config = AppDirectoryConfig::new("dev", "Wabou", "Motrix");
-    let executable =
-        std::env::current_exe().whatever_context("failed to resolve executable path")?;
-    let resource_dir = executable
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .join("resources");
-    let directories = AppDirectories::resolve(&directory_config, resource_dir)
-        .whatever_context("failed to resolve application directories")?;
-    let config_store = config::ConfigStore::new(&directories.config_dir);
-    let app_config = config_store
-        .load()
-        .whatever_context("failed to load Motrix configuration")?;
-    let (aria2, managed_aria2) = aria2::Aria2Service::from_config(app_config, config_store)
-        .whatever_context("failed to configure aria2")?;
-    let capability_service = aria2.clone();
-    let stream_service = aria2.clone();
-    let tray_service = aria2.clone();
+    let (downloads, engine_service) = downloads::DownloadService::new();
+    let capability_service = downloads.clone();
+    let stream_service = downloads.clone();
     let main_window = initial_window_resource_key(0);
+    let application_messages = HostMessageRouter::new();
+    let tray_messages = application_messages.clone();
     let tray = SystemTray::new(tray_icon())
         .tooltip("Motrix")
         .item("motrix.show", "Open Motrix", move |context| {
@@ -85,7 +62,11 @@ fn main() -> Result<(), Whatever> {
         .separator()
         .item("motrix.quit", "Quit Motrix", move |context| {
             context.show_window(main_window);
-            tray_service.request_quit();
+            if let Err(error) =
+                tray_messages.send_to(main_window, HostMessage::null(downloads::QUIT_REQUESTED))
+            {
+                tracing::warn!(?error, "could not enqueue quit request");
+            }
         })
         .hide_window_on_close(main_window);
     let mut host = HostBuilder::new()
@@ -97,16 +78,15 @@ fn main() -> Result<(), Whatever> {
                 .initial_inner_size(1280, 820)
                 .min_inner_size(900, 600),
         )
-        .json_capability(aria2::CAPABILITY, move |capability| {
-            aria2::mount(capability, capability_service.clone())
+        .json_capability(downloads::CAPABILITY, move |capability| {
+            downloads::mount(capability, capability_service.clone())
         })
         .extension(tray)
+        .host_message_router(application_messages)
         .host_message_producer(move |context| {
-            aria2::stream_snapshots(context, stream_service.clone())
+            downloads::stream_snapshots(context, stream_service.clone())
         });
-    if let Some(service) = managed_aria2 {
-        host = host.service(service);
-    }
+    host = host.recoverable_service(engine_service);
     host.run()
         .whatever_context("failed to run Motrix Wabou application")
 }

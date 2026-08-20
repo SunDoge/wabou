@@ -2,6 +2,7 @@ import {
   Badge,
   Card,
   CardContent,
+  createWindowMatch,
   Ripple,
   Select,
   Text,
@@ -9,7 +10,7 @@ import {
 } from "@wabou/ui";
 import { createMemo, For, Show } from "solid-js";
 import { match, P } from "ts-pattern";
-import { useAria2 } from "../aria2";
+import { useDownloads } from "../downloads";
 import { LiveChart } from "../components/live-chart";
 import { StatCard } from "../components/stat-card";
 import { formatBytes } from "../lib/format";
@@ -35,12 +36,14 @@ function activityClass(value: number, maximum: number) {
 }
 
 export function DashboardPage() {
-  const aria2 = useAria2();
-  const snapshot = aria2.snapshot;
-  const speedLimit = () => aria2.config().maxOverallDownloadLimit;
-  const uploadLimit = () => aria2.config().maxOverallUploadLimit;
+  const compact = createWindowMatch({ maxWidth: 1050 });
+  const short = createWindowMatch({ maxHeight: 700 });
+  const downloads = useDownloads();
+  const snapshot = downloads.snapshot;
+  const speedLimit = () => downloads.config().maxOverallDownloadLimit;
+  const uploadLimit = () => downloads.config().maxOverallUploadLimit;
   const activeSpeedProfile = createMemo(() => {
-    const index = aria2
+    const index = downloads
       .config()
       .speedProfiles.findIndex(
         (profile) =>
@@ -71,17 +74,22 @@ export function DashboardPage() {
     () => snapshot().activity.filter((value) => value > 0).length,
   );
   const setSpeedProfile = async (value: string) => {
-    const profile = aria2.config().speedProfiles[Number.parseInt(value, 10)];
+    const profile =
+      downloads.config().speedProfiles[Number.parseInt(value, 10)];
     if (!profile) return;
-    await aria2.saveConfig({
-      ...aria2.config(),
+    await downloads.saveConfig({
+      ...downloads.config(),
       maxOverallDownloadLimit: profile.downloadLimit,
       maxOverallUploadLimit: profile.uploadLimit,
     });
   };
 
   return (
-    <View class="h-full flex flex-col gap-4">
+    <View
+      class={
+        short() ? "h-full flex flex-col gap-4" : "flex-1 flex flex-col gap-4"
+      }
+    >
       <View class="flex-none flex flex-row items-end justify-between">
         <View class="flex flex-col gap-1">
           <Text role="heading" class="text-3xl font-bold">
@@ -112,26 +120,26 @@ export function DashboardPage() {
         </Badge>
       </View>
 
-      <View class="h-40 flex flex-none gap-4">
+      <View
+        class={
+          compact() ? "grid grid-cols-2 gap-4" : "h-40 flex flex-none gap-4"
+        }
+      >
         <StatCard
+          dense={short()}
           label="ENGINE"
           accent={snapshot().connected ? "green" : "neutral"}
           value={snapshot().connected ? "Ready" : "Offline"}
-          detail={
-            snapshot().version
-              ? `aria2 v${snapshot().version}`
-              : snapshot().endpoint
-          }
+          detail={snapshot().version ?? snapshot().endpoint}
         >
           <Text class="text-xs text-secondary">
             {snapshot().connected
-              ? "RPC is responding normally"
-              : snapshot().error === "Connecting to aria2…"
-                ? "Connecting to managed engine"
-                : "Waiting for RPC connection"}
+              ? "Embedded Rust engine is responding"
+              : "Starting the embedded download engine"}
           </Text>
         </StatCard>
         <StatCard
+          dense={short()}
           label="SPEED LIMIT"
           accent="neutral"
           value={speedLimit() === "0" ? "Unlimited" : speedLimit()}
@@ -142,7 +150,7 @@ export function DashboardPage() {
             class="w-full"
             placeholder="Custom limits"
             value={activeSpeedProfile()}
-            options={aria2.config().speedProfiles.map((profile, index) => ({
+            options={downloads.config().speedProfiles.map((profile, index) => ({
               value: String(index),
               label: profile.name,
             }))}
@@ -150,25 +158,49 @@ export function DashboardPage() {
           />
         </StatCard>
         <StatCard
+          dense={short()}
           label="UPLOAD"
           accent="purple"
           value={`${formatBytes(snapshot().uploadSpeed)}/s`}
-          detail="Live RPC throughput"
+          detail="Live engine throughput"
         >
-          <LiveChart compact color="upload" values={aria2.uploadHistory()} />
+          <LiveChart
+            compact
+            color="upload"
+            values={downloads.uploadHistory()}
+          />
         </StatCard>
         <StatCard
+          dense={short()}
           label="DOWNLOAD"
           accent="blue"
           value={`${formatBytes(snapshot().downloadSpeed)}/s`}
-          detail="Live RPC throughput"
+          detail="Live engine throughput"
         >
-          <LiveChart compact values={aria2.downloadHistory()} />
+          <LiveChart compact values={downloads.downloadHistory()} />
         </StatCard>
       </View>
 
-      <View class="h-40 flex flex-none gap-4">
-        <Card class="w-80 flex-none rounded-xl shadow-lg">
+      <View
+        class={
+          short()
+            ? "h-32 flex flex-none gap-4"
+            : compact()
+              ? "flex flex-none flex-col gap-4"
+              : "h-40 flex flex-none gap-4"
+        }
+      >
+        <Card
+          role="group"
+          aria-label="Task statistics"
+          class={
+            short()
+              ? "w-64 flex-none rounded-xl shadow-lg"
+              : compact()
+                ? "w-full h-40 flex-none rounded-xl shadow-lg"
+                : "w-80 flex-none rounded-xl shadow-lg"
+          }
+        >
           <CardContent class="h-full p-4 flex flex-col gap-3">
             <View class="flex flex-row items-center justify-between">
               <Text class="text-xs font-semibold text-muted">TASKS</Text>
@@ -201,7 +233,17 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card class="min-w-0 flex-1 rounded-xl shadow-xl">
+        <Card
+          role="group"
+          aria-label="Transfer overview"
+          class={
+            short()
+              ? "min-w-0 flex-1 rounded-xl shadow-xl"
+              : compact()
+                ? "w-full h-40 flex-none rounded-xl shadow-xl"
+                : "min-w-0 flex-1 rounded-xl shadow-xl"
+          }
+        >
           <CardContent class="h-full p-4 flex flex-col gap-2">
             <View class="flex flex-row items-start justify-between">
               <View class="flex flex-col gap-1">
@@ -211,25 +253,31 @@ export function DashboardPage() {
                 <Text class="text-xl font-semibold">
                   {formatBytes(snapshot().downloadedToday)} today
                 </Text>
+                <Text class="text-xs text-secondary">
+                  {formatBytes(snapshot().downloadedTotal)} downloaded ·{" "}
+                  {formatBytes(snapshot().uploadedTotal)} uploaded all time
+                </Text>
               </View>
-              <View class="flex flex-row gap-4">
-                <View class="flex flex-row items-center gap-2">
-                  <View class="w-2 h-2 rounded-full bg-chart-download" />
-                  <Text class="text-xs text-muted">Download</Text>
+              <Show when={!short()}>
+                <View class="flex flex-row gap-4">
+                  <View class="flex flex-row items-center gap-2">
+                    <View class="w-2 h-2 rounded-full bg-chart-download" />
+                    <Text class="text-xs text-muted">Download</Text>
+                  </View>
+                  <View class="flex flex-row items-center gap-2">
+                    <View class="w-2 h-2 rounded-full bg-chart-upload" />
+                    <Text class="text-xs text-muted">Upload</Text>
+                  </View>
                 </View>
-                <View class="flex flex-row items-center gap-2">
-                  <View class="w-2 h-2 rounded-full bg-chart-upload" />
-                  <Text class="text-xs text-muted">Upload</Text>
-                </View>
-              </View>
+              </Show>
             </View>
             <View class="relative min-h-0 flex-1">
-              <LiveChart width={700} values={aria2.downloadHistory()} />
+              <LiveChart values={downloads.downloadHistory()} />
               <View class="absolute inset-0">
                 <LiveChart
-                  width={700}
                   color="upload"
-                  values={aria2.uploadHistory()}
+                  grid={false}
+                  values={downloads.uploadHistory()}
                 />
               </View>
             </View>
@@ -237,60 +285,73 @@ export function DashboardPage() {
         </Card>
       </View>
 
-      <Card class="min-h-0 flex-1 rounded-xl shadow-xl">
-        <CardContent class="h-full p-4 flex flex-col gap-3">
-          <View class="flex-none flex flex-row items-start justify-between">
-            <View class="flex flex-col gap-1">
-              <Text class="text-xs font-semibold text-muted">ACTIVITY</Text>
-              <Text class="text-lg font-semibold">A year at a glance</Text>
-            </View>
-            <View class="flex flex-row items-center gap-3">
-              <Text class="text-xs text-muted">
-                {activeDays()} active days ·{" "}
-                {formatBytes(snapshot().downloadedToday)} today
-              </Text>
-              <View class="flex flex-row items-center gap-1">
-                <Text class="text-xs text-muted">Less</Text>
-                <View class="w-2.5 h-2.5 rounded-sm bg-control" />
-                <View class="w-2.5 h-2.5 rounded-sm bg-activity-1" />
-                <View class="w-2.5 h-2.5 rounded-sm bg-activity-2" />
-                <View class="w-2.5 h-2.5 rounded-sm bg-activity-3" />
-                <View class="w-2.5 h-2.5 rounded-sm bg-activity-4" />
-                <Text class="text-xs text-muted">More</Text>
+      <Show when={!short()}>
+        <Card
+          role="group"
+          aria-label="Download activity"
+          class={
+            compact()
+              ? "h-80 flex-none rounded-xl shadow-xl"
+              : "min-h-0 flex-1 rounded-xl shadow-xl"
+          }
+        >
+          <CardContent class="h-full p-4 flex flex-col gap-3">
+            <View class="flex-none flex flex-row items-start justify-between">
+              <View class="flex flex-col gap-1">
+                <Text class="text-xs font-semibold text-muted">ACTIVITY</Text>
+                <Text class="text-lg font-semibold">A year at a glance</Text>
+              </View>
+              <View class="flex flex-row items-center gap-3">
+                <Text class="text-xs text-muted">
+                  {activeDays()} active days ·{" "}
+                  {formatBytes(snapshot().downloadedToday)} today
+                </Text>
+                <View class="flex flex-row items-center gap-1">
+                  <Text class="text-xs text-muted">Less</Text>
+                  <View class="w-2.5 h-2.5 rounded-sm bg-control" />
+                  <View class="w-2.5 h-2.5 rounded-sm bg-activity-1" />
+                  <View class="w-2.5 h-2.5 rounded-sm bg-activity-2" />
+                  <View class="w-2.5 h-2.5 rounded-sm bg-activity-3" />
+                  <View class="w-2.5 h-2.5 rounded-sm bg-activity-4" />
+                  <Text class="text-xs text-muted">More</Text>
+                </View>
               </View>
             </View>
-          </View>
-          <View class="min-h-0 flex-1 flex flex-col items-center justify-center gap-3 rounded-lg bg-surface-muted">
-            <View class="w-full px-6 flex flex-row justify-between">
-              <Text class="text-xs text-muted">52 weeks ago</Text>
-              <Text class="text-xs text-muted">Today</Text>
-            </View>
-            <View class="flex flex-row items-center justify-center gap-2">
-              <View class="flex flex-col gap-2 pr-1">
-                <Text class="text-xs text-muted">Mon</Text>
-                <Text class="text-xs text-muted">Wed</Text>
-                <Text class="text-xs text-muted">Fri</Text>
+            <View class="min-h-0 flex-1 flex flex-col items-center justify-center gap-3 rounded-lg bg-surface-muted">
+              <View class="w-full px-6 flex flex-row justify-between">
+                <Text class="text-xs text-muted">52 weeks ago</Text>
+                <Text class="text-xs text-muted">Today</Text>
               </View>
-              <View class="flex flex-row gap-1">
-                <For each={activityWeeks()}>
-                  {(week) => (
-                    <View class="flex flex-col gap-1">
-                      <For each={week}>
-                        {(value) => (
-                          <View
-                            class="w-2.5 h-2.5 rounded-sm"
-                            classList={activityClass(value, activityMaximum())}
-                          />
-                        )}
-                      </For>
-                    </View>
-                  )}
-                </For>
+              <View class="flex flex-row items-center justify-center gap-2">
+                <View class="flex flex-col gap-2 pr-1">
+                  <Text class="text-xs text-muted">Mon</Text>
+                  <Text class="text-xs text-muted">Wed</Text>
+                  <Text class="text-xs text-muted">Fri</Text>
+                </View>
+                <View class="flex flex-row gap-1">
+                  <For each={activityWeeks()}>
+                    {(week) => (
+                      <View class="flex flex-col gap-1">
+                        <For each={week}>
+                          {(value) => (
+                            <View
+                              class="w-2.5 h-2.5 rounded-sm"
+                              classList={activityClass(
+                                value,
+                                activityMaximum(),
+                              )}
+                            />
+                          )}
+                        </For>
+                      </View>
+                    )}
+                  </For>
+                </View>
               </View>
             </View>
-          </View>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </Show>
     </View>
   );
 }

@@ -204,6 +204,15 @@ fn application_exit_effect_is_process_scoped_and_payload_free() {
         ),
         wabou_shell::EffectPayload::ApplicationExit
     );
+    assert_eq!(
+        decode_effect_payload(
+            wabou_shell::effect::builtin::APPLICATION_RELAUNCH,
+            wabou_shell::initial_window_resource_key(0),
+            "null".into(),
+            None,
+        ),
+        wabou_shell::EffectPayload::ApplicationRelaunch
+    );
 }
 
 #[test]

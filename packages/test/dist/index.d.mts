@@ -4,10 +4,13 @@ import { WindowKey } from "@wabou/core";
 interface PollOptions {
   timeout?: number;
   interval?: number;
+  /** The predicate must remain true continuously for this many milliseconds. */
+  stableFor?: number;
 }
 interface ResolvedPollOptions {
   timeout: number;
   interval: number;
+  stableFor: number;
 }
 //#endregion
 //#region src/index.d.ts
@@ -16,13 +19,18 @@ interface NativeWindowState {
   surfaceGeneration: number;
 }
 interface NativeTestCapability {
+  writeTextFile(relativePath: string, contents: string): string;
   waitForIdle(lo: number, hi: number): Promise<boolean>;
   nativeClose(lo: number, hi: number, mutableVisibility: boolean): Promise<boolean>;
   showWindow(lo: number, hi: number): Promise<boolean>;
+  resizeWindow(lo: number, hi: number, width: number, height: number): Promise<boolean>;
   windowState(lo: number, hi: number): string;
+  windowViewport(lo: number, hi: number): string;
   clickByRole(lo: number, hi: number, role: string, label: string, index: number | null): Promise<boolean>;
   inputByRole(lo: number, hi: number, role: string, label: string, input: string, index: number | null): Promise<boolean>;
   queryByRole(lo: number, hi: number, role: string, label: string, index: number | null): Promise<string | null | undefined>;
+  queueEffect(capability: number, method: number, result: string): string | null;
+  takePendingEffectFixtures(): string;
   finish(report: string): boolean;
 }
 declare module "@wabou/core/registry" {
@@ -33,15 +41,39 @@ declare module "@wabou/core/registry" {
 interface TestContext {
   readonly page: TestPage;
   readonly window: TestWindow;
+  readonly effects: TestEffects;
+  readonly files: TestFiles;
+}
+interface TestFiles {
+  /** Write exact UTF-8 contents beneath this run's isolated temporary root. */
+  writeText(relativePath: string, contents: string): string;
+}
+interface TestEffectResponseMap {
+  clipboardRead: string | null;
+  clipboardWrite: null;
+  contextMenuShow: string | null;
+  dialogOpen: string[] | null;
+  dialogSave: string[] | null;
+  dialogPickDirectory: string[] | null;
+  dialogMessage: "ok" | "cancel" | "yes" | "no" | "custom";
+  notificationShow: null;
+}
+type TestEffectOperation = keyof TestEffectResponseMap;
+interface TestEffects {
+  /** Queue one deterministic response for the next matching native effect. */
+  respond<K extends TestEffectOperation>(operation: K, result: TestEffectResponseMap[K]): void;
 }
 interface TestWindow {
   /** Window key of the runtime executing this behavior scenario. */
   readonly current: WindowKey;
   nativeClose(windowId: WindowKey, platform: "wayland" | "mutable-visibility"): Promise<void>;
   show(windowId: WindowKey): Promise<void>;
+  /** Resize a visible window in logical pixels through the native surface path. */
+  resize(windowId: WindowKey, width: number, height: number): Promise<void>;
   state(windowId: WindowKey): NativeWindowState | null;
 }
 interface TestPage {
+  readonly effects: TestEffects;
   /** Bind subsequent locators and frame barriers to one logical window. */
   forWindow(windowId: WindowKey): TestPage;
   getByRole(role: SemanticRole, options: {
@@ -82,9 +114,11 @@ interface LocatorSnapshot {
   checked: boolean | "mixed" | null;
   pressed: boolean | "mixed" | null;
   selected: boolean | null;
+  current: LocatorCurrent | null;
   expanded: boolean | null;
   focused: boolean;
 }
+type LocatorCurrent = "true" | "page" | "step" | "location" | "date" | "time";
 interface LocatorBounds {
   x: number;
   y: number;
@@ -147,6 +181,9 @@ type LocatorAssertion = {
   type: "selected";
   expected: boolean;
 } | {
+  type: "current";
+  expected: LocatorCurrent | null;
+} | {
   type: "expanded";
   expected: boolean;
 } | {
@@ -158,6 +195,13 @@ type LocatorAssertion = {
 } | {
   type: "bounds";
   expected: Partial<LocatorBounds>;
+  tolerance: number;
+} | {
+  type: "withinBounds";
+  expected: LocatorBounds;
+  tolerance: number;
+} | {
+  type: "viewport";
   tolerance: number;
 };
 interface BoundsAssertionOptions extends LocatorAssertionOptions {
@@ -193,12 +237,21 @@ interface TestResult {
   durationMs: number;
 }
 type TestAction = {
+  action: "respondToEffect";
+  operation: TestEffectOperation;
+  result: TestEffectResponseMap[TestEffectOperation];
+} | {
   action: "nativeClose";
   windowId: WindowKey;
   platform: "wayland" | "mutable-visibility";
 } | {
   action: "showWindow";
   windowId: WindowKey;
+} | {
+  action: "resizeWindow";
+  windowId: WindowKey;
+  width: number;
+  height: number;
 } | {
   action: "clickByRole";
   windowId: WindowKey;
@@ -259,6 +312,8 @@ declare function expect<T>(actual: T): {
   toBeIndeterminate(options?: LocatorAssertionOptions): Promise<void>;
   toBeSelected(options?: LocatorAssertionOptions): Promise<void>;
   toBeDeselected(options?: LocatorAssertionOptions): Promise<void>;
+  toBeCurrent(expected?: LocatorCurrent, options?: LocatorAssertionOptions): Promise<void>;
+  toNotBeCurrent(options?: LocatorAssertionOptions): Promise<void>;
   toBeExpanded(options?: LocatorAssertionOptions): Promise<void>;
   toBeCollapsed(options?: LocatorAssertionOptions): Promise<void>;
   toBePressed(options?: LocatorAssertionOptions): Promise<void>;
@@ -266,6 +321,8 @@ declare function expect<T>(actual: T): {
   toBeFocused(options?: LocatorAssertionOptions): Promise<void>;
   toBeBlurred(options?: LocatorAssertionOptions): Promise<void>;
   toHaveBounds(expected: Partial<LocatorBounds>, options?: BoundsAssertionOptions): Promise<void>;
+  toBeWithinBounds(expected: LocatorBounds, options?: BoundsAssertionOptions): Promise<void>;
+  toBeInViewport(options?: BoundsAssertionOptions): Promise<void>;
 };
 declare namespace expect {
   var poll: <T>(read: () => T | Promise<T>, options?: {
@@ -276,5 +333,5 @@ declare namespace expect {
   };
 }
 //#endregion
-export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorNumericRange, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestEnvironment, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
+export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorCurrent, LocatorNumericRange, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
 //# sourceMappingURL=index.d.mts.map

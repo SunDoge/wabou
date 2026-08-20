@@ -36,6 +36,7 @@ fn decode_vector_path(data: &[u8]) -> Option<Arc<wabou_shell::style::VectorPath>
     }
     let mut offset = 36usize;
     let mut path = BezPath::new();
+    let mut has_subpath = false;
     let read = |offset: &mut usize| -> Option<f64> {
         let end = offset.checked_add(4)?;
         let value = f32::from_le_bytes(data.get(*offset..end)?.try_into().ok()?);
@@ -49,22 +50,28 @@ fn decode_vector_path(data: &[u8]) -> Option<Arc<wabou_shell::style::VectorPath>
         }
         offset += 4;
         match command {
-            1 => path.move_to((read(&mut offset)?, read(&mut offset)?)),
-            2 => path.line_to((read(&mut offset)?, read(&mut offset)?)),
-            3 => path.quad_to(
+            1 => {
+                path.move_to((read(&mut offset)?, read(&mut offset)?));
+                has_subpath = true;
+            }
+            2 if has_subpath => path.line_to((read(&mut offset)?, read(&mut offset)?)),
+            3 if has_subpath => path.quad_to(
                 (read(&mut offset)?, read(&mut offset)?),
                 (read(&mut offset)?, read(&mut offset)?),
             ),
-            4 => path.curve_to(
+            4 if has_subpath => path.curve_to(
                 (read(&mut offset)?, read(&mut offset)?),
                 (read(&mut offset)?, read(&mut offset)?),
                 (read(&mut offset)?, read(&mut offset)?),
             ),
-            5 => path.close_path(),
+            5 if has_subpath => {
+                path.close_path();
+                has_subpath = false;
+            }
             _ => return None,
         }
     }
-    if offset != data.len() {
+    if offset != data.len() || path.is_empty() {
         return None;
     }
     let color = |rgba: u32| {
@@ -97,42 +104,6 @@ fn decode_vector_path(data: &[u8]) -> Option<Arc<wabou_shell::style::VectorPath>
             .with_join(join)
             .with_miter_limit(f64::from(miter_limit)),
     }))
-}
-
-#[cfg(test)]
-mod vector_path_tests {
-    use super::decode_vector_path;
-
-    fn path_bytes(command: u8, coordinates: &[f32]) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&0x3150_4257u32.to_le_bytes());
-        bytes.extend_from_slice(&1u16.to_le_bytes());
-        bytes.extend_from_slice(&0u16.to_le_bytes());
-        bytes.extend_from_slice(&1u32.to_le_bytes());
-        bytes.extend_from_slice(&0u32.to_le_bytes());
-        bytes.extend_from_slice(&0x38bd_f8ffu32.to_le_bytes());
-        bytes.extend_from_slice(&0xa78b_faffu32.to_le_bytes());
-        bytes.extend_from_slice(&2.0f32.to_le_bytes());
-        bytes.extend_from_slice(&[0, 1, 1, 0]);
-        bytes.extend_from_slice(&4.0f32.to_le_bytes());
-        bytes.extend_from_slice(&[command, 0, 0, 0]);
-        for coordinate in coordinates {
-            bytes.extend_from_slice(&coordinate.to_le_bytes());
-        }
-        let len = bytes.len() as u32;
-        bytes[12..16].copy_from_slice(&len.to_le_bytes());
-        bytes
-    }
-
-    #[test]
-    fn validates_path_payload_before_retain() {
-        assert!(decode_vector_path(&path_bytes(1, &[3.0, 4.0])).is_some());
-        assert!(decode_vector_path(&path_bytes(99, &[])).is_none());
-        assert!(decode_vector_path(&path_bytes(1, &[f32::NAN, 4.0])).is_none());
-        let mut truncated = path_bytes(1, &[3.0, 4.0]);
-        truncated.pop();
-        assert!(decode_vector_path(&truncated).is_none());
-    }
 }
 
 fn style_value_ir(value: crate::protocol::StyleValue) -> IrValue {
@@ -609,7 +580,10 @@ impl Applier {
     }
 
     pub(super) fn apply_op(&mut self, op: &Op) {
-        self.frame.projections.debug_dirty |= self.frame.projections.debug_state.is_some();
+        #[cfg(any(feature = "devtools", test))]
+        {
+            self.frame.projections.debug_dirty |= self.frame.projections.debug_state.is_some();
+        }
         match op {
             Op::CreateElement { id, tag } => {
                 self.create_element(*id, *tag);
@@ -900,3 +874,6 @@ impl Applier {
         self.project_structure_if_unbatched();
     }
 }
+
+#[cfg(test)]
+mod vector_path_tests;

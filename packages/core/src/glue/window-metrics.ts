@@ -1,5 +1,5 @@
 import { type Accessor, createSignal } from "solid-js";
-import { subscribe } from "./host-messages";
+import { subscribeJson } from "./host-messages";
 import { usePlatformServices } from "./platform-context";
 import {
   currentWindow,
@@ -106,12 +106,39 @@ const initial: WindowMetrics = {
 
 const [metrics, setMetrics] = createSignal(initial, { equals: false });
 
-subscribe("wabou:window-metrics", (payload) => {
-  if (typeof payload !== "string") return;
-  const next = JSON.parse(payload) as Omit<WindowMetrics, "windowId"> & {
-    windowId: unknown;
+function decodeWindowMetrics(value: unknown): WindowMetrics {
+  if (typeof value !== "object" || value === null)
+    throw new TypeError("window metrics must be an object");
+  const next = value as Record<string, unknown>;
+  const finiteNumber = (field: string): number => {
+    const number = next[field];
+    if (typeof number !== "number" || !Number.isFinite(number))
+      throw new TypeError(`window metrics ${field} must be a finite number`);
+    return number;
   };
-  setMetrics({ ...next, windowId: windowKeyFromJSON(next.windowId) });
+  if (typeof next.maximized !== "boolean" || typeof next.focused !== "boolean")
+    throw new TypeError("window metrics flags must be booleans");
+  if (
+    next.colorScheme !== null &&
+    next.colorScheme !== "light" &&
+    next.colorScheme !== "dark"
+  )
+    throw new TypeError("window metrics colorScheme is invalid");
+  return {
+    windowId: windowKeyFromJSON(next.windowId),
+    logicalWidth: finiteNumber("logicalWidth"),
+    logicalHeight: finiteNumber("logicalHeight"),
+    physicalWidth: finiteNumber("physicalWidth"),
+    physicalHeight: finiteNumber("physicalHeight"),
+    scaleFactor: finiteNumber("scaleFactor"),
+    maximized: next.maximized,
+    focused: next.focused,
+    colorScheme: next.colorScheme,
+  };
+}
+
+subscribeJson("wabou:window-metrics", setMetrics, {
+  decode: decodeWindowMetrics,
 });
 
 const state: WindowState = {

@@ -2,10 +2,10 @@ import { Badge, Button, Card, CardContent, Icon, Text, View } from "@wabou/ui";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import xCircle from "lucide-static/icons/circle-x.svg?raw";
 import { For, Show } from "solid-js";
-import { useAria2 } from "../aria2";
+import { useDownloads } from "../downloads";
 
 export function NotificationsPage() {
-  const aria2 = useAria2();
+  const downloads = useDownloads();
   return (
     <View class="flex flex-col gap-4">
       <View class="flex items-center justify-between">
@@ -13,19 +13,19 @@ export function NotificationsPage() {
           <Text role="heading" class="text-2xl font-bold">
             Notifications
           </Text>
-          <Badge variant="outline">{aria2.events().length}</Badge>
+          <Badge variant="outline">{downloads.events().length}</Badge>
         </View>
         <Button
           variant="ghost"
-          disabled={!aria2.events().length}
-          onClick={aria2.clearEvents}
+          disabled={!downloads.events().length}
+          onClick={downloads.clearEvents}
         >
           Clear all
         </Button>
       </View>
       <Card class="rounded-xl shadow-lg">
         <CardContent class="p-0">
-          <For each={aria2.events()}>
+          <For each={downloads.events()}>
             {(event) => (
               <View class="min-h-14 px-4 flex items-center gap-3 border-b border-subtle">
                 <View
@@ -53,7 +53,7 @@ export function NotificationsPage() {
               </View>
             )}
           </For>
-          <Show when={!aria2.events().length}>
+          <Show when={!downloads.events().length}>
             <View class="h-64 flex flex-col items-center justify-center gap-3">
               <Icon source={checkCircle} size={34} class="text-muted" />
               <Text class="font-medium">No recent notifications</Text>

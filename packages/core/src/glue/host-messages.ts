@@ -8,8 +8,14 @@ export interface HostMessage {
   payload: unknown;
 }
 
+export interface HostJsonSubscriptionOptions<T> {
+  decode?: (value: unknown) => T;
+  onError?: (error: unknown, payload: unknown) => void;
+}
+
 const listeners = new Map<string, Set<HostMessageHandler>>();
 const allListeners = new Set<HostMessageAllHandler>();
+const utf8 = new TextDecoder();
 
 /**
  * Subscribe to host messages on `topic`.
@@ -39,6 +45,37 @@ export function subscribeAll(handler: HostMessageAllHandler): () => void {
   };
 }
 
+/** Subscribe to a host topic carrying JSON text or UTF-8 bytes. */
+export function subscribeJson<T>(
+  topic: string,
+  handler: (value: T) => void,
+  options: HostJsonSubscriptionOptions<T> = {},
+): () => void {
+  return subscribe(topic, (payload) => {
+    try {
+      const source =
+        typeof payload === "string"
+          ? payload
+          : payload instanceof Uint8Array
+            ? utf8.decode(payload)
+            : undefined;
+      if (source === undefined)
+        throw new TypeError(
+          `host message "${topic}" does not contain JSON text`,
+        );
+      const parsed: unknown = JSON.parse(source);
+      handler(options.decode ? options.decode(parsed) : (parsed as T));
+    } catch (error) {
+      if (options.onError) options.onError(error, payload);
+      else
+        console.error(
+          `[wabou-host] invalid JSON message for "${topic}"`,
+          error,
+        );
+    }
+  });
+}
+
 export function dispatchHostMessage(topic: string, payload: unknown): void {
   const set = listeners.get(topic);
   if (set) {
@@ -62,4 +99,5 @@ export function dispatchHostMessage(topic: string, payload: unknown): void {
 export const hostMessages = {
   subscribe,
   subscribeAll,
+  subscribeJson,
 };

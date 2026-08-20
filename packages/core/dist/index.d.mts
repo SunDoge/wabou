@@ -1,8 +1,8 @@
 import { T as ResourceKey, d as INTERACTION_POLICY, f as OP, h as Writer, m as TEXT_BEHAVIOR, s as GRAPHIC_SOURCE, t as EVENT_CODE } from "./protocol-Cb5z35fp.mjs";
 import { n as WabouIntrinsicElements, t as HostCapabilities } from "./registry-DXOPfC3L.mjs";
-import { $ as Portal, A as delegateEvents, B as mount, C as WabouVectorPathProps, D as createComponent, E as applyRef, F as insert, G as render, H as registerRoot, I as insertNode, J as setTransform2D, K as runSweep, L as isServer, M as effect, N as getMountRoot, O as createElement, P as getRequestEvent, Q as VirtualListProps, R as memo, S as WabouSvgShapeProps, St as isVectorPath, T as acquireOverlayRoot, U as releaseOverlayRoot, V as ref, W as removeNode, X as writer, Y as spread, Z as VirtualList, _ as WabouPointerEvent, _t as PathFillRule, a as WabouBuiltinIntrinsicElements, at as defaultHost, b as WabouSemanticRole, bt as VectorPath, c as WabouEventTarget, ct as LayoutNodeMetrics, d as WabouInputEvent, et as PortalProps, f as WabouInputProps, ft as JSX, g as WabouNodeEvent, gt as PathBuilder, h as WabouNativeTag, i as NativeScrollbarStyle, it as LayoutTarget, j as dispatchEvent, k as createTextNode, l as WabouExposedSemanticRole, lt as LayoutRect, m as WabouNativeElements, n as DynamicProps, nt as HostProvider, o as WabouControlProps, ot as useHost, p as WabouKeyEvent, q as setProp, r as Handle, rt as HostProviderProps, s as WabouElementProps, st as FrameStats, t as Dynamic, tt as Host, u as WabouImageProps, ut as LayoutSnapshot, v as WabouPositionedEvent, vt as PathLineCap, w as WabouWheelEvent, x as WabouSvgProps, xt as VectorPathPaint, y as WabouScrollEvent, yt as PathLineJoin, z as mergeProps } from "./index-CClWq0PS.mjs";
 import { C as WabouSpacingToken, D as WabouStyle, E as INLINE_STYLE_CONTRACT, S as WabouDynamicUtility, T as WabouUtility, _ as scale2d, a as StyleValueKind, b as WabouBaseUtility, c as auto, d as isTypedStyleValue, f as number, g as rotate2d, h as rgba, i as ShadowOptions, l as bool, m as px, n as STYLE_VALUE, o as TypedStyleValue, p as percent, r as Shadow, s as assertInlineStyleValue, t as Affine2D, u as classes, v as shadow, w as WabouStaticUtility, x as WabouColorToken, y as translate2d } from "./style-COVvh6aZ.mjs";
-import { t as createFps } from "./renderer-D61Y7y7C.mjs";
+import { $ as VirtualListProps, A as delegateEvents, B as mergeProps, C as WabouVectorPathProps, Ct as VectorPathPaint, D as createComponent, E as applyRef, F as insert, G as removeNode, H as ref, I as insertNode, J as setProp, K as render, L as isDirectEvent, M as effect, N as getMountRoot, O as createElement, P as getRequestEvent, Q as VirtualList, R as isServer, S as WabouSvgShapeProps, St as VectorPath, T as acquireOverlayRoot, U as registerRoot, V as mount, W as releaseOverlayRoot, X as spread, Y as setTransform2D, Z as writer, _ as WabouPointerEvent, _t as PathBuilder, a as WabouBuiltinIntrinsicElements, at as LayoutTarget, b as WabouSemanticRole, bt as PathLineJoin, c as WabouEventTarget, ct as FrameStats, d as WabouInputEvent, dt as LayoutSnapshot, et as Portal, f as WabouInputProps, g as WabouNodeEvent, h as WabouNativeTag, i as NativeScrollbarStyle, it as HostProviderProps, j as dispatchEvent, k as createTextNode, l as WabouExposedSemanticRole, lt as LayoutNodeMetrics, m as WabouNativeElements, n as DynamicProps, nt as Host, o as WabouControlProps, ot as defaultHost, p as WabouKeyEvent, pt as JSX, q as runSweep, r as Handle, rt as HostProvider, s as WabouElementProps, st as useHost, t as Dynamic, tt as PortalProps, u as WabouImageProps, ut as LayoutRect, v as WabouPositionedEvent, vt as PathFillRule, w as WabouWheelEvent, wt as isVectorPath, x as WabouSvgProps, xt as PathPoint, y as WabouScrollEvent, yt as PathLineCap, z as memo } from "./index-CzHIENwX.mjs";
+import { t as createFps } from "./renderer-COnJzpjF.mjs";
 import { Accessor, JSX as JSX$1 } from "solid-js";
 //#region src/generated/host-abi.d.ts
 declare global {
@@ -51,6 +51,10 @@ interface HostMessage {
   topic: string;
   payload: unknown;
 }
+interface HostJsonSubscriptionOptions<T> {
+  decode?: (value: unknown) => T;
+  onError?: (error: unknown, payload: unknown) => void;
+}
 /**
  * Subscribe to host messages on `topic`.
  * Returns an unsubscribe function.
@@ -58,9 +62,12 @@ interface HostMessage {
 declare function subscribe(topic: string, handler: HostMessageHandler): () => void;
 /** Subscribe to every topic; handler receives `(topic, payload)`. */
 declare function subscribeAll(handler: HostMessageAllHandler): () => void;
+/** Subscribe to a host topic carrying JSON text or UTF-8 bytes. */
+declare function subscribeJson<T>(topic: string, handler: (value: T) => void, options?: HostJsonSubscriptionOptions<T>): () => void;
 declare const hostMessages: {
   subscribe: typeof subscribe;
   subscribeAll: typeof subscribeAll;
+  subscribeJson: typeof subscribeJson;
 };
 //#endregion
 //#region src/glue/window.d.ts
@@ -194,6 +201,8 @@ declare const tempDir: () => Promise<string>;
 interface Application {
   /** Terminate the full native application, including tray-resident windows. */
   exit(): void;
+  /** Gracefully stop the application and launch the same executable again. */
+  relaunch(): void;
 }
 declare const application: Application;
 //#endregion
@@ -265,6 +274,46 @@ declare const intl: Readonly<{
   today(): CalendarDateFields;
 }>;
 //#endregion
+//#region src/glue/async-action.d.ts
+type AsyncActionResult<T> = {
+  ok: true;
+  value: T;
+} | {
+  ok: false;
+  error: unknown;
+};
+/** A concurrent call tried to replace the arguments of an in-flight action. */
+declare class AsyncActionConflictError extends Error {
+  constructor();
+}
+interface AsyncAction<Args extends unknown[], T> {
+  pending: Accessor<boolean>;
+  error: Accessor<unknown | undefined>;
+  run(...args: Args): Promise<AsyncActionResult<T>>;
+  reset(): void;
+}
+interface KeyedAsyncAction<Key, Args extends unknown[], T> {
+  pendingKeys: Accessor<ReadonlySet<Key>>;
+  pending(key: Key): boolean;
+  error(key: Key): unknown | undefined;
+  run(...args: Args): Promise<AsyncActionResult<T>>;
+  reset(key: Key): void;
+  resetAll(): void;
+}
+/**
+ * Run an imperative async operation as a single flight with explicit state.
+ * Repeated calls with the same argument identities join the pending operation.
+ * A call with different arguments returns [`AsyncActionConflictError`] rather
+ * than silently discarding those arguments. Use `createKeyedAsyncAction` when
+ * independently keyed operations should run concurrently.
+ */
+declare function createAsyncAction<Args extends unknown[], T>(action: (...args: Args) => PromiseLike<T> | T): AsyncAction<Args, T>;
+/**
+ * Run one async single-flight per stable key. Calls for the same key join the
+ * existing operation, while unrelated keys remain independently concurrent.
+ */
+declare function createKeyedAsyncAction<Key, Args extends unknown[], T>(keyOf: (...args: Args) => Key, action: (...args: Args) => PromiseLike<T> | T): KeyedAsyncAction<Key, Args, T>;
+//#endregion
 //#region src/glue/color-theme.d.ts
 type ColorThemeEasing = "linear" | "ease-in" | "ease-out" | "ease-in-out" | ((progress: number) => number);
 interface ColorThemeAnimationOptions {
@@ -293,6 +342,140 @@ declare function ColorThemeProvider(props: {
   children: JSX$1.Element;
 }): JSX$1.Element;
 declare function useColorTheme(): ColorThemeController;
+//#endregion
+//#region src/glue/event-effect.d.ts
+interface EventEffectOptions<T> {
+  /** A retained event feed. Items may be newest-first or oldest-first. */
+  source: Accessor<readonly T[]>;
+  /** A strictly increasing sequence assigned when the event is produced. */
+  sequence: (event: T) => number;
+  onEvent: (event: T) => unknown;
+  /** Receives synchronous throws and asynchronous rejections from `onEvent`. */
+  onError?: (error: unknown, event: T) => void;
+  /** Consume retained history on mount. Defaults to false. */
+  consumeInitial?: boolean;
+}
+/**
+ * Consume every new event from a retained feed exactly once and in sequence
+ * order. This avoids losing events when several feed updates are batched into
+ * one reactive notification.
+ */
+declare function createEventEffect<T>(options: EventEffectOptions<T>): void;
+//#endregion
+//#region src/glue/host-resource.d.ts
+interface RevisionedHostValue {
+  revision: number;
+}
+interface RevisionedHostPatch {
+  baseRevision: number;
+}
+interface RevisionedHostResourceOptions<T extends RevisionedHostValue, P extends RevisionedHostPatch> {
+  initial: T;
+  load: () => Promise<T>;
+  snapshotTopic: string;
+  patchTopic?: string;
+  applyPatch?: (current: T, patch: P) => T | undefined;
+  decodeSnapshot?: HostJsonSubscriptionOptions<T>["decode"];
+  decodePatch?: HostJsonSubscriptionOptions<P>["decode"];
+  onValue?: (value: T, source: "load" | "snapshot" | "patch") => void;
+  onError?: (error: unknown, source: "load" | "snapshot" | "patch") => void;
+  autoLoad?: boolean;
+}
+interface RevisionedHostResource<T extends RevisionedHostValue> {
+  value: Accessor<T>;
+  loading: Accessor<boolean>;
+  error: Accessor<unknown | undefined>;
+  /**
+   * Load an authoritative snapshot from the host.
+   *
+   * Transport/load failures are stored in `error()` and also reject this
+   * promise so command paths cannot accidentally continue with stale state.
+   * `undefined` only means the result lost a revision race or the resource was
+   * already disposed.
+   */
+  refresh(): Promise<T | undefined>;
+  waitFor(predicate: (value: T) => boolean, options?: RevisionedHostWaitOptions): Promise<T>;
+  dispose(): void;
+}
+interface RevisionedHostWaitOptions {
+  timeout?: number;
+  signal?: AbortSignal;
+  /**
+   * If no pushed value matches before `timeout`, perform one coalesced full
+   * refresh and test the refreshed value before reporting the timeout.
+   *
+   * This is useful after host commands: pushes keep the common path cheap,
+   * while the refresh closes over dropped/coalesced notification races.
+   */
+  refreshOnTimeout?: boolean;
+}
+type RevisionedHostWaitErrorReason = "timeout" | "aborted" | "disposed";
+declare class RevisionedHostWaitError extends Error {
+  readonly reason: RevisionedHostWaitErrorReason;
+  constructor(reason: RevisionedHostWaitErrorReason, message: string);
+}
+/**
+ * Keep a Solid value synchronized with a host-owned revisioned snapshot.
+ *
+ * A revision identifies the exact snapshot contents. After the first host
+ * value, producers must increase it whenever those contents can change;
+ * another payload with the same revision is treated as a duplicate.
+ *
+ * The initial RPC closes the subscription race by ignoring results older than
+ * an already received host push. A patch whose base revision no longer
+ * matches automatically falls back to one coalesced full refresh.
+ */
+declare function createRevisionedHostResource<T extends RevisionedHostValue, P extends RevisionedHostPatch = RevisionedHostPatch>(options: RevisionedHostResourceOptions<T, P>): RevisionedHostResource<T>;
+//#endregion
+//#region src/glue/json-capability.d.ts
+interface NativeJsonCapability {
+  readonly __wabouCapabilityVersion: number;
+}
+type JsonCapabilityMethodName<Capability> = Extract<{ [Key in keyof Capability]: Capability[Key] extends ((...args: never[]) => unknown) ? Key : never; }[keyof Capability], string>;
+interface JsonCapabilityClientOptions {
+  name: string;
+  version: number;
+}
+declare class JsonCapabilityError extends Error {
+  readonly code?: string;
+  constructor(message: string, code?: string);
+}
+type JsonCapabilityClient = <Response>(method: string, request?: unknown) => Promise<Response>;
+/** Bind Wabou's versioned JSON capability transport to a typed app wrapper. */
+declare function bindJsonCapability<Capability extends NativeJsonCapability>(capability: Capability | undefined, options: JsonCapabilityClientOptions): JsonCapabilityClient;
+//#endregion
+//#region src/glue/latest-async-resource.d.ts
+interface LatestAsyncResourceOptions<K, T> {
+  source: Accessor<K | undefined>;
+  load: (key: K, context: {
+    signal: AbortSignal;
+  }) => Promise<T>;
+  initialValue?: T;
+  retainPrevious?: boolean;
+  autoLoad?: boolean;
+}
+type LatestAsyncResourceStatus = "idle" | "pending" | "ready" | "error";
+interface LatestAsyncResource<T> {
+  value: Accessor<T | undefined>;
+  loading: Accessor<boolean>;
+  error: Accessor<unknown | undefined>;
+  status: Accessor<LatestAsyncResourceStatus>;
+  /**
+   * Start a latest-wins load for the current source.
+   *
+   * Load failures are represented by `status() === "error"` and `error()`;
+   * they do not reject this promise. `undefined` means the load failed, was
+   * superseded/aborted, or there is no active source.
+   */
+  refresh(): Promise<T | undefined>;
+  mutate(value: T): void;
+  dispose(): void;
+}
+/**
+ * Load the latest reactive key while exposing ordinary, non-suspending state.
+ * Older requests are aborted when possible and can never overwrite newer data.
+ */
+declare function createLatestAsyncResource<K, T>(options: LatestAsyncResourceOptions<K, T>): LatestAsyncResource<T>;
 //#endregion
 //#region src/glue/native-menu.d.ts
 type NativeMenuItem = {
@@ -334,5 +517,18 @@ interface PlatformProviderProps {
 /** Override native services for one Solid subtree, primarily for tests and previews. */
 declare function PlatformProvider(props: PlatformProviderProps): JSX$1.Element;
 //#endregion
-export { Affine2D, type AppDirectories, type Application, type CalendarDateFields, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, type FrameStats, GRAPHIC_SOURCE, Handle, type Host, HostCapabilities, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type LayoutNodeMetrics, type LayoutRect, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouImageProps, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouUtility, WabouVectorPathProps, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bool, classes, clipboard, colorTheme, createComponent, createElement, createFps, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, percent, px, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
+//#region src/keyed-list.d.ts
+interface KeyedListPatch<T, Key> {
+  readonly upserted: readonly T[];
+  readonly removed: readonly Key[];
+  readonly order: readonly Key[];
+}
+/**
+ * Reconcile a host-owned keyed list while validating its complete order.
+ * Returns `undefined` for duplicate, missing, or unaccounted-for keys so the
+ * caller can request a full snapshot instead of accepting divergent state.
+ */
+declare function reconcileKeyedList<T, Key>(current: readonly T[], patch: KeyedListPatch<T, Key>, keyOf: (value: T) => Key): T[] | undefined;
+//#endregion
+export { Affine2D, type AppDirectories, type Application, type AsyncAction, AsyncActionConflictError, type AsyncActionResult, type CalendarDateFields, type Clipboard, type ColorPalette, type ColorThemeAnimation, type ColorThemeAnimationOptions, type ColorThemeController, type ColorThemeEasing, ColorThemeProvider, type CreateWindowOptions, type Dialog, type DialogFilter, Dynamic, DynamicProps, EVENT_CODE, type EventEffectOptions, type FileDropEvent, type FileDropHandler, type FileDropPhase, type FileDropPosition, type FrameStats, GRAPHIC_SOURCE, Handle, type Host, HostCapabilities, type HostJsonSubscriptionOptions, type HostMessage, type HostMessageAllHandler, type HostMessageHandler, HostProvider, type HostProviderProps, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, type JSX, type JsonCapabilityClient, type JsonCapabilityClientOptions, JsonCapabilityError, type JsonCapabilityMethodName, type KeyedAsyncAction, KeyedListPatch, type LatestAsyncResource, type LatestAsyncResourceOptions, type LatestAsyncResourceStatus, type LayoutNodeMetrics, type LayoutRect, type LayoutSnapshot, type LayoutTarget, type MessageDialogButtons, type MessageDialogLevel, type MessageDialogOptions, type MessageDialogResult, type NativeJsonCapability, type NativeMenuItem, type NativeMenuOptions, type NativeMenuPosition, NativeScrollbarStyle, type Notification, type NotificationOptions, OP, type OpenDialogOptions, PathBuilder, PathFillRule, PathLineCap, PathLineJoin, PathPoint, type PickDirectoryOptions, PlatformProvider, type PlatformProviderProps, type PlatformServices, Portal, type PortalProps, type RevisionedHostPatch, type RevisionedHostResource, type RevisionedHostResourceOptions, type RevisionedHostValue, RevisionedHostWaitError, type RevisionedHostWaitErrorReason, type RevisionedHostWaitOptions, STYLE_VALUE, type SaveDialogOptions, Shadow, ShadowOptions, StyleValueKind, TEXT_BEHAVIOR, TypedStyleValue, VectorPath, VectorPathPaint, VirtualList, type VirtualListProps, WabouBaseUtility, WabouBuiltinIntrinsicElements, WabouColorToken, WabouControlProps, WabouDynamicUtility, WabouElementProps, WabouEventTarget, WabouExposedSemanticRole, WabouImageProps, WabouInputEvent, WabouInputProps, WabouIntrinsicElements, WabouKeyEvent, WabouNativeElements, WabouNativeTag, WabouNodeEvent, WabouPointerEvent, WabouPositionedEvent, WabouScrollEvent, WabouSemanticRole, WabouSpacingToken, WabouStaticUtility, type WabouStyle, WabouSvgProps, WabouSvgShapeProps, WabouUtility, WabouVectorPathProps, WabouWheelEvent, type WindowHandle, type WindowKey, type WindowMetrics, type WindowSizeQuery, type WindowState, type Writer, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
 //# sourceMappingURL=index.d.mts.map

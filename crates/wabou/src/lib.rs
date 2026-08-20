@@ -20,10 +20,14 @@ pub use wabou_bindgen::{JsonCapabilityContract, JsonMethod};
 pub use wabou_runtime::rquickjs;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
-    HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostService,
-    JsonCapability, Result, ShellExtension, WindowMetrics, WindowOptions, WindowResourceKey,
-    initial_window_resource_key, widget_api,
+    HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter,
+    HostService, HostServiceContext, HostServiceHandle, JsonCapability, ManagedHostService, Result,
+    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot, ShellExtension,
+    WindowMetrics, WindowOptions, WindowResourceKey, initial_window_resource_key,
+    managed_host_service, widget_api,
 };
+#[cfg(feature = "tray")]
+pub use wabou_tray::{SystemTray, TrayImage};
 
 #[cfg(test)]
 mod tests {

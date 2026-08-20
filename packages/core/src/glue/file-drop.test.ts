@@ -63,4 +63,21 @@ describe("file drop", () => {
     );
     expect(handler).not.toHaveBeenCalled();
   });
+
+  test("invalid native payloads never reach application handlers", () => {
+    const handler = vi.fn();
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const unsubscribe = subscribeFileDrop(handler);
+
+    dispatchHostMessage("wabou:file-drop", "not json");
+    dispatchHostMessage(
+      "wabou:file-drop",
+      JSON.stringify({ phase: "dropped", paths: [42], position: null }),
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    log.mockRestore();
+  });
 });

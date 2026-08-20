@@ -105,6 +105,6 @@ mod tests {
         assert!(output.contains("queryNodes(request: QueryNodesRequest): Promise<DebugNode[]>"));
         assert!(output.contains("selectedNode: number | null"));
         assert!(output.contains("captureScreenshot(): Promise<PathResult>"));
-        assert!(output.contains("captureScreenshot(request: string): NativeResult<string>"));
+        assert!(output.contains("captureScreenshot(): NativeResult<string>"));
     }
 }

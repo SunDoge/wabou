@@ -69,6 +69,11 @@ WABOU_CAPTURE_SCALE_FACTOR=2 .agents/skills/wabou-debug/scripts/capture-png.sh g
 WABOU_CAPTURE_WINDOW_ID=2 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/child.png 800 600
 ```
 
+The script uses the real application host by default, so registered services,
+capabilities, message producers, and widget factories participate in the
+capture. Set `WABOU_CAPTURE_BUNDLE_ONLY=1` for a faster frontend-only capture.
+Coordinate click capture currently selects the bundle-only path.
+
 Inspect the resulting PNG with an image viewer/tool, not by file existence alone.
 
 Limitations:

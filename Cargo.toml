@@ -15,7 +15,7 @@ wabou = { path = "crates/wabou" }
 wabou-accessibility = { path = "crates/wabou-accessibility" }
 wabou-bindgen = { path = "crates/wabou-bindgen", default-features = false }
 wabou-database = { path = "crates/wabou-database" }
-wabou-devtools = { path = "crates/wabou-devtools" }
+wabou-devtools = { path = "crates/wabou-devtools", default-features = false }
 wabou-host-api = { path = "crates/wabou-host-api" }
 wabou-runtime = { path = "crates/wabou-runtime" }
 wabou-shell = { path = "crates/wabou-shell" }
@@ -25,7 +25,7 @@ wabou-tray = { path = "crates/wabou-tray" }
 wabou-widgets = { path = "crates/wabou-widgets" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
-aria2-ws = "0.5.1"
+gosh-dl = { version = "0.5.0", default-features = false, features = ["http", "torrent", "storage"] }
 bitflags = "2.10.0"
 bon = "3.9.3"
 clap = "4.6.4"
@@ -38,6 +38,7 @@ parley = { version = "0.10", features = ["complex-scripts"] }
 swash = "0.2.10"
 rfd = "0.17.2"
 serde = "1"
+serde_ignored = "0.1.14"
 serde_json = "1"
 snafu = "0.9.2"
 slotmap = "1.1.1"

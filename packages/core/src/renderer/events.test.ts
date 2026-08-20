@@ -1,15 +1,20 @@
 import { expect, test } from "bun:test";
-import { px, shadow } from "../style";
 import type { JSX } from "solid-js";
+import { GRAPHIC_DATA } from "../protocol";
+import { px, shadow } from "../style";
+import { PathBuilder } from "../vector-path";
 import {
   createElement,
   dispatchEvent,
   EVENT_CODE,
   GRAPHIC_SOURCE,
-  OP,
+  insertNode,
+  isDirectEvent,
   mount,
+  OP,
   runSweep,
   setProp,
+  type WabouNodeEvent,
   writer,
 } from "./index";
 
@@ -52,6 +57,31 @@ test("graphic sources use the typed resource protocol", () => {
     [GRAPHIC_SOURCE.NetworkRaster, "https://x.test/icon.png"],
   ]);
   expect(cleared).toEqual([GRAPHIC_SOURCE.Svg, GRAPHIC_SOURCE.NetworkRaster]);
+});
+
+test("non-drawing vector paths clear stale native geometry", () => {
+  const path = createElement("vector-path");
+  const written: number[] = [];
+  const cleared: number[] = [];
+  const setGraphicData = writer.setGraphicData.bind(writer);
+  const clearGraphicData = writer.clearGraphicData.bind(writer);
+  writer.setGraphicData = (_id, kind) => written.push(kind);
+  writer.clearGraphicData = (_id, kind) => cleared.push(kind);
+  try {
+    setProp(
+      path,
+      "source",
+      new PathBuilder().moveTo(0, 0).lineTo(1, 1).build(),
+      undefined,
+    );
+    setProp(path, "source", new PathBuilder().moveTo(0, 0).build(), undefined);
+  } finally {
+    writer.setGraphicData = setGraphicData;
+    writer.clearGraphicData = clearGraphicData;
+  }
+
+  expect(written).toEqual([GRAPHIC_DATA.VectorPath]);
+  expect(cleared).toEqual([GRAPHIC_DATA.VectorPath]);
 });
 
 test("mount manages the host root lifecycle", () => {
@@ -154,6 +184,34 @@ test("event handler failures retain the event context and JavaScript stack", () 
   expect(messages[0]).toContain("events.test.ts");
 });
 
+test("async event handler failures retain the event context", async () => {
+  const button = createElement("button");
+  const messages: string[] = [];
+  const original = globalThis.__wabou_log;
+  globalThis.__wabou_log = (_level, message) => messages.push(message);
+  try {
+    setProp(
+      button,
+      "onClick",
+      async () => {
+        await Promise.resolve();
+        throw new Error("async navigation exploded");
+      },
+      undefined,
+    );
+    dispatchEvent(button.id, EVENT_CODE.click, "");
+    await Promise.resolve();
+    await Promise.resolve();
+  } finally {
+    globalThis.__wabou_log = original;
+  }
+
+  expect(messages).toHaveLength(1);
+  expect(messages[0]).toContain("[wabou-event] click handler failed");
+  expect(messages[0]).toContain(`target ${button.id.lo}v${button.id.hi}`);
+  expect(messages[0]).toContain("Error: async navigation exploded");
+});
+
 test("dispatch reports preventDefault to the Host", () => {
   const target = createElement("view");
   expect(dispatchEvent(target.id, EVENT_CODE.click, "")).toBe(false);
@@ -191,6 +249,31 @@ test("native events expose their actual target and payload contract", () => {
   expect(observed?.currentTarget.id).toEqual(target.id);
   expect(observed?.payload).toEqual({ value: "next" });
   expect(observed?.propagationStopped).toBe(true);
+});
+
+test("direct-event checks distinguish a hit node from its bubbling parent", () => {
+  const parent = createElement("view");
+  const child = createElement("button");
+  insertNode(parent, child, undefined);
+  const observed: boolean[] = [];
+  setProp(
+    child,
+    "onClick",
+    (event: WabouNodeEvent) => {
+      observed.push(isDirectEvent(event));
+    },
+    undefined,
+  );
+  setProp(
+    parent,
+    "onClick",
+    (event: WabouNodeEvent) => {
+      observed.push(isDirectEvent(event));
+    },
+    undefined,
+  );
+  dispatchEvent(child.id, EVENT_CODE.click, "");
+  expect(observed).toEqual([true, false]);
 });
 
 test("native scroll observations expose authoritative offsets", () => {

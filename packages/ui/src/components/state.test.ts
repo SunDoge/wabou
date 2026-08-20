@@ -48,3 +48,18 @@ test("disabled state rejects transitions", () =>
     expect(state.value()).toBe(false);
     dispose();
   }));
+
+test("uncontrolled state can store a function value", () =>
+  createRoot((dispose) => {
+    const first = () => "first";
+    const second = () => "second";
+    const state = createControllableState({
+      value: () => undefined,
+      defaultValue: first,
+    });
+    expect(state.value()).toBe(first);
+    expect(state.set(second)).toBe(true);
+    flush();
+    expect(state.value()).toBe(second);
+    dispose();
+  }));

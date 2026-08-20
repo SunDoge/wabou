@@ -36,20 +36,21 @@
 
 use snafu::ResultExt;
 use std::collections::HashMap;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use vello::peniko::Color;
 
 use wabou_bindgen::JsonCapabilityContract;
 
-use crate::HostMessageContext;
 use crate::applier::Applier;
 use crate::asset_cache::ResourceCache;
 use crate::bundle;
 use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
+use crate::{HostMessageContext, HostMessageRouter};
 use crate::{ShellExtension, WindowOptions, run_windows_with_factory_and_extensions, style};
 use wabou_shell::{Widget, WidgetFactory};
 use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
@@ -63,17 +64,371 @@ pub trait HostService: Send + Sync {
     /// Stable name used in diagnostics.
     fn name(&self) -> &'static str;
     /// Start the service before Wabou creates JavaScript runtimes.
-    fn start(&self) -> Result<(), String>;
+    fn start(&self, context: &HostServiceContext) -> Result<(), String>;
     /// Stop the service after the native event loop finishes.
-    fn shutdown(&self);
+    fn shutdown(&self) -> Result<(), String>;
+}
+
+/// Read-only environment available while a host-owned service starts.
+#[derive(Clone, Debug)]
+pub struct HostServiceContext {
+    app_directories: Option<wabou_shell::AppDirectories>,
+    behavior_test: bool,
+    headless: bool,
+}
+
+impl HostServiceContext {
+    /// Return the application directories resolved by the host, when configured.
+    pub fn app_directories(&self) -> Option<&wabou_shell::AppDirectories> {
+        self.app_directories.as_ref()
+    }
+
+    /// Return whether `wabou test` controls this host run.
+    pub fn is_behavior_test(&self) -> bool {
+        self.behavior_test
+    }
+
+    /// Return whether the deterministic headless shell is active.
+    pub fn is_headless(&self) -> bool {
+        self.headless
+    }
+}
+
+/// Cloneable application handle for a resource whose lifetime is owned by
+/// [`HostBuilder`]. The handle exists before the resource starts, so it can be
+/// captured by capabilities and message producers without starting native
+/// work outside [`HostBuilder::run`].
+pub struct HostServiceHandle<T> {
+    name: &'static str,
+    state: Arc<Mutex<HostServiceState<T>>>,
+}
+
+enum HostServiceState<T> {
+    Stopped,
+    Starting,
+    Running(T),
+    Failed {
+        error: String,
+        context: HostServiceContext,
+    },
+}
+
+impl<T> Clone for HostServiceHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name,
+            state: self.state.clone(),
+        }
+    }
+}
+
+impl<T: Clone> HostServiceHandle<T> {
+    /// Clone the started resource, or report that the host has not started it.
+    pub fn get(&self) -> Result<T, String> {
+        match &*self
+            .state
+            .lock()
+            .map_err(|_| format!("{} service state is poisoned", self.name))?
+        {
+            HostServiceState::Running(value) => Ok(value.clone()),
+            HostServiceState::Starting => Err(format!("{} service is starting", self.name)),
+            HostServiceState::Stopped => Err(format!("{} service is not running", self.name)),
+            HostServiceState::Failed { error, .. } => {
+                Err(format!("{} service failed to start: {error}", self.name))
+            }
+        }
+    }
+}
+
+type HostServiceStart<T> = dyn Fn(&HostServiceContext) -> Result<T, String> + Send + Sync;
+type HostServiceShutdown<T> = dyn Fn(T) -> Result<(), String> + Send + Sync;
+
+fn panic_description(payload: &(dyn std::any::Any + Send)) -> &str {
+    payload
+        .downcast_ref::<&'static str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("unknown panic payload")
+}
+
+/// A host-owned service paired with a stable handle for application code.
+///
+/// Startup is serialized with retry and shutdown. If the host exits during an
+/// asynchronous retry, shutdown waits for the synchronous initializer to
+/// settle and then closes the produced value exactly once. Initializer panics
+/// become ordinary failed states so the service can still be retried or shut
+/// down without leaving the lifecycle stuck in `Starting`.
+pub struct ManagedHostService<T> {
+    name: &'static str,
+    state: Arc<Mutex<HostServiceState<T>>>,
+    settled: Arc<Condvar>,
+    start: Arc<HostServiceStart<T>>,
+    shutdown: Arc<HostServiceShutdown<T>>,
+}
+
+impl<T> Clone for ManagedHostService<T> {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name,
+            state: self.state.clone(),
+            settled: self.settled.clone(),
+            start: self.start.clone(),
+            shutdown: self.shutdown.clone(),
+        }
+    }
+}
+
+/// Create a service that starts inside [`HostBuilder::run`] while exposing a
+/// handle that can safely be captured by capabilities beforehand.
+pub fn managed_host_service<T, Start, Shutdown>(
+    name: &'static str,
+    start: Start,
+    shutdown: Shutdown,
+) -> (HostServiceHandle<T>, ManagedHostService<T>)
+where
+    T: Clone + Send + Sync + 'static,
+    Start: Fn(&HostServiceContext) -> Result<T, String> + Send + Sync + 'static,
+    Shutdown: Fn(T) -> Result<(), String> + Send + Sync + 'static,
+{
+    let state = Arc::new(Mutex::new(HostServiceState::Stopped));
+    (
+        HostServiceHandle {
+            name,
+            state: state.clone(),
+        },
+        ManagedHostService {
+            name,
+            state,
+            settled: Arc::new(Condvar::new()),
+            start: Arc::new(start),
+            shutdown: Arc::new(shutdown),
+        },
+    )
+}
+
+impl<T> HostService for ManagedHostService<T>
+where
+    T: Clone + Send + Sync + 'static,
+{
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn start(&self, context: &HostServiceContext) -> Result<(), String> {
+        {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|_| format!("{} service state is poisoned", self.name))?;
+            match &*state {
+                HostServiceState::Stopped | HostServiceState::Failed { .. } => {
+                    *state = HostServiceState::Starting;
+                }
+                HostServiceState::Starting => {
+                    return Err(format!("{} service is already starting", self.name));
+                }
+                HostServiceState::Running(_) => {
+                    return Err(format!("{} service is already running", self.name));
+                }
+            }
+        }
+
+        let started = catch_unwind(AssertUnwindSafe(|| (self.start)(context))).map_err(|payload| {
+            format!(
+                "{} service initializer panicked: {}",
+                self.name,
+                panic_description(payload.as_ref())
+            )
+        });
+        let value = match started.and_then(|result| result) {
+            Ok(value) => value,
+            Err(error) => {
+                *self
+                    .state
+                    .lock()
+                    .map_err(|_| format!("{} service state is poisoned", self.name))? =
+                    HostServiceState::Failed {
+                        error: error.clone(),
+                        context: context.clone(),
+                    };
+                self.settled.notify_all();
+                return Err(error);
+            }
+        };
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| format!("{} service state is poisoned", self.name))?;
+        if !matches!(*state, HostServiceState::Starting) {
+            return Err(format!(
+                "{} service state changed unexpectedly while starting",
+                self.name
+            ));
+        }
+        *state = HostServiceState::Running(value);
+        self.settled.notify_all();
+        Ok(())
+    }
+
+    fn shutdown(&self) -> Result<(), String> {
+        let value = {
+            let mut state = self
+                .state
+                .lock()
+                .map_err(|_| format!("{} service state is poisoned", self.name))?;
+            while matches!(*state, HostServiceState::Starting) {
+                state = self
+                    .settled
+                    .wait(state)
+                    .map_err(|_| format!("{} service state is poisoned", self.name))?;
+            }
+            match std::mem::replace(&mut *state, HostServiceState::Stopped) {
+                HostServiceState::Running(value) => Some(value),
+                HostServiceState::Stopped => None,
+                HostServiceState::Failed { .. } => None,
+                HostServiceState::Starting => unreachable!("waited for service start to settle"),
+            }
+        };
+        match value {
+            Some(value) => (self.shutdown)(value),
+            None => Ok(()),
+        }
+    }
+}
+
+impl<T> ManagedHostService<T>
+where
+    T: Clone + Send + Sync + 'static,
+{
+    /// Retry a failed start with the same host environment. Returns an error
+    /// when the service has not failed or is already running/starting.
+    pub fn retry(&self) -> Result<(), String> {
+        let context = {
+            let state = self
+                .state
+                .lock()
+                .map_err(|_| format!("{} service state is poisoned", self.name))?;
+            match &*state {
+                HostServiceState::Failed { context, .. } => context.clone(),
+                HostServiceState::Stopped => {
+                    return Err(format!("{} service has not started", self.name));
+                }
+                HostServiceState::Starting => {
+                    return Err(format!("{} service is already starting", self.name));
+                }
+                HostServiceState::Running(_) => {
+                    return Err(format!("{} service is already running", self.name));
+                }
+            }
+        };
+        self.start(&context)
+    }
+
+    /// Retry without blocking the caller's async executor or JavaScript event
+    /// loop while the synchronous service initializer runs.
+    ///
+    /// This requires a Tokio runtime because the initializer is dispatched to
+    /// its blocking pool. Calling it from another executor returns an error
+    /// instead of panicking; use [`Self::retry`] when the caller owns its own
+    /// blocking-task mechanism.
+    pub async fn retry_async(&self) -> Result<(), String> {
+        let runtime = tokio::runtime::Handle::try_current()
+            .map_err(|_| format!("{} service async retry requires a Tokio runtime", self.name))?;
+        let service = self.clone();
+        runtime
+            .spawn_blocking(move || service.retry())
+            .await
+            .map_err(|error| format!("{} service retry task failed: {error}", self.name))?
+    }
 }
 
 struct HostServicesGuard(Vec<Arc<dyn HostService>>);
 
+impl HostServicesGuard {
+    fn shutdown_all(&mut self) -> Vec<(&'static str, String)> {
+        let mut failures = Vec::new();
+        while let Some(service) = self.0.pop() {
+            let name = service.name();
+            let started = Instant::now();
+            let result = service.shutdown();
+            let elapsed = started.elapsed();
+            if elapsed >= Duration::from_secs(1) {
+                tracing::warn!(
+                    service = name,
+                    elapsed_ms = elapsed.as_millis(),
+                    "host service shutdown was slow"
+                );
+            } else {
+                tracing::debug!(
+                    service = name,
+                    elapsed_ms = elapsed.as_millis(),
+                    "host service shut down"
+                );
+            }
+            if let Err(error) = result {
+                failures.push((service.name(), error));
+            }
+        }
+        failures
+    }
+
+    fn finish(mut self) -> crate::Result<()> {
+        let failures = self.shutdown_all();
+        if failures.is_empty() {
+            return Ok(());
+        }
+        Err(crate::Error::HostServiceShutdown {
+            message: failures
+                .into_iter()
+                .map(|(name, error)| format!("`{name}`: {error}"))
+                .collect::<Vec<_>>()
+                .join("; "),
+        })
+    }
+}
+
+fn start_host_services(
+    services: &[(Arc<dyn HostService>, bool)],
+    context: &HostServiceContext,
+) -> crate::Result<HostServicesGuard> {
+    let mut started = HostServicesGuard(Vec::with_capacity(services.len()));
+    for (service, required) in services {
+        let name = service.name();
+        let start = Instant::now();
+        let result = service.start(context);
+        let elapsed = start.elapsed();
+        if elapsed >= Duration::from_secs(1) {
+            tracing::warn!(
+                service = name,
+                elapsed_ms = elapsed.as_millis(),
+                "host service startup was slow"
+            );
+        } else {
+            tracing::debug!(
+                service = name,
+                elapsed_ms = elapsed.as_millis(),
+                "host service started"
+            );
+        }
+        if let Err(message) = result {
+            if *required {
+                return Err(crate::Error::HostService {
+                    name: service.name(),
+                    message,
+                });
+            }
+            tracing::warn!(service = name, %message, "recoverable host service failed to start");
+            continue;
+        }
+        started.0.push(service.clone());
+    }
+    Ok(started)
+}
+
 impl Drop for HostServicesGuard {
     fn drop(&mut self) {
-        for service in self.0.iter().rev() {
-            service.shutdown();
+        for (service, error) in self.shutdown_all() {
+            tracing::warn!(service, %error, "failed to shut down host service");
         }
     }
 }
@@ -167,6 +522,7 @@ struct RuntimeSourceConfig {
     host_message_producers: Vec<HostMessageProducer>,
     widget_factories: HashMap<String, WidgetFactory>,
     base_color: Color,
+    #[cfg(feature = "devtools")]
     debug_state: Option<wabou_devtools::SharedDebugState>,
     effect_trace: Option<crate::effect_trace::EffectTrace>,
     app_directories: Option<wabou_shell::AppDirectories>,
@@ -227,6 +583,7 @@ impl RuntimeSourceConfig {
                     })?
             }
         }
+        #[cfg(feature = "devtools")]
         if let Some(state) = &self.debug_state {
             applier.set_debug_state(state.clone());
         }
@@ -253,7 +610,7 @@ pub struct HostBuilder {
     widget_factories: HashMap<String, WidgetFactory>,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
-    services: Vec<Arc<dyn HostService>>,
+    services: Vec<(Arc<dyn HostService>, bool)>,
     devtools: bool,
     extensions: Vec<Box<dyn ShellExtension>>,
     effect_trace: Option<EffectTraceConfig>,
@@ -281,7 +638,7 @@ impl HostBuilder {
             capabilities: Vec::new(),
             host_message_producers: Vec::new(),
             services: Vec::new(),
-            devtools: cfg!(debug_assertions),
+            devtools: cfg!(all(debug_assertions, feature = "devtools")),
             extensions: Vec::new(),
             effect_trace: None,
             app_directory_config: None,
@@ -359,9 +716,26 @@ impl HostBuilder {
         self
     }
 
+    /// Connect a window-addressable message router to every JavaScript runtime.
+    /// Native callbacks may retain a clone and send without polling or touching
+    /// QuickJS from the callback thread.
+    pub fn host_message_router(mut self, router: HostMessageRouter) -> Self {
+        self.host_message_producers
+            .push(Arc::new(move |context| router.attach(context)));
+        self
+    }
+
     /// Own a process, database, or background service for the full host lifetime.
     pub fn service(mut self, service: impl HostService + 'static) -> Self {
-        self.services.push(Arc::new(service));
+        self.services.push((Arc::new(service), true));
+        self
+    }
+
+    /// Own a service whose startup failure leaves the application available in
+    /// a degraded state. Capabilities using a managed handle receive the
+    /// original startup diagnostic instead of a generic "not running" error.
+    pub fn recoverable_service(mut self, service: impl HostService + 'static) -> Self {
+        self.services.push((Arc::new(service), false));
         self
     }
 
@@ -462,17 +836,27 @@ impl HostBuilder {
     }
 
     /// Build the JsRuntime + Applier + run the winit event loop.
-    pub fn run(mut self) -> crate::Result<()> {
-        let mut _services = HostServicesGuard(Vec::with_capacity(self.services.len()));
-        for service in &self.services {
-            service
-                .start()
-                .map_err(|message| crate::Error::HostService {
-                    name: service.name(),
-                    message,
-                })?;
-            _services.0.push(service.clone());
+    pub fn run(self) -> crate::Result<()> {
+        let outcome = self.run_once()?;
+        if outcome == crate::RunOutcome::Relaunch && std::env::var_os("WABOU_TEST_SCRIPT").is_none()
+        {
+            relaunch_current_process()?;
         }
+        Ok(())
+    }
+
+    fn run_once(mut self) -> crate::Result<crate::RunOutcome> {
+        #[cfg(feature = "profiling")]
+        let _profile_guard = init_tracing();
+        #[cfg(not(feature = "profiling"))]
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+            )
+            .try_init()
+            .ok();
+
         let test_script = std::env::var_os("WABOU_TEST_SCRIPT")
             .map(PathBuf::from)
             .map(|path| {
@@ -482,9 +866,32 @@ impl HostBuilder {
                 })
             })
             .transpose()?;
-        let test_controller = test_script
-            .as_ref()
-            .map(|_| crate::test_driver::TestController::default());
+        let trace_path = self.effect_trace.as_ref().map(|config| match config {
+            EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
+                path.clone()
+            }
+        });
+        let mut effect_trace = match &self.effect_trace {
+            Some(EffectTraceConfig::Record { record_all, .. }) => {
+                Some(crate::effect_trace::EffectTrace::record(*record_all))
+            }
+            Some(EffectTraceConfig::Replay { path }) => Some(
+                crate::effect_trace::EffectTrace::replay(path)
+                    .map_err(|message| crate::Error::EffectTrace { message })?,
+            ),
+            None => None,
+        };
+        let recording_effects = matches!(self.effect_trace, Some(EffectTraceConfig::Record { .. }));
+        if test_script.is_some() && effect_trace.is_none() {
+            effect_trace = Some(crate::effect_trace::EffectTrace::fixtures());
+        }
+        let test_controller = test_script.as_ref().map(|_| {
+            crate::test_driver::TestController::new(
+                effect_trace
+                    .clone()
+                    .expect("behavior tests always install an effect fixture bridge"),
+            )
+        });
         let headless_test = test_controller.is_some()
             && std::env::var("WABOU_TEST_HEADLESS").is_ok_and(|value| value != "0");
         if let Some(controller) = &test_controller {
@@ -498,22 +905,6 @@ impl HostBuilder {
                     )));
             }
         }
-        let trace_path = self.effect_trace.as_ref().map(|config| match config {
-            EffectTraceConfig::Record { path, .. } | EffectTraceConfig::Replay { path } => {
-                path.clone()
-            }
-        });
-        let effect_trace = match &self.effect_trace {
-            Some(EffectTraceConfig::Record { record_all, .. }) => {
-                Some(crate::effect_trace::EffectTrace::record(*record_all))
-            }
-            Some(EffectTraceConfig::Replay { path }) => Some(
-                crate::effect_trace::EffectTrace::replay(path)
-                    .map_err(|message| crate::Error::EffectTrace { message })?,
-            ),
-            None => None,
-        };
-        let recording_effects = matches!(self.effect_trace, Some(EffectTraceConfig::Record { .. }));
         let app_directories = self
             .app_directory_config
             .as_ref()
@@ -526,6 +917,12 @@ impl HostBuilder {
                 })
             })
             .transpose()?;
+        let service_context = HostServiceContext {
+            app_directories: app_directories.clone(),
+            behavior_test: test_controller.is_some(),
+            headless: headless_test,
+        };
+        let services = start_host_services(&self.services, &service_context)?;
         if let Some(key) = &self.persisted_window_size {
             if let Some(directories) = &app_directories {
                 let path = directories
@@ -549,17 +946,6 @@ impl HostBuilder {
         let windows = std::iter::once(self.window.clone())
             .chain(self.additional_windows.iter().cloned())
             .collect::<Vec<_>>();
-        #[cfg(feature = "profiling")]
-        let _profile_guard = init_tracing();
-        #[cfg(not(feature = "profiling"))]
-        tracing_subscriber::fmt()
-            .with_env_filter(
-                tracing_subscriber::EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-            )
-            .try_init()
-            .ok();
-
         let asset_cache = Arc::new(if let Some(directories) = &app_directories {
             ResourceCache::with_disk(&directories.cache_dir).unwrap_or_else(|error| {
                 tracing::warn!(%error, "failed to enable persistent asset cache");
@@ -572,15 +958,23 @@ impl HostBuilder {
         // and on every later `?` path, before the cache-owned runtime is dropped.
         let _asset_cache_shutdown = ResourceCacheShutdownGuard::new(asset_cache.clone());
 
-        let mut devtools_server = None;
-        let debug_state = self.devtools.then(wabou_devtools::DebugState::shared);
+        #[cfg(feature = "devtools")]
+        let devtools_server = {
+            let mut server = None;
+            let debug_state = self.devtools.then(wabou_devtools::DebugState::shared);
+            if self.devtools {
+                let path = wabou_devtools::socket_path();
+                server = Some(
+                    wabou_devtools::serve(debug_state.as_ref().unwrap().clone(), path.clone())
+                        .context(crate::error::DevtoolsSnafu)?,
+                );
+                tracing::info!(target: "devtools", socket = %path.display(), "Wabou DevTools listening");
+            }
+            (server, debug_state)
+        };
+        #[cfg(not(feature = "devtools"))]
         if self.devtools {
-            let path = wabou_devtools::socket_path();
-            devtools_server = Some(
-                wabou_devtools::serve(debug_state.as_ref().unwrap().clone(), path.clone())
-                    .context(crate::error::DevtoolsSnafu)?,
-            );
-            tracing::info!(target: "devtools", socket = %path.display(), "Wabou DevTools listening");
+            tracing::warn!("HostBuilder::devtools(true) requires the `wabou/devtools` feature");
         }
 
         #[cfg(feature = "vite")]
@@ -608,7 +1002,8 @@ impl HostBuilder {
             host_message_producers: self.host_message_producers.clone(),
             widget_factories: self.widget_factories.clone(),
             base_color: self.base_color,
-            debug_state: debug_state.clone(),
+            #[cfg(feature = "devtools")]
+            debug_state: devtools_server.1.clone(),
             effect_trace: effect_trace.clone(),
             app_directories: app_directories.clone(),
             asset_cache: asset_cache.clone(),
@@ -637,7 +1032,9 @@ impl HostBuilder {
         }
 
         if headless_test && let Some(controller) = &test_controller {
-            return run_headless_test(controller, &mut sources, self.base_color);
+            run_headless_test(controller, &mut sources, self.base_color)?;
+            services.finish()?;
+            return Ok(crate::RunOutcome::Exit);
         }
 
         #[cfg(feature = "vite")]
@@ -672,7 +1069,7 @@ impl HostBuilder {
             } else {
                 Ok(())
             };
-        run_result?;
+        let outcome = run_result?;
         trace_result?;
         if let Some(controller) = test_controller {
             finish_test_report(controller)?;
@@ -681,9 +1078,25 @@ impl HostBuilder {
         drop(hmr_clients);
         #[cfg(feature = "vite")]
         drop(child_hmr_clients);
+        #[cfg(feature = "devtools")]
         drop(devtools_server);
-        Ok(())
+        services.finish()?;
+        Ok(outcome)
     }
+}
+
+fn relaunch_current_process() -> crate::Result<()> {
+    let executable = std::env::current_exe().map_err(|error| crate::Error::HostService {
+        name: "application relaunch",
+        message: format!("cannot resolve current executable: {error}"),
+    })?;
+    let mut command = std::process::Command::new(executable);
+    command.args(std::env::args_os().skip(1));
+    command.spawn().map_err(|error| crate::Error::HostService {
+        name: "application relaunch",
+        message: format!("cannot launch replacement process: {error}"),
+    })?;
+    Ok(())
 }
 
 fn install_host_message_producers(
@@ -701,11 +1114,13 @@ fn run_headless_test(
     sources: &mut [WindowSource],
     base_color: Color,
 ) -> crate::Result<()> {
-    const WIDTH: u32 = 1100;
-    const HEIGHT: u32 = 720;
+    let viewport = HeadlessViewport::from_environment()?;
 
-    controller
-        .initialize_headless((0..sources.len()).map(wabou_shell::initial_window_resource_key));
+    controller.initialize_headless(
+        (0..sources.len()).map(wabou_shell::initial_window_resource_key),
+        viewport.width,
+        viewport.height,
+    );
     // JavaScript reports individual test timeouts with the test name. This is
     // only a final safety net for a broken runtime or runner that cannot
     // produce a report at all.
@@ -717,33 +1132,161 @@ fn run_headless_test(
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
             let window_key = wabou_shell::initial_window_resource_key(index);
+            let (width, height) = controller
+                .headless_viewport(window_key)
+                .unwrap_or((viewport.width, viewport.height));
             source.set_semantics_enabled(true);
             source.handle_event(wabou_shell::UiEvent::WindowMetrics(crate::WindowMetrics {
                 window_key,
-                logical_width: WIDTH,
-                logical_height: HEIGHT,
-                physical_width: WIDTH,
-                physical_height: HEIGHT,
-                scale_factor: 1.0,
+                logical_width: width,
+                logical_height: height,
+                physical_width: viewport.physical_width_for(width),
+                physical_height: viewport.physical_height_for(height),
+                scale_factor: viewport.scale_factor,
                 maximized: false,
                 focused: true,
                 color_scheme: Some(wabou_shell::ColorScheme::Light),
             }));
-            last_nodes[index] = source.build_frame(&mut text, WIDTH, HEIGHT);
+            last_nodes[index] = source.build_frame(&mut text, width, height);
             controller.poll_headless_source(window_key, source.as_mut());
+            drain_headless_effects(source.as_mut());
         }
         std::thread::sleep(Duration::from_millis(1));
     }
+    // A test can finish while its final JS mutation still needs projection.
+    // Capture only after two additional host frames have settled that work.
+    for _ in 0..2 {
+        for (index, (source, _)) in sources.iter_mut().enumerate() {
+            let window_key = wabou_shell::initial_window_resource_key(index);
+            let (width, height) = controller
+                .headless_viewport(window_key)
+                .unwrap_or((viewport.width, viewport.height));
+            last_nodes[index] = source.build_frame(&mut text, width, height);
+        }
+    }
+    let capture_window = wabou_shell::initial_window_resource_key(viewport.window_index);
+    let capture_viewport = controller
+        .headless_viewport(capture_window)
+        .map(|(width, height)| viewport.with_logical_size(width, height))
+        .unwrap_or(viewport);
     if controller.report_passed() == Some(false) {
-        render_headless_failure(&last_nodes, &mut text, base_color)?;
+        render_headless_failure(&last_nodes, &mut text, base_color, capture_viewport)?;
+    }
+    if let Some(output) = std::env::var_os("WABOU_TEST_CAPTURE_PATH") {
+        render_headless_capture(
+            &last_nodes,
+            &mut text,
+            base_color,
+            capture_viewport,
+            Path::new(&output),
+        )?;
     }
     finish_test_report(controller.clone())
+}
+
+#[derive(Clone, Copy)]
+struct HeadlessViewport {
+    width: u32,
+    height: u32,
+    scale_factor: f64,
+    window_index: usize,
+}
+
+impl HeadlessViewport {
+    fn with_logical_size(self, width: u32, height: u32) -> Self {
+        Self {
+            width,
+            height,
+            ..self
+        }
+    }
+
+    fn from_environment() -> crate::Result<Self> {
+        fn parse<T>(name: &'static str, default: T) -> crate::Result<T>
+        where
+            T: std::str::FromStr,
+            T::Err: std::fmt::Display,
+        {
+            let Some(value) = std::env::var_os(name) else {
+                return Ok(default);
+            };
+            value
+                .to_string_lossy()
+                .parse()
+                .map_err(|error| crate::Error::TestScenario {
+                    message: format!("invalid {name}: {error}"),
+                })
+        }
+
+        let width = parse("WABOU_TEST_VIEWPORT_WIDTH", 1100_u32)?;
+        let height = parse("WABOU_TEST_VIEWPORT_HEIGHT", 720_u32)?;
+        let scale_factor = parse("WABOU_TEST_SCALE_FACTOR", 1.0_f64)?;
+        let window_id = parse("WABOU_TEST_CAPTURE_WINDOW_ID", 1_u32)?;
+        if width == 0 || height == 0 {
+            return Err(crate::Error::TestScenario {
+                message: "headless viewport dimensions must be greater than zero".into(),
+            });
+        }
+        if !scale_factor.is_finite() || scale_factor <= 0.0 {
+            return Err(crate::Error::TestScenario {
+                message: "headless scale factor must be finite and greater than zero".into(),
+            });
+        }
+        let window_index = window_id
+            .checked_sub(1)
+            .ok_or_else(|| crate::Error::TestScenario {
+                message: "headless capture window id must be greater than zero".into(),
+            })? as usize;
+        Ok(Self {
+            width,
+            height,
+            scale_factor,
+            window_index,
+        })
+    }
+
+    fn physical_width(self) -> u32 {
+        self.physical_width_for(self.width)
+    }
+
+    fn physical_width_for(self, width: u32) -> u32 {
+        (f64::from(width) * self.scale_factor)
+            .round()
+            .clamp(1.0, f64::from(u32::MAX)) as u32
+    }
+
+    fn physical_height(self) -> u32 {
+        self.physical_height_for(self.height)
+    }
+
+    fn physical_height_for(self, height: u32) -> u32 {
+        (f64::from(height) * self.scale_factor)
+            .round()
+            .clamp(1.0, f64::from(u32::MAX)) as u32
+    }
+}
+
+fn drain_headless_effects(source: &mut dyn crate::FrameSource) {
+    while let Some(request) = source.take_effect() {
+        source.complete_effect(wabou_shell::EffectCompletion {
+            id: request.id,
+            op: request.payload.op(),
+            result: wabou_shell::EffectResult::Error {
+                code: wabou_shell::EffectErrorCode::Unsupported,
+                message: format!(
+                    "native effect {:?} has no deterministic test fixture",
+                    request.payload.op()
+                ),
+            },
+        });
+    }
 }
 
 fn render_headless_failure(
     last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
     text: &mut crate::TextContext,
     base_color: Color,
+    viewport: HeadlessViewport,
 ) -> crate::Result<()> {
     if !std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0") {
         return Ok(());
@@ -751,24 +1294,61 @@ fn render_headless_failure(
     let Some(directory) = std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(PathBuf::from) else {
         return Ok(());
     };
-    let Some(nodes) = last_nodes.first() else {
-        return Ok(());
-    };
     std::fs::create_dir_all(&directory).map_err(|error| crate::Error::TestScenario {
         message: format!("cannot create failure artifact directory: {error}"),
     })?;
+    render_headless_capture(
+        last_nodes,
+        text,
+        base_color,
+        viewport,
+        &directory.join("failure.png"),
+    )
+}
+
+fn render_headless_capture(
+    last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
+    text: &mut crate::TextContext,
+    base_color: Color,
+    viewport: HeadlessViewport,
+    output: &Path,
+) -> crate::Result<()> {
+    let Some(nodes) = last_nodes.get(viewport.window_index) else {
+        return Err(crate::Error::TestScenario {
+            message: format!(
+                "capture requested window {} but the application has {} window(s)",
+                viewport.window_index + 1,
+                last_nodes.len()
+            ),
+        });
+    };
+    if let Some(parent) = output.parent().filter(|path| !path.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(|error| crate::Error::TestScenario {
+            message: format!(
+                "cannot create capture directory {}: {error}",
+                parent.display()
+            ),
+        })?;
+    }
     let mut scene = vello::Scene::new();
-    wabou_shell::scene::build_scene_scaled(&mut scene, nodes, text, 1100, 720, base_color, 1.0);
-    let output = directory.join("failure.png");
+    wabou_shell::scene::build_scene_scaled(
+        &mut scene,
+        nodes,
+        text,
+        viewport.width,
+        viewport.height,
+        base_color,
+        viewport.scale_factor,
+    );
     wabou_shell::renderer::render_to_png(
         &scene,
-        1100,
-        720,
+        viewport.physical_width(),
+        viewport.physical_height(),
         base_color,
         output.to_string_lossy().as_ref(),
     )
     .map_err(|error| crate::Error::TestScenario {
-        message: format!("cannot render failure screenshot: {error:?}"),
+        message: format!("cannot render headless screenshot: {error:?}"),
     })
 }
 
@@ -937,15 +1517,26 @@ fn test_report_summary(value: &serde_json::Value, artifact_directory: Option<&Pa
 #[cfg(test)]
 mod tests {
     use super::{
-        HostBuilder, JsonCapabilityContract, install_host_message_producers, test_environment,
-        test_report_summary, test_trace_artifact, write_test_artifact,
+        HostBuilder, HostService, HostServiceContext, HostServiceHandle, HostServicesGuard,
+        JsonCapabilityContract, install_host_message_producers, managed_host_service,
+        start_host_services, test_environment, test_report_summary, test_trace_artifact,
+        write_test_artifact,
     };
-    use crate::host_message::{HostMessagePayload, host_message_channel};
+    use crate::host_message::{HostMessagePayload, HostTaskTracker, host_message_channel};
     use crate::json_capability::{JsonCapability, invoke_json_method};
     use crate::{Applier, HostMessageContext, JsRuntime};
     use std::path::Path;
     use std::sync::{Arc, Mutex};
+    use std::time::Duration;
     use wabou_bindgen::JsonMethod;
+
+    fn service_context() -> HostServiceContext {
+        HostServiceContext {
+            app_directories: None,
+            behavior_test: false,
+            headless: false,
+        }
+    }
 
     #[derive(serde::Deserialize)]
     struct JsonRequest {
@@ -955,6 +1546,306 @@ mod tests {
     #[derive(serde::Serialize)]
     struct JsonResponse {
         doubled: u32,
+    }
+
+    struct TestService {
+        name: &'static str,
+        shutdowns: Arc<Mutex<Vec<&'static str>>>,
+        fail_start: bool,
+        fail: bool,
+    }
+
+    impl HostService for TestService {
+        fn name(&self) -> &'static str {
+            self.name
+        }
+
+        fn start(&self, _context: &HostServiceContext) -> Result<(), String> {
+            if self.fail_start {
+                Err("expected start failure".to_owned())
+            } else {
+                Ok(())
+            }
+        }
+
+        fn shutdown(&self) -> Result<(), String> {
+            self.shutdowns.lock().unwrap().push(self.name);
+            if self.fail {
+                Err("expected test failure".to_owned())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn host_services_shutdown_in_reverse_order_and_continue_after_errors() {
+        let shutdowns = Arc::new(Mutex::new(Vec::new()));
+        let first: Arc<dyn HostService> = Arc::new(TestService {
+            name: "first",
+            shutdowns: shutdowns.clone(),
+            fail_start: false,
+            fail: false,
+        });
+        let second: Arc<dyn HostService> = Arc::new(TestService {
+            name: "second",
+            shutdowns: shutdowns.clone(),
+            fail_start: false,
+            fail: true,
+        });
+        let error = HostServicesGuard(vec![first, second])
+            .finish()
+            .unwrap_err()
+            .to_string();
+        assert_eq!(*shutdowns.lock().unwrap(), ["second", "first"]);
+        assert!(error.contains("`second`: expected test failure"));
+    }
+
+    #[test]
+    fn later_service_start_failure_shuts_down_already_started_services() {
+        let shutdowns = Arc::new(Mutex::new(Vec::new()));
+        let first: Arc<dyn HostService> = Arc::new(TestService {
+            name: "first",
+            shutdowns: shutdowns.clone(),
+            fail_start: false,
+            fail: false,
+        });
+        let second: Arc<dyn HostService> = Arc::new(TestService {
+            name: "second",
+            shutdowns: shutdowns.clone(),
+            fail_start: true,
+            fail: false,
+        });
+
+        let error = start_host_services(&[(first, true), (second, true)], &service_context())
+            .err()
+            .unwrap();
+        assert!(error.to_string().contains("second"));
+        assert_eq!(*shutdowns.lock().unwrap(), ["first"]);
+    }
+
+    #[test]
+    fn recoverable_service_start_failure_does_not_abort_later_services() {
+        let shutdowns = Arc::new(Mutex::new(Vec::new()));
+        let failed: Arc<dyn HostService> = Arc::new(TestService {
+            name: "optional",
+            shutdowns: shutdowns.clone(),
+            fail_start: true,
+            fail: false,
+        });
+        let healthy: Arc<dyn HostService> = Arc::new(TestService {
+            name: "healthy",
+            shutdowns: shutdowns.clone(),
+            fail_start: false,
+            fail: false,
+        });
+
+        start_host_services(&[(failed, false), (healthy, true)], &service_context())
+            .unwrap()
+            .finish()
+            .unwrap();
+        assert_eq!(*shutdowns.lock().unwrap(), ["healthy"]);
+    }
+
+    #[test]
+    fn managed_service_handle_is_available_only_while_service_runs() {
+        let shutdowns = Arc::new(Mutex::new(Vec::new()));
+        let shutdown_log = shutdowns.clone();
+        let (handle, service) = managed_host_service(
+            "database",
+            |_| Ok::<_, String>(String::from("ready")),
+            move |value| {
+                shutdown_log.lock().unwrap().push(value);
+                Ok(())
+            },
+        );
+
+        assert_eq!(handle.get().unwrap_err(), "database service is not running");
+        service.start(&service_context()).unwrap();
+        assert_eq!(handle.get().unwrap(), "ready");
+        assert!(
+            service
+                .start(&service_context())
+                .unwrap_err()
+                .contains("already running")
+        );
+        service.shutdown().unwrap();
+        assert_eq!(handle.get().unwrap_err(), "database service is not running");
+        assert_eq!(*shutdowns.lock().unwrap(), ["ready"]);
+        service.shutdown().unwrap();
+        assert_eq!(*shutdowns.lock().unwrap(), ["ready"]);
+    }
+
+    #[test]
+    fn managed_service_start_runs_without_holding_the_state_lock() {
+        let observed = Arc::new(Mutex::new(None::<HostServiceHandle<String>>));
+        let observed_during_start = observed.clone();
+        let (handle, service) = managed_host_service(
+            "database",
+            move |_| {
+                let error = observed_during_start
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .get()
+                    .unwrap_err();
+                assert_eq!(error, "database service is starting");
+                Ok::<_, String>(String::from("ready"))
+            },
+            |_| Ok(()),
+        );
+        *observed.lock().unwrap() = Some(handle.clone());
+
+        service.start(&service_context()).unwrap();
+        assert_eq!(handle.get().unwrap(), "ready");
+        service.shutdown().unwrap();
+    }
+
+    #[test]
+    fn managed_service_can_retry_after_start_failure() {
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let start_attempts = attempts.clone();
+        let (handle, service) = managed_host_service(
+            "database",
+            move |_| {
+                if start_attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0 {
+                    Err("database unavailable".to_owned())
+                } else {
+                    Ok(String::from("ready"))
+                }
+            },
+            |_| Ok(()),
+        );
+
+        assert_eq!(
+            service.start(&service_context()).unwrap_err(),
+            "database unavailable"
+        );
+        assert_eq!(
+            handle.get().unwrap_err(),
+            "database service failed to start: database unavailable"
+        );
+        service.retry().unwrap();
+        assert_eq!(handle.get().unwrap(), "ready");
+        service.shutdown().unwrap();
+    }
+
+    #[test]
+    fn managed_service_turns_initializer_panics_into_retryable_failures() {
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let start_attempts = attempts.clone();
+        let (handle, service) = managed_host_service(
+            "database",
+            move |_| {
+                if start_attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0 {
+                    panic!("broken database initializer");
+                }
+                Ok(String::from("ready"))
+            },
+            |_| Ok(()),
+        );
+
+        assert_eq!(
+            service.start(&service_context()).unwrap_err(),
+            "database service initializer panicked: broken database initializer"
+        );
+        assert_eq!(
+            handle.get().unwrap_err(),
+            "database service failed to start: database service initializer panicked: broken database initializer"
+        );
+        service.retry().unwrap();
+        assert_eq!(handle.get().unwrap(), "ready");
+        service.shutdown().unwrap();
+    }
+
+    #[tokio::test]
+    async fn managed_service_async_retry_runs_initializer_off_executor_thread() {
+        let first_thread = std::thread::current().id();
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let retry_thread = Arc::new(Mutex::new(None));
+        let start_attempts = attempts.clone();
+        let observed_thread = retry_thread.clone();
+        let (_handle, service) = managed_host_service(
+            "database",
+            move |_| {
+                if start_attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0 {
+                    return Err("database unavailable".to_owned());
+                }
+                *observed_thread.lock().unwrap() = Some(std::thread::current().id());
+                Ok(String::from("ready"))
+            },
+            |_| Ok(()),
+        );
+
+        service.start(&service_context()).unwrap_err();
+        service.retry_async().await.unwrap();
+        assert_ne!(*retry_thread.lock().unwrap(), Some(first_thread));
+        service.shutdown().unwrap();
+    }
+
+    #[test]
+    fn managed_service_shutdown_waits_for_concurrent_retry_and_closes_the_result() {
+        let attempts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let start_attempts = attempts.clone();
+        let shutdowns = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let shutdown_count = shutdowns.clone();
+        let (entered_tx, entered_rx) = std::sync::mpsc::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let release_rx = Arc::new(Mutex::new(release_rx));
+        let start_release = release_rx.clone();
+        let (handle, service) = managed_host_service(
+            "database",
+            move |_| {
+                if start_attempts.fetch_add(1, std::sync::atomic::Ordering::Relaxed) == 0 {
+                    return Err("database unavailable".to_owned());
+                }
+                entered_tx.send(()).unwrap();
+                start_release.lock().unwrap().recv().unwrap();
+                Ok(String::from("ready"))
+            },
+            move |_| {
+                shutdown_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                Ok(())
+            },
+        );
+
+        service.start(&service_context()).unwrap_err();
+        let retry_service = service.clone();
+        let retry = std::thread::spawn(move || retry_service.retry());
+        entered_rx.recv().unwrap();
+
+        let shutdown_service = service.clone();
+        let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            shutdown_tx.send(shutdown_service.shutdown()).unwrap();
+        });
+        assert!(
+            shutdown_rx.recv_timeout(Duration::from_millis(20)).is_err(),
+            "shutdown returned before the service initializer settled"
+        );
+
+        release_tx.send(()).unwrap();
+        retry.join().unwrap().unwrap();
+        shutdown_rx.recv().unwrap().unwrap();
+        assert_eq!(shutdowns.load(std::sync::atomic::Ordering::Relaxed), 1);
+        assert_eq!(handle.get().unwrap_err(), "database service is not running");
+    }
+
+    #[test]
+    fn managed_service_async_retry_without_tokio_returns_error() {
+        let (_handle, service) = managed_host_service(
+            "database",
+            |_| Err::<String, _>("database unavailable".to_owned()),
+            |_| Ok(()),
+        );
+
+        service.start(&service_context()).unwrap_err();
+        let error = futures_lite::future::block_on(service.retry_async()).unwrap_err();
+        assert_eq!(
+            error,
+            "database service async retry requires a Tokio runtime"
+        );
     }
 
     #[test]
@@ -1042,6 +1933,42 @@ mod tests {
             response["error"]["message"],
             "cannot encode capability response: fixture cannot be encoded"
         );
+    }
+
+    #[test]
+    fn json_capability_rejects_ignored_request_fields() {
+        #[derive(serde::Deserialize)]
+        struct NestedRequest {
+            value: u32,
+            nested: NestedValue,
+        }
+        #[derive(serde::Deserialize)]
+        struct NestedValue {
+            known: bool,
+        }
+
+        let called = Arc::new(Mutex::new(false));
+        let handler_called = Arc::clone(&called);
+        let response = futures_lite::future::block_on(invoke_json_method(
+            r#"{"value":7,"nested":{"known":true,"typo":true}}"#,
+            move |request: NestedRequest| {
+                *handler_called.lock().unwrap() = true;
+                async move {
+                    Ok::<_, String>(JsonResponse {
+                        doubled: request.value * u32::from(request.nested.known),
+                    })
+                }
+            },
+        ));
+        let response = serde_json::from_str::<serde_json::Value>(&response).unwrap();
+
+        assert_eq!(response["ok"], false);
+        assert_eq!(response["error"]["code"], "invalidRequest");
+        assert_eq!(
+            response["error"]["message"],
+            "unknown capability request field: nested.typo"
+        );
+        assert!(!*called.lock().unwrap());
     }
 
     #[test]
@@ -1259,6 +2186,7 @@ mod tests {
                 handle.clone(),
                 cancellation.clone(),
                 runtime.handle().clone(),
+                Arc::new(HostTaskTracker::default()),
             ));
         }
 

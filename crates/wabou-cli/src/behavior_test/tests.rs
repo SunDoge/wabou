@@ -102,6 +102,19 @@ fn input_validation_reports_actionable_errors() {
         &json!({
             "version": 1,
             "actions": [{
+                "action": "assertWindowState",
+                "windowId": 1,
+                "expected": { "presence": "visible", "surfaceGeneration": 1 },
+                "wait": { "timeout": 100, "interval": 16, "stableFor": 101 }
+            }]
+        }),
+        None,
+        "wait.stableFor cannot exceed wait.timeout",
+    );
+    assert_error_contains(
+        &json!({
+            "version": 1,
+            "actions": [{
                 "action": "showWindow",
                 "windowId": 1,
                 "windowID": 2
@@ -273,7 +286,16 @@ fn assert_error_contains(value: &Value, test_name: Option<&str>, expected: &str)
 #[test]
 fn validation_accepts_every_version_one_action_family() {
     let actions = json!([
-        { "action": "nativeClose", "windowId": 1, "platform": "wayland" },
+        {
+            "action": "respondToEffect",
+            "operation": "dialogPickDirectory",
+            "result": ["/tmp/downloads"]
+        },
+        {
+            "action": "nativeClose",
+            "windowId": { "lo": 1, "hi": 1 },
+            "platform": "wayland"
+        },
         { "action": "showWindow", "windowId": 1 },
         { "action": "clickByRole", "windowId": 1, "role": "button", "label": "Save", "index": 1 },
         { "action": "clickByRole", "windowId": 1, "role": "menuitem", "label": "Copy" },
@@ -289,7 +311,13 @@ fn validation_accepts_every_version_one_action_family() {
             "windowId": 1,
             "role": "status",
             "label": "Ready",
-            "wait": { "timeout": 1000, "interval": 16 }
+            "wait": { "timeout": 1000, "interval": 16, "stableFor": 400 }
+        },
+        {
+            "action": "resizeWindow",
+            "windowId": 1,
+            "width": 900,
+            "height": 600
         },
         {
             "action": "waitForByRole",
@@ -304,6 +332,14 @@ fn validation_accepts_every_version_one_action_family() {
             "role": "button",
             "label": "Default",
             "assertion": { "type": "count", "expected": 2 },
+            "wait": { "timeout": 1000, "interval": 16 }
+        },
+        {
+            "action": "assertByRole",
+            "windowId": 1,
+            "role": "button",
+            "label": "Downloads",
+            "assertion": { "type": "current", "expected": "page" },
             "wait": { "timeout": 1000, "interval": 16 }
         },
         {
@@ -337,11 +373,34 @@ fn validation_accepts_every_version_one_action_family() {
         {
             "action": "assertByRole",
             "windowId": 1,
+            "role": "textbox",
+            "label": "Search",
+            "assertion": {
+                "type": "viewport",
+                "tolerance": 0.5
+            },
+            "wait": { "timeout": 1000, "interval": 16 }
+        },
+        {
+            "action": "assertByRole",
+            "windowId": 1,
             "role": "heading",
             "label": "Settings",
             "assertion": {
                 "type": "bounds",
                 "expected": { "width": 120, "height": 32 },
+                "tolerance": 0.5
+            },
+            "wait": { "timeout": 1000, "interval": 16 }
+        },
+        {
+            "action": "assertByRole",
+            "windowId": 1,
+            "role": "textbox",
+            "label": "Search",
+            "assertion": {
+                "type": "withinBounds",
+                "expected": { "x": 0, "y": 0, "width": 900, "height": 600 },
                 "tolerance": 0.5
             },
             "wait": { "timeout": 1000, "interval": 16 }

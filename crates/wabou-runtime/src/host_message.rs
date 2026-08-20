@@ -4,14 +4,61 @@
 //! QuickJS. The applier drains on the UI thread and encodes each item as an
 //! application record in the unified HostEventFrame.
 
+use std::collections::HashMap;
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 use wabou_shell::WakeCallback;
+
+#[derive(Default)]
+pub(crate) struct HostTaskTracker {
+    active: Mutex<usize>,
+    idle: Condvar,
+}
+
+impl HostTaskTracker {
+    fn started(&self) {
+        *self
+            .active
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) += 1;
+    }
+
+    fn finished(&self) {
+        let mut active = self
+            .active
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        *active = active.saturating_sub(1);
+        if *active == 0 {
+            self.idle.notify_all();
+        }
+    }
+
+    pub(crate) fn wait_for_idle(&self, timeout: Duration) -> bool {
+        let active = self
+            .active
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let (active, _) = self
+            .idle
+            .wait_timeout_while(active, timeout, |active| *active != 0)
+            .unwrap_or_else(|error| error.into_inner());
+        *active == 0
+    }
+}
+
+struct HostTaskGuard(Arc<HostTaskTracker>);
+
+impl Drop for HostTaskGuard {
+    fn drop(&mut self) {
+        self.0.finished();
+    }
+}
 
 /// Default bound: producers `try_send` and get [`HostMessageError::Full`] when the
 /// UI thread is not draining fast enough.
@@ -114,6 +161,10 @@ pub enum HostMessageError {
     Disconnected,
     /// Topic or string payload exceeds length limits.
     TooLarge,
+    /// A value could not be serialized as JSON.
+    Serialization,
+    /// The requested window does not currently own a JavaScript runtime.
+    WindowUnavailable,
 }
 
 /// Cloneable, thread-safe handle for enqueueing host messages.
@@ -122,6 +173,150 @@ pub struct HostMessageHandle {
     tx: SyncSender<HostMessage>,
     pending: Arc<AtomicBool>,
     wake: Arc<Mutex<Option<WakeCallback>>>,
+}
+
+/// Thread-safe application router for sending events to a specific window.
+///
+/// Register it with [`crate::HostBuilder::host_message_router`], then retain a
+/// clone in tray callbacks, services, or other native event sources. Routes
+/// are installed when each JavaScript runtime boots and removed when it drops.
+#[derive(Clone, Default)]
+pub struct HostMessageRouter {
+    inner: Arc<HostMessageRouterInner>,
+}
+
+/// Snapshot value carrying a monotonically increasing publication revision.
+pub trait RevisionedHostSnapshot {
+    /// Return the exact revision represented by this snapshot.
+    fn revision(&self) -> u64;
+}
+
+/// Whether a revisioned publication used a complete snapshot or a patch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevisionedHostPublication {
+    /// A complete snapshot was queued.
+    Snapshot,
+    /// A patch from the preceding revision was queued.
+    Patch,
+    /// An equal or older value was ignored without changing the baseline.
+    IgnoredStale,
+}
+
+/// Stateful encoder for a host-owned snapshot plus contiguous patches.
+///
+/// The previous value advances only after a message enters the bounded host
+/// queue. A revision gap therefore automatically repairs dropped/coalesced
+/// notifications with a complete snapshot.
+pub struct RevisionedHostPublisher<T> {
+    snapshot_topic: String,
+    patch_topic: String,
+    previous: Option<T>,
+}
+
+impl<T> RevisionedHostPublisher<T>
+where
+    T: RevisionedHostSnapshot + serde::Serialize,
+{
+    /// Create a publisher for the full-snapshot and patch topics.
+    pub fn new(snapshot_topic: impl Into<String>, patch_topic: impl Into<String>) -> Self {
+        Self {
+            snapshot_topic: snapshot_topic.into(),
+            patch_topic: patch_topic.into(),
+            previous: None,
+        }
+    }
+
+    /// Publish `next`, using `make_patch` only for a contiguous revision.
+    pub fn publish<P>(
+        &mut self,
+        messages: &HostMessageHandle,
+        next: T,
+        make_patch: impl FnOnce(&T, &T) -> P,
+    ) -> Result<RevisionedHostPublication, HostMessageError>
+    where
+        P: serde::Serialize,
+    {
+        let publication = if let Some(previous) = &self.previous {
+            if next.revision() <= previous.revision() {
+                return Ok(RevisionedHostPublication::IgnoredStale);
+            }
+            if previous.revision().checked_add(1) == Some(next.revision()) {
+                messages.emit_json(&self.patch_topic, &make_patch(previous, &next))?;
+                RevisionedHostPublication::Patch
+            } else {
+                messages.emit_json(&self.snapshot_topic, &next)?;
+                RevisionedHostPublication::Snapshot
+            }
+        } else {
+            messages.emit_json(&self.snapshot_topic, &next)?;
+            RevisionedHostPublication::Snapshot
+        };
+        self.previous = Some(next);
+        Ok(publication)
+    }
+
+    /// Forget the last successfully published value, forcing a full snapshot.
+    pub fn reset(&mut self) {
+        self.previous = None;
+    }
+}
+
+#[derive(Default)]
+struct HostMessageRouterInner {
+    next_generation: AtomicU64,
+    routes: Mutex<HashMap<wabou_shell::WindowResourceKey, (u64, HostMessageHandle)>>,
+}
+
+impl HostMessageRouter {
+    /// Create an empty router. Routes appear as registered windows boot.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Send a message to the current JavaScript runtime for `window_key`.
+    pub fn send_to(
+        &self,
+        window_key: wabou_shell::WindowResourceKey,
+        message: HostMessage,
+    ) -> Result<(), HostMessageError> {
+        let handle = self
+            .inner
+            .routes
+            .lock()
+            .map_err(|_| HostMessageError::Disconnected)?
+            .get(&window_key)
+            .map(|(_, handle)| handle.clone())
+            .ok_or(HostMessageError::WindowUnavailable)?;
+        handle.send(message)
+    }
+
+    pub(crate) fn attach(&self, context: HostMessageContext) {
+        let generation = self
+            .inner
+            .next_generation
+            .fetch_add(1, Ordering::Relaxed)
+            .wrapping_add(1);
+        let window_key = context.window_key();
+        if let Ok(mut routes) = self.inner.routes.lock() {
+            routes.insert(window_key, (generation, context.messages().clone()));
+        }
+        let router = self.clone();
+        let cancellation = context.clone();
+        context.spawn(async move {
+            cancellation.cancelled().await;
+            router.detach(window_key, generation);
+        });
+    }
+
+    fn detach(&self, window_key: wabou_shell::WindowResourceKey, generation: u64) {
+        if let Ok(mut routes) = self.inner.routes.lock()
+            && routes
+                .get(&window_key)
+                .is_some_and(|(current, _)| *current == generation)
+        {
+            routes.remove(&window_key);
+        }
+    }
 }
 
 /// Per-window context for a long-running Rust → JavaScript message producer.
@@ -135,6 +330,7 @@ pub struct HostMessageContext {
     messages: HostMessageHandle,
     cancellation: CancellationToken,
     runtime: tokio::runtime::Handle,
+    tasks: Arc<HostTaskTracker>,
 }
 
 impl HostMessageContext {
@@ -143,12 +339,14 @@ impl HostMessageContext {
         messages: HostMessageHandle,
         cancellation: CancellationToken,
         runtime: tokio::runtime::Handle,
+        tasks: Arc<HostTaskTracker>,
     ) -> Self {
         Self {
             window_key,
             messages,
             cancellation,
             runtime,
+            tasks,
         }
     }
 
@@ -180,7 +378,12 @@ impl HostMessageContext {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        self.runtime.spawn(future)
+        self.tasks.started();
+        let tasks = self.tasks.clone();
+        self.runtime.spawn(async move {
+            let _guard = HostTaskGuard(tasks);
+            future.await
+        })
     }
 }
 
@@ -250,6 +453,23 @@ impl HostMessageHandle {
         value: impl Into<Vec<u8>>,
     ) -> Result<(), HostMessageError> {
         self.send(HostMessage::bytes(topic, value))
+    }
+
+    /// Serialize a value as JSON, using a string payload when it fits and the
+    /// larger binary payload otherwise.
+    pub fn emit_json<T: serde::Serialize>(
+        &self,
+        topic: impl Into<String>,
+        value: &T,
+    ) -> Result<(), HostMessageError> {
+        let topic = topic.into();
+        let bytes = serde_json::to_vec(value).map_err(|_| HostMessageError::Serialization)?;
+        if bytes.len() <= MAX_STR_PAYLOAD_BYTES {
+            let text = String::from_utf8(bytes).map_err(|_| HostMessageError::Serialization)?;
+            self.emit_str(topic, text)
+        } else {
+            self.emit_bytes(topic, bytes)
+        }
     }
 
     /// Retry `try_send` until `timeout`.
@@ -324,6 +544,26 @@ pub(crate) fn host_message_channel(capacity: usize) -> (HostMessageHandle, HostM
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde::Serialize;
+
+    #[derive(Debug, Serialize)]
+    struct TestSnapshot {
+        revision: u64,
+        value: u64,
+    }
+
+    impl RevisionedHostSnapshot for TestSnapshot {
+        fn revision(&self) -> u64 {
+            self.revision
+        }
+    }
+
+    #[derive(Serialize)]
+    struct TestPatch {
+        base_revision: u64,
+        revision: u64,
+        delta: u64,
+    }
 
     #[test]
     fn try_send_and_drain_respects_frame_cap() {
@@ -343,6 +583,21 @@ mod tests {
         tx.emit_i32("a", 1).unwrap();
         tx.emit_i32("a", 2).unwrap();
         assert_eq!(tx.emit_i32("a", 3), Err(HostMessageError::Full));
+    }
+
+    #[test]
+    fn json_messages_switch_from_strings_to_bytes_without_changing_payload() {
+        let (tx, rx) = host_message_channel(3);
+        tx.emit_json("small", &serde_json::json!({ "ready": true }))
+            .unwrap();
+        let large = "x".repeat(MAX_STR_PAYLOAD_BYTES + 1);
+        tx.emit_json("large", &large).unwrap();
+        let messages = rx.drain_batch();
+        assert!(matches!(messages[0].payload, HostMessagePayload::Str(_)));
+        let HostMessagePayload::Bytes(bytes) = &messages[1].payload else {
+            panic!("large JSON should use a byte payload");
+        };
+        assert_eq!(serde_json::from_slice::<String>(bytes).unwrap(), large);
     }
 
     #[test]
@@ -368,6 +623,7 @@ mod tests {
             messages,
             cancellation.clone(),
             tokio::runtime::Handle::current(),
+            Arc::new(HostTaskTracker::default()),
         );
         assert_eq!(context.window_key().into_parts(), (9, 1));
         assert!(!context.is_cancelled());
@@ -375,5 +631,234 @@ mod tests {
         cancellation.cancel();
         context.cancelled().await;
         assert!(context.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn router_tracks_the_current_runtime_for_each_window() {
+        let router = HostMessageRouter::new();
+        let window_key = wabou_shell::WindowResourceKey::from_parts(9, 1).unwrap();
+        assert_eq!(
+            router.send_to(window_key, HostMessage::null("before")),
+            Err(HostMessageError::WindowUnavailable)
+        );
+
+        let (messages, inbox) = host_message_channel(2);
+        let cancellation = CancellationToken::new();
+        router.attach(HostMessageContext::new(
+            window_key,
+            messages,
+            cancellation.clone(),
+            tokio::runtime::Handle::current(),
+            Arc::new(HostTaskTracker::default()),
+        ));
+        router
+            .send_to(window_key, HostMessage::str("ready", "yes"))
+            .unwrap();
+        assert_eq!(inbox.drain_batch()[0], HostMessage::str("ready", "yes"));
+
+        cancellation.cancel();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if router.send_to(window_key, HostMessage::null("after"))
+                    == Err(HostMessageError::WindowUnavailable)
+                {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn stale_runtime_cleanup_does_not_remove_a_replacement_route() {
+        let router = HostMessageRouter::new();
+        let window_key = wabou_shell::WindowResourceKey::from_parts(9, 1).unwrap();
+        let (old_messages, _old_inbox) = host_message_channel(2);
+        let old_cancellation = CancellationToken::new();
+        router.attach(HostMessageContext::new(
+            window_key,
+            old_messages,
+            old_cancellation.clone(),
+            tokio::runtime::Handle::current(),
+            Arc::new(HostTaskTracker::default()),
+        ));
+
+        let (new_messages, new_inbox) = host_message_channel(2);
+        let new_cancellation = CancellationToken::new();
+        router.attach(HostMessageContext::new(
+            window_key,
+            new_messages,
+            new_cancellation.clone(),
+            tokio::runtime::Handle::current(),
+            Arc::new(HostTaskTracker::default()),
+        ));
+        old_cancellation.cancel();
+        tokio::task::yield_now().await;
+
+        router
+            .send_to(window_key, HostMessage::str("current", "new"))
+            .unwrap();
+        assert_eq!(
+            new_inbox.drain_batch()[0],
+            HostMessage::str("current", "new")
+        );
+        new_cancellation.cancel();
+    }
+
+    #[test]
+    fn revisioned_publisher_uses_patches_only_after_successful_contiguous_values() {
+        let (messages, inbox) = host_message_channel(4);
+        let mut publisher = RevisionedHostPublisher::new("snapshot", "patch");
+        let patch = |old: &TestSnapshot, next: &TestSnapshot| TestPatch {
+            base_revision: old.revision,
+            revision: next.revision,
+            delta: next.value - old.value,
+        };
+
+        assert_eq!(
+            publisher
+                .publish(
+                    &messages,
+                    TestSnapshot {
+                        revision: 1,
+                        value: 10,
+                    },
+                    patch,
+                )
+                .unwrap(),
+            RevisionedHostPublication::Snapshot
+        );
+        assert_eq!(
+            publisher
+                .publish(
+                    &messages,
+                    TestSnapshot {
+                        revision: 2,
+                        value: 13,
+                    },
+                    patch,
+                )
+                .unwrap(),
+            RevisionedHostPublication::Patch
+        );
+        assert_eq!(
+            publisher
+                .publish(
+                    &messages,
+                    TestSnapshot {
+                        revision: 4,
+                        value: 20,
+                    },
+                    patch,
+                )
+                .unwrap(),
+            RevisionedHostPublication::Snapshot
+        );
+        let topics = inbox
+            .drain_batch()
+            .into_iter()
+            .map(|message| message.topic)
+            .collect::<Vec<_>>();
+        assert_eq!(topics, ["snapshot", "patch", "snapshot"]);
+    }
+
+    #[test]
+    fn revisioned_publisher_does_not_advance_when_the_queue_is_full() {
+        let (messages, inbox) = host_message_channel(1);
+        let mut publisher = RevisionedHostPublisher::new("snapshot", "patch");
+        messages.emit_null("occupied").unwrap();
+        assert_eq!(
+            publisher.publish(
+                &messages,
+                TestSnapshot {
+                    revision: 1,
+                    value: 10,
+                },
+                |_, _| serde_json::Value::Null,
+            ),
+            Err(HostMessageError::Full)
+        );
+        inbox.drain_batch();
+        assert_eq!(
+            publisher
+                .publish(
+                    &messages,
+                    TestSnapshot {
+                        revision: 2,
+                        value: 20,
+                    },
+                    |_, _| serde_json::Value::Null,
+                )
+                .unwrap(),
+            RevisionedHostPublication::Snapshot
+        );
+    }
+
+    #[test]
+    fn revisioned_publisher_ignores_equal_and_regressing_values() {
+        let (messages, inbox) = host_message_channel(4);
+        let mut publisher = RevisionedHostPublisher::new("snapshot", "patch");
+        let patch = |old: &TestSnapshot, next: &TestSnapshot| TestPatch {
+            base_revision: old.revision,
+            revision: next.revision,
+            delta: next.value - old.value,
+        };
+        publisher
+            .publish(
+                &messages,
+                TestSnapshot {
+                    revision: 2,
+                    value: 20,
+                },
+                patch,
+            )
+            .unwrap();
+        assert_eq!(
+            publisher
+                .publish(
+                    &messages,
+                    TestSnapshot {
+                        revision: 2,
+                        value: 999,
+                    },
+                    patch,
+                )
+                .unwrap(),
+            RevisionedHostPublication::IgnoredStale
+        );
+        assert_eq!(
+            publisher
+                .publish(
+                    &messages,
+                    TestSnapshot {
+                        revision: 1,
+                        value: 1,
+                    },
+                    patch,
+                )
+                .unwrap(),
+            RevisionedHostPublication::IgnoredStale
+        );
+        assert_eq!(
+            publisher
+                .publish(
+                    &messages,
+                    TestSnapshot {
+                        revision: 3,
+                        value: 23,
+                    },
+                    patch,
+                )
+                .unwrap(),
+            RevisionedHostPublication::Patch
+        );
+        let topics = inbox
+            .drain_batch()
+            .into_iter()
+            .map(|message| message.topic)
+            .collect::<Vec<_>>();
+        assert_eq!(topics, ["snapshot", "patch"]);
     }
 }

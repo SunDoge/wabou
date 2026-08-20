@@ -52,6 +52,7 @@ await expect(page.getByRole("status", { name: "Save state" })).toHaveText(
 await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
 await expect(page.getByRole("checkbox", { name: "Sync" })).toBeChecked();
 await expect(page.getByRole("checkbox", { name: "Partial sync" })).toBeIndeterminate();
+await expect(page.getByRole("button", { name: "Downloads" })).toBeCurrent("page");
 await expect(editor).toBeFocused();
 ```
 
@@ -84,8 +85,11 @@ application signals. This makes them useful for catching failures between
 Solid reconciliation, Wabou's protocol, layout, and accessibility projection.
 They automatically cross a native frame barrier and retry until the expected
 state is visible. Use `page.waitForIdle()` directly only when a test must wait
-for native layout/semantics without making an assertion; it is not implemented
-as an arbitrary sleep or a fixed number of JavaScript animation frames.
+for native layout/semantics without making an assertion. It crosses two
+complete JavaScript/native frame boundaries: one can publish host inputs such
+as window metrics, and the next projects the resulting Solid update into
+layout and semantics. It does not wait for all animation to stop, because a
+valid application may contain an infinite spinner, ripple, or activity loop.
 `locator.waitFor()` uses the same native-aware retry behavior and accepts
 `timeout` and `interval` options. A semantic probe reads one completed snapshot
 immediately; the JavaScript runner owns retries, so there is no separate hidden
@@ -112,11 +116,29 @@ cross-platform hosts and recorded in the action trace. Presentation-only
 reordering therefore does not retarget replay. An
 out-of-range index waits for a dynamically inserted match until the locator
 timeout; omitting the index continues to require exactly one match.
-Click, keyboard, text, drag, paste, IME, and wheel actions likewise wait for an
-enabled semantic target before dispatching exactly once. They accept the same
-optional `timeout` and `interval` settings. Both deterministic and native runs
-therefore use the JavaScript runner's explicit timeout instead of backend-local
-implicit waits.
+Click, keyboard, text, drag, paste, and IME actions likewise wait for an
+enabled semantic target before dispatching exactly once. Wheel actions wait
+for a unique present target but deliberately do not require it to be enabled:
+a disabled control can still sit beneath the pointer inside a scrollable
+ancestor, and disabled form state must not trap native scrolling. All actions
+accept the same optional `timeout` and `interval` settings. Both deterministic
+and native runs therefore use the JavaScript runner's explicit timeout instead
+of backend-local implicit waits.
+Locator assertions also accept `stableFor`. After the assertion first matches,
+Wabou continues crossing completed native frame barriers for that duration and
+resets the interval if the state stops matching. This is useful for proving
+that an asynchronously refreshed keyed row retains focus without introducing
+an unrecorded `setTimeout`:
+
+```ts
+await expect(page.getByRole("checkbox", { name: "Select task" })).toBeFocused({
+  stableFor: 400,
+  timeout: 1_000,
+});
+```
+
+The resolved stability duration is stored in the action trace and enforced
+during replay. It must be finite, non-negative, and no greater than `timeout`.
 Drag and wheel deltas must be finite, and key actions require a non-empty key;
 invalid input is rejected before it can mutate the trace or cross the native
 bridge. Window ids and surface generations must also be non-negative safe
@@ -145,6 +167,24 @@ traces. They prove native layout geometry, not glyph rasterization, clipping
 pixels, GPU output, or another platform's HiDPI behavior. Use a failure
 screenshot or `wabou render` when the geometry is correct but pixels are not.
 
+Use `toBeWithinBounds` when exact geometry is not part of the contract but a
+control must remain inside a viewport, panel, or other known rectangle:
+
+```ts
+await expect(page.getByRole("textbox", { name: "Search" })).toBeWithinBounds({
+  x: 0,
+  y: 0,
+  width: 900,
+  height: 600,
+});
+```
+
+Containment assertions use the same logical-pixel tolerance, native-frame
+polling, trace recording, and strict replay validation as `toHaveBounds`.
+When the containing rectangle is the current native client area, prefer
+`toBeInViewport()` so deterministic and native runs read the authoritative
+logical viewport instead of duplicating the requested dimensions.
+
 Range-bearing controls expose their numeric value independently from their
 localized `aria-valuetext`. Use `toHaveRange` with any non-empty subset of
 `value`, `min`, and `max` to verify the numeric contract delivered to
@@ -171,6 +211,22 @@ test("loads a large local fixture", async ({ page }) => {
   await page.getByRole("status", { name: "Ready" }).waitFor();
 }, { timeout: 15_000 });
 ```
+
+Tests that exercise native file APIs can create exact UTF-8 fixtures without
+depending on a developer machine's files:
+
+```ts
+test("imports a config file", async ({ page, effects, files }) => {
+  const path = files.writeText("fixtures/config.toml", "enabled = true\n");
+  effects.respond("dialogOpen", [path]);
+  await page.getByRole("button", { name: "Import" }).click();
+});
+```
+
+Fixture paths must be relative, content is limited to 16 MiB per file, and the
+runner removes its isolated temporary directory when the native test host
+stops. The action trace records the resulting interaction, not fixture
+contents.
 
 Timeouts report the test name and stop later test bodies from starting. The
 host exits after receiving that failure report; JavaScript cannot cancel an
@@ -206,6 +262,16 @@ compositor. It also uses an isolated temporary XDG data directory so persisted
 application state cannot make scenarios order-dependent. Pass `--native` for a
 real platform smoke test.
 
+The deterministic backend models shell-owned window lifecycle transitions but
+does not initialize native `ShellExtension` resources. Tests that must activate
+an actual tray menu item or another platform callback belong in a separate
+`--native` smoke suite. Keep application policy—such as the confirmation modal
+shown after a quit request—in deterministic tests, and cover the extension's
+callback routing with Rust tests when display-less CI cannot run the native
+suite. Wabou intentionally does not fabricate an `ExtensionContext` in the
+headless backend because that would make a simulated platform callback look
+equivalent to the native integration it is meant to verify.
+
 Every run writes versioned `report.json` and `trace.json` artifacts beneath
 `target/wabou-test/<app>/artifacts` by default. Use `--artifacts <dir>` to
 select another destination. Deterministic tests do not initialize wgpu, which
@@ -233,7 +299,8 @@ range into the shared trace. This identifies the actions associated with a
 failure without duplicating action payloads in each test result. The console
 prints only a compact summary; the artifact files retain the complete report,
 diagnostics, and action payloads.
-Locator actions record their resolved timeout and polling interval, and an
+Locator actions record their resolved timeout, polling interval, and stability
+duration, and an
 explicit `waitFor()` is represented as its own action rather than a one-shot
 semantic probe. Replays therefore preserve authored waiting behavior even if
 the framework's defaults change later. Older traces containing probe inputs
@@ -250,9 +317,9 @@ Version-one compatibility still accepts legacy bare
 arrays, `probe` inputs, and locator actions written before wait metadata became
 mandatory for newly recorded traces.
 Semantic locator assertions are trace actions too. Absence, text, textual
-value, numeric range, bounds, disabled, checked, selected, expanded, pressed,
-and focused expectations are evaluated again during replay with their original
-retry policy. A replay can therefore reproduce the failed native-state
+value, numeric range, bounds, disabled, checked, selected, current, expanded,
+pressed, and focused expectations are evaluated again during replay with their
+original retry policy. A replay can therefore reproduce the failed native-state
 assertion, rather than merely repeating the inputs that preceded it. Plain
 JavaScript value assertions and `expect.poll` readers are not serializable and
 remain report-only.
@@ -316,6 +383,22 @@ recorded as replayable trace actions. This lets a close-to-tray or surface
 recreation failure reproduce both the native transitions and the state that
 was expected afterward. `window.state(id)` remains available for diagnostics
 and custom `expect.poll` expressions.
+
+Responsive layout can be exercised in the same scenario. Sizes are logical
+pixels; deterministic tests update that window's headless viewport, while
+`--native` requests a real platform surface resize. The resulting
+`WindowMetrics`, layout and semantic updates remain on the ordinary frame
+path, so the following locator assertion observes the completed result. Resize
+actions are replayable:
+
+```ts
+test("minimum window layout", async ({ page, window }) => {
+  await window.resize(window.current, 900, 600);
+  await expect(
+    page.getByRole("textbox", { name: "Search" }),
+  ).toBeInViewport();
+});
+```
 
 Use `expect.poll(() => value).toBe(expected)` for state that settles across
 asynchronous host turns. DevTools remains a diagnostic interface; behavior

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Aria2Task } from "./aria2";
+import type { DownloadTask } from "./downloads";
 import {
   primaryTaskAction,
   projectTasks,
@@ -7,15 +7,15 @@ import {
 } from "./task-list";
 
 function task(
-  gid: string,
+  id: string,
   name: string,
   status: string,
   totalLength: number,
   completedLength: number,
   downloadSpeed: number,
-): Aria2Task {
+): DownloadTask {
   return {
-    gid,
+    id,
     name,
     status,
     totalLength,
@@ -39,21 +39,21 @@ const tasks = [
 ];
 
 describe("Motrix task projection", () => {
-  test("preserves aria2 queue order by default", () => {
+  test("preserves downloads queue order by default", () => {
     expect(
-      projectTasks(tasks, "all", "", "queue").map((task) => task.gid),
+      projectTasks(tasks, "all", "", "queue").map((task) => task.id),
     ).toEqual(["1", "2", "3"]);
   });
 
   test("combines status filtering, search and deterministic sorting", () => {
     expect(
-      projectTasks(tasks, "waiting", "alp", "name").map((task) => task.gid),
+      projectTasks(tasks, "waiting", "alp", "name").map((task) => task.id),
     ).toEqual(["2"]);
     expect(
-      projectTasks(tasks, "all", "", "size").map((task) => task.gid),
+      projectTasks(tasks, "all", "", "size").map((task) => task.id),
     ).toEqual(["2", "3", "1"]);
     expect(
-      projectTasks(tasks, "all", "", "progress").map((task) => task.gid),
+      projectTasks(tasks, "all", "", "progress").map((task) => task.id),
     ).toEqual(["3", "1", "2"]);
   });
 

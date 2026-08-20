@@ -1,4 +1,11 @@
-import { Button, dialog, notification, Text, View } from "@wabou/ui";
+import {
+  Button,
+  dialog,
+  DirectoryPicker,
+  notification,
+  Text,
+  View,
+} from "@wabou/ui";
 import { createSignal } from "solid-js";
 import "virtual:wabou-stylesheet";
 
@@ -17,6 +24,7 @@ export function SystemPage() {
     "Choose an action to call the operating-system API.",
   );
   const [failed, setFailed] = createSignal(false);
+  const [directory, setDirectory] = createSignal("");
 
   async function run(
     action: SystemAction,
@@ -83,22 +91,6 @@ export function SystemPage() {
               variant="outline"
               disabled={disabled()}
               onClick={() =>
-                void run("directory", async () => {
-                  const path = await dialog.pickDirectory({
-                    title: "Choose a directory for Wabou Gallery",
-                  });
-                  return path
-                    ? `Selected directory: ${path}`
-                    : "Selection canceled.";
-                })
-              }
-            >
-              {isPending("directory") ? "Opening..." : "Pick directory"}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={disabled()}
-              onClick={() =>
                 void run("message", async () => {
                   const answer = await dialog.message({
                     title: "Native message dialog",
@@ -128,6 +120,24 @@ export function SystemPage() {
               {isPending("notification") ? "Sending..." : "Send notification"}
             </Button>
           </View>
+
+          <DirectoryPicker
+            aria-label="Gallery directory"
+            value={directory()}
+            placeholder="Choose or enter a directory"
+            dialogOptions={{ title: "Choose a directory for Wabou Gallery" }}
+            onValueChange={(path) => {
+              setDirectory(path);
+              setFailed(false);
+              setResult(
+                path ? `Selected directory: ${path}` : "Directory cleared.",
+              );
+            }}
+            onBrowseError={(error) => {
+              setFailed(true);
+              setResult(errorMessage(error));
+            }}
+          />
 
           <View class="min-h-20 p-4 flex flex-col justify-center gap-1 rounded-lg border border-slate-700">
             <ThemeText

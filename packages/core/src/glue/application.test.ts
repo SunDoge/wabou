@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { EFFECT_ABI_VERSION } from "../generated/effect-abi";
 
-test("application exit uses the process-level native effect", async () => {
+test("application lifecycle uses process-level native effects", async () => {
   const calls: unknown[][] = [];
   Object.assign(globalThis, {
     __wabou_effect_abi: EFFECT_ABI_VERSION,
@@ -17,6 +17,10 @@ test("application exit uses the process-level native effect", async () => {
   const { application } = await import("./application");
 
   application.exit();
+  application.relaunch();
 
-  expect(calls).toEqual([[7, 1, null]]);
+  expect(calls).toEqual([
+    [7, 1, null],
+    [7, 2, null],
+  ]);
 });

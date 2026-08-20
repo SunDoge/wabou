@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -15,10 +17,12 @@ use wabou_shell::{
     PointerPhase, TextContext, UiEvent, WheelEvent,
 };
 
+use super::artifact::app_binary;
 use super::config::{BuildProfile, bundle_path};
 use super::frontend;
+use super::process::{configure_test_backend, wait_for_managed_child};
 use super::project::App;
-use super::{Result, ensure, render_metrics};
+use super::{Result, behavior_test_runtime, build_behavior_host, ensure, manifest, render_metrics};
 
 pub(super) struct RenderOptions {
     pub(super) out: PathBuf,
@@ -27,6 +31,8 @@ pub(super) struct RenderOptions {
     pub(super) window_id: u64,
     pub(super) scale_factor: f64,
     pub(super) mode: Option<String>,
+    pub(super) with_host: bool,
+    pub(super) scenario: Option<PathBuf>,
     pub(super) wait_ms: u64,
     pub(super) metrics: Option<PathBuf>,
     pub(super) samples: usize,
@@ -200,11 +206,15 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         window_id,
         scale_factor,
         mode,
+        with_host,
         wait_ms,
         ..
     } = options;
     if !scale_factor.is_finite() || *scale_factor <= 0.0 {
         return Err("--scale-factor must be a finite number greater than zero".into());
+    }
+    if *with_host {
+        return run_with_host(workspace, app, options);
     }
     let window_key = u32::try_from(*window_id)
         .ok()
@@ -318,4 +328,151 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     .map_err(|error| format!("failed to render {}: {error:?}", out.display()))?;
     println!("[wabou] rendered {}", out.display());
     Ok(())
+}
+
+fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
+    if !options.actions.is_empty() {
+        return Err("--with-host does not yet support --click, --wheel, --key, or --text".into());
+    }
+    if options.metrics.is_some() {
+        return Err("--with-host does not support --metrics; use the bundle-only renderer".into());
+    }
+
+    let frontend_lock = frontend::lock(workspace, app)?;
+    let mode_args = options.mode.as_deref().map(|mode| ["--mode", mode]);
+    ensure(
+        frontend::build_unlocked(
+            workspace,
+            app,
+            mode_args.as_ref().map_or(&[], |args| args),
+            BuildProfile::Debug,
+            true,
+        )?,
+        "Vite build",
+    )?;
+    drop(frontend_lock);
+
+    let render_dir = workspace.join("target/wabou-render").join(&app.name);
+    fs::create_dir_all(&render_dir)?;
+    let scenario = render_dir.join("capture.ts");
+    let test_runtime = behavior_test_runtime(workspace)?;
+    let authored_scenario = options
+        .scenario
+        .as_deref()
+        .map(|path| {
+            fs::canonicalize(path).map_err(|error| {
+                format!("cannot resolve render scenario {}: {error}", path.display())
+            })
+        })
+        .transpose()?;
+    if authored_scenario
+        .as_deref()
+        .is_some_and(|path| !path.is_file())
+    {
+        return Err("--scenario must point to a TypeScript file".into());
+    }
+    fs::write(
+        &scenario,
+        host_capture_scenario_source(&test_runtime, authored_scenario.as_deref(), options.wait_ms)?,
+    )?;
+    let scenario_bundle = render_dir.join("scenario.js");
+    let mut bun = Command::new("bun");
+    bun.current_dir(workspace).args([
+        "build",
+        &scenario.to_string_lossy(),
+        "--target=browser",
+        "--format=iife",
+        &format!("--outfile={}", scenario_bundle.display()),
+    ]);
+    if workspace.join("packages/test/src/index.ts").is_file() {
+        bun.arg("--conditions=wabou-source");
+    }
+    ensure(bun.status()?, "render scenario build")?;
+
+    let manifest = manifest(app);
+    let binary = app_binary(workspace, app)?;
+    let executable = build_behavior_host(workspace, &manifest, &binary)?;
+    let test_data = tempfile::tempdir_in(&render_dir)?;
+    let output = if options.out.is_absolute() {
+        options.out.clone()
+    } else {
+        std::env::current_dir()?.join(&options.out)
+    };
+    let mut host = Command::new(executable);
+    host.current_dir(workspace)
+        .env(
+            "WABOU_BUNDLE_PATH",
+            bundle_path(workspace, app, BuildProfile::Debug)?,
+        )
+        .env("WABOU_TEST_SCRIPT", scenario_bundle)
+        .env("WABOU_TEST_CAPTURE_PATH", &output)
+        .env("WABOU_TEST_VIEWPORT_WIDTH", options.width.to_string())
+        .env("WABOU_TEST_VIEWPORT_HEIGHT", options.height.to_string())
+        .env("WABOU_TEST_SCALE_FACTOR", options.scale_factor.to_string())
+        .env(
+            "WABOU_TEST_CAPTURE_WINDOW_ID",
+            options.window_id.to_string(),
+        )
+        .env("WABOU_TEST_APP_DATA_ROOT", test_data.path())
+        .env("XDG_CONFIG_HOME", test_data.path().join("xdg-config"))
+        .env("XDG_DATA_HOME", test_data.path().join("xdg-data"))
+        .env("XDG_CACHE_HOME", test_data.path().join("xdg-cache"));
+    configure_test_backend(&mut host, false);
+    let status = wait_for_managed_child(host, Duration::from_secs(70), &AtomicBool::new(false))?;
+    ensure(status, "Wabou host-backed render")?;
+    if !output.is_file() {
+        return Err(format!("host-backed render did not create {}", output.display()).into());
+    }
+    println!(
+        "[wabou] rendered {} with application host",
+        options.out.display()
+    );
+    Ok(())
+}
+
+fn host_capture_scenario_source(
+    test_runtime: &Path,
+    authored_scenario: Option<&Path>,
+    wait_ms: u64,
+) -> Result<String> {
+    let mut source = String::new();
+    if let Some(authored_scenario) = authored_scenario {
+        source.push_str(&format!(
+            "import {};\n",
+            serde_json::to_string(&authored_scenario.to_string_lossy())?
+        ));
+    }
+    source.push_str(&format!(
+        "import {{ test }} from {};\n\
+         test(\"settle host-backed capture\", async ({{ page }}) => {{\n\
+         await page.waitForIdle();\n\
+         await new Promise((resolve) => setTimeout(resolve, {wait_ms}));\n\
+         await page.waitForIdle();\n\
+         }}, {{ timeout: {} }});\n",
+        serde_json::to_string(&test_runtime.to_string_lossy())?,
+        wait_ms.saturating_add(5_000),
+    ));
+    Ok(source)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::host_capture_scenario_source;
+    use std::path::Path;
+
+    #[test]
+    fn authored_capture_scenario_runs_before_the_settling_test() {
+        let source = host_capture_scenario_source(
+            Path::new("/wabou/test.ts"),
+            Some(Path::new("/app/capture.ts")),
+            250,
+        )
+        .unwrap();
+
+        let authored = source.find("/app/capture.ts").unwrap();
+        let settle = source.find("settle host-backed capture").unwrap();
+        assert!(authored < settle);
+        assert!(source.contains("setTimeout(resolve, 250)"));
+        assert!(source.contains("{ timeout: 5250 }"));
+    }
 }

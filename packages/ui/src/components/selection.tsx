@@ -1,4 +1,14 @@
 import type { Handle } from "@wabou/core/renderer";
+import check from "lucide-static/icons/check.svg?raw";
+import minus from "lucide-static/icons/minus.svg?raw";
+import {
+  createComponent,
+  createContext,
+  type JSX,
+  onCleanup,
+  useContext,
+} from "solid-js";
+import { match } from "ts-pattern";
 import {
   type ButtonState,
   Center,
@@ -11,16 +21,6 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import check from "lucide-static/icons/check.svg?raw";
-import minus from "lucide-static/icons/minus.svg?raw";
-import {
-  createComponent,
-  createContext,
-  type JSX,
-  onCleanup,
-  useContext,
-} from "solid-js";
-import { match } from "ts-pattern";
 import { join } from "./class-names";
 
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
@@ -350,6 +350,7 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
 export interface ToggleGroupItemProps {
   value: string;
   disabled?: boolean;
+  variant?: "default" | "accent";
   class?: string;
   children?: JSX.Element;
 }
@@ -376,7 +377,9 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
         join(
           "h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
           selected()
-            ? "bg-surface text-primary"
+            ? props.variant === "accent"
+              ? "bg-accent text-on-accent"
+              : "bg-surface text-primary"
             : state.hovered
               ? "bg-control-hover text-primary"
               : "bg-transparent text-muted",

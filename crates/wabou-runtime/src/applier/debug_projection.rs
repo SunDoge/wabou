@@ -65,43 +65,6 @@ fn resolved_css_transforms(placed: &[PlacedNode]) -> HashMap<NodeId, Affine> {
 }
 
 impl Applier {
-    pub(super) fn publish_layout_metrics(&self, placed: &[PlacedNode], width: u32, height: u32) {
-        let viewport = LayoutRect {
-            x: 0.0,
-            y: 0.0,
-            width: width as f32,
-            height: height as f32,
-        };
-        let mut snapshot = self.frame.projections.layout_metrics.borrow_mut();
-        snapshot.revision = snapshot.revision.wrapping_add(1);
-        snapshot.viewport = viewport;
-        snapshot.nodes.clear();
-        snapshot.nodes.reserve(placed.len());
-        for placed_node in placed {
-            let Some(&id) = self
-                .document
-                .node_store
-                .node_to_solid
-                .get(&placed_node.node_id)
-            else {
-                continue;
-            };
-            let rect = |value: [f32; 4]| LayoutRect {
-                x: value[0],
-                y: value[1],
-                width: (value[2] - value[0]).max(0.0),
-                height: (value[3] - value[1]).max(0.0),
-            };
-            snapshot.nodes.insert(
-                id,
-                LayoutMetric {
-                    rect: rect(placed_node.rect),
-                    clip: placed_node.clip.map_or(viewport, rect),
-                },
-            );
-        }
-    }
-
     fn debug_clip_info(
         &self,
         placed_node: &PlacedNode,

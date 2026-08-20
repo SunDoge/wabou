@@ -806,7 +806,7 @@ pub fn discover_socket() -> Result<PathBuf, String> {
         return Ok(path);
     }
     Err(format!(
-        "no live Wabou DevTools socket found in {}",
+        "no live Wabou DevTools socket found in {}; start the application with `wabou dev` (direct Cargo runs must enable the `wabou/devtools` feature)",
         base.display()
     ))
 }

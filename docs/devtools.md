@@ -1,8 +1,10 @@
 # Wabou DevTools MVP
 
-Debug builds start a read-only local DevTools server automatically. The server
-publishes immutable copies of runtime state; its socket thread never accesses
-QuickJS, Taffy, widgets, the window or the GPU directly.
+`wabou dev` compiles the application with DevTools support and starts a
+read-only local server automatically. Production builds omit the server and
+its dependencies. The server publishes immutable copies of runtime state; its
+socket thread never accesses QuickJS, Taffy, widgets, the window or the GPU
+directly.
 
 ## Native inspector
 
@@ -102,12 +104,47 @@ types rather than hand-maintained JSON.
 
 ## Headless screenshots
 
-`wabou render` evaluates the application with the same host-global ordering as
-the native runtime. It defaults to logical window 1 and a 1× device scale:
+`wabou render` defaults to a fast bundle-only renderer with the same
+host-global ordering as the native runtime. It does not run application-owned
+Rust services or capabilities. This is appropriate for isolated component and
+interaction captures. Both render paths drive frames for 1000 ms by default so
+finite entry and layout transitions settle before capture:
 
 ```sh
 wabou render apps/gallery --out /tmp/gallery.png
 ```
+
+Use `--with-host` when the rendered state depends on registrations in the
+application's `HostBuilder`. Wabou starts the real application binary on its
+deterministic headless backend, including services, capabilities, host-message
+producers, and custom widget factories, then shuts them down normally:
+
+```sh
+wabou render apps/motrix --with-host \
+  --out /tmp/motrix.png
+```
+
+An authored `@wabou/test` scenario can navigate or mutate the real application
+before capture. All tests registered by the scenario run first, followed by the
+capture settling window:
+
+```sh
+wabou render apps/motrix --with-host \
+  --scenario apps/motrix/captures/downloads.ts \
+  --out /tmp/motrix-downloads.png
+```
+
+Scenario failures abort the capture with the same semantic locator diagnostics
+as `wabou test`.
+
+`page.waitForIdle()` waits for queued test actions and runtime work; it does
+not wait for visual animation completion because a valid application may have
+permanent animations such as spinners or status ripples. Override the capture
+settling window with `--wait-ms`; pass `--wait-ms 0` when the earliest frame is
+the state under test.
+
+Host-backed capture currently does not accept coordinate/key actions or
+`--metrics`; those remain on the bundle-only path.
 
 Multi-window and HiDPI states can be selected explicitly. Width, height, and
 interaction coordinates remain logical pixels; the PNG dimensions are scaled:
@@ -127,8 +164,14 @@ wabou render apps/gallery --out /tmp/input.png \
 
 ## Runtime API and security
 
-`HostBuilder` enables DevTools by default only in debug builds. Override it
-explicitly when embedding:
+When the application is compiled with the `devtools` feature, `HostBuilder`
+enables the server by default in debug builds. `wabou dev` supplies that
+feature automatically. A direct Cargo invocation must opt in explicitly with
+`--features wabou/devtools` (or `wabou-runtime/devtools` when using the runtime
+crate directly). `wabou build` and `wabou run` leave it out unless the
+application explicitly enables it.
+
+The server can still be disabled at runtime when embedding:
 
 ```rust
 HostBuilder::new().devtools(false).run()?;

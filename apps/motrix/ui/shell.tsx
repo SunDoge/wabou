@@ -7,9 +7,16 @@ import {
   CollapsibleTrigger,
   ColorThemeProvider,
   ComponentsProvider,
+  clipboard,
+  createEventEffect,
+  createFormDraft,
+  createLatestAsyncResource,
   createNotifications,
   createShortcuts,
   createTransition,
+  createWindowMatch,
+  DirectoryPicker,
+  DialogScrollBody,
   dialog,
   Icon,
   Input,
@@ -22,18 +29,17 @@ import {
   useFileDrop,
   useLocation,
   useNavigate,
+  useRouteActive,
   useWindow,
   View,
   VirtualList,
 } from "@wabou/ui";
 import bell from "lucide-static/icons/bell.svg?raw";
-import boxes from "lucide-static/icons/boxes.svg?raw";
 import download from "lucide-static/icons/download.svg?raw";
 import gauge from "lucide-static/icons/gauge.svg?raw";
 import panelLeftClose from "lucide-static/icons/panel-left-close.svg?raw";
 import panelLeftOpen from "lucide-static/icons/panel-left-open.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
-import radio from "lucide-static/icons/radio-tower.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import {
   createEffect,
@@ -44,36 +50,83 @@ import {
   untrack,
 } from "solid-js";
 import { match } from "ts-pattern";
-import type { TorrentPreview } from "./aria2";
-import { useAria2 } from "./aria2";
+import type { MotrixConfig, TorrentPreview } from "./downloads";
+import { useDownloads } from "./downloads";
+import { parseCurlDownload } from "./lib/curl";
 import { formatBytes } from "./lib/format";
 
 const navigation = [
   ["/", "Dashboard", gauge],
   ["/downloads", "Downloads", download],
-  ["/trackers", "Trackers", radio],
-  ["/plugins", "Plugins", boxes],
 ] as const;
+
+function linkUris(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter((item) => item && !item.startsWith("#"));
+}
+
+function initialAddTaskDraft(config: MotrixConfig) {
+  return {
+    source: "links" as "links" | "torrent",
+    url: "",
+    torrentPath: "",
+    selectedTorrentFiles: [] as number[],
+    directory: config.downloadDir,
+    filename: "",
+    split: String(config.split),
+    headers: "",
+  };
+}
+
+type AddTaskDraft = ReturnType<typeof initialAddTaskDraft>;
+
+function validateAddTaskDraft(value: Readonly<AddTaskDraft>) {
+  const errors: Partial<Record<keyof AddTaskDraft, string>> = {};
+  const split = Number(value.split);
+  if (!/^\d+$/.test(value.split.trim()) || !Number.isSafeInteger(split))
+    errors.split = "Split count must be a whole number.";
+  else if (split < 1 || split > 64)
+    errors.split = "Split count must be between 1 and 64.";
+  if (
+    value.source === "links" &&
+    value.filename.trim() &&
+    linkUris(value.url).length > 1
+  )
+    errors.filename = "A custom output filename can only be used with one URL.";
+  if (
+    value.source === "links" &&
+    value.headers
+      .split(/\r?\n/)
+      .map((header) => header.trim())
+      .filter(Boolean)
+      .some(
+        (header) => !header.includes(":") || !header.split(":", 1)[0]?.trim(),
+      )
+  )
+    errors.headers = "Each HTTP header must use the Name: value format.";
+  return errors;
+}
 
 export function AppShell(props: { children?: JSX.Element }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const aria2 = useAria2();
+  const downloads = useDownloads();
   const window = useWindow();
-  const initialConfig = untrack(aria2.config);
+  const initialConfig = untrack(downloads.config);
   const [adding, setAdding] = createSignal(false);
   const [sidebarOpen, setSidebarOpen] = createSignal(true);
+  const compactDashboard = createWindowMatch({ maxWidth: 1050 });
   const sidebarWidth = createTransition(() => (sidebarOpen() ? 208 : 52), {
     duration: 0.22,
     ease: "easeOut",
   });
   const toasts = createNotifications({ defaultDuration: 6_000, limit: 4 });
-  let lastToastEventId = untrack(() => aria2.events()[0]?.id ?? 0);
-  createEffect(
-    () => aria2.events()[0],
-    (event) => {
-      if (!event || event.id <= lastToastEventId) return;
-      lastToastEventId = event.id;
+  createEventEffect({
+    source: downloads.events,
+    sequence: (event) => event.id,
+    onEvent: (event) => {
       const presentation = match(event.status)
         .with("complete", () => ({
           title: "Download complete",
@@ -82,7 +135,7 @@ export function AppShell(props: { children?: JSX.Element }) {
         }))
         .with("error", () => ({
           title: "Download failed",
-          detail: "Open Downloads to inspect the aria2 error.",
+          detail: "Open Downloads to inspect the downloads error.",
           priority: "assertive" as const,
         }))
         .exhaustive();
@@ -109,61 +162,50 @@ export function AppShell(props: { children?: JSX.Element }) {
         ),
       });
     },
+  });
+  const addTask = createFormDraft(initialAddTaskDraft(initialConfig), {
+    validate: validateAddTaskDraft,
+  });
+  const [source, setSource] = addTask.control("source");
+  const [url, setUrl] = addTask.control("url");
+  const [torrentPath, setTorrentPath] = addTask.control("torrentPath");
+  const [selectedTorrentFiles, setSelectedTorrentFiles] = addTask.control(
+    "selectedTorrentFiles",
   );
-  const [source, setSource] = createSignal<"links" | "torrent">("links");
-  const [url, setUrl] = createSignal("");
-  const [torrentPath, setTorrentPath] = createSignal("");
-  const [torrentPreview, setTorrentPreview] = createSignal<TorrentPreview>();
-  const [selectedTorrentFiles, setSelectedTorrentFiles] = createSignal<
-    number[]
-  >([]);
-  const [inspectingTorrent, setInspectingTorrent] = createSignal(false);
   const [addError, setAddError] = createSignal("");
+  const [addNotice, setAddNotice] = createSignal("");
   const [draggingFile, setDraggingFile] = createSignal(false);
   const [confirmingQuit, setConfirmingQuit] = createSignal(false);
-  const [directory, setDirectory] = createSignal(initialConfig.downloadDir);
-  const [filename, setFilename] = createSignal("");
-  const [split, setSplit] = createSignal(String(initialConfig.split));
-  const [headers, setHeaders] = createSignal("");
-  const [checksum, setChecksum] = createSignal("");
-  const [taskProxy, setTaskProxy] = createSignal("");
-  let torrentInspection = 0;
+  const [directory, setDirectory] = addTask.control("directory");
+  const [filename, setFilename] = addTask.control("filename");
+  const [split, setSplit] = addTask.control("split");
+  const [headers, setHeaders] = addTask.control("headers");
+  const torrentInspection = createLatestAsyncResource<string, TorrentPreview>({
+    source: () => torrentPath() || undefined,
+    load: (path) => downloads.inspectTorrent(path),
+  });
+  const torrentPreview = torrentInspection.value;
+  const inspectingTorrent = torrentInspection.loading;
+  createEffect(torrentInspection.value, (preview) => {
+    if (preview)
+      setSelectedTorrentFiles(preview.files.map((file) => file.index));
+  });
+  createEffect(torrentInspection.error, (error) => {
+    if (error) setAddError(String(error));
+  });
   const setAddTaskOpen = (open: boolean) => {
     setAdding(open);
     if (open) return;
-    torrentInspection += 1;
-    const config = aria2.config();
-    setSource("links");
-    setUrl("");
-    setTorrentPath("");
-    setTorrentPreview(undefined);
-    setSelectedTorrentFiles([]);
-    setInspectingTorrent(false);
-    setFilename("");
-    setHeaders("");
-    setChecksum("");
-    setTaskProxy("");
+    const config = downloads.config();
+    addTask.resetTo(initialAddTaskDraft(config));
     setAddError("");
-    setDirectory(config.downloadDir);
-    setSplit(String(config.split));
+    setAddNotice("");
   };
-  const chooseTorrent = async (path: string) => {
-    const inspection = ++torrentInspection;
-    setTorrentPath(path);
-    setTorrentPreview(undefined);
+  const chooseTorrent = (path: string) => {
     setSelectedTorrentFiles([]);
     setAddError("");
-    setInspectingTorrent(true);
-    try {
-      const preview = await aria2.inspectTorrent(path);
-      if (inspection !== torrentInspection) return;
-      setTorrentPreview(preview);
-      setSelectedTorrentFiles(preview.files.map((file) => file.index));
-    } catch (error) {
-      if (inspection === torrentInspection) setAddError(String(error));
-    } finally {
-      if (inspection === torrentInspection) setInspectingTorrent(false);
-    }
+    if (untrack(torrentPath) === path) void torrentInspection.refresh();
+    else setTorrentPath(path);
   };
   const torrentSummary = () => {
     if (inspectingTorrent()) return "Reading torrent metadata…";
@@ -172,12 +214,38 @@ export function AppShell(props: { children?: JSX.Element }) {
       return `${preview.files.length} files · ${formatBytes(preview.totalLength)}`;
     return torrentPath() || "Inspect files before creating the task";
   };
+  const pasteLinks = async () => {
+    setAddError("");
+    setAddNotice("");
+    try {
+      const text = await clipboard.readText();
+      if (!text?.trim()) {
+        setAddNotice("The clipboard does not contain text.");
+        return;
+      }
+      const curl = parseCurlDownload(text);
+      if (!curl) {
+        setUrl(text.trim());
+        setAddNotice("Pasted clipboard text.");
+        return;
+      }
+      setUrl(curl.urls.join("\n"));
+      setHeaders(curl.headers.join("\n"));
+      setFilename(curl.output ?? "");
+      setAddNotice(
+        curl.proxy
+          ? "Imported URLs and headers. Per-task proxies are not supported."
+          : "Imported URLs and request headers from cURL.",
+      );
+    } catch (error) {
+      setAddError(`Cannot read clipboard: ${String(error)}`);
+    }
+  };
   createEffect(
-    () => [aria2.config(), adding()] as const,
+    () => [downloads.config(), adding()] as const,
     ([config, isAdding]) => {
       if (isAdding) return;
-      setDirectory(config.downloadDir);
-      setSplit(String(config.split));
+      addTask.resetTo(initialAddTaskDraft(config));
     },
   );
   useFileDrop((event) => {
@@ -190,43 +258,47 @@ export function AppShell(props: { children?: JSX.Element }) {
       path.toLowerCase().endsWith(".torrent"),
     );
     if (!torrent) return;
-    void chooseTorrent(torrent);
+    chooseTorrent(torrent);
     setSource("torrent");
     setAdding(true);
   });
-  const navButton = (path: string, label: string, icon: string) => (
-    <Button
-      variant="ghost"
-      selected={location().pathname === path}
-      aria-label={label}
-      class="w-full h-9 text-sm font-medium text-primary"
-      classList={{
-        "px-3 justify-start": sidebarOpen(),
-        "px-0 justify-center": !sidebarOpen(),
-        "bg-selected": location().pathname === path,
-      }}
-      onClick={() => navigate({ to: path })}
-    >
-      <Icon source={icon} size={17} />
-      <Show when={sidebarOpen()}>
-        <Text class="text-sm font-medium text-primary">{label}</Text>
-      </Show>
-    </Button>
-  );
+  const navButton = (path: string, label: string, icon: string) => {
+    const active = useRouteActive(path);
+    return (
+      <Button
+        variant="ghost"
+        selected={active()}
+        aria-current={active() ? "page" : undefined}
+        aria-label={label}
+        class="w-full h-9 text-sm font-medium text-primary"
+        classList={{
+          "px-3 justify-start": sidebarOpen(),
+          "px-0 justify-center": !sidebarOpen(),
+          "bg-selected": active(),
+        }}
+        onClick={() => navigate({ to: path })}
+      >
+        <Icon source={icon} size={17} />
+        <Show when={sidebarOpen()}>
+          <Text class="text-sm font-medium text-primary">{label}</Text>
+        </Show>
+      </Button>
+    );
+  };
   const requestQuit = () => {
-    const running = aria2
+    const running = downloads
       .snapshot()
       .tasks.some((task) =>
         ["active", "waiting", "paused", "seeding"].includes(task.status),
       );
-    if (aria2.config().warnBeforeQuit && running) {
+    if (downloads.config().warnBeforeQuit && running) {
       setConfirmingQuit(true);
       return;
     }
     application.exit();
   };
   createEffect(
-    () => aria2.quitRequests(),
+    () => downloads.quitRequests(),
     (requests) => {
       if (requests > 0) requestQuit();
     },
@@ -241,15 +313,15 @@ export function AppShell(props: { children?: JSX.Element }) {
       setSource("torrent");
       setAdding(true);
     },
-    "Primary+,": () => void navigate({ to: "/settings" }),
-    "Primary+L": () => void navigate({ to: "/downloads" }),
-    "Primary+Shift+P": () => void aria2.globalTaskAction("pauseAll"),
-    "Primary+Shift+R": () => void aria2.globalTaskAction("resumeAll"),
+    "Primary+,": () => navigate({ to: "/settings" }),
+    "Primary+L": () => navigate({ to: "/downloads" }),
+    "Primary+Shift+P": () => downloads.globalTaskAction("pauseAll"),
+    "Primary+Shift+R": () => downloads.globalTaskAction("resumeAll"),
     "Primary+B": () => setSidebarOpen((open) => !open),
     "Primary+Q": requestQuit,
   });
   const resolvedTheme = () => {
-    const configured = aria2.config().theme;
+    const configured = downloads.config().theme;
     return configured === "system" ? window.colorScheme() : configured;
   };
   return (
@@ -344,11 +416,22 @@ export function AppShell(props: { children?: JSX.Element }) {
                 location().pathname !== "/downloads"
               }
               fallback={
-                <View class="min-h-0 flex-1 overflow-hidden">
-                  <View class="w-full min-w-0 h-full max-w-6xl mx-auto px-5 py-4">
-                    {props.children}
-                  </View>
-                </View>
+                <Show
+                  when={location().pathname === "/" && compactDashboard()}
+                  fallback={
+                    <View class="min-h-0 flex-1 overflow-hidden">
+                      <View class="w-full min-w-0 h-full max-w-6xl mx-auto px-5 py-4">
+                        {props.children}
+                      </View>
+                    </View>
+                  }
+                >
+                  <ScrollArea class="flex-1">
+                    <View class="w-full min-w-0 max-w-6xl mx-auto px-5 py-4">
+                      {props.children}
+                    </View>
+                  </ScrollArea>
+                </Show>
               }
             >
               <ScrollArea class="flex-1">
@@ -362,7 +445,7 @@ export function AppShell(props: { children?: JSX.Element }) {
             aria-label="Add download task"
             open={adding()}
             onOpenChange={setAddTaskOpen}
-            contentClass="w-[560px] max-w-full p-6 flex flex-col gap-4 rounded-xl border border-subtle bg-surface shadow-xl"
+            contentClass="w-[560px] max-w-full max-h-11/12 overflow-hidden p-6 flex flex-col gap-4 rounded-xl border border-subtle bg-surface shadow-xl"
           >
             {({ close }) => (
               <>
@@ -383,200 +466,238 @@ export function AppShell(props: { children?: JSX.Element }) {
                     Torrent file
                   </Button>
                 </View>
-                <Show
-                  when={source() === "links"}
-                  fallback={
-                    <View class="flex flex-col gap-3">
-                      <View class="min-h-24 p-4 flex items-center justify-between gap-4 rounded-lg border border-strong bg-control">
-                        <View class="min-w-0 flex-1 flex flex-col gap-1">
-                          <Text class="truncate text-sm font-medium">
-                            {torrentPreview()?.name ||
-                              torrentPath() ||
-                              "Choose a .torrent file"}
-                          </Text>
-                          <Text class="truncate text-xs text-muted">
-                            {torrentSummary()}
-                          </Text>
-                        </View>
-                        <Button
-                          variant="outline"
-                          onClick={async () => {
-                            const paths = await dialog.open({
-                              title: "Choose torrent",
-                              filters: [
-                                {
-                                  name: "BitTorrent",
-                                  extensions: ["torrent"],
-                                },
-                              ],
-                            });
-                            if (paths?.[0]) await chooseTorrent(paths[0]);
-                          }}
-                        >
-                          Browse…
-                        </Button>
-                      </View>
-                      <Show when={torrentPreview()} keyed>
-                        {(preview) => (
-                          <View class="flex flex-col gap-2">
-                            <View class="flex items-center justify-between">
-                              <Checkbox
-                                label="Select all files"
-                                checked={
-                                  selectedTorrentFiles().length ===
-                                  preview.files.length
-                                }
-                                indeterminate={
-                                  selectedTorrentFiles().length > 0 &&
-                                  selectedTorrentFiles().length <
-                                    preview.files.length
-                                }
-                                onCheckedChange={(checked) =>
-                                  setSelectedTorrentFiles(
-                                    checked
-                                      ? preview.files.map((file) => file.index)
-                                      : [],
-                                  )
-                                }
-                              />
-                              <Text class="text-xs text-muted">
-                                {selectedTorrentFiles().length} of{" "}
-                                {preview.files.length}
-                              </Text>
-                            </View>
-                            <View class="h-44 overflow-hidden rounded-lg border border-subtle bg-surface">
-                              <VirtualList
-                                items={() => preview.files}
-                                itemHeight={32}
-                                viewportHeight={176}
-                                accessibilityLabel="Torrent files"
-                              >
-                                {(file) => (
-                                  <View class="h-8 px-2 min-w-0 flex items-center gap-2">
-                                    <Checkbox
-                                      class="min-w-0 flex-1"
-                                      label={file.path}
-                                      checked={selectedTorrentFiles().includes(
-                                        file.index,
-                                      )}
-                                      onCheckedChange={(checked) =>
-                                        setSelectedTorrentFiles((indices) =>
-                                          checked
-                                            ? [...indices, file.index].sort(
-                                                (left, right) => left - right,
-                                              )
-                                            : indices.filter(
-                                                (index) => index !== file.index,
-                                              ),
-                                        )
-                                      }
-                                    />
-                                    <Text class="flex-none text-xs text-muted">
-                                      {formatBytes(file.length)}
-                                    </Text>
-                                  </View>
-                                )}
-                              </VirtualList>
-                            </View>
-                          </View>
-                        )}
-                      </Show>
-                    </View>
-                  }
-                >
-                  <Text class="text-sm text-muted">
-                    Enter one HTTP, HTTPS or magnet link per line.
-                  </Text>
-                  <TextArea
-                    class="h-28"
-                    aria-label="Download URLs"
-                    value={url()}
-                    placeholder="https://example.com/file.iso"
-                    onInput={(event) => setUrl(event.currentTarget.value)}
-                  />
-                </Show>
-                <View class="flex gap-3">
-                  <Input
-                    class="flex-1"
-                    aria-label="Save directory"
-                    value={directory()}
-                    placeholder="Default download folder"
-                    onInput={(event) => setDirectory(event.currentTarget.value)}
-                  />
-                  <Input
-                    class="w-28"
-                    aria-label="Split count"
-                    value={split()}
-                    placeholder="16"
-                    onInput={(event) => setSplit(event.currentTarget.value)}
-                  />
-                </View>
-                <Show when={source() === "links"}>
-                  <Input
-                    aria-label="Output filename"
-                    value={filename()}
-                    placeholder="File name (automatic)"
-                    onInput={(event) => setFilename(event.currentTarget.value)}
-                  />
-                  <Collapsible class="rounded-lg border border-subtle p-3">
-                    <CollapsibleTrigger>
-                      <Text class="text-sm font-medium">
-                        Advanced HTTP options
-                      </Text>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent class="pt-3">
+                <DialogScrollBody contentClass="pr-2 flex flex-col gap-4">
+                  <Show
+                    when={source() === "links"}
+                    fallback={
                       <View class="flex flex-col gap-3">
-                        <TextArea
-                          class="h-20"
-                          aria-label="HTTP request headers"
-                          value={headers()}
-                          placeholder="Referer: https://example.com/"
-                          onInput={(event) =>
-                            setHeaders(event.currentTarget.value)
-                          }
-                        />
-                        <View class="grid grid-cols-2 gap-3">
-                          <Input
-                            aria-label="Download checksum"
-                            value={checksum()}
-                            placeholder="sha-256=…"
-                            onInput={(event) =>
-                              setChecksum(event.currentTarget.value)
-                            }
-                          />
-                          <Input
-                            aria-label="Task HTTP proxy"
-                            value={taskProxy()}
-                            placeholder="http://127.0.0.1:8080"
-                            onInput={(event) =>
-                              setTaskProxy(event.currentTarget.value)
-                            }
-                          />
+                        <View class="min-h-24 p-4 flex items-center justify-between gap-4 rounded-lg border border-strong bg-control">
+                          <View class="min-w-0 flex-1 flex flex-col gap-1">
+                            <Text class="truncate text-sm font-medium">
+                              {torrentPreview()?.name ||
+                                torrentPath() ||
+                                "Choose a .torrent file"}
+                            </Text>
+                            <Text
+                              role="status"
+                              aria-label={torrentSummary()}
+                              class="truncate text-xs text-muted"
+                            >
+                              {torrentSummary()}
+                            </Text>
+                          </View>
+                          <Button
+                            variant="outline"
+                            onClick={async () => {
+                              const paths = await dialog.open({
+                                title: "Choose torrent",
+                                filters: [
+                                  {
+                                    name: "BitTorrent",
+                                    extensions: ["torrent"],
+                                  },
+                                ],
+                              });
+                              if (paths?.[0]) chooseTorrent(paths[0]);
+                            }}
+                          >
+                            Browse…
+                          </Button>
                         </View>
-                        <Text class="text-xs text-muted">
-                          Put one Name: value header on each line. The proxy
-                          must be an HTTP forward proxy.
-                        </Text>
+                        <Show when={torrentPreview()} keyed>
+                          {(preview) => (
+                            <View class="flex flex-col gap-2">
+                              <View class="flex items-center justify-between">
+                                <Checkbox
+                                  label="Select all files"
+                                  checked={
+                                    selectedTorrentFiles().length ===
+                                    preview.files.length
+                                  }
+                                  indeterminate={
+                                    selectedTorrentFiles().length > 0 &&
+                                    selectedTorrentFiles().length <
+                                      preview.files.length
+                                  }
+                                  onCheckedChange={(checked) =>
+                                    setSelectedTorrentFiles(
+                                      checked
+                                        ? preview.files.map(
+                                            (file) => file.index,
+                                          )
+                                        : [],
+                                    )
+                                  }
+                                />
+                                <Text class="text-xs text-muted">
+                                  {selectedTorrentFiles().length} of{" "}
+                                  {preview.files.length}
+                                </Text>
+                              </View>
+                              <View class="h-44 overflow-hidden rounded-lg border border-subtle bg-surface">
+                                <VirtualList
+                                  items={() => preview.files}
+                                  getItemKey={(file) => file.index}
+                                  itemHeight={32}
+                                  viewportHeight={176}
+                                  accessibilityLabel="Torrent files"
+                                >
+                                  {(file) => (
+                                    <View class="h-8 px-2 min-w-0 flex items-center gap-2">
+                                      <Checkbox
+                                        class="min-w-0 flex-1"
+                                        label={file().path}
+                                        checked={selectedTorrentFiles().includes(
+                                          file().index,
+                                        )}
+                                        onCheckedChange={(checked) =>
+                                          setSelectedTorrentFiles((indices) =>
+                                            checked
+                                              ? [...indices, file().index].sort(
+                                                  (left, right) => left - right,
+                                                )
+                                              : indices.filter(
+                                                  (index) =>
+                                                    index !== file().index,
+                                                ),
+                                          )
+                                        }
+                                      />
+                                      <Text class="flex-none text-xs text-muted">
+                                        {formatBytes(file().length)}
+                                      </Text>
+                                    </View>
+                                  )}
+                                </VirtualList>
+                              </View>
+                            </View>
+                          )}
+                        </Show>
                       </View>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </Show>
-                <Show when={addError()}>
-                  <Text class="text-sm text-danger-primary">{addError()}</Text>
-                </Show>
+                    }
+                  >
+                    <View class="flex items-center justify-between gap-3">
+                      <Text class="text-sm text-muted">
+                        Enter one HTTP, HTTPS or magnet link per line.
+                      </Text>
+                      <Button size="sm" variant="outline" onClick={pasteLinks}>
+                        Paste
+                      </Button>
+                    </View>
+                    <TextArea
+                      class="h-28"
+                      aria-label="Download URLs"
+                      value={url()}
+                      placeholder="https://example.com/file.iso"
+                      onInput={(event) => setUrl(event.currentTarget.value)}
+                    />
+                  </Show>
+                  <View class="flex gap-3">
+                    <DirectoryPicker
+                      class="min-w-0 flex-1"
+                      aria-label="Save directory"
+                      value={directory()}
+                      placeholder="Default download folder"
+                      browseLabel="Browse"
+                      browseAriaLabel="Browse save directory"
+                      dialogOptions={{ title: "Choose a download folder" }}
+                      onValueChange={setDirectory}
+                      onBrowseError={(error) => setAddError(String(error))}
+                    />
+                    <Input
+                      class="w-28"
+                      aria-label="Split count"
+                      value={split()}
+                      placeholder="16"
+                      onInput={(event) => setSplit(event.currentTarget.value)}
+                    />
+                  </View>
+                  <Show when={source() === "links"}>
+                    <Input
+                      aria-label="Output filename"
+                      value={filename()}
+                      placeholder="File name (automatic)"
+                      onInput={(event) =>
+                        setFilename(event.currentTarget.value)
+                      }
+                    />
+                    <Show when={addTask.fieldError("filename")}>
+                      <Text role="alert" class="text-sm text-danger-primary">
+                        {addTask.fieldError("filename")}
+                      </Text>
+                    </Show>
+                    <Collapsible class="rounded-lg border border-subtle p-3">
+                      <CollapsibleTrigger>
+                        <Text class="text-sm font-medium">
+                          Advanced HTTP options
+                        </Text>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent class="pt-3">
+                        <View class="flex flex-col gap-3">
+                          <TextArea
+                            class="h-20"
+                            aria-label="HTTP request headers"
+                            value={headers()}
+                            placeholder="Referer: https://example.com/"
+                            onInput={(event) =>
+                              setHeaders(event.currentTarget.value)
+                            }
+                          />
+                          <Text class="text-xs text-muted">
+                            Put one Name: value header on each line.
+                          </Text>
+                        </View>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </Show>
+                  <Show
+                    when={
+                      addTask.fieldError("split") ??
+                      addTask.fieldError("headers")
+                    }
+                  >
+                    {(error) => (
+                      <Text
+                        role="alert"
+                        aria-label="Add task validation error"
+                        class="text-sm text-danger-primary"
+                      >
+                        {error()}
+                      </Text>
+                    )}
+                  </Show>
+                  <Show when={addError()}>
+                    <Text
+                      role="alert"
+                      aria-label="Add task error"
+                      class="text-sm text-danger-primary"
+                    >
+                      {addError()}
+                    </Text>
+                  </Show>
+                  <Show when={addNotice()}>
+                    <Text role="status" class="text-sm text-muted">
+                      {addNotice()}
+                    </Text>
+                  </Show>
+                </DialogScrollBody>
                 <View class="flex justify-end gap-2">
                   <Button variant="ghost" onClick={close}>
                     Cancel
                   </Button>
                   <Button
                     disabled={
-                      source() === "links"
-                        ? !url().trim()
+                      !addTask.valid() ||
+                      (source() === "links"
+                        ? !url().trim() ||
+                          (Boolean(filename().trim()) &&
+                            linkUris(url()).length > 1)
                         : inspectingTorrent() ||
                           !torrentPreview() ||
-                          selectedTorrentFiles().length === 0
+                          selectedTorrentFiles().length === 0)
                     }
                     onClick={async () => {
+                      if (!addTask.valid()) return;
                       setAddError("");
                       try {
                         const options = {
@@ -584,39 +705,25 @@ export function AppShell(props: { children?: JSX.Element }) {
                           split: Number.parseInt(split(), 10) || undefined,
                         };
                         if (source() === "torrent")
-                          await aria2.addTorrent({
+                          await downloads.addTorrent({
                             path: torrentPath(),
                             selectedFiles: selectedTorrentFiles(),
                             ...options,
                           });
                         else {
-                          const uris = url()
-                            .split(/\r?\n/)
-                            .map((value) => value.trim())
-                            .filter((value) => value && !value.startsWith("#"));
-                          await aria2.addUris({
+                          const uris = linkUris(url());
+                          await downloads.addUris({
                             uris,
                             out: filename().trim() || undefined,
                             headers: headers()
                               .split(/\r?\n/)
                               .map((value) => value.trim())
                               .filter(Boolean),
-                            checksum: checksum().trim() || undefined,
-                            proxy: taskProxy().trim() || undefined,
                             ...options,
                           });
                         }
-                        await aria2.refresh();
-                        setUrl("");
-                        setTorrentPath("");
-                        setTorrentPreview(undefined);
-                        setSelectedTorrentFiles([]);
-                        setFilename("");
-                        setHeaders("");
-                        setChecksum("");
-                        setTaskProxy("");
                         close();
-                        if (aria2.config().newTaskShowDownloading)
+                        if (downloads.config().newTaskShowDownloading)
                           await navigate({ to: "/downloads" });
                       } catch (error) {
                         setAddError(String(error));

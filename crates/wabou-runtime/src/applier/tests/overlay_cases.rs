@@ -38,6 +38,10 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         prop: overflow_y,
         value: "auto",
     });
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(2, 1),
+        event_type: event::SCROLL,
+    });
     applier.apply_op(&Op::SetStyle {
         id: NodeKey::new(3, 1),
         prop: height,
@@ -107,6 +111,32 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
     applier.rebuild_hit_geometry(&placed);
 
     let container = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    applier
+        .interaction
+        .scroll
+        .offsets
+        .insert(container, [0.0, 500.0]);
+    assert!(applier.clamp_scroll_offsets(&placed));
+    assert_eq!(
+        applier.interaction.scroll.offsets[&container],
+        [0.0, 200.0],
+        "a shrinking virtual extent must not retain an unreachable offset"
+    );
+    assert_eq!(
+        applier
+            .interaction
+            .scroll
+            .pending_events
+            .get(&NodeKey::new(2, 1)),
+        Some(&[0.0, 200.0]),
+        "the corrected offset must be observable by the JavaScript virtualizer"
+    );
+    applier
+        .interaction
+        .scroll
+        .offsets
+        .insert(container, [0.0, 0.0]);
+    applier.interaction.scroll.pending_events.clear();
     applier
         .document
         .invalidation

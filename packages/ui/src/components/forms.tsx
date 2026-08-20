@@ -8,7 +8,8 @@ import {
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { join } from "./class-names";
-import { Button, type ButtonProps, Input, type InputProps } from "./index";
+import { Button, type ButtonProps } from "./button";
+import { Input, type InputProps } from "./input";
 export type FieldOrientation = "vertical" | "horizontal";
 export function Field(props: {
   children?: JSX.Element;

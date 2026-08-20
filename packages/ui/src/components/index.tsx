@@ -1,40 +1,39 @@
-import { type AnimationControls, animate } from "../animation";
 import { createFps } from "@wabou/core/renderer";
-import {
-  type ButtonState,
-  Button as HeadlessButton,
-  type ButtonProps as HeadlessButtonProps,
-  PasswordInput as PrimitivePasswordInput,
-  type PasswordInputProps as PrimitivePasswordInputProps,
-  TextArea as PrimitiveTextArea,
-  type TextAreaProps as PrimitiveTextAreaProps,
-  TextInput as PrimitiveTextInput,
-  type TextInputProps as PrimitiveTextInputProps,
-  Text,
-  translate2d,
-  View,
-  type WabouStyle,
-} from "../primitives";
 import {
   createEffect,
   createSignal,
   type JSX,
-  omit,
   onCleanup,
   untrack,
 } from "solid-js";
 import { match, P } from "ts-pattern";
+import { type AnimationControls, animate } from "../animation";
+import {
+  type ButtonState,
+  Button as HeadlessButton,
+  PasswordInput as PrimitivePasswordInput,
+  type PasswordInputProps as PrimitivePasswordInputProps,
+  TextArea as PrimitiveTextArea,
+  type TextAreaProps as PrimitiveTextAreaProps,
+  Text,
+  translate2d,
+  View,
+  type ViewProps,
+} from "../primitives";
 import { join } from "./class-names";
 import { normalizePercentage } from "./range";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export * from "./avatar";
+export * from "./button";
 export * from "./config-editor";
 export * from "./date-picker";
 export * from "./dialog";
+export * from "./directory-picker";
 export * from "./disclosure";
 export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
 export * from "./forms";
+export * from "./input";
 export * from "./layout";
 export * from "./select";
 export {
@@ -69,114 +68,6 @@ export {
   useComponentsTheme,
 } from "./theme";
 export * from "./title-bar";
-
-export type ButtonVariant =
-  | "default"
-  | "secondary"
-  | "outline"
-  | "ghost"
-  | "destructive";
-export type ButtonSize = "sm" | "default" | "lg" | "icon";
-
-export interface ButtonProps
-  extends Omit<HeadlessButtonProps, "variant" | "tone"> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  class?: string;
-  style?: HeadlessButtonProps["style"];
-}
-
-function buttonColors(variant: ButtonVariant, state: ButtonState): string {
-  const focus = state.focusVisible ? "border-focus" : "";
-  const passiveBorder = (variant: ButtonVariant) =>
-    match(variant)
-      .with("outline", () => "border-strong")
-      .with(
-        P.union("default", "secondary", "ghost", "destructive"),
-        () => "border-transparent",
-      )
-      .exhaustive();
-
-  return match({ variant, pressed: state.pressed, hovered: state.hovered })
-    .with({ variant: "default", pressed: true }, () =>
-      join("bg-accent-pressed border-transparent text-on-accent", focus),
-    )
-    .with({ variant: "default", hovered: true }, () =>
-      join("bg-accent-hover border-transparent text-on-accent", focus),
-    )
-    .with({ variant: "default" }, () =>
-      join("bg-accent border-transparent text-on-accent", focus),
-    )
-    .with({ variant: "destructive", pressed: true }, () =>
-      join("bg-danger-pressed border-transparent text-on-accent", focus),
-    )
-    .with({ variant: "destructive", hovered: true }, () =>
-      join("bg-danger-hover border-transparent text-on-accent", focus),
-    )
-    .with({ variant: "destructive" }, () =>
-      join("bg-danger border-transparent text-on-accent", focus),
-    )
-    .with({ variant: "secondary", pressed: true }, () =>
-      join("bg-control-pressed border-transparent text-primary", focus),
-    )
-    .with({ variant: "secondary", hovered: true }, () =>
-      join("bg-control-hover border-transparent text-primary", focus),
-    )
-    .with({ variant: "secondary" }, () =>
-      join("bg-control border-transparent text-primary", focus),
-    )
-    .with({ pressed: true }, ({ variant }) =>
-      join("bg-control-pressed text-secondary", passiveBorder(variant), focus),
-    )
-    .with({ hovered: true }, ({ variant }) =>
-      join("bg-control-hover text-secondary", passiveBorder(variant), focus),
-    )
-    .with({ variant: P.union("outline", "ghost") }, ({ variant }) =>
-      join("bg-transparent text-secondary", passiveBorder(variant), focus),
-    )
-    .exhaustive();
-}
-
-function buttonSize(size: ButtonSize): string {
-  return match(size)
-    .with("sm", () => "h-6 px-2 text-xs")
-    .with("default", () => "h-8 px-3 text-sm")
-    .with("lg", () => "h-10 px-4 text-base")
-    .with("icon", () => "w-8 h-8 p-0 text-sm")
-    .exhaustive();
-}
-
-export function Button(props: ButtonProps): JSX.Element {
-  const local = props;
-  const forwarded = omit(props, "variant", "size", "class", "style");
-  const variant = () => local.variant ?? "default";
-  const size = () => local.size ?? "default";
-  return (
-    <HeadlessButton
-      {...forwarded}
-      unstyled
-      class={(state) =>
-        join(
-          "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium",
-          buttonColors(variant(), state),
-          buttonSize(size()),
-          local.class,
-        )
-      }
-      style={(state) =>
-        ({
-          // Focus feedback must not change the content box. A wider focused
-          // border makes labels jump by one pixel on every pointer click.
-          "border-width": 1,
-          opacity: state.disabled ? 0.45 : 1,
-          ...(typeof local.style === "function"
-            ? local.style(state)
-            : local.style),
-        }) as WabouStyle
-      }
-    />
-  );
-}
 
 export interface BadgeProps {
   children?: JSX.Element;
@@ -255,10 +146,16 @@ export function Card(props: {
   children?: JSX.Element;
   class?: string;
   shadows?: readonly import("@wabou/core/style").Shadow[] | null;
+  role?: ViewProps["role"];
+  "aria-label"?: string;
+  "aria-hidden"?: ViewProps["aria-hidden"];
 }): JSX.Element {
   const theme = useComponentsTheme();
   return (
     <View
+      role={props.role}
+      aria-label={props["aria-label"]}
+      aria-hidden={props["aria-hidden"]}
       class={join(
         "flex flex-col overflow-hidden rounded-lg border",
         "border-subtle bg-surface",
@@ -386,25 +283,6 @@ export function Alert(props: {
         {props.children}
       </Text>
     </View>
-  );
-}
-
-export interface InputProps extends PrimitiveTextInputProps {
-  class?: string;
-}
-
-/** A plain-text input. Secrets must use {@link PasswordInput}. */
-export function Input(props: InputProps): JSX.Element {
-  return (
-    <PrimitiveTextInput
-      {...props}
-      class={join(
-        "h-8 w-full px-3 rounded-md border text-sm shadow-xs",
-        "border-subtle bg-input text-primary",
-        props.disabled && "opacity-50",
-        props.class,
-      )}
-    />
   );
 }
 

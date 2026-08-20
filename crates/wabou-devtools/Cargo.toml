@@ -5,20 +5,22 @@ edition = "2024"
 license.workspace = true
 
 [features]
+default = ["mcp"]
 bindings = ["dep:specta", "dep:specta-typescript", "wabou-host-api/specta"]
+mcp = ["dep:rmcp", "dep:schemars", "dep:tokio"]
 
 [dependencies]
-clap = { workspace = true, features = ["derive", "env"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 wabou-host-api = { workspace = true }
 specta = { workspace = true, optional = true }
 specta-typescript = { workspace = true, optional = true }
 base64 = "0.22"
-rmcp = { version = "2.2", features = ["server", "macros", "schemars", "transport-io"] }
-schemars = "1"
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "io-std"] }
+rmcp = { version = "2.2", features = ["server", "macros", "schemars", "transport-io"], optional = true }
+schemars = { version = "1", optional = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "io-std"], optional = true }
 
 [[bin]]
 name = "wabou-mcp"
 path = "src/bin/mcp.rs"
+required-features = ["mcp"]

@@ -300,6 +300,8 @@ pub enum EffectPayload {
     NotificationShow(NotificationRequest),
     /// Request orderly termination of the complete application.
     ApplicationExit,
+    /// Request orderly termination followed by process relaunch.
+    ApplicationRelaunch,
     /// Opaque application-defined payload interpreted by a registered executor.
     Extension {
         /// Registered extension operation.
@@ -351,6 +353,7 @@ impl EffectPayload {
             Self::DialogMessage(_) => builtin::DIALOG_MESSAGE,
             Self::NotificationShow(_) => builtin::NOTIFICATION_SHOW,
             Self::ApplicationExit => builtin::APPLICATION_EXIT,
+            Self::ApplicationRelaunch => builtin::APPLICATION_RELAUNCH,
             Self::Extension { op, .. } | Self::Invalid { op, .. } => *op,
         }
     }
@@ -564,6 +567,7 @@ mod tests {
         assert_eq!(builtin::DIALOG_MESSAGE, EffectOp::new(5, 4));
         assert_eq!(builtin::NOTIFICATION_SHOW, EffectOp::new(6, 1));
         assert_eq!(builtin::APPLICATION_EXIT, EffectOp::new(7, 1));
+        assert_eq!(builtin::APPLICATION_RELAUNCH, EffectOp::new(7, 2));
     }
 
     #[test]

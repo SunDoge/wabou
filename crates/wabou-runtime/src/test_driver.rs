@@ -1,7 +1,11 @@
 //! Test-only bridge between QuickJS scenarios and the native event loop.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
+use std::path::{Component, Path, PathBuf};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 use rquickjs::{Function, prelude::Async};
 use serde::Deserialize;
@@ -17,6 +21,8 @@ use wabou_shell::{
 };
 
 const CAPABILITY: &str = "test";
+const MAX_FIXTURE_BYTES: usize = 16 * 1024 * 1024;
+static NEXT_FIXTURE_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 type WindowKey = wabou_shell::WindowResourceKey;
 
 fn window_key(lo: u32, hi: u32) -> Option<WindowKey> {
@@ -31,6 +37,11 @@ enum TestActionKind {
         mutable_visibility: bool,
     },
     ShowWindow(WindowKey),
+    ResizeWindow {
+        window_key: WindowKey,
+        width: u32,
+        height: u32,
+    },
     ClickByRole {
         window_key: WindowKey,
         role: String,
@@ -83,6 +94,60 @@ enum TestActionResult {
 #[derive(Clone, Copy, Debug)]
 struct WindowSnapshot {
     lifecycle: WindowLifecycle,
+    viewport: Option<(u32, u32)>,
+}
+
+#[derive(Debug)]
+struct TestFixtureDirectory {
+    path: PathBuf,
+}
+
+impl TestFixtureDirectory {
+    fn new() -> Self {
+        let sequence = NEXT_FIXTURE_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        Self {
+            path: std::env::temp_dir().join(format!(
+                "wabou-test-fixtures-{}-{sequence}",
+                std::process::id()
+            )),
+        }
+    }
+
+    fn write_text(&self, relative: &str, contents: &str) -> Result<PathBuf, String> {
+        if relative.is_empty()
+            || Path::new(relative)
+                .components()
+                .any(|component| !matches!(component, Component::Normal(_)))
+        {
+            return Err("fixture path must contain only relative normal components".into());
+        }
+        if contents.len() > MAX_FIXTURE_BYTES {
+            return Err("fixture contents exceed the 16 MB safety limit".into());
+        }
+        let path = self.path.join(relative);
+        let parent = path
+            .parent()
+            .ok_or_else(|| "fixture path has no parent".to_owned())?;
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("cannot create fixture directory: {error}"))?;
+        std::fs::write(&path, contents)
+            .map_err(|error| format!("cannot write fixture file: {error}"))?;
+        Ok(path)
+    }
+}
+
+impl Drop for TestFixtureDirectory {
+    fn drop(&mut self) {
+        match std::fs::remove_dir_all(&self.path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => tracing::warn!(
+                path = %self.path.display(),
+                %error,
+                "failed to clean behavior-test fixture directory"
+            ),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -92,17 +157,36 @@ struct TestState {
     wake: Option<WakeCallback>,
     report: Option<String>,
     semantic_snapshots: HashMap<WindowKey, Arc<SemanticSnapshot>>,
+    headless_viewports: HashMap<WindowKey, (u32, u32)>,
     headless: bool,
 }
 
-#[derive(Clone, Default)]
-pub(crate) struct TestController(Arc<Mutex<TestState>>);
+#[derive(Clone)]
+pub(crate) struct TestController {
+    state: Arc<Mutex<TestState>>,
+    effects: crate::effect_trace::EffectTrace,
+    fixtures: Arc<TestFixtureDirectory>,
+}
+
+impl Default for TestController {
+    fn default() -> Self {
+        Self::new(crate::effect_trace::EffectTrace::fixtures())
+    }
+}
 
 impl TestController {
+    pub(crate) fn new(effects: crate::effect_trace::EffectTrace) -> Self {
+        Self {
+            state: Arc::new(Mutex::new(TestState::default())),
+            effects,
+            fixtures: Arc::new(TestFixtureDirectory::new()),
+        }
+    }
+
     fn request(&self, kind: TestActionKind) -> oneshot::Receiver<TestActionResult> {
         let (completion, receiver) = oneshot::channel();
         let wake = {
-            let Ok(mut state) = self.0.lock() else {
+            let Ok(mut state) = self.state.lock() else {
                 return receiver;
             };
             if state.report.is_some() {
@@ -129,7 +213,7 @@ impl TestController {
 
     fn finish(&self, report: String) -> bool {
         let wake = {
-            let Ok(mut state) = self.0.lock() else {
+            let Ok(mut state) = self.state.lock() else {
                 return false;
             };
             if state.report.is_some() {
@@ -150,6 +234,23 @@ impl TestController {
     pub(crate) fn mount(&self, js: &crate::JsRuntime) -> rquickjs::Result<()> {
         let controller = self.clone();
         js.mount_capability(CAPABILITY, move |ctx, capability| {
+            let fixtures = controller.fixtures.clone();
+            capability.set(
+                "writeTextFile",
+                Function::new(
+                    ctx.clone(),
+                    move |relative: String, contents: String| match fixtures
+                        .write_text(&relative, &contents)
+                    {
+                        Ok(path) => serde_json::json!({
+                            "path": path.to_string_lossy(),
+                        })
+                        .to_string(),
+                        Err(error) => serde_json::json!({ "error": error }).to_string(),
+                    },
+                )?,
+            )?;
+
             let native_close = controller.clone();
             capability.set(
                 "nativeClose",
@@ -217,10 +318,45 @@ impl TestController {
 
             let query = controller.clone();
             capability.set(
+                "resizeWindow",
+                Function::new(
+                    ctx.clone(),
+                    Async(move |lo: u32, hi: u32, width: u32, height: u32| {
+                        let receiver = window_key(lo, hi).map(|window_key| {
+                            query.request(TestActionKind::ResizeWindow {
+                                window_key,
+                                width,
+                                height,
+                            })
+                        });
+                        async move {
+                            match receiver {
+                                Some(receiver) => {
+                                    matches!(receiver.await, Ok(TestActionResult::Handled(true)))
+                                }
+                                None => false,
+                            }
+                        }
+                    }),
+                )?,
+            )?;
+
+            let query = controller.clone();
+            capability.set(
                 "windowState",
                 Function::new(ctx.clone(), move |lo: u32, hi: u32| {
                     window_key(lo, hi)
                         .map(|window_key| query.window_state_json(window_key))
+                        .unwrap_or_else(|| "null".into())
+                })?,
+            )?;
+
+            let query = controller.clone();
+            capability.set(
+                "windowViewport",
+                Function::new(ctx.clone(), move |lo: u32, hi: u32| {
+                    window_key(lo, hi)
+                        .map(|window_key| query.window_viewport_json(window_key))
                         .unwrap_or_else(|| "null".into())
                 })?,
             )?;
@@ -303,6 +439,41 @@ impl TestController {
                 Function::new(ctx.clone(), move |report: String| finish.finish(report))?,
             )?;
 
+            let effects = controller.clone();
+            capability.set(
+                "queueEffect",
+                Function::new(
+                    ctx.clone(),
+                    move |capability: u32, method: u16, result_json: String| {
+                        let result =
+                            serde_json::from_str::<wabou_shell::EffectResult>(&result_json)
+                                .map_err(|error| format!("invalid effect fixture result: {error}"));
+                        result
+                            .and_then(|result| {
+                                effects.effects.enqueue_fixture(
+                                    wabou_shell::EffectOp::new(capability, method),
+                                    result,
+                                )
+                            })
+                            .err()
+                    },
+                )?,
+            )?;
+
+            let effects = controller.clone();
+            capability.set(
+                "takePendingEffectFixtures",
+                Function::new(ctx.clone(), move || {
+                    effects
+                        .effects
+                        .take_pending_fixtures()
+                        .into_iter()
+                        .map(|op| format!("{}:{}", op.capability.0, op.method.0))
+                        .collect::<Vec<_>>()
+                        .join(",")
+                })?,
+            )?;
+
             let query = controller.clone();
             capability.set(
                 "queryByRole",
@@ -341,7 +512,7 @@ impl TestController {
 
     fn window_state_json(&self, window_key: WindowKey) -> String {
         let snapshot = self
-            .0
+            .state
             .lock()
             .ok()
             .and_then(|state| state.windows.get(&window_key).copied());
@@ -360,22 +531,52 @@ impl TestController {
         )
     }
 
-    pub(crate) fn take_report(&self) -> Option<String> {
-        self.0.lock().ok()?.report.take()
+    fn window_viewport_json(&self, window_key: WindowKey) -> String {
+        let viewport = self.state.lock().ok().and_then(|state| {
+            state
+                .headless_viewports
+                .get(&window_key)
+                .copied()
+                .or_else(|| state.windows.get(&window_key)?.viewport)
+        });
+        viewport.map_or_else(
+            || "null".into(),
+            |(width, height)| format!(r#"{{"x":0,"y":0,"width":{width},"height":{height}}}"#),
+        )
     }
 
-    pub(crate) fn initialize_headless(&self, window_keys: impl IntoIterator<Item = WindowKey>) {
-        if let Ok(mut state) = self.0.lock() {
+    pub(crate) fn take_report(&self) -> Option<String> {
+        self.state.lock().ok()?.report.take()
+    }
+
+    pub(crate) fn initialize_headless(
+        &self,
+        window_keys: impl IntoIterator<Item = WindowKey>,
+        width: u32,
+        height: u32,
+    ) {
+        if let Ok(mut state) = self.state.lock() {
             state.headless = true;
             for window_key in window_keys {
                 state.windows.insert(
                     window_key,
                     WindowSnapshot {
                         lifecycle: WindowLifecycle::visible(),
+                        viewport: Some((width, height)),
                     },
                 );
+                state.headless_viewports.insert(window_key, (width, height));
             }
         }
+    }
+
+    pub(crate) fn headless_viewport(&self, window_key: WindowKey) -> Option<(u32, u32)> {
+        self.state
+            .lock()
+            .ok()?
+            .headless_viewports
+            .get(&window_key)
+            .copied()
     }
 
     pub(crate) fn poll_headless_source(&self, window_key: WindowKey, source: &mut dyn FrameSource) {
@@ -384,7 +585,7 @@ impl TestController {
             self.record_semantic_snapshot(window_key, snapshot.clone());
         }
         if let Some(snapshot) = snapshot.as_deref()
-            && let Some(action) = self.0.lock().ok().and_then(|state| {
+            && let Some(action) = self.state.lock().ok().and_then(|state| {
                 state.actions.iter().find_map(|action| match &action.kind {
                     TestActionKind::ClickByRole {
                         window_key: target_window,
@@ -403,7 +604,7 @@ impl TestController {
         {
             return;
         }
-        let action = self.0.lock().ok().and_then(|mut state| {
+        let action = self.state.lock().ok().and_then(|mut state| {
             let index = state.actions.iter().position(|action| {
                 matches!(
                     action_window_key(&action.kind),
@@ -450,11 +651,11 @@ impl TestController {
     }
 
     pub(crate) fn has_report(&self) -> bool {
-        self.0.lock().is_ok_and(|state| state.report.is_some())
+        self.state.lock().is_ok_and(|state| state.report.is_some())
     }
 
     pub(crate) fn report_passed(&self) -> Option<bool> {
-        let state = self.0.lock().ok()?;
+        let state = self.state.lock().ok()?;
         let report = state.report.as_deref()?;
         serde_json::from_str::<serde_json::Value>(report)
             .ok()?
@@ -463,14 +664,14 @@ impl TestController {
     }
 
     fn record_semantic_snapshot(&self, window_key: WindowKey, snapshot: Arc<SemanticSnapshot>) {
-        if let Ok(mut state) = self.0.lock() {
+        if let Ok(mut state) = self.state.lock() {
             state.semantic_snapshots.insert(window_key, snapshot);
         }
     }
 
     pub(crate) fn semantic_artifact(&self) -> serde_json::Value {
         let snapshots = self
-            .0
+            .state
             .lock()
             .map(|state| state.semantic_snapshots.clone())
             .unwrap_or_default();
@@ -501,6 +702,15 @@ fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> Str
         Some(wabou_shell::SemanticToggleState::Mixed) => serde_json::Value::String("mixed".into()),
         None => serde_json::Value::Null,
     };
+    let current = match node.states.current {
+        Some(wabou_shell::SemanticCurrent::True) => Some("true"),
+        Some(wabou_shell::SemanticCurrent::Page) => Some("page"),
+        Some(wabou_shell::SemanticCurrent::Step) => Some("step"),
+        Some(wabou_shell::SemanticCurrent::Location) => Some("location"),
+        Some(wabou_shell::SemanticCurrent::Date) => Some("date"),
+        Some(wabou_shell::SemanticCurrent::Time) => Some("time"),
+        None => None,
+    };
     serde_json::json!({
             "name": node.label,
             "value": node.value,
@@ -517,6 +727,7 @@ fn locator_snapshot_json(node: &wabou_shell::SemanticNode, focused: bool) -> Str
             "checked": toggle_value(node.states.checked),
             "pressed": toggle_value(node.states.pressed),
             "selected": node.states.selected,
+            "current": current,
             "expanded": node.states.expanded,
             "focused": focused,
     })
@@ -566,6 +777,15 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
         Some(wabou_shell::SemanticToggleState::Mixed) => serde_json::Value::String("mixed".into()),
         None => serde_json::Value::Null,
     };
+    let current = |state: Option<wabou_shell::SemanticCurrent>| match state {
+        Some(wabou_shell::SemanticCurrent::True) => Some("true"),
+        Some(wabou_shell::SemanticCurrent::Page) => Some("page"),
+        Some(wabou_shell::SemanticCurrent::Step) => Some("step"),
+        Some(wabou_shell::SemanticCurrent::Location) => Some("location"),
+        Some(wabou_shell::SemanticCurrent::Date) => Some("date"),
+        Some(wabou_shell::SemanticCurrent::Time) => Some("time"),
+        None => None,
+    };
     serde_json::json!({
         "windowId": window_key,
         "revision": snapshot.revision,
@@ -596,6 +816,7 @@ fn semantic_snapshot_json(window_key: WindowKey, snapshot: &SemanticSnapshot) ->
             "checked": toggle(node.states.checked),
             "pressed": toggle(node.states.pressed),
             "selected": node.states.selected,
+            "current": current(node.states.current),
             "expanded": node.states.expanded,
             "focused": snapshot.focus == Some(node.id),
         })).collect::<Vec<_>>(),
@@ -623,6 +844,17 @@ fn apply_headless_action(state: &mut TestState, action: TestAction) {
                 true
             })
         }
+        TestActionKind::ResizeWindow {
+            window_key,
+            width,
+            height,
+        } => state
+            .headless_viewports
+            .get_mut(&window_key)
+            .is_some_and(|viewport| {
+                *viewport = (width, height);
+                true
+            }),
         TestActionKind::WaitForIdle(_) => false,
         TestActionKind::ClickByRole { .. } => false,
         TestActionKind::InputByRole { .. } => false,
@@ -647,6 +879,7 @@ fn action_requires_source_poll(kind: &TestActionKind) -> bool {
 fn action_window_key(kind: &TestActionKind) -> Option<WindowKey> {
     match kind {
         TestActionKind::WaitForIdle(window_key)
+        | TestActionKind::ResizeWindow { window_key, .. }
         | TestActionKind::ClickByRole { window_key, .. }
         | TestActionKind::InputByRole { window_key, .. }
         | TestActionKind::QueryByRole { window_key, .. } => Some(*window_key),
@@ -701,7 +934,7 @@ fn input_semantic_target(
     input: &TestInput,
     index: Option<usize>,
 ) -> bool {
-    let node = if matches!(input, TestInput::Probe) {
+    let node = if input_allows_disabled_target(input) {
         semantic_query_target(snapshot, role, label, index)
     } else {
         semantic_target(snapshot, role, label, index)
@@ -710,6 +943,10 @@ fn input_semantic_target(
         return false;
     };
     dispatch_test_input(source, node, input)
+}
+
+fn input_allows_disabled_target(input: &TestInput) -> bool {
+    matches!(input, TestInput::Probe | TestInput::Wheel { .. })
 }
 
 fn dispatch_test_input(
@@ -772,10 +1009,17 @@ impl TestDriver {
         let Some(lifecycle) = context.window_lifecycle(window_key) else {
             return;
         };
-        if let Ok(mut state) = self.controller.0.lock() {
-            state
-                .windows
-                .insert(window_key, WindowSnapshot { lifecycle });
+        let viewport = context
+            .window_metrics(window_key)
+            .map(|metrics| (metrics.logical_width, metrics.logical_height));
+        if let Ok(mut state) = self.controller.state.lock() {
+            state.windows.insert(
+                window_key,
+                WindowSnapshot {
+                    lifecycle,
+                    viewport,
+                },
+            );
         }
     }
 }
@@ -787,7 +1031,7 @@ impl ShellExtension for TestDriver {
 
     fn initialize(&mut self, wake: WakeCallback) -> Result<(), String> {
         self.controller
-            .0
+            .state
             .lock()
             .map_err(|_| "test controller mutex poisoned".to_string())?
             .wake = Some(wake);
@@ -798,7 +1042,7 @@ impl ShellExtension for TestDriver {
         loop {
             let action = self
                 .controller
-                .0
+                .state
                 .lock()
                 .ok()
                 .and_then(|mut state| state.actions.pop_front());
@@ -807,6 +1051,7 @@ impl ShellExtension for TestDriver {
             };
             if let Some(window_key) = action_window_key(&action.kind) {
                 self.last_window_key = Some(window_key);
+                self.snapshot(window_key, context);
             }
             if let Some(window_key) = action_window_key(&action.kind)
                 && let Some(snapshot) = context.semantic_snapshot(window_key)
@@ -832,6 +1077,11 @@ impl ShellExtension for TestDriver {
                     self.snapshot(window_key, context);
                     TestActionResult::Handled(handled)
                 }
+                TestActionKind::ResizeWindow {
+                    window_key,
+                    width,
+                    height,
+                } => TestActionResult::Handled(context.resize_window(window_key, width, height)),
                 TestActionKind::ClickByRole {
                     window_key,
                     role,
@@ -858,7 +1108,7 @@ impl ShellExtension for TestDriver {
                         let _ = action.completion.send(TestActionResult::Handled(false));
                         continue;
                     };
-                    if node.disabled && !matches!(input, TestInput::Probe) {
+                    if node.disabled && !input_allows_disabled_target(&input) {
                         let _ = action.completion.send(TestActionResult::Handled(false));
                         continue;
                     }
@@ -1086,13 +1336,16 @@ mod tests {
 
     #[test]
     fn locator_snapshot_exposes_logical_origin_and_size() {
+        let mut node = node();
+        node.states.current = Some(wabou_shell::SemanticCurrent::Page);
         let snapshot =
-            serde_json::from_str::<serde_json::Value>(&locator_snapshot_json(&node(), false))
+            serde_json::from_str::<serde_json::Value>(&locator_snapshot_json(&node, false))
                 .unwrap();
         assert_eq!(
             snapshot["bounds"],
             serde_json::json!({ "x": 10.0, "y": 20.0, "width": 100.0, "height": 40.0 })
         );
+        assert_eq!(snapshot["current"], "page");
     }
 
     #[test]
@@ -1128,6 +1381,37 @@ mod tests {
             (PointerPhase::Move, 85.0, 35.0, 1)
         );
         assert_eq!((up.phase, up.buttons), (PointerPhase::Up, 0));
+    }
+
+    #[test]
+    fn wheel_can_target_disabled_content_but_actions_cannot() {
+        assert!(input_allows_disabled_target(&TestInput::Wheel {
+            delta_x: 0.0,
+            delta_y: 40.0,
+        }));
+        assert!(input_allows_disabled_target(&TestInput::Probe));
+        assert!(!input_allows_disabled_target(&TestInput::Drag {
+            delta_x: 1.0,
+            delta_y: 1.0,
+        }));
+        assert!(!input_allows_disabled_target(&TestInput::Key {
+            key: "Enter".into(),
+            modifiers: 0,
+        }));
+    }
+
+    #[test]
+    fn text_fixtures_are_exact_isolated_and_cleaned_up() {
+        let fixtures = TestFixtureDirectory::new();
+        let root = fixtures.path.clone();
+        let path = fixtures
+            .write_text("nested/sample.torrent", "d3:fooi1ee")
+            .unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), b"d3:fooi1ee");
+        assert!(fixtures.write_text("../escape", "no").is_err());
+        assert!(fixtures.write_text("/absolute", "no").is_err());
+        drop(fixtures);
+        assert!(!root.exists());
     }
 
     #[test]
@@ -1229,7 +1513,7 @@ mod tests {
     #[test]
     fn concurrent_queries_keep_results_attached_to_their_requests() {
         let controller = TestController::default();
-        controller.initialize_headless([key(1), key(2)]);
+        controller.initialize_headless([key(1), key(2)], 800, 600);
         let first = controller.request(TestActionKind::QueryByRole {
             window_key: key(1),
             role: "textbox".into(),
@@ -1322,6 +1606,27 @@ mod tests {
     }
 
     #[test]
+    fn deterministic_windows_accept_runtime_logical_resizes() {
+        let controller = TestController::default();
+        controller.initialize_headless([key(1)], 1100, 720);
+
+        let result = controller.request(TestActionKind::ResizeWindow {
+            window_key: key(1),
+            width: 900,
+            height: 600,
+        });
+        assert!(matches!(
+            result.blocking_recv(),
+            Ok(TestActionResult::Handled(true))
+        ));
+        assert_eq!(controller.headless_viewport(key(1)), Some((900, 600)));
+        assert_eq!(
+            controller.window_viewport_json(key(1)),
+            r#"{"x":0,"y":0,"width":900,"height":600}"#
+        );
+    }
+
+    #[test]
     fn finishing_cancels_pending_and_future_actions_without_replacing_the_report() {
         let controller = TestController::default();
         let pending_input = controller.request(TestActionKind::ClickByRole {
@@ -1353,7 +1658,7 @@ mod tests {
             future.blocking_recv(),
             Ok(TestActionResult::Handled(false))
         ));
-        let state = controller.0.lock().unwrap();
+        let state = controller.state.lock().unwrap();
         assert!(state.actions.is_empty());
         assert_eq!(state.report.as_deref(), Some("first report"));
     }

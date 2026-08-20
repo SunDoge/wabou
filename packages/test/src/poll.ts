@@ -1,6 +1,8 @@
 export interface PollOptions {
   timeout?: number;
   interval?: number;
+  /** The predicate must remain true continuously for this many milliseconds. */
+  stableFor?: number;
 }
 
 export interface PollResult<T> {
@@ -11,6 +13,7 @@ export interface PollResult<T> {
 export interface ResolvedPollOptions {
   timeout: number;
   interval: number;
+  stableFor: number;
 }
 
 function duration(value: number | undefined, fallback: number, name: string) {
@@ -25,10 +28,15 @@ function duration(value: number | undefined, fallback: number, name: string) {
 export function resolvePollOptions(
   options: PollOptions = {},
 ): ResolvedPollOptions {
-  return {
+  const resolved = {
     timeout: duration(options.timeout, 1_000, "timeout"),
     interval: duration(options.interval, 16, "interval"),
+    stableFor: duration(options.stableFor, 0, "stableFor"),
   };
+  if (resolved.stableFor > resolved.timeout) {
+    throw new RangeError("stableFor cannot exceed timeout");
+  }
+  return resolved;
 }
 
 /** Poll an observable value with one explicit clock and retry policy. */
@@ -38,18 +46,29 @@ export async function pollUntil<T>(
   options: PollOptions = {},
   beforeRead?: () => void | Promise<void>,
 ): Promise<PollResult<T>> {
-  const { timeout, interval } = resolvePollOptions(options);
+  const { timeout, interval, stableFor } = resolvePollOptions(options);
   const deadline = performance.now() + timeout;
+  let matchedSince: number | undefined;
   let value: T;
 
   for (;;) {
     await beforeRead?.();
     value = await read();
-    if (matches(value)) return { matched: true, value };
-    const remaining = deadline - performance.now();
+    const now = performance.now();
+    if (matches(value)) {
+      matchedSince ??= now;
+      if (now - matchedSince >= stableFor) return { matched: true, value };
+    } else {
+      matchedSince = undefined;
+    }
+    const remaining = deadline - now;
     if (remaining <= 0) return { matched: false, value };
+    const stabilityRemaining =
+      matchedSince === undefined
+        ? remaining
+        : Math.max(0, stableFor - (now - matchedSince));
     await new Promise<void>((resolve) =>
-      setTimeout(resolve, Math.min(interval, remaining)),
+      setTimeout(resolve, Math.min(interval, remaining, stabilityRemaining)),
     );
   }
 }

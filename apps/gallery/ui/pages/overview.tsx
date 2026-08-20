@@ -28,7 +28,6 @@ import palette from "lucide-static/icons/palette.svg?raw";
 import scan from "lucide-static/icons/scan-line.svg?raw";
 import sparkles from "lucide-static/icons/sparkles.svg?raw";
 import { createMemo, createSignal, For, onCleanup, type JSX } from "solid-js";
-import { appendSmoothPath } from "../lib/smooth-path";
 
 const treeNodes = [
   { id: "shell", name: "ApplicationShell", detail: "flex row, 1440 by 900" },
@@ -52,11 +51,13 @@ function LiveFrameChart() {
     const phase = tick();
     const points = [];
     for (let index = 0; index < 18; index++) {
-      const value = 42 + Math.sin((index + phase) * 0.72) * 13 +
+      const value =
+        42 +
+        Math.sin((index + phase) * 0.72) * 13 +
         Math.sin((index - phase) * 0.31) * 7;
       points.push({ x: index * 18, y: 72 - value });
     }
-    return appendSmoothPath(new PathBuilder(), points).build({
+    return new PathBuilder().splineThrough(points).build({
       stroke: 0x38bdf8ff,
       strokeWidth: 2.5,
       lineCap: "round",

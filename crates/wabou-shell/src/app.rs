@@ -7,6 +7,7 @@ use snafu::ResultExt;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Wake, Waker};
@@ -133,6 +134,7 @@ pub struct App {
     wake_callback: Option<WakeCallback>,
     close_requested: bool,
     application_exit_requested: bool,
+    application_relaunch_requested: bool,
     lifecycle: WindowLifecycle,
     force_semantics: bool,
 }
@@ -219,6 +221,7 @@ impl App {
             wake_callback: None,
             close_requested: false,
             application_exit_requested: false,
+            application_relaunch_requested: false,
             lifecycle: WindowLifecycle::visible(),
             force_semantics: false,
         }
@@ -662,6 +665,14 @@ impl App {
                         result: crate::EffectResult::Unit,
                     });
                 }
+                crate::EffectPayload::ApplicationRelaunch => {
+                    self.application_relaunch_requested = true;
+                    self.source.complete_effect(crate::EffectCompletion {
+                        id,
+                        op,
+                        result: crate::EffectResult::Unit,
+                    });
+                }
                 payload @ (crate::EffectPayload::ContextMenuShow(_)
                 | crate::EffectPayload::Extension { .. }) => {
                     self.pending_extension_effects.push(crate::EffectRequest {
@@ -1062,6 +1073,10 @@ impl ApplicationHandler for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+        if self.application_exit_requested || self.application_relaunch_requested {
+            event_loop.exit();
+            return;
+        }
         // A reactive source keeps the redraw loop spinning at vsync while it has
         // pending rAF work; a static source idles (ControlFlow::Wait) until a
         // resize/close.
@@ -1102,6 +1117,7 @@ struct MultiWindowApp {
     extensions_shutdown: bool,
     extension_error: Arc<Mutex<Option<crate::Error>>>,
     force_semantics: bool,
+    relaunch_requested: Arc<AtomicBool>,
 }
 
 /// Event-loop services exposed to optional shell extensions.
@@ -1146,6 +1162,32 @@ impl ExtensionContext<'_> {
             .values()
             .find(|app| app.window_key == window_key)
             .map(|app| app.window_metrics)
+    }
+
+    /// Request a new logical inner size for a visible native window.
+    ///
+    /// The platform remains authoritative: minimum/maximum constraints are
+    /// applied by winit and the resulting surface resize travels through the
+    /// normal `WindowEvent::SurfaceResized` path.
+    pub fn resize_window(
+        &mut self,
+        window_key: WindowResourceKey,
+        width: u32,
+        height: u32,
+    ) -> bool {
+        if width == 0 || height == 0 {
+            return false;
+        }
+        let Some(app) = find_window_by_key(self.windows.values_mut(), window_key) else {
+            return false;
+        };
+        let Some(shell) = app.state.as_ref() else {
+            return false;
+        };
+        let _ = shell
+            .window()
+            .request_surface_size(LogicalSize::new(f64::from(width), f64::from(height)).into());
+        true
     }
 
     /// Return the latest immutable semantic snapshot for a visible window.
@@ -1538,6 +1580,7 @@ impl MultiWindowApp {
         factory: Option<FrameSourceFactory>,
         wake: WakeCallback,
         extensions: Vec<Box<dyn ShellExtension>>,
+        relaunch_requested: Arc<AtomicBool>,
     ) -> Self {
         let force_semantics = extensions
             .iter()
@@ -1559,6 +1602,7 @@ impl MultiWindowApp {
             extensions_shutdown: false,
             extension_error: Arc::new(Mutex::new(None)),
             force_semantics,
+            relaunch_requested,
         }
     }
 
@@ -1705,8 +1749,15 @@ impl MultiWindowApp {
         if self
             .windows
             .values()
-            .any(|app| app.application_exit_requested)
+            .any(|app| app.application_exit_requested || app.application_relaunch_requested)
         {
+            if self
+                .windows
+                .values()
+                .any(|app| app.application_relaunch_requested)
+            {
+                self.relaunch_requested.store(true, Ordering::Release);
+            }
             self.shutdown_extensions(event_loop);
             event_loop.exit();
             return;
@@ -1937,7 +1988,9 @@ pub fn run_window_with_options(
 }
 
 /// Run independent frame sources as native windows on one platform event loop.
-pub fn run_windows(windows: Vec<(Box<dyn FrameSource>, WindowOptions)>) -> crate::Result<()> {
+pub fn run_windows(
+    windows: Vec<(Box<dyn FrameSource>, WindowOptions)>,
+) -> crate::Result<RunOutcome> {
     run_windows_with_factory(windows, None)
 }
 
@@ -1945,7 +1998,7 @@ pub fn run_windows(windows: Vec<(Box<dyn FrameSource>, WindowOptions)>) -> crate
 pub fn run_windows_with_factory(
     windows: Vec<(Box<dyn FrameSource>, WindowOptions)>,
     factory: Option<FrameSourceFactory>,
-) -> crate::Result<()> {
+) -> crate::Result<RunOutcome> {
     run_windows_with_factory_and_extensions(windows, factory, Vec::new())
 }
 
@@ -1957,9 +2010,9 @@ pub fn run_windows_with_factory_and_extensions(
     mut windows: Vec<(Box<dyn FrameSource>, WindowOptions)>,
     factory: Option<FrameSourceFactory>,
     extensions: Vec<Box<dyn ShellExtension>>,
-) -> crate::Result<()> {
+) -> crate::Result<RunOutcome> {
     if windows.is_empty() {
-        return Ok(());
+        return Ok(RunOutcome::Exit);
     }
     let event_loop: EventLoop = EventLoop::new().context(crate::error::CreateEventLoopSnafu)?;
     event_loop.set_control_flow(ControlFlow::Wait);
@@ -1973,7 +2026,8 @@ pub fn run_windows_with_factory_and_extensions(
             app
         })
         .collect();
-    let app = MultiWindowApp::new(apps, factory, wake, extensions);
+    let relaunch_requested = Arc::new(AtomicBool::new(false));
+    let app = MultiWindowApp::new(apps, factory, wake, extensions, relaunch_requested.clone());
     let errors = app.startup_errors.clone();
     let extension_error = app.extension_error.clone();
     event_loop
@@ -1991,7 +2045,20 @@ pub fn run_windows_with_factory_and_extensions(
     {
         return Err(error);
     }
-    Ok(())
+    Ok(if relaunch_requested.load(Ordering::Acquire) {
+        RunOutcome::Relaunch
+    } else {
+        RunOutcome::Exit
+    })
+}
+
+/// Reason the native multi-window event loop terminated.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunOutcome {
+    /// All windows closed or the application requested normal termination.
+    Exit,
+    /// The application requested shutdown followed by process relaunch.
+    Relaunch,
 }
 
 #[cfg(test)]

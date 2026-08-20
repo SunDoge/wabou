@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from "../primitives";
+import { ScrollArea } from "../primitives/scroll-area";
 import type { JSX } from "solid-js";
 import { join } from "./class-names";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -56,6 +57,25 @@ export function DialogFooter(props: {
     <View class={join("flex items-center justify-end gap-2", props.class)}>
       {props.children}
     </View>
+  );
+}
+
+/**
+ * The shrinking, independently scrollable region between a dialog's fixed
+ * header and footer. The dialog surface must have a bounded or maximum height.
+ */
+export function DialogScrollBody(props: {
+  children?: JSX.Element;
+  class?: string;
+  contentClass?: string;
+}) {
+  return (
+    <ScrollArea
+      class={join("min-h-0 flex-1", props.class)}
+      contentClass={props.contentClass}
+    >
+      {props.children}
+    </ScrollArea>
   );
 }
 

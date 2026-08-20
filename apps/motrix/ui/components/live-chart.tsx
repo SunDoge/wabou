@@ -1,4 +1,10 @@
-import { animate, Path, PathBuilder, View } from "@wabou/ui";
+import {
+  animate,
+  createMeasuredSize,
+  Path,
+  PathBuilder,
+  View,
+} from "@wabou/ui";
 import {
   createEffect,
   createMemo,
@@ -6,16 +12,17 @@ import {
   onCleanup,
   untrack,
 } from "solid-js";
-import { smoothPath } from "../path";
 
 export function LiveChart(props: {
   values: readonly number[];
   color?: "download" | "upload";
   compact?: boolean;
-  width?: number;
+  grid?: boolean;
 }) {
-  const width = () => props.width ?? 230;
-  const height = () => (props.compact ? 56 : 96);
+  const measured = createMeasuredSize();
+  const width = () => Math.max(1, measured.width());
+  const height = () =>
+    Math.max(1, measured.height() || (props.compact ? 56 : 96));
   const normalize = (values: readonly number[]) => {
     const maximum = Math.max(1, ...values);
     return values.map((value) => 0.14 + (value / maximum) * 0.72);
@@ -61,7 +68,7 @@ export function LiveChart(props: {
   );
   onCleanup(() => controls?.stop());
   const line = createMemo(() => {
-    return smoothPath(normalized(), width(), height()).build({
+    return pathForValues(normalized(), width(), height()).build({
       stroke: props.color === "upload" ? 0xa855f7ff : 0x2f81f7ff,
       strokeWidth: 2.25,
       lineCap: "round",
@@ -69,8 +76,9 @@ export function LiveChart(props: {
     });
   });
   const area = createMemo(() => {
-    const path = smoothPath(normalized(), width(), height());
-    path.lineTo(width(), height()).lineTo(0, height()).close();
+    const path = pathForValues(normalized(), width(), height());
+    if (path.hasCurrentPoint)
+      path.lineTo(width(), height()).lineTo(0, height()).close();
     return path.build({
       fill: props.color === "upload" ? 0xa855f724 : 0x2f81f72c,
     });
@@ -88,12 +96,29 @@ export function LiveChart(props: {
   });
   return (
     <View
+      ref={measured.ref}
+      role="img"
+      aria-label={`${props.color === "upload" ? "Upload" : "Download"} throughput chart`}
       class="relative overflow-hidden rounded-lg"
       classList={{ "h-14": props.compact, "h-24": !props.compact }}
     >
-      <Path class="absolute inset-0 w-full h-full" source={grid()} />
+      {props.grid !== false && (
+        <Path class="absolute inset-0 w-full h-full" source={grid()} />
+      )}
       <Path class="absolute inset-0 w-full h-full" source={area()} />
       <Path class="absolute inset-0 w-full h-full" source={line()} />
     </View>
   );
+}
+
+function pathForValues(
+  values: readonly number[],
+  width: number,
+  height: number,
+) {
+  const points = values.map((value, index) => ({
+    x: values.length <= 1 ? 0 : (index / (values.length - 1)) * width,
+    y: height - value * height,
+  }));
+  return new PathBuilder().splineThrough(points);
 }
