@@ -1,6 +1,11 @@
 // DevTools UI model tests.
 import { describe, expect, test } from "bun:test";
-import { decode, overlayStyle } from "./model";
+import {
+  decode,
+  EMPTY_OVERLAY_LAYERS,
+  overlayStyle,
+  toggleOverlayLayer,
+} from "./model";
 
 describe("DevTools view model", () => {
   test("decodes successful capability responses", () => {
@@ -22,5 +27,18 @@ describe("DevTools view model", () => {
     expect(
       overlayStyle({ x: 0, y: 0, width: 1, height: 1 }, 0, 500),
     ).toBeUndefined();
+  });
+
+  test("toggles diagnostic layers independently", () => {
+    const layout = toggleOverlayLayer(EMPTY_OVERLAY_LAYERS, "layout");
+    const clips = toggleOverlayLayer(layout, "clips");
+
+    expect(layout).toEqual({ layout: true, clips: false, hitTarget: false });
+    expect(clips).toEqual({ layout: true, clips: true, hitTarget: false });
+    expect(EMPTY_OVERLAY_LAYERS).toEqual({
+      layout: false,
+      clips: false,
+      hitTarget: false,
+    });
   });
 });

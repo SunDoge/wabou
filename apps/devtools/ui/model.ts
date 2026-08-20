@@ -12,6 +12,27 @@ export interface RpcEnvelope<T> {
   error?: string;
 }
 
+export interface OverlayLayers {
+  layout: boolean;
+  clips: boolean;
+  hitTarget: boolean;
+}
+
+export type OverlayLayer = keyof OverlayLayers;
+
+export const EMPTY_OVERLAY_LAYERS: OverlayLayers = Object.freeze({
+  layout: false,
+  clips: false,
+  hitTarget: false,
+});
+
+export function toggleOverlayLayer(
+  layers: OverlayLayers,
+  layer: OverlayLayer,
+): OverlayLayers {
+  return { ...layers, [layer]: !layers[layer] };
+}
+
 export function decode<T>(raw: string): T {
   const envelope = JSON.parse(raw) as RpcEnvelope<T>;
   if (!envelope.ok)

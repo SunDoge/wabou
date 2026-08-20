@@ -27,7 +27,13 @@ import {
   type NodeKey,
   useDevtoolsClient,
 } from "./generated/host-bindings";
-import { overlayStyle } from "./model";
+import {
+  EMPTY_OVERLAY_LAYERS,
+  type OverlayLayer,
+  type OverlayLayers,
+  overlayStyle,
+  toggleOverlayLayer,
+} from "./model";
 
 function shortText(node: DebugNode): string {
   const text = node.text?.replaceAll("\n", " ").trim();
@@ -71,7 +77,8 @@ function App() {
   const [screenshot, setScreenshot] = createSignal<string>();
   const [error, setError] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
-  const [layoutOverlay, setLayoutOverlay] = createSignal(false);
+  const [overlayLayers, setOverlayLayers] =
+    createSignal<OverlayLayers>(EMPTY_OVERLAY_LAYERS);
 
   const selectedRect = createMemo(() => {
     const node = selected();
@@ -141,14 +148,7 @@ function App() {
     try {
       const node = await devtools.inspectNode({ id });
       setSelected(node);
-      if (layoutOverlay()) {
-        await devtools.setOverlay({
-          layout: true,
-          clips: true,
-          hitTarget: true,
-          selectedNode: node.id,
-        });
-      }
+      await devtools.setOverlay({ ...overlayLayers(), selectedNode: node.id });
       setError(undefined);
     } catch (cause) {
       setError(String(cause));
@@ -165,7 +165,7 @@ function App() {
       setSocket(result.path);
       setConnectedSocket(result.path);
       setSelected(undefined);
-      setLayoutOverlay(false);
+      setOverlayLayers(EMPTY_OVERLAY_LAYERS);
       setScreenshot(undefined);
       await refreshAll();
       setError(undefined);
@@ -187,16 +187,14 @@ function App() {
     }
   }
 
-  async function toggleLayoutOverlay(): Promise<void> {
-    const enabled = !layoutOverlay();
+  async function toggleOverlay(layer: OverlayLayer): Promise<void> {
+    const next = toggleOverlayLayer(overlayLayers(), layer);
     try {
       await devtools.setOverlay({
-        layout: enabled,
-        clips: enabled,
-        hitTarget: enabled,
+        ...next,
         selectedNode: selected()?.id ?? null,
       });
-      setLayoutOverlay(enabled);
+      setOverlayLayers(next);
       setError(undefined);
     } catch (cause) {
       setError(String(cause));
@@ -235,22 +233,36 @@ function App() {
           placeholder="Auto-discover, or enter /run/user/.../wabou-123.sock"
           onInput={(event) => setSocket(event.currentTarget.value)}
         />
-        <Button
-          unstyled
-          class="h-8 px-3 rounded text-white"
-          style={(state) => ({
-            "background-color": layoutOverlay()
-              ? state.hovered
-                ? "#7e22ce"
-                : "#9333ea"
-              : state.hovered
-                ? "#475569"
-                : "#334155",
-          })}
-          onClick={() => void toggleLayoutOverlay()}
+        <Text class="text-xs text-slate-500">Overlay</Text>
+        <For
+          each={
+            [
+              ["layout", "Bounds"],
+              ["clips", "Clips"],
+              ["hitTarget", "Hit"],
+            ] as const
+          }
         >
-          Layout
-        </Button>
+          {([layer, label]) => (
+            <Button
+              unstyled
+              aria-pressed={overlayLayers()[layer]}
+              class="h-8 px-2 rounded text-white"
+              style={(state) => ({
+                "background-color": overlayLayers()[layer]
+                  ? state.hovered
+                    ? "#7e22ce"
+                    : "#9333ea"
+                  : state.hovered
+                    ? "#475569"
+                    : "#334155",
+              })}
+              onClick={() => void toggleOverlay(layer)}
+            >
+              {label}
+            </Button>
+          )}
+        </For>
         <Button
           unstyled
           variant="ghost"

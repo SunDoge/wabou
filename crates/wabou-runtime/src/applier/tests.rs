@@ -50,6 +50,59 @@ fn create_element_with_attrs(applier: &mut Applier, id: u32, tag: Atom, attrs: &
 }
 
 #[test]
+fn debug_layout_overlay_encodes_visible_scene_geometry() {
+    let js = JsRuntime::new().expect("runtime");
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let view = applier.document.atoms.borrow_mut().intern("view");
+    applier.apply_op(&Op::CreateElement {
+        id: nk(2),
+        tag: view,
+    });
+    let node_id = applier.document.node_store.solid_to_node[&nk(2)];
+    let placed = PlacedNode {
+        node_id,
+        parent_node_id: None,
+        depth: 0,
+        rect: [10.0, 12.0, 90.0, 52.0],
+        content_origin: [10.0, 12.0],
+        content_size: [80.0, 40.0],
+        clip: None,
+        clip_radius: 0.0,
+        clip_depth: None,
+        own_clip: None,
+        own_clip_radius: 0.0,
+        border_widths: [0.0; 4],
+        scroll: layout::ScrollMetrics::default(),
+        paint: Paint::default(),
+    };
+    let debug = wabou_devtools::DebugState::shared();
+    applier.set_debug_state(debug.clone());
+
+    let mut disabled_scene = Scene::new();
+    applier.paint_debug_overlay(
+        &mut disabled_scene,
+        std::slice::from_ref(&placed),
+        &mut TextContext::new(),
+        1.0,
+    );
+    assert_eq!(disabled_scene.encoding().n_paths, 0);
+
+    debug
+        .write()
+        .expect("debug state")
+        .set_overlay(wabou_devtools::DebugOverlay {
+            layout: true,
+            ..Default::default()
+        });
+    let mut enabled_scene = Scene::new();
+    applier.paint_debug_overlay(&mut enabled_scene, &[placed], &mut TextContext::new(), 1.0);
+    assert!(
+        enabled_scene.encoding().n_paths > 0,
+        "enabled layout diagnostics must encode a visible stroke"
+    );
+}
+
+#[test]
 fn text_layout_defaults_require_an_explicit_js_contract() {
     let js = JsRuntime::new().expect("runtime");
     let mut applier = Applier::from_runtime(js, Color::BLACK);
