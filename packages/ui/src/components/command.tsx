@@ -32,6 +32,8 @@ export interface CommandProps {
   listClass?: string;
   onQueryChange?: (query: string) => void;
   onAction?: (id: string) => void;
+  onDismiss?: () => void;
+  inputRef?: (node: Handle) => void;
 }
 
 /** Searchable command list whose filtering and keyboard behavior are host-independent. */
@@ -74,6 +76,10 @@ export function Command(props: CommandProps): JSX.Element {
       .with("Home", () => move("first"))
       .with("End", () => move("last"))
       .with("Enter", () => select(highlighted()))
+      .with("Escape", () => {
+        props.onDismiss?.();
+        return props.onDismiss !== undefined;
+      })
       .otherwise(() => false);
     if (handled) event.preventDefault();
   };
@@ -84,6 +90,7 @@ export function Command(props: CommandProps): JSX.Element {
         aria-label={props["aria-label"]}
         value={query()}
         placeholder={props.placeholder ?? "Type a command"}
+        ref={props.inputRef}
         onInput={(event) => setQuery(event.currentTarget.value)}
         onKeyDown={onKeyDown}
       />
@@ -132,3 +139,5 @@ export function Command(props: CommandProps): JSX.Element {
 }
 
 export { filterCommandItems, reconcileCommandHighlight } from "./command-state";
+
+import type { Handle } from "@wabou/core/renderer";

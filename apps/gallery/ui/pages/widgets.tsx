@@ -20,6 +20,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
+  Combobox,
   Command,
   DatePicker,
   Dialog,
@@ -265,6 +266,41 @@ export function CommandPage() {
         />
         <Text role="status" class="text-sm text-secondary">
           {action()}
+        </Text>
+      </View>
+    </Preview>
+  );
+}
+
+export function ComboboxPage() {
+  const [value, setValue] = createSignal("Not selected");
+  return (
+    <Preview title="Searchable selection">
+      <View class="flex flex-col items-start gap-4">
+        <Combobox
+          aria-label="Technology"
+          placeholder="Choose technology"
+          searchPlaceholder="Search technologies"
+          onValueChange={setValue}
+          options={[
+            {
+              id: "solid",
+              value: "solid",
+              label: "SolidJS",
+              keywords: ["signals"],
+            },
+            { id: "rust", value: "rust", label: "Rust", keywords: ["native"] },
+            { id: "quickjs", value: "quickjs", label: "QuickJS" },
+            {
+              id: "future",
+              value: "future",
+              label: "Future option",
+              disabled: true,
+            },
+          ]}
+        />
+        <Text role="status" class="text-sm text-secondary">
+          {value()}
         </Text>
       </View>
     </Preview>

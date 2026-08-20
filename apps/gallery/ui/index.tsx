@@ -65,6 +65,7 @@ type ComponentId =
   | "pagination"
   | "dropdown-menu"
   | "command"
+  | "combobox"
   | "accordion"
   | "avatar"
   | "field"
@@ -96,6 +97,7 @@ const groups: Array<{
     items: [
       { id: "input", name: "Input" },
       { id: "select", name: "Select" },
+      { id: "combobox", name: "Combobox" },
       { id: "date-picker", name: "Date picker" },
       { id: "checkbox", name: "Checkbox" },
       { id: "radio-group", name: "Radio group" },
@@ -201,6 +203,7 @@ const descriptions: Record<ComponentId, string> = {
   "dropdown-menu":
     "Presents a compact list of actions with native focus and typeahead.",
   command: "Filters and activates commands with pointer or keyboard input.",
+  combobox: "Searches and selects one value from a larger option collection.",
   accordion:
     "Vertically stacked disclosure sections with controlled or uncontrolled state.",
   avatar: "A compact visual identity with initials, images and grouped counts.",
@@ -256,6 +259,7 @@ import {
   AvatarPage,
   BreadcrumbPageDemo,
   ButtonGroupPage,
+  ComboboxPage,
   CommandPage,
   DatePickerPage,
   DialogPage,
@@ -579,6 +583,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "select"}>
                     <SelectPage />
+                  </Match>
+                  <Match when={selected() === "combobox"}>
+                    <ComboboxPage />
                   </Match>
                   <Match when={selected() === "date-picker"}>
                     <DatePickerPage />
