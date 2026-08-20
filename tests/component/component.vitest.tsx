@@ -75,6 +75,28 @@ test("scopes role queries to a component subtree", () => {
   );
 });
 
+test("navigates authored parents and finds a stable semantic ancestor", () => {
+  const screen = renderComponent(() => (
+    <View role="region" aria-label="Inspector">
+      <View role="presentation" class="visual-surface">
+        <View role="group" aria-label="Actions">
+          <Button aria-label="Save" />
+        </View>
+      </View>
+    </View>
+  ));
+  const save = screen.getByRole("button", { name: "Save" });
+
+  expect(save.parent?.role).toBe("group");
+  expect(save.closestByRole("region", { name: "Inspector" })?.name).toBe(
+    "Inspector",
+  );
+  expect(save.closestByRole("presentation")?.className).toContain(
+    "visual-surface",
+  );
+  expect(save.closestByRole("dialog")).toBeNull();
+});
+
 test("scoped queries follow dynamic children and reject detached roots", () => {
   const Dynamic = () => {
     const [child, setChild] = createSignal(true);
@@ -101,6 +123,7 @@ test("scoped queries follow dynamic children and reject detached roots", () => {
   expect(panel.queryAllByRole("button")).toHaveLength(0);
   screen.getByRole("button", { name: "Remove panel" }).click();
   expect(() => panel.queryAllByRole("button")).toThrow("detached component");
+  expect(() => panel.closestByRole("group")).toThrow("detached component");
   expect(() => panel.resize({ width: 100, height: 40 })).toThrow(
     "resize detached component",
   );

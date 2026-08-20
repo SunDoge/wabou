@@ -111,9 +111,7 @@ test("can disable popup motion without changing selection behavior", () => {
   ));
 
   screen.getByRole("combobox", { name: "Technology" }).click();
-  const panel = screen
-    .getAllByRole("presentation")
-    .find((node) => node.transform !== null);
+  const panel = screen.getByRole("listbox").closestByRole("presentation");
   expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
   screen.getByRole("option", { name: "Rust" }).click();
   expect(screen.getByRole("combobox").text).toContain("Rust");

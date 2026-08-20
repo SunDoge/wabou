@@ -73,6 +73,8 @@ export interface ComponentQueries {
 }
 
 export interface ComponentLocator extends ComponentQueries {
+  /** Direct authored parent, or null at the component render root. */
+  readonly parent: ComponentLocator | null;
   readonly tag: string;
   readonly role: string;
   readonly name: string;
@@ -82,6 +84,11 @@ export interface ComponentLocator extends ComponentQueries {
   style(name: string): ComponentStyleValue | null;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
+  /** Find the nearest attached self-or-ancestor matching an authored role. */
+  closestByRole(
+    role: string,
+    options?: ComponentRoleListOptions,
+  ): ComponentLocator | null;
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
   readonly disabled: boolean;
   /** Read-only state as authored through `readOnly` or `aria-readonly`. */
@@ -694,13 +701,15 @@ export function renderComponent(
     root: AuthoredNode | null,
     role: string,
     options: ComponentRoleQueryOptions | ComponentRoleListOptions,
+  ) => scopeNodes(root).filter((node) => matchesRole(node, role, options));
+  const matchesRole = (
+    node: AuthoredNode,
+    role: string,
+    options: ComponentRoleListOptions,
   ) =>
-    scopeNodes(root).filter(
-      (node) =>
-        roleOf(node) === role &&
-        (options.name === undefined || nameOf(node) === options.name) &&
-        matchesState(node, options),
-    );
+    roleOf(node) === role &&
+    (options.name === undefined || nameOf(node) === options.name) &&
+    matchesState(node, options);
   const scopeSuffix = (root: AuthoredNode | null) =>
     root === null
       ? ""
@@ -836,6 +845,9 @@ export function renderComponent(
   function locator(node: AuthoredNode): ComponentLocator {
     return {
       ...queries(node),
+      get parent() {
+        return node.parent ? locator(node.parent) : null;
+      },
       get tag() {
         return node.tag;
       },
@@ -854,6 +866,15 @@ export function renderComponent(
       style: (name) => node.styles.get(name) ?? null,
       get children() {
         return node.children.map(locator);
+      },
+      closestByRole: (role, options = {}) => {
+        ensureAttached(node, "query ancestors of");
+        let current: AuthoredNode | null = node;
+        while (current) {
+          if (matchesRole(current, role, options)) return locator(current);
+          current = current.parent;
+        }
+        return null;
       },
       get disabled() {
         return disabledState(node);

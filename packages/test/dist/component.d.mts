@@ -30,6 +30,8 @@ interface ComponentQueries {
   queryAllByRole(role: string, options?: ComponentRoleListOptions): readonly ComponentLocator[];
 }
 interface ComponentLocator extends ComponentQueries {
+  /** Direct authored parent, or null at the component render root. */
+  readonly parent: ComponentLocator | null;
   readonly tag: string;
   readonly role: string;
   readonly name: string;
@@ -39,6 +41,8 @@ interface ComponentLocator extends ComponentQueries {
   style(name: string): ComponentStyleValue | null;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
+  /** Find the nearest attached self-or-ancestor matching an authored role. */
+  closestByRole(role: string, options?: ComponentRoleListOptions): ComponentLocator | null;
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
   readonly disabled: boolean;
   /** Read-only state as authored through `readOnly` or `aria-readonly`. */

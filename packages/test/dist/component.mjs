@@ -409,7 +409,8 @@ function renderComponent(render, options = {}) {
 		return `role=${role}${Object.entries(options).filter(([name, value]) => name !== "index" && value !== void 0).map(([name, value]) => ` ${name}=${JSON.stringify(value)}`).join("")}`;
 	};
 	const matchesState = (node, options) => (options.disabled === void 0 || disabledState(node) === options.disabled) && (options.readOnly === void 0 || readOnlyState(node) === options.readOnly) && (options.checked === void 0 || toggleState(node, "aria-checked") === options.checked) && (options.selected === void 0 || booleanState(node, "aria-selected") === options.selected) && (options.expanded === void 0 || booleanState(node, "aria-expanded") === options.expanded) && (options.pressed === void 0 || toggleState(node, "aria-pressed") === options.pressed) && (options.current === void 0 || currentState(node) === options.current) && (options.orientation === void 0 || orientationState(node) === options.orientation) && (options.focused === void 0 || focusedNode === node === options.focused);
-	const matchingRole = (root, role, options) => scopeNodes(root).filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name) && matchesState(node, options));
+	const matchingRole = (root, role, options) => scopeNodes(root).filter((node) => matchesRole(node, role, options));
+	const matchesRole = (node, role, options) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name) && matchesState(node, options);
 	const scopeSuffix = (root) => root === null ? "" : ` within ${roleOf(root) ?? root.tag} "${nameOf(root)}"`;
 	const resolveOne = (root, role, options, required) => {
 		if (options.index !== void 0 && (!Number.isSafeInteger(options.index) || options.index < 0)) throw new RangeError("component locator index must be non-negative");
@@ -493,6 +494,9 @@ function renderComponent(render, options = {}) {
 	function locator(node) {
 		return {
 			...queries(node),
+			get parent() {
+				return node.parent ? locator(node.parent) : null;
+			},
 			get tag() {
 				return node.tag;
 			},
@@ -511,6 +515,15 @@ function renderComponent(render, options = {}) {
 			style: (name) => node.styles.get(name) ?? null,
 			get children() {
 				return node.children.map(locator);
+			},
+			closestByRole: (role, options = {}) => {
+				ensureAttached(node, "query ancestors of");
+				let current = node;
+				while (current) {
+					if (matchesRole(current, role, options)) return locator(current);
+					current = current.parent;
+				}
+				return null;
 			},
 			get disabled() {
 				return disabledState(node);

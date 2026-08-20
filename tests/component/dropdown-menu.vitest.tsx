@@ -81,8 +81,6 @@ test("forwards popup motion configuration", () => {
   );
 
   screen.getByRole("button", { name: "Animated" }).click();
-  const panel = screen
-    .getAllByRole("presentation")
-    .find((node) => node.transform !== null);
+  const panel = screen.getByRole("menu").closestByRole("presentation");
   expect(panel?.transform).toEqual([0.9, 0, 0, 0.9, 0, 0]);
 });
