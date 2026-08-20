@@ -33,18 +33,18 @@ test("opens on focus and closes with Escape", () => {
   expect(screen.queryByRole("tooltip")).toBeNull();
 });
 
-test("honors hover delay and cancels a pending open", () => {
+test("honors hover delay and cancels a pending open", async () => {
   const screen = renderTooltip(400, true);
   const trigger = screen.getByRole("button", { name: "Help" });
 
   trigger.hover();
-  screen.advanceTime(399);
+  await screen.advanceTime(399);
   expect(screen.queryByRole("tooltip")).toBeNull();
   trigger.unhover();
-  screen.advanceTime(1_000);
+  await screen.advanceTime(1_000);
   expect(screen.queryByRole("tooltip")).toBeNull();
 
   trigger.hover();
-  screen.advanceTime(400);
+  await screen.advanceTime(400);
   expect(screen.getByRole("tooltip").text).toBe("Explains this action");
 });

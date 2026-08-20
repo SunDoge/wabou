@@ -1,5 +1,5 @@
 import { number, px } from "@wabou/core/style";
-import { createEffect, type JSX, Show } from "solid-js";
+import { createEffect, type JSX, Show, untrack } from "solid-js";
 import { createTransition, type Easing, useReducedMotion } from "../animation";
 import { createMeasuredSize } from "./measure";
 import { createPresence } from "./presence";
@@ -30,7 +30,7 @@ export function CollapsiblePresence(
   const inheritedReducedMotion = useReducedMotion();
   const reducedMotion = () => props.reducedMotion ?? inheritedReducedMotion();
   const open = () => props.open;
-  const initiallyOpen = open();
+  const initiallyOpen = untrack(open);
   const presence = createPresence(open);
   let initialMeasurement = true;
   let heightTransition: ReturnType<typeof createTransition> | undefined;
@@ -57,8 +57,9 @@ export function CollapsiblePresence(
     {
       ...transitionOptions(),
       onComplete(value) {
-        if (value === 0 && !open()) presence.finishExit();
-        else if (open()) presence.finishEnter();
+        const isOpen = untrack(open);
+        if (value === 0 && !isOpen) presence.finishExit();
+        else if (isOpen) presence.finishEnter();
       },
     },
   );

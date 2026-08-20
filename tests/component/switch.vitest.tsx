@@ -9,7 +9,7 @@ const thumbX = (screen: ReturnType<typeof renderComponent>): number => {
   return thumb.transform?.[4] ?? 0;
 };
 
-test("interpolates the switch thumb and settles at the selected position", () => {
+test("interpolates the switch thumb and settles at the selected position", async () => {
   const screen = renderComponent(
     () => <Switch aria-label="Sync" defaultChecked={false} />,
     { clock: "fake" },
@@ -19,10 +19,10 @@ test("interpolates the switch thumb and settles at the selected position", () =>
   expect(thumbX(screen)).toBe(0);
   control.click();
   expect(control.checked).toBe(true);
-  screen.advanceTime(90);
+  await screen.advanceTime(90);
   expect(thumbX(screen)).toBeGreaterThan(0);
   expect(thumbX(screen)).toBeLessThan(20);
-  screen.advanceTime(200);
+  await screen.advanceTime(200);
   expect(thumbX(screen)).toBe(20);
 });
 

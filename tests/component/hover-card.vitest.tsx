@@ -30,7 +30,7 @@ const renderHoverCard = (
     { clock: options.fakeClock ? "fake" : "real" },
   );
 
-test("keeps the card open while the pointer travels into its content", () => {
+test("keeps the card open while the pointer travels into its content", async () => {
   const screen = renderHoverCard({
     openDelay: 300,
     closeDelay: 200,
@@ -39,17 +39,19 @@ test("keeps the card open while the pointer travels into its content", () => {
   const trigger = screen.getByRole("button", { name: "Wabou project" });
 
   trigger.hover();
-  screen.advanceTime(300);
+  await screen.advanceTime(300);
   const card = screen.getByRole("dialog", { name: "Project preview" });
   expect(card.text).toBe("Native Solid applications");
 
   trigger.unhover();
   card.hover();
-  screen.advanceTime(500);
+  await screen.advanceTime(500);
   expect(screen.getByRole("dialog").text).toBe("Native Solid applications");
 
   card.unhover();
-  screen.advanceTime(200);
+  await screen.advanceTime(200);
+  expect(screen.getByRole("dialog").interactionBlocked).toBe(true);
+  await screen.advanceTime(160);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 

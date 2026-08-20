@@ -96,7 +96,7 @@ interface ComponentScreen extends ComponentQueries {
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
   /** Advance a harness-owned fake clock and commit resulting reactive work. */
-  advanceTime(milliseconds: number): void;
+  advanceTime(milliseconds: number): Promise<void>;
   /** Retry an assertion while committing Promise-driven component updates. */
   waitFor<T>(assertion: () => T | Promise<T>, options?: ComponentWaitForOptions): Promise<T>;
   dispose(): void;

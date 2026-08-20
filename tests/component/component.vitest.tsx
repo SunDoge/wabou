@@ -285,7 +285,7 @@ test("uses the native pointer sequence and exposes transient press state", () =>
   expect(button.className).not.toContain("bg-control-pressed");
 });
 
-test("owns delayed component work through an explicit fake clock", () => {
+test("owns delayed component work through an explicit fake clock", async () => {
   const DelayedStatus = () => {
     const [status, setStatus] = createSignal("Idle");
     return (
@@ -307,11 +307,13 @@ test("owns delayed component work through an explicit fake clock", () => {
 
   screen.getByRole("button", { name: "Start" }).click();
   expect(screen.getByRole("status", { name: "Waiting" }).text).toBe("Waiting");
-  screen.advanceTime(49);
+  await screen.advanceTime(49);
   expect(screen.getByRole("status", { name: "Waiting" }).text).toBe("Waiting");
-  screen.advanceTime(1);
+  await screen.advanceTime(1);
   expect(screen.getByRole("status", { name: "Ready" }).text).toBe("Ready");
-  expect(() => screen.advanceTime(-1)).toThrow("finite and non-negative");
+  await expect(screen.advanceTime(-1)).rejects.toThrow(
+    "finite and non-negative",
+  );
 });
 
 test("waits for Promise-driven component work with bounded diagnostics", async () => {

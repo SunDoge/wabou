@@ -137,7 +137,7 @@ export interface ComponentScreen extends ComponentQueries {
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
   /** Advance a harness-owned fake clock and commit resulting reactive work. */
-  advanceTime(milliseconds: number): void;
+  advanceTime(milliseconds: number): Promise<void>;
   /** Retry an assertion while committing Promise-driven component updates. */
   waitFor<T>(
     assertion: () => T | Promise<T>,
@@ -908,7 +908,7 @@ export function renderComponent(
     flush() {
       flushUpdates();
     },
-    advanceTime(milliseconds) {
+    async advanceTime(milliseconds) {
       if (options.clock !== "fake") {
         throw new Error(
           'advanceTime requires renderComponent(..., { clock: "fake" })',
@@ -928,6 +928,7 @@ export function renderComponent(
         vi.advanceTimersByTime(0);
         if (typeof tick === "function") tick(fakeFrameTime);
         flushUpdates();
+        await Promise.resolve();
         return;
       }
       while (remaining > 0) {
@@ -936,6 +937,10 @@ export function renderComponent(
         fakeFrameTime += elapsed;
         if (typeof tick === "function") tick(fakeFrameTime);
         flushUpdates();
+        // motion-dom clears its synchronous frame-time cache in a microtask.
+        // Yielding here makes a rapid retarget start from this frame rather
+        // than an earlier animation's timestamp.
+        await Promise.resolve();
         remaining -= elapsed;
       }
     },

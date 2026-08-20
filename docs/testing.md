@@ -97,9 +97,10 @@ Components that subscribe to native measurement can still mount in their
 explicit unmeasured state without requiring a window.
 
 For delayed overlays, debouncing, or animation bookkeeping, let the harness
-own Vitest's fake clock. `advanceTime` advances timers and Wabou's native-frame
-queue, committing the resulting Solid and protocol work at deterministic 16ms
-frame boundaries; disposing the screen restores real time:
+own Vitest's fake clock. Awaiting `advanceTime` advances timers and Wabou's
+native-frame queue, committing the resulting Solid and protocol work at
+deterministic 16ms frame boundaries while allowing animation microtasks to
+settle; disposing the screen restores real time:
 
 ```ts
 const screen = renderComponent(
@@ -113,7 +114,7 @@ const screen = renderComponent(
   ),
   { clock: "fake" },
 );
-screen.advanceTime(400);
+await screen.advanceTime(400);
 expect(screen.getByRole("tooltip")).not.toBeNull();
 ```
 
@@ -125,7 +126,7 @@ test-only roles or attributes to production components:
 ```ts
 const control = screen.getByRole("switch", { name: "Sync" });
 const thumb = control.children[0];
-screen.advanceTime(90);
+await screen.advanceTime(90);
 expect(thumb.transform?.[4]).toBeGreaterThan(0);
 ```
 

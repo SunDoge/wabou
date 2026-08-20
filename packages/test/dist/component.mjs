@@ -559,7 +559,7 @@ function renderComponent(render, options = {}) {
 		flush() {
 			flushUpdates();
 		},
-		advanceTime(milliseconds) {
+		async advanceTime(milliseconds) {
 			if (options.clock !== "fake") throw new Error("advanceTime requires renderComponent(..., { clock: \"fake\" })");
 			if (!Number.isFinite(milliseconds) || milliseconds < 0) throw new RangeError("component clock duration must be finite and non-negative");
 			const tick = globalThis.__wabou_tick;
@@ -569,6 +569,7 @@ function renderComponent(render, options = {}) {
 				vi.advanceTimersByTime(0);
 				if (typeof tick === "function") tick(fakeFrameTime);
 				flushUpdates();
+				await Promise.resolve();
 				return;
 			}
 			while (remaining > 0) {
@@ -577,6 +578,7 @@ function renderComponent(render, options = {}) {
 				fakeFrameTime += elapsed;
 				if (typeof tick === "function") tick(fakeFrameTime);
 				flushUpdates();
+				await Promise.resolve();
 				remaining -= elapsed;
 			}
 		},
