@@ -359,6 +359,24 @@ impl Applier {
                             .map(NodeKey::from_ffi)
                             .collect(),
                         active_descendant: semantic.active_descendant.map(NodeKey::from_ffi),
+                        states: wabou_devtools::DebugSemanticStates {
+                            checked: semantic
+                                .states
+                                .checked
+                                .map(|state| state.as_str().to_owned()),
+                            pressed: semantic
+                                .states
+                                .pressed
+                                .map(|state| state.as_str().to_owned()),
+                            selected: semantic.states.selected,
+                            expanded: semantic.states.expanded,
+                            current: semantic
+                                .states
+                                .current
+                                .map(|state| state.as_str().to_owned()),
+                            popup: semantic.states.popup.map(|state| state.as_str().to_owned()),
+                            modal: semantic.states.modal,
+                        },
                     }
                 }),
                 widget: self

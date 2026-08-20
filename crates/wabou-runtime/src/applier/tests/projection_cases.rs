@@ -356,12 +356,14 @@ fn coalesced_release_distance_also_suppresses_click() {
 #[test]
 fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let mut applier = interactive_applier();
-    let (class, role, aria_label) = {
+    let (class, role, aria_label, aria_pressed, aria_current) = {
         let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("class"),
             atoms.intern("role"),
             atoms.intern("aria-label"),
+            atoms.intern("aria-pressed"),
+            atoms.intern("aria-current"),
         )
     };
     applier.apply_op(&Op::SetAttribute {
@@ -378,6 +380,16 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
         id: NodeKey::new(2, 1),
         name: aria_label,
         value: "Save",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: NodeKey::new(2, 1),
+        name: aria_pressed,
+        value: "mixed",
+    });
+    applier.apply_op(&Op::SetAttribute {
+        id: NodeKey::new(2, 1),
+        name: aria_current,
+        value: "page",
     });
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
@@ -420,6 +432,8 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     assert_eq!(semantic.role, "button");
     assert_eq!(semantic.label.as_deref(), Some("Save"));
     assert!(semantic.exposed);
+    assert_eq!(semantic.states.pressed.as_deref(), Some("mixed"));
+    assert_eq!(semantic.states.current.as_deref(), Some("page"));
     assert!(!button.computed.synthetic_bold);
     assert!(!button.computed.synthetic_italic);
     let font_weight = button

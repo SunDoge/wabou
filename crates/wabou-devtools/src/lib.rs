@@ -252,6 +252,29 @@ pub struct DebugSemanticProjection {
     pub controls: Vec<NodeKey>,
     /// Live node resolved from the authored `aria-activedescendant` ID reference.
     pub active_descendant: Option<NodeKey>,
+    /// Final role-specific states exported to the platform bridge.
+    pub states: DebugSemanticStates,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+/// Canonical final values for role-specific accessibility states.
+pub struct DebugSemanticStates {
+    /// Final check state (`false`, `true`, or `mixed`).
+    pub checked: Option<String>,
+    /// Final toggle-button press state (`false`, `true`, or `mixed`).
+    pub pressed: Option<String>,
+    /// Final selection state.
+    pub selected: Option<bool>,
+    /// Final expansion state.
+    pub expanded: Option<bool>,
+    /// Final current-item category.
+    pub current: Option<String>,
+    /// Final popup kind.
+    pub popup: Option<String>,
+    /// Final explicit modal state.
+    pub modal: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]

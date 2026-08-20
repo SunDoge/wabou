@@ -56,8 +56,10 @@ state. Comparing them distinguishes authored keyboard policy from a node that
 is temporarily excluded by runtime state such as an active modal. Its nested
 `semantic` value reports the final role, inferred accessible name, disabled and
 platform-root exposure state, plus the live nodes resolved from
-`aria-controls` and `aria-activedescendant`. It is absent only when semantics
-were not built for that frame.
+`aria-controls` and `aria-activedescendant`. Its `states` object contains the
+final checked, pressed, selected, expanded, current, popup, and modal values in
+the same canonical notation used by the JS semantic contract. It is absent
+only when semantics were not built for that frame.
 Node identities are generational and are printed as `{ "lo": 42, "hi": 1 }`;
 pass them to `inspect node` as `42:1`. A bare `42` remains shorthand for the
 initial generation `42:1`, but an exact key should be copied after remounts.
