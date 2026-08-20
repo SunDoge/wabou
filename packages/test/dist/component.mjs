@@ -10,6 +10,38 @@ function missingHostMethod(path) {
 /** Create a typed, deterministic Host with automatic call recording. */
 function createTestHost(capabilities, builtins = {}) {
 	const calls = [];
+	const viewport = {
+		x: 0,
+		y: 0,
+		width: 1024,
+		height: 768
+	};
+	const unmeasured = {
+		x: 0,
+		y: 0,
+		width: 0,
+		height: 0
+	};
+	const defaultLayout = {
+		snapshot: (targets) => ({
+			revision: 0,
+			viewport,
+			nodes: targets.map((target) => ({
+				id: "id" in target ? target.id : target,
+				rect: unmeasured,
+				clip: viewport,
+				scroll: {
+					offsetX: 0,
+					offsetY: 0,
+					rangeX: 0,
+					rangeY: 0
+				}
+			}))
+		}),
+		measure: () => unmeasured,
+		clippingRect: () => viewport,
+		viewport: () => viewport
+	};
 	const base = Object.assign({
 		system: {
 			openUrl: (url) => missingHostMethod(`system.openUrl(${url})`),
@@ -36,10 +68,7 @@ function createTestHost(capabilities, builtins = {}) {
 			...builtins.intl
 		},
 		layout: {
-			snapshot: () => missingHostMethod("layout.snapshot"),
-			measure: () => missingHostMethod("layout.measure"),
-			clippingRect: () => missingHostMethod("layout.clippingRect"),
-			viewport: () => missingHostMethod("layout.viewport"),
+			...defaultLayout,
 			...builtins.layout
 		}
 	}, capabilities ?? {});

@@ -202,6 +202,23 @@ export function createTestHost<C extends object = Record<string, never>>(
   builtins: TestBuiltinHost = {},
 ): TestHostFixture<Host & C> {
   const calls: TestHostCall[] = [];
+  const viewport = { x: 0, y: 0, width: 1_024, height: 768 };
+  const unmeasured = { x: 0, y: 0, width: 0, height: 0 };
+  const defaultLayout: BuiltinHost["layout"] = {
+    snapshot: (targets) => ({
+      revision: 0,
+      viewport,
+      nodes: targets.map((target) => ({
+        id: "id" in target ? target.id : target,
+        rect: unmeasured,
+        clip: viewport,
+        scroll: { offsetX: 0, offsetY: 0, rangeX: 0, rangeY: 0 },
+      })),
+    }),
+    measure: () => unmeasured,
+    clippingRect: () => viewport,
+    viewport: () => viewport,
+  };
   const base: BuiltinHost & C = Object.assign(
     {
       system: {
@@ -225,10 +242,7 @@ export function createTestHost<C extends object = Record<string, never>>(
         ...builtins.intl,
       },
       layout: {
-        snapshot: () => missingHostMethod("layout.snapshot"),
-        measure: () => missingHostMethod("layout.measure"),
-        clippingRect: () => missingHostMethod("layout.clippingRect"),
-        viewport: () => missingHostMethod("layout.viewport"),
+        ...defaultLayout,
         ...builtins.layout,
       },
     } satisfies BuiltinHost,

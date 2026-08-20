@@ -440,6 +440,32 @@ test("injects typed host capabilities and records their calls", () => {
   ]);
 });
 
+test("gives injected hosts a deterministic unmeasured layout", () => {
+  const fixture = createTestHost();
+  const first = { lo: 7, hi: 1 };
+  const second = { lo: 8, hi: 1 };
+
+  expect(fixture.host.layout.snapshot([first, { id: second }])).toEqual({
+    revision: 0,
+    viewport: { x: 0, y: 0, width: 1_024, height: 768 },
+    nodes: [
+      {
+        id: first,
+        rect: { x: 0, y: 0, width: 0, height: 0 },
+        clip: { x: 0, y: 0, width: 1_024, height: 768 },
+        scroll: { offsetX: 0, offsetY: 0, rangeX: 0, rangeY: 0 },
+      },
+      {
+        id: second,
+        rect: { x: 0, y: 0, width: 0, height: 0 },
+        clip: { x: 0, y: 0, width: 1_024, height: 768 },
+        scroll: { offsetX: 0, offsetY: 0, rangeX: 0, rangeY: 0 },
+      },
+    ],
+  });
+  expect(fixture.callsTo("layout.snapshot")).toHaveLength(1);
+});
+
 test("fails loudly when an unconfigured host side effect is used", () => {
   const fixture = createTestHost();
   expect(() => fixture.host.system.openUrl("https://example.com")).toThrow(

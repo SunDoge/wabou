@@ -7,6 +7,10 @@ import {
 import { useHost } from "@wabou/core";
 import type { Handle } from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
+import calendarIcon from "lucide-static/icons/calendar.svg?raw";
+import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import { createMemo, createSignal, For, type JSX, untrack } from "solid-js";
 import {
   Button as HeadlessButton,
   Icon,
@@ -14,10 +18,6 @@ import {
   Text,
   View,
 } from "../primitives";
-import calendarIcon from "lucide-static/icons/calendar.svg?raw";
-import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
-import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
-import { createMemo, createSignal, For, type JSX } from "solid-js";
 import { join } from "./class-names";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
@@ -67,7 +67,8 @@ export function Calendar(props: CalendarProps): JSX.Element {
     ...DEFAULT_LABELS,
     ...props.labels,
   });
-  const initial = props.value ?? props.defaultValue ?? systemToday();
+  const initial =
+    untrack(() => props.value ?? props.defaultValue) ?? systemToday();
   const [localValue, setLocalValue] = createSignal(initial);
   const [visibleMonth, setVisibleMonth] = createSignal(startOfMonth(initial));
   const [focusedDate, setFocusedDate] = createSignal(initial);

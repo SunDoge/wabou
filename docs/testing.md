@@ -189,9 +189,11 @@ DTO drift at authoring time; runtime schema validation remains Rust's job in a
 native run.
 
 Calls retain their path and exact arguments. Read-only locale/time defaults are
-deterministic (`en-US`, `UTC`, 1970-01-01); unconfigured system, font, and
-layout operations throw instead of silently succeeding. Pass explicit builtin
-overrides when a component owns one of those interactions.
+deterministic (`en-US`, `UTC`, 1970-01-01). Layout reads return a deterministic
+1024×768 viewport with zero-sized requested nodes, allowing composed overlays
+to execute in their explicit unmeasured state; pass a layout override when
+positioning geometry is part of the test. Unconfigured system and font side
+effects still throw instead of silently succeeding.
 
 This layer verifies component state, composition, declared roles and names,
 and JavaScript event handling. It intentionally does not invent a fake layout

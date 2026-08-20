@@ -1169,7 +1169,7 @@ function Calendar(props) {
 		...DEFAULT_LABELS,
 		...props.labels
 	});
-	const initial = props.value ?? props.defaultValue ?? systemToday();
+	const initial = untrack(() => props.value ?? props.defaultValue) ?? systemToday();
 	const [localValue, setLocalValue] = createSignal(initial);
 	const [visibleMonth, setVisibleMonth] = createSignal(startOfMonth(initial));
 	const [focusedDate, setFocusedDate] = createSignal(initial);
