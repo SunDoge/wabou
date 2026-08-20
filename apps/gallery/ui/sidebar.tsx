@@ -1,8 +1,15 @@
 import {
   Badge,
-  PrimitiveButton,
-  ScrollArea,
-  SearchField,
+  filterSidebarGroups,
+  Sidebar,
+  SidebarContent,
+  SidebarEmpty,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenuButton,
+  SidebarSearch,
   Text,
   View,
 } from "@wabou/ui";
@@ -13,36 +20,13 @@ export interface SidebarItem<Id extends string = string> {
   name: string;
 }
 
-export interface SidebarGroup<Id extends string = string> {
+export interface GallerySidebarGroup<Id extends string = string> {
   label: string;
   items: readonly SidebarItem<Id>[];
 }
 
-function normalizeSearch(value: string): string {
-  return value.trim().toLocaleLowerCase();
-}
-
-export function filterSidebarGroups<Id extends string>(
-  groups: readonly SidebarGroup<Id>[],
-  descriptions: Readonly<Record<Id, string>>,
-  query: string,
-): SidebarGroup<Id>[] {
-  const needle = normalizeSearch(query);
-  if (!needle) return groups.map((group) => ({ ...group }));
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) =>
-        normalizeSearch(
-          `${group.label} ${item.name} ${descriptions[item.id] ?? ""}`,
-        ).includes(needle),
-      ),
-    }))
-    .filter((group) => group.items.length > 0);
-}
-
 export interface GallerySidebarProps<Id extends string> {
-  groups: readonly SidebarGroup<Id>[];
+  groups: readonly GallerySidebarGroup<Id>[];
   descriptions: Readonly<Record<Id, string>>;
   selected: Id | null;
   compact?: boolean;
@@ -55,7 +39,11 @@ export function GallerySidebar<Id extends string>(
 ) {
   const [query, setQuery] = createSignal("");
   const filtered = createMemo(() =>
-    filterSidebarGroups(props.groups, props.descriptions, query()),
+    filterSidebarGroups(
+      props.groups,
+      query(),
+      (item) => `${item.name} ${props.descriptions[item.id] ?? ""}`,
+    ),
   );
   const visibleCount = () =>
     filtered().reduce((total, group) => total + group.items.length, 0);
@@ -63,10 +51,11 @@ export function GallerySidebar<Id extends string>(
     props.groups.reduce((total, group) => total + group.items.length, 0);
 
   return (
-    <View
+    <Sidebar
+      aria-label="Component navigation"
       class={`h-full flex-none flex flex-col border-r border-subtle bg-surface-muted ${props.compact ? "w-48" : "w-56"}`}
     >
-      <View class="h-14 flex-none px-4 flex items-center gap-3 border-b border-subtle bg-surface">
+      <SidebarHeader class="h-14 px-4 flex items-center gap-3">
         <View class="w-8 h-8 flex items-center justify-center rounded-md bg-accent shadow-sm">
           <Text class="text-sm font-bold text-white">W</Text>
         </View>
@@ -74,82 +63,57 @@ export function GallerySidebar<Id extends string>(
           <Text class="text-sm font-semibold text-primary">Wabou</Text>
           <Text class="truncate text-xs text-muted">Components & platform</Text>
         </View>
-      </View>
-      <View class="flex-none p-2 border-b border-subtle bg-surface">
-        <SearchField
-          aria-label="Search components"
-          value={query()}
-          placeholder="Search components"
-          clearLabel="Clear component search"
-          onValueChange={setQuery}
-        />
-      </View>
-      <ScrollArea class="flex-1" contentClass="px-2 py-3">
+      </SidebarHeader>
+      <SidebarSearch
+        aria-label="Search components"
+        value={query()}
+        placeholder="Search components"
+        clearLabel="Clear component search"
+        onValueChange={setQuery}
+      />
+      <SidebarContent>
         <Show when={!query()}>
-          <PrimitiveButton
-            unstyled
+          <SidebarMenuButton
             aria-label="Overview"
             selected={props.selected === null}
-            class={(state) =>
-              `w-full h-8 px-3 mb-3 justify-start rounded-md text-sm ${
-                props.selected === null
-                  ? "bg-selected text-primary"
-                  : state.hovered
-                    ? "bg-control-hover text-primary"
-                    : "bg-transparent text-secondary"
-              } ${state.focusVisible ? "border border-focus" : ""}`
-            }
+            class="mb-3"
             onClick={() => props.onSelect(null)}
           >
             Overview
-          </PrimitiveButton>
+          </SidebarMenuButton>
         </Show>
         <For each={filtered()}>
           {(group) => (
-            <View class="flex-none flex flex-col gap-0.5 mb-4">
-              <Text class="px-2 py-1 text-xs font-medium text-muted">
-                {group.label}
-              </Text>
+            <SidebarGroup aria-label={group.label}>
+              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
               <For each={group.items}>
                 {(item) => (
-                  <PrimitiveButton
-                    unstyled
+                  <SidebarMenuButton
                     aria-label={item.name}
                     selected={props.selected === item.id}
-                    class={(state) =>
-                      `w-full h-8 px-3 justify-start rounded-md text-sm ${
-                        props.selected === item.id
-                          ? "bg-selected text-primary"
-                          : state.hovered
-                            ? "bg-control-hover text-primary"
-                            : "bg-transparent text-secondary"
-                      } ${state.focusVisible ? "border border-focus" : ""}`
-                    }
                     onClick={() => props.onSelect(item.id)}
                   >
                     {item.name}
-                  </PrimitiveButton>
+                  </SidebarMenuButton>
                 )}
               </For>
-            </View>
+            </SidebarGroup>
           )}
         </For>
         <Show when={visibleCount() === 0}>
-          <View class="px-3 py-6 flex flex-col items-center gap-1">
-            <Text role="status" class="text-sm text-secondary">
-              No components found
-            </Text>
-            <Text class="text-xs text-muted">Try a different search.</Text>
-          </View>
+          <SidebarEmpty
+            title="No components found"
+            description="Try a different search."
+          />
         </Show>
-      </ScrollArea>
-      <View class="flex-none p-3 border-t border-subtle bg-surface">
+      </SidebarContent>
+      <SidebarFooter class="p-3">
         <Badge variant="outline">
           {query()
             ? `${visibleCount()} of ${totalCount()} showcases`
             : `${totalCount()} showcases`}
         </Badge>
-      </View>
-    </View>
+      </SidebarFooter>
+    </Sidebar>
   );
 }

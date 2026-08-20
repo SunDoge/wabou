@@ -1,0 +1,108 @@
+import { renderComponent } from "@wabou/test/component";
+import {
+  filterSidebarGroups,
+  Sidebar,
+  SidebarContent,
+  SidebarEmpty,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenuButton,
+  SidebarSearch,
+} from "@wabou/ui";
+import { createMemo, createSignal, For, Show } from "solid-js";
+import { expect, test } from "vitest";
+
+const groups = [
+  {
+    label: "Workspace",
+    items: [
+      { id: "files", label: "Files", keywords: "documents folders" },
+      { id: "search", label: "Search", keywords: "find text" },
+    ],
+  },
+  {
+    label: "Account",
+    items: [{ id: "settings", label: "Settings", keywords: "preferences" }],
+  },
+] as const;
+
+test("filters items by group, label, or application keywords", () => {
+  expect(
+    filterSidebarGroups(
+      groups,
+      "documents",
+      (item) => `${item.label} ${item.keywords}`,
+    ).map((group) => group.items.map((item) => item.id)),
+  ).toEqual([["files"]]);
+
+  expect(
+    filterSidebarGroups(groups, "account", (item) => item.label).map((group) =>
+      group.items.map((item) => item.id),
+    ),
+  ).toEqual([["settings"]]);
+
+  expect(filterSidebarGroups(groups, "missing", (item) => item.label)).toEqual(
+    [],
+  );
+});
+
+test("composes fixed chrome, searchable content, navigation and empty state", () => {
+  let selected = "files";
+  const Example = () => {
+    const [query, setQuery] = createSignal("");
+    const filtered = createMemo(() =>
+      filterSidebarGroups(groups, query(), (item) => item.label),
+    );
+    return (
+      <Sidebar aria-label="Workspace navigation">
+        <SidebarHeader aria-label="Workspace header" />
+        <SidebarSearch
+          aria-label="Search workspace"
+          value={query()}
+          onValueChange={setQuery}
+        />
+        <SidebarContent>
+          <For each={filtered()}>
+            {(group) => (
+              <SidebarGroup aria-label={group.label}>
+                <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+                <For each={group.items}>
+                  {(item) => (
+                    <SidebarMenuButton
+                      aria-label={item.label}
+                      selected={selected === item.id}
+                      onClick={() => (selected = item.id)}
+                    >
+                      {item.label}
+                    </SidebarMenuButton>
+                  )}
+                </For>
+              </SidebarGroup>
+            )}
+          </For>
+          <Show when={filtered().length === 0}>
+            <SidebarEmpty title="Nothing here" />
+          </Show>
+        </SidebarContent>
+        <SidebarFooter aria-label="Workspace footer" />
+      </Sidebar>
+    );
+  };
+  const screen = renderComponent(Example);
+
+  expect(
+    screen.getByRole("group", { name: "Workspace navigation" }),
+  ).not.toBeNull();
+  const search = screen.getByRole("textbox", { name: "Search workspace" });
+  search.input("settings");
+  expect(screen.getByRole("button", { name: "Settings" })).not.toBeNull();
+  expect(screen.queryByRole("button", { name: "Files" })).toBeNull();
+
+  search.input("missing");
+  expect(screen.getByRole("status", { name: "Nothing here" })).not.toBeNull();
+  search.press("Escape");
+  screen.getByRole("button", { name: "Search" }).click();
+  expect(selected).toBe("search");
+});

@@ -64,6 +64,7 @@ export {
   type ToggleProps,
 } from "./selection";
 export * from "./sheet";
+export * from "./sidebar";
 export * from "./slider";
 export {
   Tabs,
