@@ -23,17 +23,31 @@ Object.assign(globalThis, {
       viewport_w: 640,
       viewport_h: 480,
     }),
-  __wabou_layout_snapshot: (ids: Uint32Array) =>
-    JSON.stringify({
-      revision: 7,
-      viewport: { x: 0, y: 0, width: 640, height: 480 },
-      nodes: Array.from({ length: ids.length / 2 }, (_, index) => ({
-        id: { lo: ids[index * 2], hi: ids[index * 2 + 1] },
-        rect: { x: ids[index * 2], y: 2, width: 3, height: 4 },
-        clip: { x: 0, y: 0, width: 640, height: 480 },
-        scroll: { offsetX: 0, offsetY: 12, rangeX: 0, rangeY: 120 },
-      })),
-    }),
+  __wabou_layout_snapshot: (
+    ids: Uint32Array,
+    output: Float64Array | undefined,
+  ) => {
+    const values = [1, 7, 0, 0, 0, 640, 480, ids.length / 2];
+    for (let index = 0; index < ids.length / 2; index++)
+      values.push(
+        ids[index * 2],
+        ids[index * 2 + 1],
+        ids[index * 2],
+        2,
+        3,
+        4,
+        0,
+        0,
+        640,
+        480,
+        0,
+        12,
+        0,
+        120,
+      );
+    if (output && output.length >= values.length) output.set(values);
+    return values.length;
+  },
 });
 
 const { defaultHost } = await import("./host");

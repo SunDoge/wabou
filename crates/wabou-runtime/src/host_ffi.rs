@@ -45,3 +45,28 @@ pub fn fill_typed_array<T: Copy>(output: &TypedArray<'_, T>, values: &[T]) -> Re
     }
     Ok(())
 }
+
+/// Mutate a checked prefix of a JavaScript typed array synchronously.
+///
+/// The callback scope prevents a borrowed JS buffer from escaping the host
+/// call while structured encoders can write without an intermediate vector.
+pub fn with_typed_array_prefix_mut<T, R>(
+    output: &TypedArray<'_, T>,
+    len: usize,
+    write: impl FnOnce(&mut [T]) -> R,
+) -> Result<R> {
+    if output.len() < len {
+        return Err(rquickjs::Error::Unknown);
+    }
+    let raw = output.as_raw().ok_or(rquickjs::Error::Unknown)?;
+    let byte_len = len
+        .checked_mul(std::mem::size_of::<T>())
+        .ok_or(rquickjs::Error::Unknown)?;
+    if raw.len < byte_len {
+        return Err(rquickjs::Error::Unknown);
+    }
+    // QuickJS owns a live, writable and element-aligned ArrayBuffer for this
+    // synchronous call. The slice cannot escape the callback.
+    let prefix = unsafe { std::slice::from_raw_parts_mut(raw.ptr.as_ptr().cast::<T>(), len) };
+    Ok(write(prefix))
+}

@@ -171,11 +171,61 @@ function isVectorPath(value) {
 //#endregion
 //#region src/renderer/host.tsx
 /** Checked adapter around the private Rust/QuickJS ABI. */
+const LAYOUT_SNAPSHOT_VERSION = 1;
+const LAYOUT_SNAPSHOT_HEADER_LENGTH = 8;
+const LAYOUT_SNAPSHOT_NODE_LENGTH = 14;
+let layoutSnapshotBuffer = /* @__PURE__ */ new Float64Array(0);
+function readRect(values, offset) {
+	return {
+		x: values[offset],
+		y: values[offset + 1],
+		width: values[offset + 2],
+		height: values[offset + 3]
+	};
+}
+function readLayoutSnapshot(ids) {
+	const packedIds = new Uint32Array(ids.length * 2);
+	for (let index = 0; index < ids.length; index++) {
+		packedIds[index * 2] = ids[index].lo;
+		packedIds[index * 2 + 1] = ids[index].hi;
+	}
+	let required = __wabou_layout_snapshot(packedIds, layoutSnapshotBuffer);
+	if (layoutSnapshotBuffer.length < required) {
+		layoutSnapshotBuffer = new Float64Array(required);
+		required = __wabou_layout_snapshot(packedIds, layoutSnapshotBuffer);
+	}
+	if (required < LAYOUT_SNAPSHOT_HEADER_LENGTH || layoutSnapshotBuffer[0] !== LAYOUT_SNAPSHOT_VERSION) throw new Error("unsupported native layout snapshot format");
+	const nodeCount = layoutSnapshotBuffer[7];
+	if (!Number.isInteger(nodeCount) || required !== LAYOUT_SNAPSHOT_HEADER_LENGTH + nodeCount * LAYOUT_SNAPSHOT_NODE_LENGTH) throw new Error("invalid native layout snapshot length");
+	const nodes = [];
+	for (let index = 0; index < nodeCount; index++) {
+		const offset = LAYOUT_SNAPSHOT_HEADER_LENGTH + index * LAYOUT_SNAPSHOT_NODE_LENGTH;
+		nodes.push({
+			id: {
+				lo: layoutSnapshotBuffer[offset],
+				hi: layoutSnapshotBuffer[offset + 1]
+			},
+			rect: readRect(layoutSnapshotBuffer, offset + 2),
+			clip: readRect(layoutSnapshotBuffer, offset + 6),
+			scroll: {
+				offsetX: layoutSnapshotBuffer[offset + 10],
+				offsetY: layoutSnapshotBuffer[offset + 11],
+				rangeX: layoutSnapshotBuffer[offset + 12],
+				rangeY: layoutSnapshotBuffer[offset + 13]
+			}
+		});
+	}
+	return {
+		revision: layoutSnapshotBuffer[1] + layoutSnapshotBuffer[2] * 4294967296,
+		viewport: readRect(layoutSnapshotBuffer, 3),
+		nodes
+	};
+}
 const nativeHost = {
 	openUrl: (url) => __wabou_open_url(url),
 	loadFont: (path) => __wabou_load_font(path),
 	frameStats: () => JSON.parse(__wabou_frame_stats()),
-	layoutSnapshot: (ids) => JSON.parse(__wabou_layout_snapshot(Uint32Array.from(ids.flatMap((id) => [id.lo, id.hi])))),
+	layoutSnapshot: readLayoutSnapshot,
 	systemLocale: () => __wabou_system_locale(),
 	systemTimeZone: () => __wabou_system_time_zone(),
 	systemCalendarDate: () => JSON.parse(__wabou_system_calendar_date())
@@ -1050,4 +1100,4 @@ function eventName(code) {
 //#endregion
 export { createFps as A, render as C, spread as D, setTransform2D as E, PathBuilder as F, isVectorPath as I, HostProvider as M, defaultHost as N, writer as O, useHost as P, removeNode as S, setProp as T, mergeProps as _, createElement as a, registerRoot as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, Portal as j, VirtualList as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, runSweep as w, releaseOverlayRoot as x, ref as y };
 
-//# sourceMappingURL=renderer-DvbiURED.mjs.map
+//# sourceMappingURL=renderer-CHVWNlk0.mjs.map

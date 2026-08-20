@@ -23,9 +23,7 @@ use rquickjs::{
     context::EvalOptions,
 };
 pub(crate) use wabou_host_api::LayoutRect;
-use wabou_host_api::{
-    FrameStats as HostFrameStats, LayoutNodeMetrics, LayoutScrollMetrics, LayoutSnapshot, NodeKey,
-};
+use wabou_host_api::{FrameStats as HostFrameStats, LayoutScrollMetrics, NodeKey};
 type JsResult<T> = rquickjs::Result<T>;
 pub(crate) type ResizeTargets = Rc<RefCell<HashMap<NodeKey, Option<(f32, f32)>>>>;
 
@@ -67,6 +65,9 @@ const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
 // without containing a reactive cycle. Keep this below the usual 8 MiB native
 // main-thread stack so QuickJS still raises a catchable RangeError first.
 const QUICKJS_STACK_SIZE: usize = 6 * 1024 * 1024;
+const LAYOUT_SNAPSHOT_HEADER_LEN: usize = 8;
+const LAYOUT_SNAPSHOT_NODE_LEN: usize = 14;
+const LAYOUT_SNAPSHOT_VERSION: f64 = 1.0;
 
 #[derive(serde::Deserialize, Default)]
 struct FetchInit {
@@ -500,7 +501,7 @@ impl JsRuntime {
             "__wabou_layout_snapshot",
             rquickjs::Function::new(
                 ctx.clone(),
-                move |ids: TypedArray<u32>| -> JsResult<String> {
+                move |ids: TypedArray<u32>, output: Option<TypedArray<f64>>| -> JsResult<u32> {
                     let snapshot = metrics.borrow();
                     let requested = ids.as_bytes().map_or(&[][..], |bytes| bytes);
                     let mut chunks = requested.chunks_exact(std::mem::size_of::<u32>() * 2);
@@ -522,25 +523,57 @@ impl JsRuntime {
                         .collect::<JsResult<Vec<_>>>()?
                         .into_iter()
                         .filter_map(|id| snapshot.nodes.get(&id).map(|node| (id, node)))
-                        .map(|(id, node)| LayoutNodeMetrics {
-                            id,
-                            rect: node.rect,
-                            clip: node.clip,
-                            scroll: node.scroll,
-                        })
                         .collect::<Vec<_>>();
-                    serde_json::to_string(&LayoutSnapshot {
-                        revision: snapshot.revision,
-                        viewport: snapshot.viewport,
-                        nodes,
-                    })
-                    .map_err(|error| {
-                        rquickjs::Error::new_from_js_message(
-                            "layout snapshot",
-                            "string",
-                            error.to_string(),
+                    let required = LAYOUT_SNAPSHOT_HEADER_LEN
+                        .checked_add(
+                            nodes
+                                .len()
+                                .checked_mul(LAYOUT_SNAPSHOT_NODE_LEN)
+                                .ok_or(rquickjs::Error::Unknown)?,
                         )
-                    })
+                        .ok_or(rquickjs::Error::Unknown)?;
+                    let required_u32 =
+                        u32::try_from(required).map_err(|_| rquickjs::Error::Unknown)?;
+                    let Some(output) = output else {
+                        return Ok(required_u32);
+                    };
+                    if output.len() < required {
+                        return Ok(required_u32);
+                    }
+
+                    crate::host_ffi::with_typed_array_prefix_mut(&output, required, |packed| {
+                        packed[..LAYOUT_SNAPSHOT_HEADER_LEN].copy_from_slice(&[
+                            LAYOUT_SNAPSHOT_VERSION,
+                            snapshot.revision as u32 as f64,
+                            (snapshot.revision >> 32) as u32 as f64,
+                            snapshot.viewport.x as f64,
+                            snapshot.viewport.y as f64,
+                            snapshot.viewport.width as f64,
+                            snapshot.viewport.height as f64,
+                            nodes.len() as f64,
+                        ]);
+                        for (index, (id, node)) in nodes.into_iter().enumerate() {
+                            let offset =
+                                LAYOUT_SNAPSHOT_HEADER_LEN + index * LAYOUT_SNAPSHOT_NODE_LEN;
+                            packed[offset..offset + LAYOUT_SNAPSHOT_NODE_LEN].copy_from_slice(&[
+                                id.lo as f64,
+                                id.hi as f64,
+                                node.rect.x as f64,
+                                node.rect.y as f64,
+                                node.rect.width as f64,
+                                node.rect.height as f64,
+                                node.clip.x as f64,
+                                node.clip.y as f64,
+                                node.clip.width as f64,
+                                node.clip.height as f64,
+                                node.scroll.offset_x as f64,
+                                node.scroll.offset_y as f64,
+                                node.scroll.range_x as f64,
+                                node.scroll.range_y as f64,
+                            ]);
+                        }
+                    })?;
+                    Ok(required_u32)
                 },
             )?
             .with_name("__wabou_layout_snapshot")?,

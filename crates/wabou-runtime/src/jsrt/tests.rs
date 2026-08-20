@@ -103,6 +103,84 @@ fn color_theme_palette_fills_a_typed_array_without_json() {
 }
 
 #[test]
+fn layout_snapshot_fills_a_versioned_typed_array_without_json() {
+    let runtime = JsRuntime::new().expect("runtime");
+    let id = NodeKey::new(7, 3);
+    {
+        let metrics = runtime.layout_metrics_handle();
+        let mut snapshot = metrics.borrow_mut();
+        snapshot.revision = 0x1_2345_6789;
+        snapshot.viewport = LayoutRect {
+            x: 1.0,
+            y: 2.0,
+            width: 800.0,
+            height: 600.0,
+        };
+        snapshot.nodes.insert(
+            id,
+            LayoutMetric {
+                rect: LayoutRect {
+                    x: 10.0,
+                    y: 20.0,
+                    width: 30.0,
+                    height: 40.0,
+                },
+                clip: LayoutRect {
+                    x: 5.0,
+                    y: 6.0,
+                    width: 70.0,
+                    height: 80.0,
+                },
+                scroll: LayoutScrollMetrics {
+                    offset_x: 9.0,
+                    offset_y: 10.0,
+                    range_x: 11.0,
+                    range_y: 12.0,
+                },
+            },
+        );
+    }
+
+    let packed = runtime
+        .with(|ctx| {
+            ctx.eval::<Vec<f64>, _>(
+                r#"
+                (() => {
+                  const ids = new Uint32Array([7, 3, 99, 1]);
+                  const required = __wabou_layout_snapshot(ids, undefined);
+                  const output = new Float64Array(required);
+                  const written = __wabou_layout_snapshot(ids, output);
+                  return [required, written, ...output];
+                })()
+                "#,
+            )
+        })
+        .expect("read packed layout snapshot");
+
+    assert_eq!(
+        packed[0..10],
+        [
+            22.0,
+            22.0,
+            1.0,
+            0x2345_6789 as f64,
+            1.0,
+            1.0,
+            2.0,
+            800.0,
+            600.0,
+            1.0
+        ]
+    );
+    assert_eq!(
+        packed[10..],
+        [
+            7.0, 3.0, 10.0, 20.0, 30.0, 40.0, 5.0, 6.0, 70.0, 80.0, 9.0, 10.0, 11.0, 12.0,
+        ]
+    );
+}
+
+#[test]
 fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     let runtime = JsRuntime::new().expect("runtime");
     runtime
@@ -425,8 +503,8 @@ fn node_intrinsics_reject_malformed_key_halves() {
                   () => __wabou_resize_observe(0, 1),
                   () => __wabou_resize_observe(2, 2),
                   () => __wabou_resize_unobserve(2, 0),
-                  () => __wabou_layout_snapshot(new Uint32Array([2, 2])),
-                  () => __wabou_layout_snapshot(new Uint32Array([2])),
+                  () => __wabou_layout_snapshot(new Uint32Array([2, 2]), undefined),
+                  () => __wabou_layout_snapshot(new Uint32Array([2]), undefined),
                 ].map(call => {
                   try { call(); return false; } catch { return true; }
                 })

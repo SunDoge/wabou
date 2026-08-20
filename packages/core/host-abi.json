@@ -77,8 +77,8 @@
       "direction": "host",
       "owner": "runtime",
       "kind": "function",
-      "params": [["ids", "Uint32Array"]],
-      "returns": "string"
+      "params": [["ids", "Uint32Array"], ["output", "Float64Array | undefined"]],
+      "returns": "number"
     },
     {
       "name": "__wabou_system_locale",
