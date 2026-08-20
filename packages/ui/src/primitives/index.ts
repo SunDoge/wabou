@@ -70,6 +70,7 @@ export {
   type NotificationDismissReason,
   type NotificationInput,
   type NotificationItem,
+  type NotificationMotionOptions,
   type NotificationPlacement,
   type NotificationPriority,
   NotificationRegion,

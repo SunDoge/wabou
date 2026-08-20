@@ -68,6 +68,7 @@ export {
   type NetworkImageProps,
   type NetworkImageSource,
   NotificationRegion,
+  type NotificationMotionOptions,
   type NotificationRegionProps,
   type Notifications,
   type OverlayLayer,

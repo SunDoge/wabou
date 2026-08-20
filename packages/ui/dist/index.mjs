@@ -1,4 +1,4 @@
-import { $ as createActive, A as toggleSelection, B as Svg, C as createOverlayLayer, D as Row, E as Column, F as Image, G as rotate2d$1, H as TextArea, I as NetworkImage, J as createContainerMatch, K as translate2d$1, L as PasswordInput$1, M as CollapsiblePresence, N as CodeEditor, O as createKeyedSelection, P as Icon, Q as createButton, R as Path, S as OverlayPlaneProvider, T as Center, U as TextInput, V as Text, W as View, X as Button$1, Y as createMeasuredSize, Z as Link, _ as Pulse, a as ScrollArea, at as animate, b as Modal, ct as createPulse, dt as createTransition, et as createPress, ft as normalizeSweepGeometry, g as createNotifications, h as NotificationRegion, ht as useReducedMotion, i as createScrollReset, it as createAnimationFrame, j as createFormDraft, k as isSelected, lt as createRotation, mt as useMotionConfig, n as createTabs, nt as createFocus, o as Popover$1, ot as animateKeyframes, pt as MotionConfigProvider, q as createPresence, r as createShortcuts, rt as createFocusWithin, st as createLoop, t as primitives_exports, tt as createHover, ut as createSweep, v as Ripple, x as createTransitionPresence, y as Spin, z as PathBuilder } from "./primitives-CargzKeQ.mjs";
+import { $ as createActive, A as toggleSelection, B as Svg, C as createOverlayLayer, D as Row, E as Column, F as Image, G as rotate2d$1, H as TextArea, I as NetworkImage, J as createContainerMatch, K as translate2d$1, L as PasswordInput$1, M as CollapsiblePresence, N as CodeEditor, O as createKeyedSelection, P as Icon, Q as createButton, R as Path, S as OverlayPlaneProvider, T as Center, U as TextInput, V as Text, W as View, X as Button$1, Y as createMeasuredSize, Z as Link, _ as Pulse, a as ScrollArea, at as animate, b as Modal, ct as createPulse, dt as createTransition, et as createPress, ft as normalizeSweepGeometry, g as createNotifications, h as NotificationRegion, ht as useReducedMotion, i as createScrollReset, it as createAnimationFrame, j as createFormDraft, k as isSelected, lt as createRotation, mt as useMotionConfig, n as createTabs, nt as createFocus, o as Popover$1, ot as animateKeyframes, pt as MotionConfigProvider, q as createPresence, r as createShortcuts, rt as createFocusWithin, st as createLoop, t as primitives_exports, tt as createHover, ut as createSweep, v as Ripple, x as createTransitionPresence, y as Spin, z as PathBuilder } from "./primitives-COFjvCKu.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -4570,6 +4570,11 @@ function Toaster(props) {
 		},
 		get itemClass() {
 			return join("w-96 max-w-full", props.itemClass);
+		},
+		get motion() {
+			return memo(() => {
+				return props.motion === void 0;
+			})() ? { fromY: (props.placement ?? "bottom-end").startsWith("bottom") ? 12 : -12 } : props.motion;
 		}
 	});
 }

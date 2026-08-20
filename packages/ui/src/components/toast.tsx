@@ -8,6 +8,7 @@ import {
   createNotifications,
   Icon,
   type NotificationDismissReason,
+  type NotificationMotionOptions,
   type NotificationPlacement,
   NotificationRegion,
   type Notifications,
@@ -149,6 +150,7 @@ export interface ToasterProps {
   placement?: NotificationPlacement;
   class?: string;
   itemClass?: string;
+  motion?: false | NotificationMotionOptions;
 }
 
 /** Render a non-blocking stack of styled toasts on the floating plane. */
@@ -159,6 +161,15 @@ export function Toaster(props: ToasterProps): JSX.Element {
       placement={props.placement ?? "bottom-end"}
       class={props.class}
       itemClass={join("w-96 max-w-full", props.itemClass)}
+      motion={
+        props.motion === undefined
+          ? {
+              fromY: (props.placement ?? "bottom-end").startsWith("bottom")
+                ? 12
+                : -12,
+            }
+          : props.motion
+      }
     />
   );
 }

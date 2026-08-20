@@ -10,6 +10,16 @@ import {
 } from "./index";
 
 describe("Solid animation primitives", () => {
+  test("can start a transition independently from its current target", () =>
+    createRoot((dispose) => {
+      const transition = createTransition(() => 1, {
+        initial: 0,
+        duration: 1,
+      });
+      expect(transition.value()).toBe(0);
+      dispose();
+    }));
+
   test("owns a loop value and playback controls", () =>
     createRoot((dispose) => {
       const loop = createLoop({ from: 2, to: 4, autoplay: false });

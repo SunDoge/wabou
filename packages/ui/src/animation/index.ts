@@ -187,6 +187,8 @@ export interface TransitionOptions
   > {
   /** Skip interpolation while the user's/application's reduced-motion policy is active. */
   reducedMotion?: MaybeAccessor<boolean>;
+  /** One-time starting value. Defaults to the current target. */
+  initial?: MaybeAccessor<number>;
   onUpdate?: (value: number) => void;
   onComplete?: (value: number) => void;
 }
@@ -210,8 +212,13 @@ export function createTransition(
   target: Accessor<number>,
   options: TransitionOptions = {},
 ): ReactiveTransition {
-  const [value, setValue] = createSignal(untrack(target));
-  const [state, setState] = createSignal<AnimationState>("idle");
+  const [value, setValue] = createSignal(
+    untrack(() => read(options.initial, target())),
+    { ownedWrite: true },
+  );
+  const [state, setState] = createSignal<AnimationState>("idle", {
+    ownedWrite: true,
+  });
   let controls: AnimationControls | undefined;
   let generation = 0;
 
@@ -242,6 +249,7 @@ export function createTransition(
       controls?.stop();
       setState("running");
       const {
+        initial: _initial,
         reducedMotion: _reducedMotion,
         onUpdate,
         onComplete,

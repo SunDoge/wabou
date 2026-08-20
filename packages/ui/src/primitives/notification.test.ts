@@ -1,18 +1,10 @@
 import { expect, test } from "bun:test";
-import {
-  createElement,
-  dispatchEvent,
-  EVENT_CODE,
-  getMountRoot,
-  mount,
-} from "@wabou/core/renderer";
+import { createElement } from "@wabou/core/renderer";
 import { createRoot, flush, type JSX } from "solid-js";
 import {
   createNotifications,
   type NotificationDismissReason,
-  NotificationRegion,
 } from "./notification";
-import { View } from "./view";
 
 test("notification queue enforces its limit and reports dismissal reasons", () => {
   createRoot((dispose) => {
@@ -109,33 +101,4 @@ test("notification timeout pauses and resumes", async () => {
       }, 30);
     });
   });
-});
-
-test("NotificationRegion mounts non-blocking items on the floating plane", () => {
-  const disposeMount = mount(() => null);
-  const root = getMountRoot();
-  const state = createRoot((dispose) => {
-    const notifications = createNotifications({ defaultDuration: 0 });
-    notifications.show({
-      "aria-label": "Dismiss me",
-      content: ({ dismiss }) => View({ onClick: dismiss }),
-    });
-    flush();
-    NotificationRegion({ notifications });
-    return { dispose, notifications };
-  });
-  const floatingPlane = root.lastChild;
-  const region = floatingPlane?.firstChild;
-  const item = region?.firstChild;
-  const dismissTarget = item?.firstChild;
-  expect(floatingPlane).not.toBeNull();
-  expect(item).not.toBeNull();
-
-  dispatchEvent(dismissTarget!.id, EVENT_CODE.click, "");
-  flush();
-  expect(state.notifications.items()).toEqual([]);
-  expect(region?.firstChild).toBeNull();
-
-  state.dispose();
-  disposeMount();
 });

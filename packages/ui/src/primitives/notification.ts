@@ -1,12 +1,17 @@
 import { Portal } from "@wabou/core/renderer";
+import { number, translate2d } from "@wabou/core/style";
 import {
   type Accessor,
   createComponent,
+  createEffect,
   createSignal,
   For,
   type JSX,
   onCleanup,
+  untrack,
 } from "solid-js";
+import { type Easing, useReducedMotion } from "../animation";
+import { createTransitionPresence } from "./transition-presence";
 import { View, type WabouStyle } from "./view";
 
 export type NotificationPriority = "polite" | "assertive";
@@ -187,6 +192,17 @@ export interface NotificationRegionProps {
   style?: WabouStyle;
   itemClass?: string;
   itemStyle?: WabouStyle;
+  /** Headless regions are static unless motion is explicitly requested. */
+  motion?: false | NotificationMotionOptions;
+}
+
+export interface NotificationMotionOptions {
+  duration?: number;
+  ease?: Easing;
+  /** Initial horizontal offset in logical pixels. */
+  fromX?: number;
+  /** Initial vertical offset in logical pixels. */
+  fromY?: number;
 }
 
 const alignment = (placement: NotificationPlacement) => ({
@@ -202,6 +218,132 @@ const alignment = (placement: NotificationPlacement) => ({
 export function NotificationRegion(
   props: NotificationRegionProps,
 ): JSX.Element {
+  const motion = untrack(() => props.motion);
+  if (motion === undefined || motion === false) {
+    const items = createComponent(
+      For as unknown as (props: {
+        each: readonly NotificationItem[];
+        children: (item: NotificationItem) => JSX.Element;
+      }) => JSX.Element,
+      {
+        get each() {
+          return props.notifications.items();
+        },
+        children: (item) =>
+          createComponent(View, {
+            role: item.priority === "assertive" ? "alert" : "status",
+            "aria-label": item["aria-label"],
+            get class() {
+              return `pointer-events-auto ${props.itemClass ?? ""}`;
+            },
+            get style() {
+              return props.itemStyle;
+            },
+            onPointerEnter: () => props.notifications.pause(item.id),
+            onPointerLeave: () => props.notifications.resume(item.id),
+            onFocusIn: () => props.notifications.pause(item.id),
+            onFocusOut: () => props.notifications.resume(item.id),
+            get children() {
+              return item.content({
+                dismiss: () => props.notifications.dismiss(item.id, "dismiss"),
+              });
+            },
+          }),
+      },
+    );
+    return createComponent(Portal, {
+      plane: "floating",
+      role: "presentation",
+      get class() {
+        return `pointer-events-none ${props.class ?? ""}`;
+      },
+      get style() {
+        const placement = props.placement ?? "top-end";
+        return {
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          "flex-direction": "column",
+          gap: 8,
+          padding: 16,
+          ...alignment(placement),
+          ...props.style,
+        };
+      },
+      children: items,
+    });
+  }
+
+  const reducedMotion = useReducedMotion();
+  const [renderedItems, setRenderedItems] = createSignal<
+    readonly NotificationItem[]
+  >(untrack(props.notifications.items), { ownedWrite: true });
+
+  createEffect(props.notifications.items, (current) => {
+    const currentIds = new Set(current.map((item) => item.id));
+    const previous = untrack(renderedItems);
+    setRenderedItems([
+      ...previous.filter((item) => !currentIds.has(item.id)),
+      ...current,
+    ]);
+  });
+
+  const removeExited = (id: number) => {
+    if (untrack(props.notifications.items).some((item) => item.id === id))
+      return;
+    setRenderedItems(untrack(renderedItems).filter((item) => item.id !== id));
+  };
+  const renderAnimatedItem = (item: NotificationItem) => {
+    const logicallyPresent = () =>
+      props.notifications.items().some((current) => current.id === item.id);
+    const presence = createTransitionPresence(logicallyPresent, {
+      initialProgress: 0,
+      duration: motion.duration ?? 0.18,
+      ease: motion.ease ?? "easeOut",
+      reducedMotion,
+    });
+    createEffect(presence.phase, (phase) => {
+      if (phase === "unmounted") removeExited(item.id);
+    });
+    const remaining = () => 1 - presence.progress();
+    return createComponent(View, {
+      role: item.priority === "assertive" ? "alert" : "status",
+      "aria-label": item["aria-label"],
+      get "aria-hidden"() {
+        return logicallyPresent() ? undefined : "true";
+      },
+      get interactionBlocked() {
+        return !logicallyPresent();
+      },
+      get transform() {
+        return translate2d(
+          (motion.fromX ?? 0) * remaining(),
+          (motion.fromY ?? 0) * remaining(),
+        );
+      },
+      get class() {
+        return `pointer-events-auto ${props.itemClass ?? ""}`;
+      },
+      get style() {
+        return {
+          ...props.itemStyle,
+          opacity: number(presence.progress()),
+        };
+      },
+      onPointerEnter: () => props.notifications.pause(item.id),
+      onPointerLeave: () => props.notifications.resume(item.id),
+      onFocusIn: () => props.notifications.pause(item.id),
+      onFocusOut: () => props.notifications.resume(item.id),
+      get children() {
+        return item.content({
+          dismiss: () => props.notifications.dismiss(item.id, "dismiss"),
+        });
+      },
+    });
+  };
   const items = createComponent(
     For as unknown as (props: {
       each: readonly NotificationItem[];
@@ -209,28 +351,9 @@ export function NotificationRegion(
     }) => JSX.Element,
     {
       get each() {
-        return props.notifications.items();
+        return renderedItems();
       },
-      children: (item) =>
-        createComponent(View, {
-          role: item.priority === "assertive" ? "alert" : "status",
-          "aria-label": item["aria-label"],
-          get class() {
-            return `pointer-events-auto ${props.itemClass ?? ""}`;
-          },
-          get style() {
-            return props.itemStyle;
-          },
-          onPointerEnter: () => props.notifications.pause(item.id),
-          onPointerLeave: () => props.notifications.resume(item.id),
-          onFocusIn: () => props.notifications.pause(item.id),
-          onFocusOut: () => props.notifications.resume(item.id),
-          get children() {
-            return item.content({
-              dismiss: () => props.notifications.dismiss(item.id, "dismiss"),
-            });
-          },
-        }),
+      children: renderAnimatedItem,
     },
   );
   return createComponent(Portal, {

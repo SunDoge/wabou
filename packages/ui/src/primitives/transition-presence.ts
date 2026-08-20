@@ -13,6 +13,8 @@ export interface TransitionPresenceOptions {
    * native measurement before becoming visible.
    */
   ready?: Accessor<boolean>;
+  /** Start visual progress independently from logical presence. */
+  initialProgress?: number;
   duration?: number;
   ease?: Easing;
   reducedMotion?: boolean | Accessor<boolean>;
@@ -40,6 +42,7 @@ export function createTransitionPresence(
   const presence: Presence = createPresence(open);
   const visuallyPresent = () => open() && (options.ready?.() ?? true);
   const transition = createTransition(() => (visuallyPresent() ? 1 : 0), {
+    initial: options.initialProgress,
     duration: options.duration ?? 0.16,
     ease: options.ease ?? "easeOut",
     reducedMotion: options.reducedMotion,

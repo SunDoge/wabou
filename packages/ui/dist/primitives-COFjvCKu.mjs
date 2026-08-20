@@ -108,8 +108,8 @@ const read = (value, fallback) => typeof value === "function" ? value() : value 
 * toggled disclosure, hover and selection state.
 */
 function createTransition(target, options = {}) {
-	const [value, setValue] = createSignal(untrack(target));
-	const [state, setState] = createSignal("idle");
+	const [value, setValue] = createSignal(untrack(() => read(options.initial, target())), { ownedWrite: true });
+	const [state, setState] = createSignal("idle", { ownedWrite: true });
 	let controls;
 	let generation = 0;
 	const stop = () => {
@@ -137,7 +137,7 @@ function createTransition(target, options = {}) {
 		const run = ++generation;
 		controls?.stop();
 		setState("running");
-		const { reducedMotion: _reducedMotion, onUpdate, onComplete, ...animationOptions } = options;
+		const { initial: _initial, reducedMotion: _reducedMotion, onUpdate, onComplete, ...animationOptions } = options;
 		controls = animate(current, next, {
 			...animationOptions,
 			onUpdate(current) {
@@ -1226,6 +1226,7 @@ function createTransitionPresence(open, options = {}) {
 	const presence = createPresence(open);
 	const visuallyPresent = () => open() && (options.ready?.() ?? true);
 	const transition = createTransition(() => visuallyPresent() ? 1 : 0, {
+		initial: options.initialProgress,
 		duration: options.duration ?? .16,
 		ease: options.ease ?? "easeOut",
 		reducedMotion: options.reducedMotion,
@@ -1583,18 +1584,98 @@ const alignment = (placement) => ({
 });
 /** Render a non-blocking stack on the native floating overlay plane. */
 function NotificationRegion(props) {
-	const items = createComponent(For, {
-		get each() {
-			return props.notifications.items();
-		},
-		children: (item) => createComponent(View, {
+	const motion = untrack(() => props.motion);
+	if (motion === void 0 || motion === false) {
+		const items = createComponent(For, {
+			get each() {
+				return props.notifications.items();
+			},
+			children: (item) => createComponent(View, {
+				role: item.priority === "assertive" ? "alert" : "status",
+				"aria-label": item["aria-label"],
+				get class() {
+					return `pointer-events-auto ${props.itemClass ?? ""}`;
+				},
+				get style() {
+					return props.itemStyle;
+				},
+				onPointerEnter: () => props.notifications.pause(item.id),
+				onPointerLeave: () => props.notifications.resume(item.id),
+				onFocusIn: () => props.notifications.pause(item.id),
+				onFocusOut: () => props.notifications.resume(item.id),
+				get children() {
+					return item.content({ dismiss: () => props.notifications.dismiss(item.id, "dismiss") });
+				}
+			})
+		});
+		return createComponent(Portal, {
+			plane: "floating",
+			role: "presentation",
+			get class() {
+				return `pointer-events-none ${props.class ?? ""}`;
+			},
+			get style() {
+				const placement = props.placement ?? "top-end";
+				return {
+					position: "absolute",
+					left: 0,
+					top: 0,
+					width: "100%",
+					height: "100%",
+					display: "flex",
+					"flex-direction": "column",
+					gap: 8,
+					padding: 16,
+					...alignment(placement),
+					...props.style
+				};
+			},
+			children: items
+		});
+	}
+	const reducedMotion = useReducedMotion();
+	const [renderedItems, setRenderedItems] = createSignal(untrack(props.notifications.items), { ownedWrite: true });
+	createEffect(props.notifications.items, (current) => {
+		const currentIds = new Set(current.map((item) => item.id));
+		const previous = untrack(renderedItems);
+		setRenderedItems([...previous.filter((item) => !currentIds.has(item.id)), ...current]);
+	});
+	const removeExited = (id) => {
+		if (untrack(props.notifications.items).some((item) => item.id === id)) return;
+		setRenderedItems(untrack(renderedItems).filter((item) => item.id !== id));
+	};
+	const renderAnimatedItem = (item) => {
+		const logicallyPresent = () => props.notifications.items().some((current) => current.id === item.id);
+		const presence = createTransitionPresence(logicallyPresent, {
+			initialProgress: 0,
+			duration: motion.duration ?? .18,
+			ease: motion.ease ?? "easeOut",
+			reducedMotion
+		});
+		createEffect(presence.phase, (phase) => {
+			if (phase === "unmounted") removeExited(item.id);
+		});
+		const remaining = () => 1 - presence.progress();
+		return createComponent(View, {
 			role: item.priority === "assertive" ? "alert" : "status",
 			"aria-label": item["aria-label"],
+			get "aria-hidden"() {
+				return logicallyPresent() ? void 0 : "true";
+			},
+			get interactionBlocked() {
+				return !logicallyPresent();
+			},
+			get transform() {
+				return translate2d((motion.fromX ?? 0) * remaining(), (motion.fromY ?? 0) * remaining());
+			},
 			get class() {
 				return `pointer-events-auto ${props.itemClass ?? ""}`;
 			},
 			get style() {
-				return props.itemStyle;
+				return {
+					...props.itemStyle,
+					opacity: number(presence.progress())
+				};
 			},
 			onPointerEnter: () => props.notifications.pause(item.id),
 			onPointerLeave: () => props.notifications.resume(item.id),
@@ -1603,7 +1684,13 @@ function NotificationRegion(props) {
 			get children() {
 				return item.content({ dismiss: () => props.notifications.dismiss(item.id, "dismiss") });
 			}
-		})
+		});
+	};
+	const items = createComponent(For, {
+		get each() {
+			return renderedItems();
+		},
+		children: renderAnimatedItem
 	});
 	return createComponent(Portal, {
 		plane: "floating",
@@ -2254,4 +2341,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createActive as $, toggleSelection as A, Svg as B, createOverlayLayer as C, Row as D, Column as E, Image as F, rotate2d$1 as G, TextArea as H, NetworkImage as I, createContainerMatch as J, translate2d$1 as K, PasswordInput as L, CollapsiblePresence as M, CodeEditor as N, createKeyedSelection as O, Icon as P, createButton as Q, Path as R, OverlayPlaneProvider as S, Center as T, TextInput as U, Text as V, View as W, Button as X, createMeasuredSize as Y, Link as Z, Pulse as _, ScrollArea as a, animate as at, Modal as b, autoPlacement as c, createPulse as ct, flip as d, createTransition as dt, createPress as et, offset as f, normalizeSweepGeometry as ft, createNotifications as g, NotificationRegion as h, useReducedMotion as ht, createScrollReset as i, createAnimationFrame as it, createFormDraft as j, isSelected as k, computeFloatingPosition as l, createRotation as lt, size as m, useMotionConfig as mt, createTabs as n, createFocus as nt, Popover as o, animateKeyframes as ot, shift as p, MotionConfigProvider as pt, createPresence as q, createShortcuts as r, createFocusWithin as rt, arrow as s, createLoop as st, primitives_exports as t, createHover as tt, computeHostFloatingPosition as u, createSweep as ut, Ripple as v, useOverlayPlane as w, createTransitionPresence as x, Spin as y, PathBuilder as z };
 
-//# sourceMappingURL=primitives-CargzKeQ.mjs.map
+//# sourceMappingURL=primitives-COFjvCKu.mjs.map
