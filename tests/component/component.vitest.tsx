@@ -319,6 +319,30 @@ test("uses the native pointer sequence and exposes transient press state", () =>
   expect(button.className).not.toContain("bg-control-pressed");
 });
 
+test("distinguishes hover movement from a captured drag", () => {
+  const PointerProbe = () => {
+    const [buttons, setButtons] = createSignal(-1);
+    return (
+      <View
+        role="group"
+        aria-label="Pointer probe"
+        onPointerMove={(event: { buttons: number }) =>
+          setButtons(event.buttons)
+        }
+      >
+        <Text role="status">{String(buttons())}</Text>
+      </View>
+    );
+  };
+  const screen = renderComponent(PointerProbe);
+  const probe = screen.getByRole("group", { name: "Pointer probe" });
+
+  probe.movePointer({ offsetX: 12, offsetY: 8 });
+  expect(screen.getByRole("status").text).toBe("0");
+  probe.pointerMove({ offsetX: 20, offsetY: 8 });
+  expect(screen.getByRole("status").text).toBe("1");
+});
+
 test("owns delayed component work through an explicit fake clock", async () => {
   const DelayedStatus = () => {
     const [status, setStatus] = createSignal("Idle");

@@ -74,6 +74,12 @@ updates.click();
 expect(updates.checked).toBe(true);
 ```
 
+Pointer-driven components can distinguish ordinary movement from a captured
+drag: `movePointer()` emits a native move with no pressed buttons, while
+`pointerMove()` preserves the primary-button state between `pointerDown()` and
+`pointerUp()`. This keeps hover selection and drag behavior on their real event
+paths.
+
 The same states can filter role queries, including scoped and list queries.
 Filters remain live across component updates, so tests can locate the selected,
 expanded, current, or focused item without inspecting raw attributes:

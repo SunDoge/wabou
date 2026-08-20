@@ -73,6 +73,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
+  /** Dispatch an uncaptured native pointer move with no pressed buttons. */
+  movePointer(position?: ComponentPointerPosition): void;
   /** Dispatch a captured native pointer move while preserving button state. */
   pointerMove(position?: ComponentPointerPosition): void;
   pointerUp(position?: ComponentPointerPosition): void;

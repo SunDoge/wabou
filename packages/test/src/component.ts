@@ -118,6 +118,8 @@ export interface ComponentLocator extends ComponentQueries {
   readonly focusContained: boolean;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
+  /** Dispatch an uncaptured native pointer move with no pressed buttons. */
+  movePointer(position?: ComponentPointerPosition): void;
   /** Dispatch a captured native pointer move while preserving button state. */
   pointerMove(position?: ComponentPointerPosition): void;
   pointerUp(position?: ComponentPointerPosition): void;
@@ -861,6 +863,10 @@ export function renderComponent(
       pointerDown: (position = {}) => {
         ensureEnabled(node, "press");
         commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
+      },
+      movePointer: (position = {}) => {
+        ensureEnabled(node, "move pointer over");
+        commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 0));
       },
       pointerMove: (position = {}) => {
         ensureEnabled(node, "drag");

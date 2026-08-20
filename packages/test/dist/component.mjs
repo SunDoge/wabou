@@ -517,6 +517,10 @@ function renderComponent(render, options = {}) {
 				ensureEnabled(node, "press");
 				commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
 			},
+			movePointer: (position = {}) => {
+				ensureEnabled(node, "move pointer over");
+				commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 0));
+			},
 			pointerMove: (position = {}) => {
 				ensureEnabled(node, "drag");
 				commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 1));
