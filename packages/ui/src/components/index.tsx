@@ -27,6 +27,7 @@ import { componentsElevation, useComponentsTheme } from "./theme";
 
 export * from "./avatar";
 export * from "./button";
+export * from "./command";
 export * from "./config-editor";
 export * from "./date-picker";
 export * from "./dialog";

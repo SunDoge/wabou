@@ -208,6 +208,162 @@ function Button(props) {
 	}));
 }
 //#endregion
+//#region src/components/menu-state.ts
+/** Resolve one keyboard move without coupling menu state to rendering. */
+function moveMenuHighlight(items, current, move) {
+	const enabled = items.filter((item) => !item.disabled);
+	if (enabled.length === 0) return void 0;
+	if (move === "first") return enabled[0].id;
+	if (move === "last") return enabled.at(-1)?.id;
+	const index = enabled.findIndex((item) => item.id === current);
+	if (move === "next") return enabled[(index + 1) % enabled.length].id;
+	return enabled[(index <= 0 ? enabled.length : index) - 1].id;
+}
+//#endregion
+//#region src/components/command-state.ts
+function filterCommandItems(items, query) {
+	const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+	if (terms.length === 0) return [...items];
+	return items.filter((item) => {
+		const haystack = [item.label, ...item.keywords ?? []].join(" ").toLocaleLowerCase();
+		return terms.every((term) => haystack.includes(term));
+	});
+}
+function reconcileCommandHighlight(items, highlighted) {
+	if (items.some((item) => item.id === highlighted && !item.disabled)) return highlighted;
+	return moveMenuHighlight(items, void 0, "first");
+}
+//#endregion
+//#region src/components/input.tsx
+/** A plain-text input. Secrets must use `PasswordInput`. */
+function Input(props) {
+	return createComponent$1(TextInput, mergeProps(props, { get ["class"]() {
+		return join("h-8 w-full px-3 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
+	} }));
+}
+//#endregion
+//#region src/components/command.tsx
+/** Searchable command list whose filtering and keyboard behavior are host-independent. */
+function Command(props) {
+	const [uncontrolledQuery, setUncontrolledQuery] = createSignal(props.defaultQuery ?? "");
+	const [highlighted, setHighlighted] = createSignal();
+	const query = () => props.query ?? uncontrolledQuery();
+	const filtered = createMemo(() => filterCommandItems(props.items, query()));
+	createEffect(() => ({
+		items: filtered(),
+		highlighted: highlighted()
+	}), ({ items, highlighted: current }) => {
+		setHighlighted(reconcileCommandHighlight(items, current));
+	});
+	const setQuery = (next) => {
+		if (props.query === void 0) setUncontrolledQuery(next);
+		props.onQueryChange?.(next);
+	};
+	const select = (id) => {
+		const item = filtered().find((candidate) => candidate.id === id);
+		if (!item || item.disabled) return false;
+		item.onSelect?.();
+		props.onAction?.(item.id);
+		return true;
+	};
+	const move = (direction) => {
+		const next = moveMenuHighlight(filtered(), highlighted(), direction);
+		if (next === void 0) return false;
+		setHighlighted(next);
+		return true;
+	};
+	const onKeyDown = (event) => {
+		if (match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).otherwise(() => false)) event.preventDefault();
+	};
+	return createComponent$1(View, {
+		get ["class"]() {
+			return join("min-w-0 flex flex-col gap-2", props.class);
+		},
+		get children() {
+			return [createComponent$1(Input, {
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				get value() {
+					return query();
+				},
+				get placeholder() {
+					return props.placeholder ?? "Type a command";
+				},
+				onInput: (event) => setQuery(event.currentTarget.value),
+				onKeyDown
+			}), createComponent$1(View, {
+				role: "listbox",
+				get ["aria-label"]() {
+					return `${props["aria-label"]} results`;
+				},
+				get ["aria-activedescendant"]() {
+					return highlighted();
+				},
+				get ["class"]() {
+					return join("min-w-0 flex flex-col gap-1", props.listClass);
+				},
+				get children() {
+					return memo(() => {
+						return filtered().length === 0;
+					})() ? createComponent$1(Text, {
+						role: "status",
+						class: "px-3 py-4 text-sm text-muted text-center",
+						get children() {
+							return props.emptyText ?? "No results found.";
+						}
+					}) : createComponent$1(For, {
+						get each() {
+							return filtered();
+						},
+						keyed: false,
+						children: (item) => createComponent$1(View, {
+							get id() {
+								return item().id;
+							},
+							role: "option",
+							get ["aria-label"]() {
+								return item().label;
+							},
+							get ["aria-selected"]() {
+								return highlighted() === item().id;
+							},
+							get ["aria-disabled"]() {
+								return item().disabled;
+							},
+							get ["class"]() {
+								return join("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+							},
+							get style() {
+								return { opacity: item().disabled ? .45 : 1 };
+							},
+							onPointerMove: () => !item().disabled && setHighlighted(item().id),
+							onClick: () => select(item().id),
+							get children() {
+								return [createComponent$1(Text, {
+									class: "text-sm",
+									get children() {
+										return item().label;
+									}
+								}), memo(() => {
+									return memo(() => {
+										return !!item().description;
+									})() ? createComponent$1(Text, {
+										class: "text-xs text-muted",
+										get children() {
+											return item().description;
+										}
+									}) : item().description;
+								})];
+							}
+						})
+					});
+				}
+			})];
+		}
+	});
+}
+//#endregion
 //#region src/components/config-editor.tsx
 /**
 * Experimental native configuration editor. Its Wabou-owned props deliberately
@@ -645,14 +801,6 @@ function directoryPickerOptions(value, options) {
 		...options,
 		directory: options?.directory ?? (value.trim() || void 0)
 	};
-}
-//#endregion
-//#region src/components/input.tsx
-/** A plain-text input. Secrets must use `PasswordInput`. */
-function Input(props) {
-	return createComponent$1(TextInput, mergeProps(props, { get ["class"]() {
-		return join("h-8 w-full px-3 rounded-md border text-sm shadow-xs", "border-subtle bg-input text-primary", props.disabled && "opacity-50", props.class);
-	} }));
 }
 //#endregion
 //#region src/components/directory-picker.tsx
@@ -1306,18 +1454,6 @@ function KbdGroup(props) {
 			return props.children;
 		}
 	});
-}
-//#endregion
-//#region src/components/menu-state.ts
-/** Resolve one keyboard move without coupling menu state to rendering. */
-function moveMenuHighlight(items, current, move) {
-	const enabled = items.filter((item) => !item.disabled);
-	if (enabled.length === 0) return void 0;
-	if (move === "first") return enabled[0].id;
-	if (move === "last") return enabled.at(-1)?.id;
-	const index = enabled.findIndex((item) => item.id === current);
-	if (move === "next") return enabled[(index + 1) % enabled.length].id;
-	return enabled[(index <= 0 ? enabled.length : index) - 1].id;
 }
 //#endregion
 //#region src/components/dropdown-menu.tsx
@@ -3464,6 +3600,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogScrollBody, DialogTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTooltipDelayController, createTransition, emptyClass, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Command, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogScrollBody, DialogTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTooltipDelayController, createTransition, emptyClass, filterCommandItems, moveMenuHighlight, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

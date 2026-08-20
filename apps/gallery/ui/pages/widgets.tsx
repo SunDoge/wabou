@@ -20,6 +20,7 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
+  Command,
   DatePicker,
   Dialog,
   DialogDescription,
@@ -228,6 +229,39 @@ export function DropdownMenuPage() {
               Project actions
             </Button>
           )}
+        />
+        <Text role="status" class="text-sm text-secondary">
+          {action()}
+        </Text>
+      </View>
+    </Preview>
+  );
+}
+
+export function CommandPage() {
+  const [action, setAction] = createSignal("No command selected");
+  return (
+    <Preview title="Searchable command list">
+      <View class="w-96 flex flex-col gap-3 rounded-lg border border-subtle bg-surface p-3 shadow-sm">
+        <Command
+          aria-label="Project commands"
+          placeholder="Search commands"
+          onAction={setAction}
+          items={[
+            {
+              id: "open",
+              label: "Open project",
+              description: "Open a local Wabou project",
+              keywords: ["folder", "workspace"],
+            },
+            {
+              id: "theme",
+              label: "Change theme",
+              description: "Select a light or dark appearance",
+              keywords: ["appearance", "dark", "light"],
+            },
+            { id: "admin", label: "Admin tools", disabled: true },
+          ]}
         />
         <Text role="status" class="text-sm text-secondary">
           {action()}
