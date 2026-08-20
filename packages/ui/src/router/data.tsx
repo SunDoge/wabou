@@ -157,10 +157,11 @@ interface RouteMatchProps {
 /** Preserve a matched component while its route and selected view are stable. */
 function RouteMatch(props: RouteMatchProps): JSX.Element {
   const match = () => props.router.state.matches[props.index];
-  const outlet = createComponent(RouteOutlet, {
-    router: props.router,
-    index: props.index + 1,
-  });
+  // Create the child outlet on first `props.children` read, not here. Eager
+  // createComponent would own the nested route under RouteMatch, so a
+  // provider in this view would not be visible to child routes. Caching the
+  // instance still keeps the child tree stable across view remounts.
+  let outlet: JSX.Element | undefined;
   return createComponent(
     Show as unknown as (props: {
       when: RouteView | undefined;
@@ -178,7 +179,10 @@ function RouteMatch(props: RouteMatchProps): JSX.Element {
             return match()?.error;
           },
           get children() {
-            return outlet;
+            return (outlet ??= createComponent(RouteOutlet, {
+              router: props.router,
+              index: props.index + 1,
+            }));
           },
         }),
     },

@@ -13,10 +13,8 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { StoryDetail } from "./pages/StoryDetail";
 import { StoryList } from "./pages/StoryList";
 
-// ThemeProvider lives outside RouterProvider (in `mount`) rather than here.
-// Route components arrive as `props.children` that the data router instantiated
-// inside RouteMatch; their Solid owner chain ends at RouteMatch, so a provider
-// placed here would be invisible to them — useTheme in StoryList would throw.
+// Theme chrome wraps the whole tree. A provider may also wrap `{props.children}`
+// in this root route — RouteMatch creates the outlet on that read.
 function Root(props: { children?: import("solid-js").JSX.Element }) {
   return <AppShell>{props.children}</AppShell>;
 }

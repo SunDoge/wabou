@@ -137,14 +137,11 @@ test("router-owned stores can publish while a Solid owner is current", async () 
 });
 
 test.skipIf(isServer)(
-  "context outside RouterProvider reaches nested route components",
+  "context from the root route reaches nested route components",
   async () => {
-    // Regression for app-shell provider crashes (e.g. a theme provider): route
-    // components arrive as `props.children` that the data router instantiates
-    // inside RouteMatch, so their Solid owner chain ends at RouteMatch — not at
-    // the root route component. A provider placed inside the root route is
-    // therefore invisible to nested routes; app-level providers must wrap
-    // <RouterProvider> instead.
+    // RouteMatch creates the child outlet on first `props.children` access so
+    // the nested route is owned under the parent view — a provider wrapping
+    // `{props.children}` is visible to leaf routes.
     const Ctx = createContext<string>("none");
     const seen: string[] = [];
     function Root(props: { children?: unknown }) {
@@ -174,10 +171,6 @@ test.skipIf(isServer)(
     const dispose = mount(() =>
       createComponent(Ctx, {
         value: "outer",
-        // Use a getter so RouterProvider is created while the outer Ctx is
-        // the current owner — a plain `children: createComponent(...)` would
-        // create it eagerly under the mount root, bypassing the provider
-        // (the same owner-chain trap that outlet creation hits in RouteMatch).
         get children() {
           return createComponent(RouterProvider, { router });
         },
@@ -185,10 +178,50 @@ test.skipIf(isServer)(
     );
     await settle();
 
-    // The nested route reads the OUTER provider. The one inside Root never
-    // reaches it, because Leaf's owner chain does not pass through Root.
+    expect(seen).toContain("inside-root");
+    expect(seen).not.toContain("outer");
+    dispose();
+  },
+);
+
+test.skipIf(isServer)(
+  "context outside RouterProvider reaches nested route components",
+  async () => {
+    const Ctx = createContext<string>("none");
+    const seen: string[] = [];
+    function Root(props: { children?: unknown }) {
+      return props.children as never;
+    }
+    function Leaf() {
+      seen.push(useContext(Ctx));
+      return null;
+    }
+    const root = new BaseRootRoute({ component: Root });
+    const leaf = new BaseRoute({
+      getParentRoute: () => root,
+      path: "/",
+      component: Leaf,
+    });
+    const router = createDataRouter({
+      routeTree: root.addChildren([leaf]),
+      history: createMemoryHistory({ initialEntries: ["/"] }),
+      context: {},
+    });
+
+    const dispose = mount(() =>
+      createComponent(Ctx, {
+        value: "outer",
+        // Use a getter so RouterProvider is created while the outer Ctx is
+        // the current owner — a plain `children: createComponent(...)` would
+        // create it eagerly under the mount root, bypassing the provider.
+        get children() {
+          return createComponent(RouterProvider, { router });
+        },
+      }),
+    );
+    await settle();
+
     expect(seen).toContain("outer");
-    expect(seen).not.toContain("inside-root");
     dispose();
   },
 );
