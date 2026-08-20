@@ -162,6 +162,36 @@ function createTransition(target, options = {}) {
 		stop
 	};
 }
+function createRepeatingAnimation(keyframes, options) {
+	const { reducedMotion, reducedValue, onUpdate, ...animationOptions } = options;
+	const authoredAutoplay = animationOptions.autoplay ?? true;
+	const initiallyReduced = untrack(() => read(reducedMotion, false));
+	const [value, setValue] = createSignal(initiallyReduced ? reducedValue : keyframes[0]);
+	const controls = animateKeyframes(keyframes, {
+		...animationOptions,
+		autoplay: authoredAutoplay && !initiallyReduced,
+		onUpdate(next) {
+			setValue(next);
+			onUpdate?.(next);
+		}
+	});
+	let initialized = false;
+	let resumeAfterReduction = authoredAutoplay;
+	createEffect(() => read(reducedMotion, false), (reduced) => {
+		if (reduced) {
+			if (initialized) resumeAfterReduction = controls.state === "running";
+			controls.pause();
+			setValue(reducedValue);
+			onUpdate?.(reducedValue);
+		} else if (initialized && resumeAfterReduction) controls.play();
+		initialized = true;
+	});
+	onCleanup(() => controls.stop());
+	return {
+		value,
+		controls
+	};
+}
 /**
 * Lifecycle-owned repeating scalar animation for Solid components.
 *
@@ -171,33 +201,15 @@ function createLoop(options = {}) {
 	const from = options.from ?? 0;
 	const to = options.to ?? 1;
 	const { from: _from, to: _to, reducedMotion, reducedValue = from, onUpdate, ...animationOptions } = options;
-	const initiallyReduced = untrack(() => read(reducedMotion, false));
-	const [value, setValue] = createSignal(initiallyReduced ? reducedValue : from);
-	const controls = animate(from, to, {
+	return createRepeatingAnimation([from, to], {
 		duration: 1,
 		ease: "linear",
 		repeat: Infinity,
 		...animationOptions,
-		autoplay: (animationOptions.autoplay ?? true) && !initiallyReduced,
-		onUpdate(next) {
-			setValue(next);
-			onUpdate?.(next);
-		}
+		reducedMotion,
+		reducedValue,
+		onUpdate
 	});
-	let initialized = false;
-	createEffect(() => read(reducedMotion, false), (reduced) => {
-		if (reduced) {
-			controls.pause();
-			setValue(reducedValue);
-			onUpdate?.(reducedValue);
-		} else if (initialized && animationOptions.autoplay !== false) controls.play();
-		initialized = true;
-	});
-	onCleanup(() => controls.stop());
-	return {
-		value,
-		controls
-	};
 }
 function normalizeSweepGeometry(extent, itemRatio) {
 	return {
@@ -241,9 +253,8 @@ function createRotation(options = {}) {
 function createPulse(options = {}) {
 	const from = options.from ?? .5;
 	const to = options.to ?? 1;
-	const { from: _from, to: _to, onUpdate, ...animationOptions } = options;
-	const [value, setValue] = createSignal(from);
-	const controls = animateKeyframes([
+	const { from: _from, to: _to, reducedMotion, reducedValue = to, onUpdate, ...animationOptions } = options;
+	return createRepeatingAnimation([
 		from,
 		to,
 		from
@@ -252,16 +263,10 @@ function createPulse(options = {}) {
 		ease: "easeInOut",
 		repeat: Infinity,
 		...animationOptions,
-		onUpdate(next) {
-			setValue(next);
-			onUpdate?.(next);
-		}
+		reducedMotion,
+		reducedValue,
+		onUpdate
 	});
-	onCleanup(() => controls.stop());
-	return {
-		value,
-		controls
-	};
 }
 //#endregion
 //#region src/primitives/animation-frame.ts
@@ -1365,12 +1370,14 @@ function Pulse(props) {
 		autoplay: !motion.paused,
 		duration: motion.duration ?? 1,
 		from: motion.from,
-		to: motion.to
+		to: motion.to,
+		reducedMotion,
+		reducedValue: motion.to ?? 1
 	});
 	bindPlayback(pulse.controls, motion, reducedMotion);
 	const style = () => ({
 		...motion.style ?? {},
-		opacity: reducedMotion() ? motion.to ?? 1 : pulse.value()
+		opacity: pulse.value()
 	});
 	return createComponent$1(View, mergeProps(view, { get style() {
 		return style();
@@ -2144,4 +2151,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d$1 as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, normalizeSweepGeometry as dt, createHover as et, offset as f, MotionConfigProvider as ft, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createSweep as lt, size as m, useReducedMotion as mt, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, useMotionConfig as pt, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, createTransition as ut, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-oFEfPFnk.mjs.map
+//# sourceMappingURL=primitives-C2eplDTA.mjs.map

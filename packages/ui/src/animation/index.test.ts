@@ -65,6 +65,20 @@ describe("Solid animation primitives", () => {
       dispose();
     }));
 
+  test("does not resume a manually paused loop after reduced motion", () =>
+    createRoot((dispose) => {
+      const [reduced, setReduced] = createSignal(false);
+      const loop = createLoop({ reducedMotion: reduced });
+      flush();
+      loop.controls.pause();
+      setReduced(true);
+      flush();
+      setReduced(false);
+      flush();
+      expect(loop.controls.state).toBe("paused");
+      dispose();
+    }));
+
   test("normalizes unsafe sweep geometry", () => {
     expect(normalizeSweepGeometry(Number.NaN, 0)).toEqual({
       extent: 0,
@@ -82,6 +96,23 @@ describe("Solid animation primitives", () => {
       expect(pulse.value()).toBe(0.35);
       dispose();
       expect(pulse.controls.state).toBe("idle");
+    }));
+
+  test("never starts a pulse while motion is initially reduced", () =>
+    createRoot((dispose) => {
+      const [reduced, setReduced] = createSignal(true);
+      const pulse = createPulse({
+        from: 0.35,
+        to: 0.9,
+        reducedMotion: reduced,
+      });
+      flush();
+      expect(pulse.value()).toBe(0.9);
+      expect(pulse.controls.state).toBe("paused");
+      setReduced(false);
+      flush();
+      expect(pulse.controls.state).toBe("running");
+      dispose();
     }));
 
   test("transitions synchronously under reduced motion and can jump", () =>

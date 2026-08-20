@@ -269,15 +269,56 @@ export function createTransition(
   return { value, state, jump, stop };
 }
 
-export interface LoopOptions
-  extends Omit<AnimationOptions<number>, "onUpdate"> {
-  from?: number;
-  to?: number;
+interface RepeatingOptions extends Omit<AnimationOptions<number>, "onUpdate"> {
   /** Reactive policy which pauses the loop and publishes `reducedValue`. */
   reducedMotion?: MaybeAccessor<boolean>;
-  /** Stable value exposed while motion is reduced. Defaults to `from`. */
+  /** Stable value exposed while motion is reduced. */
   reducedValue?: number;
   onUpdate?: (value: number) => void;
+}
+
+export interface LoopOptions extends RepeatingOptions {
+  from?: number;
+  to?: number;
+}
+
+function createRepeatingAnimation(
+  keyframes: readonly [number, number, ...number[]],
+  options: RepeatingOptions & { reducedValue: number },
+): ReactiveAnimation<number> {
+  const { reducedMotion, reducedValue, onUpdate, ...animationOptions } =
+    options;
+  const authoredAutoplay = animationOptions.autoplay ?? true;
+  const initiallyReduced = untrack(() => read(reducedMotion, false));
+  const [value, setValue] = createSignal(
+    initiallyReduced ? reducedValue : keyframes[0],
+  );
+  const controls = animateKeyframes(keyframes, {
+    ...animationOptions,
+    autoplay: authoredAutoplay && !initiallyReduced,
+    onUpdate(next) {
+      setValue(next);
+      onUpdate?.(next);
+    },
+  });
+  let initialized = false;
+  let resumeAfterReduction = authoredAutoplay;
+  createEffect(
+    () => read(reducedMotion, false),
+    (reduced) => {
+      if (reduced) {
+        if (initialized) resumeAfterReduction = controls.state === "running";
+        controls.pause();
+        setValue(reducedValue);
+        onUpdate?.(reducedValue);
+      } else if (initialized && resumeAfterReduction) {
+        controls.play();
+      }
+      initialized = true;
+    },
+  );
+  onCleanup(() => controls.stop());
+  return { value, controls };
 }
 
 /**
@@ -298,37 +339,15 @@ export function createLoop(
     onUpdate,
     ...animationOptions
   } = options;
-  const initiallyReduced = untrack(() => read(reducedMotion, false));
-  const [value, setValue] = createSignal(
-    initiallyReduced ? reducedValue : from,
-  );
-  const controls = animate(from, to, {
+  return createRepeatingAnimation([from, to], {
     duration: 1,
     ease: "linear",
     repeat: Infinity,
     ...animationOptions,
-    autoplay: (animationOptions.autoplay ?? true) && !initiallyReduced,
-    onUpdate(next) {
-      setValue(next);
-      onUpdate?.(next);
-    },
+    reducedMotion,
+    reducedValue,
+    onUpdate,
   });
-  let initialized = false;
-  createEffect(
-    () => read(reducedMotion, false),
-    (reduced) => {
-      if (reduced) {
-        controls.pause();
-        setValue(reducedValue);
-        onUpdate?.(reducedValue);
-      } else if (initialized && animationOptions.autoplay !== false) {
-        controls.play();
-      }
-      initialized = true;
-    },
-  );
-  onCleanup(() => controls.stop());
-  return { value, controls };
 }
 
 export interface RotationOptions extends Omit<LoopOptions, "from" | "to"> {
@@ -417,11 +436,9 @@ export function createRotation(
   };
 }
 
-export interface PulseOptions
-  extends Omit<AnimationOptions<number>, "onUpdate"> {
+export interface PulseOptions extends RepeatingOptions {
   from?: number;
   to?: number;
-  onUpdate?: (value: number) => void;
 }
 
 /** Repeating from→to→from value animation with automatic cleanup. */
@@ -430,18 +447,21 @@ export function createPulse(
 ): ReactiveAnimation<number> {
   const from = options.from ?? 0.5;
   const to = options.to ?? 1;
-  const { from: _from, to: _to, onUpdate, ...animationOptions } = options;
-  const [value, setValue] = createSignal(from);
-  const controls = animateKeyframes([from, to, from], {
+  const {
+    from: _from,
+    to: _to,
+    reducedMotion,
+    reducedValue = to,
+    onUpdate,
+    ...animationOptions
+  } = options;
+  return createRepeatingAnimation([from, to, from], {
     duration: 1,
     ease: "easeInOut",
     repeat: Infinity,
     ...animationOptions,
-    onUpdate(next) {
-      setValue(next);
-      onUpdate?.(next);
-    },
+    reducedMotion,
+    reducedValue,
+    onUpdate,
   });
-  onCleanup(() => controls.stop());
-  return { value, controls };
 }

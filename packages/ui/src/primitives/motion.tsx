@@ -79,11 +79,13 @@ export function Pulse(props: PulseProps): JSX.Element {
     duration: motion.duration ?? 1,
     from: motion.from,
     to: motion.to,
+    reducedMotion,
+    reducedValue: motion.to ?? 1,
   });
   bindPlayback(pulse.controls, motion, reducedMotion);
   const style = (): WabouStyle => ({
     ...(motion.style ?? {}),
-    opacity: reducedMotion() ? (motion.to ?? 1) : pulse.value(),
+    opacity: pulse.value(),
   });
   return <View {...view} style={style()} />;
 }
