@@ -41,9 +41,7 @@ test("breadcrumb exposes explicit links and the current page", () => {
 
   screen.getByRole("link", { name: "Projects" }).click();
   expect(destination).toBe("projects");
-  expect(
-    screen.getByRole("link", { name: "Wabou" }).attribute("aria-current"),
-  ).toBe("page");
+  expect(screen.getByRole("link", { name: "Wabou" }).current).toBe("page");
 });
 
 test("managed pagination owns range generation and boundary controls", () => {
@@ -63,24 +61,18 @@ test("managed pagination owns range generation and boundary controls", () => {
     </Pagination>
   ));
 
-  expect(
-    screen.getByRole("link", { name: "Page 6" }).attribute("aria-current"),
-  ).toBe("page");
+  expect(screen.getByRole("link", { name: "Page 6" }).current).toBe("page");
   expect(screen.queryByRole("link", { name: "Page 2" })).toBeNull();
 
   screen.getByRole("button", { name: "Next results page" }).click();
   expect(changes).toEqual([7]);
-  expect(
-    screen.getByRole("link", { name: "Page 7" }).attribute("aria-current"),
-  ).toBe("page");
+  expect(screen.getByRole("link", { name: "Page 7" }).current).toBe("page");
 
   screen.getByRole("link", { name: "Page 12" }).click();
   expect(changes).toEqual([7, 12]);
   expect(
-    screen
-      .getByRole("button", { name: "Next results page" })
-      .attribute("disabled"),
-  ).toBe("true");
+    screen.getByRole("button", { name: "Next results page" }).disabled,
+  ).toBe(true);
 });
 
 test("managed pagination remains controlled when its owner does not update", () => {
@@ -94,9 +86,7 @@ test("managed pagination remains controlled when its owner does not update", () 
 
   screen.getByRole("button", { name: "Advance" }).click();
   expect(changes).toEqual([3]);
-  expect(
-    screen.getByRole("link", { name: "Page 2" }).attribute("aria-current"),
-  ).toBe("page");
+  expect(screen.getByRole("link", { name: "Page 2" }).current).toBe("page");
 });
 
 test("pagination composes controlled page navigation", () => {
@@ -137,12 +127,8 @@ test("pagination composes controlled page navigation", () => {
   };
   const screen = renderComponent(Pager);
 
-  expect(
-    screen.getByRole("link", { name: "Page 2" }).attribute("aria-current"),
-  ).toBe("page");
+  expect(screen.getByRole("link", { name: "Page 2" }).current).toBe("page");
   screen.getByRole("button", { name: "Next page" }).click();
   expect(screen.getByRole("status", { name: "Current page 3" }).text).toBe("3");
-  expect(
-    screen.getByRole("link", { name: "Page 3" }).attribute("aria-current"),
-  ).toBe("page");
+  expect(screen.getByRole("link", { name: "Page 3" }).current).toBe("page");
 });

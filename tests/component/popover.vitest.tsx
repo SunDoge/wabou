@@ -35,7 +35,7 @@ test("opens a styled dialog surface and dismisses with Escape", () => {
   expect(screen.getByRole("heading", { name: "Formatting" })).not.toBeNull();
   popover.press("Escape");
   expect(screen.queryByRole("dialog")).toBeNull();
-  expect(trigger.attribute("aria-expanded")).toBe("false");
+  expect(trigger.expanded).toBe(false);
 });
 
 test("supports application-owned open state", () => {

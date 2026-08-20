@@ -47,11 +47,11 @@ test("expands, selects, and skips disabled items through native focus routing", 
   ));
   const source = screen.getByRole("treeitem", { name: "Source" });
 
-  expect(source.attribute("aria-expanded")).toBe("false");
+  expect(source.expanded).toBe(false);
   source.focus();
   source.press("ArrowRight");
   expect(screen.queryByRole("treeitem", { name: "Components" })).not.toBeNull();
-  expect(source.attribute("aria-expanded")).toBe("true");
+  expect(source.expanded).toBe(true);
 
   source.press("ArrowRight");
   const components = screen.getByRole("treeitem", { name: "Components" });
@@ -63,7 +63,7 @@ test("expands, selects, and skips disabled items through native focus routing", 
   expect(screen.getByRole("treeitem", { name: "Tests" }).focused).toBe(true);
 
   runtime.click();
-  expect(runtime.attribute("aria-selected")).toBe("true");
+  expect(runtime.selected).toBe(true);
 });
 
 test("supports application-owned expansion and selection", () => {
@@ -85,7 +85,7 @@ test("supports application-owned expansion and selection", () => {
   const source = screen.getByRole("treeitem", { name: "Source" });
 
   source.click();
-  expect(source.attribute("aria-expanded")).toBe("true");
-  expect(source.attribute("aria-selected")).toBe("true");
+  expect(source.expanded).toBe(true);
+  expect(source.selected).toBe(true);
   expect(screen.getByRole("treeitem", { name: "Components" })).not.toBeNull();
 });

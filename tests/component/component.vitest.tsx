@@ -147,6 +147,12 @@ test("reads reactive semantic states without asserting raw protocol attributes",
         />
         <Button aria-label="Unavailable" disabled />
         <View role="tab" aria-label="General" aria-selected="true" />
+        <View role="link" aria-label="Overview" aria-current="page" />
+        <View
+          role="toolbar"
+          aria-label="Editing tools"
+          aria-orientation="vertical"
+        />
         <View role="group" aria-label="Details" aria-expanded="false" />
         <View role="button" aria-label="Bold" aria-pressed="mixed" />
         <View
@@ -170,6 +176,10 @@ test("reads reactive semantic states without asserting raw protocol attributes",
     true,
   );
   expect(screen.getByRole("tab", { name: "General" }).selected).toBe(true);
+  expect(screen.getByRole("link", { name: "Overview" }).current).toBe("page");
+  expect(
+    screen.getByRole("toolbar", { name: "Editing tools" }).orientation,
+  ).toBe("vertical");
   expect(screen.getByRole("group", { name: "Details" }).expanded).toBe(false);
   expect(screen.getByRole("button", { name: "Bold" }).pressed).toBe("mixed");
   const volume = screen.getByRole("slider", { name: "Volume" });

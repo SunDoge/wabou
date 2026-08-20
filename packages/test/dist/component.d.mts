@@ -31,6 +31,10 @@ interface ComponentLocator extends ComponentQueries {
   readonly expanded: boolean | null;
   /** Toggle-button state authored through `aria-pressed`. */
   readonly pressed: boolean | "mixed" | null;
+  /** Current item state authored through `aria-current`. */
+  readonly current: boolean | string | null;
+  /** Component axis authored through `aria-orientation`. */
+  readonly orientation: "horizontal" | "vertical" | null;
   /** Authored textual value, including an input's controlled display value. */
   readonly value: string | null;
   /** Numeric range state authored through `aria-valuenow`. */

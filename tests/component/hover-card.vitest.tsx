@@ -58,13 +58,13 @@ test("opens immediately for keyboard focus and closes with Escape", () => {
   const trigger = screen.getByRole("button", { name: "Wabou project" });
 
   trigger.focus();
-  expect(trigger.attribute("aria-expanded")).toBe("true");
+  expect(trigger.expanded).toBe(true);
   expect(
     screen.getByRole("dialog", { name: "Project preview" }),
   ).not.toBeNull();
 
   trigger.press("Escape");
-  expect(trigger.attribute("aria-expanded")).toBe("false");
+  expect(trigger.expanded).toBe(false);
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 

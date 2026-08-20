@@ -40,14 +40,14 @@ test("requires an explicit choice and closes after confirmation", () => {
 
   const trigger = screen.getByRole("button", { name: "Delete project" });
   trigger.click();
-  expect(trigger.attribute("aria-expanded")).toBe("true");
+  expect(trigger.expanded).toBe(true);
   const dialog = screen.getByRole("alertdialog", { name: "Delete project" });
   expect(dialog.transform).toEqual([0.98, 0, 0, 0.98, 0, 0]);
 
   screen.getByRole("button", { name: "Delete" }).click();
   expect(confirmations).toBe(1);
   expect(screen.queryByRole("alertdialog")).toBeNull();
-  expect(trigger.attribute("aria-expanded")).toBe("false");
+  expect(trigger.expanded).toBe(false);
 });
 
 test("cancel and Escape close without confirming", () => {

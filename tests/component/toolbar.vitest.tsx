@@ -27,7 +27,7 @@ test("moves one toolbar tab stop and skips disabled commands", () => {
   const share = toolbar.getByRole("button", { name: "Share" });
 
   expect(toolbar.getAllByRole("button")).toHaveLength(3);
-  expect(toolbar.attribute("aria-orientation")).toBe("horizontal");
+  expect(toolbar.orientation).toBe("horizontal");
   expect(undo.focusOrder).toBe(0);
   expect(share.focusOrder).toBe(-1);
   undo.focus();
@@ -49,9 +49,7 @@ test("uses vertical arrow keys without consuming cross-axis keys", () => {
   const down = screen.getByRole("button", { name: "Move down" });
 
   expect(
-    screen
-      .getByRole("toolbar", { name: "Arrange tools" })
-      .attribute("aria-orientation"),
+    screen.getByRole("toolbar", { name: "Arrange tools" }).orientation,
   ).toBe("vertical");
   up.focus();
   up.press("ArrowRight");
@@ -78,7 +76,7 @@ test("supports application-owned toolbar toggles", () => {
   const screen = renderComponent(Controlled);
   const bold = screen.getByRole("button", { name: "Bold" });
 
-  expect(bold.attribute("aria-pressed")).toBe("false");
+  expect(bold.pressed).toBe(false);
   bold.click();
-  expect(bold.attribute("aria-pressed")).toBe("true");
+  expect(bold.pressed).toBe(true);
 });

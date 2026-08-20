@@ -272,6 +272,19 @@ function renderComponent(render, options = {}) {
 		if (!Number.isFinite(number)) throw new Error(`${name} must be a finite number, received ${JSON.stringify(value)}`);
 		return number;
 	};
+	const currentState = (node) => {
+		const value = node.attributes.get("aria-current");
+		if (value === void 0) return null;
+		if (value === "true") return true;
+		if (value === "false") return false;
+		return value;
+	};
+	const orientationState = (node) => {
+		const value = node.attributes.get("aria-orientation");
+		if (value === void 0) return null;
+		if (value === "horizontal" || value === "vertical") return value;
+		throw new Error(`aria-orientation must be horizontal or vertical, received ${JSON.stringify(value)}`);
+	};
 	const all = () => {
 		const result = [];
 		const visit = (node) => {
@@ -407,6 +420,12 @@ function renderComponent(render, options = {}) {
 			},
 			get pressed() {
 				return toggleState(node, "aria-pressed");
+			},
+			get current() {
+				return currentState(node);
+			},
+			get orientation() {
+				return orientationState(node);
 			},
 			get value() {
 				return node.attributes.get("value") ?? null;

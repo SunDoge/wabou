@@ -63,9 +63,10 @@ been removed fails explicitly instead of inspecting a stale detached tree.
 `click()` and `press(key)` dispatch through Wabou's real JavaScript event path
 and flush Solid synchronously, so the next assertion observes the completed
 component update. Common semantic states are exposed directly as live
-locator properties (`disabled`, `checked`, `selected`, `expanded`, and
-`pressed`), so component tests assert the same contract consumed by native
-accessibility projection instead of stringly typed `aria-*` attributes:
+locator properties (`disabled`, `checked`, `selected`, `expanded`, `pressed`,
+`current`, and `orientation`), so component tests assert the same contract
+consumed by native accessibility projection instead of stringly typed
+`aria-*` attributes:
 
 ```ts
 const updates = screen.getByRole("checkbox", { name: "Updates" });

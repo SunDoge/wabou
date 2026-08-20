@@ -71,6 +71,10 @@ export interface ComponentLocator extends ComponentQueries {
   readonly expanded: boolean | null;
   /** Toggle-button state authored through `aria-pressed`. */
   readonly pressed: boolean | "mixed" | null;
+  /** Current item state authored through `aria-current`. */
+  readonly current: boolean | string | null;
+  /** Component axis authored through `aria-orientation`. */
+  readonly orientation: "horizontal" | "vertical" | null;
   /** Authored textual value, including an input's controlled display value. */
   readonly value: string | null;
   /** Numeric range state authored through `aria-valuenow`. */
@@ -482,6 +486,23 @@ export function renderComponent(
     }
     return number;
   };
+  const currentState = (node: AuthoredNode): boolean | string | null => {
+    const value = node.attributes.get("aria-current");
+    if (value === undefined) return null;
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return value;
+  };
+  const orientationState = (
+    node: AuthoredNode,
+  ): "horizontal" | "vertical" | null => {
+    const value = node.attributes.get("aria-orientation");
+    if (value === undefined) return null;
+    if (value === "horizontal" || value === "vertical") return value;
+    throw new Error(
+      `aria-orientation must be horizontal or vertical, received ${JSON.stringify(value)}`,
+    );
+  };
   const all = (): AuthoredNode[] => {
     const result: AuthoredNode[] = [];
     const visit = (node: AuthoredNode) => {
@@ -688,6 +709,12 @@ export function renderComponent(
       },
       get pressed() {
         return toggleState(node, "aria-pressed");
+      },
+      get current() {
+        return currentState(node);
+      },
+      get orientation() {
+        return orientationState(node);
       },
       get value() {
         return node.attributes.get("value") ?? null;
