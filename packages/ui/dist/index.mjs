@@ -2631,6 +2631,46 @@ function MenubarMenu(props) {
 	});
 }
 //#endregion
+//#region src/components/pagination-state.ts
+function integerAtLeast(value, minimum) {
+	return Math.max(minimum, Math.floor(Number.isFinite(value) ? value : minimum));
+}
+function normalizePageCount(count) {
+	return integerAtLeast(count, 1);
+}
+function clampPage(page, count) {
+	return Math.min(normalizePageCount(count), integerAtLeast(page, 1));
+}
+function range(start, end) {
+	return Array.from({ length: Math.max(0, end - start + 1) }, (_, index) => start + index);
+}
+/**
+* Produces a stable, 1-indexed page range with explicit start/end ellipses.
+* A single hidden page is shown directly instead of being replaced by an
+* ellipsis, which keeps every item actionable and avoids misleading gaps.
+*/
+function createPaginationRange(options) {
+	const count = normalizePageCount(options.count);
+	const page = clampPage(options.page, count);
+	const siblings = integerAtLeast(options.siblingCount ?? 1, 0);
+	const boundaries = integerAtLeast(options.boundaryCount ?? 1, 0);
+	if (count <= boundaries * 2 + siblings * 2 + 3) return range(1, count);
+	const left = Math.max(page - siblings, boundaries + 2);
+	const right = Math.min(page + siblings, count - boundaries - 1);
+	const start = range(1, boundaries);
+	const middle = range(left, right);
+	const end = range(count - boundaries + 1, count);
+	const before = left === boundaries + 2 ? [boundaries + 1] : ["ellipsis-start"];
+	const after = right === count - boundaries - 1 ? [count - boundaries] : ["ellipsis-end"];
+	return [
+		...start,
+		...before,
+		...middle,
+		...after,
+		...end
+	];
+}
+//#endregion
 //#region src/components/navigation.tsx
 function Breadcrumb(props) {
 	return createComponent$1(View, {
@@ -2695,17 +2735,50 @@ function BreadcrumbEllipsis(props) {
 		children: "..."
 	});
 }
+const PaginationContext = createContext({
+	managed: false,
+	count: () => 1,
+	page: () => 1,
+	disabled: () => false,
+	select: () => {}
+});
 function Pagination(props) {
-	return createComponent$1(View, {
+	const state = createControllableState({
+		value: () => props.page,
+		defaultValue: props.defaultPage ?? 1,
+		onChange: props.onPageChange
+	});
+	const count = () => normalizePageCount(props.count ?? 1);
+	const page = () => clampPage(state.value(), count());
+	const context = {
+		managed: true,
+		count,
+		page,
+		disabled: () => props.disabled ?? false,
+		select: (next) => {
+			if (props.count === void 0 || context.disabled()) return;
+			state.set(clampPage(next, count()));
+		}
+	};
+	const content = () => createComponent$1(View, {
 		role: "group",
 		get ["aria-label"]() {
 			return props["aria-label"] ?? "Pagination";
+		},
+		get ["aria-disabled"]() {
+			return context.disabled() || void 0;
 		},
 		get ["class"]() {
 			return join("flex items-center", props.class);
 		},
 		get children() {
 			return props.children;
+		}
+	});
+	return props.count === void 0 ? content() : createComponent(PaginationContext, {
+		value: context,
+		get children() {
+			return content();
 		}
 	});
 }
@@ -2720,34 +2793,94 @@ function PaginationItem(props) {
 	} }));
 }
 function PaginationLink(props) {
-	const forwarded = omit(props, "active");
+	const context = useContext(PaginationContext);
+	const forwarded = omit(props, "active", "page");
+	const active = () => props.active ?? (props.page !== void 0 && context.managed && context.page() === props.page);
 	return createComponent$1(Button, mergeProps(forwarded, {
 		role: "link",
 		size: "icon",
 		get variant() {
-			return props.active ? "outline" : "ghost";
+			return active() ? "outline" : "ghost";
 		},
 		get selected() {
-			return props.active;
+			return active();
 		},
 		get ["aria-current"]() {
-			return props.active ? "page" : void 0;
+			return active() ? "page" : void 0;
+		},
+		get ["aria-label"]() {
+			return props["aria-label"] ?? (props.page === void 0 ? void 0 : `Page ${props.page}`);
+		},
+		get disabled() {
+			return props.disabled ?? (context.managed && context.disabled());
+		},
+		onClick: (event) => {
+			props.onClick?.(event);
+			if (!event.defaultPrevented && props.page !== void 0) context.select(props.page);
 		}
 	}));
 }
+function PaginationEllipsis(props) {
+	return createComponent$1(Text, {
+		"aria-hidden": true,
+		get ["class"]() {
+			return join("w-8 text-center text-muted", props.class);
+		},
+		children: "..."
+	});
+}
+function PaginationItems(props) {
+	const context = useContext(PaginationContext);
+	if (!context.managed) throw new Error("PaginationItems must be used inside a managed Pagination");
+	const items = () => createPaginationRange({
+		count: context.count(),
+		page: context.page(),
+		siblingCount: props.siblingCount,
+		boundaryCount: props.boundaryCount
+	});
+	return createComponent$1(For, {
+		get each() {
+			return items();
+		},
+		children: (item) => typeof item === "number" ? props.renderItem?.(item) ?? createComponent$1(PaginationItem, { get children() {
+			return createComponent$1(PaginationLink, {
+				page: item,
+				get children() {
+					return String(item);
+				}
+			});
+		} }) : props.renderEllipsis?.(item === "ellipsis-start" ? "start" : "end") ?? createComponent$1(PaginationEllipsis, {})
+	});
+}
 function PaginationPrevious(props) {
+	const context = useContext(PaginationContext);
 	return createComponent$1(Button, mergeProps(props, {
 		variant: "ghost",
 		size: "sm",
+		get disabled() {
+			return props.disabled ?? (context.managed ? context.disabled() || context.page() <= 1 : false);
+		},
+		onClick: (event) => {
+			props.onClick?.(event);
+			if (!event.defaultPrevented && context.managed) context.select(context.page() - 1);
+		},
 		get children() {
 			return props.children ?? "Previous";
 		}
 	}));
 }
 function PaginationNext(props) {
+	const context = useContext(PaginationContext);
 	return createComponent$1(Button, mergeProps(props, {
 		variant: "ghost",
 		size: "sm",
+		get disabled() {
+			return props.disabled ?? (context.managed ? context.disabled() || context.page() >= context.count() : false);
+		},
+		onClick: (event) => {
+			props.onClick?.(event);
+			if (!event.defaultPrevented && context.managed) context.select(context.page() + 1);
+		},
 		get children() {
 			return props.children ?? "Next";
 		}
@@ -5452,6 +5585,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizeProgressValue, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, clampPage, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizePageCount, normalizeProgressValue, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

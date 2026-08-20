@@ -9,6 +9,7 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
+  PaginationItems,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
@@ -42,6 +43,59 @@ test("breadcrumb exposes explicit links and the current page", () => {
   expect(destination).toBe("projects");
   expect(
     screen.getByRole("link", { name: "Wabou" }).attribute("aria-current"),
+  ).toBe("page");
+});
+
+test("managed pagination owns range generation and boundary controls", () => {
+  const changes: number[] = [];
+  const screen = renderComponent(() => (
+    <Pagination
+      count={12}
+      defaultPage={6}
+      aria-label="Results pages"
+      onPageChange={(page) => changes.push(page)}
+    >
+      <PaginationContent>
+        <PaginationPrevious aria-label="Previous results page" />
+        <PaginationItems />
+        <PaginationNext aria-label="Next results page" />
+      </PaginationContent>
+    </Pagination>
+  ));
+
+  expect(
+    screen.getByRole("link", { name: "Page 6" }).attribute("aria-current"),
+  ).toBe("page");
+  expect(screen.queryByRole("link", { name: "Page 2" })).toBeNull();
+
+  screen.getByRole("button", { name: "Next results page" }).click();
+  expect(changes).toEqual([7]);
+  expect(
+    screen.getByRole("link", { name: "Page 7" }).attribute("aria-current"),
+  ).toBe("page");
+
+  screen.getByRole("link", { name: "Page 12" }).click();
+  expect(changes).toEqual([7, 12]);
+  expect(
+    screen
+      .getByRole("button", { name: "Next results page" })
+      .attribute("disabled"),
+  ).toBe("true");
+});
+
+test("managed pagination remains controlled when its owner does not update", () => {
+  const changes: number[] = [];
+  const screen = renderComponent(() => (
+    <Pagination count={4} page={2} onPageChange={(page) => changes.push(page)}>
+      <PaginationNext aria-label="Advance" />
+      <PaginationItems />
+    </Pagination>
+  ));
+
+  screen.getByRole("button", { name: "Advance" }).click();
+  expect(changes).toEqual([3]);
+  expect(
+    screen.getByRole("link", { name: "Page 2" }).attribute("aria-current"),
   ).toBe("page");
 });
 

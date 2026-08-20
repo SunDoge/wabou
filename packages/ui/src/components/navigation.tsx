@@ -1,4 +1,11 @@
-import { type JSX, omit } from "solid-js";
+import {
+  createComponent,
+  createContext,
+  For,
+  type JSX,
+  omit,
+  useContext,
+} from "solid-js";
 import {
   Button as HeadlessButton,
   Text,
@@ -7,6 +14,19 @@ import {
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
 import { join } from "./class-names";
+import {
+  clampPage,
+  createPaginationRange,
+  normalizePageCount,
+} from "./pagination-state";
+import { createControllableState } from "../primitives/interactions";
+
+export {
+  clampPage,
+  createPaginationRange,
+  normalizePageCount,
+  type PaginationRangeItem,
+} from "./pagination-state";
 
 export function Breadcrumb(props: {
   children?: JSX.Element;
@@ -102,20 +122,72 @@ export function BreadcrumbEllipsis(props: { class?: string }): JSX.Element {
   );
 }
 
-export function Pagination(props: {
+interface PaginationContextValue {
+  managed: boolean;
+  count(): number;
+  page(): number;
+  disabled(): boolean;
+  select(page: number): void;
+}
+
+// A real sentinel keeps the legacy composition-only controls usable outside
+// managed pagination. Solid 2 treats `undefined` as no context default.
+const PaginationContext = createContext<PaginationContextValue>({
+  managed: false,
+  count: () => 1,
+  page: () => 1,
+  disabled: () => false,
+  select: () => {},
+});
+
+export interface PaginationProps {
   children?: JSX.Element;
   class?: string;
   "aria-label"?: string;
-}): JSX.Element {
-  return (
+  /** Enables managed pagination. Omit it to retain the composition-only API. */
+  count?: number;
+  page?: number;
+  defaultPage?: number;
+  disabled?: boolean;
+  onPageChange?: (page: number) => void;
+}
+
+export function Pagination(props: PaginationProps): JSX.Element {
+  const state = createControllableState({
+    value: () => props.page,
+    defaultValue: props.defaultPage ?? 1,
+    onChange: props.onPageChange,
+  });
+  const count = () => normalizePageCount(props.count ?? 1);
+  const page = () => clampPage(state.value(), count());
+  const context: PaginationContextValue = {
+    managed: true,
+    count,
+    page,
+    disabled: () => props.disabled ?? false,
+    select: (next) => {
+      if (props.count === undefined || context.disabled()) return;
+      state.set(clampPage(next, count()));
+    },
+  };
+  const content = () => (
     <View
       role="group"
       aria-label={props["aria-label"] ?? "Pagination"}
+      aria-disabled={context.disabled() || undefined}
       class={join("flex items-center", props.class)}
     >
       {props.children}
     </View>
   );
+  return props.count === undefined
+    ? content()
+    : createComponent(PaginationContext, {
+        value: context,
+        get children() {
+          return content();
+        },
+      });
 }
 
 export function PaginationContent(props: ViewProps): JSX.Element {
@@ -131,27 +203,100 @@ export function PaginationItem(props: ViewProps): JSX.Element {
 export interface PaginationLinkProps
   extends Omit<ButtonProps, "variant" | "size"> {
   active?: boolean;
+  /** Selects this page when used inside a managed Pagination. */
+  page?: number;
 }
 
 export function PaginationLink(props: PaginationLinkProps): JSX.Element {
-  const forwarded = omit(props, "active");
+  const context = useContext(PaginationContext);
+  const forwarded = omit(props, "active", "page");
+  const active = () =>
+    props.active ??
+    (props.page !== undefined &&
+      context.managed &&
+      context.page() === props.page);
   return (
     <Button
       {...forwarded}
       role="link"
       size="icon"
-      variant={props.active ? "outline" : "ghost"}
-      selected={props.active}
-      aria-current={props.active ? "page" : undefined}
+      variant={active() ? "outline" : "ghost"}
+      selected={active()}
+      aria-current={active() ? "page" : undefined}
+      aria-label={
+        props["aria-label"] ??
+        (props.page === undefined ? undefined : `Page ${props.page}`)
+      }
+      disabled={props.disabled ?? (context.managed && context.disabled())}
+      onClick={(event) => {
+        props.onClick?.(event);
+        if (!event.defaultPrevented && props.page !== undefined)
+          context.select(props.page);
+      }}
     />
+  );
+}
+
+export function PaginationEllipsis(props: { class?: string }): JSX.Element {
+  return (
+    <Text aria-hidden class={join("w-8 text-center text-muted", props.class)}>
+      ...
+    </Text>
+  );
+}
+
+export function PaginationItems(props: {
+  siblingCount?: number;
+  boundaryCount?: number;
+  renderItem?: (page: number) => JSX.Element;
+  renderEllipsis?: (side: "start" | "end") => JSX.Element;
+}): JSX.Element {
+  const context = useContext(PaginationContext);
+  if (!context.managed)
+    throw new Error("PaginationItems must be used inside a managed Pagination");
+  const items = () =>
+    createPaginationRange({
+      count: context.count(),
+      page: context.page(),
+      siblingCount: props.siblingCount,
+      boundaryCount: props.boundaryCount,
+    });
+  return (
+    <For each={items()}>
+      {(item) =>
+        typeof item === "number"
+          ? (props.renderItem?.(item) ?? (
+              <PaginationItem>
+                <PaginationLink page={item}>{String(item)}</PaginationLink>
+              </PaginationItem>
+            ))
+          : (props.renderEllipsis?.(
+              item === "ellipsis-start" ? "start" : "end",
+            ) ?? <PaginationEllipsis />)
+      }
+    </For>
   );
 }
 
 export function PaginationPrevious(
   props: Omit<ButtonProps, "variant" | "size">,
 ): JSX.Element {
+  const context = useContext(PaginationContext);
   return (
-    <Button {...props} variant="ghost" size="sm">
+    <Button
+      {...props}
+      variant="ghost"
+      size="sm"
+      disabled={
+        props.disabled ??
+        (context.managed ? context.disabled() || context.page() <= 1 : false)
+      }
+      onClick={(event) => {
+        props.onClick?.(event);
+        if (!event.defaultPrevented && context.managed)
+          context.select(context.page() - 1);
+      }}
+    >
       {props.children ?? "Previous"}
     </Button>
   );
@@ -160,8 +305,24 @@ export function PaginationPrevious(
 export function PaginationNext(
   props: Omit<ButtonProps, "variant" | "size">,
 ): JSX.Element {
+  const context = useContext(PaginationContext);
   return (
-    <Button {...props} variant="ghost" size="sm">
+    <Button
+      {...props}
+      variant="ghost"
+      size="sm"
+      disabled={
+        props.disabled ??
+        (context.managed
+          ? context.disabled() || context.page() >= context.count()
+          : false)
+      }
+      onClick={(event) => {
+        props.onClick?.(event);
+        if (!event.defaultPrevented && context.managed)
+          context.select(context.page() + 1);
+      }}
+    >
       {props.children ?? "Next"}
     </Button>
   );

@@ -42,6 +42,21 @@ Current components include Button, Toggle, Checkbox, RadioGroup, Switch, Tabs,
 Badge, Card, Alert, Input, TextArea, DirectoryPicker, Progress, Skeleton,
 Spinner, Kbd, FPS, and Separator. Run the gallery while developing:
 
+`Pagination` supports both a legacy composition-only surface and managed,
+1-indexed state. Supplying `count` enables automatic boundary/sibling ranges;
+`PaginationItems`, `PaginationPrevious`, and `PaginationNext` then consume the
+shared state without requiring application-side range or clamping logic:
+
+```tsx
+<Pagination count={24} page={page()} onPageChange={setPage}>
+  <PaginationContent>
+    <PaginationPrevious />
+    <PaginationItems />
+    <PaginationNext />
+  </PaginationContent>
+</Pagination>
+```
+
 `TabsList` and `TabsTrigger` accept `unstyled` when an application needs a
 card, sidebar, or other custom tab presentation. The components retain native
 tab semantics, selection and roving keyboard focus; the caller owns layout,

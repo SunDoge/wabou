@@ -61,6 +61,7 @@ import {
   Pagination,
   PaginationContent,
   PaginationItem,
+  PaginationItems,
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
@@ -427,34 +428,23 @@ export function PaginationPage() {
   return (
     <Preview title="Controlled page navigation">
       <View class="flex flex-col gap-4">
-        <Pagination aria-label={`Page ${page()}`}>
+        <Pagination
+          count={24}
+          page={page()}
+          onPageChange={setPage}
+          aria-label="Results pages"
+        >
           <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                disabled={page() === 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-              />
-            </PaginationItem>
-            {[1, 2, 3, 4, 5].map((value) => (
-              <PaginationItem>
-                <PaginationLink
-                  aria-label={`Page ${value}`}
-                  active={page() === value}
-                  onClick={() => setPage(value)}
-                >
-                  {String(value)}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
-            <PaginationItem>
-              <PaginationNext
-                disabled={page() === 5}
-                onClick={() => setPage((value) => Math.min(5, value + 1))}
-              />
-            </PaginationItem>
+            <PaginationPrevious aria-label="Previous page" />
+            <PaginationItems />
+            <PaginationNext aria-label="Next page" />
           </PaginationContent>
         </Pagination>
-        <Text role="status" class="text-sm text-secondary">
+        <Text
+          role="status"
+          aria-label="Selected pagination page"
+          class="text-sm text-secondary"
+        >
           {`Selected page ${page()}`}
         </Text>
       </View>
