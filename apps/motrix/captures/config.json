@@ -12,7 +12,8 @@
     },
     "download-task-row.ts": {
       "width": 900,
-      "height": 600
+      "height": 600,
+      "scaleFactor": 2
     },
     "notifications.ts": {
       "width": 900,

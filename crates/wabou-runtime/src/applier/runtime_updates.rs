@@ -35,6 +35,10 @@ impl Applier {
         &mut self,
         metrics: wabou_shell::WindowMetrics,
     ) -> EventResponse {
+        // WindowMetrics is the authoritative cross-backend scale transition.
+        // Native shells also set it before each build, but deterministic and
+        // embedded hosts may only deliver this event.
+        self.frame.device_scale = metrics.scale_factor.max(f64::EPSILON);
         let payload = serde_json::json!({
             "windowId": metrics.window_key,
             "logicalWidth": metrics.logical_width,

@@ -6,6 +6,8 @@ import {
   captureCommand,
   discoverCaptureCases,
   parseCaptureArguments,
+  pngDimensions,
+  selectCaptureCases,
   textContainmentDiagnostics,
   validateCaptureArtifacts,
   validateCaptureSnapshot,
@@ -33,6 +35,16 @@ async function fixture(): Promise<string> {
   return root;
 }
 
+function pngHeader(width: number, height: number): Uint8Array {
+  const bytes = new Uint8Array(24);
+  bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
+  bytes.set([0, 0, 0, 13, 73, 72, 68, 82], 8);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(16, width, false);
+  view.setUint32(20, height, false);
+  return bytes;
+}
+
 describe("authored capture discovery", () => {
   test("parses exact repeatable scenario selection", () => {
     expect(
@@ -56,6 +68,18 @@ describe("authored capture discovery", () => {
     expect(() => parseCaptureArguments(["--list", "--check-existing"])).toThrow(
       "cannot be combined",
     );
+  });
+
+  test("selects all captures when no scenario filter is supplied", async () => {
+    const root = await fixture();
+    const captures = await discoverCaptureCases(root);
+    expect(selectCaptureCases(captures, [])).toBe(captures);
+    expect(
+      selectCaptureCases(captures, ["apps/demo/captures/wide.ts"]),
+    ).toEqual([captures[1]]);
+    expect(() =>
+      selectCaptureCases(captures, ["apps/demo/captures/missing.ts"]),
+    ).toThrow("missing.ts");
   });
 
   test("applies app defaults and per-scenario viewport overrides", async () => {
@@ -241,7 +265,13 @@ describe("authored capture discovery", () => {
     await mkdir(join(root, "target", "wabou-captures", "demo", "nested"), {
       recursive: true,
     });
-    await writeFile(join(root, capture.output), "png");
+    await writeFile(
+      join(root, capture.output),
+      pngHeader(
+        Math.round(capture.width * capture.scaleFactor),
+        Math.round(capture.height * capture.scaleFactor),
+      ),
+    );
     await writeFile(
       join(root, capture.snapshot),
       JSON.stringify({
@@ -273,5 +303,14 @@ describe("authored capture discovery", () => {
     await expect(
       validateCaptureArtifacts(capture, root),
     ).resolves.toBeUndefined();
+  });
+
+  test("reads physical PNG dimensions from the mandatory IHDR chunk", () => {
+    expect(pngDimensions(pngHeader(1800, 1200))).toEqual({
+      width: 1800,
+      height: 1200,
+    });
+    expect(() => pngDimensions(new Uint8Array(24))).toThrow("IHDR");
+    expect(() => pngDimensions(pngHeader(0, 1200))).toThrow("zero");
   });
 });

@@ -162,7 +162,8 @@ Run `bun run verify:captures` at the workspace root to discover every capture,
 render it with the real application host, and write frame-matched `.png` and
 `.json` artifacts below `target/wabou-captures/<app>/`. The verifier checks that
 each retained tree has the requested viewport and scale, a consistent node
-count, finite layout geometry, and no text escaping a chain of visible-overflow
+count, finite layout geometry, a PNG whose physical dimensions match the
+logical viewport multiplied by device scale, and no text escaping a chain of visible-overflow
 ancestors. The latter stops at explicit clip or scroll boundaries and can be
 disabled for an intentional visual-overflow case with
 `checkTextContainment: false`. An optional `captures/config.json` supplies an

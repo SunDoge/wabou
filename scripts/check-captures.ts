@@ -30,6 +30,11 @@ interface SnapshotRect {
   height: number;
 }
 
+export interface PngDimensions {
+  width: number;
+  height: number;
+}
+
 interface SnapshotNodeKey {
   lo: number;
   hi: number;
@@ -491,6 +496,26 @@ export async function validateCaptureArtifacts(
       `capture did not produce ${relative(workspaceRoot, output)}`,
     );
   }
+  const dimensions = pngDimensions(
+    new Uint8Array(await readFile(output)),
+    capture.output,
+  );
+  const expectedWidth = Math.max(
+    1,
+    Math.round(capture.width * capture.scaleFactor),
+  );
+  const expectedHeight = Math.max(
+    1,
+    Math.round(capture.height * capture.scaleFactor),
+  );
+  if (
+    dimensions.width !== expectedWidth ||
+    dimensions.height !== expectedHeight
+  ) {
+    throw new Error(
+      `${capture.output} physical size ${dimensions.width}x${dimensions.height} does not match logical ${capture.width}x${capture.height} at ${capture.scaleFactor}x (${expectedWidth}x${expectedHeight})`,
+    );
+  }
   const snapshot = resolve(workspaceRoot, capture.snapshot);
   if (!(await Bun.file(snapshot).exists()) || Bun.file(snapshot).size === 0) {
     throw new Error(
@@ -509,6 +534,27 @@ export async function validateCaptureArtifacts(
       );
     }
   }
+}
+
+export function pngDimensions(bytes: Uint8Array, name = "PNG"): PngDimensions {
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10];
+  if (
+    bytes.length < 24 ||
+    signature.some((byte, index) => bytes[index] !== byte) ||
+    bytes[12] !== 73 ||
+    bytes[13] !== 72 ||
+    bytes[14] !== 68 ||
+    bytes[15] !== 82
+  ) {
+    throw new Error(`${name} is not a PNG with an IHDR header`);
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16, false);
+  const height = view.getUint32(20, false);
+  if (width === 0 || height === 0) {
+    throw new Error(`${name} has invalid zero dimensions`);
+  }
+  return { width, height };
 }
 
 function relativeScenarioPath(scenario: string): string {
@@ -549,6 +595,26 @@ export function parseCaptureArguments(arguments_: string[]): CaptureArguments {
   return parsed;
 }
 
+export function selectCaptureCases(
+  discovered: CaptureCase[],
+  scenarios: string[],
+): CaptureCase[] {
+  if (scenarios.length === 0) return discovered;
+  const selected = new Set(scenarios);
+  const captures = discovered.filter((capture) =>
+    selected.has(capture.scenario),
+  );
+  if (captures.length !== selected.size) {
+    const missing = [...selected].filter(
+      (scenario) => !captures.some((capture) => capture.scenario === scenario),
+    );
+    throw new Error(
+      `unknown capture scenario${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`,
+    );
+  }
+  return captures;
+}
+
 async function main(): Promise<void> {
   const arguments_ = parseCaptureArguments(process.argv.slice(2));
   const discovered = await discoverCaptureCases();
@@ -559,19 +625,7 @@ async function main(): Promise<void> {
     console.log(JSON.stringify(discovered, null, 2));
     return;
   }
-  const selected = new Set(arguments_.scenarios);
-  const captures =
-    selected.size === 0
-      ? discovered
-      : discovered.filter((capture) => selected.has(capture.scenario));
-  if (captures.length !== selected.size) {
-    const missing = [...selected].filter(
-      (scenario) => !captures.some((capture) => capture.scenario === scenario),
-    );
-    throw new Error(
-      `unknown capture scenario${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}`,
-    );
-  }
+  const captures = selectCaptureCases(discovered, arguments_.scenarios);
 
   const checkExisting = arguments_.checkExisting;
   const builtApplications = new Set<string>();

@@ -152,6 +152,7 @@ fn window_metrics_reach_js_without_waiting_for_a_resize_frame() {
         color_scheme: Some(wabou_shell::ColorScheme::Dark),
     }));
     assert!(response.request_redraw);
+    assert_eq!(applier.frame.device_scale, 2.0);
     let payload = applier
         .runtime
         .js
