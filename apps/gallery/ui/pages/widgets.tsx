@@ -6,6 +6,13 @@ import {
   Avatar,
   AvatarGroup,
   AvatarGroupCount,
+  Breadcrumb,
+  BreadcrumbEllipsis,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
   Button,
   ButtonGroup,
   ButtonGroupText,
@@ -37,8 +44,15 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
   Select,
   Text,
+  Tooltip,
   View,
 } from "@wabou/ui";
 import rocket from "lucide-static/icons/rocket.svg?raw";
@@ -76,6 +90,111 @@ export function DialogPage() {
           </>
         )}
       </Dialog>
+    </Preview>
+  );
+}
+
+export function TooltipPage() {
+  return (
+    <Preview title="Pointer and keyboard hints">
+      <View class="flex items-center gap-3">
+        <Tooltip
+          trigger={(trigger) => (
+            <Button variant="outline" {...trigger}>
+              Hover or focus
+            </Button>
+          )}
+        >
+          Opens after a short pointer delay and immediately on keyboard focus.
+        </Tooltip>
+        <Tooltip
+          placement="bottom"
+          openDelay={0}
+          trigger={(trigger) => (
+            <Button variant="ghost" {...trigger}>
+              Immediate hint
+            </Button>
+          )}
+        >
+          Placement is resolved from the completed native layout.
+        </Tooltip>
+      </View>
+    </Preview>
+  );
+}
+
+export function BreadcrumbPageDemo() {
+  const [destination, setDestination] = createSignal("Current page");
+  return (
+    <Preview title="Application-owned navigation">
+      <View class="flex flex-col gap-4">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink onClick={() => setDestination("Workspace")}>
+                Workspace
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbEllipsis />
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink onClick={() => setDestination("Components")}>
+                Components
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>Breadcrumb</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+        <Text role="status" class="text-sm text-secondary">
+          {destination()}
+        </Text>
+      </View>
+    </Preview>
+  );
+}
+
+export function PaginationPage() {
+  const [page, setPage] = createSignal(2);
+  return (
+    <Preview title="Controlled page navigation">
+      <View class="flex flex-col gap-4">
+        <Pagination aria-label={`Page ${page()}`}>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                disabled={page() === 1}
+                onClick={() => setPage((value) => Math.max(1, value - 1))}
+              />
+            </PaginationItem>
+            {[1, 2, 3, 4, 5].map((value) => (
+              <PaginationItem>
+                <PaginationLink
+                  aria-label={`Page ${value}`}
+                  active={page() === value}
+                  onClick={() => setPage(value)}
+                >
+                  {String(value)}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                disabled={page() === 5}
+                onClick={() => setPage((value) => Math.min(5, value + 1))}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+        <Text role="status" class="text-sm text-secondary">
+          {`Selected page ${page()}`}
+        </Text>
+      </View>
     </Preview>
   );
 }

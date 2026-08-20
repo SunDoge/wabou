@@ -31,7 +31,7 @@ export interface PopoverTriggerProps {
     preventDefault(): void;
     stopPropagation(): void;
   }) => void;
-  "aria-haspopup": "dialog" | "listbox" | "menu" | "tree" | "grid";
+  "aria-haspopup"?: "dialog" | "listbox" | "menu" | "tree" | "grid";
   "aria-expanded": boolean;
 }
 
@@ -66,7 +66,7 @@ export type PopoverProps = PopoverBaseProps &
     | {
         /** Flatten the positioned shell when its child owns popup semantics. */
         contentRole: "presentation";
-        popupRole: "listbox" | "menu" | "tree" | "grid";
+        popupRole: "listbox" | "menu" | "tree" | "grid" | "tooltip";
         "aria-label"?: never;
       }
   );
@@ -169,22 +169,41 @@ export function Popover(props: PopoverProps): JSX.Element {
     stopPropagation(): void;
   }) => layer.onEscape(event);
 
+  const popup = ():
+    | "dialog"
+    | "listbox"
+    | "menu"
+    | "tree"
+    | "grid"
+    | undefined => {
+    if (props.contentRole !== "presentation") return "dialog";
+    return props.popupRole === "tooltip" ? undefined : props.popupRole;
+  };
+  const triggerProps: PopoverTriggerProps = {
+    ref: (node) => {
+      anchor = node;
+      if (open()) observe(node);
+    },
+    onClick: (event) => {
+      event.stopPropagation();
+      setOpen(!open(), "trigger");
+    },
+    onKeyDown: handleEscape,
+    get "aria-haspopup"() {
+      return popup();
+    },
+    get "aria-expanded"() {
+      return open();
+    },
+  };
+  // Render functions create component ownership. Invoke the trigger once and
+  // expose reactive attributes through getters instead of recreating its
+  // subtree whenever the overlay opens or closes.
+  const trigger = props.trigger(triggerProps);
+
   return (
     <>
-      {props.trigger({
-        ref: (node) => {
-          anchor = node;
-          if (open()) observe(node);
-        },
-        onClick: (event) => {
-          event.stopPropagation();
-          setOpen(!open(), "trigger");
-        },
-        onKeyDown: handleEscape,
-        "aria-haspopup":
-          props.contentRole === "presentation" ? props.popupRole : "dialog",
-        "aria-expanded": open(),
-      })}
+      {trigger}
       <Show when={open()}>
         <Portal
           plane={plane()}

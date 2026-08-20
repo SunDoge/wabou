@@ -61,6 +61,8 @@ semantic_roles! {
     Alert => "alert",
     /// Non-assertive status message.
     Status => "status",
+    /// Supplemental label shown for a hovered or focused control.
+    Tooltip => "tooltip",
     /// Boolean checkbox.
     CheckBox => "checkbox",
     /// Mutually exclusive radio item.

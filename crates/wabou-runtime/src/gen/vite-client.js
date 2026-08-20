@@ -99,7 +99,7 @@ wabouGlobal.__wabou_hmr_clear_records = () => {
   records.clear();
 };
 export {
-  updateStyle,
+  createHotContext,
   removeStyle,
-  createHotContext
+  updateStyle
 };

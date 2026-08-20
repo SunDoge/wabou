@@ -112,7 +112,8 @@ export type WabouSemanticRole =
   | "table"
   | "textbox"
   | "tree"
-  | "treeitem";
+  | "treeitem"
+  | "tooltip";
 
 /** Roles that remain addressable after semantic-tree projection. */
 export type WabouExposedSemanticRole = Exclude<

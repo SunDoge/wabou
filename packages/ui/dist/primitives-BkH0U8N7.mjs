@@ -3,7 +3,7 @@ import { PathBuilder } from "@wabou/core";
 import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d } from "@wabou/core/style";
 import { animateValue } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
-import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, ref, spread, useHost as useHost$1 } from "@wabou/core/renderer";
+import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 import { formatNodeKey } from "@wabou/core/protocol";
@@ -379,6 +379,8 @@ function createButton(options = {}) {
 * applications do not need CSS pseudo-class support to get a responsive button.
 */
 function Button(props) {
+	const forwardedRef = untrack(() => props.ref);
+	const refProps = forwardedRef ? { ref: forwardedRef } : {};
 	const disabled = () => props.disabled ?? false;
 	const primitive = createButton({
 		disabled,
@@ -427,11 +429,7 @@ function Button(props) {
 		return accent();
 	};
 	var _el$ = createElement("button");
-	var _ref$ = props.ref;
-	typeof _ref$ === "function" || Array.isArray(_ref$) ? ref(() => {
-		return _ref$;
-	}, _el$) : props.ref = _el$;
-	spread(_el$, mergeProps({
+	spread(_el$, mergeProps(refProps, {
 		get disabled() {
 			return disabled();
 		},
@@ -483,9 +481,68 @@ function Button(props) {
 				...defaultStyle(),
 				...customStyle()
 			};
+		},
+		onPointerEnter: (event) => {
+			primitive.bindings.onPointerEnter();
+			props.onPointerEnter?.(event);
+		},
+		onPointerLeave: (event) => {
+			primitive.bindings.onPointerLeave();
+			props.onPointerLeave?.(event);
+		},
+		onPointerDown: (event) => {
+			primitive.bindings.onPointerDown();
+			props.onPointerDown?.(event);
+		},
+		onPointerUp: (event) => {
+			primitive.bindings.onPointerUp();
+			props.onPointerUp?.(event);
+		},
+		onPointerCancel: (event) => {
+			primitive.bindings.onPointerCancel();
+			props.onPointerCancel?.(event);
+		},
+		get onPointerMove() {
+			return props.onPointerMove;
+		},
+		get onPointerOver() {
+			return props.onPointerOver;
+		},
+		get onPointerOut() {
+			return props.onPointerOut;
+		},
+		onFocus: (event) => {
+			primitive.bindings.onFocus();
+			props.onFocus?.(event);
+		},
+		onBlur: (event) => {
+			primitive.bindings.onBlur();
+			props.onBlur?.(event);
+		},
+		get onFocusIn() {
+			return props.onFocusIn;
+		},
+		get onFocusOut() {
+			return props.onFocusOut;
+		},
+		get onClick() {
+			return primitive.bindings.onClick;
+		},
+		get onContextMenu() {
+			return props.onContextMenu;
+		},
+		get onDblClick() {
+			return props.onDblClick;
+		},
+		get onKeyDown() {
+			return primitive.bindings.onKeyDown;
+		},
+		get onKeyUp() {
+			return props.onKeyUp;
+		},
+		get onWheel() {
+			return props.onWheel;
 		}
-	}, () => {
-		return primitive.bindings;
 	}), true);
 	insert(_el$, () => {
 		return props.children;
@@ -1553,21 +1610,28 @@ function Popover(props) {
 		observer?.disconnect();
 	});
 	const handleEscape = (event) => layer.onEscape(event);
-	return [memo(() => {
-		return props.trigger({
-			ref: (node) => {
-				anchor = node;
-				if (open()) observe(node);
-			},
-			onClick: (event) => {
-				event.stopPropagation();
-				setOpen(!open(), "trigger");
-			},
-			onKeyDown: handleEscape,
-			"aria-haspopup": props.contentRole === "presentation" ? props.popupRole : "dialog",
-			"aria-expanded": open()
-		});
-	}), createComponent$1(Show, {
+	const popup = () => {
+		if (props.contentRole !== "presentation") return "dialog";
+		return props.popupRole === "tooltip" ? void 0 : props.popupRole;
+	};
+	const triggerProps = {
+		ref: (node) => {
+			anchor = node;
+			if (open()) observe(node);
+		},
+		onClick: (event) => {
+			event.stopPropagation();
+			setOpen(!open(), "trigger");
+		},
+		onKeyDown: handleEscape,
+		get "aria-haspopup"() {
+			return popup();
+		},
+		get "aria-expanded"() {
+			return open();
+		}
+	};
+	return [props.trigger(triggerProps), createComponent$1(Show, {
 		get when() {
 			return open();
 		},
@@ -1949,4 +2013,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createTransition as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-D7af1OJa.mjs.map
+//# sourceMappingURL=primitives-BkH0U8N7.mjs.map

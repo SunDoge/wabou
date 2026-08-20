@@ -1,4 +1,4 @@
-import { $ as OverlayPlaneProvider, $n as ReactiveAnimation, $t as Button$1, An as TextAreaProps, Bt as FormDraft, C as createActive, Cn as PathBuilder, D as createPresence, Dn as SvgProps, Dt as ContainerMatch, En as Svg, Fn as VectorPathPaint, Ft as LayoutProps, Gn as AnimationOptions, Hn as AnimationFrameCallback, Ht as FormDraftFieldUpdater, In as View, It as Row, Jn as AnimationValue, Jt as FocusWithinResult, Kn as AnimationState, Kt as createHover, Ln as ViewProps, Lt as KeyedSelection, Mn as TextInputProps, Mt as createMeasuredSize, Nn as TextProps, Nt as Center, O as Popover, On as Text, Ot as ContainerSizeQuery, Pn as VectorPath, Pt as Column, Qn as PulseOptions, Rn as WabouClassList, Rt as KeyedSelectionOptions, S as PressResult, Sn as Path, Tt as ModalProps, Un as createAnimationFrame, Ut as FormDraftOptions, Vt as FormDraftErrors, Wn as AnimationControls, Wt as createFormDraft, X as OverlayLayer, Xn as EasingFunction, Xt as createFocusWithin, Yn as Easing, Yt as createFocus, Zn as LoopOptions, Zt as CollapsiblePresence, _ as createScrollReset, _n as NetworkImage, _t as RippleProps, ar as animate, b as ActiveResult, bn as PasswordInput$1, bt as Modal, c as createTabs, cn as createButton, cr as createPulse, dn as CodeEditorProps, dt as Notifications, er as ReactiveTransition, fn as Icon, gn as ImageSource, gt as Ripple, hn as ImageProps, in as ButtonState, ir as TransitionOptions, jn as TextInput, jt as createContainerMatch, k as PopoverProps, kn as TextArea, lr as createRotation, lt as NotificationRegion, m as createShortcuts, mn as Image, mt as Pulse, nr as RotationAnimation, on as Link, or as animateKeyframes, pn as IconProps, pt as createNotifications, qn as AnimationType, qt as FocusResult, rn as ButtonProps$1, rr as RotationOptions, s as TabsResult, sn as LinkProps, sr as createLoop, t as index_d_exports, tr as RepeatType, tt as createOverlayLayer, un as CodeEditor, ur as createTransition, ut as NotificationRegionProps, v as ScrollArea, vn as NetworkImageProps, vt as Spin, w as createPress, wn as PathProps, xn as PasswordInputProps$1, xt as ModalControls, y as ScrollAreaProps, yn as NetworkImageSource, zn as WabouStyle, zt as createKeyedSelection } from "./index-C4Cd8YzM.mjs";
+import { $ as OverlayPlaneProvider, $n as ReactiveAnimation, $t as Button$1, An as TextAreaProps, Bt as FormDraft, C as createActive, Cn as PathBuilder, D as createPresence, Dn as SvgProps, Dt as ContainerMatch, En as Svg, Fn as VectorPathPaint, Ft as LayoutProps, Gn as AnimationOptions, Hn as AnimationFrameCallback, Ht as FormDraftFieldUpdater, I as Placement, In as View, It as Row, Jn as AnimationValue, Jt as FocusWithinResult, Kn as AnimationState, Kt as createHover, Ln as ViewProps, Lt as KeyedSelection, Mn as TextInputProps, Mt as createMeasuredSize, Nn as TextProps, Nt as Center, O as Popover, On as Text, Ot as ContainerSizeQuery, Pn as VectorPath, Pt as Column, Qn as PulseOptions, Rn as WabouClassList, Rt as KeyedSelectionOptions, S as PressResult, Sn as Path, Tt as ModalProps, Un as createAnimationFrame, Ut as FormDraftOptions, Vt as FormDraftErrors, Wn as AnimationControls, Wt as createFormDraft, X as OverlayLayer, Xn as EasingFunction, Xt as createFocusWithin, Yn as Easing, Yt as createFocus, Zn as LoopOptions, Zt as CollapsiblePresence, _ as createScrollReset, _n as NetworkImage, _t as RippleProps, ar as animate, b as ActiveResult, bn as PasswordInput$1, bt as Modal, c as createTabs, cn as createButton, cr as createPulse, dn as CodeEditorProps, dt as Notifications, er as ReactiveTransition, fn as Icon, gn as ImageSource, gt as Ripple, hn as ImageProps, in as ButtonState, ir as TransitionOptions, jn as TextInput, jt as createContainerMatch, k as PopoverProps, kn as TextArea, lr as createRotation, lt as NotificationRegion, m as createShortcuts, mn as Image, mt as Pulse, nr as RotationAnimation, on as Link, or as animateKeyframes, pn as IconProps, pt as createNotifications, qn as AnimationType, qt as FocusResult, rn as ButtonProps$1, rr as RotationOptions, s as TabsResult, sn as LinkProps, sr as createLoop, t as index_d_exports, tr as RepeatType, tt as createOverlayLayer, un as CodeEditor, ur as createTransition, ut as NotificationRegionProps, v as ScrollArea, vn as NetworkImageProps, vt as Spin, w as createPress, wn as PathProps, xn as PasswordInputProps$1, xt as ModalControls, y as ScrollAreaProps, yn as NetworkImageSource, zn as WabouStyle, zt as createKeyedSelection } from "./index-PEjwjNpU.mjs";
 import { PickDirectoryOptions } from "@wabou/core";
 import { Shadow } from "@wabou/core/style";
 import { Accessor, JSX, ParentProps } from "solid-js";
@@ -363,6 +363,43 @@ declare function AdaptiveSplitPaneDetail(props: {
   modalClass?: string;
 }): import("@wabou/core").JSX.Element;
 //#endregion
+//#region src/components/navigation.d.ts
+declare function Breadcrumb(props: {
+  children?: JSX.Element;
+  class?: string;
+  "aria-label"?: string;
+}): JSX.Element;
+declare function BreadcrumbList(props: ViewProps): JSX.Element;
+declare function BreadcrumbItem(props: ViewProps): JSX.Element;
+interface BreadcrumbLinkProps extends Omit<ButtonProps, "class" | "role" | "variant" | "size"> {
+  class?: string;
+}
+declare function BreadcrumbLink(props: BreadcrumbLinkProps): JSX.Element;
+declare function BreadcrumbPage(props: {
+  children?: JSX.Element;
+  class?: string;
+}): JSX.Element;
+declare function BreadcrumbSeparator(props: {
+  children?: JSX.Element;
+  class?: string;
+}): JSX.Element;
+declare function BreadcrumbEllipsis(props: {
+  class?: string;
+}): JSX.Element;
+declare function Pagination(props: {
+  children?: JSX.Element;
+  class?: string;
+  "aria-label"?: string;
+}): JSX.Element;
+declare function PaginationContent(props: ViewProps): JSX.Element;
+declare function PaginationItem(props: ViewProps): JSX.Element;
+interface PaginationLinkProps extends Omit<ButtonProps, "variant" | "size"> {
+  active?: boolean;
+}
+declare function PaginationLink(props: PaginationLinkProps): JSX.Element;
+declare function PaginationPrevious(props: Omit<ButtonProps, "variant" | "size">): JSX.Element;
+declare function PaginationNext(props: Omit<ButtonProps, "variant" | "size">): JSX.Element;
+//#endregion
 //#region src/components/page.d.ts
 declare const pageViewportClass: (className?: string) => string;
 declare const pageViewportContentClass: (className?: string) => string;
@@ -600,6 +637,51 @@ interface TitleBarDragRegionProps extends Omit<ViewProps, "onPointerDown" | "onD
 /** Explicit non-interactive region that moves the native window. */
 declare function TitleBarDragRegion(props: TitleBarDragRegionProps): JSX.Element;
 //#endregion
+//#region src/components/tooltip-state.d.ts
+interface TooltipDelayController {
+  scheduleOpen(): void;
+  scheduleClose(): void;
+  openNow(): void;
+  closeNow(): void;
+  dispose(): void;
+}
+interface TooltipDelayOptions {
+  openDelay: () => number;
+  closeDelay: () => number;
+  setOpen(open: boolean): void;
+}
+/** Owns tooltip timers independently from rendering and positioning. */
+declare function createTooltipDelayController(options: TooltipDelayOptions): TooltipDelayController;
+//#endregion
+//#region src/components/tooltip.d.ts
+interface TooltipTriggerProps {
+  ref(node: Handle): void;
+  onPointerEnter(): void;
+  onPointerLeave(): void;
+  onFocus(): void;
+  onBlur(): void;
+  onKeyDown(event: {
+    key: string;
+    preventDefault(): void;
+    stopPropagation(): void;
+  }): void;
+}
+interface TooltipProps {
+  trigger(props: TooltipTriggerProps): JSX.Element;
+  children?: JSX.Element;
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?(open: boolean): void;
+  openDelay?: number;
+  closeDelay?: number;
+  placement?: Placement;
+  offset?: number;
+  contentClass?: string;
+  disabled?: boolean;
+}
+/** A delayed, non-interactive label for pointer and keyboard focus targets. */
+declare function Tooltip(props: TooltipProps): JSX.Element;
+//#endregion
 //#region src/components/index.d.ts
 interface BadgeProps {
   children?: JSX.Element;
@@ -714,5 +796,5 @@ declare function useRouteActive(to: string, options?: RouteActiveOptions): Acces
 declare function useParams<T extends Record<string, string> = Record<string, string>>(): Accessor<T>;
 declare function useLoaderData<T = unknown>(): Accessor<T | undefined>;
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, type ActiveResult, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AnimationControls, type AnimationFrameCallback, AnimationOptions, AnimationState, AnimationType, AnimationValue, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardDescriptionProps, CardFooter, CardHeader, CardTitle, CardTitleProps, Center, Checkbox, type CheckboxProps, CodeEditor, type CodeEditorProps, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleProps, CollapsibleTrigger, Column, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, type ContainerMatch, type ContainerSizeQuery, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogScrollBody, DialogTitle, DirectoryPicker, DirectoryPickerProps, Easing, EasingFunction, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, EmptyVariant, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, type FocusResult, type FocusWithinResult, type FormDraft, type FormDraftErrors, type FormDraftFieldUpdater, type FormDraftOptions, Fps, FpsProps, Icon, type IconProps, Image, type ImageProps, type ImageSource, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, type KeyedSelection, type KeyedSelectionOptions, type LayoutProps, LoopOptions, Modal, type ModalProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, NotificationRegion, type NotificationRegionProps, type Notifications, type OverlayLayer, OverlayPlaneProvider, PageHeader, PageHeaderProps, PageViewport, PageViewportProps, PasswordInput, PasswordInputProps, Path, PathBuilder, type PathProps, Popover, type PopoverProps, type PressResult, Button$1 as PrimitiveButton, type ButtonProps$1 as PrimitiveButtonProps, type ButtonState as PrimitiveButtonState, Link as PrimitiveLink, type LinkProps as PrimitiveLinkProps, PasswordInput$1 as PrimitivePasswordInput, type PasswordInputProps$1 as PrimitivePasswordInputProps, TextArea as PrimitiveTextArea, type TextAreaProps as PrimitiveTextAreaProps, TextInput as PrimitiveTextInput, type TextInputProps as PrimitiveTextInputProps, Progress, Pulse, PulseOptions, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, ReactiveAnimation, ReactiveTransition, RepeatType, ResponsiveGrid, ResponsiveGridColumnCount, ResponsiveGridProps, ResponsiveGridRemainder, ResponsiveGridState, Ripple, type RippleProps, RotationAnimation, RotationOptions, RouteActiveOptions, RouterProvider, RouterProviderProps, Row, ScrollArea, type ScrollAreaProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, type SvgProps, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, type TabsResult, TabsTrigger, type TabsTriggerProps, Text, TextArea$1 as TextArea, TextAreaProps$1 as TextAreaProps, type TextProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, TransitionOptions, type VectorPath, type VectorPathPaint, View, type ViewProps, type WabouClassList, WabouDataRouter, type WabouStyle, WindowFrame, WindowFrameProps, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, emptyClass, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, index_d_exports as primitives, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionProps, AccordionTrigger, AccordionType, type ActiveResult, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AnimationControls, type AnimationFrameCallback, AnimationOptions, AnimationState, AnimationType, AnimationValue, Avatar, AvatarGroup, AvatarGroupCount, AvatarProps, AvatarSize, Badge, BadgeProps, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbLinkProps, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, ButtonProps, ButtonSize, ButtonVariant, Calendar, CalendarDate, CalendarLabels, CalendarProps, Card, CardContent, CardDescription, CardDescriptionProps, CardFooter, CardHeader, CardTitle, CardTitleProps, Center, Checkbox, type CheckboxProps, CodeEditor, type CodeEditorProps, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleProps, CollapsibleTrigger, Column, type ComponentsElevation, ComponentsProvider, type ComponentsProviderProps, type ComponentsTheme, ConfigEditor, ConfigEditorProps, type ContainerMatch, type ContainerSizeQuery, DatePicker, DatePickerProps, Dialog, type ModalControls as DialogControls, DialogDescription, DialogFooter, DialogHeader, DialogProps, DialogScrollBody, DialogTitle, DirectoryPicker, DirectoryPickerProps, Easing, EasingFunction, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, EmptyVariant, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldOrientation, type FocusResult, type FocusWithinResult, type FormDraft, type FormDraftErrors, type FormDraftFieldUpdater, type FormDraftOptions, Fps, FpsProps, Icon, type IconProps, Image, type ImageProps, type ImageSource, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputProps, Kbd, KbdGroup, type KeyedSelection, type KeyedSelectionOptions, type LayoutProps, LoopOptions, Modal, type ModalProps, NetworkImage, type NetworkImageProps, type NetworkImageSource, NotificationRegion, type NotificationRegionProps, type Notifications, type OverlayLayer, OverlayPlaneProvider, PageHeader, PageHeaderProps, PageViewport, PageViewportProps, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationLinkProps, PaginationNext, PaginationPrevious, PasswordInput, PasswordInputProps, Path, PathBuilder, type PathProps, Popover, type PopoverProps, type PressResult, Button$1 as PrimitiveButton, type ButtonProps$1 as PrimitiveButtonProps, type ButtonState as PrimitiveButtonState, Link as PrimitiveLink, type LinkProps as PrimitiveLinkProps, PasswordInput$1 as PrimitivePasswordInput, type PasswordInputProps$1 as PrimitivePasswordInputProps, TextArea as PrimitiveTextArea, type TextAreaProps as PrimitiveTextAreaProps, TextInput as PrimitiveTextInput, type TextInputProps as PrimitiveTextInputProps, Progress, Pulse, PulseOptions, RadioGroup, RadioGroupItem, type RadioGroupItemProps, type RadioGroupProps, ReactiveAnimation, ReactiveTransition, RepeatType, ResponsiveGrid, ResponsiveGridColumnCount, ResponsiveGridProps, ResponsiveGridRemainder, ResponsiveGridState, Ripple, type RippleProps, RotationAnimation, RotationOptions, RouteActiveOptions, RouterProvider, RouterProviderProps, Row, ScrollArea, type ScrollAreaProps, Select, SelectOption, SelectProps, Separator, Skeleton, Slider, SliderProps, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, type SvgProps, Switch, SwitchProps, Tabs, TabsContent, TabsList, type TabsProps, type TabsResult, TabsTrigger, type TabsTriggerProps, Text, TextArea$1 as TextArea, TextAreaProps$1 as TextAreaProps, type TextProps, TitleBar, TitleBarDragRegion, TitleBarDragRegionProps, TitleBarProps, Toggle, ToggleGroup, ToggleGroupItem, type ToggleGroupItemProps, type ToggleGroupProps, type ToggleProps, Tooltip, TooltipProps, TooltipTriggerProps, TransitionOptions, type VectorPath, type VectorPathPaint, View, type ViewProps, type WabouClassList, WabouDataRouter, type WabouStyle, WindowFrame, WindowFrameProps, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTooltipDelayController, createTransition, emptyClass, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, index_d_exports as primitives, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 //# sourceMappingURL=index.d.mts.map

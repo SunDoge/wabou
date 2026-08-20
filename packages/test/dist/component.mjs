@@ -196,7 +196,9 @@ function renderComponent(render, options = {}) {
 	let disposeMount = null;
 	const restore = () => {
 		Object.assign(writer, originals);
-		restoreHostStubs.forEach((restoreStub) => restoreStub());
+		restoreHostStubs.forEach((restoreStub) => {
+			restoreStub();
+		});
 		activeHarness = false;
 	};
 	try {
@@ -228,6 +230,14 @@ function renderComponent(render, options = {}) {
 		dispatchEvent(node.id, eventCode, payload);
 		flush();
 		writer.flush();
+	};
+	let focusedNode = null;
+	const blurFocusedNode = () => {
+		if (!focusedNode) return;
+		const previous = focusedNode;
+		focusedNode = null;
+		commitEvent(previous, EVENT_CODE.blur);
+		commitEvent(previous, EVENT_CODE.focusout);
 	};
 	const ensureEnabled = (node, action) => {
 		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
@@ -291,6 +301,17 @@ function renderComponent(render, options = {}) {
 			ensureEnabled(node, "input");
 			commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
 		},
+		focus: () => {
+			ensureEnabled(node, "focus");
+			if (focusedNode === node) return;
+			blurFocusedNode();
+			focusedNode = node;
+			commitEvent(node, EVENT_CODE.focus);
+			commitEvent(node, EVENT_CODE.focusin);
+		},
+		blur: () => {
+			if (focusedNode === node) blurFocusedNode();
+		},
 		hover: () => {
 			ensureEnabled(node, "hover");
 			commitEvent(node, EVENT_CODE.pointerenter);
@@ -317,9 +338,14 @@ function renderComponent(render, options = {}) {
 		queryByRole(role, options = {}) {
 			return select(all().filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name)), `role=${role}${options.name === void 0 ? "" : ` name=${JSON.stringify(options.name)}`}`, options.index, false);
 		},
+		flush() {
+			flush();
+			writer.flush();
+		},
 		dispose() {
 			if (disposed) return;
 			disposed = true;
+			focusedNode = null;
 			try {
 				disposeMount?.();
 			} finally {

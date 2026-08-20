@@ -262,7 +262,7 @@ declare const ACCENTS: {
   readonly sky: "#0284c7";
   readonly amber: "#d97706";
 };
-interface ButtonProps extends Pick<WabouElementProps, "aria-checked" | "aria-controls" | "aria-current" | "aria-expanded" | "aria-haspopup" | "aria-label" | "aria-pressed" | "aria-selected" | "role" | "focusOrder"> {
+interface ButtonProps extends Pick<WabouElementProps, "aria-checked" | "aria-controls" | "aria-current" | "aria-expanded" | "aria-haspopup" | "aria-label" | "aria-pressed" | "aria-selected" | "role" | "focusOrder" | "onBlur" | "onContextMenu" | "onDblClick" | "onFocus" | "onFocusIn" | "onFocusOut" | "onKeyUp" | "onPointerCancel" | "onPointerDown" | "onPointerEnter" | "onPointerLeave" | "onPointerMove" | "onPointerOut" | "onPointerOver" | "onPointerUp" | "onWheel"> {
   class?: string | ((state: ButtonState) => string);
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
   style?: WabouStyle$1 | ((state: ButtonState) => WabouStyle$1);
@@ -698,7 +698,7 @@ interface PopoverTriggerProps {
     preventDefault(): void;
     stopPropagation(): void;
   }) => void;
-  "aria-haspopup": "dialog" | "listbox" | "menu" | "tree" | "grid";
+  "aria-haspopup"?: "dialog" | "listbox" | "menu" | "tree" | "grid";
   "aria-expanded": boolean;
 }
 interface PopoverBaseProps {
@@ -725,7 +725,7 @@ type PopoverProps = PopoverBaseProps & ({
 } | {
   /** Flatten the positioned shell when its child owns popup semantics. */
   contentRole: "presentation";
-  popupRole: "listbox" | "menu" | "tree" | "grid";
+  popupRole: "listbox" | "menu" | "tree" | "grid" | "tooltip";
   "aria-label"?: never;
 });
 /** A root-layer floating panel positioned from native layout snapshots. */
@@ -902,4 +902,4 @@ declare namespace index_d_exports {
 }
 //#endregion
 export { OverlayPlaneProvider as $, ReactiveAnimation as $n, Button as $t, PopoverTriggerProps as A, TextAreaProps as An, MeasuredSizeOptions as At, autoPlacement as B, rotate2d$1 as Bn, FormDraft as Bt, createActive as C, PathBuilder as Cn, ModalKeyEvent as Ct, createPresence as D, SvgProps as Dn, ContainerMatch as Dt, PresencePhase as E, Svg as En, ModalTriggerProps as Et, Middleware$1 as F, VectorPathPaint as Fn, LayoutProps as Ft, shift as G, AnimationOptions as Gn, HoverResult as Gt, computeHostFloatingPosition as H, AnimationFrameCallback as Hn, FormDraftFieldUpdater as Ht, Placement$1 as I, View as In, Row as It, DismissKeyEvent as J, AnimationValue as Jn, FocusWithinResult as Jt, size as K, AnimationState as Kn, createHover as Kt, PositionPlatform as L, ViewProps as Ln, KeyedSelection as Lt, ComputeHostFloatingPositionOptions as M, TextInputProps as Mn, createMeasuredSize as Mt, ComputePositionReturn$1 as N, TextProps as Nn, Center as Nt, Popover as O, Text as On, ContainerSizeQuery as Ot, LayoutRect$1 as P, VectorPath$1 as Pn, Column as Pt, OverlayPlane as Q, PulseOptions as Qn, CollapsiblePresenceProps as Qt, Strategy$1 as R, WabouClassList as Rn, KeyedSelectionOptions as Rt, PressResult as S, Path as Sn, ModalEvent as St, Presence as T, PrimitiveProps as Tn, ModalProps as Tt, flip as U, createAnimationFrame as Un, FormDraftOptions as Ut, computeFloatingPosition as V, translate2d as Vn, FormDraftErrors as Vt, offset as W, AnimationControls as Wn, createFormDraft as Wt, OverlayLayer as X, EasingFunction as Xn, createFocusWithin as Xt, OverlayDismissReason as Y, Easing as Yn, createFocus as Yt, OverlayLayerOptions as Z, LoopOptions as Zn, CollapsiblePresence as Zt, createScrollReset as _, NetworkImage as _n, RippleProps as _t, TabKeyEvent as a, CreateButtonOptions as an, animate as ar, NotificationInput as at, ActiveResult as b, PasswordInput as bn, Modal as bt, createTabs as c, createButton as cn, createPulse as cr, NotificationPriority as ct, ShortcutHandler as d, CodeEditorProps as dn, Notifications as dt, ButtonEvent as en, ReactiveTransition as er, OverlayPlaneProviderProps as et, ShortcutMap as f, Icon as fn, NotificationsOptions as ft, ScrollResetTarget as g, ImageSource as gn, Ripple as gt, ScrollResetOptions as h, ImageProps as hn, PulseProps as ht, TabKey as i, ButtonState as in, TransitionOptions as ir, NotificationDismissReason as it, ComputeFloatingPositionOptions as j, TextInput as jn, createContainerMatch as jt, PopoverProps as k, TextArea as kn, MeasuredSize as kt, ShortcutDefinition as l, Affine2D$1 as ln, createRotation as lr, NotificationRegion as lt, createShortcuts as m, Image as mn, Pulse as mt, AddTabOptions as n, ButtonPrimitive as nn, RotationAnimation as nr, useOverlayPlane as nt, TabsOptions as o, Link as on, animateKeyframes as or, NotificationItem as ot, ShortcutsResult as p, IconProps as pn, createNotifications as pt, DismissEvent as q, AnimationType as qn, FocusResult as qt, FocusTarget as r, ButtonProps as rn, RotationOptions as rr, NotificationControls as rt, TabsResult as s, LinkProps as sn, createLoop as sr, NotificationPlacement as st, index_d_exports as t, ButtonKeyEvent as tn, RepeatType as tr, createOverlayLayer as tt, ShortcutEvent as u, CodeEditor as un, createTransition as ur, NotificationRegionProps as ut, ScrollArea as v, NetworkImageProps as vn, Spin as vt, createPress as w, PathProps as wn, ModalOpenChangeReason as wt, PressOptions as x, PasswordInputProps as xn, ModalControls as xt, ScrollAreaProps as y, NetworkImageSource as yn, SpinProps as yt, arrow as z, WabouStyle$1 as zn, createKeyedSelection as zt };
-//# sourceMappingURL=index-C4Cd8YzM.d.mts.map
+//# sourceMappingURL=index-PEjwjNpU.d.mts.map

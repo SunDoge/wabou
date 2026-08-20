@@ -1,11 +1,11 @@
+import { type JSX, omit } from "solid-js";
+import { match, P } from "ts-pattern";
 import {
   type ButtonState,
   Button as HeadlessButton,
   type ButtonProps as HeadlessButtonProps,
   type WabouStyle,
 } from "../primitives";
-import { type JSX, omit } from "solid-js";
-import { match, P } from "ts-pattern";
 import { join } from "./class-names";
 
 export type ButtonVariant =

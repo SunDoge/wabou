@@ -60,6 +60,9 @@ type ComponentId =
   | "kbd"
   | "separator"
   | "dialog"
+  | "tooltip"
+  | "breadcrumb"
+  | "pagination"
   | "accordion"
   | "avatar"
   | "field"
@@ -96,6 +99,13 @@ const groups: Array<{
     ],
   },
   {
+    label: "Navigation",
+    items: [
+      { id: "breadcrumb", name: "Breadcrumb" },
+      { id: "pagination", name: "Pagination" },
+    ],
+  },
+  {
     label: "Data display",
     items: [
       { id: "badge", name: "Badge" },
@@ -124,6 +134,7 @@ const groups: Array<{
     items: [
       { id: "alert", name: "Alert" },
       { id: "dialog", name: "Dialog" },
+      { id: "tooltip", name: "Tooltip" },
       { id: "empty", name: "Empty" },
       { id: "accordion", name: "Accordion" },
       { id: "skeleton", name: "Skeleton" },
@@ -178,6 +189,11 @@ const descriptions: Record<ComponentId, string> = {
   kbd: "Displays keyboard input and shortcut chords.",
   separator: "Visually separates content in a list or layout.",
   dialog: "A modal surface with native focus isolation and dismissal behavior.",
+  tooltip:
+    "A delayed floating label for pointer hover and keyboard focus targets.",
+  breadcrumb:
+    "Shows the current location while leaving navigation behavior to the application.",
+  pagination: "Composes explicit controls for navigating a paged collection.",
   accordion:
     "Vertically stacked disclosure sections with controlled or uncontrolled state.",
   avatar: "A compact visual identity with initials, images and grouped counts.",
@@ -231,12 +247,15 @@ import { OverviewPage } from "./pages/overview";
 import {
   AccordionPage,
   AvatarPage,
+  BreadcrumbPageDemo,
   ButtonGroupPage,
   DatePickerPage,
   DialogPage,
   EmptyPage,
   FieldPage,
+  PaginationPage,
   SelectPage,
+  TooltipPage,
 } from "./pages/widgets";
 
 function App() {
@@ -518,6 +537,15 @@ function App() {
                   </Match>
                   <Match when={selected() === "dialog"}>
                     <DialogPage />
+                  </Match>
+                  <Match when={selected() === "tooltip"}>
+                    <TooltipPage />
+                  </Match>
+                  <Match when={selected() === "breadcrumb"}>
+                    <BreadcrumbPageDemo />
+                  </Match>
+                  <Match when={selected() === "pagination"}>
+                    <PaginationPage />
                   </Match>
                   <Match when={selected() === "accordion"}>
                     <AccordionPage />

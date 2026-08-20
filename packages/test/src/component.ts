@@ -1,3 +1,4 @@
+import type { NodeKey } from "@wabou/core/protocol";
 import {
   type BuiltinHost,
   dispatchEvent,
@@ -7,9 +8,8 @@ import {
   mount,
   writer,
 } from "@wabou/core/renderer";
-import type { NodeKey } from "@wabou/core/protocol";
 import { dispatchResizeObservation } from "@wabou/core/testing";
-import { createComponent, flush, type JSX } from "solid-js";
+import { createComponent, flush as flushSolid, type JSX } from "solid-js";
 import { onTestFinished } from "vitest";
 
 interface AuthoredNode {
@@ -34,6 +34,10 @@ export interface ComponentLocator {
   click(): void;
   press(key: string): void;
   input(value: string): void;
+  /** Dispatch native focus/focusin, blurring the previously focused locator. */
+  focus(): void;
+  /** Dispatch native blur/focusout when this locator owns focus. */
+  blur(): void;
   hover(): void;
   unhover(): void;
   /** Publish a deterministic native content-box observation. */
@@ -54,6 +58,8 @@ export interface ComponentScreen {
     role: string,
     options?: { name?: string; index?: number },
   ): ComponentLocator | null;
+  /** Commit reactive work scheduled outside a locator action, such as a timer. */
+  flush(): void;
   dispose(): void;
 }
 
@@ -303,7 +309,9 @@ export function renderComponent(
   let disposeMount: (() => void) | null = null;
   const restore = () => {
     Object.assign(writer, originals);
-    restoreHostStubs.forEach((restoreStub) => restoreStub());
+    restoreHostStubs.forEach((restoreStub) => {
+      restoreStub();
+    });
     activeHarness = false;
   };
   try {
@@ -317,7 +325,7 @@ export function renderComponent(
           })
         : render(),
     );
-    flush();
+    flushSolid();
     writer.flush();
   } catch (error) {
     restore();
@@ -341,8 +349,16 @@ export function renderComponent(
   };
   const commitEvent = (node: AuthoredNode, eventCode: number, payload = "") => {
     dispatchEvent(node.id, eventCode, payload);
-    flush();
+    flushSolid();
     writer.flush();
+  };
+  let focusedNode: AuthoredNode | null = null;
+  const blurFocusedNode = () => {
+    if (!focusedNode) return;
+    const previous = focusedNode;
+    focusedNode = null;
+    commitEvent(previous, EVENT_CODE.blur);
+    commitEvent(previous, EVENT_CODE.focusout);
   };
   const ensureEnabled = (node: AuthoredNode, action: string) => {
     if (
@@ -415,6 +431,17 @@ export function renderComponent(
       ensureEnabled(node, "input");
       commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
     },
+    focus: () => {
+      ensureEnabled(node, "focus");
+      if (focusedNode === node) return;
+      blurFocusedNode();
+      focusedNode = node;
+      commitEvent(node, EVENT_CODE.focus);
+      commitEvent(node, EVENT_CODE.focusin);
+    },
+    blur: () => {
+      if (focusedNode === node) blurFocusedNode();
+    },
     hover: () => {
       ensureEnabled(node, "hover");
       commitEvent(node, EVENT_CODE.pointerenter);
@@ -430,7 +457,7 @@ export function renderComponent(
         throw new RangeError("component size must be finite and non-negative");
       }
       dispatchResizeObservation(node.id, width, height);
-      flush();
+      flushSolid();
       writer.flush();
     },
   });
@@ -476,9 +503,14 @@ export function renderComponent(
         false,
       );
     },
+    flush() {
+      flushSolid();
+      writer.flush();
+    },
     dispose() {
       if (disposed) return;
       disposed = true;
+      focusedNode = null;
       try {
         disposeMount?.();
       } finally {

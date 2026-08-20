@@ -1,4 +1,4 @@
-import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-D7af1OJa.mjs";
+import { $ as createPress, A as createFormDraft, B as Text, D as createKeyedSelection, E as Row, F as NetworkImage, G as translate2d, H as TextInput, I as PasswordInput$1, J as createMeasuredSize, K as createPresence, L as Path, M as CodeEditor, N as Icon, O as isSelected, P as Image, Q as createActive, R as PathBuilder, S as createOverlayLayer, T as Column, U as View, V as TextArea, W as rotate2d$1, X as Link, Y as Button$1, Z as createButton, _ as Pulse, a as ScrollArea, at as animateKeyframes, b as Modal, ct as createRotation, et as createHover, g as createNotifications, h as NotificationRegion, i as createScrollReset, it as animate, j as CollapsiblePresence, k as toggleSelection, lt as createTransition, n as createTabs, nt as createFocusWithin, o as Popover, ot as createLoop, q as createContainerMatch, r as createShortcuts, rt as createAnimationFrame, st as createPulse, t as primitives_exports, tt as createFocus, v as Ripple, w as Center, x as OverlayPlaneProvider, y as Spin, z as Svg } from "./primitives-BkH0U8N7.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -1685,6 +1685,129 @@ function AdaptiveSplitPaneDetail(props) {
 	});
 }
 //#endregion
+//#region src/components/navigation.tsx
+function Breadcrumb(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Breadcrumb";
+		},
+		get ["class"]() {
+			return join("min-w-0", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function BreadcrumbList(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join("min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted", props.class);
+	} }));
+}
+function BreadcrumbItem(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join("min-w-0 flex items-center gap-1.5", props.class);
+	} }));
+}
+function BreadcrumbLink(props) {
+	return createComponent$1(Button$1, mergeProps(props, {
+		unstyled: true,
+		role: "link",
+		class: (state) => join("min-w-0 rounded-sm text-sm text-secondary", state.hovered && "text-primary", state.focusVisible && "border border-focus", props.class)
+	}));
+}
+function BreadcrumbPage(props) {
+	return createComponent$1(Text, {
+		role: "link",
+		"aria-current": "page",
+		get ["class"]() {
+			return join("min-w-0 text-sm font-medium text-primary", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function BreadcrumbSeparator(props) {
+	return createComponent$1(Text, {
+		"aria-hidden": true,
+		get ["class"]() {
+			return join("flex-none text-xs text-muted", props.class);
+		},
+		get children() {
+			return props.children ?? "/";
+		}
+	});
+}
+function BreadcrumbEllipsis(props) {
+	return createComponent$1(Text, {
+		"aria-hidden": true,
+		get ["class"]() {
+			return join("flex-none text-sm text-muted", props.class);
+		},
+		children: "..."
+	});
+}
+function Pagination(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Pagination";
+		},
+		get ["class"]() {
+			return join("flex items-center", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function PaginationContent(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join("flex items-center gap-1", props.class);
+	} }));
+}
+function PaginationItem(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join("flex-none", props.class);
+	} }));
+}
+function PaginationLink(props) {
+	const forwarded = omit(props, "active");
+	return createComponent$1(Button, mergeProps(forwarded, {
+		role: "link",
+		size: "icon",
+		get variant() {
+			return props.active ? "outline" : "ghost";
+		},
+		get selected() {
+			return props.active;
+		},
+		get ["aria-current"]() {
+			return props.active ? "page" : void 0;
+		}
+	}));
+}
+function PaginationPrevious(props) {
+	return createComponent$1(Button, mergeProps(props, {
+		variant: "ghost",
+		size: "sm",
+		get children() {
+			return props.children ?? "Previous";
+		}
+	}));
+}
+function PaginationNext(props) {
+	return createComponent$1(Button, mergeProps(props, {
+		variant: "ghost",
+		size: "sm",
+		get children() {
+			return props.children ?? "Next";
+		}
+	}));
+}
+//#endregion
 //#region src/components/page.tsx
 const pageViewportClass = (className) => join("min-w-0 min-h-0 flex-1", className);
 const pageViewportContentClass = (className) => join("w-full h-full", className);
@@ -2639,6 +2762,99 @@ function TitleBarDragRegion(props) {
 	}));
 }
 //#endregion
+//#region src/components/tooltip-state.ts
+/** Owns tooltip timers independently from rendering and positioning. */
+function createTooltipDelayController(options) {
+	let timer;
+	const cancel = () => {
+		if (timer !== void 0) clearTimeout(timer);
+		timer = void 0;
+	};
+	const schedule = (open, delay) => {
+		cancel();
+		if (delay <= 0) {
+			options.setOpen(open);
+			return;
+		}
+		timer = setTimeout(() => {
+			timer = void 0;
+			options.setOpen(open);
+		}, delay);
+	};
+	return {
+		scheduleOpen: () => schedule(true, options.openDelay()),
+		scheduleClose: () => schedule(false, options.closeDelay()),
+		openNow: () => {
+			cancel();
+			options.setOpen(true);
+		},
+		closeNow: () => {
+			cancel();
+			options.setOpen(false);
+		},
+		dispose: cancel
+	};
+}
+//#endregion
+//#region src/components/tooltip.tsx
+let tooltipId = 0;
+/** A delayed, non-interactive label for pointer and keyboard focus targets. */
+function Tooltip(props) {
+	const id = `wabou-tooltip-${++tooltipId}`;
+	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
+	const open = () => !props.disabled && (props.open ?? uncontrolledOpen());
+	const setOpen = (next) => {
+		if (props.disabled) next = false;
+		if (props.open === void 0) setUncontrolledOpen(next);
+		props.onOpenChange?.(next);
+	};
+	const delay = createTooltipDelayController({
+		openDelay: () => props.openDelay ?? 500,
+		closeDelay: () => props.closeDelay ?? 80,
+		setOpen
+	});
+	onCleanup(delay.dispose);
+	return createComponent$1(Popover, {
+		get open() {
+			return open();
+		},
+		onOpenChange: (next) => !next && delay.closeNow(),
+		get placement() {
+			return props.placement ?? "top";
+		},
+		get offset() {
+			return props.offset ?? 8;
+		},
+		contentRole: "presentation",
+		popupRole: "tooltip",
+		closeOnEscape: true,
+		restoreFocus: false,
+		get contentClass() {
+			return join("max-w-xs rounded-md border border-subtle bg-surface px-2 py-1 shadow-md", props.contentClass);
+		},
+		trigger: (popover) => props.trigger({
+			ref: popover.ref,
+			onPointerEnter: delay.scheduleOpen,
+			onPointerLeave: delay.scheduleClose,
+			onFocus: delay.openNow,
+			onBlur: delay.closeNow,
+			onKeyDown: (event) => {
+				if (event.key === "Escape") delay.closeNow();
+			}
+		}),
+		get children() {
+			return createComponent$1(Text, {
+				id,
+				role: "tooltip",
+				class: "whitespace-normal text-xs text-primary",
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	});
+}
+//#endregion
 //#region src/components/index.tsx
 function badgeColors(variant) {
 	return match(variant).with("default", () => "bg-accent border-accent text-on-accent").with("secondary", () => "bg-control border-subtle text-primary").with("outline", () => "bg-transparent border-strong text-secondary").with("success", () => "bg-success-surface border-success-primary text-success-primary").with("destructive", () => "bg-danger-surface border-danger text-danger-primary").exhaustive();
@@ -3090,6 +3306,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogScrollBody, DialogTitle, DirectoryPicker, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTransition, emptyClass, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, ComponentsProvider, ConfigEditor, DatePicker, Dialog, DialogDescription, DialogFooter, DialogHeader, DialogScrollBody, DialogTitle, DirectoryPicker, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Modal, NetworkImage, NotificationRegion, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, Pulse, RadioGroup, RadioGroupItem, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, Select, Separator, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toggle, ToggleGroup, ToggleGroupItem, Tooltip, View, WindowFrame, animate, animateKeyframes, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPresence, createPress, createPulse, createRotation, createScrollReset, createShortcuts, createTabs, createTooltipDelayController, createTransition, emptyClass, nextAccordionValue, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useNavigate, useParams, useResponsiveGrid, useRouteActive, useRouter, useRouterState, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

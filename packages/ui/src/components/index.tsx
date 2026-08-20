@@ -36,6 +36,7 @@ export { Kbd, KbdGroup, Skeleton, Spinner } from "./display";
 export * from "./forms";
 export * from "./input";
 export * from "./layout";
+export * from "./navigation";
 export * from "./page";
 export * from "./select";
 export {
@@ -70,6 +71,7 @@ export {
   useComponentsTheme,
 } from "./theme";
 export * from "./title-bar";
+export * from "./tooltip";
 
 export interface BadgeProps {
   children?: JSX.Element;

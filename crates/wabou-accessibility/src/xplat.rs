@@ -57,6 +57,7 @@ fn accesskit_node(
         SemanticRole::Dialog => Role::Dialog,
         SemanticRole::Alert => Role::Alert,
         SemanticRole::Status => Role::Status,
+        SemanticRole::Tooltip => Role::Tooltip,
         SemanticRole::CheckBox => Role::CheckBox,
         SemanticRole::RadioButton => Role::RadioButton,
         SemanticRole::Switch => Role::Switch,

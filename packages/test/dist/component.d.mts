@@ -13,6 +13,10 @@ interface ComponentLocator {
   click(): void;
   press(key: string): void;
   input(value: string): void;
+  /** Dispatch native focus/focusin, blurring the previously focused locator. */
+  focus(): void;
+  /** Dispatch native blur/focusout when this locator owns focus. */
+  blur(): void;
   hover(): void;
   unhover(): void;
   /** Publish a deterministic native content-box observation. */
@@ -34,6 +38,8 @@ interface ComponentScreen {
     name?: string;
     index?: number;
   }): ComponentLocator | null;
+  /** Commit reactive work scheduled outside a locator action, such as a timer. */
+  flush(): void;
   dispose(): void;
 }
 interface RenderComponentOptions {

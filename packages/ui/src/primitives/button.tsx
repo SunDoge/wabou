@@ -1,6 +1,6 @@
 import type { Handle, WabouElementProps } from "@wabou/core/renderer";
 import { useHost } from "@wabou/core/renderer";
-import type { Accessor, JSX } from "solid-js";
+import { type Accessor, type JSX, untrack } from "solid-js";
 import { createFocus } from "./focus";
 import { createHover } from "./hover";
 import { createPress } from "./press";
@@ -25,6 +25,22 @@ export interface ButtonProps
     | "aria-selected"
     | "role"
     | "focusOrder"
+    | "onBlur"
+    | "onContextMenu"
+    | "onDblClick"
+    | "onFocus"
+    | "onFocusIn"
+    | "onFocusOut"
+    | "onKeyUp"
+    | "onPointerCancel"
+    | "onPointerDown"
+    | "onPointerEnter"
+    | "onPointerLeave"
+    | "onPointerMove"
+    | "onPointerOut"
+    | "onPointerOver"
+    | "onPointerUp"
+    | "onWheel"
   > {
   class?: string | ((state: ButtonState) => string);
   classList?: WabouClassList | ((state: ButtonState) => WabouClassList);
@@ -161,6 +177,8 @@ export function createButton(
  * applications do not need CSS pseudo-class support to get a responsive button.
  */
 export function Button(props: ButtonProps): JSX.Element {
+  const forwardedRef = untrack(() => props.ref);
+  const refProps = forwardedRef ? { ref: forwardedRef } : {};
   const disabled = () => props.disabled ?? false;
   const primitive = createButton({
     disabled,
@@ -219,11 +237,11 @@ export function Button(props: ButtonProps): JSX.Element {
   return (
     // biome-ignore lint/a11y/useAriaPropsSupportedByRole: headless controls replace the default button role at runtime.
     <button
+      {...refProps}
       disabled={disabled()}
       aria-disabled={disabled()}
       focusOrder={resolveButtonFocusOrder(disabled(), props.focusOrder)}
       role={props.role ?? "button"}
-      ref={props.ref}
       aria-haspopup={props["aria-haspopup"]}
       aria-expanded={props["aria-expanded"]}
       aria-controls={props["aria-controls"]}
@@ -244,7 +262,45 @@ export function Button(props: ButtonProps): JSX.Element {
         ...defaultStyle(),
         ...customStyle(),
       }}
-      {...primitive.bindings}
+      onPointerEnter={(event) => {
+        primitive.bindings.onPointerEnter();
+        props.onPointerEnter?.(event);
+      }}
+      onPointerLeave={(event) => {
+        primitive.bindings.onPointerLeave();
+        props.onPointerLeave?.(event);
+      }}
+      onPointerDown={(event) => {
+        primitive.bindings.onPointerDown();
+        props.onPointerDown?.(event);
+      }}
+      onPointerUp={(event) => {
+        primitive.bindings.onPointerUp();
+        props.onPointerUp?.(event);
+      }}
+      onPointerCancel={(event) => {
+        primitive.bindings.onPointerCancel();
+        props.onPointerCancel?.(event);
+      }}
+      onPointerMove={props.onPointerMove}
+      onPointerOver={props.onPointerOver}
+      onPointerOut={props.onPointerOut}
+      onFocus={(event) => {
+        primitive.bindings.onFocus();
+        props.onFocus?.(event);
+      }}
+      onBlur={(event) => {
+        primitive.bindings.onBlur();
+        props.onBlur?.(event);
+      }}
+      onFocusIn={props.onFocusIn}
+      onFocusOut={props.onFocusOut}
+      onClick={primitive.bindings.onClick}
+      onContextMenu={props.onContextMenu}
+      onDblClick={props.onDblClick}
+      onKeyDown={primitive.bindings.onKeyDown}
+      onKeyUp={props.onKeyUp}
+      onWheel={props.onWheel}
     >
       {props.children}
     </button>
