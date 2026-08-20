@@ -377,6 +377,11 @@ impl Applier {
                             popup: semantic.states.popup.map(|state| state.as_str().to_owned()),
                             modal: semantic.states.modal,
                         },
+                        range: wabou_devtools::DebugSemanticRange {
+                            value: semantic.numeric_value,
+                            min: semantic.min_numeric_value,
+                            max: semantic.max_numeric_value,
+                        },
                     }
                 }),
                 widget: self

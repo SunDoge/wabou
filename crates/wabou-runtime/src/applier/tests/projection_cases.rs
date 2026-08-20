@@ -356,7 +356,16 @@ fn coalesced_release_distance_also_suppresses_click() {
 #[test]
 fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     let mut applier = interactive_applier();
-    let (class, role, aria_label, aria_pressed, aria_current) = {
+    let (
+        class,
+        role,
+        aria_label,
+        aria_pressed,
+        aria_current,
+        aria_value_now,
+        aria_value_min,
+        aria_value_max,
+    ) = {
         let mut atoms = applier.document.atoms.borrow_mut();
         (
             atoms.intern("class"),
@@ -364,6 +373,9 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
             atoms.intern("aria-label"),
             atoms.intern("aria-pressed"),
             atoms.intern("aria-current"),
+            atoms.intern("aria-valuenow"),
+            atoms.intern("aria-valuemin"),
+            atoms.intern("aria-valuemax"),
         )
     };
     applier.apply_op(&Op::SetAttribute {
@@ -391,6 +403,17 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
         name: aria_current,
         value: "page",
     });
+    for (name, value) in [
+        (aria_value_now, "64"),
+        (aria_value_min, "0"),
+        (aria_value_max, "100"),
+    ] {
+        applier.apply_op(&Op::SetAttribute {
+            id: NodeKey::new(2, 1),
+            name,
+            value,
+        });
+    }
     let state = wabou_devtools::DebugState::shared();
     applier.set_debug_state(state.clone());
     set_focus_order(&mut applier, 2, 3);
@@ -434,6 +457,18 @@ fn devtools_snapshot_exposes_real_layout_and_event_trace() {
     assert!(semantic.exposed);
     assert_eq!(semantic.states.pressed.as_deref(), Some("mixed"));
     assert_eq!(semantic.states.current.as_deref(), Some("page"));
+    assert_eq!(semantic.range.value, Some(64.0));
+    assert_eq!(semantic.range.min, Some(0.0));
+    assert_eq!(semantic.range.max, Some(100.0));
+    let button_json = json["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["id"]["lo"] == 2)
+        .unwrap();
+    assert_eq!(button_json["semantic"]["range"]["value"], 64.0);
+    assert_eq!(button_json["semantic"]["range"]["min"], 0.0);
+    assert_eq!(button_json["semantic"]["range"]["max"], 100.0);
     assert!(!button.computed.synthetic_bold);
     assert!(!button.computed.synthetic_italic);
     let font_weight = button

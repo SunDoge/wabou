@@ -254,6 +254,8 @@ pub struct DebugSemanticProjection {
     pub active_descendant: Option<NodeKey>,
     /// Final role-specific states exported to the platform bridge.
     pub states: DebugSemanticStates,
+    /// Final numeric range exported for sliders and progress indicators.
+    pub range: DebugSemanticRange,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -275,6 +277,19 @@ pub struct DebugSemanticStates {
     pub popup: Option<String>,
     /// Final explicit modal state.
     pub modal: Option<bool>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+/// Canonical final numeric values for range-based accessibility controls.
+pub struct DebugSemanticRange {
+    /// Current numeric value.
+    pub value: Option<f64>,
+    /// Optional minimum numeric value.
+    pub min: Option<f64>,
+    /// Optional maximum numeric value.
+    pub max: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
