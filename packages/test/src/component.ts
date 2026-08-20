@@ -26,14 +26,21 @@ interface AuthoredNode {
   text: string;
 }
 
-export interface ComponentRoleQueryOptions {
-  name?: string;
-  /** Select one occurrence in depth-first authored order. */
-  index?: number;
-}
-
 export interface ComponentRoleListOptions {
   name?: string;
+  disabled?: boolean;
+  checked?: boolean | "mixed";
+  selected?: boolean;
+  expanded?: boolean;
+  pressed?: boolean | "mixed";
+  current?: boolean | string;
+  orientation?: "horizontal" | "vertical";
+  focused?: boolean;
+}
+
+export interface ComponentRoleQueryOptions extends ComponentRoleListOptions {
+  /** Select one occurrence in depth-first authored order. */
+  index?: number;
 }
 
 export interface ComponentQueries {
@@ -475,6 +482,9 @@ export function renderComponent(
     if (value === "mixed") return "mixed";
     return booleanState(node, name);
   };
+  const disabledState = (node: AuthoredNode): boolean =>
+    node.attributes.has("disabled") ||
+    node.attributes.get("aria-disabled") === "true";
   const numericState = (node: AuthoredNode, name: string): number | null => {
     const value = node.attributes.get(name);
     if (value === undefined) return null;
@@ -535,8 +545,32 @@ export function renderComponent(
   const describeRole = (
     role: string,
     options: ComponentRoleQueryOptions | ComponentRoleListOptions,
+  ) => {
+    const filters = Object.entries(options)
+      .filter(([name, value]) => name !== "index" && value !== undefined)
+      .map(([name, value]) => ` ${name}=${JSON.stringify(value)}`)
+      .join("");
+    return `role=${role}${filters}`;
+  };
+  const matchesState = (
+    node: AuthoredNode,
+    options: ComponentRoleQueryOptions | ComponentRoleListOptions,
   ) =>
-    `role=${role}${options.name === undefined ? "" : ` name=${JSON.stringify(options.name)}`}`;
+    (options.disabled === undefined ||
+      disabledState(node) === options.disabled) &&
+    (options.checked === undefined ||
+      toggleState(node, "aria-checked") === options.checked) &&
+    (options.selected === undefined ||
+      booleanState(node, "aria-selected") === options.selected) &&
+    (options.expanded === undefined ||
+      booleanState(node, "aria-expanded") === options.expanded) &&
+    (options.pressed === undefined ||
+      toggleState(node, "aria-pressed") === options.pressed) &&
+    (options.current === undefined || currentState(node) === options.current) &&
+    (options.orientation === undefined ||
+      orientationState(node) === options.orientation) &&
+    (options.focused === undefined ||
+      (focusedNode === node) === options.focused);
   const matchingRole = (
     root: AuthoredNode | null,
     role: string,
@@ -545,7 +579,8 @@ export function renderComponent(
     scopeNodes(root).filter(
       (node) =>
         roleOf(node) === role &&
-        (options.name === undefined || nameOf(node) === options.name),
+        (options.name === undefined || nameOf(node) === options.name) &&
+        matchesState(node, options),
     );
   const scopeSuffix = (root: AuthoredNode | null) =>
     root === null
@@ -638,10 +673,7 @@ export function renderComponent(
   };
   const ensureEnabled = (node: AuthoredNode, action: string) => {
     ensureAttached(node, action);
-    if (
-      node.attributes.has("disabled") ||
-      node.attributes.get("aria-disabled") === "true"
-    ) {
+    if (disabledState(node)) {
       throw new Error(
         `cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`,
       );
@@ -693,10 +725,7 @@ export function renderComponent(
         return node.className;
       },
       get disabled() {
-        return (
-          node.attributes.has("disabled") ||
-          node.attributes.get("aria-disabled") === "true"
-        );
+        return disabledState(node);
       },
       get checked() {
         return toggleState(node, "aria-checked");

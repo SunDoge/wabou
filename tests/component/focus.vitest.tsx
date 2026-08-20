@@ -22,8 +22,11 @@ test("component focus follows native focus and blur ordering", () => {
   ));
 
   screen.getByRole("button", { name: "First" }).focus();
+  expect(screen.getByRole("button", { focused: true }).name).toBe("First");
   screen.getByRole("button", { name: "Second" }).focus();
+  expect(screen.getByRole("button", { focused: true }).name).toBe("Second");
   screen.getByRole("button", { name: "Second" }).blur();
+  expect(screen.queryByRole("button", { focused: true })).toBeNull();
 
   expect(events).toEqual([
     "first focus",

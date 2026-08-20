@@ -167,19 +167,26 @@ test("reads reactive semantic states without asserting raw protocol attributes",
     );
   };
   const screen = renderComponent(SemanticStates);
-  const updates = screen.getByRole("checkbox", { name: "Updates" });
+  const updates = screen.getByRole("checkbox", {
+    name: "Updates",
+    checked: false,
+  });
 
   expect(updates.checked).toBe(false);
   updates.click();
   expect(updates.checked).toBe(true);
-  expect(screen.getByRole("button", { name: "Unavailable" }).disabled).toBe(
-    true,
+  expect(screen.getByRole("checkbox", { checked: true }).name).toBe("Updates");
+  expect(screen.getByRole("button", { disabled: true }).name).toBe(
+    "Unavailable",
   );
-  expect(screen.getByRole("tab", { name: "General" }).selected).toBe(true);
-  expect(screen.getByRole("link", { name: "Overview" }).current).toBe("page");
   expect(
-    screen.getByRole("toolbar", { name: "Editing tools" }).orientation,
-  ).toBe("vertical");
+    screen.getAllByRole("button", { disabled: false }).map((item) => item.name),
+  ).toEqual(["Bold"]);
+  expect(screen.getByRole("tab", { selected: true }).name).toBe("General");
+  expect(screen.getByRole("link", { current: "page" }).name).toBe("Overview");
+  expect(screen.getByRole("toolbar", { orientation: "vertical" }).name).toBe(
+    "Editing tools",
+  );
   expect(screen.getByRole("group", { name: "Details" }).expanded).toBe(false);
   expect(screen.getByRole("button", { name: "Bold" }).pressed).toBe("mixed");
   const volume = screen.getByRole("slider", { name: "Volume" });

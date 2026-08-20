@@ -74,6 +74,15 @@ updates.click();
 expect(updates.checked).toBe(true);
 ```
 
+The same states can filter role queries, including scoped and list queries.
+Filters remain live across component updates, so tests can locate the selected,
+expanded, current, or focused item without inspecting raw attributes:
+
+```ts
+expect(screen.getByRole("tab", { selected: true }).name).toBe("General");
+expect(screen.queryByRole("button", { focused: true })).toBeNull();
+```
+
 Value-bearing locators likewise expose `value`, `numericValue`,
 `minNumericValue`, `maxNumericValue`, and `valueText`. These remain live after
 component events and parse numeric semantics once in the harness:

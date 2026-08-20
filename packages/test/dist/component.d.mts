@@ -1,13 +1,20 @@
 import { BuiltinHost, Host } from "@wabou/core/renderer";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
-interface ComponentRoleQueryOptions {
-  name?: string;
-  /** Select one occurrence in depth-first authored order. */
-  index?: number;
-}
 interface ComponentRoleListOptions {
   name?: string;
+  disabled?: boolean;
+  checked?: boolean | "mixed";
+  selected?: boolean;
+  expanded?: boolean;
+  pressed?: boolean | "mixed";
+  current?: boolean | string;
+  orientation?: "horizontal" | "vertical";
+  focused?: boolean;
+}
+interface ComponentRoleQueryOptions extends ComponentRoleListOptions {
+  /** Select one occurrence in depth-first authored order. */
+  index?: number;
 }
 interface ComponentQueries {
   getByRole(role: string, options?: ComponentRoleQueryOptions): ComponentLocator;

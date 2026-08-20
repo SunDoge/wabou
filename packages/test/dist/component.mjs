@@ -265,6 +265,7 @@ function renderComponent(render, options = {}) {
 		if (node.attributes.get(name) === "mixed") return "mixed";
 		return booleanState(node, name);
 	};
+	const disabledState = (node) => node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true";
 	const numericState = (node, name) => {
 		const value = node.attributes.get(name);
 		if (value === void 0) return null;
@@ -310,8 +311,11 @@ function renderComponent(render, options = {}) {
 		if (!all().includes(root)) throw new Error(`cannot query within detached component ${roleOf(root) ?? root.tag} "${nameOf(root)}"`);
 		return descendantsOf(root);
 	};
-	const describeRole = (role, options) => `role=${role}${options.name === void 0 ? "" : ` name=${JSON.stringify(options.name)}`}`;
-	const matchingRole = (root, role, options) => scopeNodes(root).filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name));
+	const describeRole = (role, options) => {
+		return `role=${role}${Object.entries(options).filter(([name, value]) => name !== "index" && value !== void 0).map(([name, value]) => ` ${name}=${JSON.stringify(value)}`).join("")}`;
+	};
+	const matchesState = (node, options) => (options.disabled === void 0 || disabledState(node) === options.disabled) && (options.checked === void 0 || toggleState(node, "aria-checked") === options.checked) && (options.selected === void 0 || booleanState(node, "aria-selected") === options.selected) && (options.expanded === void 0 || booleanState(node, "aria-expanded") === options.expanded) && (options.pressed === void 0 || toggleState(node, "aria-pressed") === options.pressed) && (options.current === void 0 || currentState(node) === options.current) && (options.orientation === void 0 || orientationState(node) === options.orientation) && (options.focused === void 0 || focusedNode === node === options.focused);
+	const matchingRole = (root, role, options) => scopeNodes(root).filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name) && matchesState(node, options));
 	const scopeSuffix = (root) => root === null ? "" : ` within ${roleOf(root) ?? root.tag} "${nameOf(root)}"`;
 	const resolveOne = (root, role, options, required) => {
 		if (options.index !== void 0 && (!Number.isSafeInteger(options.index) || options.index < 0)) throw new RangeError("component locator index must be non-negative");
@@ -370,7 +374,7 @@ function renderComponent(render, options = {}) {
 	};
 	const ensureEnabled = (node, action) => {
 		ensureAttached(node, action);
-		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
+		if (disabledState(node)) throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
 	};
 	const pointerPayload = (position, buttons, button = 0) => {
 		const clientX = position.clientX ?? position.offsetX ?? 0;
@@ -407,7 +411,7 @@ function renderComponent(render, options = {}) {
 				return node.className;
 			},
 			get disabled() {
-				return node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true";
+				return disabledState(node);
 			},
 			get checked() {
 				return toggleState(node, "aria-checked");
