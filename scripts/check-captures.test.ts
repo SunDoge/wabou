@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
-import { discoverCaptureCases } from "./check-captures";
+import { captureCommand, discoverCaptureCases } from "./check-captures";
 
 const roots: string[] = [];
 
@@ -69,5 +69,20 @@ describe("authored capture discovery", () => {
     );
 
     await expect(discoverCaptureCases(root)).rejects.toThrow("removed.ts");
+  });
+
+  test("only later captures reuse the already built application bundle", () => {
+    const capture = {
+      application: "apps/demo",
+      scenario: "apps/demo/captures/main.ts",
+      output: "target/wabou-captures/demo/main.png",
+      width: 800,
+      height: 600,
+      scaleFactor: 1,
+      waitMs: 250,
+    };
+
+    expect(captureCommand(capture, false)).not.toContain("--skip-build");
+    expect(captureCommand(capture, true)).toContain("--skip-build");
   });
 });

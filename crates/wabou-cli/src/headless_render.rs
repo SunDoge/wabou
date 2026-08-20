@@ -31,6 +31,7 @@ pub(super) struct RenderOptions {
     pub(super) window_id: u64,
     pub(super) scale_factor: f64,
     pub(super) mode: Option<String>,
+    pub(super) skip_build: bool,
     pub(super) with_host: bool,
     pub(super) scenario: Option<PathBuf>,
     pub(super) wait_ms: u64,
@@ -207,6 +208,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         window_id,
         scale_factor,
         mode,
+        skip_build,
         with_host,
         wait_ms,
         ..
@@ -221,18 +223,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         .ok()
         .and_then(|lo| wabou_shell::WindowResourceKey::from_parts(lo, 1))
         .ok_or("--window-id must be a non-zero 32-bit logical window id")?;
-    let frontend_lock = frontend::lock(workspace, app)?;
-    let mode_args = mode.as_deref().map(|mode| ["--mode", mode]);
-    ensure(
-        frontend::build_unlocked(
-            workspace,
-            app,
-            mode_args.as_ref().map_or(&[], |args| args),
-            BuildProfile::Debug,
-            true,
-        )?,
-        "Vite build",
-    )?;
+    prepare_frontend(workspace, app, mode.as_deref(), *skip_build)?;
     let path = bundle_path(workspace, app, BuildProfile::Debug)?;
     let source = fs::read_to_string(&path).map_err(|error| {
         format!(
@@ -240,7 +231,6 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
             path.display()
         )
     })?;
-    drop(frontend_lock);
     let js =
         JsRuntime::new().map_err(|error| format!("cannot create JavaScript runtime: {error:?}"))?;
 
@@ -362,19 +352,7 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
         return Err("--with-host does not support --metrics; use the bundle-only renderer".into());
     }
 
-    let frontend_lock = frontend::lock(workspace, app)?;
-    let mode_args = options.mode.as_deref().map(|mode| ["--mode", mode]);
-    ensure(
-        frontend::build_unlocked(
-            workspace,
-            app,
-            mode_args.as_ref().map_or(&[], |args| args),
-            BuildProfile::Debug,
-            true,
-        )?,
-        "Vite build",
-    )?;
-    drop(frontend_lock);
+    prepare_frontend(workspace, app, options.mode.as_deref(), options.skip_build)?;
 
     let render_dir = workspace.join("target/wabou-render").join(&app.name);
     fs::create_dir_all(&render_dir)?;
@@ -454,6 +432,40 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
     Ok(())
 }
 
+fn prepare_frontend(
+    workspace: &Path,
+    app: &App,
+    mode: Option<&str>,
+    skip_build: bool,
+) -> Result<()> {
+    let bundle = bundle_path(workspace, app, BuildProfile::Debug)?;
+    if skip_build {
+        if !bundle.is_file() {
+            return Err(format!(
+                "--skip-build requires an existing debug bundle at {}; run `wabou render` without --skip-build first",
+                bundle.display()
+            )
+            .into());
+        }
+        return Ok(());
+    }
+
+    let frontend_lock = frontend::lock(workspace, app)?;
+    let mode_args = mode.map(|mode| ["--mode", mode]);
+    ensure(
+        frontend::build_unlocked(
+            workspace,
+            app,
+            mode_args.as_ref().map_or(&[], |args| args),
+            BuildProfile::Debug,
+            true,
+        )?,
+        "Vite build",
+    )?;
+    drop(frontend_lock);
+    Ok(())
+}
+
 fn host_capture_scenario_source(
     test_runtime: &Path,
     authored_scenario: Option<&Path>,
@@ -481,7 +493,8 @@ fn host_capture_scenario_source(
 
 #[cfg(test)]
 mod tests {
-    use super::host_capture_scenario_source;
+    use super::{host_capture_scenario_source, prepare_frontend};
+    use crate::project::App;
     use std::path::Path;
 
     #[test]
@@ -498,5 +511,24 @@ mod tests {
         assert!(authored < settle);
         assert!(source.contains("setTimeout(resolve, 250)"));
         assert!(source.contains("{ timeout: 5250 }"));
+    }
+
+    #[test]
+    fn skip_build_requires_an_existing_debug_bundle() {
+        let workspace = tempfile::tempdir().unwrap();
+        let app = App {
+            name: "demo".into(),
+            root: workspace.path().join("apps/demo"),
+            frontend: workspace.path().join("apps/demo"),
+            entry: "ui/index.tsx".into(),
+        };
+
+        let error = prepare_frontend(workspace.path(), &app, None, true).unwrap_err();
+        assert!(error.to_string().contains("--skip-build requires"));
+
+        let bundle = workspace.path().join("dist/demo/debug/resources/bundle.js");
+        std::fs::create_dir_all(bundle.parent().unwrap()).unwrap();
+        std::fs::write(&bundle, "bundle").unwrap();
+        prepare_frontend(workspace.path(), &app, None, true).unwrap();
     }
 }

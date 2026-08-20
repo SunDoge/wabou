@@ -166,6 +166,8 @@ render it with the real application host, and write PNGs below
 `target/wabou-captures/<app>/`. An optional `captures/config.json` supplies an
 application viewport default and per-file overrides; the verifier rejects
 overrides whose scenario was removed, so metadata cannot silently drift.
+The first capture for each application builds its frontend and subsequent
+captures use `wabou render --skip-build` against that exact debug bundle.
 
 `page.waitForIdle()` waits for queued test actions and runtime work; it does
 not wait for visual animation completion because a valid application may have

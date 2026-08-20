@@ -177,6 +177,9 @@ enum Commands {
         /// Vite mode used to select an application-owned render fixture.
         #[arg(long)]
         mode: Option<String>,
+        /// Reuse an existing debug frontend bundle instead of invoking Vite.
+        #[arg(long)]
+        skip_build: bool,
         /// Run the application's Rust host registrations before capturing.
         #[arg(long)]
         with_host: bool,
@@ -372,6 +375,7 @@ fn main() -> Result<()> {
             window_id,
             scale_factor,
             mode,
+            skip_build,
             with_host,
             scenario,
             wait_ms,
@@ -394,6 +398,7 @@ fn main() -> Result<()> {
                     window_id,
                     scale_factor,
                     mode,
+                    skip_build,
                     with_host,
                     scenario,
                     wait_ms,
@@ -1022,6 +1027,7 @@ mod tests {
                     window_id,
                     scale_factor,
                     mode,
+                    skip_build,
                     with_host,
                     scenario,
                     wait_ms,
@@ -1037,6 +1043,7 @@ mod tests {
         assert_eq!(window_id, 1);
         assert_eq!(scale_factor, 1.0);
         assert_eq!(mode, None);
+        assert!(!skip_build);
         assert!(!with_host);
         assert_eq!(scenario, None);
         assert_eq!(wait_ms, 1_000);
@@ -1050,6 +1057,7 @@ mod tests {
                     window_id,
                     scale_factor,
                     mode,
+                    skip_build,
                     with_host,
                     scenario,
                     wait_ms,
@@ -1069,6 +1077,7 @@ mod tests {
             "2",
             "--mode",
             "ui-test",
+            "--skip-build",
             "--with-host",
             "--scenario",
             "captures/downloads.ts",
@@ -1097,6 +1106,7 @@ mod tests {
         assert_eq!(window_id, 7);
         assert_eq!(scale_factor, 2.0);
         assert_eq!(mode.as_deref(), Some("ui-test"));
+        assert!(skip_build);
         assert!(with_host);
         assert_eq!(scenario, Some(PathBuf::from("captures/downloads.ts")));
         assert_eq!(wait_ms, 250);

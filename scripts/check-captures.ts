@@ -21,6 +21,36 @@ export interface CaptureCase extends CaptureViewport {
   output: string;
 }
 
+export function captureCommand(
+  capture: CaptureCase,
+  skipBuild: boolean,
+): string[] {
+  const args = [
+    "cargo",
+    "run",
+    "-p",
+    "wabou-cli",
+    "--",
+    "render",
+    capture.application,
+    "--with-host",
+    "--scenario",
+    capture.scenario,
+    "--out",
+    capture.output,
+    "--width",
+    String(capture.width),
+    "--height",
+    String(capture.height),
+    "--scale-factor",
+    String(capture.scaleFactor),
+    "--wait-ms",
+    String(capture.waitMs),
+  ];
+  if (skipBuild) args.push("--skip-build");
+  return args;
+}
+
 const fallbackViewport: CaptureViewport = {
   width: 1440,
   height: 900,
@@ -205,32 +235,15 @@ async function main(): Promise<void> {
     return;
   }
 
+  const builtApplications = new Set<string>();
   for (const capture of captures) {
     const output = resolve(root, capture.output);
     await mkdir(dirname(output), { recursive: true });
     console.log(`[capture] rendering ${capture.scenario}`);
-    const args = [
-      "cargo",
-      "run",
-      "-p",
-      "wabou-cli",
-      "--",
-      "render",
-      capture.application,
-      "--with-host",
-      "--scenario",
-      capture.scenario,
-      "--out",
-      capture.output,
-      "--width",
-      String(capture.width),
-      "--height",
-      String(capture.height),
-      "--scale-factor",
-      String(capture.scaleFactor),
-      "--wait-ms",
-      String(capture.waitMs),
-    ];
+    const args = captureCommand(
+      capture,
+      builtApplications.has(capture.application),
+    );
     const child = Bun.spawn(args, {
       cwd: root,
       stdin: "inherit",
@@ -239,6 +252,7 @@ async function main(): Promise<void> {
     });
     const exitCode = await child.exited;
     if (exitCode !== 0) process.exit(exitCode);
+    builtApplications.add(capture.application);
     if (!(await Bun.file(output).exists()) || Bun.file(output).size === 0) {
       throw new Error(`capture did not produce ${relative(root, output)}`);
     }
