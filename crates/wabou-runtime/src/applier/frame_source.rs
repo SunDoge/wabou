@@ -613,10 +613,20 @@ impl FrameSource for Applier {
             let [x0, y0, x1, y1] = node.rect;
             let rect = Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64);
             if overlay.layout {
+                // A dark halo keeps the diagnostic visible over both light and
+                // dark application surfaces. The cyan core remains the stable
+                // meaning of a layout border box.
                 scene.stroke(
-                    &Stroke::new(1.0),
+                    &Stroke::new(3.0),
                     device,
-                    Color::from_rgba8(56, 189, 248, 190),
+                    Color::from_rgba8(15, 23, 42, 210),
+                    None,
+                    &rect,
+                );
+                scene.stroke(
+                    &Stroke::new(1.25),
+                    device,
+                    Color::from_rgba8(56, 189, 248, 255),
                     None,
                     &rect,
                 );

@@ -9101,6 +9101,7 @@ dependencies = [
  "foyer",
  "futures-lite",
  "getrandom 0.4.3",
+ "image",
  "jiff",
  "lasso",
  "open",

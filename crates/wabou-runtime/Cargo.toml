@@ -70,5 +70,6 @@ profiling = ["dep:tracing-chrome", "wabou-shell/profiling"]
 vite = ["dep:tungstenite", "dep:ureq"]
 
 [dev-dependencies]
+image = { workspace = true, features = ["png"] }
 tempfile = "3"
 wabou-devtools = { workspace = true }

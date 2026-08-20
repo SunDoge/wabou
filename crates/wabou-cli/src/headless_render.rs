@@ -329,6 +329,10 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         base_color,
         *scale_factor,
     );
+    // Keep bundle-only captures faithful to the native window path: debug
+    // decorations are appended after the application scene and never
+    // participate in layout, clipping, or hit testing.
+    applier.paint_debug_overlay(&mut scene, &nodes, &mut text_context, *scale_factor);
     let out_text = out
         .to_str()
         .ok_or_else(|| format!("output path is not valid UTF-8: {}", out.display()))?;

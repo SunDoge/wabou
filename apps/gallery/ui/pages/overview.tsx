@@ -79,15 +79,42 @@ export function OverviewPage(props: {
 }) {
   const compact = createWindowMatch({ maxWidth: 1099 }, useWindow());
   const host = useHost();
-  const debugOverlayAvailable = host.diagnostics.setOverlay({});
+  const [overlayPaint, setOverlayPaint] = createSignal(
+    host.diagnostics.overlayPaintStats(),
+  );
+  const debugOverlayAvailable = overlayPaint() !== null;
   const [selectedNode, setSelectedNode] = createSignal("hero");
   const [motion, setMotion] = createSignal(72);
   const [inspectLayout, setInspectLayout] = createSignal(false);
+  let overlayEvidenceTimer: ReturnType<typeof setInterval> | undefined;
+  const stopOverlayEvidence = () => {
+    clearInterval(overlayEvidenceTimer);
+    overlayEvidenceTimer = undefined;
+  };
+  const refreshOverlayEvidence = () =>
+    setOverlayPaint(host.diagnostics.overlayPaintStats());
   const toggleLayoutOverlay = (enabled: boolean) => {
-    if (host.diagnostics.setOverlay({ layout: enabled }))
+    if (host.diagnostics.setOverlay({ layout: enabled })) {
       setInspectLayout(enabled);
+      stopOverlayEvidence();
+      if (enabled) {
+        refreshOverlayEvidence();
+        overlayEvidenceTimer = setInterval(refreshOverlayEvidence, 250);
+      } else {
+        refreshOverlayEvidence();
+      }
+    }
+  };
+  const layoutOverlayStatus = () => {
+    if (!debugOverlayAvailable) return "Available in debug builds";
+    if (!inspectLayout()) return "Inspect native bounds";
+    const paint = overlayPaint();
+    if (!paint?.enabled || paint.layout_bounds === 0)
+      return "Native paint requested";
+    return `${paint.layout_bounds} native bounds · pass ${paint.sequence}`;
   };
   onCleanup(() => {
+    stopOverlayEvidence();
     if (inspectLayout()) host.diagnostics.setOverlay({});
   });
   const selected = () =>
@@ -314,9 +341,7 @@ export function OverviewPage(props: {
               <View class="flex flex-col gap-1">
                 <Text class="text-sm text-primary">Layout overlay</Text>
                 <Text class="text-xs text-muted">
-                  {debugOverlayAvailable
-                    ? "Inspect native bounds"
-                    : "Available in debug builds"}
+                  {layoutOverlayStatus()}
                 </Text>
               </View>
               <Switch

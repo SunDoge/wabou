@@ -110,6 +110,40 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
     assert_eq!(enabled_paint.layout_bounds, 1);
     assert_eq!(enabled_paint.clip_bounds, 0);
     assert_eq!(enabled_paint.highlights, 0);
+
+    let output = std::env::temp_dir().join(format!(
+        "wabou-debug-overlay-pixels-{}.png",
+        std::process::id()
+    ));
+    wabou_shell::renderer::render_to_png(
+        &enabled_scene,
+        120,
+        80,
+        Color::WHITE,
+        &output.to_string_lossy(),
+    )
+    .expect("render debug overlay");
+    let pixels = image::open(&output)
+        .expect("open debug overlay png")
+        .into_rgba8();
+    std::fs::remove_file(output).expect("remove debug overlay png");
+    let cyan_pixels = pixels
+        .pixels()
+        .filter(|pixel| pixel[0] < 100 && pixel[1] > 130 && pixel[2] > 180)
+        .count();
+    let halo_pixels = pixels
+        .pixels()
+        .filter(|pixel| pixel[0] < 230 && pixel[1] < 230 && pixel[2] < 230)
+        .count();
+    assert!(
+        cyan_pixels > 100,
+        "cyan layout stroke must reach pixels; found {cyan_pixels}"
+    );
+    assert!(
+        halo_pixels > 100,
+        "contrast halo must reach pixels; found {halo_pixels}"
+    );
+    assert_eq!(pixels.get_pixel(50, 30).0, [255, 255, 255, 255]);
 }
 
 #[test]
