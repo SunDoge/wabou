@@ -1,3 +1,4 @@
+import { BuiltinHost, Host } from "@wabou/core/renderer";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
 interface ComponentLocator {
@@ -35,6 +36,29 @@ interface ComponentScreen {
   }): ComponentLocator | null;
   dispose(): void;
 }
+interface RenderComponentOptions {
+  /** Host fixture injected into the component subtree. */
+  host?: Host;
+}
+interface TestHostCall {
+  readonly path: string;
+  readonly args: readonly unknown[];
+}
+interface TestHostFixture<H extends Host> {
+  readonly host: H;
+  readonly calls: readonly TestHostCall[];
+  callsTo(path: string): readonly TestHostCall[];
+  clearCalls(): void;
+}
+interface TestBuiltinHost {
+  system?: Partial<BuiltinHost["system"]>;
+  fonts?: Partial<BuiltinHost["fonts"]>;
+  diagnostics?: Partial<BuiltinHost["diagnostics"]>;
+  intl?: Partial<BuiltinHost["intl"]>;
+  layout?: Partial<BuiltinHost["layout"]>;
+}
+/** Create a typed, deterministic Host with automatic call recording. */
+declare function createTestHost<C extends object = Record<string, never>>(capabilities?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
 /** Dispose the active component tree. Vitest users get this automatically. */
 declare function cleanupComponents(): void;
 /**
@@ -43,7 +67,7 @@ declare function cleanupComponents(): void;
  * native layout, hit testing, and final semantic projection remain the job of
  * `wabou test` behavior scenarios.
  */
-declare function renderComponent(render: () => JSX.Element): ComponentScreen;
+declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentPointerPosition, ComponentScreen, cleanupComponents, renderComponent };
+export { ComponentLocator, ComponentPointerPosition, ComponentScreen, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map

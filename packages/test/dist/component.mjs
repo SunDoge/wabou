@@ -1,8 +1,80 @@
-import { EVENT_CODE, dispatchEvent, mount, writer } from "@wabou/core/renderer";
+import { EVENT_CODE, HostProvider, dispatchEvent, mount, writer } from "@wabou/core/renderer";
 import { dispatchResizeObservation } from "@wabou/core/testing";
-import { flush } from "solid-js";
+import { createComponent, flush } from "solid-js";
 import { onTestFinished } from "vitest";
 //#region src/component.ts
+function missingHostMethod(path) {
+	throw new Error(`test host method ${path} is not configured`);
+}
+/** Create a typed, deterministic Host with automatic call recording. */
+function createTestHost(capabilities, builtins = {}) {
+	const calls = [];
+	const base = Object.assign({
+		system: {
+			openUrl: (url) => missingHostMethod(`system.openUrl(${url})`),
+			...builtins.system
+		},
+		fonts: {
+			load: (path) => missingHostMethod(`fonts.load(${path})`),
+			...builtins.fonts
+		},
+		diagnostics: {
+			frameStats: () => null,
+			...builtins.diagnostics
+		},
+		intl: {
+			locale: () => "en-US",
+			timeZone: () => "UTC",
+			today: () => ({
+				year: 1970,
+				month: 1,
+				day: 1
+			}),
+			...builtins.intl
+		},
+		layout: {
+			snapshot: () => missingHostMethod("layout.snapshot"),
+			measure: () => missingHostMethod("layout.measure"),
+			clippingRect: () => missingHostMethod("layout.clippingRect"),
+			viewport: () => missingHostMethod("layout.viewport"),
+			...builtins.layout
+		}
+	}, capabilities ?? {});
+	const cache = /* @__PURE__ */ new WeakMap();
+	const wrap = (value, path) => {
+		const cached = cache.get(value);
+		if (cached) return cached;
+		const methods = /* @__PURE__ */ new Map();
+		const proxy = new Proxy(value, { get(target, property, receiver) {
+			const child = Reflect.get(target, property, receiver);
+			if (typeof property !== "string") return child;
+			const childPath = path ? `${path}.${property}` : property;
+			if (typeof child === "function") {
+				const existing = methods.get(property);
+				if (existing) return existing;
+				const method = (...args) => {
+					calls.push({
+						path: childPath,
+						args
+					});
+					return Reflect.apply(child, target, args);
+				};
+				methods.set(property, method);
+				return method;
+			}
+			if (child && typeof child === "object") return wrap(child, childPath);
+			return child;
+		} });
+		cache.set(value, proxy);
+		return proxy;
+	};
+	return {
+		host: wrap(base, ""),
+		calls,
+		callsTo: (path) => calls.filter((call) => call.path === path),
+		clearCalls: () => calls.splice(0)
+	};
+}
 let activeHarness = false;
 let activeScreen = null;
 /** Dispose the active component tree. Vitest users get this automatically. */
@@ -31,7 +103,7 @@ function installHostStub(name) {
 * native layout, hit testing, and final semantic projection remain the job of
 * `wabou test` behavior scenarios.
 */
-function renderComponent(render) {
+function renderComponent(render, options = {}) {
 	if (activeHarness) throw new Error("renderComponent supports one active component screen at a time");
 	activeHarness = true;
 	const restoreHostStubs = [installHostStub("__wabou_resize_observe"), installHostStub("__wabou_resize_unobserve")];
@@ -128,7 +200,12 @@ function renderComponent(render) {
 		activeHarness = false;
 	};
 	try {
-		disposeMount = mount(render);
+		disposeMount = mount(() => options.host ? createComponent(HostProvider, {
+			value: options.host,
+			get children() {
+				return render();
+			}
+		}) : render());
 		flush();
 		writer.flush();
 	} catch (error) {
@@ -256,6 +333,6 @@ function renderComponent(render) {
 	return screen;
 }
 //#endregion
-export { cleanupComponents, renderComponent };
+export { cleanupComponents, createTestHost, renderComponent };
 
 //# sourceMappingURL=component.mjs.map

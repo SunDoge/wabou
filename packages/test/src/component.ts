@@ -1,7 +1,15 @@
-import { dispatchEvent, EVENT_CODE, mount, writer } from "@wabou/core/renderer";
+import {
+  type BuiltinHost,
+  dispatchEvent,
+  EVENT_CODE,
+  type Host,
+  HostProvider,
+  mount,
+  writer,
+} from "@wabou/core/renderer";
 import type { NodeKey } from "@wabou/core/protocol";
 import { dispatchResizeObservation } from "@wabou/core/testing";
-import { flush, type JSX } from "solid-js";
+import { createComponent, flush, type JSX } from "solid-js";
 import { onTestFinished } from "vitest";
 
 interface AuthoredNode {
@@ -49,6 +57,106 @@ export interface ComponentScreen {
   dispose(): void;
 }
 
+export interface RenderComponentOptions {
+  /** Host fixture injected into the component subtree. */
+  host?: Host;
+}
+
+export interface TestHostCall {
+  readonly path: string;
+  readonly args: readonly unknown[];
+}
+
+export interface TestHostFixture<H extends Host> {
+  readonly host: H;
+  readonly calls: readonly TestHostCall[];
+  callsTo(path: string): readonly TestHostCall[];
+  clearCalls(): void;
+}
+
+export interface TestBuiltinHost {
+  system?: Partial<BuiltinHost["system"]>;
+  fonts?: Partial<BuiltinHost["fonts"]>;
+  diagnostics?: Partial<BuiltinHost["diagnostics"]>;
+  intl?: Partial<BuiltinHost["intl"]>;
+  layout?: Partial<BuiltinHost["layout"]>;
+}
+
+function missingHostMethod(path: string): never {
+  throw new Error(`test host method ${path} is not configured`);
+}
+
+/** Create a typed, deterministic Host with automatic call recording. */
+export function createTestHost<C extends object = Record<string, never>>(
+  capabilities?: C,
+  builtins: TestBuiltinHost = {},
+): TestHostFixture<Host & C> {
+  const calls: TestHostCall[] = [];
+  const base: BuiltinHost & C = Object.assign(
+    {
+      system: {
+        openUrl: (url: string) => missingHostMethod(`system.openUrl(${url})`),
+        ...builtins.system,
+      },
+      fonts: {
+        load: (path: string) => missingHostMethod(`fonts.load(${path})`),
+        ...builtins.fonts,
+      },
+      diagnostics: {
+        frameStats: () => null,
+        ...builtins.diagnostics,
+      },
+      intl: {
+        locale: () => "en-US",
+        timeZone: () => "UTC",
+        today: () => ({ year: 1970, month: 1, day: 1 }),
+        ...builtins.intl,
+      },
+      layout: {
+        snapshot: () => missingHostMethod("layout.snapshot"),
+        measure: () => missingHostMethod("layout.measure"),
+        clippingRect: () => missingHostMethod("layout.clippingRect"),
+        viewport: () => missingHostMethod("layout.viewport"),
+        ...builtins.layout,
+      },
+    } satisfies BuiltinHost,
+    capabilities ?? ({} as C),
+  );
+  const cache = new WeakMap<object, object>();
+  const wrap = (value: object, path: string): object => {
+    const cached = cache.get(value);
+    if (cached) return cached;
+    const methods = new Map<string, (...args: unknown[]) => unknown>();
+    const proxy = new Proxy(value, {
+      get(target, property, receiver) {
+        const child = Reflect.get(target, property, receiver) as unknown;
+        if (typeof property !== "string") return child;
+        const childPath = path ? `${path}.${property}` : property;
+        if (typeof child === "function") {
+          const existing = methods.get(property);
+          if (existing) return existing;
+          const method = (...args: unknown[]) => {
+            calls.push({ path: childPath, args });
+            return Reflect.apply(child, target, args);
+          };
+          methods.set(property, method);
+          return method;
+        }
+        if (child && typeof child === "object") return wrap(child, childPath);
+        return child;
+      },
+    });
+    cache.set(value, proxy);
+    return proxy;
+  };
+  return {
+    host: wrap(base, "") as Host & C,
+    calls,
+    callsTo: (path) => calls.filter((call) => call.path === path),
+    clearCalls: () => calls.splice(0),
+  };
+}
+
 let activeHarness = false;
 let activeScreen: ComponentScreen | null = null;
 
@@ -82,7 +190,10 @@ function installHostStub(name: string): () => void {
  * native layout, hit testing, and final semantic projection remain the job of
  * `wabou test` behavior scenarios.
  */
-export function renderComponent(render: () => JSX.Element): ComponentScreen {
+export function renderComponent(
+  render: () => JSX.Element,
+  options: RenderComponentOptions = {},
+): ComponentScreen {
   if (activeHarness) {
     throw new Error(
       "renderComponent supports one active component screen at a time",
@@ -196,7 +307,16 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
     activeHarness = false;
   };
   try {
-    disposeMount = mount(render);
+    disposeMount = mount(() =>
+      options.host
+        ? createComponent(HostProvider, {
+            value: options.host,
+            get children() {
+              return render();
+            },
+          })
+        : render(),
+    );
     flush();
     writer.flush();
   } catch (error) {

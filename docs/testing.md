@@ -65,6 +65,26 @@ screen.getByRole("group", { name: "Panel" }).resize({
 This drives Wabou's real `ResizeObserver` callback and Solid update; it does not
 claim that Taffy would produce that geometry.
 
+Inject typed Host capabilities without booting Rust by passing a fixture to
+the component renderer. Generated DTOs remain the request and response types;
+the fixture does not introduce another schema:
+
+```tsx
+const host = createTestHost<DownloadsHost>({
+  downloads: {
+    list: async () => [{ id: "1", name: "demo.zip" }],
+  },
+});
+
+const screen = renderComponent(() => <Downloads />, { host: host.host });
+expect(host.callsTo("downloads.list")).toHaveLength(1);
+```
+
+Calls retain their path and exact arguments. Read-only locale/time defaults are
+deterministic (`en-US`, `UTC`, 1970-01-01); unconfigured system, font, and
+layout operations throw instead of silently succeeding. Pass explicit builtin
+overrides when a component owns one of those interactions.
+
 This layer verifies component state, composition, declared roles and names,
 and JavaScript event handling. It intentionally does not invent a fake layout
 engine. Keep the much smaller set of geometry, native hit-testing, window, and

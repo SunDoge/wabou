@@ -8,7 +8,8 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { renderComponent } from "@wabou/test/component";
+import { createTestHost, renderComponent } from "@wabou/test/component";
+import { useHost, type Host } from "@wabou/core/renderer";
 
 test("tests a reactive component through its authored role and name", () => {
   const Counter = () => {
@@ -131,4 +132,40 @@ test("uses the native pointer sequence and exposes transient press state", () =>
   button.click();
   expect(activations).toBe(1);
   expect(button.className).not.toContain("bg-control-pressed");
+});
+
+test("injects typed host capabilities and records their calls", () => {
+  interface DemoCapability {
+    demo: {
+      format(request: { value: number }): { label: string };
+    };
+  }
+  const fixture = createTestHost<DemoCapability>({
+    demo: {
+      format: ({ value }) => ({ label: `Value ${value}` }),
+    },
+  });
+  const HostConsumer = () => {
+    const host = useHost<Host & DemoCapability>();
+    return <Text role="status">{host.demo.format({ value: 42 }).label}</Text>;
+  };
+
+  const screen = renderComponent(() => <HostConsumer />, {
+    host: fixture.host,
+  });
+
+  expect(screen.getByRole("status", { name: "Value 42" }).text).toBe(
+    "Value 42",
+  );
+  expect(fixture.callsTo("demo.format")).toEqual([
+    { path: "demo.format", args: [{ value: 42 }] },
+  ]);
+});
+
+test("fails loudly when an unconfigured host side effect is used", () => {
+  const fixture = createTestHost();
+  expect(() => fixture.host.system.openUrl("https://example.com")).toThrow(
+    "test host method system.openUrl",
+  );
+  expect(fixture.callsTo("system.openUrl")).toHaveLength(1);
 });
