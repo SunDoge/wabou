@@ -14,6 +14,7 @@ pub mod effect;
 #[path = "generated/effect_abi.rs"]
 mod effect_abi;
 pub mod error;
+pub mod headless;
 pub mod image;
 pub mod layout;
 pub mod renderer;

@@ -19,4 +19,13 @@ test("gallery layout control paints native diagnostic bounds", async ({
     );
   }
   expect(paint.sequence > 0).toBe(true);
+
+  const frame = defaultHost.diagnostics.frameStats();
+  if (!frame || frame.node_count === 0) {
+    throw new Error(
+      `headless host did not publish native frame diagnostics: ${JSON.stringify(frame)}`,
+    );
+  }
+  expect(frame.viewport_w > 0).toBe(true);
+  expect(frame.viewport_h > 0).toBe(true);
 });

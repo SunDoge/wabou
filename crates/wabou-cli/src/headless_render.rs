@@ -13,8 +13,8 @@ use wabou_shell::layout::PlacedNode;
 use wabou_shell::renderer::render_to_png;
 use wabou_shell::scene as scene_builder;
 use wabou_shell::{
-    FrameSource, FrameStats, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton,
-    PointerEvent, PointerPhase, TextContext, UiEvent, WheelEvent,
+    FrameSource, KeyEvent, KeyLocation, KeyPhase, Modifiers, Point, PointerButton, PointerEvent,
+    PointerPhase, TextContext, UiEvent, WheelEvent,
 };
 
 use super::artifact::{app_binary, app_framework_feature};
@@ -146,40 +146,6 @@ fn settle(
     }
 }
 
-fn build_diagnostic_frame(
-    applier: &mut Applier,
-    text: &mut TextContext,
-    stats: &mut FrameStats,
-    width: u32,
-    height: u32,
-    scale_factor: f64,
-    base_color: vello::peniko::Color,
-) -> Vec<PlacedNode> {
-    let build_started = Instant::now();
-    let nodes = applier.build_frame(text, width, height);
-    let build_frame_ms = build_started.elapsed().as_secs_f64() * 1_000.0;
-
-    // Headless captures have no swapchain presentation, but scene assembly is
-    // still a real stage and should obey the same diagnostics contract as a
-    // native window. Build a throwaway scene here; the final capture remains a
-    // separate frame so diagnostics UI can consume this completed sample.
-    let scene_started = Instant::now();
-    let mut scene = Scene::new();
-    scene_builder::build_scene_scaled(
-        &mut scene,
-        &nodes,
-        text,
-        width,
-        height,
-        base_color,
-        scale_factor,
-    );
-    let scene_ms = scene_started.elapsed().as_secs_f64() * 1_000.0;
-    stats.update(build_frame_ms, scene_ms, 0.0, nodes.len());
-    applier.push_frame_stats(stats);
-    nodes
-}
-
 fn apply_actions(
     applier: &mut Applier,
     text_context: &mut TextContext,
@@ -303,13 +269,12 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         color_scheme: Some(wabou_shell::ColorScheme::Light),
     }));
     let mut text_context = TextContext::new();
-    let mut headless_stats = FrameStats::default();
+    let mut profiler = wabou_shell::headless::HeadlessFrameProfiler::default();
     let mut nodes = applier.build_frame(&mut text_context, *width, *height);
     settle(&mut applier, &mut text_context, &mut nodes, *width, *height);
-    nodes = build_diagnostic_frame(
+    nodes = profiler.build(
         &mut applier,
         &mut text_context,
-        &mut headless_stats,
         *width,
         *height,
         *scale_factor,
@@ -320,10 +285,9 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         let deadline = Instant::now() + Duration::from_millis(*wait_ms);
         while Instant::now() < deadline {
             thread::sleep(Duration::from_millis(10));
-            nodes = build_diagnostic_frame(
+            nodes = profiler.build(
                 &mut applier,
                 &mut text_context,
-                &mut headless_stats,
                 *width,
                 *height,
                 *scale_factor,

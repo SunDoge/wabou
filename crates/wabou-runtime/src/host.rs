@@ -1157,6 +1157,9 @@ fn run_headless_test(
     let deadline = Instant::now() + Duration::from_secs(65);
     let mut text = crate::TextContext::new();
     let mut last_nodes = vec![Vec::new(); sources.len()];
+    let mut profilers = (0..sources.len())
+        .map(|_| wabou_shell::headless::HeadlessFrameProfiler::default())
+        .collect::<Vec<_>>();
     while !controller.has_report() && Instant::now() < deadline {
         for (index, (source, _)) in sources.iter_mut().enumerate() {
             let window_key = wabou_shell::initial_window_resource_key(index);
@@ -1175,17 +1178,13 @@ fn run_headless_test(
                 focused: true,
                 color_scheme: Some(wabou_shell::ColorScheme::Light),
             }));
-            last_nodes[index] = source.build_frame(&mut text, width, height);
-            // Deterministic tests do not own a GPU surface, but diagnostic
-            // layers are still scene behavior. Encode them into a throwaway
-            // Vello scene every frame so tests can observe the same paint pass
-            // as a native window without requiring presentation support.
-            let mut diagnostic_scene = vello::Scene::new();
-            source.paint_debug_overlay(
-                &mut diagnostic_scene,
-                &last_nodes[index],
+            last_nodes[index] = profilers[index].build(
+                source.as_mut(),
                 &mut text,
+                width,
+                height,
                 viewport.scale_factor,
+                base_color,
             );
             controller.poll_headless_source(window_key, source.as_mut());
             drain_headless_effects(source.as_mut());
