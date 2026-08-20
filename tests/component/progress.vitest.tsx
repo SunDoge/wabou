@@ -47,14 +47,14 @@ test("keeps the shorthand reactive and publishes normalized semantics", () => {
   const screen = renderComponent(Example);
   const upload = screen.getByRole("progressbar", { name: "Upload" });
 
-  expect(upload.attribute("aria-valuemin")).toBe("20");
-  expect(upload.attribute("aria-valuemax")).toBe("40");
-  expect(upload.attribute("aria-valuenow")).toBe("25");
-  expect(upload.attribute("aria-valuetext")).toBe("25 percent");
+  expect(upload.minNumericValue).toBe(20);
+  expect(upload.maxNumericValue).toBe(40);
+  expect(upload.numericValue).toBe(25);
+  expect(upload.valueText).toBe("25 percent");
 
   screen.getByRole("progressbar", { name: "Update upload" }).click();
-  expect(upload.attribute("aria-valuenow")).toBe("35");
-  expect(upload.attribute("aria-valuetext")).toBe("75 percent");
+  expect(upload.numericValue).toBe(35);
+  expect(upload.valueText).toBe("75 percent");
 });
 
 test("composes labels and omits a determinate value while pending", () => {
@@ -73,8 +73,8 @@ test("composes labels and omits a determinate value while pending", () => {
     name: "Preparing files",
   });
 
-  expect(progress.attribute("aria-valuenow")).toBeNull();
-  expect(progress.attribute("aria-valuetext")).toBeNull();
+  expect(progress.numericValue).toBeNull();
+  expect(progress.valueText).toBeNull();
   expect(progress.text).toContain("Preparing files");
   expect(progress.text).toContain("In progress");
 });

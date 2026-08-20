@@ -73,6 +73,16 @@ updates.click();
 expect(updates.checked).toBe(true);
 ```
 
+Value-bearing locators likewise expose `value`, `numericValue`,
+`minNumericValue`, `maxNumericValue`, and `valueText`. These remain live after
+component events and parse numeric semantics once in the harness:
+
+```ts
+const slider = screen.getByRole("slider", { name: "Volume" });
+slider.press("ArrowRight");
+expect(slider.numericValue).toBe(45);
+```
+
 Components that subscribe to native measurement can still mount in their
 explicit unmeasured state without requiring a window.
 

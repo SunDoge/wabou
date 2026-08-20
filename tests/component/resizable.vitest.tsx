@@ -58,12 +58,12 @@ test("resizes through a captured pointer sequence and keyboard commands", () => 
   expect(handle.className).toContain("bg-accent");
   handle.pointerMove({ clientX: 180, clientY: 20 });
   handle.pointerUp({ clientX: 180, clientY: 20 });
-  expect(handle.attribute("aria-valuenow")).toBe("50");
+  expect(handle.numericValue).toBe(50);
 
   handle.press("ArrowRight");
-  expect(handle.attribute("aria-valuenow")).toBe("55");
+  expect(handle.numericValue).toBe(55);
   handle.press("End");
-  expect(handle.attribute("aria-valuenow")).toBe("60");
+  expect(handle.numericValue).toBe(60);
 });
 
 test("supports application-owned sizes", () => {
@@ -92,5 +92,5 @@ test("supports application-owned sizes", () => {
   const handle = screen.getByRole("separator", { name: "Controlled divider" });
 
   handle.press("ArrowRight");
-  expect(handle.attribute("aria-valuenow")).toBe("32");
+  expect(handle.numericValue).toBe(32);
 });

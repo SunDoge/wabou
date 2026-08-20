@@ -31,6 +31,16 @@ interface ComponentLocator extends ComponentQueries {
   readonly expanded: boolean | null;
   /** Toggle-button state authored through `aria-pressed`. */
   readonly pressed: boolean | "mixed" | null;
+  /** Authored textual value, including an input's controlled display value. */
+  readonly value: string | null;
+  /** Numeric range state authored through `aria-valuenow`. */
+  readonly numericValue: number | null;
+  /** Lower numeric range bound authored through `aria-valuemin`. */
+  readonly minNumericValue: number | null;
+  /** Upper numeric range bound authored through `aria-valuemax`. */
+  readonly maxNumericValue: number | null;
+  /** Human-readable numeric value authored through `aria-valuetext`. */
+  readonly valueText: string | null;
   /** Last runtime affine transform emitted through the native protocol. */
   readonly transform: readonly [number, number, number, number, number, number] | null;
   /** Whether this locator owns the harness's native focus simulation. */

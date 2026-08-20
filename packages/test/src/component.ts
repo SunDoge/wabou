@@ -71,6 +71,16 @@ export interface ComponentLocator extends ComponentQueries {
   readonly expanded: boolean | null;
   /** Toggle-button state authored through `aria-pressed`. */
   readonly pressed: boolean | "mixed" | null;
+  /** Authored textual value, including an input's controlled display value. */
+  readonly value: string | null;
+  /** Numeric range state authored through `aria-valuenow`. */
+  readonly numericValue: number | null;
+  /** Lower numeric range bound authored through `aria-valuemin`. */
+  readonly minNumericValue: number | null;
+  /** Upper numeric range bound authored through `aria-valuemax`. */
+  readonly maxNumericValue: number | null;
+  /** Human-readable numeric value authored through `aria-valuetext`. */
+  readonly valueText: string | null;
   /** Last runtime affine transform emitted through the native protocol. */
   readonly transform:
     | readonly [number, number, number, number, number, number]
@@ -446,6 +456,17 @@ export function renderComponent(
     if (value === "mixed") return "mixed";
     return booleanState(node, name);
   };
+  const numericState = (node: AuthoredNode, name: string): number | null => {
+    const value = node.attributes.get(name);
+    if (value === undefined) return null;
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+      throw new Error(
+        `${name} must be a finite number, received ${JSON.stringify(value)}`,
+      );
+    }
+    return number;
+  };
   const all = (): AuthoredNode[] => {
     const result: AuthoredNode[] = [];
     const visit = (node: AuthoredNode) => {
@@ -652,6 +673,21 @@ export function renderComponent(
       },
       get pressed() {
         return toggleState(node, "aria-pressed");
+      },
+      get value() {
+        return node.attributes.get("value") ?? null;
+      },
+      get numericValue() {
+        return numericState(node, "aria-valuenow");
+      },
+      get minNumericValue() {
+        return numericState(node, "aria-valuemin");
+      },
+      get maxNumericValue() {
+        return numericState(node, "aria-valuemax");
+      },
+      get valueText() {
+        return node.attributes.get("aria-valuetext") ?? null;
       },
       get transform() {
         return node.transform;

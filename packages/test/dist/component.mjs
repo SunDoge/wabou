@@ -262,6 +262,13 @@ function renderComponent(render, options = {}) {
 		if (node.attributes.get(name) === "mixed") return "mixed";
 		return booleanState(node, name);
 	};
+	const numericState = (node, name) => {
+		const value = node.attributes.get(name);
+		if (value === void 0) return null;
+		const number = Number(value);
+		if (!Number.isFinite(number)) throw new Error(`${name} must be a finite number, received ${JSON.stringify(value)}`);
+		return number;
+	};
 	const all = () => {
 		const result = [];
 		const visit = (node) => {
@@ -397,6 +404,21 @@ function renderComponent(render, options = {}) {
 			},
 			get pressed() {
 				return toggleState(node, "aria-pressed");
+			},
+			get value() {
+				return node.attributes.get("value") ?? null;
+			},
+			get numericValue() {
+				return numericState(node, "aria-valuenow");
+			},
+			get minNumericValue() {
+				return numericState(node, "aria-valuemin");
+			},
+			get maxNumericValue() {
+				return numericState(node, "aria-valuemax");
+			},
+			get valueText() {
+				return node.attributes.get("aria-valuetext") ?? null;
 			},
 			get transform() {
 				return node.transform;

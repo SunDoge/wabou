@@ -22,11 +22,9 @@ test("steps decimal values without floating-point drift", () => {
 
   screen.getByRole("button", { name: "Increase Opacity" }).click();
   expect(changes).toEqual([0.3]);
-  expect(
-    screen
-      .getByRole("spinbutton", { name: "Opacity" })
-      .attribute("aria-valuenow"),
-  ).toBe("0.3");
+  expect(screen.getByRole("spinbutton", { name: "Opacity" }).numericValue).toBe(
+    0.3,
+  );
 });
 
 test("supports Arrow, Page, Home, and End keyboard commands", () => {
@@ -46,13 +44,13 @@ test("supports Arrow, Page, Home, and End keyboard commands", () => {
   const input = screen.getByRole("spinbutton", { name: "Retries" });
 
   input.press("ArrowUp");
-  expect(input.attribute("aria-valuenow")).toBe("6");
+  expect(input.numericValue).toBe(6);
   input.press("PageUp");
-  expect(input.attribute("aria-valuenow")).toBe("11");
+  expect(input.numericValue).toBe(11);
   input.press("Home");
-  expect(input.attribute("aria-valuenow")).toBe("0");
+  expect(input.numericValue).toBe(0);
   input.press("End");
-  expect(input.attribute("aria-valuenow")).toBe("20");
+  expect(input.numericValue).toBe(20);
 });
 
 test("parses and formats locale-aware decimal input", () => {
@@ -77,7 +75,7 @@ test("parses and formats locale-aware decimal input", () => {
   input.input("1,5");
   expect(changes).toEqual([1.5]);
   input.blur();
-  expect(input.attribute("value")).toBe("1,5");
+  expect(input.value).toBe("1,5");
 });
 
 test("preserves partial input and restores the canonical value on blur", () => {
@@ -96,15 +94,15 @@ test("preserves partial input and restores the canonical value on blur", () => {
 
   input.focus();
   input.input("-");
-  expect(input.attribute("value")).toBe("-");
+  expect(input.value).toBe("-");
   expect(changes).toEqual([]);
   input.blur();
-  expect(input.attribute("value")).toBe("4");
+  expect(input.value).toBe("4");
   input.focus();
   input.input("not a number");
-  expect(input.attribute("value")).toBe("not a number");
+  expect(input.value).toBe("not a number");
   input.blur();
-  expect(input.attribute("value")).toBe("4");
+  expect(input.value).toBe("4");
   expect(changes).toEqual([]);
 });
 
@@ -124,8 +122,8 @@ test("controlled values only change when their owner updates them", () => {
   screen.getByRole("button", { name: "Increase Workers" }).click();
   expect(changes).toEqual([3]);
   const input = screen.getByRole("spinbutton", { name: "Workers" });
-  expect(input.attribute("aria-valuenow")).toBe("2");
-  expect(input.attribute("value")).toBe("2");
+  expect(input.numericValue).toBe(2);
+  expect(input.value).toBe("2");
 });
 
 test("disabled and read-only fields reject every stepping path", () => {
@@ -146,15 +144,13 @@ test("disabled and read-only fields reject every stepping path", () => {
     const input = screen.getByRole("spinbutton", { name: mode });
     if (mode === "readOnly") input.press("ArrowUp");
     else {
-      expect(input.attribute("aria-disabled")).toBe("true");
+      expect(input.disabled).toBe(true);
       expect(
-        screen
-          .getByRole("button", { name: "Increase disabled" })
-          .attribute("disabled"),
-      ).toBe("true");
+        screen.getByRole("button", { name: "Increase disabled" }).disabled,
+      ).toBe(true);
     }
     expect(changes).toEqual([]);
-    expect(input.attribute("aria-valuenow")).toBe("2");
+    expect(input.numericValue).toBe(2);
     screen.dispose();
   }
 });

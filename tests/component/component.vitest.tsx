@@ -113,7 +113,7 @@ test("drives a real component through keyboard events", () => {
 
   slider.press("ArrowRight");
 
-  expect(slider.attribute("aria-valuenow")).toBe("45");
+  expect(slider.numericValue).toBe(45);
 });
 
 test("observes native interaction policy instead of treating it as attributes", () => {
@@ -149,6 +149,14 @@ test("reads reactive semantic states without asserting raw protocol attributes",
         <View role="tab" aria-label="General" aria-selected="true" />
         <View role="group" aria-label="Details" aria-expanded="false" />
         <View role="button" aria-label="Bold" aria-pressed="mixed" />
+        <View
+          role="slider"
+          aria-label="Volume"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow="42.5"
+          aria-valuetext="42.5 percent"
+        />
       </View>
     );
   };
@@ -164,6 +172,11 @@ test("reads reactive semantic states without asserting raw protocol attributes",
   expect(screen.getByRole("tab", { name: "General" }).selected).toBe(true);
   expect(screen.getByRole("group", { name: "Details" }).expanded).toBe(false);
   expect(screen.getByRole("button", { name: "Bold" }).pressed).toBe("mixed");
+  const volume = screen.getByRole("slider", { name: "Volume" });
+  expect(volume.numericValue).toBe(42.5);
+  expect(volume.minNumericValue).toBe(0);
+  expect(volume.maxNumericValue).toBe(100);
+  expect(volume.valueText).toBe("42.5 percent");
 });
 
 test("publishes deterministic native measurements to a component", () => {
