@@ -52,6 +52,19 @@ the next assertion observes the completed component update. Components that
 subscribe to native measurement can still mount in their explicit unmeasured
 state without requiring a window.
 
+Publish a deterministic content-box size when a responsive branch is part of
+the unit contract:
+
+```ts
+screen.getByRole("group", { name: "Panel" }).resize({
+  width: 640,
+  height: 480,
+});
+```
+
+This drives Wabou's real `ResizeObserver` callback and Solid update; it does not
+claim that Taffy would produce that geometry.
+
 This layer verifies component state, composition, declared roles and names,
 and JavaScript event handling. It intentionally does not invent a fake layout
 engine. Keep the much smaller set of geometry, native hit-testing, window, and

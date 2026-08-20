@@ -1,4 +1,5 @@
 import { EVENT_CODE, dispatchEvent, mount, writer } from "@wabou/core/renderer";
+import { dispatchResizeObservation } from "@wabou/core/testing";
 import { flush } from "solid-js";
 import { onTestFinished } from "vitest";
 //#region src/component.ts
@@ -174,6 +175,12 @@ function renderComponent(render) {
 			});
 			commitEvent(node, EVENT_CODE.keydown, payload);
 			commitEvent(node, EVENT_CODE.keyup, payload);
+		},
+		resize: ({ width, height }) => {
+			if (!Number.isFinite(width) || width < 0 || !Number.isFinite(height) || height < 0) throw new RangeError("component size must be finite and non-negative");
+			dispatchResizeObservation(node.id, width, height);
+			flush();
+			writer.flush();
 		}
 	});
 	const select = (matches, description, index, required = true) => {

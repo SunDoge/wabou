@@ -8,6 +8,11 @@ interface ComponentLocator {
   attribute(name: string): string | null;
   click(): void;
   press(key: string): void;
+  /** Publish a deterministic native content-box observation. */
+  resize(size: {
+    width: number;
+    height: number;
+  }): void;
 }
 interface ComponentScreen {
   getByRole(role: string, options?: {

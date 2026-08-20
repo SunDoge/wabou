@@ -10,6 +10,7 @@ const packages: Record<string, UserConfig["entry"]> = {
     effects: "src/effects.ts",
     registry: "src/registry.ts",
     renderer: "src/renderer.ts",
+    testing: "src/testing.ts",
     style: "src/style.ts",
     i18n: "src/i18n.ts",
     "jsx-runtime": "src/jsx.ts",

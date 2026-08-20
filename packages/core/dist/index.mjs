@@ -1,6 +1,7 @@
-import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, m as NodeKeyTable, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-BkE2Fvea.mjs";
+import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-BkE2Fvea.mjs";
 import { a as bool, c as number, d as rgba, f as rotate2d, g as INLINE_STYLE_CONTRACT, h as translate2d, i as auto, l as percent, m as shadow, n as StyleValueKind, o as classes, p as scale2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-D3b6x0_C.mjs";
 import { A as createFps, C as render, D as spread, E as setTransform2D, F as PathBuilder, I as isVectorPath, M as HostProvider, N as defaultHost, O as writer, P as useHost, S as removeNode, T as setProp, _ as mergeProps, a as createElement, b as registerRoot, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as Portal, k as VirtualList, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as runSweep, x as releaseOverlayRoot, y as ref } from "./renderer-DvbiURED.mjs";
+import { t as dispatchResizeObservation } from "./resize-observer-CcJpoJiT.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
@@ -213,63 +214,6 @@ function clearTimer(id) {
 }
 globalThis.clearTimeout = clearTimer;
 globalThis.clearInterval = clearTimer;
-//#endregion
-//#region src/glue/resize-observer.ts
-const observers = new NodeKeyTable();
-var WabouResizeObserver = class {
-	callback;
-	targets = /* @__PURE__ */ new Set();
-	constructor(callback) {
-		this.callback = callback;
-	}
-	observe(target) {
-		const id = target.id;
-		if (this.targets.has(id)) return;
-		this.targets.add(id);
-		let observed = observers.get(id);
-		if (!observed) {
-			observed = {
-				target,
-				callbacks: /* @__PURE__ */ new Set()
-			};
-			observers.set(id, observed);
-			__wabou_resize_observe(id.lo, id.hi);
-		}
-		observed.callbacks.add(this.callback);
-	}
-	unobserve(target) {
-		this.remove(target.id);
-	}
-	disconnect() {
-		for (const id of this.targets) this.remove(id);
-	}
-	remove(id) {
-		if (!this.targets.delete(id)) return;
-		const observed = observers.get(id);
-		observed?.callbacks.delete(this.callback);
-		if (observed?.callbacks.size === 0) {
-			observers.delete(id);
-			__wabou_resize_unobserve(id.lo, id.hi);
-		}
-	}
-};
-function dispatchResizeObservation(solidId, width, height) {
-	const observed = observers.get(solidId);
-	if (!observed) return;
-	const entry = {
-		target: observed.target,
-		contentRect: {
-			width,
-			height
-		}
-	};
-	for (const callback of observed.callbacks) try {
-		callback([entry]);
-	} catch (error) {
-		__wabou_log("error", error?.stack ? String(error.stack) : String(error));
-	}
-}
-globalThis.ResizeObserver = WabouResizeObserver;
 //#endregion
 //#region src/glue/host-messages.ts
 const listeners = /* @__PURE__ */ new Map();

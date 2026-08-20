@@ -40,6 +40,11 @@
       "types": "./dist/renderer.d.mts",
       "import": "./dist/renderer.mjs"
     },
+    "./testing": {
+      "wabou-source": "./src/testing.ts",
+      "types": "./dist/testing.d.mts",
+      "import": "./dist/testing.mjs"
+    },
     "./style": {
       "wabou-source": "./src/style.ts",
       "types": "./dist/style.d.mts",

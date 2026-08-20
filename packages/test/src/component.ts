@@ -1,5 +1,6 @@
 import { dispatchEvent, EVENT_CODE, mount, writer } from "@wabou/core/renderer";
 import type { NodeKey } from "@wabou/core/protocol";
+import { dispatchResizeObservation } from "@wabou/core/testing";
 import { flush, type JSX } from "solid-js";
 import { onTestFinished } from "vitest";
 
@@ -20,6 +21,8 @@ export interface ComponentLocator {
   attribute(name: string): string | null;
   click(): void;
   press(key: string): void;
+  /** Publish a deterministic native content-box observation. */
+  resize(size: { width: number; height: number }): void;
 }
 
 export interface ComponentScreen {
@@ -236,6 +239,19 @@ export function renderComponent(render: () => JSX.Element): ComponentScreen {
       const payload = JSON.stringify({ key: pressedKey, repeat: false });
       commitEvent(node, EVENT_CODE.keydown, payload);
       commitEvent(node, EVENT_CODE.keyup, payload);
+    },
+    resize: ({ width, height }) => {
+      if (
+        !Number.isFinite(width) ||
+        width < 0 ||
+        !Number.isFinite(height) ||
+        height < 0
+      ) {
+        throw new RangeError("component size must be finite and non-negative");
+      }
+      dispatchResizeObservation(node.id, width, height);
+      flush();
+      writer.flush();
     },
   });
   const select = (
