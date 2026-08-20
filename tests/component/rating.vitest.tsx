@@ -15,19 +15,15 @@ test("rating selects values and follows radio-group keyboard conventions", () =>
   const fourth = screen.getByRole("radio", { name: "4 stars" });
   fourth.click();
   expect(changes).toEqual([4]);
-  expect(fourth.attribute("aria-checked")).toBe("true");
+  expect(fourth.checked).toBe(true);
 
   fourth.press("ArrowRight");
   expect(changes).toEqual([4, 5]);
-  expect(
-    screen.getByRole("radio", { name: "5 stars" }).attribute("aria-checked"),
-  ).toBe("true");
+  expect(screen.getByRole("radio", { name: "5 stars" }).checked).toBe(true);
 
   screen.getByRole("radio", { name: "5 stars" }).press("Home");
   expect(changes).toEqual([4, 5, 1]);
-  expect(
-    screen.getByRole("radio", { name: "1 star" }).attribute("aria-checked"),
-  ).toBe("true");
+  expect(screen.getByRole("radio", { name: "1 star" }).checked).toBe(true);
 });
 
 test("rating can clear the current item without inventing a zero radio", () => {
@@ -37,7 +33,7 @@ test("rating can clear the current item without inventing a zero radio", () => {
 
   screen.getByRole("radio", { name: "3 stars" }).click();
   for (const item of screen.getAllByRole("radio")) {
-    expect(item.attribute("aria-checked")).toBe("false");
+    expect(item.checked).toBe(false);
   }
 });
 
@@ -52,11 +48,7 @@ test("controlled, disabled, and read-only ratings preserve ownership", () => {
   ));
   controlled.getByRole("radio", { name: "4 stars" }).click();
   expect(controlledChanges).toEqual([4]);
-  expect(
-    controlled
-      .getByRole("radio", { name: "2 stars" })
-      .attribute("aria-checked"),
-  ).toBe("true");
+  expect(controlled.getByRole("radio", { name: "2 stars" }).checked).toBe(true);
   controlled.dispose();
 
   for (const mode of ["disabled", "readOnly"] as const) {
@@ -72,7 +64,7 @@ test("controlled, disabled, and read-only ratings preserve ownership", () => {
     ));
     const fourth = screen.getByRole("radio", { name: "4 stars" });
     if (mode === "disabled") {
-      expect(fourth.attribute("disabled")).toBe("true");
+      expect(fourth.disabled).toBe(true);
     } else {
       fourth.click();
     }

@@ -134,6 +134,38 @@ test("observes native interaction policy instead of treating it as attributes", 
   expect(region.attribute("focusOrder")).toBeNull();
 });
 
+test("reads reactive semantic states without asserting raw protocol attributes", () => {
+  const SemanticStates = () => {
+    const [checked, setChecked] = createSignal(false);
+    return (
+      <View>
+        <Button
+          role="checkbox"
+          aria-label="Updates"
+          aria-checked={checked()}
+          onClick={() => setChecked((value) => !value)}
+        />
+        <Button aria-label="Unavailable" disabled />
+        <View role="tab" aria-label="General" aria-selected="true" />
+        <View role="group" aria-label="Details" aria-expanded="false" />
+        <View role="button" aria-label="Bold" aria-pressed="mixed" />
+      </View>
+    );
+  };
+  const screen = renderComponent(SemanticStates);
+  const updates = screen.getByRole("checkbox", { name: "Updates" });
+
+  expect(updates.checked).toBe(false);
+  updates.click();
+  expect(updates.checked).toBe(true);
+  expect(screen.getByRole("button", { name: "Unavailable" }).disabled).toBe(
+    true,
+  );
+  expect(screen.getByRole("tab", { name: "General" }).selected).toBe(true);
+  expect(screen.getByRole("group", { name: "Details" }).expanded).toBe(false);
+  expect(screen.getByRole("button", { name: "Bold" }).pressed).toBe("mixed");
+});
+
 test("publishes deterministic native measurements to a component", () => {
   const MeasuredPanel = () => {
     const size = createMeasuredSize();

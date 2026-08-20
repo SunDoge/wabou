@@ -21,6 +21,16 @@ interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Disabled state as authored through `disabled` or `aria-disabled`. */
+  readonly disabled: boolean;
+  /** Toggle state authored through `aria-checked`. */
+  readonly checked: boolean | "mixed" | null;
+  /** Selection state authored through `aria-selected`. */
+  readonly selected: boolean | null;
+  /** Disclosure state authored through `aria-expanded`. */
+  readonly expanded: boolean | null;
+  /** Toggle-button state authored through `aria-pressed`. */
+  readonly pressed: boolean | "mixed" | null;
   /** Last runtime affine transform emitted through the native protocol. */
   readonly transform: readonly [number, number, number, number, number, number] | null;
   /** Whether this locator owns the harness's native focus simulation. */

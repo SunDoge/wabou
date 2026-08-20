@@ -61,6 +61,16 @@ export interface ComponentLocator extends ComponentQueries {
   readonly name: string;
   readonly text: string;
   readonly className: string;
+  /** Disabled state as authored through `disabled` or `aria-disabled`. */
+  readonly disabled: boolean;
+  /** Toggle state authored through `aria-checked`. */
+  readonly checked: boolean | "mixed" | null;
+  /** Selection state authored through `aria-selected`. */
+  readonly selected: boolean | null;
+  /** Disclosure state authored through `aria-expanded`. */
+  readonly expanded: boolean | null;
+  /** Toggle-button state authored through `aria-pressed`. */
+  readonly pressed: boolean | "mixed" | null;
   /** Last runtime affine transform emitted through the native protocol. */
   readonly transform:
     | readonly [number, number, number, number, number, number]
@@ -419,6 +429,23 @@ export function renderComponent(
     node.attributes.get("role") ?? implicitRole(node.tag);
   const nameOf = (node: AuthoredNode): string =>
     node.attributes.get("aria-label") ?? textOf(node).trim();
+  const booleanState = (node: AuthoredNode, name: string): boolean | null => {
+    const value = node.attributes.get(name);
+    if (value === undefined) return null;
+    if (value === "true") return true;
+    if (value === "false") return false;
+    throw new Error(
+      `${name} must be true or false, received ${JSON.stringify(value)}`,
+    );
+  };
+  const toggleState = (
+    node: AuthoredNode,
+    name: string,
+  ): boolean | "mixed" | null => {
+    const value = node.attributes.get(name);
+    if (value === "mixed") return "mixed";
+    return booleanState(node, name);
+  };
   const all = (): AuthoredNode[] => {
     const result: AuthoredNode[] = [];
     const visit = (node: AuthoredNode) => {
@@ -607,6 +634,24 @@ export function renderComponent(
       },
       get className() {
         return node.className;
+      },
+      get disabled() {
+        return (
+          node.attributes.has("disabled") ||
+          node.attributes.get("aria-disabled") === "true"
+        );
+      },
+      get checked() {
+        return toggleState(node, "aria-checked");
+      },
+      get selected() {
+        return booleanState(node, "aria-selected");
+      },
+      get expanded() {
+        return booleanState(node, "aria-expanded");
+      },
+      get pressed() {
+        return toggleState(node, "aria-pressed");
       },
       get transform() {
         return node.transform;

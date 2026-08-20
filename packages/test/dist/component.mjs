@@ -251,6 +251,17 @@ function renderComponent(render, options = {}) {
 	const textOf = (node) => node.tag === "#text" ? node.text : node.children.map(textOf).join("");
 	const roleOf = (node) => node.attributes.get("role") ?? implicitRole(node.tag);
 	const nameOf = (node) => node.attributes.get("aria-label") ?? textOf(node).trim();
+	const booleanState = (node, name) => {
+		const value = node.attributes.get(name);
+		if (value === void 0) return null;
+		if (value === "true") return true;
+		if (value === "false") return false;
+		throw new Error(`${name} must be true or false, received ${JSON.stringify(value)}`);
+	};
+	const toggleState = (node, name) => {
+		if (node.attributes.get(name) === "mixed") return "mixed";
+		return booleanState(node, name);
+	};
 	const all = () => {
 		const result = [];
 		const visit = (node) => {
@@ -371,6 +382,21 @@ function renderComponent(render, options = {}) {
 			},
 			get className() {
 				return node.className;
+			},
+			get disabled() {
+				return node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true";
+			},
+			get checked() {
+				return toggleState(node, "aria-checked");
+			},
+			get selected() {
+				return booleanState(node, "aria-selected");
+			},
+			get expanded() {
+				return booleanState(node, "aria-expanded");
+			},
+			get pressed() {
+				return toggleState(node, "aria-pressed");
 			},
 			get transform() {
 				return node.transform;

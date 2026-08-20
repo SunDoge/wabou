@@ -62,8 +62,19 @@ reactive insertions and removals. Querying through a locator whose root has
 been removed fails explicitly instead of inspecting a stale detached tree.
 `click()` and `press(key)` dispatch through Wabou's real JavaScript event path
 and flush Solid synchronously, so the next assertion observes the completed
-component update. Components that subscribe to native measurement can still
-mount in their explicit unmeasured state without requiring a window.
+component update. Common semantic states are exposed directly as live
+locator properties (`disabled`, `checked`, `selected`, `expanded`, and
+`pressed`), so component tests assert the same contract consumed by native
+accessibility projection instead of stringly typed `aria-*` attributes:
+
+```ts
+const updates = screen.getByRole("checkbox", { name: "Updates" });
+updates.click();
+expect(updates.checked).toBe(true);
+```
+
+Components that subscribe to native measurement can still mount in their
+explicit unmeasured state without requiring a window.
 
 Publish a deterministic content-box size when a responsive branch is part of
 the unit contract:
