@@ -159,8 +159,10 @@ as `wabou test`.
 
 Repository applications keep reusable authored scenarios under `captures/`.
 Run `bun run verify:captures` at the workspace root to discover every capture,
-render it with the real application host, and write PNGs below
-`target/wabou-captures/<app>/`. An optional `captures/config.json` supplies an
+render it with the real application host, and write frame-matched `.png` and
+`.json` artifacts below `target/wabou-captures/<app>/`. The verifier checks that
+each retained tree has the requested viewport and scale, a consistent node
+count, and finite layout geometry. An optional `captures/config.json` supplies an
 application viewport default and per-file overrides; the verifier rejects
 overrides whose scenario was removed, so metadata cannot silently drift.
 The first capture for each application builds its frontend and subsequent

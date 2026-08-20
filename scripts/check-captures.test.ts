@@ -1,8 +1,12 @@
+import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, test } from "bun:test";
-import { captureCommand, discoverCaptureCases } from "./check-captures";
+import {
+  captureCommand,
+  discoverCaptureCases,
+  validateCaptureSnapshot,
+} from "./check-captures";
 
 const roots: string[] = [];
 
@@ -44,6 +48,7 @@ describe("authored capture discovery", () => {
         application: "apps/demo",
         scenario: "apps/demo/captures/nested/compact.ts",
         output: "target/wabou-captures/demo/nested/compact.png",
+        snapshot: "target/wabou-captures/demo/nested/compact.json",
         width: 700,
         height: 500,
         scaleFactor: 2,
@@ -53,6 +58,7 @@ describe("authored capture discovery", () => {
         application: "apps/demo",
         scenario: "apps/demo/captures/wide.ts",
         output: "target/wabou-captures/demo/wide.png",
+        snapshot: "target/wabou-captures/demo/wide.json",
         width: 1200,
         height: 800,
         scaleFactor: 1,
@@ -76,6 +82,7 @@ describe("authored capture discovery", () => {
       application: "apps/demo",
       scenario: "apps/demo/captures/main.ts",
       output: "target/wabou-captures/demo/main.png",
+      snapshot: "target/wabou-captures/demo/main.json",
       width: 800,
       height: 600,
       scaleFactor: 1,
@@ -84,5 +91,58 @@ describe("authored capture discovery", () => {
 
     expect(captureCommand(capture, false)).not.toContain("--skip-build");
     expect(captureCommand(capture, true)).toContain("--skip-build");
+    expect(captureCommand(capture, false)).toContain(capture.snapshot);
+  });
+
+  test("validates that a snapshot describes the requested final frame", () => {
+    const capture = {
+      application: "apps/demo",
+      scenario: "apps/demo/captures/main.ts",
+      output: "target/wabou-captures/demo/main.png",
+      snapshot: "target/wabou-captures/demo/main.json",
+      width: 800,
+      height: 600,
+      scaleFactor: 2,
+      waitMs: 250,
+    };
+    expect(
+      validateCaptureSnapshot(
+        {
+          status: {
+            viewportWidth: 800,
+            viewportHeight: 600,
+            deviceScale: 2,
+            nodeCount: 1,
+          },
+          nodes: [
+            {
+              rect: { x: 0, y: 0, width: 800, height: 600 },
+              contentRect: { x: 0, y: 0, width: 800, height: 600 },
+            },
+          ],
+        },
+        capture,
+      ).nodes,
+    ).toHaveLength(1);
+
+    expect(() =>
+      validateCaptureSnapshot(
+        {
+          status: {
+            viewportWidth: 801,
+            viewportHeight: 600,
+            deviceScale: 2,
+            nodeCount: 1,
+          },
+          nodes: [
+            {
+              rect: { x: 0, y: 0, width: Number.NaN, height: 600 },
+              contentRect: { x: 0, y: 0, width: 800, height: 600 },
+            },
+          ],
+        },
+        capture,
+      ),
+    ).toThrow("finite number");
   });
 });

@@ -19,6 +19,24 @@ export interface CaptureCase extends CaptureViewport {
   application: string;
   scenario: string;
   output: string;
+  snapshot: string;
+}
+
+interface SnapshotRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface CaptureSnapshot {
+  status: {
+    viewportWidth: number;
+    viewportHeight: number;
+    deviceScale: number;
+    nodeCount: number;
+  };
+  nodes: Array<{ rect: SnapshotRect; contentRect: SnapshotRect }>;
 }
 
 export function captureCommand(
@@ -38,6 +56,8 @@ export function captureCommand(
     capture.scenario,
     "--out",
     capture.output,
+    "--snapshot",
+    capture.snapshot,
     "--width",
     String(capture.width),
     "--height",
@@ -198,6 +218,7 @@ export async function discoverCaptureCases(
       application,
       scenario,
       output: `target/wabou-captures/${basename(application)}/${relativeScenario.replace(/\.ts$/u, ".png")}`,
+      snapshot: `target/wabou-captures/${basename(application)}/${relativeScenario.replace(/\.ts$/u, ".json")}`,
       ...resolved.defaults,
       ...override,
     });
@@ -219,6 +240,107 @@ export async function discoverCaptureCases(
     }
   }
   return cases;
+}
+
+function snapshotNumber(value: unknown, path: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`${path} must be a finite number`);
+  }
+  return value;
+}
+
+function snapshotRect(value: unknown, path: string): SnapshotRect {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${path} must be an object`);
+  }
+  const rect = value as Record<string, unknown>;
+  return {
+    x: snapshotNumber(rect.x, `${path}.x`),
+    y: snapshotNumber(rect.y, `${path}.y`),
+    width: snapshotNumber(rect.width, `${path}.width`),
+    height: snapshotNumber(rect.height, `${path}.height`),
+  };
+}
+
+export function validateCaptureSnapshot(
+  value: unknown,
+  capture: CaptureCase,
+): CaptureSnapshot {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${capture.snapshot} must contain an object`);
+  }
+  const snapshot = value as Record<string, unknown>;
+  if (
+    snapshot.status === null ||
+    typeof snapshot.status !== "object" ||
+    Array.isArray(snapshot.status)
+  ) {
+    throw new Error(`${capture.snapshot}.status must be an object`);
+  }
+  const status = snapshot.status as Record<string, unknown>;
+  if (!Array.isArray(snapshot.nodes)) {
+    throw new Error(`${capture.snapshot}.nodes must be an array`);
+  }
+  const parsed: CaptureSnapshot = {
+    status: {
+      viewportWidth: snapshotNumber(
+        status.viewportWidth,
+        `${capture.snapshot}.status.viewportWidth`,
+      ),
+      viewportHeight: snapshotNumber(
+        status.viewportHeight,
+        `${capture.snapshot}.status.viewportHeight`,
+      ),
+      deviceScale: snapshotNumber(
+        status.deviceScale,
+        `${capture.snapshot}.status.deviceScale`,
+      ),
+      nodeCount: snapshotNumber(
+        status.nodeCount,
+        `${capture.snapshot}.status.nodeCount`,
+      ),
+    },
+    nodes: snapshot.nodes.map((value, index) => {
+      if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        throw new Error(
+          `${capture.snapshot}.nodes[${index}] must be an object`,
+        );
+      }
+      const node = value as Record<string, unknown>;
+      return {
+        rect: snapshotRect(
+          node.rect,
+          `${capture.snapshot}.nodes[${index}].rect`,
+        ),
+        contentRect: snapshotRect(
+          node.contentRect,
+          `${capture.snapshot}.nodes[${index}].contentRect`,
+        ),
+      };
+    }),
+  };
+  if (
+    parsed.status.viewportWidth !== capture.width ||
+    parsed.status.viewportHeight !== capture.height
+  ) {
+    throw new Error(
+      `${capture.snapshot} viewport ${parsed.status.viewportWidth}x${parsed.status.viewportHeight} does not match requested ${capture.width}x${capture.height}`,
+    );
+  }
+  if (parsed.status.deviceScale !== capture.scaleFactor) {
+    throw new Error(
+      `${capture.snapshot} scale ${parsed.status.deviceScale} does not match requested ${capture.scaleFactor}`,
+    );
+  }
+  if (
+    parsed.status.nodeCount !== parsed.nodes.length ||
+    parsed.nodes.length === 0
+  ) {
+    throw new Error(
+      `${capture.snapshot} node count ${parsed.status.nodeCount} does not match ${parsed.nodes.length} retained nodes`,
+    );
+  }
+  return parsed;
 }
 
 function relativeScenarioPath(scenario: string): string {
@@ -256,6 +378,14 @@ async function main(): Promise<void> {
     if (!(await Bun.file(output).exists()) || Bun.file(output).size === 0) {
       throw new Error(`capture did not produce ${relative(root, output)}`);
     }
+    const snapshot = resolve(root, capture.snapshot);
+    if (!(await Bun.file(snapshot).exists()) || Bun.file(snapshot).size === 0) {
+      throw new Error(`capture did not produce ${relative(root, snapshot)}`);
+    }
+    validateCaptureSnapshot(
+      JSON.parse(await readFile(snapshot, "utf8")),
+      capture,
+    );
   }
   console.log(`verified ${captures.length} authored captures`);
 }
