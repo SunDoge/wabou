@@ -237,6 +237,52 @@ function renderComponent(render, options = {}) {
 		roots.forEach(visit);
 		return result;
 	};
+	const descendantsOf = (root) => {
+		const result = [];
+		const visit = (node) => {
+			node.children.forEach((child) => {
+				result.push(child);
+				visit(child);
+			});
+		};
+		visit(root);
+		return result;
+	};
+	const scopeNodes = (root) => {
+		if (root === null) return all();
+		if (!all().includes(root)) throw new Error(`cannot query within detached component ${roleOf(root) ?? root.tag} "${nameOf(root)}"`);
+		return descendantsOf(root);
+	};
+	const describeRole = (role, options) => `role=${role}${options.name === void 0 ? "" : ` name=${JSON.stringify(options.name)}`}`;
+	const matchingRole = (root, role, options) => scopeNodes(root).filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name));
+	const scopeSuffix = (root) => root === null ? "" : ` within ${roleOf(root) ?? root.tag} "${nameOf(root)}"`;
+	const resolveOne = (root, role, options, required) => {
+		if (options.index !== void 0 && (!Number.isSafeInteger(options.index) || options.index < 0)) throw new RangeError("component locator index must be non-negative");
+		const matches = matchingRole(root, role, options);
+		const description = `${describeRole(role, options)}${scopeSuffix(root)}`;
+		if (options.index === void 0 && matches.length > 1) throw new Error(`found ${matches.length} matches for ${description}; pass an index or use getAllByRole`);
+		const match = matches[options.index ?? 0];
+		if (!match) {
+			if (required) throw new Error(`no component found for ${description}`);
+			return null;
+		}
+		return locator(match);
+	};
+	const resolveAll = (root, role, options, required) => {
+		const matches = matchingRole(root, role, options);
+		if (required && matches.length === 0) throw new Error(`no components found for ${describeRole(role, options)}${scopeSuffix(root)}`);
+		return matches.map(locator);
+	};
+	const queries = (root) => ({
+		getByRole: (role, options = {}) => {
+			const result = resolveOne(root, role, options, true);
+			if (!result) throw new Error("required component query returned no result");
+			return result;
+		},
+		queryByRole: (role, options = {}) => resolveOne(root, role, options, false),
+		getAllByRole: (role, options = {}) => resolveAll(root, role, options, true),
+		queryAllByRole: (role, options = {}) => resolveAll(root, role, options, false)
+	});
 	const commitEvent = (node, eventCode, payload = "") => {
 		dispatchEvent(node.id, eventCode, payload);
 		flushUpdates();
@@ -261,7 +307,12 @@ function renderComponent(render, options = {}) {
 		const node = nodes.get(key(id));
 		if (node) focusAuthoredNode(node);
 	};
+	const ensureAttached = (node, action) => {
+		if (all().includes(node)) return;
+		throw new Error(`cannot ${action} detached component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
+	};
 	const ensureEnabled = (node, action) => {
+		ensureAttached(node, action);
 		if (node.attributes.has("disabled") || node.attributes.get("aria-disabled") === "true") throw new Error(`cannot ${action} disabled component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`);
 	};
 	const pointerPayload = (position, buttons, button = 0) => {
@@ -280,94 +331,91 @@ function renderComponent(render, options = {}) {
 			mods: 0
 		});
 	};
-	const locator = (node) => ({
-		get tag() {
-			return node.tag;
-		},
-		get role() {
-			return roleOf(node) ?? "";
-		},
-		get name() {
-			return nameOf(node);
-		},
-		get text() {
-			return textOf(node);
-		},
-		get className() {
-			return node.className;
-		},
-		get focused() {
-			return focusedNode === node;
-		},
-		attribute: (name) => node.attributes.get(name) ?? null,
-		pointerDown: (position = {}) => {
-			ensureEnabled(node, "press");
-			commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
-		},
-		pointerMove: (position = {}) => {
-			ensureEnabled(node, "drag");
-			commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 1));
-		},
-		pointerUp: (position = {}) => {
-			ensureEnabled(node, "release");
-			commitEvent(node, EVENT_CODE.pointerup, pointerPayload(position, 0));
-		},
-		click: () => {
-			ensureEnabled(node, "click");
-			commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
-			commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
-			commitEvent(node, EVENT_CODE.click);
-		},
-		contextMenu: (position = {}) => {
-			ensureEnabled(node, "open context menu for");
-			commitEvent(node, EVENT_CODE.contextmenu, pointerPayload(position, 0, 2));
-		},
-		press: (pressedKey) => {
-			ensureEnabled(node, "press");
-			if (pressedKey.length === 0) throw new Error("key must not be empty");
-			const payload = JSON.stringify({
-				key: pressedKey,
-				repeat: false
-			});
-			commitEvent(node, EVENT_CODE.keydown, payload);
-			commitEvent(node, EVENT_CODE.keyup, payload);
-		},
-		input: (value) => {
-			ensureEnabled(node, "input");
-			commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
-		},
-		focus: () => {
-			ensureEnabled(node, "focus");
-			focusAuthoredNode(node);
-		},
-		blur: () => {
-			if (focusedNode === node) blurFocusedNode();
-		},
-		hover: () => {
-			ensureEnabled(node, "hover");
-			commitEvent(node, EVENT_CODE.pointerenter);
-		},
-		unhover: () => commitEvent(node, EVENT_CODE.pointerleave),
-		resize: ({ width, height }) => {
-			if (!Number.isFinite(width) || width < 0 || !Number.isFinite(height) || height < 0) throw new RangeError("component size must be finite and non-negative");
-			dispatchResizeObservation(node.id, width, height);
-			flushUpdates();
-		}
-	});
-	const select = (matches, description, index, required = true) => {
-		if (index === void 0 && matches.length > 1) throw new Error(`found ${matches.length} matches for ${description}; pass an index`);
-		const match = matches[index ?? 0];
-		if (!match && required) throw new Error(`no component found for ${description}`);
-		return match ? locator(match) : null;
-	};
+	function locator(node) {
+		return {
+			...queries(node),
+			get tag() {
+				return node.tag;
+			},
+			get role() {
+				return roleOf(node) ?? "";
+			},
+			get name() {
+				return nameOf(node);
+			},
+			get text() {
+				return textOf(node);
+			},
+			get className() {
+				return node.className;
+			},
+			get focused() {
+				return focusedNode === node;
+			},
+			attribute: (name) => node.attributes.get(name) ?? null,
+			pointerDown: (position = {}) => {
+				ensureEnabled(node, "press");
+				commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
+			},
+			pointerMove: (position = {}) => {
+				ensureEnabled(node, "drag");
+				commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 1));
+			},
+			pointerUp: (position = {}) => {
+				ensureEnabled(node, "release");
+				commitEvent(node, EVENT_CODE.pointerup, pointerPayload(position, 0));
+			},
+			click: () => {
+				ensureEnabled(node, "click");
+				commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
+				commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
+				commitEvent(node, EVENT_CODE.click);
+			},
+			contextMenu: (position = {}) => {
+				ensureEnabled(node, "open context menu for");
+				commitEvent(node, EVENT_CODE.contextmenu, pointerPayload(position, 0, 2));
+			},
+			press: (pressedKey) => {
+				ensureEnabled(node, "press");
+				if (pressedKey.length === 0) throw new Error("key must not be empty");
+				const payload = JSON.stringify({
+					key: pressedKey,
+					repeat: false
+				});
+				commitEvent(node, EVENT_CODE.keydown, payload);
+				commitEvent(node, EVENT_CODE.keyup, payload);
+			},
+			input: (value) => {
+				ensureEnabled(node, "input");
+				commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
+			},
+			focus: () => {
+				ensureEnabled(node, "focus");
+				focusAuthoredNode(node);
+			},
+			blur: () => {
+				ensureAttached(node, "blur");
+				if (focusedNode === node) blurFocusedNode();
+			},
+			hover: () => {
+				ensureEnabled(node, "hover");
+				commitEvent(node, EVENT_CODE.pointerenter);
+			},
+			unhover: () => {
+				ensureAttached(node, "unhover");
+				commitEvent(node, EVENT_CODE.pointerleave);
+			},
+			resize: ({ width, height }) => {
+				ensureAttached(node, "resize");
+				if (!Number.isFinite(width) || width < 0 || !Number.isFinite(height) || height < 0) throw new RangeError("component size must be finite and non-negative");
+				dispatchResizeObservation(node.id, width, height);
+				flushUpdates();
+			}
+		};
+	}
 	let disposed = false;
 	const screen = {
-		getByRole(role, options = {}) {
-			return select(all().filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name)), `role=${role}${options.name === void 0 ? "" : ` name=${JSON.stringify(options.name)}`}`, options.index);
-		},
-		queryByRole(role, options = {}) {
-			return select(all().filter((node) => roleOf(node) === role && (options.name === void 0 || nameOf(node) === options.name)), `role=${role}${options.name === void 0 ? "" : ` name=${JSON.stringify(options.name)}`}`, options.index, false);
-		},
+		...queries(null),
 		flush() {
 			flushUpdates();
 		},

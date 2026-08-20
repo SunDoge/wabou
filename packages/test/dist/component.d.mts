@@ -1,7 +1,21 @@
 import { BuiltinHost, Host } from "@wabou/core/renderer";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
-interface ComponentLocator {
+interface ComponentRoleQueryOptions {
+  name?: string;
+  /** Select one occurrence in depth-first authored order. */
+  index?: number;
+}
+interface ComponentRoleListOptions {
+  name?: string;
+}
+interface ComponentQueries {
+  getByRole(role: string, options?: ComponentRoleQueryOptions): ComponentLocator;
+  queryByRole(role: string, options?: ComponentRoleQueryOptions): ComponentLocator | null;
+  getAllByRole(role: string, options?: ComponentRoleListOptions): readonly ComponentLocator[];
+  queryAllByRole(role: string, options?: ComponentRoleListOptions): readonly ComponentLocator[];
+}
+interface ComponentLocator extends ComponentQueries {
   readonly tag: string;
   readonly role: string;
   readonly name: string;
@@ -37,15 +51,7 @@ interface ComponentPointerPosition {
   offsetX?: number;
   offsetY?: number;
 }
-interface ComponentScreen {
-  getByRole(role: string, options?: {
-    name?: string;
-    index?: number;
-  }): ComponentLocator;
-  queryByRole(role: string, options?: {
-    name?: string;
-    index?: number;
-  }): ComponentLocator | null;
+interface ComponentScreen extends ComponentQueries {
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
   dispose(): void;
@@ -83,5 +89,5 @@ declare function cleanupComponents(): void;
  */
 declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentPointerPosition, ComponentScreen, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
+export { ComponentLocator, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map

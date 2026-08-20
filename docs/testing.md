@@ -46,11 +46,24 @@ export default defineWabouTestConfig();
 The configuration also cleans up the mounted component after each test and
 deduplicates Solid so application components and the test renderer share one
 reactive graph. Locators are strict: duplicate role/name matches fail unless an
-explicit zero-based `index` is supplied. `click()` and `press(key)` dispatch
-through Wabou's real JavaScript event path and flush Solid synchronously, so
-the next assertion observes the completed component update. Components that
-subscribe to native measurement can still mount in their explicit unmeasured
-state without requiring a window.
+explicit zero-based `index` is supplied. Prefer `getAllByRole` for intentional
+collections and query within a structural locator when names repeat across
+independent composed components:
+
+```ts
+const forms = screen.getAllByRole("group");
+const profile = screen.getByRole("group", { name: "Profile form" });
+profile.getByRole("button", { name: "Save" }).click();
+expect(profile.queryAllByRole("button")).toHaveLength(2);
+```
+
+Scoped queries search descendants rather than the scope node itself and follow
+reactive insertions and removals. Querying through a locator whose root has
+been removed fails explicitly instead of inspecting a stale detached tree.
+`click()` and `press(key)` dispatch through Wabou's real JavaScript event path
+and flush Solid synchronously, so the next assertion observes the completed
+component update. Components that subscribe to native measurement can still
+mount in their explicit unmeasured state without requiring a window.
 
 Publish a deterministic content-box size when a responsive branch is part of
 the unit contract:

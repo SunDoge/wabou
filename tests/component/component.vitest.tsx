@@ -1,5 +1,5 @@
-import { expect, test } from "vitest";
-import { createSignal } from "solid-js";
+import { type Host, useHost } from "@wabou/core/renderer";
+import { createTestHost, renderComponent } from "@wabou/test/component";
 import {
   Button,
   createMeasuredSize,
@@ -8,8 +8,8 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { createTestHost, renderComponent } from "@wabou/test/component";
-import { useHost, type Host } from "@wabou/core/renderer";
+import { createSignal, Show } from "solid-js";
+import { expect, test } from "vitest";
 
 test("tests a reactive component through its authored role and name", () => {
   const Counter = () => {
@@ -45,6 +45,63 @@ test("strict queries reject ambiguous components", () => {
   );
   expect(screen.getByRole("button", { name: "Save", index: 1 }).tag).toBe(
     "button",
+  );
+});
+
+test("scopes role queries to a component subtree", () => {
+  const screen = renderComponent(() => (
+    <View>
+      <View role="group" aria-label="Profile form">
+        <Button aria-label="Save" />
+        <Button aria-label="Cancel" />
+      </View>
+      <View role="group" aria-label="Security form">
+        <Button aria-label="Save" />
+      </View>
+    </View>
+  ));
+  const forms = screen.getAllByRole("group");
+  const profile = screen.getByRole("group", { name: "Profile form" });
+  const security = screen.getByRole("group", { name: "Security form" });
+
+  expect(forms).toHaveLength(2);
+  expect(screen.queryAllByRole("button")).toHaveLength(3);
+  expect(profile.getAllByRole("button")).toHaveLength(2);
+  expect(profile.getByRole("button", { name: "Save" }).name).toBe("Save");
+  expect(security.queryByRole("button", { name: "Cancel" })).toBeNull();
+  expect(() => screen.getByRole("button", { name: "Save" })).toThrow(
+    "use getAllByRole",
+  );
+});
+
+test("scoped queries follow dynamic children and reject detached roots", () => {
+  const Dynamic = () => {
+    const [child, setChild] = createSignal(true);
+    const [panel, setPanel] = createSignal(true);
+    return (
+      <View>
+        <Button aria-label="Remove child" onClick={() => setChild(false)} />
+        <Button aria-label="Remove panel" onClick={() => setPanel(false)} />
+        <Show when={panel()}>
+          <View role="group" aria-label="Dynamic panel">
+            <Show when={child()}>
+              <Button aria-label="Dynamic action" />
+            </Show>
+          </View>
+        </Show>
+      </View>
+    );
+  };
+  const screen = renderComponent(Dynamic);
+  const panel = screen.getByRole("group", { name: "Dynamic panel" });
+
+  expect(panel.getAllByRole("button")).toHaveLength(1);
+  screen.getByRole("button", { name: "Remove child" }).click();
+  expect(panel.queryAllByRole("button")).toHaveLength(0);
+  screen.getByRole("button", { name: "Remove panel" }).click();
+  expect(() => panel.queryAllByRole("button")).toThrow("detached component");
+  expect(() => panel.resize({ width: 100, height: 40 })).toThrow(
+    "resize detached component",
   );
 });
 

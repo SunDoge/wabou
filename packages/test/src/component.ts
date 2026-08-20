@@ -22,7 +22,36 @@ interface AuthoredNode {
   text: string;
 }
 
-export interface ComponentLocator {
+export interface ComponentRoleQueryOptions {
+  name?: string;
+  /** Select one occurrence in depth-first authored order. */
+  index?: number;
+}
+
+export interface ComponentRoleListOptions {
+  name?: string;
+}
+
+export interface ComponentQueries {
+  getByRole(
+    role: string,
+    options?: ComponentRoleQueryOptions,
+  ): ComponentLocator;
+  queryByRole(
+    role: string,
+    options?: ComponentRoleQueryOptions,
+  ): ComponentLocator | null;
+  getAllByRole(
+    role: string,
+    options?: ComponentRoleListOptions,
+  ): readonly ComponentLocator[];
+  queryAllByRole(
+    role: string,
+    options?: ComponentRoleListOptions,
+  ): readonly ComponentLocator[];
+}
+
+export interface ComponentLocator extends ComponentQueries {
   readonly tag: string;
   readonly role: string;
   readonly name: string;
@@ -57,15 +86,7 @@ export interface ComponentPointerPosition {
   offsetY?: number;
 }
 
-export interface ComponentScreen {
-  getByRole(
-    role: string,
-    options?: { name?: string; index?: number },
-  ): ComponentLocator;
-  queryByRole(
-    role: string,
-    options?: { name?: string; index?: number },
-  ): ComponentLocator | null;
+export interface ComponentScreen extends ComponentQueries {
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
   dispose(): void;
@@ -370,6 +391,97 @@ export function renderComponent(
     roots.forEach(visit);
     return result;
   };
+  const descendantsOf = (root: AuthoredNode): AuthoredNode[] => {
+    const result: AuthoredNode[] = [];
+    const visit = (node: AuthoredNode) => {
+      node.children.forEach((child) => {
+        result.push(child);
+        visit(child);
+      });
+    };
+    visit(root);
+    return result;
+  };
+  const scopeNodes = (root: AuthoredNode | null): AuthoredNode[] => {
+    if (root === null) return all();
+    if (!all().includes(root)) {
+      throw new Error(
+        `cannot query within detached component ${roleOf(root) ?? root.tag} "${nameOf(root)}"`,
+      );
+    }
+    return descendantsOf(root);
+  };
+  const describeRole = (
+    role: string,
+    options: ComponentRoleQueryOptions | ComponentRoleListOptions,
+  ) =>
+    `role=${role}${options.name === undefined ? "" : ` name=${JSON.stringify(options.name)}`}`;
+  const matchingRole = (
+    root: AuthoredNode | null,
+    role: string,
+    options: ComponentRoleQueryOptions | ComponentRoleListOptions,
+  ) =>
+    scopeNodes(root).filter(
+      (node) =>
+        roleOf(node) === role &&
+        (options.name === undefined || nameOf(node) === options.name),
+    );
+  const scopeSuffix = (root: AuthoredNode | null) =>
+    root === null
+      ? ""
+      : ` within ${roleOf(root) ?? root.tag} "${nameOf(root)}"`;
+  const resolveOne = (
+    root: AuthoredNode | null,
+    role: string,
+    options: ComponentRoleQueryOptions,
+    required: boolean,
+  ): ComponentLocator | null => {
+    if (
+      options.index !== undefined &&
+      (!Number.isSafeInteger(options.index) || options.index < 0)
+    ) {
+      throw new RangeError("component locator index must be non-negative");
+    }
+    const matches = matchingRole(root, role, options);
+    const description = `${describeRole(role, options)}${scopeSuffix(root)}`;
+    if (options.index === undefined && matches.length > 1) {
+      throw new Error(
+        `found ${matches.length} matches for ${description}; pass an index or use getAllByRole`,
+      );
+    }
+    const match = matches[options.index ?? 0];
+    if (!match) {
+      if (required) throw new Error(`no component found for ${description}`);
+      return null;
+    }
+    return locator(match);
+  };
+  const resolveAll = (
+    root: AuthoredNode | null,
+    role: string,
+    options: ComponentRoleListOptions,
+    required: boolean,
+  ): readonly ComponentLocator[] => {
+    const matches = matchingRole(root, role, options);
+    if (required && matches.length === 0) {
+      throw new Error(
+        `no components found for ${describeRole(role, options)}${scopeSuffix(root)}`,
+      );
+    }
+    return matches.map(locator);
+  };
+  const queries = (root: AuthoredNode | null): ComponentQueries => ({
+    getByRole: (role, options = {}) => {
+      const result = resolveOne(root, role, options, true);
+      if (!result)
+        throw new Error("required component query returned no result");
+      return result;
+    },
+    queryByRole: (role, options = {}) => resolveOne(root, role, options, false),
+    getAllByRole: (role, options = {}) => resolveAll(root, role, options, true),
+    queryAllByRole: (role, options = {}) =>
+      resolveAll(root, role, options, false),
+  });
   const commitEvent = (node: AuthoredNode, eventCode: number, payload = "") => {
     dispatchEvent(node.id, eventCode, payload);
     flushUpdates();
@@ -397,7 +509,14 @@ export function renderComponent(
     const node = nodes.get(key(id));
     if (node) focusAuthoredNode(node);
   };
+  const ensureAttached = (node: AuthoredNode, action: string) => {
+    if (all().includes(node)) return;
+    throw new Error(
+      `cannot ${action} detached component ${roleOf(node) ?? node.tag} "${nameOf(node)}"`,
+    );
+  };
   const ensureEnabled = (node: AuthoredNode, action: string) => {
+    ensureAttached(node, action);
     if (
       node.attributes.has("disabled") ||
       node.attributes.get("aria-disabled") === "true"
@@ -434,126 +553,102 @@ export function renderComponent(
       mods: 0,
     });
   };
-  const locator = (node: AuthoredNode): ComponentLocator => ({
-    get tag() {
-      return node.tag;
-    },
-    get role() {
-      return roleOf(node) ?? "";
-    },
-    get name() {
-      return nameOf(node);
-    },
-    get text() {
-      return textOf(node);
-    },
-    get className() {
-      return node.className;
-    },
-    get focused() {
-      return focusedNode === node;
-    },
-    attribute: (name) => node.attributes.get(name) ?? null,
-    pointerDown: (position = {}) => {
-      ensureEnabled(node, "press");
-      commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
-    },
-    pointerMove: (position = {}) => {
-      ensureEnabled(node, "drag");
-      commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 1));
-    },
-    pointerUp: (position = {}) => {
-      ensureEnabled(node, "release");
-      commitEvent(node, EVENT_CODE.pointerup, pointerPayload(position, 0));
-    },
-    click: () => {
-      ensureEnabled(node, "click");
-      commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
-      commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
-      commitEvent(node, EVENT_CODE.click);
-    },
-    contextMenu: (position = {}) => {
-      ensureEnabled(node, "open context menu for");
-      commitEvent(node, EVENT_CODE.contextmenu, pointerPayload(position, 0, 2));
-    },
-    press: (pressedKey) => {
-      ensureEnabled(node, "press");
-      if (pressedKey.length === 0) throw new Error("key must not be empty");
-      const payload = JSON.stringify({ key: pressedKey, repeat: false });
-      commitEvent(node, EVENT_CODE.keydown, payload);
-      commitEvent(node, EVENT_CODE.keyup, payload);
-    },
-    input: (value) => {
-      ensureEnabled(node, "input");
-      commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
-    },
-    focus: () => {
-      ensureEnabled(node, "focus");
-      focusAuthoredNode(node);
-    },
-    blur: () => {
-      if (focusedNode === node) blurFocusedNode();
-    },
-    hover: () => {
-      ensureEnabled(node, "hover");
-      commitEvent(node, EVENT_CODE.pointerenter);
-    },
-    unhover: () => commitEvent(node, EVENT_CODE.pointerleave),
-    resize: ({ width, height }) => {
-      if (
-        !Number.isFinite(width) ||
-        width < 0 ||
-        !Number.isFinite(height) ||
-        height < 0
-      ) {
-        throw new RangeError("component size must be finite and non-negative");
-      }
-      dispatchResizeObservation(node.id, width, height);
-      flushUpdates();
-    },
-  });
-  const select = (
-    matches: AuthoredNode[],
-    description: string,
-    index?: number,
-    required = true,
-  ): ComponentLocator | null => {
-    if (index === undefined && matches.length > 1) {
-      throw new Error(
-        `found ${matches.length} matches for ${description}; pass an index`,
-      );
-    }
-    const match = matches[index ?? 0];
-    if (!match && required)
-      throw new Error(`no component found for ${description}`);
-    return match ? locator(match) : null;
-  };
+  function locator(node: AuthoredNode): ComponentLocator {
+    return {
+      ...queries(node),
+      get tag() {
+        return node.tag;
+      },
+      get role() {
+        return roleOf(node) ?? "";
+      },
+      get name() {
+        return nameOf(node);
+      },
+      get text() {
+        return textOf(node);
+      },
+      get className() {
+        return node.className;
+      },
+      get focused() {
+        return focusedNode === node;
+      },
+      attribute: (name) => node.attributes.get(name) ?? null,
+      pointerDown: (position = {}) => {
+        ensureEnabled(node, "press");
+        commitEvent(node, EVENT_CODE.pointerdown, pointerPayload(position, 1));
+      },
+      pointerMove: (position = {}) => {
+        ensureEnabled(node, "drag");
+        commitEvent(node, EVENT_CODE.pointermove, pointerPayload(position, 1));
+      },
+      pointerUp: (position = {}) => {
+        ensureEnabled(node, "release");
+        commitEvent(node, EVENT_CODE.pointerup, pointerPayload(position, 0));
+      },
+      click: () => {
+        ensureEnabled(node, "click");
+        commitEvent(node, EVENT_CODE.pointerdown, pointerPayload({}, 1));
+        commitEvent(node, EVENT_CODE.pointerup, pointerPayload({}, 0));
+        commitEvent(node, EVENT_CODE.click);
+      },
+      contextMenu: (position = {}) => {
+        ensureEnabled(node, "open context menu for");
+        commitEvent(
+          node,
+          EVENT_CODE.contextmenu,
+          pointerPayload(position, 0, 2),
+        );
+      },
+      press: (pressedKey) => {
+        ensureEnabled(node, "press");
+        if (pressedKey.length === 0) throw new Error("key must not be empty");
+        const payload = JSON.stringify({ key: pressedKey, repeat: false });
+        commitEvent(node, EVENT_CODE.keydown, payload);
+        commitEvent(node, EVENT_CODE.keyup, payload);
+      },
+      input: (value) => {
+        ensureEnabled(node, "input");
+        commitEvent(node, EVENT_CODE.input, JSON.stringify({ value }));
+      },
+      focus: () => {
+        ensureEnabled(node, "focus");
+        focusAuthoredNode(node);
+      },
+      blur: () => {
+        ensureAttached(node, "blur");
+        if (focusedNode === node) blurFocusedNode();
+      },
+      hover: () => {
+        ensureEnabled(node, "hover");
+        commitEvent(node, EVENT_CODE.pointerenter);
+      },
+      unhover: () => {
+        ensureAttached(node, "unhover");
+        commitEvent(node, EVENT_CODE.pointerleave);
+      },
+      resize: ({ width, height }) => {
+        ensureAttached(node, "resize");
+        if (
+          !Number.isFinite(width) ||
+          width < 0 ||
+          !Number.isFinite(height) ||
+          height < 0
+        ) {
+          throw new RangeError(
+            "component size must be finite and non-negative",
+          );
+        }
+        dispatchResizeObservation(node.id, width, height);
+        flushUpdates();
+      },
+    };
+  }
 
   let disposed = false;
   const screen: ComponentScreen = {
-    getByRole(role, options = {}) {
-      return select(
-        all().filter(
-          (node) =>
-            roleOf(node) === role &&
-            (options.name === undefined || nameOf(node) === options.name),
-        ),
-        `role=${role}${options.name === undefined ? "" : ` name=${JSON.stringify(options.name)}`}`,
-        options.index,
-      )!;
-    },
-    queryByRole(role, options = {}) {
-      return select(
-        all().filter(
-          (node) =>
-            roleOf(node) === role &&
-            (options.name === undefined || nameOf(node) === options.name),
-        ),
-        `role=${role}${options.name === undefined ? "" : ` name=${JSON.stringify(options.name)}`}`,
-        options.index,
-        false,
-      );
-    },
+    ...queries(null),
     flush() {
       flushUpdates();
     },
