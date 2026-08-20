@@ -7,7 +7,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use foyer::{
     BlockEngineConfig, Cache, CacheBuilder, DeviceBuilder, FsDeviceBuilder, HybridCache,
-    HybridCacheBuilder, HybridCachePolicy,
+    HybridCacheBuilder, HybridCachePolicy, PsyncIoEngineConfig,
 };
 
 use wabou_shell::{image::RasterImage, svg::SvgImage};
@@ -154,6 +154,7 @@ impl ResourceCache {
                     .memory(ENCODED_MEMORY_BYTES)
                     .with_weighter(|key: &String, value: &Vec<u8>| key.len() + value.len())
                     .storage()
+                    .with_io_engine_config(PsyncIoEngineConfig::new())
                     .with_engine_config(BlockEngineConfig::new(device))
                     .with_spawner(spawner)
                     .build(),
