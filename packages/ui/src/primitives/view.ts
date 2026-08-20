@@ -58,11 +58,10 @@ export interface PathProps extends Omit<PrimitiveProps, "children"> {
 export interface IconProps extends Omit<SvgProps, "source"> {
   source: string;
   /**
-   * Icon size in logical px number or supported CSS unit strings (`px`, `rem`,
-   * `%`, `em`). When omitted, icon size follows current text size (`1em`).
+   * Icon size in logical px or a CSS length (`px`, `rem`, `em`, `%`).
+   * When omitted or blank, defaults to `1em` (16px root font size).
    */
   size?: number | string;
-  /** Optional explicit CSS size.  When omitted, falls back to `1em`. */
   /** Override Lucide's root `fill="none"`, for example with currentColor. */
   fill?: "none" | "currentColor";
   /** Accessible name. Omit for a decorative icon. */
@@ -80,7 +79,11 @@ function normalizeIconSize(size: number | string | undefined): number | string {
   if (Number.isFinite(parsed) && ICON_SIZE_UNITLESS_RE.test(value)) {
     return parsed;
   }
-  return size;
+  return value;
+}
+
+function applyIconFill(source: string, fill: string): string {
+  return source.replace(/fill=(["'])none\1/, `fill="${fill}"`);
 }
 
 export interface NetworkImageSource {
@@ -230,8 +233,6 @@ export function Path(props: PathProps): JSX.Element {
 /** A theme-colored SVG icon with stable native sizing and semantics. */
 export function Icon(props: IconProps): JSX.Element {
   const rest = omit(props, "source", "size", "fill", "label", "class");
-  const iconSize = normalizeIconSize(props.size);
-  const explicitPixelSize = typeof iconSize === "number";
   const node = createElement("svg");
   spread(node, rest, false);
   spread(
@@ -243,6 +244,7 @@ export function Icon(props: IconProps): JSX.Element {
           : "self-center shrink-0";
       },
       get style(): WabouStyle {
+        const iconSize = normalizeIconSize(props.size);
         return {
           display: "inline-flex",
           "align-items": "center",
@@ -256,15 +258,17 @@ export function Icon(props: IconProps): JSX.Element {
         };
       },
       get width(): string | undefined {
-        return explicitPixelSize ? String(iconSize) : undefined;
+        const iconSize = normalizeIconSize(props.size);
+        return typeof iconSize === "number" ? String(iconSize) : undefined;
       },
       get source() {
         return props.fill && props.fill !== "none"
-          ? props.source.replace('fill="none"', `fill="${props.fill}"`)
+          ? applyIconFill(props.source, props.fill)
           : props.source;
       },
       get height() {
-        return explicitPixelSize ? String(iconSize) : undefined;
+        const iconSize = normalizeIconSize(props.size);
+        return typeof iconSize === "number" ? String(iconSize) : undefined;
       },
       get role() {
         return props.label ? "img" : undefined;

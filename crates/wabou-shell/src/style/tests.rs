@@ -271,7 +271,7 @@ fn inline_percentages_are_normalized_for_taffy() {
 }
 
 #[test]
-fn inline_em_is_normalized_as_font_relative_length() {
+fn inline_em_and_rem_use_root_font_size() {
     assert_eq!(
         parse_ir_value("1em"),
         IrValue::Length {
@@ -280,6 +280,19 @@ fn inline_em_is_normalized_as_font_relative_length() {
     );
     assert_eq!(
         parse_ir_value("1.5em"),
+        IrValue::Length {
+            value: IrLength::Px { value: 24.0 }
+        }
+    );
+    // `rem` must not be consumed as a failed `em` suffix (`1rem` ends with `em`).
+    assert_eq!(
+        parse_ir_value("1rem"),
+        IrValue::Length {
+            value: IrLength::Px { value: 16.0 }
+        }
+    );
+    assert_eq!(
+        parse_ir_value("1.5rem"),
         IrValue::Length {
             value: IrLength::Px { value: 24.0 }
         }

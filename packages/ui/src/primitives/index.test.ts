@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { writer } from "@wabou/core/renderer";
-import { createRoot, flush } from "solid-js";
+import { createRoot, createSignal, flush } from "solid-js";
 import { resolveButtonFocusOrder } from "./button";
 import {
   CodeEditor,
@@ -598,6 +598,70 @@ describe("host primitives", () => {
       expect.arrayContaining([
         ["width", "1.5rem"],
         ["height", "1.5rem"],
+      ]),
+    );
+  });
+
+  test("Icon size updates when the prop changes", () => {
+    const styles: Array<[string, string]> = [];
+    const setStyle = writer.setStyle.bind(writer);
+    writer.setStyle = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        styles.push([name, value]);
+      }
+    };
+    try {
+      createRoot((dispose) => {
+        const [size, setSize] = createSignal<number | string>(14);
+        Icon({
+          source: "<svg/>",
+          get size() {
+            return size();
+          },
+        });
+        flush();
+        expect(styles).toEqual(
+          expect.arrayContaining([
+            ["width", "14"],
+            ["height", "14"],
+          ]),
+        );
+        styles.length = 0;
+        setSize("1.5rem");
+        flush();
+        expect(styles).toEqual(
+          expect.arrayContaining([
+            ["width", "1.5rem"],
+            ["height", "1.5rem"],
+          ]),
+        );
+        dispose();
+      });
+    } finally {
+      writer.setStyle = setStyle;
+    }
+  });
+
+  test("Icon treats padded unit strings as CSS sizes", () => {
+    const styles: Array<[string, string]> = [];
+    const setStyle = writer.setStyle.bind(writer);
+    writer.setStyle = (_id, name, value) => {
+      if (name === "width" || name === "height") {
+        styles.push([name, value]);
+      }
+    };
+    try {
+      createRoot((dispose) => {
+        Icon({ source: "<svg/>", size: " 1em " });
+        dispose();
+      });
+    } finally {
+      writer.setStyle = setStyle;
+    }
+    expect(styles).toEqual(
+      expect.arrayContaining([
+        ["width", "1em"],
+        ["height", "1em"],
       ]),
     );
   });

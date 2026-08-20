@@ -311,19 +311,24 @@ fn ir_color(value: &IrValue) -> Option<Color> {
     ))
 }
 
-/// Parse a CSS length string into a Style IR length: `Npx`/`Nrem`/`Nem`
-/// (`N * 16.0`) → `Px`, `N%` → `Percent`. Anything else returns `None`.
+/// Parse a CSS length string into a Style IR length: `Npx` → `Px`,
+/// `Nrem`/`Nem` → `Px` at the 16px root font size, `N%` → `Percent`.
+/// Anything else returns `None`.
+///
+/// `rem` is matched before `em` because `1rem` also ends with `em`. Both
+/// units use the root size; parent-relative `em` is not resolved here
+/// (`apply_ir` does not receive inherited `font-size`).
 fn parse_ir_length(value: &str) -> Option<IrLength> {
     let v = value.trim();
-    if let Some(em) = v.strip_suffix("em") {
-        return em
+    if let Some(r) = v.strip_suffix("rem") {
+        return r
             .trim()
             .parse::<f32>()
             .ok()
             .map(|n| IrLength::Px { value: n * 16.0 });
     }
-    if let Some(r) = v.strip_suffix("rem") {
-        return r
+    if let Some(em) = v.strip_suffix("em") {
+        return em
             .trim()
             .parse::<f32>()
             .ok()
