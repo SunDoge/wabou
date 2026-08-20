@@ -42,6 +42,7 @@ export * from "./forms";
 export * from "./hover-card";
 export * from "./input";
 export * from "./layout";
+export * from "./menubar";
 export * from "./navigation";
 export * from "./page";
 export * from "./popover";

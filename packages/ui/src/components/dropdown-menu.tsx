@@ -4,7 +4,7 @@ import { createEffect, createSignal, For, type JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { Popover, Text, View } from "../primitives";
 import { createTypeahead } from "../primitives/interactions";
-import type { PointAnchor } from "../primitives/positioner";
+import type { Placement, PointAnchor } from "../primitives/positioner";
 import { join } from "./class-names";
 import { type MenuStateItem, moveMenuHighlight } from "./menu-state";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -36,8 +36,20 @@ export interface DropdownMenuProps {
   onAction?: (id: string) => void;
   contentClass?: string;
   contentShadows?: readonly Shadow[] | null;
+  placement?: Placement;
+  /** Skip returning focus when ownership moves directly to a sibling menu. */
+  restoreFocus?: boolean;
+  outsidePointerStrategy?: "backdrop" | "passthrough";
+  /** Observe or override keys before the menu's vertical navigation runs. */
+  onContentKeyDown?: (event: DropdownMenuKeyEvent) => void;
   /** Optional viewport point used by context-menu style triggers. */
   anchorPoint?: () => PointAnchor | undefined;
+}
+
+export interface DropdownMenuKeyEvent {
+  key: string;
+  readonly defaultPrevented?: boolean;
+  preventDefault(): void;
 }
 
 /** A compact action menu with native focus, typeahead, and overlay routing. */
@@ -59,17 +71,24 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
     if (props.open === undefined) setUncontrolledOpen(next);
     props.onOpenChange?.(next);
   };
-  createEffect(open, (isOpen) => {
-    if (isOpen && !wasOpen) {
-      setHighlighted(moveMenuHighlight(props.items, undefined, openEdge));
-      requestAnimationFrame(() => content?.focus());
-    } else if (!isOpen && wasOpen) {
-      setHighlighted(undefined);
-      typeahead.reset();
-      requestAnimationFrame(() => trigger?.focus());
-    }
-    wasOpen = isOpen;
-  });
+  createEffect(
+    () => ({
+      open: open(),
+      items: props.items,
+      restoreFocus: props.restoreFocus ?? true,
+    }),
+    ({ open: isOpen, items, restoreFocus }) => {
+      if (isOpen && !wasOpen) {
+        setHighlighted(moveMenuHighlight(items, undefined, openEdge));
+        requestAnimationFrame(() => content?.focus());
+      } else if (!isOpen && wasOpen) {
+        setHighlighted(undefined);
+        typeahead.reset();
+        if (restoreFocus) requestAnimationFrame(() => trigger?.focus());
+      }
+      wasOpen = isOpen;
+    },
+  );
   const select = (id: string | undefined) => {
     const item = props.items.find((candidate) => candidate.id === id);
     if (!item || item.disabled) return false;
@@ -84,7 +103,9 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
     setHighlighted(next);
     return true;
   };
-  const handleMenuKey = (event: { key: string; preventDefault(): void }) => {
+  const handleMenuKey = (event: DropdownMenuKeyEvent) => {
+    props.onContentKeyDown?.(event);
+    if (event.defaultPrevented) return;
     const handled = match(event.key)
       .with("ArrowDown", () => move("next"))
       .with("ArrowUp", () => move("previous"))
@@ -110,7 +131,9 @@ export function DropdownMenu(props: DropdownMenuProps): JSX.Element {
       popupRole="menu"
       open={open()}
       onOpenChange={(next) => setOpen(next)}
-      placement="bottom-end"
+      placement={props.placement ?? "bottom-end"}
+      restoreFocus={props.restoreFocus}
+      outsidePointerStrategy={props.outsidePointerStrategy}
       anchorPoint={props.anchorPoint}
       contentClass={join(
         "w-56 p-1 flex flex-col gap-1 rounded-lg border border-subtle bg-surface",

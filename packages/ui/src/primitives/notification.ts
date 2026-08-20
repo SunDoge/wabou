@@ -64,8 +64,15 @@ const finiteNonNegative = (value: number, fallback: number) =>
 export function createNotifications(
   options: NotificationsOptions = {},
 ): Notifications {
-  const [items, setItems] = createSignal<readonly NotificationItem[]>([]);
   const records = new Map<number, NotificationRecord>();
+  // Keep the imperative queue authoritative. Solid 2 can defer signal writes
+  // until the owner transaction commits, while callers of show/dismiss need
+  // their following items() read to observe the command synchronously.
+  const [revision, setRevision] = createSignal(0, { ownedWrite: true });
+  const items = (): readonly NotificationItem[] => {
+    revision();
+    return [...records.values()].map((record) => record.item);
+  };
   const defaultDuration = finiteNonNegative(
     options.defaultDuration ?? 5_000,
     5_000,
@@ -84,7 +91,7 @@ export function createNotifications(
     if (!record) return false;
     if (record.timer !== undefined) clearTimeout(record.timer);
     records.delete(id);
-    setItems((current) => current.filter((item) => item.id !== id));
+    setRevision((current) => current + 1);
     record.item.onDismiss?.(reason);
     return true;
   };
@@ -127,7 +134,7 @@ export function createNotifications(
         startedAt: 0,
       };
       records.set(item.id, record);
-      setItems((current) => [...current, item]);
+      setRevision((current) => current + 1);
       schedule(record);
       return item.id;
     },

@@ -25,7 +25,10 @@ export function createControllableState<T>(
     { value: options.defaultValue },
     { ownedWrite: true },
   );
-  const value = () => options.value() ?? local().value;
+  const value = () => {
+    const controlled = options.value();
+    return controlled === undefined ? local().value : controlled;
+  };
   return {
     value,
     set(next) {

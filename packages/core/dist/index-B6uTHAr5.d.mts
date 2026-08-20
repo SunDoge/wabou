@@ -257,7 +257,7 @@ interface WabouBuiltinIntrinsicElements {
 }
 type WabouNativeElements = WabouBuiltinIntrinsicElements & WabouIntrinsicElements;
 type WabouNativeTag = keyof WabouNativeElements & string;
-type WabouSemanticRole = "alert" | "alertdialog" | "button" | "cell" | "checkbox" | "columnheader" | "combobox" | "dialog" | "grid" | "gridcell" | "group" | "heading" | "img" | "label" | "link" | "listbox" | "menu" | "menuitem" | "none" | "option" | "presentation" | "progressbar" | "radio" | "radiogroup" | "row" | "rowheader" | "separator" | "slider" | "status" | "switch" | "tab" | "tablist" | "tabpanel" | "table" | "textbox" | "tree" | "treeitem" | "toolbar" | "tooltip";
+type WabouSemanticRole = "alert" | "alertdialog" | "button" | "cell" | "checkbox" | "columnheader" | "combobox" | "dialog" | "grid" | "gridcell" | "group" | "heading" | "img" | "label" | "link" | "listbox" | "menu" | "menubar" | "menuitem" | "none" | "option" | "presentation" | "progressbar" | "radio" | "radiogroup" | "row" | "rowheader" | "separator" | "slider" | "status" | "switch" | "tab" | "tablist" | "tabpanel" | "table" | "textbox" | "tree" | "treeitem" | "toolbar" | "tooltip";
 /** Roles that remain addressable after semantic-tree projection. */
 type WabouExposedSemanticRole = Exclude<WabouSemanticRole, "none" | "presentation">;
 type EventHandler<E> = {
@@ -374,6 +374,10 @@ interface WabouPointerEvent extends WabouPositionedEvent {
   readonly buttons: number;
   readonly mods: number;
 }
+type WabouGlobalPointerEventType = "pointerdown" | "pointerup" | "pointermove" | "click" | "contextmenu";
+type WabouGlobalPointerListener = (target: Handle | undefined, event: WabouPointerEvent) => void;
+/** Observe native pointer dispatch before ordinary bubbling. */
+declare function observeGlobalPointerEvent(type: WabouGlobalPointerEventType, listener: WabouGlobalPointerListener): () => void;
 interface WabouKeyEvent extends WabouNodeEvent {
   readonly key: string;
   readonly code: string;
@@ -478,5 +482,5 @@ declare function mount(code: () => JSX$1.Element): () => void;
  */
 declare function dispatchEvent(solidId: NodeKey$1, eventCode: number, payloadStr: string, numericData?: ArrayLike<number>): boolean;
 //#endregion
-export { VirtualListProps as $, delegateEvents as A, mergeProps as B, WabouVectorPathProps as C, PathPoint as Ct, createComponent$1 as D, applyRef as E, isVectorPath as Et, insert as F, removeNode as G, ref as H, insertNode as I, setProp as J, render as K, isDirectEvent as L, effect as M, getMountRoot as N, createElement as O, getRequestEvent as P, VirtualList as Q, isServer as R, WabouSvgShapeProps as S, PathLineJoin as St, acquireOverlayRoot as T, VectorPathPaint as Tt, registerRoot as U, mount as V, releaseOverlayRoot as W, spread as X, setTransform2D as Y, writer as Z, WabouPointerEvent as _, jsxDEV as _t, WabouBuiltinIntrinsicElements as a, HostProviderProps as at, WabouSemanticRole as b, PathFillRule as bt, WabouEventTarget as c, useHost as ct, WabouInputEvent as d, LayoutRect as dt, Portal as et, WabouInputProps as f, LayoutScrollMetrics as ft, WabouNodeEvent as g, jsx as gt, WabouNativeTag as h, JSX$1 as ht, NativeScrollbarStyle as i, HostProvider as it, dispatchEvent as j, createTextNode as k, WabouExposedSemanticRole as l, FrameStats as lt, WabouNativeElements as m, Fragment as mt, DynamicProps as n, BuiltinHost as nt, WabouControlProps as o, LayoutTarget as ot, WabouKeyEvent as p, LayoutSnapshot as pt, runSweep as q, Handle as r, Host as rt, WabouElementProps as s, defaultHost as st, Dynamic as t, PortalProps as tt, WabouImageProps as u, LayoutNodeMetrics as ut, WabouPositionedEvent as v, jsxs as vt, WabouWheelEvent as w, VectorPath as wt, WabouSvgProps as x, PathLineCap as xt, WabouScrollEvent as y, PathBuilder as yt, memo as z };
-//# sourceMappingURL=index-BxYePIW9.d.mts.map
+export { spread as $, createElement as A, isServer as B, WabouSvgProps as C, PathFillRule as Ct, acquireOverlayRoot as D, VectorPath as Dt, WabouWheelEvent as E, PathPoint as Et, getMountRoot as F, ref as G, mergeProps as H, getRequestEvent as I, removeNode as J, registerRoot as K, insert as L, delegateEvents as M, dispatchEvent as N, applyRef as O, VectorPathPaint as Ot, effect as P, setTransform2D as Q, insertNode as R, WabouSemanticRole as S, PathBuilder as St, WabouVectorPathProps as T, PathLineJoin as Tt, mount as U, memo as V, observeGlobalPointerEvent as W, runSweep as X, render as Y, setProp as Z, WabouNativeTag as _, Fragment as _t, WabouBuiltinIntrinsicElements as a, BuiltinHost as at, WabouPositionedEvent as b, jsxDEV as bt, WabouEventTarget as c, HostProviderProps as ct, WabouGlobalPointerListener as d, useHost as dt, writer as et, WabouImageProps as f, FrameStats as ft, WabouNativeElements as g, LayoutSnapshot as gt, WabouKeyEvent as h, LayoutScrollMetrics as ht, NativeScrollbarStyle as i, PortalProps as it, createTextNode as j, createComponent$1 as k, isVectorPath as kt, WabouExposedSemanticRole as l, LayoutTarget as lt, WabouInputProps as m, LayoutRect as mt, DynamicProps as n, VirtualListProps as nt, WabouControlProps as o, Host as ot, WabouInputEvent as p, LayoutNodeMetrics as pt, releaseOverlayRoot as q, Handle as r, Portal as rt, WabouElementProps as s, HostProvider as st, Dynamic as t, VirtualList as tt, WabouGlobalPointerEventType as u, defaultHost as ut, WabouNodeEvent as v, JSX$1 as vt, WabouSvgShapeProps as w, PathLineCap as wt, WabouScrollEvent as x, jsxs as xt, WabouPointerEvent as y, jsx as yt, isDirectEvent as z };
+//# sourceMappingURL=index-B6uTHAr5.d.mts.map

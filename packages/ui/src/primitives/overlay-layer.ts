@@ -114,27 +114,33 @@ export function createOverlayLayer(options: OverlayLayerOptions): OverlayLayer {
     wasOpen ? pushLayer(token, activePlane) : 0,
   );
 
-  const restoreFocus = () => {
-    if (options.restoreFocus?.() ?? true) options.returnFocus?.()?.focus();
+  const restoreFocus = (
+    enabled = untrack(() => options.restoreFocus?.() ?? true),
+    target = untrack(() => options.returnFocus?.()),
+  ) => {
+    if (enabled) untrack(() => target?.focus());
   };
 
-  createEffect(options.open, (open) => {
-    const currentPlane = plane();
-    if (open && !wasOpen) {
-      setZIndex(pushLayer(token, currentPlane));
-    } else if (!open && wasOpen) {
-      removeLayer(token);
-      restoreFocus();
-    }
-    wasOpen = open;
-    activePlane = currentPlane;
-  });
-  createEffect(plane, (currentPlane) => {
-    if (wasOpen && activePlane !== currentPlane) {
-      setZIndex(pushLayer(token, currentPlane));
-    }
-    activePlane = currentPlane;
-  });
+  createEffect(
+    () => ({
+      open: options.open(),
+      plane: plane(),
+      restoreFocus: options.restoreFocus?.() ?? true,
+      returnFocus: options.returnFocus?.(),
+    }),
+    (snapshot) => {
+      if (snapshot.open && !wasOpen) {
+        setZIndex(pushLayer(token, snapshot.plane));
+      } else if (!snapshot.open && wasOpen) {
+        removeLayer(token);
+        restoreFocus(snapshot.restoreFocus, snapshot.returnFocus);
+      } else if (snapshot.open && activePlane !== snapshot.plane) {
+        setZIndex(pushLayer(token, snapshot.plane));
+      }
+      wasOpen = snapshot.open;
+      activePlane = snapshot.plane;
+    },
+  );
 
   onCleanup(() => {
     removeLayer(token);

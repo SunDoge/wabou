@@ -64,3 +64,26 @@ test("supports application-owned open state", () => {
   screen.getByRole("dialog", { name: "Filters" }).press("Escape");
   expect(screen.getByRole("status", { name: "Closed" }).text).toBe("Closed");
 });
+
+test("passthrough outside dismissal preserves the underlying gesture", () => {
+  let activations = 0;
+  const screen = renderComponent(() => (
+    <>
+      <Popover
+        aria-label="Quick actions"
+        outsidePointerStrategy="passthrough"
+        trigger={(trigger) => <Button {...trigger}>Actions</Button>}
+      >
+        <Text>Action list</Text>
+      </Popover>
+      <Button aria-label="Underlying action" onClick={() => activations++} />
+    </>
+  ));
+
+  screen.getByRole("button", { name: "Actions" }).click();
+  expect(screen.getByRole("dialog", { name: "Quick actions" })).not.toBeNull();
+  screen.getByRole("button", { name: "Underlying action" }).click();
+
+  expect(screen.queryByRole("dialog", { name: "Quick actions" })).toBeNull();
+  expect(activations).toBe(1);
+});

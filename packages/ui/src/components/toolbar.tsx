@@ -37,6 +37,8 @@ const ToolbarContext = createContext<ToolbarContextValue>();
 
 export interface ToolbarProps {
   "aria-label": string;
+  /** Semantic role used by composite controls built on the toolbar primitive. */
+  role?: "toolbar" | "menubar";
   orientation?: ToolbarOrientation;
   loop?: boolean;
   class?: string;
@@ -90,7 +92,7 @@ export function Toolbar(props: ToolbarProps): JSX.Element {
     get children() {
       return (
         <View
-          role="toolbar"
+          role={props.role ?? "toolbar"}
           aria-label={props["aria-label"]}
           aria-orientation={orientation()}
           class={join(
@@ -135,6 +137,7 @@ export function ToolbarButton(props: ToolbarButtonProps): JSX.Element {
       }}
       onKeyDown={(event) => {
         props.onKeyDown?.(event);
+        if (event.defaultPrevented) return;
         if (toolbar.move(id, event.key)) event.preventDefault();
       }}
     />

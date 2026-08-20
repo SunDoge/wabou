@@ -79,6 +79,8 @@ semantic_roles! {
     Option => "option",
     /// Container for application or context commands.
     Menu => "menu",
+    /// Persistent horizontal container for application menus.
+    MenuBar => "menubar",
     /// One activatable command in a menu.
     MenuItem => "menuitem",
     /// Hierarchical collection of expandable items.

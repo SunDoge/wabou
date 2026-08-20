@@ -1,4 +1,9 @@
-import { type Handle, Portal, useHost } from "@wabou/core/renderer";
+import {
+  type Handle,
+  observeGlobalPointerEvent,
+  Portal,
+  useHost,
+} from "@wabou/core/renderer";
 import type { Shadow } from "@wabou/core/style";
 import {
   createEffect,
@@ -60,6 +65,12 @@ interface PopoverBaseProps {
   onContentFocusOut?: ViewProps["onFocusOut"];
   closeOnEscape?: boolean;
   restoreFocus?: boolean;
+  /**
+   * `passthrough` dismisses from global pointer capture while allowing the
+   * underlying target to receive the same gesture. Modal-like surfaces keep
+   * the default full-viewport backdrop.
+   */
+  outsidePointerStrategy?: "backdrop" | "passthrough";
   /** Defaults to the nearest overlay plane, or `floating` at app content. */
   plane?: OverlayPlane;
 }
@@ -97,6 +108,16 @@ export function Popover(props: PopoverProps): JSX.Element {
   let positionRequest = 0;
   let observer: ResizeObserver | undefined;
 
+  const contains = (root: Handle | undefined, target: Handle | undefined) => {
+    if (!root || !target) return false;
+    let current: Handle | null = target;
+    while (current) {
+      if (current === root) return true;
+      current = current.parent;
+    }
+    return false;
+  };
+
   const setOpen = (
     next: boolean,
     reason?: OverlayDismissReason | "trigger",
@@ -112,6 +133,19 @@ export function Popover(props: PopoverProps): JSX.Element {
     returnFocus: () => anchor,
     restoreFocus: () => props.restoreFocus ?? true,
   });
+  const stopObservingPointer = observeGlobalPointerEvent(
+    "click",
+    (target) => {
+      if (
+        props.outsidePointerStrategy !== "passthrough" ||
+        !open() ||
+        contains(anchor, target) ||
+        contains(content, target)
+      )
+        return;
+      layer.onOutside({ preventDefault() {}, stopPropagation() {} });
+    },
+  );
 
   const updatePosition = async () => {
     const point = props.anchorPoint?.();
@@ -187,6 +221,7 @@ export function Popover(props: PopoverProps): JSX.Element {
   });
 
   onCleanup(() => {
+    stopObservingPointer();
     cancelAnimationFrame(frame);
     observer?.disconnect();
   });
@@ -246,8 +281,14 @@ export function Popover(props: PopoverProps): JSX.Element {
             width: "100%",
             height: "100%",
             "z-index": layer.zIndex(),
+            "pointer-events":
+              props.outsidePointerStrategy === "passthrough" ? "none" : "auto",
           }}
-          onClick={layer.onOutside}
+          onClick={
+            props.outsidePointerStrategy === "passthrough"
+              ? undefined
+              : layer.onOutside
+          }
           onKeyDown={handleEscape}
           onWheel={schedulePosition}
         >

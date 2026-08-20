@@ -5502,6 +5502,7 @@
   var defaultHost = Object.assign(builtinHost, typeof __wabou_capabilities === "undefined" ? {} : __wabou_capabilities);
   var HostContext = createContext(defaultHost);
   // packages/core/src/renderer/index.ts
+  var globalPointerListeners = new Map;
   var nodeKeys = new NodeKeyAllocator;
   var listenersByNode = new NodeKeyTable;
   var nodesByKey = new NodeKeyTable;
@@ -6032,6 +6033,18 @@
         return stopped;
       }
     };
+    const globalType = ev.type;
+    const globalListeners = globalPointerListeners.get(globalType);
+    if (globalListeners) {
+      const target = derefHandle(solidId);
+      for (const listener of [...globalListeners]) {
+        try {
+          listener(target, ev);
+        } catch (error) {
+          logEventHandlerFailure(eventCode, solidId, solidId, error);
+        }
+      }
+    }
     bubble(solidId, eventCode, ev);
     return defaultPrevented;
   }

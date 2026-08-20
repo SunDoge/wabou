@@ -37,6 +37,26 @@ test("controlled state requests changes without mutating its source", () =>
     dispose();
   }));
 
+test("null remains a controlled value instead of selecting the fallback", () =>
+  createRoot((dispose) => {
+    const [external, setExternal] = createSignal<string | null>(null);
+    const changes: Array<string | null> = [];
+    const state = createControllableState<string | null>({
+      value: external,
+      defaultValue: "fallback",
+      onChange: (value) => changes.push(value),
+    });
+
+    expect(state.value()).toBeNull();
+    expect(state.set("file")).toBe(true);
+    expect(state.value()).toBeNull();
+    expect(changes).toEqual(["file"]);
+    setExternal("file");
+    flush();
+    expect(state.value()).toBe("file");
+    dispose();
+  }));
+
 test("disabled state rejects transitions", () =>
   createRoot((dispose) => {
     const state = createControllableState({

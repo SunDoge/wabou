@@ -517,6 +517,17 @@ const delegateEvents = () => {};
 function isDirectEvent(event) {
 	return nodeKeyEquals(event.target.id, event.currentTarget.id);
 }
+const globalPointerListeners = /* @__PURE__ */ new Map();
+/** Observe native pointer dispatch before ordinary bubbling. */
+function observeGlobalPointerEvent(type, listener) {
+	const listeners = globalPointerListeners.get(type) ?? /* @__PURE__ */ new Set();
+	listeners.add(listener);
+	globalPointerListeners.set(type, listeners);
+	return () => {
+		listeners.delete(listener);
+		if (listeners.size === 0) globalPointerListeners.delete(type);
+	};
+}
 const nodeKeys = new NodeKeyAllocator();
 const listenersByNode = new NodeKeyTable();
 /** NodeKey -> WeakRef<Handle>, so bubbling does not retain detached nodes. */
@@ -1033,7 +1044,7 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 	}
 	let stopped = false;
 	let defaultPrevented = false;
-	bubble(solidId, eventCode, {
+	const ev = {
 		target: {
 			id: solidId,
 			...data
@@ -1060,7 +1071,18 @@ function dispatchEvent(solidId, eventCode, payloadStr, numericData) {
 		get propagationStopped() {
 			return stopped;
 		}
-	});
+	};
+	const globalType = ev.type;
+	const globalListeners = globalPointerListeners.get(globalType);
+	if (globalListeners) {
+		const target = derefHandle(solidId);
+		for (const listener of [...globalListeners]) try {
+			listener(target, ev);
+		} catch (error) {
+			logEventHandlerFailure(eventCode, solidId, solidId, error);
+		}
+	}
+	bubble(solidId, eventCode, ev);
 	return defaultPrevented;
 }
 function derefHandle(id) {
@@ -1098,6 +1120,6 @@ function eventName(code) {
 	return "unknown";
 }
 //#endregion
-export { createFps as A, render as C, spread as D, setTransform2D as E, PathBuilder as F, isVectorPath as I, HostProvider as M, defaultHost as N, writer as O, useHost as P, removeNode as S, setProp as T, mergeProps as _, createElement as a, registerRoot as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, Portal as j, VirtualList as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, runSweep as w, releaseOverlayRoot as x, ref as y };
+export { VirtualList as A, removeNode as C, setTransform2D as D, setProp as E, useHost as F, PathBuilder as I, isVectorPath as L, Portal as M, HostProvider as N, spread as O, defaultHost as P, releaseOverlayRoot as S, runSweep as T, mergeProps as _, createElement as a, ref as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, createFps as j, writer as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, render as w, registerRoot as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-CWJxXxRW.mjs.map
+//# sourceMappingURL=renderer-DHN3mn4-.mjs.map

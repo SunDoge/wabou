@@ -79,6 +79,7 @@ type ComponentId =
   | "empty"
   | "button-group"
   | "toolbar"
+  | "menubar"
   | "select"
   | "date-picker"
   | "data-table"
@@ -96,6 +97,7 @@ const groups: Array<{
       { id: "button", name: "Button" },
       { id: "button-group", name: "Button group" },
       { id: "toolbar", name: "Toolbar" },
+      { id: "menubar", name: "Menubar" },
       { id: "toggle", name: "Toggle" },
       { id: "switch", name: "Switch" },
       { id: "dropdown-menu", name: "Dropdown menu" },
@@ -245,6 +247,8 @@ const descriptions: Record<ComponentId, string> = {
     "Groups related actions into horizontal or vertical toolbars.",
   toolbar:
     "Composes commands and toggles with one tab stop and directional keyboard navigation.",
+  menubar:
+    "Provides persistent application menus with sibling switching by keyboard or pointer.",
   "data-table":
     "A framework-agnostic TanStack Table core rendered through native Wabou primitives.",
   "tree-view":
@@ -286,6 +290,7 @@ import { ChartPage } from "./pages/chart";
 import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
+import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";
 import { ToolbarPage } from "./pages/toolbar";
 import { TreeViewPage } from "./pages/tree-view";
@@ -578,6 +583,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "toolbar"}>
                     <ToolbarPage />
+                  </Match>
+                  <Match when={selected() === "menubar"}>
+                    <MenubarPage />
                   </Match>
                   <Match when={selected() === "select"}>
                     <SelectPage />

@@ -3,7 +3,7 @@ import { PathBuilder } from "@wabou/core";
 import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d } from "@wabou/core/style";
 import { animateValue } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
-import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, spread, useHost as useHost$1 } from "@wabou/core/renderer";
+import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 import { formatNodeKey } from "@wabou/core/protocol";
@@ -1107,22 +1107,22 @@ function createOverlayLayer(options) {
 	let wasOpen = untrack(options.open);
 	let activePlane = untrack(plane);
 	const [zIndex, setZIndex] = createSignal(wasOpen ? pushLayer(token, activePlane) : 0);
-	const restoreFocus = () => {
-		if (options.restoreFocus?.() ?? true) options.returnFocus?.()?.focus();
+	const restoreFocus = (enabled = untrack(() => options.restoreFocus?.() ?? true), target = untrack(() => options.returnFocus?.())) => {
+		if (enabled) untrack(() => target?.focus());
 	};
-	createEffect(options.open, (open) => {
-		const currentPlane = plane();
-		if (open && !wasOpen) setZIndex(pushLayer(token, currentPlane));
-		else if (!open && wasOpen) {
+	createEffect(() => ({
+		open: options.open(),
+		plane: plane(),
+		restoreFocus: options.restoreFocus?.() ?? true,
+		returnFocus: options.returnFocus?.()
+	}), (snapshot) => {
+		if (snapshot.open && !wasOpen) setZIndex(pushLayer(token, snapshot.plane));
+		else if (!snapshot.open && wasOpen) {
 			removeLayer(token);
-			restoreFocus();
-		}
-		wasOpen = open;
-		activePlane = currentPlane;
-	});
-	createEffect(plane, (currentPlane) => {
-		if (wasOpen && activePlane !== currentPlane) setZIndex(pushLayer(token, currentPlane));
-		activePlane = currentPlane;
+			restoreFocus(snapshot.restoreFocus, snapshot.returnFocus);
+		} else if (snapshot.open && activePlane !== snapshot.plane) setZIndex(pushLayer(token, snapshot.plane));
+		wasOpen = snapshot.open;
+		activePlane = snapshot.plane;
 	});
 	onCleanup(() => {
 		removeLayer(token);
@@ -1343,8 +1343,12 @@ function Ripple(props) {
 const finiteNonNegative = (value, fallback) => Number.isFinite(value) ? Math.max(0, value) : fallback;
 /** Create an owner-scoped notification queue with explicit JavaScript timers. */
 function createNotifications(options = {}) {
-	const [items, setItems] = createSignal([]);
 	const records = /* @__PURE__ */ new Map();
+	const [revision, setRevision] = createSignal(0, { ownedWrite: true });
+	const items = () => {
+		revision();
+		return [...records.values()].map((record) => record.item);
+	};
 	const defaultDuration = finiteNonNegative(options.defaultDuration ?? 5e3, 5e3);
 	const configuredLimit = options.limit ?? 5;
 	const limit = Number.isFinite(configuredLimit) ? Math.max(1, Math.floor(configuredLimit)) : 5;
@@ -1354,7 +1358,7 @@ function createNotifications(options = {}) {
 		if (!record) return false;
 		if (record.timer !== void 0) clearTimeout(record.timer);
 		records.delete(id);
-		setItems((current) => current.filter((item) => item.id !== id));
+		setRevision((current) => current + 1);
 		record.item.onDismiss?.(reason);
 		return true;
 	};
@@ -1389,7 +1393,7 @@ function createNotifications(options = {}) {
 				startedAt: 0
 			};
 			records.set(item.id, record);
-			setItems((current) => [...current, item]);
+			setRevision((current) => current + 1);
 			schedule(record);
 			return item.id;
 		},
@@ -1567,6 +1571,15 @@ function Popover(props) {
 	let frame = 0;
 	let positionRequest = 0;
 	let observer;
+	const contains = (root, target) => {
+		if (!root || !target) return false;
+		let current = target;
+		while (current) {
+			if (current === root) return true;
+			current = current.parent;
+		}
+		return false;
+	};
 	const setOpen = (next, reason) => {
 		if (props.open === void 0) setUncontrolledOpen(next);
 		props.onOpenChange?.(next, reason);
@@ -1578,6 +1591,13 @@ function Popover(props) {
 		closeOnEscape: () => props.closeOnEscape ?? true,
 		returnFocus: () => anchor,
 		restoreFocus: () => props.restoreFocus ?? true
+	});
+	const stopObservingPointer = observeGlobalPointerEvent("click", (target) => {
+		if (props.outsidePointerStrategy !== "passthrough" || !open() || contains(anchor, target) || contains(content, target)) return;
+		layer.onOutside({
+			preventDefault() {},
+			stopPropagation() {}
+		});
 	});
 	const updatePosition = async () => {
 		const point = props.anchorPoint?.();
@@ -1636,6 +1656,7 @@ function Popover(props) {
 		});
 	});
 	onCleanup(() => {
+		stopObservingPointer();
 		cancelAnimationFrame(frame);
 		observer?.disconnect();
 	});
@@ -1681,11 +1702,14 @@ function Popover(props) {
 						top: 0,
 						width: "100%",
 						height: "100%",
-						"z-index": layer.zIndex()
+						"z-index": layer.zIndex(),
+						"pointer-events": props.outsidePointerStrategy === "passthrough" ? "none" : "auto"
 					};
 				},
 				get onClick() {
-					return layer.onOutside;
+					return memo(() => {
+						return props.outsidePointerStrategy === "passthrough";
+					})() ? void 0 : layer.onOutside;
 				},
 				onKeyDown: handleEscape,
 				onWheel: schedulePosition,
@@ -2055,4 +2079,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createPress as $, createFormDraft as A, Text as B, useOverlayPlane as C, createKeyedSelection as D, Row as E, NetworkImage as F, translate2d as G, TextInput as H, PasswordInput as I, createMeasuredSize as J, createPresence as K, Path as L, CodeEditor as M, Icon as N, isSelected as O, Image as P, createActive as Q, PathBuilder as R, createOverlayLayer as S, Column as T, View as U, TextArea as V, rotate2d$1 as W, Link as X, Button as Y, createButton as Z, Pulse as _, ScrollArea as a, animateKeyframes as at, Modal as b, autoPlacement as c, createRotation as ct, flip as d, createHover as et, offset as f, createNotifications as g, NotificationRegion as h, createScrollReset as i, animate as it, CollapsiblePresence as j, toggleSelection as k, computeFloatingPosition as l, createTransition as lt, size as m, createTabs as n, createFocusWithin as nt, Popover as o, createLoop as ot, shift as p, createContainerMatch as q, createShortcuts as r, createAnimationFrame as rt, arrow as s, createPulse as st, primitives_exports as t, createFocus as tt, computeHostFloatingPosition as u, Ripple as v, Center as w, OverlayPlaneProvider as x, Spin as y, Svg as z };
 
-//# sourceMappingURL=primitives-DOeoy0cp.mjs.map
+//# sourceMappingURL=primitives-BcqZhA-c.mjs.map

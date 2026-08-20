@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createSignal, flush, type JSX } from "solid-js";
+import { createRoot, createSignal, flush, type JSX } from "solid-js";
 import { GRAPHIC_DATA } from "../protocol";
 import { px, shadow } from "../style";
 import { PathBuilder } from "../vector-path";
@@ -12,12 +12,35 @@ import {
   isDirectEvent,
   mount,
   OP,
+  observeGlobalPointerEvent,
   runSweep,
   setProp,
   spread,
   type WabouNodeEvent,
   writer,
 } from "./index";
+
+test("global pointer observers run before target bubbling and can unsubscribe", () => {
+  const node = createElement("button");
+  const order: string[] = [];
+  const stop = observeGlobalPointerEvent("pointerdown", (target, event) => {
+    expect(target).toBe(node);
+    expect(event.clientX).toBe(12);
+    order.push("capture");
+  });
+  setProp(node, "onPointerDown", () => order.push("target"), undefined);
+
+  dispatchEvent(
+    node.id,
+    EVENT_CODE.pointerdown,
+    JSON.stringify({ clientX: 12, clientY: 8 }),
+  );
+  expect(order).toEqual(["capture", "target"]);
+
+  stop();
+  dispatchEvent(node.id, EVENT_CODE.pointerdown, "");
+  expect(order).toEqual(["capture", "target", "target"]);
+});
 
 test("graphic sources use the typed resource protocol", () => {
   const svg = createElement("svg");
@@ -464,23 +487,27 @@ test("classList explicitly merges interaction classes with static class", () => 
 });
 
 test("spread tracks reactive class getters across a host flush", () => {
-  writer.flush();
-  const node = createElement("view");
-  const [compact, setCompact] = createSignal(false, { ownedWrite: true });
-  spread(
-    node,
-    {
-      get class() {
-        return compact() ? "grid grid-cols-2" : "flex h-40";
+  createRoot((dispose) => {
+    writer.flush();
+    const node = createElement("view");
+    const [compact, setCompact] = createSignal(false, { ownedWrite: true });
+    spread(
+      node,
+      {
+        get class() {
+          return compact() ? "grid grid-cols-2" : "flex h-40";
+        },
       },
-    },
-    false,
-  );
-  flush();
-  writer.flush();
+      false,
+    );
+    flush();
+    writer.flush();
 
-  flush(() => setCompact(true));
-  const frame = writer.flush();
-  expect(frame).not.toBeNull();
-  expect(Array.from(frame!)).toContain(OP.SetClassName);
+    flush(() => setCompact(true));
+    const frame = writer.flush();
+    expect(frame).not.toBeNull();
+    if (!frame) throw new Error("reactive class update emitted no frame");
+    expect(Array.from(frame)).toContain(OP.SetClassName);
+    dispose();
+  });
 });

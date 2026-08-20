@@ -95,6 +95,7 @@ export type WabouSemanticRole =
   | "link"
   | "listbox"
   | "menu"
+  | "menubar"
   | "menuitem"
   | "none"
   | "option"
@@ -255,6 +256,37 @@ export interface WabouPointerEvent extends WabouPositionedEvent {
   readonly button: number;
   readonly buttons: number;
   readonly mods: number;
+}
+
+export type WabouGlobalPointerEventType =
+  | "pointerdown"
+  | "pointerup"
+  | "pointermove"
+  | "click"
+  | "contextmenu";
+
+export type WabouGlobalPointerListener = (
+  target: Handle | undefined,
+  event: WabouPointerEvent,
+) => void;
+
+const globalPointerListeners = new Map<
+  WabouGlobalPointerEventType,
+  Set<WabouGlobalPointerListener>
+>();
+
+/** Observe native pointer dispatch before ordinary bubbling. */
+export function observeGlobalPointerEvent(
+  type: WabouGlobalPointerEventType,
+  listener: WabouGlobalPointerListener,
+): () => void {
+  const listeners = globalPointerListeners.get(type) ?? new Set();
+  listeners.add(listener);
+  globalPointerListeners.set(type, listeners);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) globalPointerListeners.delete(type);
+  };
 }
 
 export interface WabouKeyEvent extends WabouNodeEvent {
@@ -1052,6 +1084,19 @@ export function dispatchEvent(
       return stopped;
     },
   };
+
+  const globalType = ev.type as WabouGlobalPointerEventType;
+  const globalListeners = globalPointerListeners.get(globalType);
+  if (globalListeners) {
+    const target = derefHandle(solidId);
+    for (const listener of [...globalListeners]) {
+      try {
+        listener(target, ev as WabouPointerEvent);
+      } catch (error) {
+        logEventHandlerFailure(eventCode, solidId, solidId, error);
+      }
+    }
+  }
 
   bubble(solidId, eventCode, ev);
   return defaultPrevented;
