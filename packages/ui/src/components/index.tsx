@@ -78,6 +78,7 @@ export {
 export * from "./sheet";
 export * from "./sidebar";
 export * from "./slider";
+export * from "./table";
 export {
   Tabs,
   TabsContent,
