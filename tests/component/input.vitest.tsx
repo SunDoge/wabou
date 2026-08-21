@@ -67,6 +67,17 @@ test("blocks authored disabled and read-only editors", () => {
   );
 });
 
+test("allows the input surface to be selected without conflicting backgrounds", () => {
+  const screen = renderComponent(() => (
+    <Input aria-label="Raised input" surfaceClass="bg-surface-raised" />
+  ));
+  const input = screen.getByRole("textbox", { name: "Raised input" });
+
+  expect(input.className).toContain("bg-surface-raised");
+  expect(input.className).not.toContain("bg-input");
+  expect(input.attribute("surfaceClass")).toBeNull();
+});
+
 test("keeps password contents behind a Rust secret handle", () => {
   const screen = renderComponent(() => (
     <PasswordInput

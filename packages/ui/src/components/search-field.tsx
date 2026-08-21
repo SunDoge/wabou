@@ -18,6 +18,8 @@ export interface SearchFieldProps
   onClear?(): void;
   clearLabel?: string;
   class?: string;
+  /** Background utility for the complete search field. Defaults to `bg-input`. */
+  surfaceClass?: string;
   inputClass?: string;
   inputRef?: (input: Handle) => void;
 }
@@ -33,6 +35,7 @@ export function SearchField(props: SearchFieldProps): JSX.Element {
     "onClear",
     "clearLabel",
     "class",
+    "surfaceClass",
     "inputClass",
     "inputRef",
   );
@@ -51,7 +54,7 @@ export function SearchField(props: SearchFieldProps): JSX.Element {
   };
 
   return (
-    <InputGroup class={props.class}>
+    <InputGroup class={props.class} surfaceClass={props.surfaceClass}>
       <View
         aria-hidden="true"
         class="flex-none pl-2.5 flex items-center text-muted"

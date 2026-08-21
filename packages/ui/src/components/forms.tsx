@@ -87,13 +87,19 @@ export function FieldError(props: { children?: JSX.Element; class?: string }) {
     </Text>
   );
 }
-export function InputGroup(props: { children?: JSX.Element; class?: string }) {
+export function InputGroup(props: {
+  children?: JSX.Element;
+  class?: string;
+  /** Background utility owned by the compound control. Defaults to `bg-input`. */
+  surfaceClass?: string;
+}) {
   const focus = createFocusWithin();
   return (
     <View
       {...focus.bindings}
       class={join(
-        "w-full h-8 flex items-center rounded-md border bg-input shadow-xs",
+        "w-full h-8 flex items-center rounded-md border shadow-xs",
+        props.surfaceClass ?? "bg-input",
         focus.focusWithin() ? "border-focus" : "border-strong",
         props.class,
       )}
@@ -106,10 +112,8 @@ export function InputGroupInput(props: InputProps) {
   return (
     <Input
       {...props}
-      class={join(
-        "flex-1 min-w-0 border-transparent bg-transparent",
-        props.class,
-      )}
+      chrome="none"
+      class={join("flex-1 min-w-0", props.class)}
     />
   );
 }

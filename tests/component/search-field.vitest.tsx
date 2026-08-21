@@ -59,3 +59,20 @@ test("submits the current query with Enter", () => {
   screen.getByRole("textbox", { name: "Search commands" }).press("Enter");
   expect(submitted).toBe("deploy");
 });
+
+test("uses one configurable surface for the compound input", () => {
+  const screen = renderComponent(() => (
+    <SearchField
+      aria-label="Search files"
+      surfaceClass="bg-surface-raised"
+    />
+  ));
+  const input = screen.getByRole("textbox", { name: "Search files" });
+  const group = input.parent;
+
+  expect(group?.className).toContain("bg-surface-raised");
+  expect(group?.className).not.toContain("bg-input");
+  expect(input.className).not.toContain("bg-input");
+  expect(input.className).not.toContain("bg-transparent");
+  expect(input.className).not.toContain("border-subtle");
+});
