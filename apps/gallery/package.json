@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "generate": "paraglide-js compile --project ./project.inlang --outdir ./ui/paraglide --strategy baseLocale --is-server false --emit-ts-declarations",
     "build": "vite build",
     "dev": "vite --host 127.0.0.1",
     "test:behavior": "cargo run -p wabou-cli -- test ."

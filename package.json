@@ -6,7 +6,7 @@
   "scripts": {
     "wabou": "cargo run -p wabou-cli --",
     "format": "biome format --write .",
-    "check": "bun x tsc --noEmit",
+    "check": "bun run gen:i18n && bun x tsc --noEmit",
     "verify": "bun run verify:js && bun run verify:rust && bun run verify:behavior && bun run verify:captures",
     "verify:js": "bun run check && bun run test && bun run test:hmr && bun run packages:check && bun run scripts/publish-packages.ts --dry-run && bun run gen:check",
     "verify:rust": "cargo fmt --all -- --check && cargo check --workspace --all-targets && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-targets",
@@ -28,7 +28,8 @@
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release-packages": "bun run packages:build && bun run packages:check && bun run scripts/publish-packages.ts",
-    "gen:source": "bun --conditions=wabou-source run scripts/codegen/index.ts",
+    "gen:i18n": "bun run --cwd apps/gallery generate",
+    "gen:source": "bun run gen:i18n && bun --conditions=wabou-source run scripts/codegen/index.ts",
     "gen": "bun run gen:source && bun run packages:build",
     "gen:bindings:check": "bun run scripts/check-rust-bindings.ts",
     "gen:check": "bun run scripts/check-generated.ts && bun run gen:bindings:check",
