@@ -9,6 +9,8 @@ import {
   DirectionalText,
   DirectionProvider,
   NativeSelect,
+  PropertyList,
+  PropertyRow,
   ShortcutRecorder,
   SplitButton,
   StatCard,
@@ -193,6 +195,19 @@ export function StatusBarPage() {
         <StatusBarItem>UTF-8</StatusBarItem>
       </StatusBar>
     </View>
+  );
+}
+
+export function PropertyListPage() {
+  return (
+    <PropertyList aria-label="Runtime properties" class="max-w-2xl">
+      <PropertyRow
+        name="runtime"
+        value="QuickJS with typed native capabilities"
+      />
+      <PropertyRow name="renderer" value="Vello retained scene" />
+      <PropertyRow name="layout" value="Taffy logical pixels" />
+    </PropertyList>
   );
 }
 

@@ -66,6 +66,7 @@ export * from "./number-field";
 export * from "./page";
 export * from "./popover";
 export * from "./progress";
+export * from "./property-list";
 export * from "./rating";
 export * from "./resizable";
 export * from "./search-field";
