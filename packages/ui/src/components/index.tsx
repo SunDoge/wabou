@@ -10,10 +10,8 @@ import {
   TextArea as PrimitiveTextArea,
   type TextAreaProps as PrimitiveTextAreaProps,
   Text,
-  type TextProps,
   translate2d,
   View,
-  type ViewProps,
 } from "../primitives";
 import { join } from "./class-names";
 
@@ -77,6 +75,7 @@ export {
   type ToggleGroupProps,
   type ToggleProps,
 } from "./selection";
+export * from "./separator";
 export * from "./sheet";
 export * from "./sidebar";
 export * from "./slider";
@@ -180,23 +179,6 @@ export function Fps(props: FpsProps): JSX.Element {
       {value()}
       {props.label === "" ? "" : ` ${props.label ?? "fps"}`}
     </Badge>
-  );
-}
-
-export function Separator(props: {
-  orientation?: "horizontal" | "vertical";
-  class?: string;
-}): JSX.Element {
-  const dimensions = () =>
-    match(props.orientation ?? "horizontal")
-      .with("horizontal", () => "h-px w-full")
-      .with("vertical", () => "w-px h-full")
-      .exhaustive();
-  return (
-    <View
-      aria-hidden="true"
-      class={join("flex-none", "bg-subtle", dimensions(), props.class)}
-    />
   );
 }
 

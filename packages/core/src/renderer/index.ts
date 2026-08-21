@@ -154,6 +154,7 @@ export interface WabouElementProps {
   "aria-modal"?: boolean | "true" | "false";
   "aria-haspopup"?: "dialog" | "grid" | "listbox" | "menu" | "tree";
   "aria-expanded"?: boolean;
+  "aria-orientation"?: "horizontal" | "vertical";
   "aria-controls"?: string;
   "aria-activedescendant"?: string;
   "aria-checked"?: boolean | "mixed";

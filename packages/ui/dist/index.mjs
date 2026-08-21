@@ -6360,6 +6360,31 @@ function ToggleGroupItem(props) {
 	});
 }
 //#endregion
+//#region src/components/separator.tsx
+/** A visual divider with an opt-in semantic separator contract. */
+function Separator(props) {
+	const orientation = () => props.orientation ?? "horizontal";
+	const decorative = () => props.decorative ?? true;
+	const dimensions = () => match(orientation()).with("horizontal", () => "h-px w-full").with("vertical", () => "w-px h-full").exhaustive();
+	const rest = omit(props, "class", "decorative", "orientation");
+	return createComponent$1(View, mergeProps(rest, {
+		get role() {
+			return decorative() ? "presentation" : "separator";
+		},
+		get ["aria-hidden"]() {
+			return decorative() ? "true" : void 0;
+		},
+		get ["aria-orientation"]() {
+			return memo(() => {
+				return !!decorative();
+			})() ? void 0 : orientation();
+		},
+		get ["class"]() {
+			return join("flex-none bg-subtle", dimensions(), props.class);
+		}
+	}));
+}
+//#endregion
 //#region src/components/sheet.tsx
 const geometry = (side) => match(side).with("left", () => ({
 	backdrop: {
@@ -7504,15 +7529,6 @@ function Fps(props) {
 					return props.label === "";
 				})() ? "" : ` ${props.label ?? "fps"}`;
 			})];
-		}
-	});
-}
-function Separator(props) {
-	const dimensions = () => match(props.orientation ?? "horizontal").with("horizontal", () => "h-px w-full").with("vertical", () => "w-px h-full").exhaustive();
-	return createComponent$1(View, {
-		"aria-hidden": "true",
-		get ["class"]() {
-			return join("flex-none", "bg-subtle", dimensions(), props.class);
 		}
 	});
 }
