@@ -75,6 +75,10 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
   Item,
   ItemActions,
   ItemContent,
@@ -933,6 +937,46 @@ export function MessageScrollerPage() {
             <MessageScrollerButton direction="start" />
             <MessageScrollerButton direction="end" />
           </MessageScroller>
+        </View>
+      </Preview>
+    </View>
+  );
+}
+
+export function InputOTPPage() {
+  const [code, setCode] = createSignal("");
+  const [completed, setCompleted] = createSignal(false);
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Native input with visual slots">
+        <View class="flex flex-col items-start gap-3">
+          <InputOTP
+            aria-label="Verification code"
+            value={code()}
+            maxLength={6}
+            onValueChange={(value) => {
+              setCode(value);
+              setCompleted(false);
+            }}
+            onComplete={() => setCompleted(true)}
+          >
+            <InputOTPGroup>
+              <InputOTPSlot index={0} />
+              <InputOTPSlot index={1} />
+              <InputOTPSlot index={2} />
+            </InputOTPGroup>
+            <InputOTPSeparator />
+            <InputOTPGroup>
+              <InputOTPSlot index={3} />
+              <InputOTPSlot index={4} />
+              <InputOTPSlot index={5} />
+            </InputOTPGroup>
+          </InputOTP>
+          <Text class="text-sm text-muted">
+            {completed()
+              ? `Code complete: ${code()}`
+              : `Code: ${code() || "empty"}`}
+          </Text>
         </View>
       </Preview>
     </View>

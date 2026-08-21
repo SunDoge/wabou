@@ -42,6 +42,7 @@ export * from "./dropdown-menu";
 export * from "./forms";
 export * from "./hover-card";
 export * from "./input";
+export * from "./input-otp";
 export * from "./item";
 export * from "./layout";
 export * from "./menubar";

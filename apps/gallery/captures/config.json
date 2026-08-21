@@ -18,6 +18,9 @@
     "input-hidpi.ts": {
       "scaleFactor": 2
     },
+    "input-otp-hidpi.ts": {
+      "scaleFactor": 2
+    },
     "item-hidpi.ts": {
       "scaleFactor": 2
     },

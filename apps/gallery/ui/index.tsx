@@ -38,6 +38,7 @@ type ComponentId =
   | "badge"
   | "card"
   | "input"
+  | "input-otp"
   | "number-field"
   | "checkbox"
   | "radio-group"
@@ -120,6 +121,7 @@ const groups: Array<{
     label: "Forms",
     items: [
       { id: "input", name: "Input" },
+      { id: "input-otp", name: "Input OTP" },
       { id: "number-field", name: "Number field" },
       { id: "select", name: "Select" },
       { id: "combobox", name: "Combobox" },
@@ -204,6 +206,8 @@ const descriptions: Record<ComponentId, string> = {
   badge: "A compact label for statuses, categories and metadata.",
   card: "A flexible container for grouped content and actions.",
   input: "A native text input with consistent layout and visual treatment.",
+  "input-otp":
+    "Projects native keyboard and paste input into explicit one-time-code slots.",
   "number-field":
     "Edits locale-aware numeric values with explicit stepping and native spinbutton semantics.",
   checkbox:
@@ -340,6 +344,7 @@ import {
   EmptyPage,
   FieldPage,
   HoverCardPage,
+  InputOTPPage,
   ItemPage,
   MessagePage,
   MessageScrollerPage,
@@ -497,6 +502,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "input"}>
                     <InputPage />
+                  </Match>
+                  <Match when={selected() === "input-otp"}>
+                    <InputOTPPage />
                   </Match>
                   <Match when={selected() === "number-field"}>
                     <NumberFieldPage />
