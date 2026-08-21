@@ -82,6 +82,7 @@ type ComponentId =
   | "empty"
   | "item"
   | "attachment"
+  | "message"
   | "button-group"
   | "toolbar"
   | "menubar"
@@ -141,6 +142,7 @@ const groups: Array<{
       { id: "card", name: "Card" },
       { id: "item", name: "Item" },
       { id: "attachment", name: "Attachment" },
+      { id: "message", name: "Message" },
       { id: "chart", name: "Chart experiment" },
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
@@ -262,6 +264,8 @@ const descriptions: Record<ComponentId, string> = {
   item: "A composable row for lists, settings and compact application summaries.",
   attachment:
     "Displays native file and transfer state using reusable media, content and action slots.",
+  message:
+    "Composes aligned avatars, metadata, bubbles, reactions and timeline markers.",
   "button-group":
     "Groups related actions into horizontal or vertical toolbars.",
   toolbar:
@@ -333,6 +337,7 @@ import {
   FieldPage,
   HoverCardPage,
   ItemPage,
+  MessagePage,
   PaginationPage,
   PopoverPage,
   ResizablePage,
@@ -616,6 +621,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "attachment"}>
                     <AttachmentPage />
+                  </Match>
+                  <Match when={selected() === "message"}>
+                    <MessagePage />
                   </Match>
                   <Match when={selected() === "button-group"}>
                     <ButtonGroupPage />

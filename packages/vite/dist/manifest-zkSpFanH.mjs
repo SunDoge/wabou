@@ -557,6 +557,13 @@ var manifest_default = {
 				"value": "column"
 			}
 		}],
+		"flex-col-reverse": [{
+			"property": "flex-direction",
+			"value": {
+				"type": "keyword",
+				"value": "column-reverse"
+			}
+		}],
 		"flex-none": [
 			{
 				"property": "flex-grow",
@@ -592,6 +599,13 @@ var manifest_default = {
 			"value": {
 				"type": "keyword",
 				"value": "row"
+			}
+		}],
+		"flex-row-reverse": [{
+			"property": "flex-direction",
+			"value": {
+				"type": "keyword",
+				"value": "row-reverse"
 			}
 		}],
 		"flex-wrap": [{
@@ -3589,4 +3603,4 @@ var manifest_default = {
 //#endregion
 export { manifest_default as t };
 
-//# sourceMappingURL=manifest-BfG7g8LY.mjs.map
+//# sourceMappingURL=manifest-zkSpFanH.mjs.map

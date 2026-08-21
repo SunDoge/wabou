@@ -1,4 +1,4 @@
-import { t as manifest_default } from "./manifest-BfG7g8LY.mjs";
+import { t as manifest_default } from "./manifest-zkSpFanH.mjs";
 //#region src/preset/index.ts
 const wabouUtilityManifest = manifest_default;
 function matchDynamic(utility, resolver) {

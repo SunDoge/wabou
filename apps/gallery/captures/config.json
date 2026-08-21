@@ -20,6 +20,9 @@
     },
     "item-hidpi.ts": {
       "scaleFactor": 2
+    },
+    "message-hidpi.ts": {
+      "scaleFactor": 2
     }
   }
 }

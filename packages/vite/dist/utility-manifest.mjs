@@ -1,4 +1,4 @@
-import { t as manifest_default } from "./manifest-BfG7g8LY.mjs";
+import { t as manifest_default } from "./manifest-zkSpFanH.mjs";
 //#region src/utility-manifest.ts
 /** Build-time manifest used by tooling that presents Wabou's utility surface. */
 var utility_manifest_default = manifest_default;

@@ -30,6 +30,10 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
+  Bubble,
+  BubbleContent,
+  BubbleGroup,
+  BubbleReactions,
   Button,
   ButtonGroup,
   ButtonGroupText,
@@ -79,6 +83,14 @@ import {
   ItemMedia,
   ItemSeparator,
   ItemTitle,
+  Marker,
+  MarkerContent,
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageFooter,
+  MessageGroup,
+  MessageHeader,
   Pagination,
   PaginationContent,
   PaginationItems,
@@ -780,6 +792,84 @@ export function AttachmentPage() {
             <AttachmentDescription>1280 x 720</AttachmentDescription>
           </AttachmentContent>
         </Attachment>
+      </Preview>
+    </View>
+  );
+}
+
+export function MessagePage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Conversation">
+        <MessageGroup
+          aria-label="Conversation preview"
+          class="w-[640px] rounded-lg border border-subtle bg-surface p-5 shadow-xs"
+        >
+          <Marker variant="separator">
+            <MarkerContent>Today</MarkerContent>
+          </Marker>
+          <Message>
+            <MessageAvatar>
+              <Avatar fallback="WA" size="sm" />
+            </MessageAvatar>
+            <MessageContent>
+              <MessageHeader>Wabou team - 09:41</MessageHeader>
+              <BubbleGroup>
+                <Bubble variant="secondary">
+                  <BubbleContent>
+                    <Text class="whitespace-normal text-sm">
+                      The native component capture is ready. It passed both
+                      scale factors.
+                    </Text>
+                  </BubbleContent>
+                </Bubble>
+                <Bubble variant="outline">
+                  <BubbleContent>
+                    <Text class="whitespace-normal text-sm">
+                      We can now reuse the same anatomy in chat and activity
+                      views.
+                    </Text>
+                  </BubbleContent>
+                  <BubbleReactions>
+                    <Text class="text-xs text-secondary">2 likes</Text>
+                  </BubbleReactions>
+                </Bubble>
+              </BubbleGroup>
+              <MessageFooter>Delivered</MessageFooter>
+            </MessageContent>
+          </Message>
+          <Message align="end">
+            <MessageAvatar>
+              <Avatar fallback="ME" size="sm" />
+            </MessageAvatar>
+            <MessageContent>
+              <MessageHeader>You - 09:43</MessageHeader>
+              <Bubble variant="default">
+                <BubbleContent>
+                  <Text class="whitespace-normal text-sm">
+                    Great. Keep the state explicit and avoid hidden DOM
+                    behavior.
+                  </Text>
+                </BubbleContent>
+              </Bubble>
+              <MessageFooter>Read</MessageFooter>
+            </MessageContent>
+          </Message>
+          <Marker variant="border">
+            <MarkerContent>1 unread message</MarkerContent>
+          </Marker>
+          <Message>
+            <MessageContent>
+              <Bubble variant="destructive">
+                <BubbleContent>
+                  <Text class="whitespace-normal text-sm">
+                    Delivery failed. Retry from the action menu.
+                  </Text>
+                </BubbleContent>
+              </Bubble>
+            </MessageContent>
+          </Message>
+        </MessageGroup>
       </Preview>
     </View>
   );

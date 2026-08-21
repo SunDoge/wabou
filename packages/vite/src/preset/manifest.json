@@ -618,6 +618,15 @@
         }
       }
     ],
+    "flex-col-reverse": [
+      {
+        "property": "flex-direction",
+        "value": {
+          "type": "keyword",
+          "value": "column-reverse"
+        }
+      }
+    ],
     "flex-none": [
       {
         "property": "flex-grow",
@@ -656,6 +665,15 @@
         "value": {
           "type": "keyword",
           "value": "row"
+        }
+      }
+    ],
+    "flex-row-reverse": [
+      {
+        "property": "flex-direction",
+        "value": {
+          "type": "keyword",
+          "value": "row-reverse"
         }
       }
     ],

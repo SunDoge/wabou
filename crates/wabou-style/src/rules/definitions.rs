@@ -432,7 +432,15 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
             vec![length("outline-offset", Length::Px { value: 4.0 })],
         ),
         ("flex-row", vec![keyword("flex-direction", "row")]),
+        (
+            "flex-row-reverse",
+            vec![keyword("flex-direction", "row-reverse")],
+        ),
         ("flex-col", vec![keyword("flex-direction", "column")]),
+        (
+            "flex-col-reverse",
+            vec![keyword("flex-direction", "column-reverse")],
+        ),
         ("flex-wrap", vec![keyword("flex-wrap", "wrap")]),
         ("flex-nowrap", vec![keyword("flex-wrap", "nowrap")]),
         (

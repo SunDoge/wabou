@@ -45,6 +45,7 @@ export * from "./input";
 export * from "./item";
 export * from "./layout";
 export * from "./menubar";
+export * from "./message";
 export * from "./navigation";
 export * from "./number-field";
 export * from "./page";
