@@ -568,6 +568,7 @@ function renderComponent(render, options = {}) {
 			get children() {
 				return node.children.map(locator);
 			},
+			snapshot: () => snapshotNode(node),
 			closestByRole: (role, options = {}) => {
 				ensureAttached(node, "query ancestors of");
 				let current = node;
@@ -701,10 +702,35 @@ function renderComponent(render, options = {}) {
 		};
 	}
 	let disposed = false;
+	const snapshotNode = (node) => {
+		const attributes = Object.fromEntries([...node.attributes.entries()].sort(([left], [right]) => left.localeCompare(right)));
+		const styles = Object.fromEntries([...node.styles.entries()].sort(([left], [right]) => left.localeCompare(right)));
+		const role = roleOf(node);
+		const name = nameOf(node);
+		const text = textOf(node);
+		return {
+			tag: node.tag,
+			...role ? { role } : {},
+			...name ? { name } : {},
+			...text ? { text } : {},
+			...node.className ? { className: node.className } : {},
+			...Object.keys(attributes).length > 0 ? { attributes } : {},
+			...Object.keys(styles).length > 0 ? { styles } : {},
+			...node.focusOrder !== null ? { focusOrder: node.focusOrder } : {},
+			...node.interactionBlocked ? { interactionBlocked: true } : {},
+			...node.focusContained ? { focusContained: true } : {},
+			...node.overlayPlane !== "content" ? { overlayPlane: node.overlayPlane } : {},
+			...node.transform ? { transform: node.transform } : {},
+			...node.children.length > 0 ? { children: node.children.map(snapshotNode) } : {}
+		};
+	};
 	const screen = {
 		...queries(null),
 		get roots() {
 			return roots.map(locator);
+		},
+		snapshot() {
+			return roots.map(snapshotNode);
 		},
 		flush() {
 			flushUpdates();

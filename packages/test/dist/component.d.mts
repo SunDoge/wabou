@@ -30,6 +30,21 @@ interface ComponentQueries {
   getAllByRole(role: string, options?: ComponentRoleListOptions): readonly ComponentLocator[];
   queryAllByRole(role: string, options?: ComponentRoleListOptions): readonly ComponentLocator[];
 }
+interface ComponentSnapshotNode {
+  readonly tag: string;
+  readonly role?: string;
+  readonly name?: string;
+  readonly text?: string;
+  readonly className?: string;
+  readonly attributes?: Readonly<Record<string, string>>;
+  readonly styles?: Readonly<Record<string, ComponentStyleValue>>;
+  readonly focusOrder?: number;
+  readonly interactionBlocked?: true;
+  readonly focusContained?: true;
+  readonly overlayPlane?: Exclude<ComponentOverlayPlane, "content">;
+  readonly transform?: readonly [number, number, number, number, number, number];
+  readonly children?: readonly ComponentSnapshotNode[];
+}
 interface ComponentLocator extends ComponentQueries {
   /** Direct authored parent, or null at the component render root. */
   readonly parent: ComponentLocator | null;
@@ -42,6 +57,8 @@ interface ComponentLocator extends ComponentQueries {
   style(name: string): ComponentStyleValue | null;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
+  /** Stable authored protocol tree without transient NodeKeys. */
+  snapshot(): ComponentSnapshotNode;
   /** Find the nearest attached self-or-ancestor matching an authored role. */
   closestByRole(role: string, options?: ComponentRoleListOptions): ComponentLocator | null;
   /** Disabled state as authored through `disabled` or `aria-disabled`. */
@@ -115,6 +132,8 @@ interface ComponentPointerPosition {
 interface ComponentScreen extends ComponentQueries {
   /** Current top-level authored nodes, including synthetic overlay roots. */
   readonly roots: readonly ComponentLocator[];
+  /** Stable authored protocol forest suitable for Vitest snapshots. */
+  snapshot(): readonly ComponentSnapshotNode[];
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
   /** Advance a harness-owned fake clock and commit resulting reactive work. */
@@ -178,5 +197,5 @@ declare function cleanupComponents(): void;
  */
 declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentOverlayPlane, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, assertFocusOwnerCount, assertInOverlayPlane, assertSingleSurfaceOwner, cleanupComponents, createTestHost, renderComponent };
+export { ComponentLocator, ComponentOverlayPlane, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentSnapshotNode, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, assertFocusOwnerCount, assertInOverlayPlane, assertSingleSurfaceOwner, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map

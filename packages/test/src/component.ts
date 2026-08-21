@@ -75,6 +75,29 @@ export interface ComponentQueries {
   ): readonly ComponentLocator[];
 }
 
+export interface ComponentSnapshotNode {
+  readonly tag: string;
+  readonly role?: string;
+  readonly name?: string;
+  readonly text?: string;
+  readonly className?: string;
+  readonly attributes?: Readonly<Record<string, string>>;
+  readonly styles?: Readonly<Record<string, ComponentStyleValue>>;
+  readonly focusOrder?: number;
+  readonly interactionBlocked?: true;
+  readonly focusContained?: true;
+  readonly overlayPlane?: Exclude<ComponentOverlayPlane, "content">;
+  readonly transform?: readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
+  readonly children?: readonly ComponentSnapshotNode[];
+}
+
 export interface ComponentLocator extends ComponentQueries {
   /** Direct authored parent, or null at the component render root. */
   readonly parent: ComponentLocator | null;
@@ -87,6 +110,8 @@ export interface ComponentLocator extends ComponentQueries {
   style(name: string): ComponentStyleValue | null;
   /** Direct authored children for visual protocol assertions. Prefer role queries for behavior. */
   readonly children: readonly ComponentLocator[];
+  /** Stable authored protocol tree without transient NodeKeys. */
+  snapshot(): ComponentSnapshotNode;
   /** Find the nearest attached self-or-ancestor matching an authored role. */
   closestByRole(
     role: string,
@@ -164,6 +189,8 @@ export interface ComponentPointerPosition {
 export interface ComponentScreen extends ComponentQueries {
   /** Current top-level authored nodes, including synthetic overlay roots. */
   readonly roots: readonly ComponentLocator[];
+  /** Stable authored protocol forest suitable for Vitest snapshots. */
+  snapshot(): readonly ComponentSnapshotNode[];
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
   /** Advance a harness-owned fake clock and commit resulting reactive work. */
@@ -266,7 +293,9 @@ export function assertFocusOwnerCount(
   expected: number,
 ): readonly ComponentLocator[] {
   if (!Number.isInteger(expected) || expected < 0) {
-    throw new RangeError("expected focus owner count must be a non-negative integer");
+    throw new RangeError(
+      "expected focus owner count must be a non-negative integer",
+    );
   }
   const owners = componentDescendants(root).filter(
     (locator) => locator.focusOrder !== null,
@@ -966,6 +995,7 @@ export function renderComponent(
       get children() {
         return node.children.map(locator);
       },
+      snapshot: () => snapshotNode(node),
       closestByRole: (role, options = {}) => {
         ensureAttached(node, "query ancestors of");
         let current: AuthoredNode | null = node;
@@ -1110,10 +1140,47 @@ export function renderComponent(
   }
 
   let disposed = false;
+  const snapshotNode = (node: AuthoredNode): ComponentSnapshotNode => {
+    const attributes = Object.fromEntries(
+      [...node.attributes.entries()].sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    );
+    const styles = Object.fromEntries(
+      [...node.styles.entries()].sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    );
+    const role = roleOf(node);
+    const name = nameOf(node);
+    const text = textOf(node);
+    return {
+      tag: node.tag,
+      ...(role ? { role } : {}),
+      ...(name ? { name } : {}),
+      ...(text ? { text } : {}),
+      ...(node.className ? { className: node.className } : {}),
+      ...(Object.keys(attributes).length > 0 ? { attributes } : {}),
+      ...(Object.keys(styles).length > 0 ? { styles } : {}),
+      ...(node.focusOrder !== null ? { focusOrder: node.focusOrder } : {}),
+      ...(node.interactionBlocked ? { interactionBlocked: true as const } : {}),
+      ...(node.focusContained ? { focusContained: true as const } : {}),
+      ...(node.overlayPlane !== "content"
+        ? { overlayPlane: node.overlayPlane }
+        : {}),
+      ...(node.transform ? { transform: node.transform } : {}),
+      ...(node.children.length > 0
+        ? { children: node.children.map(snapshotNode) }
+        : {}),
+    };
+  };
   const screen: ComponentScreen = {
     ...queries(null),
     get roots() {
       return roots.map(locator);
+    },
+    snapshot() {
+      return roots.map(snapshotNode);
     },
     flush() {
       flushUpdates();

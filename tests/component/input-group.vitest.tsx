@@ -1,0 +1,143 @@
+import {
+  assertFocusOwnerCount,
+  assertSingleSurfaceOwner,
+  renderComponent,
+} from "@wabou/test/component";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupText,
+  Text,
+} from "@wabou/ui";
+import { expect, test } from "vitest";
+
+test("records the complete authored InputGroup contract without a native host", () => {
+  const screen = renderComponent(() => (
+    <InputGroup aria-label="Project URL">
+      <InputGroupAddon align="inline-start" aria-label="Focus hostname">
+        <InputGroupText>https://</InputGroupText>
+      </InputGroupAddon>
+      <InputGroupInput aria-label="Hostname" placeholder="example.com" />
+      <InputGroupButton>Copy</InputGroupButton>
+    </InputGroup>
+  ));
+  const group = screen.getByRole("group", { name: "Project URL" });
+
+  expect(assertSingleSurfaceOwner(group).name).toBe("Project URL");
+  expect(assertFocusOwnerCount(group, 2)).toHaveLength(2);
+  expect(screen.snapshot()).toMatchInlineSnapshot(`
+    [
+      {
+        "attributes": {
+          "aria-label": "Project URL",
+          "data-wabou-owns": "surface focus-ring",
+          "role": "group",
+        },
+        "children": [
+          {
+            "attributes": {
+              "aria-label": "Focus hostname",
+              "role": "group",
+            },
+            "children": [
+              {
+                "attributes": {
+                  "role": "label",
+                },
+                "children": [
+                  {
+                    "name": "https://",
+                    "tag": "#text",
+                    "text": "https://",
+                  },
+                ],
+                "className": "flex-none text-sm text-muted",
+                "name": "https://",
+                "role": "label",
+                "tag": "text",
+                "text": "https://",
+              },
+            ],
+            "className": "h-full flex-none px-3 flex items-center justify-center gap-2 text-sm text-muted",
+            "name": "Focus hostname",
+            "role": "group",
+            "tag": "view",
+            "text": "https://",
+          },
+          {
+            "attributes": {
+              "aria-disabled": "false",
+              "aria-label": "Hostname",
+              "data-wabou-owns": "native-editor",
+              "placeholder": "example.com",
+              "role": "textbox",
+            },
+            "className": "h-8 w-full px-3 text-sm text-primary flex-1 min-w-0",
+            "focusOrder": 0,
+            "name": "Hostname",
+            "role": "textbox",
+            "tag": "input",
+          },
+          {
+            "attributes": {
+              "aria-disabled": "false",
+              "role": "button",
+            },
+            "children": [
+              {
+                "name": "Copy",
+                "tag": "#text",
+                "text": "Copy",
+              },
+            ],
+            "className": "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium bg-transparent text-secondary border-transparent h-6 px-2 text-xs mx-1",
+            "focusOrder": 0,
+            "name": "Copy",
+            "role": "button",
+            "styles": {
+              "align-items": "center",
+              "border-width": "1",
+              "cursor": "pointer",
+              "display": "flex",
+              "flex-shrink": "0",
+              "opacity": "1",
+              "outline-color": "#38bdf8",
+              "outline-offset": "2px",
+              "outline-style": "solid",
+              "outline-width": "0px",
+              "user-select": "none",
+              "white-space": "nowrap",
+            },
+            "tag": "button",
+            "text": "Copy",
+          },
+        ],
+        "className": "relative w-full min-w-0 flex rounded-md border shadow-xs h-8 flex-row items-center border-strong bg-input",
+        "name": "Project URL",
+        "role": "group",
+        "tag": "view",
+        "text": "https://Copy",
+      },
+    ]
+  `);
+});
+
+test("focuses the registered native editor through an addon", () => {
+  const screen = renderComponent(() => (
+    <InputGroup aria-label="Project URL">
+      <InputGroupAddon align="inline-start" aria-label="Focus hostname">
+        <Text>https://</Text>
+      </InputGroupAddon>
+      <InputGroupInput aria-label="Hostname" />
+    </InputGroup>
+  ));
+
+  screen.getByRole("group", { name: "Focus hostname" }).click();
+
+  expect(screen.getByRole("textbox", { name: "Hostname" }).focused).toBe(true);
+  expect(
+    screen.getByRole("group", { name: "Project URL" }).className,
+  ).toContain("border-focus");
+});
