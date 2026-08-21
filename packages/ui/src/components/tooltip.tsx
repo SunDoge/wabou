@@ -62,6 +62,8 @@ export function Tooltip(props: TooltipProps): JSX.Element {
       offset={props.offset ?? 8}
       contentRole="presentation"
       popupRole="tooltip"
+      outsidePointerStrategy="passthrough"
+      contentInteractionBlocked
       closeOnEscape
       restoreFocus={false}
       contentClass={join(

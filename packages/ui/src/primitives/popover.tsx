@@ -61,6 +61,8 @@ interface PopoverBaseProps {
   contentClass?: string;
   contentStyle?: WabouStyle;
   contentShadows?: readonly Shadow[] | null;
+  /** Removes the positioned content subtree from native hit testing. */
+  contentInteractionBlocked?: boolean;
   /** Keeps composed hover/focus surfaces open while the pointer is inside. */
   onContentPointerEnter?: ViewProps["onPointerEnter"];
   onContentPointerLeave?: ViewProps["onPointerLeave"];
@@ -327,7 +329,7 @@ export function Popover(props: PopoverProps): JSX.Element {
             transform={scale2d(
               motionFromScale() + presence.progress() * (1 - motionFromScale()),
             )}
-            interactionBlocked={!open()}
+            interactionBlocked={!open() || props.contentInteractionBlocked}
             aria-hidden={open() ? undefined : "true"}
             style={{
               position: "absolute",
