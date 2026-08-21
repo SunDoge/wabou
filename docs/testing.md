@@ -2,6 +2,12 @@
 
 ## Component unit tests
 
+Component anatomy is governed by the
+[component composition contracts](component-contracts.md). Use the structural
+assertions from `@wabou/test/component` to reject duplicate surface ownership,
+unexpected focus owners, and overlays mounted in the content plane before a
+native behavior test is necessary.
+
 Most component behavior should be tested without starting a Rust host, native
 window, layout engine, or GPU. `@wabou/test/component` mounts TSX through the
 real Wabou Solid renderer and records the authored host tree, so a component

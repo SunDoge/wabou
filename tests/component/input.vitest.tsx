@@ -1,4 +1,7 @@
-import { renderComponent } from "@wabou/test/component";
+import {
+  assertFocusOwnerCount,
+  renderComponent,
+} from "@wabou/test/component";
 import { Input, PasswordInput, Text, TextArea, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
@@ -73,6 +76,7 @@ test("allows the input surface to be selected without conflicting backgrounds", 
   ));
   const input = screen.getByRole("textbox", { name: "Raised input" });
 
+  expect(assertFocusOwnerCount(input, 1)).toHaveLength(1);
   expect(input.className).toContain("bg-surface-raised");
   expect(input.className).not.toContain("bg-input");
   expect(input.attribute("surfaceClass")).toBeNull();

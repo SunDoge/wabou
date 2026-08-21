@@ -25,6 +25,11 @@ export function Input(props: InputProps): JSX.Element {
   return (
     <PrimitiveTextInput
       {...forwarded}
+      data-wabou-owns={
+        (props.chrome ?? "default") === "default"
+          ? "surface native-editor"
+          : "native-editor"
+      }
       class={join(
         "h-8 w-full px-3 text-sm text-primary",
         (props.chrome ?? "default") === "default" &&

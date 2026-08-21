@@ -5,6 +5,51 @@ import { dispatchResizeObservation } from "@wabou/core/testing";
 import { createComponent, flush } from "solid-js";
 import { onTestFinished, vi } from "vitest";
 //#region src/component.ts
+function componentDescendants(root) {
+	const nodes = [];
+	const visit = (node) => {
+		nodes.push(node);
+		node.children.forEach(visit);
+	};
+	visit(root);
+	return nodes;
+}
+function locatorDescription(locator) {
+	const role = locator.role ? ` role=${JSON.stringify(locator.role)}` : "";
+	const name = locator.name ? ` name=${JSON.stringify(locator.name)}` : "";
+	return `<${locator.tag}${role}${name}>`;
+}
+function ownsComponentResponsibility(locator, responsibility) {
+	return (locator.attribute("data-wabou-owns") ?? "").split(/\s+/u).includes(responsibility);
+}
+/**
+* Assert that a compound control has one background owner.
+*
+* Transparent descendants are content layers, not surface owners. This catches
+* accidental combinations such as an InputGroup and its native input both
+* painting `bg-input`.
+*/
+function assertSingleSurfaceOwner(root) {
+	const owners = componentDescendants(root).filter((locator) => ownsComponentResponsibility(locator, "surface"));
+	if (owners.length !== 1) throw new Error(`${locatorDescription(root)} must have exactly one visible surface owner; found ${owners.length}: ${owners.map(locatorDescription).join(", ") || "none"}`);
+	return owners[0];
+}
+/** Assert an explicit number of native focus owners inside one composition. */
+function assertFocusOwnerCount(root, expected) {
+	if (!Number.isInteger(expected) || expected < 0) throw new RangeError("expected focus owner count must be a non-negative integer");
+	const owners = componentDescendants(root).filter((locator) => locator.focusOrder !== null);
+	if (owners.length !== expected) throw new Error(`${locatorDescription(root)} must have ${expected} native focus owner(s); found ${owners.length}: ${owners.map(locatorDescription).join(", ") || "none"}`);
+	return owners;
+}
+/** Assert that a rendered overlay is attached to the requested native plane. */
+function assertInOverlayPlane(locator, expected) {
+	let current = locator;
+	while (current) {
+		if (current.overlayPlane === expected) return;
+		current = current.parent;
+	}
+	throw new Error(`${locatorDescription(locator)} is not mounted in the ${expected} overlay plane`);
+}
 function missingHostMethod(path) {
 	throw new Error(`test host method ${path} is not configured`);
 }
@@ -178,6 +223,7 @@ function renderComponent(render, options = {}) {
 		removeStyle: writer.removeStyle,
 		setTransform2D: writer.setTransform2D,
 		setInteractionPolicy: writer.setInteractionPolicy,
+		setOverlayPlane: writer.setOverlayPlane,
 		dropNode: writer.dropNode,
 		focusNode: writer.focusNode
 	};
@@ -191,6 +237,7 @@ function renderComponent(render, options = {}) {
 			focusOrder: null,
 			interactionBlocked: false,
 			focusContained: false,
+			overlayPlane: "content",
 			className: "",
 			styles: /* @__PURE__ */ new Map(),
 			transform: null,
@@ -280,6 +327,11 @@ function renderComponent(render, options = {}) {
 			node.focusContained = (flags & INTERACTION_POLICY.ContainFocus) !== 0;
 		}
 		originals.setInteractionPolicy.call(writer, id, flags, focusOrder);
+	};
+	writer.setOverlayPlane = (id, plane) => {
+		const node = nodes.get(key(id));
+		if (node) node.overlayPlane = plane === 2 ? "modal" : plane === 1 ? "floating" : "content";
+		originals.setOverlayPlane.call(writer, id, plane);
 	};
 	writer.dropNode = (id) => {
 		const node = nodes.get(key(id));
@@ -579,6 +631,9 @@ function renderComponent(render, options = {}) {
 			get focusContained() {
 				return node.focusContained;
 			},
+			get overlayPlane() {
+				return node.overlayPlane;
+			},
 			attribute: (name) => node.attributes.get(name) ?? null,
 			pointerDown: (position = {}) => {
 				ensureEnabled(node, "press");
@@ -648,6 +703,9 @@ function renderComponent(render, options = {}) {
 	let disposed = false;
 	const screen = {
 		...queries(null),
+		get roots() {
+			return roots.map(locator);
+		},
 		flush() {
 			flushUpdates();
 		},
@@ -713,6 +771,6 @@ function renderComponent(render, options = {}) {
 	return screen;
 }
 //#endregion
-export { cleanupComponents, createTestHost, renderComponent };
+export { assertFocusOwnerCount, assertInOverlayPlane, assertSingleSurfaceOwner, cleanupComponents, createTestHost, renderComponent };
 
 //# sourceMappingURL=component.mjs.map

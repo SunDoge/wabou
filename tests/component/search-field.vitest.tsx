@@ -1,4 +1,7 @@
-import { renderComponent } from "@wabou/test/component";
+import {
+  assertSingleSurfaceOwner,
+  renderComponent,
+} from "@wabou/test/component";
 import { SearchField, Text, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
@@ -70,6 +73,10 @@ test("uses one configurable surface for the compound input", () => {
   const input = screen.getByRole("textbox", { name: "Search files" });
   const group = input.parent;
 
+  expect(group).not.toBeNull();
+  expect(assertSingleSurfaceOwner(group!).className).toContain(
+    "bg-surface-raised",
+  );
   expect(group?.className).toContain("bg-surface-raised");
   expect(group?.className).not.toContain("bg-input");
   expect(input.className).not.toContain("bg-input");

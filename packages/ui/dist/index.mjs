@@ -363,9 +363,14 @@ function reconcileCommandHighlight(items, highlighted) {
 /** A plain-text input. Secrets must use `PasswordInput`. */
 function Input(props) {
 	const forwarded = omit(props, "chrome", "surfaceClass");
-	return createComponent$1(TextInput, mergeProps(forwarded, { get ["class"]() {
-		return join("h-8 w-full px-3 text-sm text-primary", (props.chrome ?? "default") === "default" && join("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
-	} }));
+	return createComponent$1(TextInput, mergeProps(forwarded, {
+		get ["data-wabou-owns"]() {
+			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
+		},
+		get ["class"]() {
+			return join("h-8 w-full px-3 text-sm text-primary", (props.chrome ?? "default") === "default" && join("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+		}
+	}));
 }
 //#endregion
 //#region src/components/command.tsx
@@ -1952,6 +1957,7 @@ function InputGroup(props) {
 	return createComponent$1(View, mergeProps(() => {
 		return focus.bindings;
 	}, {
+		"data-wabou-owns": "surface focus-ring",
 		get ["class"]() {
 			return join("w-full h-8 flex items-center rounded-md border shadow-xs", props.surfaceClass ?? "bg-input", focus.focusWithin() ? "border-focus" : "border-strong", props.class);
 		},

@@ -97,6 +97,7 @@ export function InputGroup(props: {
   return (
     <View
       {...focus.bindings}
+      data-wabou-owns="surface focus-ring"
       class={join(
         "w-full h-8 flex items-center rounded-md border shadow-xs",
         props.surfaceClass ?? "bg-input",

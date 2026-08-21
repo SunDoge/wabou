@@ -1,0 +1,13 @@
+{
+  "defaults": {
+    "width": 1200,
+    "height": 850,
+    "scaleFactor": 1,
+    "waitMs": 250
+  },
+  "overrides": {
+    "input-hidpi.ts": {
+      "scaleFactor": 2
+    }
+  }
+}

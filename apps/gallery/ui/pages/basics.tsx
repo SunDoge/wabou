@@ -205,18 +205,24 @@ function InputPage() {
       </Preview>
       <Preview title="States">
         <View class="w-96 flex flex-col gap-3">
-          <Input value="Editable value" />
-          <Input disabled value="Disabled value" />
+          <Input aria-label="Editable input" value="Editable value" />
+          <Input
+            aria-label="Disabled input"
+            disabled
+            value="Disabled value"
+          />
         </View>
       </Preview>
       <Preview title="Multiline">
         <View class="w-96 flex flex-col gap-2">
           <TextArea
+            aria-label="Project description"
             placeholder="Describe your project…"
             value={value()}
             onInput={(event) => setValue(event.currentTarget.value)}
           />
           <TextArea
+            aria-label="Read-only description"
             readOnly
             value={"Read-only multiline\ncontent remains selectable."}
           />

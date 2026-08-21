@@ -1,4 +1,8 @@
-import { createTestHost, renderComponent } from "@wabou/test/component";
+import {
+  assertInOverlayPlane,
+  createTestHost,
+  renderComponent,
+} from "@wabou/test/component";
 import {
   Button,
   Popover,
@@ -30,6 +34,7 @@ test("opens a styled dialog surface and dismisses with Escape", () => {
 
   trigger.click();
   const popover = screen.getByRole("dialog", { name: "Formatting options" });
+  assertInOverlayPlane(popover, "floating");
   expect(popover.className).toContain("bg-surface");
   expect(popover.className).toContain("rounded-lg");
   expect(screen.getByRole("heading", { name: "Formatting" })).not.toBeNull();

@@ -1,6 +1,11 @@
 import { type Host, useHost } from "@wabou/core/renderer";
 import { px } from "@wabou/core/style";
-import { createTestHost, renderComponent } from "@wabou/test/component";
+import {
+  assertFocusOwnerCount,
+  assertSingleSurfaceOwner,
+  createTestHost,
+  renderComponent,
+} from "@wabou/test/component";
 import {
   Button,
   createMeasuredSize,
@@ -72,6 +77,29 @@ test("scopes role queries to a component subtree", () => {
   expect(security.queryByRole("button", { name: "Cancel" })).toBeNull();
   expect(() => screen.getByRole("button", { name: "Save" })).toThrow(
     "use getAllByRole",
+  );
+});
+
+test("reports duplicate surface and unexpected focus ownership", () => {
+  const screen = renderComponent(() => (
+    <View
+      role="group"
+      aria-label="Broken compound control"
+      data-wabou-owns="surface"
+      class="bg-input"
+    >
+      <Input aria-label="Nested editor" />
+    </View>
+  ));
+  const group = screen.getByRole("group", {
+    name: "Broken compound control",
+  });
+
+  expect(() => assertSingleSurfaceOwner(group)).toThrow(
+    "found 2",
+  );
+  expect(() => assertFocusOwnerCount(group, 0)).toThrow(
+    "found 1",
   );
 });
 

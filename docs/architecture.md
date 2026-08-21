@@ -20,6 +20,11 @@ Application (Solid state and explicit UI intent)
 
 ## Ownership
 
+Reusable UI composition follows the stricter
+[component composition contracts](component-contracts.md): surface, focus,
+clip, scroll, overlay, semantics, and native content each have an explicit
+owner.
+
 JavaScript owns application state, component composition, interaction policy,
 semantic intent, and routing. A primitive must author capabilities such as
 focus participation explicitly. Rust does not infer application behavior from

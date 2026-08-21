@@ -2,6 +2,7 @@ import { BuiltinHost, Host } from "@wabou/core/renderer";
 import { PlatformServices } from "@wabou/core";
 import { JSX } from "solid-js";
 //#region src/component.d.ts
+type ComponentOverlayPlane = "content" | "floating" | "modal";
 interface ComponentTypedStyleValue {
   readonly kind: number;
   readonly value: number;
@@ -79,6 +80,8 @@ interface ComponentLocator extends ComponentQueries {
   readonly interactionBlocked: boolean;
   /** Whether native focus traversal is contained by this subtree. */
   readonly focusContained: boolean;
+  /** Native stacking plane authored for this node. */
+  readonly overlayPlane: ComponentOverlayPlane;
   attribute(name: string): string | null;
   pointerDown(position?: ComponentPointerPosition): void;
   /** Dispatch an uncaptured native pointer move with no pressed buttons. */
@@ -110,6 +113,8 @@ interface ComponentPointerPosition {
   offsetY?: number;
 }
 interface ComponentScreen extends ComponentQueries {
+  /** Current top-level authored nodes, including synthetic overlay roots. */
+  readonly roots: readonly ComponentLocator[];
   /** Commit reactive work scheduled outside a locator action, such as a timer. */
   flush(): void;
   /** Advance a harness-owned fake clock and commit resulting reactive work. */
@@ -149,6 +154,18 @@ interface TestBuiltinHost {
   intl?: Partial<BuiltinHost["intl"]>;
   layout?: Partial<BuiltinHost["layout"]>;
 }
+/**
+ * Assert that a compound control has one background owner.
+ *
+ * Transparent descendants are content layers, not surface owners. This catches
+ * accidental combinations such as an InputGroup and its native input both
+ * painting `bg-input`.
+ */
+declare function assertSingleSurfaceOwner(root: ComponentLocator): ComponentLocator;
+/** Assert an explicit number of native focus owners inside one composition. */
+declare function assertFocusOwnerCount(root: ComponentLocator, expected: number): readonly ComponentLocator[];
+/** Assert that a rendered overlay is attached to the requested native plane. */
+declare function assertInOverlayPlane(locator: ComponentLocator, expected: Exclude<ComponentOverlayPlane, "content">): void;
 /** Create a typed, deterministic Host with automatic call recording. */
 declare function createTestHost<C extends object = Record<string, never>>(capabilities?: C, builtins?: TestBuiltinHost): TestHostFixture<Host & C>;
 /** Dispose the active component tree. Vitest users get this automatically. */
@@ -161,5 +178,5 @@ declare function cleanupComponents(): void;
  */
 declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, cleanupComponents, createTestHost, renderComponent };
+export { ComponentLocator, ComponentOverlayPlane, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, assertFocusOwnerCount, assertInOverlayPlane, assertSingleSurfaceOwner, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map
