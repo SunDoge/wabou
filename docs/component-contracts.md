@@ -101,15 +101,66 @@ assertInOverlayPlane(screen.getByRole("dialog"), "floating");
 These assertions inspect the authored protocol tree. They catch composition
 mistakes early, but they do not claim that layout or pixels are correct.
 
+## Layout contract tests
+
+`wabou layout` evaluates the application through QuickJS, Style IR, real text
+measurement, and Taffy, then stops before Vello scene construction or GPU
+initialization:
+
+```bash
+wabou layout apps/gallery --out /tmp/gallery-layout.json \
+  --width 800 --height 600
+```
+
+Node or Bun tests can drive it and inspect the structured result entirely in
+TypeScript:
+
+```ts
+import {
+  assertNoLayoutDiagnostics,
+  formatLayoutTree,
+  getLayoutNode,
+  siblingCollisionDiagnostics,
+  visibleOverflowDiagnostics,
+} from "@wabou/test/layout";
+import { renderAppLayout } from "@wabou/test/layout/node";
+
+const layout = await renderAppLayout({
+  app: "apps/gallery",
+  out: "/tmp/gallery-layout.json",
+  width: 800,
+  height: 600,
+  skipBuild: true,
+});
+const toolbar = getLayoutNode(layout, {
+  role: "toolbar",
+  name: "Formatting",
+});
+assertNoLayoutDiagnostics(
+  visibleOverflowDiagnostics(layout, { within: toolbar }),
+);
+assertNoLayoutDiagnostics(
+  siblingCollisionDiagnostics(layout, { within: toolbar }),
+);
+expect(formatLayoutTree(layout)).toMatchSnapshot();
+```
+
+Collision checks are opt-in because intentional overlap is valid. Scope them
+to a component whose contract forbids overlap. Layout snapshots use logical
+pixels; font rasterization, shadows, native-widget painting, and HiDPI still
+belong to focused pixel or platform tests.
+
 ## Required evidence
 
 Use the cheapest layer that can prove the property:
 
 1. Vitest component tests: state, events, roles and anatomy ownership.
 2. protocol/style tests: candidate resolution and computed declarations.
-3. native layout fixtures: geometry, clipping and scroll ranges.
-4. headless captures: pixels, text containment and real native widgets.
-5. platform captures: backend-specific and HiDPI claims.
+3. TS layout contracts: QuickJS + Style IR + Taffy geometry, overflow and
+   collisions without a scene or GPU.
+4. native layout fixtures: lower-level geometry, clipping and scroll ranges.
+5. headless captures: pixels, text containment and real native widgets.
+6. platform captures: backend-specific and HiDPI claims.
 
 Every reusable styled component should have a component test. Components that
 own clipping, native painting, overlays, or typography also need a focused

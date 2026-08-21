@@ -39,6 +39,7 @@ pub(super) struct RenderOptions {
     pub(super) snapshot: Option<PathBuf>,
     pub(super) samples: usize,
     pub(super) actions: Vec<RenderAction>,
+    pub(super) layout_only: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -55,15 +56,18 @@ pub(super) fn legacy_actions(
     text: Option<String>,
     keys: Vec<String>,
 ) -> Vec<RenderAction> {
-    let mut actions = clicks
-        .chunks_exact(2)
-        .map(|values| RenderAction::Click([values[0], values[1]]))
-        .chain(
-            wheels
-                .chunks_exact(4)
-                .map(|values| RenderAction::Wheel([values[0], values[1], values[2], values[3]])),
-        )
-        .collect::<Vec<_>>();
+    let mut actions =
+        clicks
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|values| RenderAction::Click([values[0], values[1]]))
+            .chain(
+                wheels.as_chunks::<4>().0.iter().map(|values| {
+                    RenderAction::Wheel([values[0], values[1], values[2], values[3]])
+                }),
+            )
+            .collect::<Vec<_>>();
     actions.extend(text.map(RenderAction::Text));
     actions.extend(keys.into_iter().map(RenderAction::Key));
     actions
@@ -78,10 +82,13 @@ pub(super) fn actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAct
     if let (Some(indices), Some(values)) =
         (render.indices_of("click"), render.get_many::<f64>("click"))
     {
-        for (positions, values) in indices
-            .collect::<Vec<_>>()
-            .chunks_exact(2)
-            .zip(values.copied().collect::<Vec<_>>().chunks_exact(2))
+        let positions = indices.collect::<Vec<_>>();
+        let values = values.copied().collect::<Vec<_>>();
+        for (positions, values) in positions
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .zip(values.as_chunks::<2>().0.iter())
         {
             indexed.push((positions[0], RenderAction::Click([values[0], values[1]])));
         }
@@ -89,10 +96,13 @@ pub(super) fn actions_from_matches(matches: &ArgMatches) -> Option<Vec<RenderAct
     if let (Some(indices), Some(values)) =
         (render.indices_of("wheel"), render.get_many::<f64>("wheel"))
     {
-        for (positions, values) in indices
-            .collect::<Vec<_>>()
-            .chunks_exact(4)
-            .zip(values.copied().collect::<Vec<_>>().chunks_exact(4))
+        let positions = indices.collect::<Vec<_>>();
+        let values = values.copied().collect::<Vec<_>>();
+        for (positions, values) in positions
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(values.as_chunks::<4>().0.iter())
         {
             indexed.push((
                 positions[0],
@@ -211,6 +221,7 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
         skip_build,
         with_host,
         wait_ms,
+        layout_only,
         ..
     } = options;
     if !scale_factor.is_finite() || *scale_factor <= 0.0 {
@@ -272,27 +283,35 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     let mut profiler = wabou_shell::headless::HeadlessFrameProfiler::default();
     let mut nodes = applier.build_frame(&mut text_context, *width, *height);
     settle(&mut applier, &mut text_context, &mut nodes, *width, *height);
-    nodes = profiler.build(
-        &mut applier,
-        &mut text_context,
-        *width,
-        *height,
-        *scale_factor,
-        base_color,
-    );
+    nodes = if *layout_only {
+        applier.build_frame(&mut text_context, *width, *height)
+    } else {
+        profiler.build(
+            &mut applier,
+            &mut text_context,
+            *width,
+            *height,
+            *scale_factor,
+            base_color,
+        )
+    };
 
     if *wait_ms > 0 {
         let deadline = Instant::now() + Duration::from_millis(*wait_ms);
         while Instant::now() < deadline {
             thread::sleep(Duration::from_millis(10));
-            nodes = profiler.build(
-                &mut applier,
-                &mut text_context,
-                *width,
-                *height,
-                *scale_factor,
-                base_color,
-            );
+            nodes = if *layout_only {
+                applier.build_frame(&mut text_context, *width, *height)
+            } else {
+                profiler.build(
+                    &mut applier,
+                    &mut text_context,
+                    *width,
+                    *height,
+                    *scale_factor,
+                    base_color,
+                )
+            };
         }
     }
     apply_actions(&mut applier, &mut text_context, &mut nodes, options);
@@ -330,6 +349,15 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
             .read()
             .map_err(|_| "headless debug snapshot lock was poisoned")?;
         fs::write(path, serde_json::to_vec_pretty(state.snapshot())?)?;
+    }
+
+    if *layout_only {
+        let snapshot = options
+            .snapshot
+            .as_ref()
+            .ok_or("layout-only execution requires a snapshot output")?;
+        println!("[wabou] wrote layout snapshot {}", snapshot.display());
+        return Ok(());
     }
 
     if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {

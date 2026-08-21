@@ -222,6 +222,33 @@ enum Commands {
         #[arg(long, requires = "click")]
         text: Option<String>,
     },
+    /// Evaluate JavaScript, Style IR and Taffy without creating a scene or GPU renderer.
+    Layout {
+        #[arg(value_name = "APP")]
+        app: Option<PathBuf>,
+        /// Write the structured retained layout snapshot.
+        #[arg(long, value_name = "JSON")]
+        out: PathBuf,
+        #[arg(long, default_value_t = 1440)]
+        width: u32,
+        #[arg(long, default_value_t = 900)]
+        height: u32,
+        /// Logical window id exposed to the application during boot.
+        #[arg(long, default_value_t = 1)]
+        window_id: u64,
+        /// Logical device scale used by text and native-widget measurement.
+        #[arg(long, default_value_t = 1.0)]
+        scale_factor: f64,
+        /// Vite mode used to select an application-owned fixture.
+        #[arg(long)]
+        mode: Option<String>,
+        /// Reuse an existing debug frontend bundle instead of invoking Vite.
+        #[arg(long)]
+        skip_build: bool,
+        /// Keep driving layout frames so finite reactive work can settle.
+        #[arg(long, default_value_t = 0)]
+        wait_ms: u64,
+    },
     /// Open the native Wabou inspector.
     Devtools,
     /// Inspect a running Wabou application from the terminal.
@@ -407,6 +434,41 @@ fn main() -> Result<()> {
                     samples,
                     actions: render_actions
                         .unwrap_or_else(|| legacy_render_actions(click, wheel, text, key)),
+                    layout_only: false,
+                },
+            )
+        }
+        Commands::Layout {
+            app,
+            out,
+            width,
+            height,
+            window_id,
+            scale_factor,
+            mode,
+            skip_build,
+            wait_ms,
+        } => {
+            let (workspace, app) = resolve_app(app.as_deref())?;
+            render(
+                &workspace,
+                &app,
+                &RenderOptions {
+                    out: out.clone(),
+                    width,
+                    height,
+                    window_id,
+                    scale_factor,
+                    mode,
+                    skip_build,
+                    with_host: false,
+                    scenario: None,
+                    wait_ms,
+                    metrics: None,
+                    snapshot: Some(out),
+                    samples: 0,
+                    actions: Vec::new(),
+                    layout_only: true,
                 },
             )
         }
@@ -1169,6 +1231,29 @@ mod tests {
         };
         assert!(with_host);
         assert_eq!(snapshot, Some(PathBuf::from("tree.json")));
+    }
+
+    #[test]
+    fn layout_defaults_to_a_fast_snapshot_without_render_options() {
+        let Cli {
+            command:
+                Commands::Layout {
+                    out,
+                    width,
+                    height,
+                    scale_factor,
+                    wait_ms,
+                    ..
+                },
+        } = Cli::try_parse_from(["wabou", "layout", "apps/gallery", "--out", "layout.json"])
+            .unwrap()
+        else {
+            panic!("expected layout command");
+        };
+        assert_eq!(out, PathBuf::from("layout.json"));
+        assert_eq!((width, height), (1440, 900));
+        assert_eq!(scale_factor, 1.0);
+        assert_eq!(wait_ms, 0);
     }
 
     #[test]
