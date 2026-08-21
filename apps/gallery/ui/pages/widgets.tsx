@@ -84,9 +84,11 @@ import {
   Icon,
   Input,
   InputGroup,
+  InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
+  InputGroupTextArea,
   InputOTP,
   InputOTPGroup,
   InputOTPSeparator,
@@ -1281,16 +1283,38 @@ export function FieldPage() {
       <Preview title="Input group">
         <View class="w-[440px] flex flex-col gap-3">
           <InputGroup>
-            <InputGroupText>https://</InputGroupText>
-            <InputGroupInput placeholder="example.com" />
+            <InputGroupAddon
+              align="inline-start"
+              aria-label="Focus project hostname"
+            >
+              <InputGroupText>https://</InputGroupText>
+            </InputGroupAddon>
+            <InputGroupInput
+              aria-label="Project hostname"
+              placeholder="example.com"
+            />
             <InputGroupButton>Copy</InputGroupButton>
           </InputGroup>
           <InputGroup>
-            <View class="w-8 h-full flex-none flex items-center justify-center text-muted">
+            <InputGroupAddon align="inline-start" class="px-2.5">
               <Icon source={search} aria-hidden="true" size={14} />
-            </View>
+            </InputGroupAddon>
             <InputGroupInput placeholder="Search projects…" />
-            <InputGroupText>Ctrl K</InputGroupText>
+            <InputGroupAddon align="inline-end">
+              <InputGroupText>Ctrl K</InputGroupText>
+            </InputGroupAddon>
+          </InputGroup>
+          <InputGroup orientation="vertical">
+            <InputGroupAddon align="block-start">
+              <InputGroupText>Request headers</InputGroupText>
+            </InputGroupAddon>
+            <InputGroupTextArea
+              aria-label="Request headers"
+              placeholder="Authorization: Bearer …"
+            />
+            <InputGroupAddon align="block-end">
+              <InputGroupText>One header per line</InputGroupText>
+            </InputGroupAddon>
           </InputGroup>
         </View>
       </Preview>

@@ -2784,32 +2784,87 @@ function FieldSeparator(props) {
 		}
 	});
 }
+const InputGroupContext = createContext();
+function useInputGroup() {
+	return useContext(InputGroupContext);
+}
+function inputGroupClass(orientation, focused, invalid) {
+	return join("relative w-full min-w-0 flex rounded-md border shadow-xs", orientation === "horizontal" ? "h-8 flex-row items-center" : "h-auto flex-col items-stretch", invalid ? "border-danger" : focused ? "border-focus" : "border-strong");
+}
 function InputGroup(props) {
 	const focus = createFocusWithin();
-	return createComponent$1(View, mergeProps(() => {
-		return focus.bindings;
-	}, {
-		"data-wabou-owns": "surface focus-ring",
-		get ["class"]() {
-			return join("w-full h-8 flex items-center rounded-md border shadow-xs", props.surfaceClass ?? "bg-input", focus.focusWithin() ? "border-focus" : "border-strong", props.class);
+	let control;
+	const context = {
+		registerControl(node) {
+			control = node;
 		},
-		get children() {
-			return props.children;
+		focusControl() {
+			if (!props.disabled) control?.focus();
 		}
-	}));
+	};
+	const forwarded = omit(props, "children", "orientation", "invalid", "disabled", "surfaceClass", "class");
+	return createComponent$1(InputGroupContext, {
+		value: context,
+		get children() {
+			return createComponent$1(View, mergeProps(forwarded, () => {
+				return focus.bindings;
+			}, {
+				get role() {
+					return props.role ?? "group";
+				},
+				get ["aria-invalid"]() {
+					return props.invalid;
+				},
+				get ["aria-disabled"]() {
+					return props.disabled;
+				},
+				"data-wabou-owns": "surface focus-ring",
+				get ["class"]() {
+					return join(inputGroupClass(props.orientation ?? "horizontal", focus.focusWithin(), props.invalid ?? false), props.surfaceClass ?? "bg-input", props.disabled && "opacity-50", props.class);
+				},
+				get children() {
+					return props.children;
+				}
+			}));
+		}
+	});
 }
 function InputGroupInput(props) {
+	const group = useInputGroup();
 	return createComponent$1(Input, mergeProps(props, {
+		ref: (node) => {
+			group?.registerControl(node);
+			props.ref?.(node);
+		},
 		chrome: "none",
 		get ["class"]() {
 			return join("flex-1 min-w-0", props.class);
 		}
 	}));
 }
+function inputGroupAddonClass(align) {
+	return match(align).with("inline-start", "inline-end", () => "h-full flex-none px-3 flex items-center justify-center gap-2 text-sm text-muted").with("block-start", "block-end", () => "w-full flex-none px-3 py-2 flex items-center justify-start gap-2 text-sm text-muted").exhaustive();
+}
+function InputGroupAddon(props) {
+	const group = useInputGroup();
+	const forwarded = omit(props, "align", "focusControl", "class", "onClick");
+	return createComponent$1(View, mergeProps(forwarded, {
+		get role() {
+			return props.role ?? "group";
+		},
+		get ["class"]() {
+			return join(inputGroupAddonClass(props.align ?? "inline-start"), props.class);
+		},
+		onClick: (event) => {
+			if (props.focusControl ?? true) group?.focusControl();
+			props.onClick?.(event);
+		}
+	}));
+}
 function InputGroupText(props) {
 	return createComponent$1(Text, {
 		get ["class"]() {
-			return join("flex-none px-3 text-sm text-muted", props.class);
+			return join("flex-none text-sm text-muted", props.class);
 		},
 		get children() {
 			return props.children;
@@ -2830,9 +2885,16 @@ function InputGroupButton(props) {
 	}));
 }
 function InputGroupTextArea(props) {
-	return createComponent$1(TextArea, mergeProps(props, { get ["class"]() {
-		return join("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
-	} }));
+	const group = useInputGroup();
+	return createComponent$1(TextArea, mergeProps(props, {
+		ref: (node) => {
+			group?.registerControl(node);
+			props.ref?.(node);
+		},
+		get ["class"]() {
+			return join("w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm", props.class);
+		}
+	}));
 }
 //#endregion
 //#region src/components/delayed-open.ts
@@ -7585,6 +7647,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, bubbleClass, bubbleContentClass, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useComponentsTheme, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, bubbleClass, bubbleContentClass, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useComponentsTheme, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

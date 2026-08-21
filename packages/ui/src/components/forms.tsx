@@ -1,4 +1,5 @@
-import { For, type JSX, Show } from "solid-js";
+import type { Handle } from "@wabou/core/renderer";
+import { createContext, For, type JSX, omit, Show, useContext } from "solid-js";
 import { match } from "ts-pattern";
 import {
   createFocusWithin,
@@ -6,6 +7,7 @@ import {
   type TextAreaProps as PrimitiveTextAreaProps,
   Text,
   View,
+  type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
 import { join } from "./class-names";
@@ -197,43 +199,154 @@ export function FieldSeparator(props: {
     </View>
   );
 }
-export function InputGroup(props: {
+export type InputGroupOrientation = "horizontal" | "vertical";
+export type InputGroupAddonAlign =
+  | "inline-start"
+  | "inline-end"
+  | "block-start"
+  | "block-end";
+
+interface InputGroupContextValue {
+  registerControl(node: Handle): void;
+  focusControl(): void;
+}
+
+const InputGroupContext = createContext<InputGroupContextValue>();
+
+function useInputGroup(): InputGroupContextValue | undefined {
+  return useContext(InputGroupContext);
+}
+
+export function inputGroupClass(
+  orientation: InputGroupOrientation,
+  focused: boolean,
+  invalid: boolean,
+): string {
+  return join(
+    "relative w-full min-w-0 flex rounded-md border shadow-xs",
+    orientation === "horizontal"
+      ? "h-8 flex-row items-center"
+      : "h-auto flex-col items-stretch",
+    invalid ? "border-danger" : focused ? "border-focus" : "border-strong",
+  );
+}
+
+export interface InputGroupProps extends Omit<ViewProps, "children"> {
   children?: JSX.Element;
-  class?: string;
+  orientation?: InputGroupOrientation;
+  invalid?: boolean;
+  disabled?: boolean;
   /** Background utility owned by the compound control. Defaults to `bg-input`. */
   surfaceClass?: string;
-}) {
+}
+
+export function InputGroup(props: InputGroupProps) {
   const focus = createFocusWithin();
+  let control: Handle | undefined;
+  const context: InputGroupContextValue = {
+    registerControl(node) {
+      control = node;
+    },
+    focusControl() {
+      if (!props.disabled) control?.focus();
+    },
+  };
+  const forwarded = omit(
+    props,
+    "children",
+    "orientation",
+    "invalid",
+    "disabled",
+    "surfaceClass",
+    "class",
+  );
   return (
-    <View
-      {...focus.bindings}
-      data-wabou-owns="surface focus-ring"
-      class={join(
-        "w-full h-8 flex items-center rounded-md border shadow-xs",
-        props.surfaceClass ?? "bg-input",
-        focus.focusWithin() ? "border-focus" : "border-strong",
-        props.class,
-      )}
-    >
-      {props.children}
-    </View>
+    <InputGroupContext value={context}>
+      <View
+        {...forwarded}
+        {...focus.bindings}
+        role={props.role ?? "group"}
+        aria-invalid={props.invalid}
+        aria-disabled={props.disabled}
+        data-wabou-owns="surface focus-ring"
+        class={join(
+          inputGroupClass(
+            props.orientation ?? "horizontal",
+            focus.focusWithin(),
+            props.invalid ?? false,
+          ),
+          props.surfaceClass ?? "bg-input",
+          props.disabled && "opacity-50",
+          props.class,
+        )}
+      >
+        {props.children}
+      </View>
+    </InputGroupContext>
   );
 }
 export function InputGroupInput(props: InputProps) {
+  const group = useInputGroup();
   return (
     <Input
       {...props}
+      ref={(node) => {
+        group?.registerControl(node);
+        props.ref?.(node);
+      }}
       chrome="none"
       class={join("flex-1 min-w-0", props.class)}
     />
   );
 }
+
+export interface InputGroupAddonProps extends ViewProps {
+  align?: InputGroupAddonAlign;
+  focusControl?: boolean;
+}
+
+export function inputGroupAddonClass(align: InputGroupAddonAlign): string {
+  return match(align)
+    .with(
+      "inline-start",
+      "inline-end",
+      () =>
+        "h-full flex-none px-3 flex items-center justify-center gap-2 text-sm text-muted",
+    )
+    .with(
+      "block-start",
+      "block-end",
+      () =>
+        "w-full flex-none px-3 py-2 flex items-center justify-start gap-2 text-sm text-muted",
+    )
+    .exhaustive();
+}
+
+export function InputGroupAddon(props: InputGroupAddonProps) {
+  const group = useInputGroup();
+  const forwarded = omit(props, "align", "focusControl", "class", "onClick");
+  return (
+    <View
+      {...forwarded}
+      role={props.role ?? "group"}
+      class={join(
+        inputGroupAddonClass(props.align ?? "inline-start"),
+        props.class,
+      )}
+      onClick={(event) => {
+        if (props.focusControl ?? true) group?.focusControl();
+        props.onClick?.(event);
+      }}
+    />
+  );
+}
+
 export function InputGroupText(props: {
   children?: JSX.Element;
   class?: string;
 }) {
   return (
-    <Text class={join("flex-none px-3 text-sm text-muted", props.class)}>
+    <Text class={join("flex-none text-sm text-muted", props.class)}>
       {props.children}
     </Text>
   );
@@ -251,9 +364,14 @@ export function InputGroupButton(props: ButtonProps) {
 export function InputGroupTextArea(
   props: PrimitiveTextAreaProps & { class?: string },
 ) {
+  const group = useInputGroup();
   return (
     <PrimitiveTextArea
       {...props}
+      ref={(node) => {
+        group?.registerControl(node);
+        props.ref?.(node);
+      }}
       class={join(
         "w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm",
         props.class,
