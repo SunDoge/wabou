@@ -480,9 +480,10 @@ impl JsRuntime {
                 ctx.clone(),
                 move |colors: TypedArray<u32>| -> JsResult<()> {
                     let bytes = colors.as_bytes().ok_or(rquickjs::Error::Unknown)?;
-                    let values = bytes
-                        .chunks_exact(std::mem::size_of::<u32>())
-                        .map(|bytes| u32::from_ne_bytes(bytes.try_into().unwrap()))
+                    let (chunks, _) = bytes.as_chunks::<{ std::mem::size_of::<u32>() }>();
+                    let values = chunks
+                        .iter()
+                        .map(|bytes| u32::from_ne_bytes(*bytes))
                         .collect();
                     *pending_palette.borrow_mut() = Some(values);
                     wake.notify();
@@ -577,15 +578,16 @@ impl JsRuntime {
                 move |ids: TypedArray<u32>, output: Option<TypedArray<f64>>| -> JsResult<u32> {
                     let snapshot = metrics.borrow();
                     let requested = ids.as_bytes().map_or(&[][..], |bytes| bytes);
-                    let mut chunks = requested.chunks_exact(std::mem::size_of::<u32>() * 2);
-                    if !chunks.remainder().is_empty() {
+                    let (chunks, remainder) =
+                        requested.as_chunks::<{ std::mem::size_of::<u32>() * 2 }>();
+                    if !remainder.is_empty() {
                         return Err(rquickjs::Error::new_from_js_message(
                             "layout snapshot",
                             "NodeKey[]",
                             "node key buffer must contain complete lo/hi pairs",
                         ));
                     }
-                    let ids = chunks.by_ref().map(|bytes| {
+                    let ids = chunks.iter().map(|bytes| {
                         checked_node_key(
                             u32::from_ne_bytes(bytes[0..4].try_into().unwrap()),
                             u32::from_ne_bytes(bytes[4..8].try_into().unwrap()),
