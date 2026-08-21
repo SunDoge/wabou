@@ -23,6 +23,8 @@ pub use wabou_host_api::NodeKey;
 pub const PROTOCOL_VERSION: u16 = 2;
 /// Default number of recent host frames retained in memory.
 pub const DEFAULT_TRACE_CAPACITY: usize = 128;
+/// Default number of completed screenshot artifacts retained per runtime.
+pub const DEFAULT_CAPTURE_RETENTION: usize = 16;
 /// Maximum accepted JSON request line size.
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
@@ -573,6 +575,8 @@ pub struct DebugState {
     frames: VecDeque<DebugFrame>,
     trace_capacity: usize,
     capture_directory: Option<tempfile::TempDir>,
+    completed_captures: VecDeque<PathBuf>,
+    capture_retention: usize,
     screenshot_request: Option<(PathBuf, fs::File)>,
     pending_screenshot: Option<PathBuf>,
     screenshot_sequence: u64,
@@ -618,6 +622,8 @@ impl Default for DebugState {
             frames: VecDeque::new(),
             trace_capacity: DEFAULT_TRACE_CAPACITY,
             capture_directory: None,
+            completed_captures: VecDeque::new(),
+            capture_retention: DEFAULT_CAPTURE_RETENTION,
             screenshot_request: None,
             pending_screenshot: None,
             screenshot_sequence: 0,
@@ -803,6 +809,17 @@ impl DebugState {
         }
         self.pending_screenshot = None;
         self.screenshot_request = None;
+        let result = result.and_then(|path| {
+            if path == requested_path {
+                Ok(path)
+            } else {
+                Err(format!(
+                    "renderer completed capture at unexpected path {}; reserved {}",
+                    path.display(),
+                    requested_path.display()
+                ))
+            }
+        });
         if self.capture_case_requested {
             self.capture_case_requested = false;
             self.capture_case_result = Some(result.clone().map(|screenshot_path| {
@@ -820,6 +837,13 @@ impl DebugState {
         }
         if result.is_err() {
             let _ = fs::remove_file(requested_path);
+        } else {
+            self.completed_captures.push_back(requested_path.to_owned());
+            while self.completed_captures.len() > self.capture_retention.max(1) {
+                if let Some(expired) = self.completed_captures.pop_front() {
+                    let _ = fs::remove_file(expired);
+                }
+            }
         }
         self.screenshot_result = Some(result);
         Ok(())

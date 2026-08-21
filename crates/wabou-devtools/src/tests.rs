@@ -97,9 +97,8 @@ fn capture_case_freezes_snapshot_when_the_screenshot_completes() {
         },
         ..Default::default()
     });
-    let path = std::env::temp_dir().join("wabou-capture-case-test.png");
     state
-        .complete_screenshot(&requested, Ok(path.clone()))
+        .complete_screenshot(&requested, Ok(requested.clone()))
         .expect("complete capture case");
     state.publish(DebugSnapshot {
         status: DebugStatus {
@@ -111,7 +110,7 @@ fn capture_case_freezes_snapshot_when_the_screenshot_completes() {
 
     let capture = state.capture_case_result().unwrap().as_ref().unwrap();
     assert_eq!(capture.snapshot.status.revision, 7);
-    assert_eq!(capture.screenshot_path, path);
+    assert_eq!(capture.screenshot_path, requested);
     assert_eq!(capture.point.as_ref().unwrap().x, 12.0);
 }
 
@@ -161,6 +160,54 @@ fn capture_artifacts_are_reserved_inside_a_private_directory() {
         .complete_screenshot(&path, Err("renderer failed".to_owned()))
         .expect("publish renderer failure");
     assert!(!path.exists(), "failed captures must not leave artifacts");
+}
+
+#[test]
+fn completed_capture_artifacts_have_bounded_retention() {
+    let mut state = DebugState {
+        capture_retention: 2,
+        ..Default::default()
+    };
+    let mut captures = Vec::new();
+    for _ in 0..3 {
+        let path = state.request_screenshot().expect("reserve capture");
+        let (_, file) = state
+            .take_screenshot_request()
+            .expect("take capture request");
+        drop(file);
+        state
+            .complete_screenshot(&path, Ok(path.clone()))
+            .expect("complete capture");
+        captures.push(path);
+    }
+
+    assert!(!captures[0].exists(), "oldest capture must be evicted");
+    assert!(captures[1].exists());
+    assert!(captures[2].exists());
+    assert_eq!(state.screenshot_result(), Some(&Ok(captures[2].clone())));
+}
+
+#[test]
+fn renderer_cannot_redirect_a_reserved_capture_path() {
+    let mut state = DebugState::default();
+    let requested = state.request_screenshot().expect("reserve capture");
+    let (_, file) = state
+        .take_screenshot_request()
+        .expect("take capture request");
+    drop(file);
+    let redirected = requested.with_file_name("redirected.png");
+
+    state
+        .complete_screenshot(&requested, Ok(redirected.clone()))
+        .expect("publish rejected renderer result");
+    let error = state
+        .screenshot_result()
+        .expect("capture result")
+        .as_ref()
+        .expect_err("redirected result must fail");
+    assert!(error.contains("unexpected path"));
+    assert!(!requested.exists());
+    assert!(!redirected.exists());
 }
 
 #[test]
