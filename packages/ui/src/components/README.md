@@ -38,6 +38,43 @@ Applications define the palette names and semantic tokens in their Wabou Vite
 config. The gallery demonstrates `dark`, `light`, and `violet`; components do
 not contain theme-name-specific branches.
 
+## Reusing the JavaScript ecosystem
+
+Wabou prefers DOM-independent JavaScript cores over application-specific state
+machines. The adapter stays thin: the library owns semantics and data state,
+Solid owns reactivity, and Wabou owns native rendering and input routing.
+
+`createTanStackDataTable` is the first public example. TanStack Table owns
+filtering, sorting, selection, and row models; applications render its model
+with ordinary Wabou components:
+
+```tsx
+const projects = createTanStackDataTable({
+  data,
+  columns,
+  getRowId: (row) => row.id,
+});
+
+<For each={projects.rows()}>{(row) => <ProjectRow row={row} />}</For>;
+```
+
+The same boundary guides router-core, internationalized date/number helpers,
+Paraglide, D3, and future headless-component integrations. A library does not
+need browser rendering to be useful, but adapters must not emulate a hidden DOM.
+
+Form validation follows the Standard Schema V1 protocol, so applications can
+use Valibot, Zod, ArkType, or another compatible library without a Wabou-specific
+schema language:
+
+```tsx
+const draft = createFormDraft(initial, {
+  validate: createStandardSchemaValidator(schema),
+});
+```
+
+The draft boundary is intentionally synchronous; asynchronous server checks
+belong in the submit action rather than a reactive render computation.
+
 Current components include Button, Toggle, Checkbox, RadioGroup, Rating, Switch,
 Tabs, Badge, Card, Alert, Input, NumberField, TextArea, DirectoryPicker,
 Progress, Pagination, Skeleton, Spinner, Kbd, FPS, and Separator. Run the

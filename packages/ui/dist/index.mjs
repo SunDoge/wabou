@@ -1,4 +1,4 @@
-import { $ as createButton, A as isSelected, B as PathBuilder, C as OverlayPlaneProvider, D as Column, E as Center, F as Icon, G as View, H as Text, I as Image, J as createPresence, K as rotate2d$1, L as NetworkImage, M as createFormDraft, N as CollapsiblePresence, O as Row, P as CodeEditor, Q as Link, R as PasswordInput$1, S as createTransitionPresence, U as TextArea, V as Svg, W as TextInput, X as createMeasuredSize, Y as createContainerMatch, Z as Button$1, _ as createRetainedItems, a as ScrollArea, at as createAnimationFrame, b as Spin, ct as createLoop, dt as createSweep, et as createActive, ft as createTransition, g as createNotifications, gt as useReducedMotion, h as NotificationRegion, ht as useMotionConfig, i as createScrollReset, it as createFocusWithin, j as toggleSelection, k as createKeyedSelection, lt as createPulse, mt as MotionConfigProvider, n as createTabs, nt as createHover, o as Popover$1, ot as animate, pt as normalizeSweepGeometry, q as translate2d$1, r as createShortcuts, rt as createFocus, st as animateKeyframes, t as primitives_exports, tt as createPress, ut as createRotation, v as Pulse, w as createOverlayLayer, x as Modal, y as Ripple, z as Path } from "./primitives-Oxoe1V1J.mjs";
+import { $ as Link, A as isSelected, B as Path, C as OverlayPlaneProvider, D as Column, E as Center, F as CodeEditor, G as TextInput, H as Svg, I as Icon, J as translate2d$1, K as View, L as Image, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as Button$1, R as NetworkImage, S as createTransitionPresence, U as Text, V as PathBuilder, W as TextArea, X as createContainerMatch, Y as createPresence, Z as createMeasuredSize, _ as createRetainedItems, _t as useReducedMotion, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createRotation, et as createButton, ft as createSweep, g as createNotifications, gt as useMotionConfig, h as NotificationRegion, ht as MotionConfigProvider, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createLoop, mt as normalizeSweepGeometry, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createTransition, q as rotate2d$1, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createPulse, v as Pulse, w as createOverlayLayer, x as Modal, y as Ripple, z as PasswordInput$1 } from "./primitives-DI5WWKIs.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -21,6 +21,7 @@ import check from "lucide-static/icons/check.svg?raw";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
+import { createTable, functionalUpdate, getCoreRowModel, getFilteredRowModel, getSortedRowModel } from "@tanstack/table-core";
 import { createMemoryHistory, createMemoryHistory as createMemoryHistory$1 } from "@tanstack/history";
 import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanstack/router-core";
 export * from "@wabou/core";
@@ -5640,6 +5641,89 @@ function Switch(props) {
 	});
 }
 //#endregion
+//#region src/integrations/standard-schema.ts
+function isPromiseLike(value) {
+	return typeof value.then === "function";
+}
+function issueKey(value, issue) {
+	const segment = issue.path?.[0];
+	const candidate = typeof segment === "object" && segment !== null && "key" in segment ? segment.key : segment;
+	return (typeof candidate === "string" || typeof candidate === "number" || typeof candidate === "symbol") && Reflect.has(value, candidate) ? candidate : FORM_ERROR;
+}
+/**
+* Adapt any synchronous Standard Schema V1 implementation (including Valibot,
+* Zod, and ArkType) to `createFormDraft` without coupling Wabou to its API.
+*/
+function createStandardSchemaValidator(schema) {
+	return (value) => {
+		const result = schema["~standard"].validate(value);
+		if (isPromiseLike(result)) throw new TypeError("createFormDraft requires synchronous validation; validate asynchronous schemas before submission");
+		if (!result.issues) return {};
+		const errors = {};
+		for (const issue of result.issues) {
+			const key = issueKey(value, issue);
+			errors[key] ??= issue.message;
+		}
+		return errors;
+	};
+}
+//#endregion
+//#region src/integrations/tanstack-table.ts
+function access(value) {
+	return typeof value === "function" ? value() : value;
+}
+/**
+* Solid's reactive ownership around TanStack Table's DOM-independent core.
+*
+* Wabou deliberately owns no duplicate sorting, filtering, or selection state
+* machine here. Applications retain the native renderer and component layer,
+* while TanStack owns the mature data model.
+*/
+function createTanStackDataTable(options) {
+	const [sorting, setSorting] = createSignal(options.initialSorting ?? []);
+	const [globalFilter, setGlobalFilter] = createSignal(options.initialGlobalFilter ?? "");
+	const [rowSelection, setRowSelection] = createSignal(options.initialRowSelection ?? {});
+	const table = createTable({
+		data: [...access(options.data)],
+		columns: [...options.columns],
+		state: {},
+		onStateChange: () => {},
+		renderFallbackValue: "—",
+		getRowId: options.getRowId,
+		enableRowSelection: options.enableRowSelection,
+		getCoreRowModel: getCoreRowModel(),
+		getFilteredRowModel: getFilteredRowModel(),
+		getSortedRowModel: getSortedRowModel(),
+		onSortingChange: (updater) => setSorting((value) => functionalUpdate(updater, value)),
+		onGlobalFilterChange: (updater) => setGlobalFilter((value) => functionalUpdate(updater, value)),
+		onRowSelectionChange: (updater) => setRowSelection((value) => functionalUpdate(updater, value))
+	});
+	return {
+		table,
+		rows: createMemo(() => {
+			table.setOptions((current) => ({
+				...current,
+				data: [...access(options.data)],
+				columns: [...options.columns],
+				state: {
+					...table.initialState,
+					sorting: sorting(),
+					globalFilter: globalFilter(),
+					rowSelection: rowSelection()
+				}
+			}));
+			return table.getRowModel().rows;
+		}),
+		sorting,
+		setSorting,
+		globalFilter,
+		setGlobalFilter,
+		rowSelection,
+		setRowSelection,
+		selectedCount: createMemo(() => Object.values(rowSelection()).filter(Boolean).length)
+	};
+}
+//#endregion
 //#region src/router/data.tsx
 globalThis.scrollTo ??= () => {};
 function createMutableStore(initial) {
@@ -5799,6 +5883,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createSweep, createTabs, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createKeyedSelection, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, filterCommandItems, filterSidebarGroups, moveMenuHighlight, nextAccordionValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

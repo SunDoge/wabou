@@ -22,6 +22,7 @@
         "turbo": "^2.10.11",
         "typescript": "^5.9.0",
         "unocss": "^66.7.5",
+        "valibot": "^1.4.2",
         "vite-plugin-solid": "3.0.0-next.27",
         "vitest": "2.1.9",
       },
@@ -57,7 +58,6 @@
       "name": "@wabou/gallery",
       "version": "0.0.0",
       "dependencies": {
-        "@tanstack/table-core": "^8.21.3",
         "@wabou/core": "workspace:*",
         "@wabou/ui": "workspace:*",
         "d3-scale": "4.0.2",
@@ -183,6 +183,7 @@
         "@internationalized/number": "^3.5.3",
         "@tanstack/history": "1.162.1",
         "@tanstack/router-core": "1.171.24",
+        "@tanstack/table-core": "^8.21.3",
         "@wabou/core": "workspace:*",
         "lucide-static": "1.31.0",
         "motion-dom": "^12.43.0",
@@ -1166,6 +1167,8 @@
     "urlpattern-polyfill": ["urlpattern-polyfill@10.1.0", "", {}, "sha512-IGjKp/o0NL3Bso1PymYURCJxMPNAf/ILOpendP9f5B6e1rTJgdgiOvgfoT8VxCAdY+Wisb9uhGaJJf3yZ2V9nw=="],
 
     "uuid": ["uuid@14.0.1", "", { "bin": { "uuid": "dist-node/bin/uuid" } }, "sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew=="],
+
+    "valibot": ["valibot@1.4.2", "", { "peerDependencies": { "typescript": ">=5" }, "optionalPeers": ["typescript"] }, "sha512-gjdCvJ6d3RyHAneqxMYMW9QMCwYMb3jpOO0IyHZV1bnRHFBHrX3VkIILt5XYR0WhwHiH7Mty8ovuPZ/O3gamrg=="],
 
     "validate-html-nesting": ["validate-html-nesting@1.2.4", "", {}, "sha512-doQi7e8EJ2OWneSG1aZpJluS6A49aZM0+EICXWKm1i6WvqTLmq0tpUcImc4KTWG50mORO0C4YDBtOCSYvElftw=="],
 

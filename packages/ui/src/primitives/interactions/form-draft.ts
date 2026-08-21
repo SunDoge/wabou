@@ -1,7 +1,11 @@
 import { type Accessor, createMemo, createSignal } from "solid-js";
 
 export type FormDraftFieldUpdater<Value> = Value | ((previous: Value) => Value);
-export type FormDraftErrors<T> = Partial<Record<keyof T, string>>;
+/** Validation key used for errors that do not belong to one field. */
+export const FORM_ERROR: unique symbol = Symbol("wabou.form-error");
+export type FormDraftErrors<T> = Partial<
+  Record<keyof T | typeof FORM_ERROR, string>
+>;
 
 export interface FormDraft<T extends Record<PropertyKey, unknown>> {
   value: Accessor<Readonly<T>>;
@@ -9,6 +13,7 @@ export interface FormDraft<T extends Record<PropertyKey, unknown>> {
   /** Validation errors derived from the current immutable draft. */
   errors: Accessor<Readonly<FormDraftErrors<T>>>;
   valid: Accessor<boolean>;
+  formError: Accessor<string | undefined>;
   fieldError<Key extends keyof T>(key: Key): string | undefined;
   field<Key extends keyof T>(key: Key): T[Key];
   control<Key extends keyof T>(
@@ -82,6 +87,7 @@ export function createFormDraft<T extends Record<PropertyKey, unknown>>(
     dirty,
     errors,
     valid,
+    formError: () => errors()[FORM_ERROR],
     fieldError: (key) => errors()[key],
     field: (key) => value()[key],
     control: (key) => [() => value()[key], (next) => setField(key, next)],

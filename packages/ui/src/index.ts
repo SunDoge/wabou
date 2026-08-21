@@ -6,6 +6,7 @@ export * from "@wabou/core";
 export * from "@wabou/core/i18n";
 export * from "./animation";
 export * from "./components";
+export * from "./integrations";
 // Prefer the styled component where a high-level component and a host-service
 // type share a name. The lower-level host API remains available as `dialog`.
 export { Dialog } from "./components";
@@ -34,6 +35,7 @@ export {
   createFocus,
   createFocusWithin,
   createFormDraft,
+  FORM_ERROR,
   createHover,
   createKeyedSelection,
   createMeasuredSize,

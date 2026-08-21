@@ -1,15 +1,14 @@
 import {
-  type ColumnDef,
-  createTable,
-  functionalUpdate,
-  getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
-  type RowSelectionState,
-  type SortingState,
-} from "@tanstack/table-core";
-import { Badge, Button, Input, PrimitiveButton, Text, View } from "@wabou/ui";
-import { createMemo, createSignal, For, Show } from "solid-js";
+  Badge,
+  Button,
+  createTanStackDataTable,
+  Input,
+  PrimitiveButton,
+  type TanStackDataTableColumn,
+  Text,
+  View,
+} from "@wabou/ui";
+import { For, Show } from "solid-js";
 
 interface Project {
   id: string;
@@ -58,7 +57,7 @@ const data: Project[] = [
   },
 ];
 
-const columns: ColumnDef<Project>[] = [
+const columns: TanStackDataTableColumn<Project>[] = [
   { accessorKey: "name", header: "Project" },
   { accessorKey: "owner", header: "Owner" },
   { accessorKey: "status", header: "Status" },
@@ -72,44 +71,12 @@ function statusVariant(status: Project["status"]) {
 }
 
 export function DataTablePage() {
-  const [sorting, setSorting] = createSignal<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = createSignal("");
-  const [rowSelection, setRowSelection] = createSignal<RowSelectionState>({});
-
-  const table = createTable<Project>({
+  const model = createTanStackDataTable<Project>({
     data,
     columns,
-    state: {},
-    onStateChange: () => {},
-    renderFallbackValue: "—",
     getRowId: (row) => row.id,
     enableRowSelection: true,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: (updater) =>
-      setSorting((value) => functionalUpdate(updater, value)),
-    onGlobalFilterChange: (updater) =>
-      setGlobalFilter((value) => functionalUpdate(updater, value)),
-    onRowSelectionChange: (updater) =>
-      setRowSelection((value) => functionalUpdate(updater, value)),
   });
-
-  const model = createMemo(() => {
-    table.setOptions((options) => ({
-      ...options,
-      state: {
-        ...table.initialState,
-        sorting: sorting(),
-        globalFilter: globalFilter(),
-        rowSelection: rowSelection(),
-      },
-    }));
-    return table.getRowModel();
-  });
-
-  const selectedCount = () =>
-    Object.values(rowSelection()).filter(Boolean).length;
 
   return (
     <View class="flex flex-col gap-5">
@@ -119,29 +86,31 @@ export function DataTablePage() {
             aria-label="Filter projects"
             class="w-72"
             placeholder="Filter projects…"
-            value={globalFilter()}
-            onInput={(event) => setGlobalFilter(event.currentTarget.value)}
+            value={model.globalFilter()}
+            onInput={(event) =>
+              model.setGlobalFilter(event.currentTarget.value)
+            }
           />
           <Text
             role="status"
             aria-label="Visible project count"
             class="text-sm text-muted"
           >
-            {model().rows.length} visible
+            {model.rows().length} visible
           </Text>
-          <Show when={selectedCount() > 0}>
+          <Show when={model.selectedCount() > 0}>
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => setRowSelection({})}
+              onClick={() => model.setRowSelection({})}
             >
-              Clear {selectedCount()} selected
+              Clear {model.selectedCount()} selected
             </Button>
           </Show>
         </View>
 
         <View role="table" aria-label="Project table" class="w-full">
-          <For each={table.getHeaderGroups()}>
+          <For each={model.table.getHeaderGroups()}>
             {(headerGroup) => (
               <View
                 role="row"
@@ -176,7 +145,7 @@ export function DataTablePage() {
             )}
           </For>
 
-          <For each={model().rows}>
+          <For each={model.rows()}>
             {(row) => (
               <PrimitiveButton
                 unstyled
@@ -220,7 +189,7 @@ export function DataTablePage() {
             )}
           </For>
 
-          <Show when={model().rows.length === 0}>
+          <Show when={model.rows().length === 0}>
             <View class="h-24 flex items-center justify-center">
               <Text class="text-sm text-muted">No matching projects</Text>
             </View>
@@ -235,7 +204,8 @@ export function DataTablePage() {
         <Text class="whitespace-normal text-sm text-secondary">
           TanStack Table owns row models, sorting, filtering, and selection.
           Wabou owns rendering, semantics, input routing, and styling. This page
-          uses table-core directly without a Solid adapter.
+          uses Wabou's thin Solid adapter instead of duplicating the core state
+          machine in the application.
         </Text>
       </View>
     </View>

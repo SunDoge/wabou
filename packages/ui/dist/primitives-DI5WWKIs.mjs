@@ -958,6 +958,8 @@ function CollapsiblePresence(props) {
 }
 //#endregion
 //#region src/primitives/interactions/form-draft.ts
+/** Validation key used for errors that do not belong to one field. */
+const FORM_ERROR = Symbol("wabou.form-error");
 /**
 * A small immutable draft for form fields with explicit reset and commit
 * semantics. Transient request/error state belongs outside this model.
@@ -991,6 +993,7 @@ function createFormDraft(initial, options = {}) {
 		dirty,
 		errors,
 		valid,
+		formError: () => errors()[FORM_ERROR],
 		fieldError: (key) => errors()[key],
 		field: (key) => value()[key],
 		control: (key) => [() => value()[key], (next) => setField(key, next)],
@@ -2336,6 +2339,7 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	CodeEditor: () => CodeEditor,
 	CollapsiblePresence: () => CollapsiblePresence,
 	Column: () => Column,
+	FORM_ERROR: () => FORM_ERROR,
 	Icon: () => Icon,
 	Image: () => Image,
 	Link: () => Link,
@@ -2389,6 +2393,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { createButton as $, isSelected as A, PathBuilder as B, OverlayPlaneProvider as C, Column as D, Center as E, Icon as F, View as G, Text as H, Image as I, createPresence as J, rotate2d$1 as K, NetworkImage as L, createFormDraft as M, CollapsiblePresence as N, Row as O, CodeEditor as P, Link as Q, PasswordInput as R, createTransitionPresence as S, useOverlayPlane as T, TextArea as U, Svg as V, TextInput as W, createMeasuredSize as X, createContainerMatch as Y, Button as Z, createRetainedItems as _, ScrollArea as a, createAnimationFrame as at, Spin as b, autoPlacement as c, createLoop as ct, flip as d, createSweep as dt, createActive as et, offset as f, createTransition as ft, createNotifications as g, useReducedMotion as gt, NotificationRegion as h, useMotionConfig as ht, createScrollReset as i, createFocusWithin as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createPulse as lt, size as m, MotionConfigProvider as mt, createTabs as n, createHover as nt, Popover as o, animate as ot, shift as p, normalizeSweepGeometry as pt, translate2d$1 as q, createShortcuts as r, createFocus as rt, arrow as s, animateKeyframes as st, primitives_exports as t, createPress as tt, computeHostFloatingPosition as u, createRotation as ut, Pulse as v, createOverlayLayer as w, Modal as x, Ripple as y, Path as z };
+export { Link as $, isSelected as A, Path as B, OverlayPlaneProvider as C, Column as D, Center as E, CodeEditor as F, TextInput as G, Svg as H, Icon as I, translate2d$1 as J, View as K, Image as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, Button as Q, NetworkImage as R, createTransitionPresence as S, useOverlayPlane as T, Text as U, PathBuilder as V, TextArea as W, createContainerMatch as X, createPresence as Y, createMeasuredSize as Z, createRetainedItems as _, useReducedMotion as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createRotation as dt, createButton as et, offset as f, createSweep as ft, createNotifications as g, useMotionConfig as gt, NotificationRegion as h, MotionConfigProvider as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createLoop as lt, size as m, normalizeSweepGeometry as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createTransition as pt, rotate2d$1 as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createPulse as ut, Pulse as v, createOverlayLayer as w, Modal as x, Ripple as y, PasswordInput as z };
 
-//# sourceMappingURL=primitives-Oxoe1V1J.mjs.map
+//# sourceMappingURL=primitives-DI5WWKIs.mjs.map

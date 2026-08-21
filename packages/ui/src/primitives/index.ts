@@ -27,6 +27,7 @@ export {
 export { createHover, type HoverResult } from "./hover";
 export {
   createFormDraft,
+  FORM_ERROR,
   type FormDraft,
   type FormDraftErrors,
   type FormDraftFieldUpdater,

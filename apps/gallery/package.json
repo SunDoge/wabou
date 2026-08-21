@@ -10,7 +10,6 @@
     "test:behavior": "cargo run -p wabou-cli -- test ."
   },
   "dependencies": {
-    "@tanstack/table-core": "^8.21.3",
     "@wabou/core": "workspace:*",
     "@wabou/ui": "workspace:*",
     "d3-scale": "4.0.2",
