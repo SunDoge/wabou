@@ -1,8 +1,10 @@
 //! Deterministic TypeScript clients and declarations for Wabou capabilities.
 //!
 //! A native QuickJS method may return immediately or through a Promise.
-//! Generated clients normalize both forms to an asynchronous typed API and
-//! own JSON serialization so application code only sees typed DTOs.
+//! Generated clients normalize both forms to an asynchronous typed API.
+//! JSON capabilities own JSON serialization, while native capabilities pass
+//! structured QuickJS values directly; application code sees typed DTOs in
+//! either case.
 //!
 //! The default `generate` feature exposes Specta-backed TypeScript generation.
 //! Runtime crates may disable it and retain only [`JsonMethod`] plus the shared

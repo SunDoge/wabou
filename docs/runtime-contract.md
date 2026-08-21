@@ -62,6 +62,21 @@ application-visible communication mechanism.
 and operation identifiers. Code generation produces both the Rust constants
 used by `wabou-shell` and the TypeScript constants used by `@wabou/core`.
 
+### Native capabilities
+
+Native capabilities are the direct structured-value control path for
+application-owned Rust APIs. A typed `HostMethod<Request, Response>` is mounted
+through `HostBuilder::native_capability`; Serde converts QuickJS objects
+directly without an intermediate JSON string and asynchronous Rust handlers
+become JavaScript Promises.
+
+Use native capabilities for hot request/response calls or stable typed object
+operations where JSON encoding is measurable or unnecessarily duplicates an
+already in-process object representation. Public DTO declarations come from
+Specta, while the flat function names and sync/async behavior remain explicit
+in a `FunctionModule`. Native capability methods are not per-frame rendering
+operations and must not replace batching.
+
 ### JSON capabilities
 
 JSON capabilities are Wabou's control plane for application-owned, low-rate,
@@ -75,8 +90,10 @@ a capability and publishes subsequent values through the ordinary host event
 frame. It must not create a new callback channel.
 
 JSON is chosen for contract clarity and diagnostics, not for per-frame data.
-If measurement shows that a capability payload itself is a bottleneck, define
-a dedicated binary frame record rather than weakening every capability.
+If measurement shows that JSON conversion is a bottleneck for an otherwise
+request/response-shaped operation, move that operation to a native capability.
+If the work is frequent and naturally batchable, define a binary frame record
+instead.
 
 ## Resource identity and lifetime
 
@@ -184,8 +201,10 @@ For every new cross-language feature, decide in this order:
 2. Is the operation frequent or batchable? Add it to the frame protocol.
 3. Must JavaScript receive a synchronous result to drive the runtime itself?
    Add a private native intrinsic and document why batching is impossible.
-4. Otherwise, define or extend a JSON capability.
-5. If Rust produces later unsolicited values, deliver them through the host
+4. Is it a hot, stable, typed request/response operation? Define or extend a
+   native capability.
+5. Otherwise, define or extend a JSON capability.
+6. If Rust produces later unsolicited values, deliver them through the host
    event frame.
 
 Protocol declarations remain single-source and generated across Rust and

@@ -42,7 +42,14 @@ runtime boundary.
 state and compiler-neutral message functions. The Gallery uses it with
 Paraglide: translation catalogs are compiled during the Vite build, while
 Wabou passes the selected locale explicitly instead of emulating browser URL,
-cookie, or local-storage strategies.
+cookie, or local-storage strategies. The compiled messages run in QuickJS
+without Node or DOM dependencies, unused messages tree-shake, and locale
+changes cross Solid's explicit `flush` boundary.
+
+`@wabou/ui/router` uses TanStack Router Core as its matching, state, loader,
+caching, and navigation engine over memory history. Wabou owns the Solid 2
+store adapter and native presentation concerns such as links, blocker UI, and
+scroll restoration; it does not install TanStack's DOM-facing components.
 `@wabou/vite` exposes its bundled HMR client as `@wabou/vite/runtime`; there is
 no separate runtime package.
 

@@ -75,33 +75,32 @@ ownership belongs in a module. Applications still see the `wabou` facade.
 
 ## Cross-language contract
 
-Wabou has three communication mechanisms. Their normative selection and
+Wabou has four communication mechanisms. Their normative selection and
 resource-lifetime rules live in [the runtime boundary contract](runtime-contract.md).
 
 | Mechanism | Purpose |
 | --- | --- |
 | frame protocol | high-frequency, batched mutation and host-event data |
 | native intrinsics | private synchronous runtime and engine primitives |
+| native capability | direct typed application request/response APIs |
 | JSON capability | low-frequency application request/response APIs |
 
 Long-running application producers publish through the host event frame; they
 do not invent another callback ABI. Native effects are not an application
 plugin mechanism: raw numeric effect operations remain internal to
-`@wabou/core`, while applications use generated JSON capabilities and host
-messages. New cross-language features must have one authoritative declaration
+`@wabou/core`, while applications use typed capabilities and host messages.
+New cross-language features must have one authoritative declaration
 and generated Rust/TypeScript views; handwritten parallel enums or registration
 lists are drift bugs.
 
-The runtime and default `wabou` facade consume only the lightweight
-`JsonMethod` contract. Specta and the TypeScript exporter are behind
+The runtime and default `wabou` facade consume lightweight `JsonMethod` and
+`HostMethod` contracts. Specta and the TypeScript exporter remain behind
 `wabou-bindgen`'s `generate` and the facade's `bindings` features, so executing
 an application does not inherently depend on code-generation machinery.
-
-The direct QuickJS-value protocol remains available as an excluded experiment
-under `crates/wabou-native-capability-experiment`. It is reference code rather
-than part of the workspace, CI, release graph, or compatibility surface; the
-mainline capability boundary is JSON until measurements justify revisiting the
-extra adapter complexity.
+Applications may mount direct structured-value methods through
+`HostBuilder::native_capability`; JSON remains the default for low-frequency
+control operations, while native capabilities serve measured hot calls and
+stable typed object operations.
 
 The protocol transports explicit facts. For example, JS sends focusability and
 focus order as an interaction policy. Rust validates and applies that policy;
