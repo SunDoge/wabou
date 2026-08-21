@@ -33,7 +33,7 @@ export function Label(props: LabelProps): JSX.Element {
       role="label"
       aria-disabled={props.disabled}
       class={join(
-        "w-fit min-w-0 text-sm font-medium text-primary",
+        "min-w-0 text-sm font-medium text-primary",
         props.disabled ? "opacity-50" : "cursor-pointer",
         props.class,
       )}

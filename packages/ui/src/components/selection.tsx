@@ -364,10 +364,14 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
       }
     },
   });
+  const activateFromKeyboard = (value: string) => {
+    setActiveValue(value);
+    if (type() === "single" && state.value() !== value) state.set(value);
+  };
   const roving = createRovingFocus({
     orientation: () => "horizontal",
     loop: props.loop,
-    onMove: setActiveValue,
+    onMove: activateFromKeyboard,
   });
   const context: ToggleGroupContextValue = {
     selected(value) {

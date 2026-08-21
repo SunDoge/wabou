@@ -150,6 +150,59 @@ to a component whose contract forbids overlap. Layout snapshots use logical
 pixels; font rasterization, shadows, native-widget painting, and HiDPI still
 belong to focused pixel or platform tests.
 
+For component suites, compile a fixture registry once instead of starting a
+process for every component:
+
+```tsx
+// ui/layout-fixtures.tsx
+import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
+
+defineLayoutFixtures({
+  "button/default": () => <Button>Save</Button>,
+  "card/compact": () => <Card class="w-80">...</Card>,
+});
+```
+
+Select that entry from `defineWabouConfig` for a Vite mode, then run all cases
+through one release CLI and one QuickJS runtime:
+
+```ts
+import { renderLayoutFixtures } from "@wabou/test/layout/node";
+
+const report = await renderLayoutFixtures({
+  app: "apps/gallery",
+  mode: "layout-test",
+  command: ["target/release/wabou"],
+  cases: [
+    { id: "button/default", width: 400, height: 300 },
+    { id: "card/compact", width: 800, height: 600, scaleFactor: 2 },
+  ],
+});
+```
+
+Use `cases: "all"` to query the compiled registry and run every fixture. Style
+parser diagnostics fail by default. Individual cases may additionally declare
+`checks: ["visible-overflow", "sibling-collision"]` and an `assert(snapshot)`
+callback for reactive state after Solid effects have settled. A case-level
+`waitMs` covers timers, promises, or finite animation without slowing every
+fixture.
+
+Each case disposes the preceding Solid owner and resets native retained state
+before mounting. QuickJS, framework modules, Style IR, and font infrastructure
+remain warm; component signals, effects, listeners, focus, scroll state,
+widgets, and resource bindings do not cross the case boundary.
+
+The Gallery regression command is the reference integration:
+
+```bash
+bun run test:layout
+```
+
+It compiles the fixture entry once and runs all existing component pages with
+the release CLI. On the current suite, 40 fixtures take about 0.6 seconds after
+the bundle exists; the fixed QuickJS startup is paid once rather than once per
+component.
+
 ## Required evidence
 
 Use the cheapest layer that can prove the property:

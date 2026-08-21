@@ -603,3 +603,21 @@ fn node_intrinsics_reject_malformed_key_halves() {
         .expect("evaluate malformed node keys");
     assert_eq!(rejected, vec![true; 5]);
 }
+
+#[test]
+fn harness_evaluation_preserves_values_and_exception_details() {
+    let runtime = JsRuntime::new().expect("runtime");
+    assert_eq!(
+        runtime
+            .eval_string("JSON.stringify(['first', 'second'])")
+            .expect("string result"),
+        r#"["first","second"]"#
+    );
+    let error = runtime
+        .eval_script_diagnostic(
+            "function fixtureFailure() { throw new Error('broken fixture') } fixtureFailure()",
+        )
+        .expect_err("fixture should fail");
+    assert!(error.contains("broken fixture"));
+    assert!(error.contains("fixtureFailure"));
+}

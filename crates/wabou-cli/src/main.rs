@@ -229,6 +229,9 @@ enum Commands {
         /// Write the structured retained layout snapshot.
         #[arg(long, value_name = "JSON")]
         out: PathBuf,
+        /// Render every fixture described by a batch manifest in one QuickJS runtime.
+        #[arg(long, value_name = "JSON")]
+        batch: Option<PathBuf>,
         #[arg(long, default_value_t = 1440)]
         width: u32,
         #[arg(long, default_value_t = 900)]
@@ -420,6 +423,7 @@ fn main() -> Result<()> {
                 &app,
                 &RenderOptions {
                     out,
+                    batch: None,
                     width,
                     height,
                     window_id,
@@ -441,6 +445,7 @@ fn main() -> Result<()> {
         Commands::Layout {
             app,
             out,
+            batch,
             width,
             height,
             window_id,
@@ -455,6 +460,7 @@ fn main() -> Result<()> {
                 &app,
                 &RenderOptions {
                     out: out.clone(),
+                    batch,
                     width,
                     height,
                     window_id,
@@ -1254,6 +1260,29 @@ mod tests {
         assert_eq!((width, height), (1440, 900));
         assert_eq!(scale_factor, 1.0);
         assert_eq!(wait_ms, 0);
+    }
+
+    #[test]
+    fn layout_accepts_a_single_runtime_fixture_batch() {
+        let Cli {
+            command: Commands::Layout { batch, mode, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "layout",
+            "apps/gallery",
+            "--out",
+            "report.json",
+            "--batch",
+            "fixtures.json",
+            "--mode",
+            "layout-test",
+        ])
+        .unwrap()
+        else {
+            panic!("expected layout command");
+        };
+        assert_eq!(batch, Some(PathBuf::from("fixtures.json")));
+        assert_eq!(mode.as_deref(), Some("layout-test"));
     }
 
     #[test]

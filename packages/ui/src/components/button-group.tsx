@@ -31,7 +31,7 @@ export function ButtonGroup(props: ButtonGroupProps): JSX.Element {
           role="group"
           aria-label={props["aria-label"]}
           class={join(
-            "w-fit min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs",
+            "min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs",
             layout(),
             props.class,
           )}

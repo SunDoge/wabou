@@ -932,6 +932,43 @@ impl JsRuntime {
         self.with(move |ctx| ctx.eval::<(), _>(source.as_str()))
     }
 
+    /// Evaluate an additional script and preserve guest exception details.
+    pub fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
+        let source = source.to_owned();
+        let source_map = self.source_map.clone();
+        self.with(move |ctx| {
+            ctx.eval::<(), _>(source.as_str())
+                .catch(&ctx)
+                .map_err(|caught| match caught {
+                    rquickjs::CaughtError::Exception(exception) => {
+                        let message = exception
+                            .message()
+                            .unwrap_or_else(|| "JavaScript exception".to_owned());
+                        let stack = exception.stack().unwrap_or_default();
+                        let stack = source_map
+                            .borrow()
+                            .as_ref()
+                            .map_or_else(|| stack.clone(), |map| map.map_stack(&stack));
+                        format!("{message}\n{stack}")
+                    }
+                    rquickjs::CaughtError::Value(value) => value
+                        .as_string()
+                        .and_then(|value| value.to_string().ok())
+                        .unwrap_or_else(|| "JavaScript threw a non-string value".to_owned()),
+                    rquickjs::CaughtError::Error(error) => error.to_string(),
+                })
+        })
+    }
+
+    /// Evaluate an expression and return its string result.
+    ///
+    /// Test harnesses use this narrow boundary for runtime-owned metadata;
+    /// application capabilities should continue using typed FFI or JSON DTOs.
+    pub fn eval_string(&self, source: &str) -> JsResult<String> {
+        let source = source.to_owned();
+        self.with(move |ctx| ctx.eval::<String, _>(source.as_str()))
+    }
+
     /// Run one rAF tick: drains the JS requestAnimationFrame queue (which makes
     /// Solid reactive updates emit ops into the writer), then flushes the
     /// writer — which calls `__wabou_flush` and lands the bytes in `self.out`.

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -7,6 +8,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use clap::ArgMatches;
+use serde::{Deserialize, Serialize};
 use vello::Scene;
 use wabou_runtime::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
 use wabou_shell::layout::PlacedNode;
@@ -26,6 +28,7 @@ use super::{Result, behavior_test_runtime, build_behavior_host, ensure, manifest
 
 pub(super) struct RenderOptions {
     pub(super) out: PathBuf,
+    pub(super) batch: Option<PathBuf>,
     pub(super) width: u32,
     pub(super) height: u32,
     pub(super) window_id: u64,
@@ -40,6 +43,54 @@ pub(super) struct RenderOptions {
     pub(super) samples: usize,
     pub(super) actions: Vec<RenderAction>,
     pub(super) layout_only: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LayoutBatchManifest {
+    version: u32,
+    #[serde(default)]
+    all: bool,
+    #[serde(default)]
+    cases: Vec<LayoutBatchCase>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct LayoutBatchCase {
+    id: String,
+    #[serde(default = "default_layout_width")]
+    width: u32,
+    #[serde(default = "default_layout_height")]
+    height: u32,
+    #[serde(default = "default_scale_factor")]
+    scale_factor: f64,
+    #[serde(default)]
+    wait_ms: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LayoutBatchReport {
+    version: u32,
+    cases: Vec<LayoutBatchResult>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LayoutBatchResult {
+    id: String,
+    snapshot: serde_json::Value,
+}
+
+const fn default_layout_width() -> u32 {
+    1440
+}
+const fn default_layout_height() -> u32 {
+    900
+}
+const fn default_scale_factor() -> f64 {
+    1.0
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,9 +261,149 @@ fn apply_actions(
     }
 }
 
+fn run_layout_batch(
+    applier: &mut Applier,
+    debug_state: &wabou_devtools::SharedDebugState,
+    window_key: wabou_shell::WindowResourceKey,
+    manifest_path: &Path,
+    out: &Path,
+    wait_ms: u64,
+) -> Result<()> {
+    let mut manifest: LayoutBatchManifest = serde_json::from_slice(&fs::read(manifest_path)?)
+        .map_err(|error| {
+            format!(
+                "failed to parse layout batch manifest {}: {error}",
+                manifest_path.display()
+            )
+        })?;
+    if manifest.version != 1 {
+        return Err(format!(
+            "unsupported layout batch manifest version {}; expected 1",
+            manifest.version
+        )
+        .into());
+    }
+    if manifest.all && !manifest.cases.is_empty() {
+        return Err("layout batch manifest cannot combine `all` with explicit cases".into());
+    }
+    if manifest.all {
+        let encoded = applier
+            .eval_string("globalThis.__wabou_layout_fixture_ids()")
+            .map_err(|error| format!("failed to list layout fixtures: {error:?}"))?;
+        let ids: Vec<String> = serde_json::from_str(&encoded)
+            .map_err(|error| format!("layout fixture registry returned invalid ids: {error}"))?;
+        manifest.cases = ids
+            .into_iter()
+            .map(|id| LayoutBatchCase {
+                id,
+                width: default_layout_width(),
+                height: default_layout_height(),
+                scale_factor: default_scale_factor(),
+                wait_ms: None,
+            })
+            .collect();
+    }
+    if manifest.cases.is_empty() {
+        return Err("layout batch manifest must contain at least one case".into());
+    }
+    let mut ids = HashSet::new();
+    for case in &manifest.cases {
+        if case.id.is_empty() {
+            return Err("layout batch case id must not be empty".into());
+        }
+        if !ids.insert(case.id.clone()) {
+            return Err(format!("duplicate layout batch case id `{}`", case.id).into());
+        }
+        if case.width == 0 || case.height == 0 {
+            return Err(format!(
+                "layout batch case `{}` requires non-zero width and height",
+                case.id
+            )
+            .into());
+        }
+        if !case.scale_factor.is_finite() || case.scale_factor <= 0.0 {
+            return Err(format!(
+                "layout batch case `{}` requires a finite scaleFactor greater than zero",
+                case.id
+            )
+            .into());
+        }
+    }
+
+    let mut results = Vec::with_capacity(manifest.cases.len());
+    let mut text = TextContext::new();
+    for case in manifest.cases {
+        // The JS fixture harness disposes the preceding Solid owner. Resetting
+        // the native projection as well prevents focus, scrolling, widgets,
+        // and resources from surviving a malformed fixture cleanup.
+        applier.reset_scene_tree();
+        let id = serde_json::to_string(&case.id)?;
+        applier
+            .eval_script_diagnostic(&format!("globalThis.__wabou_layout_fixture_mount({id});"))
+            .map_err(|error| format!("failed to mount layout fixture `{}`: {error}", case.id))?;
+        applier.set_device_scale(case.scale_factor);
+        let physical_width = (f64::from(case.width) * case.scale_factor)
+            .round()
+            .clamp(1.0, f64::from(u32::MAX)) as u32;
+        let physical_height = (f64::from(case.height) * case.scale_factor)
+            .round()
+            .clamp(1.0, f64::from(u32::MAX)) as u32;
+        applier.handle_event(UiEvent::WindowMetrics(wabou_shell::WindowMetrics {
+            window_key,
+            logical_width: case.width,
+            logical_height: case.height,
+            physical_width,
+            physical_height,
+            scale_factor: case.scale_factor,
+            maximized: false,
+            focused: true,
+            color_scheme: Some(wabou_shell::ColorScheme::Light),
+        }));
+        let mut nodes = applier.build_frame(&mut text, case.width, case.height);
+        settle(applier, &mut text, &mut nodes, case.width, case.height);
+        let case_wait_ms = case.wait_ms.unwrap_or(wait_ms);
+        if case_wait_ms > 0 {
+            let deadline = Instant::now() + Duration::from_millis(case_wait_ms);
+            while Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(10));
+                nodes = applier.build_frame(&mut text, case.width, case.height);
+            }
+        }
+        // Force publication of the exact frame captured for this case.
+        applier.set_debug_state(debug_state.clone());
+        let _ = applier.build_frame(&mut text, case.width, case.height);
+        let state = debug_state
+            .read()
+            .map_err(|_| "headless debug snapshot lock was poisoned")?;
+        let snapshot = serde_json::to_value(state.snapshot())?;
+        results.push(LayoutBatchResult {
+            id: case.id,
+            snapshot,
+        });
+    }
+
+    if let Some(parent) = out.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(
+        out,
+        serde_json::to_vec_pretty(&LayoutBatchReport {
+            version: 1,
+            cases: results,
+        })?,
+    )?;
+    println!(
+        "[wabou] wrote {} layout fixtures to {}",
+        ids.len(),
+        out.display()
+    );
+    Ok(())
+}
+
 pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Result<()> {
     let RenderOptions {
         out,
+        batch,
         width,
         height,
         window_id,
@@ -261,6 +452,22 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     applier
         .boot(&source)
         .map_err(|error| format!("cannot boot JavaScript bundle: {error:?}"))?;
+    if let Some(manifest_path) = batch {
+        if !layout_only {
+            return Err("--batch is only supported by `wabou layout`".into());
+        }
+        let state = debug_state
+            .as_ref()
+            .ok_or("layout batch execution requires debug snapshots")?;
+        return run_layout_batch(
+            &mut applier,
+            state,
+            window_key,
+            manifest_path,
+            out,
+            *wait_ms,
+        );
+    }
     applier.set_device_scale(*scale_factor);
     let physical_width = (f64::from(*width) * scale_factor)
         .round()

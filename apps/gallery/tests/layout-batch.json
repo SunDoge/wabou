@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "cases": [
+    { "id": "narrow", "width": 400, "height": 300 },
+    { "id": "wide", "width": 800, "height": 600, "scaleFactor": 2 },
+    { "id": "effect/synchronous", "width": 400, "height": 300 }
+  ]
+}

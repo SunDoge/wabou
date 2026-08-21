@@ -2,14 +2,18 @@ import {
   assertNoLayoutDiagnostics,
   formatLayoutTree,
   getLayoutNode,
-  parseLayoutSnapshot,
   type LayoutSnapshot,
   type LayoutSnapshotNode,
+  parseLayoutSnapshot,
   siblingCollisionDiagnostics,
   styleDiagnostics,
   visibleOverflowDiagnostics,
 } from "@wabou/test/layout";
-import { layoutCommandArgs } from "@wabou/test/layout/node";
+import {
+  layoutCommandArgs,
+  parseLayoutFixtureReport,
+  validateLayoutFixtureReport,
+} from "@wabou/test/layout/node";
 import { expect, test } from "vitest";
 
 function node(
@@ -80,9 +84,9 @@ test("formats and queries the exact retained Taffy projection in TypeScript", ()
   );
   expect(formatLayoutTree(snapshot)).toMatchInlineSnapshot(`
     "viewport 800x600 scale=1 nodes=3
-    view#1:1 role=toolbar name=\"Toolbar\" rect=(0.0,0.0 100.0x40.0) content=(0.0,0.0 100.0x40.0) class=\"flex overflow-visible\"
-      text#2:1 role=label name=\"Long label\" text=\"Long label\" rect=(0.0,0.0 110.0x20.0) content=(0.0,0.0 110.0x20.0)
-      button#3:1 role=button name=\"Copy\" rect=(90.0,0.0 20.0x20.0) content=(90.0,0.0 20.0x20.0)
+    view#1:1 role=toolbar name="Toolbar" rect=(0.0,0.0 100.0x40.0) content=(0.0,0.0 100.0x40.0) class="flex overflow-visible"
+      text#2:1 role=label name="Long label" text="Long label" rect=(0.0,0.0 110.0x20.0) content=(0.0,0.0 110.0x20.0)
+      button#3:1 role=button name="Copy" rect=(90.0,0.0 20.0x20.0) content=(90.0,0.0 20.0x20.0)
     "
   `);
 });
@@ -123,6 +127,28 @@ test("builds the no-GPU CLI invocation for Node or Bun tests", () => {
   ]);
 });
 
+test("builds a single-process fixture batch invocation", () => {
+  expect(
+    layoutCommandArgs({
+      app: "apps/gallery",
+      out: "/tmp/report.json",
+      batch: "/tmp/manifest.json",
+      mode: "layout-test",
+      skipBuild: true,
+    }),
+  ).toEqual([
+    "layout",
+    "apps/gallery",
+    "--out",
+    "/tmp/report.json",
+    "--batch",
+    "/tmp/manifest.json",
+    "--mode",
+    "layout-test",
+    "--skip-build",
+  ]);
+});
+
 test("rejects drifted or malformed Rust layout snapshots at the boundary", () => {
   expect(parseLayoutSnapshot(fixture())).toEqual(fixture());
   expect(() =>
@@ -136,4 +162,55 @@ test("rejects drifted or malformed Rust layout snapshots at the boundary", () =>
       ],
     }),
   ).toThrow("nodes[0].rect.width must be a finite number");
+});
+
+test("parses every native snapshot in a fixture batch", () => {
+  const report = parseLayoutFixtureReport({
+    version: 1,
+    cases: [
+      { id: "first", snapshot: fixture() },
+      { id: "second", snapshot: fixture() },
+    ],
+  });
+  expect(report.cases.map((entry) => entry.id)).toEqual(["first", "second"]);
+  expect(() =>
+    parseLayoutFixtureReport({ version: 1, cases: [{ id: "broken" }] }),
+  ).toThrow("result at index 0");
+});
+
+test("runs fixture-owned assertions and rejects style parser diagnostics by default", async () => {
+  const clean = {
+    version: 1 as const,
+    cases: [{ id: "clean", snapshot: fixture() }],
+  };
+  let asserted = false;
+  await validateLayoutFixtureReport(clean, [
+    {
+      id: "clean",
+      allowStyleDiagnostics: true,
+      assert(snapshot) {
+        asserted = snapshot.status.nodeCount === 3;
+      },
+    },
+  ]);
+  expect(asserted).toBe(true);
+
+  const styled = structuredClone(fixture());
+  styled.nodes[0].styleDiagnostics = ["unsupported utility `broken`"];
+  await expect(
+    validateLayoutFixtureReport(
+      { version: 1, cases: [{ id: "styled", snapshot: styled }] },
+      [{ id: "styled" }],
+    ),
+  ).rejects.toThrow("[style-diagnostic]");
+
+  await expect(
+    validateLayoutFixtureReport(clean, [
+      {
+        id: "clean",
+        allowStyleDiagnostics: true,
+        checks: ["visible-overflow"],
+      },
+    ]),
+  ).rejects.toThrow("[visible-overflow]");
 });

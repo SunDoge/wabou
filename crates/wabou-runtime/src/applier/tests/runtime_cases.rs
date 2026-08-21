@@ -635,6 +635,23 @@ fn full_reload_clears_non_root_scene_nodes() {
         parent: NodeKey::new(1, 1),
         child: NodeKey::new(2, 1),
     });
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    applier
+        .document
+        .widget_manager
+        .visibility
+        .insert(node, true);
+    applier
+        .document
+        .widget_manager
+        .host_action_routes
+        .insert(7, (node, 9));
+    applier.interaction.input.focused_target = Some(NodeKey::new(2, 1));
+    applier
+        .interaction
+        .scroll
+        .offsets
+        .insert(node, [12.0, 24.0]);
     assert!(
         applier
             .document
@@ -665,6 +682,16 @@ fn full_reload_clears_non_root_scene_nodes() {
             .child_count(applier.document.node_store.root),
         0
     );
+    assert!(applier.document.widget_manager.visibility.is_empty());
+    assert!(
+        applier
+            .document
+            .widget_manager
+            .host_action_routes
+            .is_empty()
+    );
+    assert_eq!(applier.interaction.input.focused_target, None);
+    assert!(applier.interaction.scroll.offsets.is_empty());
 }
 
 #[test]

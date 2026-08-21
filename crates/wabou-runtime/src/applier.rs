@@ -636,6 +636,16 @@ impl Applier {
         self.runtime.js.eval_script(source)
     }
 
+    /// Evaluate a test-harness script with mapped guest exception details.
+    pub fn eval_script_diagnostic(&self, source: &str) -> Result<(), String> {
+        self.runtime.js.eval_script_diagnostic(source)
+    }
+
+    /// Evaluate a test-harness expression and return its string value.
+    pub fn eval_string(&self, source: &str) -> rquickjs::Result<String> {
+        self.runtime.js.eval_string(source)
+    }
+
     #[cfg(feature = "vite")]
     /// Boots an application entry module through the Vite development loader.
     ///

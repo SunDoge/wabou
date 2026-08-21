@@ -40,7 +40,7 @@ export function badgeClass(
     )
     .exhaustive();
   return join(
-    "w-fit flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs",
+    "flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs",
     weight === "normal" ? "font-normal" : "font-medium",
     colors,
     className,

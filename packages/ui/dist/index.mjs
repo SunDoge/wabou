@@ -39,7 +39,7 @@ function join(...values) {
 //#region src/components/badge.tsx
 function badgeClass(variant = "default", weight = "medium", className) {
 	const colors = match(variant).with("default", () => "bg-accent border-accent text-on-accent").with("secondary", () => "bg-control border-subtle text-primary").with("outline", () => "bg-transparent border-strong text-secondary").with("ghost", () => "bg-transparent border-transparent text-secondary").with("link", () => "bg-transparent border-transparent text-accent").with("success", () => "bg-success-surface border-success-primary text-success-primary").with("destructive", () => "bg-danger-surface border-danger text-danger-primary").exhaustive();
-	return join("w-fit flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs", weight === "normal" ? "font-normal" : "font-medium", colors, className);
+	return join("flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs", weight === "normal" ? "font-normal" : "font-medium", colors, className);
 }
 /** Compact status text with shadcn-compatible visual variants. */
 function Badge(props) {
@@ -609,7 +609,7 @@ function ButtonGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("w-fit min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs", layout(), props.class);
+					return join("min-w-0 flex gap-0 overflow-hidden rounded-md border border-strong bg-surface shadow-xs", layout(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -2890,7 +2890,7 @@ function Label(props) {
 			return props.disabled;
 		},
 		get ["class"]() {
-			return join("w-fit min-w-0 text-sm font-medium text-primary", props.disabled ? "opacity-50" : "cursor-pointer", props.class);
+			return join("min-w-0 text-sm font-medium text-primary", props.disabled ? "opacity-50" : "cursor-pointer", props.class);
 		},
 		onClick: (event) => {
 			props.onClick?.(event);
@@ -6323,10 +6323,14 @@ function ToggleGroup(props) {
 			else props.onValueChange?.(typeof value === "string" ? value : "");
 		}
 	});
+	const activateFromKeyboard = (value) => {
+		setActiveValue(value);
+		if (type() === "single" && state.value() !== value) state.set(value);
+	};
 	const roving = createRovingFocus({
 		orientation: () => "horizontal",
 		loop: props.loop,
-		onMove: setActiveValue
+		onMove: activateFromKeyboard
 	});
 	const context = {
 		selected(value) {

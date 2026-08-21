@@ -21,6 +21,7 @@ const packages: Record<string, UserConfig["entry"]> = {
     component: "src/component.ts",
     layout: "src/layout.ts",
     "layout-node": "src/layout-node.ts",
+    "layout-fixtures": "src/layout-fixtures.ts",
   },
   ui: {
     index: "src/index.ts",

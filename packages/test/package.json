@@ -34,6 +34,11 @@
       "wabou-source": "./src/layout-node.ts",
       "types": "./dist/layout-node.d.mts",
       "import": "./dist/layout-node.mjs"
+    },
+    "./layout/fixtures": {
+      "wabou-source": "./src/layout-fixtures.ts",
+      "types": "./dist/layout-fixtures.d.mts",
+      "import": "./dist/layout-fixtures.mjs"
     }
   },
   "scripts": {

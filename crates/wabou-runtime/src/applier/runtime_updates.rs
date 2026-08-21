@@ -220,8 +220,13 @@ impl Applier {
         );
     }
 
-    /// Clear retained UI state down to the host root (solid id 1).
-    pub(super) fn reset_scene_tree(&mut self) {
+    /// Clear all application-owned retained state while preserving the host root.
+    ///
+    /// This is used by Vite full reloads and by layout-fixture batches. The
+    /// JavaScript owner must dispose its Solid root as well; this method makes
+    /// the native half independently deterministic when a prior fixture left
+    /// focus, scrolling, widgets, or resources behind.
+    pub fn reset_scene_tree(&mut self) {
         let doomed: Vec<NodeId> = self
             .document
             .node_store
@@ -264,26 +269,20 @@ impl Applier {
         self.document.style.diagnostics.clear();
         #[cfg(any(feature = "devtools", test))]
         self.document.style.cascade.clear();
+        for widget in self.document.widget_manager.widgets.values_mut() {
+            widget.unmount();
+        }
         self.document.widget_manager.widgets.clear();
         self.document.widget_manager.styles.clear();
-        self.interaction.input.listeners.clear();
-        self.interaction.scroll.offsets.clear();
-        self.interaction.scroll.pending_events.clear();
-        self.interaction.scroll.hits.clear();
-        self.interaction.scroll.metrics.clear();
-        self.interaction.scroll.drag = None;
-        self.interaction.scroll.hovered = None;
-        self.interaction.scroll.activity.clear();
+        self.document.widget_manager.geometries.clear();
+        self.document.widget_manager.visibility.clear();
+        self.document.widget_manager.host_action_routes.clear();
+        self.interaction = InteractionState::new();
         self.document.node_store.logical_parent.clear();
         self.frame.projections.semantic_snapshot = Arc::new(SemanticSnapshot::default());
         self.frame.projections.semantics_dirty = true;
         self.document.widget_manager.pending_value_sync.clear();
         self.document.dirty_styles.clear();
-        self.interaction.input.pointer_down_target = None;
-        self.interaction.input.pointer_down_position = None;
-        self.interaction.input.pointer_dragged = false;
-        self.interaction.input.hovered_target = None;
-        self.interaction.input.focused_target = None;
         self.document
             .invalidation
             .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
