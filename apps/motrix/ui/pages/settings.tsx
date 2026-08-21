@@ -4,10 +4,17 @@ import {
   Button,
   Card,
   CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
   createAsyncAction,
   createFormDraft,
   createWindowMatch,
   DirectoryPicker,
+  Field,
+  FieldContent,
+  FieldLabel,
   Icon,
   Input,
   PageHeader,
@@ -28,10 +35,13 @@ import download from "lucide-static/icons/download.svg?raw";
 import gauge from "lucide-static/icons/gauge.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
 import magnet from "lucide-static/icons/magnet.svg?raw";
+import monitor from "lucide-static/icons/monitor.svg?raw";
+import moon from "lucide-static/icons/moon.svg?raw";
 import radio from "lucide-static/icons/radio-tower.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import sliders from "lucide-static/icons/sliders-horizontal.svg?raw";
-import { createEffect, createSignal, For, Show } from "solid-js";
+import sun from "lucide-static/icons/sun.svg?raw";
+import { createEffect, createSignal, For, type JSX, Show } from "solid-js";
 import type { MotrixConfig, MotrixSpeedProfile } from "../downloads";
 import { useDownloads } from "../downloads";
 
@@ -266,6 +276,7 @@ function SettingsForm() {
   const [theme, setTheme] = draft.control("theme");
   const [message, setMessage] = createSignal("");
   const [restartRequired, setRestartRequired] = createSignal(false);
+  const selectedItem = () => settingsItems.find(([id]) => id === section());
   const settingsAction = createAsyncAction((operation: () => Promise<void>) =>
     operation(),
   );
@@ -413,13 +424,22 @@ function SettingsForm() {
           </Tabs>
 
           <Card class="rounded-2xl shadow-md">
-            <CardContent class="p-4 flex flex-col gap-4">
+            <Show when={selectedItem()} keyed>
+              {([, name, detail, icon]) => (
+                <CardHeader class="p-5 pb-0 flex-row items-center gap-3">
+                  <View class="w-10 h-10 flex-none rounded-xl bg-control flex items-center justify-center text-accent">
+                    <Icon source={icon} size={20} />
+                  </View>
+                  <View class="min-w-0 flex-1 flex flex-col gap-1">
+                    <CardTitle class="text-lg">{name}</CardTitle>
+                    <CardDescription>{detail}</CardDescription>
+                  </View>
+                </CardHeader>
+              )}
+            </Show>
+            <CardContent class="p-5 flex flex-col gap-5">
               <Show when={section() === "general"}>
-                <SectionHeading
-                  title="General"
-                  detail="Choose where downloads are stored and which events should notify you."
-                />
-                <FieldLabel label="Default download directory">
+                <SettingsField label="Default download directory">
                   <DirectoryPicker
                     aria-label="Default download directory"
                     value={downloadDir()}
@@ -431,7 +451,7 @@ function SettingsForm() {
                     onValueChange={setDownloadDir}
                     onBrowseError={(error) => setMessage(String(error))}
                   />
-                </FieldLabel>
+                </SettingsField>
                 <View
                   class="flex"
                   classList={{
@@ -476,31 +496,30 @@ function SettingsForm() {
               </Show>
 
               <Show when={section() === "appearance"}>
-                <SectionHeading
-                  title="Appearance"
-                  detail="Select the application color theme. The choice is saved for the next launch."
-                />
                 <ResponsiveGrid
                   role="group"
                   aria-label="Theme choices"
                   minColumnWidth={220}
-                  gap={16}
+                  gap={12}
                   maxColumns={3}
                   initialColumns={compact() ? 2 : 3}
                 >
                   <ThemeChoice
+                    icon={monitor}
                     name="System"
                     detail="Follow the native window preference"
                     selected={theme() === "system"}
                     onSelect={() => setTheme("system")}
                   />
                   <ThemeChoice
+                    icon={sun}
                     name="Light"
                     detail="Bright surfaces with high-contrast text"
                     selected={theme() === "light"}
                     onSelect={() => setTheme("light")}
                   />
                   <ThemeChoice
+                    icon={moon}
                     name="Dark"
                     detail="Low-glare surfaces for dim environments"
                     selected={theme() === "dark"}
@@ -510,20 +529,16 @@ function SettingsForm() {
               </Show>
 
               <Show when={section() === "downloads"}>
-                <SectionHeading
-                  title="Downloads"
-                  detail="Tune connection splitting, queue concurrency, and global bandwidth limits."
-                />
                 <View class="w-full min-w-0 grid grid-cols-2 gap-4">
-                  <FieldLabel label="Split count">
+                  <SettingsField label="Split count">
                     <Input
                       aria-label="Default split count"
                       value={split()}
                       placeholder="16"
                       onInput={(event) => setSplit(event.currentTarget.value)}
                     />
-                  </FieldLabel>
-                  <FieldLabel label="Concurrent downloads">
+                  </SettingsField>
+                  <SettingsField label="Concurrent downloads">
                     <Input
                       aria-label="Concurrent downloads"
                       value={concurrent()}
@@ -532,8 +547,8 @@ function SettingsForm() {
                         setConcurrent(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
-                  <FieldLabel label="Connections per server">
+                  </SettingsField>
+                  <SettingsField label="Connections per server">
                     <Input
                       aria-label="Connections per server"
                       value={connectionsPerServer()}
@@ -542,8 +557,8 @@ function SettingsForm() {
                         setConnectionsPerServer(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
-                  <FieldLabel label="Minimum split size">
+                  </SettingsField>
+                  <SettingsField label="Minimum split size">
                     <Input
                       aria-label="Minimum split size"
                       value={minSplitSize()}
@@ -552,8 +567,8 @@ function SettingsForm() {
                         setMinSplitSize(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
-                  <FieldLabel label="Download limit">
+                  </SettingsField>
+                  <SettingsField label="Download limit">
                     <Input
                       aria-label="Maximum download speed"
                       value={downloadLimit()}
@@ -562,8 +577,8 @@ function SettingsForm() {
                         setDownloadLimit(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
-                  <FieldLabel label="Upload limit">
+                  </SettingsField>
+                  <SettingsField label="Upload limit">
                     <Input
                       aria-label="Maximum upload speed"
                       value={uploadLimit()}
@@ -572,8 +587,8 @@ function SettingsForm() {
                         setUploadLimit(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
-                  <FieldLabel label="HTTP User-Agent">
+                  </SettingsField>
+                  <SettingsField label="HTTP User-Agent">
                     <Input
                       aria-label="HTTP User-Agent"
                       value={userAgent()}
@@ -582,7 +597,7 @@ function SettingsForm() {
                         setUserAgent(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
+                  </SettingsField>
                 </View>
                 <View class="w-full flex flex-col gap-3 rounded-xl border border-subtle bg-surface p-4">
                   <View class="flex items-center justify-between gap-3">
@@ -683,10 +698,6 @@ function SettingsForm() {
               </Show>
 
               <Show when={section() === "bittorrent"}>
-                <SectionHeading
-                  title="BitTorrent"
-                  detail="Peer discovery and seeding options supported by the embedded engine."
-                />
                 <View class="w-full min-w-0 grid grid-cols-2 gap-4">
                   <Switch
                     label="Enable DHT peer discovery"
@@ -698,7 +709,7 @@ function SettingsForm() {
                     checked={pexEnabled()}
                     onCheckedChange={setPexEnabled}
                   />
-                  <FieldLabel label="Maximum peers per torrent">
+                  <SettingsField label="Maximum peers per torrent">
                     <Input
                       aria-label="Maximum peers per torrent"
                       value={btMaxPeers()}
@@ -707,8 +718,8 @@ function SettingsForm() {
                         setBtMaxPeers(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
-                  <FieldLabel label="BT listen port">
+                  </SettingsField>
+                  <SettingsField label="BT listen port">
                     <Input
                       aria-label="BT listen port"
                       value={listenPort()}
@@ -717,8 +728,8 @@ function SettingsForm() {
                         setListenPort(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
-                  <FieldLabel label="Seed ratio">
+                  </SettingsField>
+                  <SettingsField label="Seed ratio">
                     <Input
                       aria-label="Seed ratio"
                       value={seedRatio()}
@@ -727,15 +738,11 @@ function SettingsForm() {
                         setSeedRatio(event.currentTarget.value)
                       }
                     />
-                  </FieldLabel>
+                  </SettingsField>
                 </View>
               </Show>
 
               <Show when={section() === "integration"}>
-                <SectionHeading
-                  title="Integration"
-                  detail="The app embeds gosh-dl and shuts it down cleanly on exit."
-                />
                 <View class="w-full min-w-0 grid grid-cols-2 gap-4">
                   <InfoCard
                     title="Command line"
@@ -749,10 +756,6 @@ function SettingsForm() {
               </Show>
 
               <Show when={section() === "network"}>
-                <SectionHeading
-                  title="Network and engine"
-                  detail="Configure the embedded Rust download engine and incoming peer connectivity."
-                />
                 <View class="p-4 flex items-center justify-between rounded-lg border border-subtle bg-surface-muted">
                   <View class="min-w-0 flex flex-col gap-1">
                     <Text class="font-semibold">Download service</Text>
@@ -855,7 +858,7 @@ function SettingsForm() {
                     FTP downloads.
                   </Text>
                   <View class="w-full min-w-0 grid grid-cols-2 gap-3">
-                    <FieldLabel label="Proxy host">
+                    <SettingsField label="Proxy host">
                       <Input
                         aria-label="Proxy host"
                         value={proxyHost()}
@@ -864,8 +867,8 @@ function SettingsForm() {
                           setProxyHost(event.currentTarget.value)
                         }
                       />
-                    </FieldLabel>
-                    <FieldLabel label="Proxy port">
+                    </SettingsField>
+                    <SettingsField label="Proxy port">
                       <Input
                         aria-label="Proxy port"
                         value={proxyPort()}
@@ -874,16 +877,12 @@ function SettingsForm() {
                           setProxyPort(event.currentTarget.value)
                         }
                       />
-                    </FieldLabel>
+                    </SettingsField>
                   </View>
                 </Show>
               </Show>
 
               <Show when={section() === "advanced"}>
-                <SectionHeading
-                  title="Advanced"
-                  detail="Inspect local application data and configuration."
-                />
                 <View class="w-full min-w-0 grid grid-cols-1 gap-4">
                   <MaintenanceCard
                     title="Configuration folder"
@@ -900,10 +899,6 @@ function SettingsForm() {
               </Show>
 
               <Show when={section() === "about"}>
-                <SectionHeading
-                  title="About Motrix · Wabou"
-                  detail="A native download manager built as a real-world Wabou application."
-                />
                 <View class="w-full min-w-0 grid grid-cols-2 gap-4">
                   <InfoCard title="Application" detail="Motrix · Wabou 0.1.0" />
                   <InfoCard
@@ -932,7 +927,7 @@ function SettingsForm() {
                 </View>
               </Show>
 
-              <View class="pt-4 flex items-center justify-between border-t border-subtle">
+              <CardFooter class="px-0 pt-5 pb-0 justify-between border-t border-subtle">
                 <Show
                   when={
                     !draft.valid()
@@ -987,7 +982,7 @@ function SettingsForm() {
                     {busy() ? "Working…" : "Save settings"}
                   </Button>
                 </View>
-              </View>
+              </CardFooter>
             </CardContent>
           </Card>
         </View>
@@ -1094,42 +1089,47 @@ function SettingsOverviewItem(props: {
   );
 }
 
-function SectionHeading(props: { title: string; detail: string }) {
+function SettingsField(props: { label: string; children: JSX.Element }) {
   return (
-    <View class="flex flex-col gap-1">
-      <Text class="text-lg font-semibold">{props.title}</Text>
-      <Text class="whitespace-normal text-sm text-muted">{props.detail}</Text>
-    </View>
-  );
-}
-
-function FieldLabel(props: { label: string; children: unknown }) {
-  return (
-    <View class="min-w-0 flex flex-col gap-2">
-      <Text class="text-sm font-medium">{props.label}</Text>
-      {props.children}
-    </View>
+    <Field>
+      <FieldLabel>{props.label}</FieldLabel>
+      <FieldContent>{props.children}</FieldContent>
+    </Field>
   );
 }
 
 function ThemeChoice(props: {
+  icon: string;
   name: string;
   detail: string;
   selected: boolean;
   onSelect(): void;
 }) {
   return (
-    <Button
+    <PrimitiveButton
+      unstyled
+      selected={props.selected}
       aria-label={`Use ${props.name} theme`}
-      variant={props.selected ? "default" : "outline"}
-      class="min-w-0 min-h-24 px-5 py-4 flex-col items-start justify-center gap-2"
+      class={(state) =>
+        `w-full min-w-0 min-h-24 p-3 flex-col items-stretch justify-center gap-2 rounded-xl border ${props.selected ? "border-accent bg-selected" : state.hovered ? "border-strong bg-control-hover" : "border-subtle bg-surface-muted"} ${state.focusVisible ? "border-focus" : ""}`
+      }
       onClick={props.onSelect}
     >
-      <Text class="font-semibold">{props.name}</Text>
-      <Text class="w-full min-w-0 whitespace-normal text-left text-xs">
+      <View class="w-full min-w-0 flex items-center gap-3">
+        <View
+          class={`w-8 h-8 flex-none rounded-lg flex items-center justify-center ${props.selected ? "bg-accent text-on-accent" : "bg-control text-accent"}`}
+        >
+          <Icon source={props.icon} size={18} />
+        </View>
+        <Text class="min-w-0 flex-1 text-left font-semibold">{props.name}</Text>
+        <Show when={props.selected}>
+          <Badge variant="secondary">Active</Badge>
+        </Show>
+      </View>
+      <Text class="w-full min-w-0 whitespace-normal text-left text-xs text-muted">
         {props.detail}
       </Text>
-    </Button>
+    </PrimitiveButton>
   );
 }
 
