@@ -480,7 +480,14 @@ function SettingsForm() {
                   title="Appearance"
                   detail="Select the application color theme. The choice is saved for the next launch."
                 />
-                <View class="w-full min-w-0 grid grid-cols-3 gap-4">
+                <ResponsiveGrid
+                  role="group"
+                  aria-label="Theme choices"
+                  minColumnWidth={220}
+                  gap={16}
+                  maxColumns={3}
+                  initialColumns={compact() ? 2 : 3}
+                >
                   <ThemeChoice
                     name="System"
                     detail="Follow the native window preference"
@@ -499,7 +506,7 @@ function SettingsForm() {
                     selected={theme() === "dark"}
                     onSelect={() => setTheme("dark")}
                   />
-                </View>
+                </ResponsiveGrid>
               </Show>
 
               <Show when={section() === "downloads"}>
@@ -1115,11 +1122,13 @@ function ThemeChoice(props: {
     <Button
       aria-label={`Use ${props.name} theme`}
       variant={props.selected ? "default" : "outline"}
-      class="h-24 px-5 flex-col items-start justify-center gap-2"
+      class="min-w-0 min-h-24 px-5 py-4 flex-col items-start justify-center gap-2"
       onClick={props.onSelect}
     >
       <Text class="font-semibold">{props.name}</Text>
-      <Text class="text-xs">{props.detail}</Text>
+      <Text class="w-full min-w-0 whitespace-normal text-left text-xs">
+        {props.detail}
+      </Text>
     </Button>
   );
 }

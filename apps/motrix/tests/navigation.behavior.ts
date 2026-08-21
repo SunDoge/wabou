@@ -259,6 +259,18 @@ test("Motrix settings controls remain inside the minimum viewport", async ({
   await expect(
     page.getByRole("tab", { name: "Configure Appearance" }),
   ).toBeSelected();
+  const themeChoiceBounds = (
+    await page.getByRole("group", { name: "Theme choices" }).snapshot()
+  ).bounds;
+  const themeChoices = ["System", "Light", "Dark"].map((name) =>
+    page.getByRole("button", { name: `Use ${name} theme` }),
+  );
+  for (const choice of themeChoices) {
+    await expect(choice).toBeInViewport();
+    await expect(choice).toBeWithinBounds(themeChoiceBounds, {
+      tolerance: 1,
+    });
+  }
   await page
     .getByRole("tab", { name: "Configure Appearance" })
     .press("ArrowLeft");
