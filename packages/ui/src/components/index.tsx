@@ -26,12 +26,17 @@ export * from "./button";
 export * from "./button-group";
 export * from "./card";
 export * from "./carousel";
+export * from "./chart";
+export * from "./code-block";
 export * from "./combobox";
 export * from "./command";
 export * from "./config-editor";
 export * from "./context-menu";
+export * from "./copy-button";
+export * from "./data-table";
 export * from "./date-picker";
 export * from "./dialog";
+export * from "./direction";
 export * from "./directory-picker";
 export * from "./disclosure";
 export {
@@ -54,6 +59,7 @@ export * from "./layout";
 export * from "./menubar";
 export * from "./message";
 export * from "./message-scroller";
+export * from "./native-select";
 export * from "./navigation";
 export * from "./navigation-menu";
 export * from "./number-field";
@@ -82,6 +88,8 @@ export * from "./separator";
 export * from "./sheet";
 export * from "./sidebar";
 export * from "./slider";
+export * from "./stat-card";
+export * from "./stepper";
 export * from "./table";
 export {
   Tabs,
@@ -99,11 +107,13 @@ export {
   componentsElevation,
   useComponentsTheme,
 } from "./theme";
+export * from "./timeline";
 export * from "./title-bar";
 export * from "./toast";
 export * from "./toolbar";
 export * from "./tooltip";
 export * from "./tree-view";
+export * from "./typography";
 
 export interface FpsProps {
   /** Controlled FPS value. When omitted, the component measures host frames. */

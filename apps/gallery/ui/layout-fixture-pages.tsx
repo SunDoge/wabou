@@ -12,6 +12,7 @@ import * as foundations from "./pages/foundations";
 import * as i18n from "./pages/i18n";
 import * as menubar from "./pages/menubar";
 import * as overlay from "./pages/overlay";
+import * as shadcn from "./pages/shadcn";
 import * as system from "./pages/system";
 import * as toolbar from "./pages/toolbar";
 import * as treeView from "./pages/tree-view";
@@ -55,6 +56,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
   ...pageFixtures("i18n", i18n),
   ...pageFixtures("menubar", menubar),
   ...pageFixtures("overlay", overlay),
+  ...pageFixtures("shadcn", shadcn),
   ...pageFixtures("system", system),
   ...pageFixtures("toolbar", toolbar),
   ...pageFixtures("tree-view", treeView),

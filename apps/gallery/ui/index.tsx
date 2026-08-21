@@ -92,10 +92,13 @@ type ComponentId =
   | "toolbar"
   | "menubar"
   | "select"
+  | "native-select"
   | "date-picker"
   | "data-table"
   | "tree-view"
   | "chart"
+  | "direction"
+  | "typography"
   | "i18n";
 
 const groups: Array<{
@@ -128,6 +131,7 @@ const groups: Array<{
       { id: "input-otp", name: "Input OTP" },
       { id: "number-field", name: "Number field" },
       { id: "select", name: "Select" },
+      { id: "native-select", name: "Native select" },
       { id: "combobox", name: "Combobox" },
       { id: "date-picker", name: "Date picker" },
       { id: "checkbox", name: "Checkbox" },
@@ -154,6 +158,7 @@ const groups: Array<{
       { id: "message", name: "Message" },
       { id: "message-scroller", name: "Message scroller" },
       { id: "chart", name: "Chart experiment" },
+      { id: "typography", name: "Typography" },
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
       { id: "slider", name: "Slider" },
@@ -172,6 +177,7 @@ const groups: Array<{
       { id: "shadows", name: "Shadows" },
       { id: "overlay", name: "Overlay" },
       { id: "i18n", name: "Internationalization" },
+      { id: "direction", name: "Direction" },
     ],
   },
   {
@@ -276,6 +282,8 @@ const descriptions: Record<ComponentId, string> = {
   avatar: "A compact visual identity with initials, images and grouped counts.",
   field: "Composable labels, descriptions, errors and input adornments.",
   select: "A keyboard-operable native listbox for choosing one option.",
+  "native-select":
+    "A compact immediate select contract for ordinary desktop forms.",
   "date-picker":
     "Selects an internationalized calendar date from a native floating panel.",
   empty: "A centered placeholder for collections that do not contain data yet.",
@@ -298,6 +306,10 @@ const descriptions: Record<ComponentId, string> = {
     "Navigates explicit hierarchical data with roving focus and native keyboard semantics.",
   chart:
     "D3 geometry and scales rendered through Wabou's typed native path pipeline.",
+  direction:
+    "Projects explicit logical direction into native row and text layout.",
+  typography:
+    "Composable heading, paragraph, list, quote and inline-code treatments.",
   i18n: "Tree-shakeable typed messages compiled by Paraglide and driven by Solid locale state.",
 };
 
@@ -337,6 +349,11 @@ import { ColorsPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";
+import {
+  DirectionPage,
+  NativeSelectPage,
+  TypographyPage,
+} from "./pages/shadcn";
 import { ToolbarPage } from "./pages/toolbar";
 import { TreeViewPage } from "./pages/tree-view";
 import {
@@ -677,6 +694,9 @@ function App() {
                   <Match when={selected() === "select"}>
                     <SelectPage />
                   </Match>
+                  <Match when={selected() === "native-select"}>
+                    <NativeSelectPage />
+                  </Match>
                   <Match when={selected() === "combobox"}>
                     <ComboboxPage />
                   </Match>
@@ -691,6 +711,12 @@ function App() {
                   </Match>
                   <Match when={selected() === "chart"}>
                     <ChartPage />
+                  </Match>
+                  <Match when={selected() === "direction"}>
+                    <DirectionPage />
+                  </Match>
+                  <Match when={selected() === "typography"}>
+                    <TypographyPage />
                   </Match>
                   <Match when={selected() === "i18n"}>
                     <I18nPage />

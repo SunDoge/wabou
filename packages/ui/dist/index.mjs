@@ -1,5 +1,5 @@
 import { $ as Link, A as isSelected, B as Path, C as OverlayPlaneProvider, D as Column, E as Center, F as CodeEditor, G as TextInput, H as Svg, I as Icon, J as translate2d$1, K as View, L as Image, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as Button$1, R as NetworkImage, S as createTransitionPresence, U as Text, V as PathBuilder, W as TextArea, X as createContainerMatch, Y as createPresence, Z as createMeasuredSize, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as createButton, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as rotate2d$1, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as PasswordInput$1 } from "./primitives-Bg9X0mo4.mjs";
-import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
+import { rgba, useClipboard, useDialog, useHost, useWindow } from "@wabou/core";
 import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { applyRef, createComponent as createComponent$1, createElement, createFps, insertNode, memo, mergeProps } from "@wabou/core/renderer";
@@ -16,13 +16,13 @@ import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
+import check from "lucide-static/icons/check.svg?raw";
 import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
 import plus from "lucide-static/icons/plus.svg?raw";
 import star from "lucide-static/icons/star.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
-import check from "lucide-static/icons/check.svg?raw";
 import checkCircle from "lucide-static/icons/circle-check.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
 import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
@@ -1274,6 +1274,150 @@ function CarouselNext(props) {
 	return createComponent$1(CarouselNavigationButton, mergeProps(props, { direction: "next" }));
 }
 //#endregion
+//#region src/components/chart.tsx
+const ChartContext = createContext({});
+function ChartContainer(props) {
+	return createComponent(ChartContext, {
+		get value() {
+			return props.config;
+		},
+		get children() {
+			return createComponent$1(View, {
+				role: "img",
+				get ["aria-label"]() {
+					return props.label;
+				},
+				get ["class"]() {
+					return join("relative min-w-0", props.class);
+				},
+				get style() {
+					return props.style;
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	});
+}
+function useChartConfig() {
+	return useContext(ChartContext);
+}
+function ChartLegend(props) {
+	const config = useChartConfig();
+	return createComponent$1(View, {
+		get ["class"]() {
+			return join("flex flex-row flex-wrap items-center gap-4", props.class);
+		},
+		get children() {
+			return createComponent$1(For, {
+				get each() {
+					return Object.values(config);
+				},
+				children: (series) => createComponent$1(View, {
+					class: "flex flex-row items-center gap-2",
+					get children() {
+						return [createComponent$1(View, {
+							"aria-hidden": "true",
+							get ["class"]() {
+								return join("w-2.5 h-2.5 flex-none rounded-full", series.colorClass);
+							}
+						}), createComponent$1(Text, {
+							class: "text-sm text-secondary",
+							get children() {
+								return series.label;
+							}
+						})];
+					}
+				})
+			});
+		}
+	});
+}
+function ChartEmpty(props) {
+	return createComponent$1(View, {
+		get ["class"]() {
+			return join("h-48 items-center justify-center", props.class);
+		},
+		get children() {
+			return createComponent$1(Text, {
+				class: "text-sm text-muted",
+				get children() {
+					return props.message ?? "No chart data";
+				}
+			});
+		}
+	});
+}
+//#endregion
+//#region src/components/copy-button.tsx
+function CopyButton(props) {
+	const clipboard = useClipboard();
+	const [copied, setCopied] = createSignal(false);
+	const forwarded = omit(props, "value", "idleLabel", "copiedLabel", "onCopied", "onCopyError");
+	const copy = async () => {
+		try {
+			await clipboard.writeText(props.value);
+			setCopied(true);
+			props.onCopied?.();
+		} catch (error) {
+			props.onCopyError?.(error);
+		}
+	};
+	return createComponent$1(Button, mergeProps(forwarded, {
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Copy";
+		},
+		onClick: copy,
+		get children() {
+			return memo(() => {
+				return !!copied();
+			})() ? props.copiedLabel ?? "Copied" : props.idleLabel ?? "Copy";
+		}
+	}));
+}
+//#endregion
+//#region src/components/code-block.tsx
+function CodeBlock(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Code block";
+		},
+		get ["class"]() {
+			return join("min-w-0 overflow-hidden rounded-lg border border-subtle bg-control", props.class);
+		},
+		get children() {
+			return [createComponent$1(View, {
+				class: "h-9 flex flex-row items-center justify-between gap-3 px-3 bg-control",
+				get children() {
+					return [createComponent$1(Text, {
+						class: "min-w-0 text-xs text-muted",
+						get children() {
+							return props.language ?? "text";
+						}
+					}), memo(() => {
+						return memo(() => {
+							return props.copyable !== false;
+						})() && createComponent$1(CopyButton, {
+							get value() {
+								return props.code;
+							},
+							variant: "ghost",
+							size: "sm"
+						});
+					})];
+				}
+			}), createComponent$1(Text, {
+				class: "min-w-0 p-3 font-mono text-sm text-primary whitespace-normal",
+				get children() {
+					return props.code;
+				}
+			})];
+		}
+	});
+}
+//#endregion
 //#region src/components/menu-state.ts
 /** Resolve one keyboard move without coupling menu state to rendering. */
 function moveMenuHighlight(items, current, move) {
@@ -1801,6 +1945,277 @@ function ContextMenu(props) {
 	});
 }
 //#endregion
+//#region src/components/table.tsx
+/**
+* A horizontally scrollable table surface.
+*
+* Wabou has no implicit HTML table layout. Columns align because every row
+* uses the same flex-cell anatomy; applications can override individual cell
+* widths with the usual flex and width utilities.
+*/
+function Table(props) {
+	const rest = omit(props, "class", "contentClass", "children");
+	return createComponent$1(View, mergeProps(rest, {
+		role: "table",
+		get ["class"]() {
+			return join("relative w-full min-w-0 overflow-x-auto overflow-y-hidden", props.class);
+		},
+		get children() {
+			return createComponent$1(View, {
+				get ["class"]() {
+					return join("w-full min-w-full flex-none flex flex-col text-sm", props.contentClass);
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	}));
+}
+function TableHeader(props) {
+	return createComponent$1(View, mergeProps(props, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Table header";
+		},
+		get ["class"]() {
+			return join("w-full min-w-0 flex-none flex flex-col", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function TableBody(props) {
+	return createComponent$1(View, mergeProps(props, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Table body";
+		},
+		get ["class"]() {
+			return join("w-full min-w-0 flex-none flex flex-col", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function TableFooter(props) {
+	return createComponent$1(View, mergeProps(props, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Table footer";
+		},
+		get ["class"]() {
+			return join("w-full min-w-0 flex-none flex flex-col border-t border-subtle bg-control", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function TableRow(props) {
+	const hover = createHover();
+	const rest = omit(props, "class", "selected", "children", "onPointerEnter", "onPointerLeave");
+	return createComponent$1(View, mergeProps(rest, {
+		role: "row",
+		get ["aria-selected"]() {
+			return props.selected;
+		},
+		get ["class"]() {
+			return join("w-full min-w-0 min-h-11 flex-none flex flex-row items-stretch border-b border-subtle", props.selected ? "bg-selected" : "bg-surface", hover.hovered() && !props.selected ? "bg-control-hover" : void 0, props.class);
+		},
+		onPointerEnter: (event) => {
+			hover.bindings.onPointerEnter();
+			props.onPointerEnter?.(event);
+		},
+		onPointerLeave: (event) => {
+			hover.bindings.onPointerLeave();
+			props.onPointerLeave?.(event);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function TableHead(props) {
+	return createComponent$1(Text, mergeProps(props, {
+		role: "columnheader",
+		get ["class"]() {
+			return join("min-w-32 flex-1 px-3 flex items-center whitespace-nowrap text-xs font-medium text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function TableCell(props) {
+	return createComponent$1(View, mergeProps(props, {
+		role: "cell",
+		get ["class"]() {
+			return join("min-w-32 flex-1 px-3 flex items-center text-sm text-primary", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function TableCaption(props) {
+	return createComponent$1(Text, mergeProps(props, {
+		get role() {
+			return props.role ?? "label";
+		},
+		get ["class"]() {
+			return join("w-full min-w-0 flex-none px-3 py-3 whitespace-normal text-sm text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+//#endregion
+//#region src/components/data-table.tsx
+/** Shadcn-style table anatomy backed by the framework-agnostic TanStack core. */
+function DataTable(props) {
+	return createComponent$1(Table, {
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get children() {
+			return [createComponent$1(TableHeader, { get children() {
+				return createComponent$1(For, {
+					get each() {
+						return props.model.table.getHeaderGroups();
+					},
+					children: (headerGroup) => createComponent$1(TableRow, {
+						class: "h-11 border-strong bg-control",
+						get children() {
+							return createComponent$1(For, {
+								get each() {
+									return headerGroup.headers;
+								},
+								children: (header) => {
+									const sortable = () => header.column.getCanSort();
+									const direction = () => props.model.sorting().find(({ id }) => id === header.column.id)?.desc ? "desc" : props.model.sorting().some(({ id }) => id === header.column.id) ? "asc" : false;
+									const label = () => String(header.column.columnDef.header ?? header.id);
+									return createComponent$1(Button$1, {
+										unstyled: true,
+										role: "columnheader",
+										get ["aria-label"]() {
+											return memo(() => {
+												return !!sortable();
+											})() ? `Sort by ${label()}` : label();
+										},
+										class: "flex-1 min-w-0 px-4 justify-start text-xs font-semibold text-secondary",
+										get disabled() {
+											return !sortable();
+										},
+										onClick: () => header.column.toggleSorting(),
+										get children() {
+											return [memo(() => {
+												return label();
+											}), createComponent$1(Text, {
+												class: "ml-auto text-xs text-muted",
+												get children() {
+													return memo(() => {
+														return direction() === "asc";
+													})() ? "Asc" : direction() === "desc" ? "Desc" : "";
+												}
+											})];
+										}
+									});
+								}
+							});
+						}
+					})
+				});
+			} }), createComponent$1(TableBody, { get children() {
+				return [createComponent$1(For, {
+					get each() {
+						return props.model.rows();
+					},
+					children: (row) => {
+						const cells = () => createComponent$1(For, {
+							get each() {
+								return row.getVisibleCells();
+							},
+							children: (cell) => createComponent$1(TableCell, {
+								class: "px-4",
+								get children() {
+									return props.renderCell?.({
+										value: cell.getValue(),
+										columnId: cell.column.id,
+										row
+									}) ?? createComponent$1(Text, {
+										class: "w-full truncate text-sm text-primary",
+										get children() {
+											return String(cell.getValue() ?? "");
+										}
+									});
+								}
+							})
+						});
+						return createComponent$1(Show, {
+							get when() {
+								return props.selectable;
+							},
+							get fallback() {
+								return createComponent$1(TableRow, {
+									get ["aria-label"]() {
+										return `Row ${row.id}`;
+									},
+									get children() {
+										return cells();
+									}
+								});
+							},
+							get children() {
+								return createComponent$1(Button$1, {
+									unstyled: true,
+									role: "row",
+									get ["aria-label"]() {
+										return `Select row ${row.id}`;
+									},
+									get ["aria-selected"]() {
+										return props.model.rowSelection()[row.id] === true;
+									},
+									get selected() {
+										return props.model.rowSelection()[row.id] === true;
+									},
+									get ["class"]() {
+										return props.model.rowSelection()[row.id] === true ? "h-12 w-full flex border-b border-subtle bg-selected" : "h-12 w-full flex border-b border-subtle bg-surface";
+									},
+									onClick: () => row.toggleSelected(),
+									get children() {
+										return cells();
+									}
+								});
+							}
+						});
+					}
+				}), createComponent$1(Show, {
+					get when() {
+						return props.model.rows().length === 0;
+					},
+					get children() {
+						return createComponent$1(View, {
+							class: "h-24 flex items-center justify-center",
+							get children() {
+								return createComponent$1(Text, {
+									class: "text-sm text-muted",
+									get children() {
+										return props.emptyMessage ?? "No results";
+									}
+								});
+							}
+						});
+					}
+				})];
+			} })];
+		}
+	});
+}
+//#endregion
 //#region src/components/date-picker.tsx
 function dayOfWeek(value) {
 	return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
@@ -2138,6 +2553,35 @@ function DatePicker(props) {
 			}));
 		}
 	});
+}
+//#endregion
+//#region src/components/direction.tsx
+const DirectionContext = createContext("ltr");
+/** Own logical direction in JavaScript instead of relying on web inheritance. */
+function DirectionProvider(props) {
+	return createComponent(DirectionContext, {
+		get value() {
+			return props.dir;
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function useDirection() {
+	return useContext(DirectionContext);
+}
+function DirectionalRow(props) {
+	const direction = () => useDirection();
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join("flex", direction() === "rtl" ? "flex-row-reverse" : "flex-row", props.class);
+	} }));
+}
+function DirectionalText(props) {
+	const direction = () => useDirection();
+	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+		return join(direction() === "rtl" ? "text-right" : "text-left", props.class);
+	} }));
 }
 //#endregion
 //#region src/components/directory-picker-state.ts
@@ -4366,6 +4810,238 @@ function MessageScrollerButton(props) {
 	});
 }
 //#endregion
+//#region src/components/select-semantics.ts
+/** Keep semantic ID references live for the same lifetime as the popup node. */
+function selectControlsId(listboxId, open) {
+	return open ? listboxId : void 0;
+}
+//#endregion
+//#region src/components/select.tsx
+const ITEM_HEIGHT = 40;
+const VISIBLE_ITEMS = 6;
+/** Shadcn-inspired single Select backed by Wabou-native interaction state. */
+function Select(props) {
+	const theme = useComponentsTheme();
+	const id = createUniqueId();
+	let trigger;
+	let content;
+	let viewport;
+	let scrollTop = 0;
+	const items = () => props.options.map((option) => ({
+		id: option.value,
+		textValue: option.label,
+		disabled: option.disabled
+	}));
+	const execute = (command) => {
+		match(command).with({ type: "FOCUS_TRIGGER" }, () => requestAnimationFrame(() => trigger?.focus())).with({ type: "FOCUS_CONTENT" }, () => requestAnimationFrame(() => content?.focus())).with({ type: "SCROLL_TO_ITEM" }, ({ id }) => {
+			const index = props.options.findIndex((option) => option.value === id);
+			if (index < 0) return;
+			const firstVisible = Math.floor(scrollTop / ITEM_HEIGHT);
+			const lastVisible = firstVisible + VISIBLE_ITEMS - 1;
+			const nextTop = index < firstVisible ? index * ITEM_HEIGHT : index > lastVisible ? (index - VISIBLE_ITEMS + 1) * ITEM_HEIGHT : scrollTop;
+			if (nextTop !== scrollTop) {
+				scrollTop = nextTop;
+				requestAnimationFrame(() => viewport?.scrollTo({ top: nextTop }));
+			}
+		}).exhaustive();
+	};
+	const interaction = createSelectInteraction({
+		items,
+		value: () => props.value,
+		defaultValue: props.defaultValue,
+		open: () => props.open,
+		defaultOpen: props.defaultOpen,
+		disabled: () => props.disabled ?? false,
+		onValueChange: props.onValueChange,
+		onOpenChange: props.onOpenChange,
+		execute
+	});
+	const selected = () => props.options.find((option) => option.value === interaction.value());
+	const handleKeyDown = (event) => {
+		if (match(event.key).with("ArrowDown", () => interaction.send({ type: "ARROW_DOWN" })).with("ArrowUp", () => interaction.send({ type: "ARROW_UP" })).with("Home", () => interaction.send({ type: "HOME" })).with("End", () => interaction.send({ type: "END" })).with("Enter", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with(" ", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with("Escape", () => interaction.send({ type: "CLOSE" })).otherwise((key) => interaction.typeahead(key))) event.preventDefault();
+	};
+	return createComponent$1(Popover$1, {
+		contentRole: "presentation",
+		popupRole: "listbox",
+		get open() {
+			return interaction.open();
+		},
+		onOpenChange: (open) => {
+			interaction.send({ type: open ? "OPEN" : "CLOSE" });
+		},
+		placement: "bottom-start",
+		openOnPointerDown: true,
+		get contentClass() {
+			return join("w-72 p-1 rounded-lg border border-subtle bg-surface", props.contentClass);
+		},
+		get contentShadows() {
+			return memo(() => {
+				return props.contentShadows === void 0;
+			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
+		},
+		get motion() {
+			return props.motion ?? false;
+		},
+		trigger: (popover) => createComponent$1(Button$1, {
+			unstyled: true,
+			role: "combobox",
+			get disabled() {
+				return props.disabled;
+			},
+			get ["aria-label"]() {
+				return props["aria-label"];
+			},
+			"aria-haspopup": "listbox",
+			get ["aria-expanded"]() {
+				return interaction.open();
+			},
+			get ["aria-controls"]() {
+				return selectControlsId(`${id}-listbox`, interaction.open());
+			},
+			ref: (node) => {
+				trigger = node;
+				popover.ref(node);
+			},
+			class: (state) => join("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
+			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+			get onClick() {
+				return popover.onClick;
+			},
+			get onPointerDown() {
+				return popover.onPointerDown;
+			},
+			get onPointerCancel() {
+				return popover.onPointerCancel;
+			},
+			onKeyDown: (event) => {
+				popover.onKeyDown(event);
+				handleKeyDown(event);
+			},
+			get children() {
+				return [createComponent$1(Text, {
+					get ["class"]() {
+						return join("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
+					},
+					get children() {
+						return selected()?.label ?? props.placeholder ?? "Select an option";
+					}
+				}), createComponent$1(Icon, {
+					source: chevronDown,
+					class: "flex-none text-muted",
+					size: 16
+				})];
+			}
+		}),
+		get children() {
+			return createComponent$1(ScrollArea, {
+				ref: (node) => {
+					viewport = node;
+					scrollTop = 0;
+				},
+				class: "w-full flex-none",
+				contentClass: "gap-1",
+				get style() {
+					return { height: `${Math.max(1, Math.min(props.options.length, VISIBLE_ITEMS)) * ITEM_HEIGHT - 4}px` };
+				},
+				onScroll: (event) => {
+					scrollTop = event.scrollY ?? scrollTop;
+				},
+				get children() {
+					return createComponent$1(View, {
+						id: `${id}-listbox`,
+						ref: (node) => content = node,
+						role: "listbox",
+						get ["aria-label"]() {
+							return props["aria-label"];
+						},
+						get ["aria-activedescendant"]() {
+							return memo(() => {
+								return !!interaction.highlighted();
+							})() ? `${id}-option-${interaction.highlighted()}` : void 0;
+						},
+						focusOrder: 0,
+						class: "min-w-0 flex flex-col gap-1",
+						onKeyDown: handleKeyDown,
+						get children() {
+							return createComponent$1(For, {
+								get each() {
+									return props.options;
+								},
+								keyed: false,
+								children: (option) => {
+									const selected = () => interaction.value() === option().value;
+									const highlighted = () => interaction.highlighted() === option().value;
+									return createComponent$1(View, {
+										get id() {
+											return `${id}-option-${option().value}`;
+										},
+										role: "option",
+										get ["aria-selected"]() {
+											return selected();
+										},
+										get ["aria-disabled"]() {
+											return option().disabled;
+										},
+										get ["class"]() {
+											return join("w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+										},
+										get style() {
+											return { opacity: option().disabled ? .45 : 1 };
+										},
+										onPointerMove: () => interaction.send({
+											type: "HIGHLIGHT",
+											id: option().value
+										}),
+										onClick: () => interaction.send({
+											type: "SELECT",
+											id: option().value
+										}),
+										get children() {
+											return [createComponent$1(Text, {
+												class: "min-w-0 flex-1 text-sm whitespace-nowrap text-ellipsis",
+												get children() {
+													return option().label;
+												}
+											}), createComponent$1(View, {
+												"aria-hidden": "true",
+												class: "w-4 h-4 flex-none",
+												get children() {
+													return memo(() => {
+														return !!selected();
+													})() ? createComponent$1(Icon, {
+														source: check,
+														class: "text-accent",
+														size: 16
+													}) : selected();
+												}
+											})];
+										}
+									});
+								}
+							});
+						}
+					});
+				}
+			});
+		}
+	});
+}
+//#endregion
+//#region src/components/native-select.tsx
+/**
+* Compact Wabou-native select for ordinary forms.
+*
+* Unlike the composable Select skin, this deliberately fixes immediate motion
+* and elevation so callers only own options, value, and form sizing.
+*/
+function NativeSelect(props) {
+	return createComponent$1(Select, mergeProps(props, {
+		motion: false,
+		contentClass: "rounded-md",
+		contentShadows: null
+	}));
+}
+//#endregion
 //#region src/components/pagination-state.ts
 function integerAtLeast(value, minimum) {
 	return Math.max(minimum, Math.floor(Number.isFinite(value) ? value : minimum));
@@ -5874,223 +6550,6 @@ function SearchField(props) {
 	});
 }
 //#endregion
-//#region src/components/select-semantics.ts
-/** Keep semantic ID references live for the same lifetime as the popup node. */
-function selectControlsId(listboxId, open) {
-	return open ? listboxId : void 0;
-}
-//#endregion
-//#region src/components/select.tsx
-const ITEM_HEIGHT = 40;
-const VISIBLE_ITEMS = 6;
-/** Shadcn-inspired single Select backed by Wabou-native interaction state. */
-function Select(props) {
-	const theme = useComponentsTheme();
-	const id = createUniqueId();
-	let trigger;
-	let content;
-	let viewport;
-	let scrollTop = 0;
-	const items = () => props.options.map((option) => ({
-		id: option.value,
-		textValue: option.label,
-		disabled: option.disabled
-	}));
-	const execute = (command) => {
-		match(command).with({ type: "FOCUS_TRIGGER" }, () => requestAnimationFrame(() => trigger?.focus())).with({ type: "FOCUS_CONTENT" }, () => requestAnimationFrame(() => content?.focus())).with({ type: "SCROLL_TO_ITEM" }, ({ id }) => {
-			const index = props.options.findIndex((option) => option.value === id);
-			if (index < 0) return;
-			const firstVisible = Math.floor(scrollTop / ITEM_HEIGHT);
-			const lastVisible = firstVisible + VISIBLE_ITEMS - 1;
-			const nextTop = index < firstVisible ? index * ITEM_HEIGHT : index > lastVisible ? (index - VISIBLE_ITEMS + 1) * ITEM_HEIGHT : scrollTop;
-			if (nextTop !== scrollTop) {
-				scrollTop = nextTop;
-				requestAnimationFrame(() => viewport?.scrollTo({ top: nextTop }));
-			}
-		}).exhaustive();
-	};
-	const interaction = createSelectInteraction({
-		items,
-		value: () => props.value,
-		defaultValue: props.defaultValue,
-		open: () => props.open,
-		defaultOpen: props.defaultOpen,
-		disabled: () => props.disabled ?? false,
-		onValueChange: props.onValueChange,
-		onOpenChange: props.onOpenChange,
-		execute
-	});
-	const selected = () => props.options.find((option) => option.value === interaction.value());
-	const handleKeyDown = (event) => {
-		if (match(event.key).with("ArrowDown", () => interaction.send({ type: "ARROW_DOWN" })).with("ArrowUp", () => interaction.send({ type: "ARROW_UP" })).with("Home", () => interaction.send({ type: "HOME" })).with("End", () => interaction.send({ type: "END" })).with("Enter", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with(" ", () => interaction.send({ type: interaction.open() ? "SELECT" : "OPEN" })).with("Escape", () => interaction.send({ type: "CLOSE" })).otherwise((key) => interaction.typeahead(key))) event.preventDefault();
-	};
-	return createComponent$1(Popover$1, {
-		contentRole: "presentation",
-		popupRole: "listbox",
-		get open() {
-			return interaction.open();
-		},
-		onOpenChange: (open) => {
-			interaction.send({ type: open ? "OPEN" : "CLOSE" });
-		},
-		placement: "bottom-start",
-		openOnPointerDown: true,
-		get contentClass() {
-			return join("w-72 p-1 rounded-lg border border-subtle bg-surface", props.contentClass);
-		},
-		get contentShadows() {
-			return memo(() => {
-				return props.contentShadows === void 0;
-			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
-		},
-		get motion() {
-			return props.motion ?? false;
-		},
-		trigger: (popover) => createComponent$1(Button$1, {
-			unstyled: true,
-			role: "combobox",
-			get disabled() {
-				return props.disabled;
-			},
-			get ["aria-label"]() {
-				return props["aria-label"];
-			},
-			"aria-haspopup": "listbox",
-			get ["aria-expanded"]() {
-				return interaction.open();
-			},
-			get ["aria-controls"]() {
-				return selectControlsId(`${id}-listbox`, interaction.open());
-			},
-			ref: (node) => {
-				trigger = node;
-				popover.ref(node);
-			},
-			class: (state) => join("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
-			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
-			get onClick() {
-				return popover.onClick;
-			},
-			get onPointerDown() {
-				return popover.onPointerDown;
-			},
-			get onPointerCancel() {
-				return popover.onPointerCancel;
-			},
-			onKeyDown: (event) => {
-				popover.onKeyDown(event);
-				handleKeyDown(event);
-			},
-			get children() {
-				return [createComponent$1(Text, {
-					get ["class"]() {
-						return join("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
-					},
-					get children() {
-						return selected()?.label ?? props.placeholder ?? "Select an option";
-					}
-				}), createComponent$1(Icon, {
-					source: chevronDown,
-					class: "flex-none text-muted",
-					size: 16
-				})];
-			}
-		}),
-		get children() {
-			return createComponent$1(ScrollArea, {
-				ref: (node) => {
-					viewport = node;
-					scrollTop = 0;
-				},
-				class: "w-full flex-none",
-				contentClass: "gap-1",
-				get style() {
-					return { height: `${Math.max(1, Math.min(props.options.length, VISIBLE_ITEMS)) * ITEM_HEIGHT - 4}px` };
-				},
-				onScroll: (event) => {
-					scrollTop = event.scrollY ?? scrollTop;
-				},
-				get children() {
-					return createComponent$1(View, {
-						id: `${id}-listbox`,
-						ref: (node) => content = node,
-						role: "listbox",
-						get ["aria-label"]() {
-							return props["aria-label"];
-						},
-						get ["aria-activedescendant"]() {
-							return memo(() => {
-								return !!interaction.highlighted();
-							})() ? `${id}-option-${interaction.highlighted()}` : void 0;
-						},
-						focusOrder: 0,
-						class: "min-w-0 flex flex-col gap-1",
-						onKeyDown: handleKeyDown,
-						get children() {
-							return createComponent$1(For, {
-								get each() {
-									return props.options;
-								},
-								keyed: false,
-								children: (option) => {
-									const selected = () => interaction.value() === option().value;
-									const highlighted = () => interaction.highlighted() === option().value;
-									return createComponent$1(View, {
-										get id() {
-											return `${id}-option-${option().value}`;
-										},
-										role: "option",
-										get ["aria-selected"]() {
-											return selected();
-										},
-										get ["aria-disabled"]() {
-											return option().disabled;
-										},
-										get ["class"]() {
-											return join("w-full h-8 flex-none px-3 flex items-center justify-between gap-3 rounded-md text-sm", highlighted() ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
-										},
-										get style() {
-											return { opacity: option().disabled ? .45 : 1 };
-										},
-										onPointerMove: () => interaction.send({
-											type: "HIGHLIGHT",
-											id: option().value
-										}),
-										onClick: () => interaction.send({
-											type: "SELECT",
-											id: option().value
-										}),
-										get children() {
-											return [createComponent$1(Text, {
-												class: "min-w-0 flex-1 text-sm whitespace-nowrap text-ellipsis",
-												get children() {
-													return option().label;
-												}
-											}), createComponent$1(View, {
-												"aria-hidden": "true",
-												class: "w-4 h-4 flex-none",
-												get children() {
-													return memo(() => {
-														return !!selected();
-													})() ? createComponent$1(Icon, {
-														source: check,
-														class: "text-accent",
-														size: 16
-													}) : selected();
-												}
-											})];
-										}
-									});
-								}
-							});
-						}
-					});
-				}
-			});
-		}
-	});
-}
-//#endregion
 //#region src/components/selection.tsx
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 function Checkbox(props) {
@@ -6763,133 +7222,150 @@ function Slider(props) {
 	});
 }
 //#endregion
-//#region src/components/table.tsx
-/**
-* A horizontally scrollable table surface.
-*
-* Wabou has no implicit HTML table layout. Columns align because every row
-* uses the same flex-cell anatomy; applications can override individual cell
-* widths with the usual flex and width utilities.
-*/
-function Table(props) {
-	const rest = omit(props, "class", "contentClass", "children");
-	return createComponent$1(View, mergeProps(rest, {
-		role: "table",
+//#region src/components/stat-card.tsx
+function StatCard(props) {
+	return createComponent$1(Card, {
+		role: "group",
+		get ["aria-label"]() {
+			return props.label;
+		},
 		get ["class"]() {
-			return join("relative w-full min-w-0 overflow-x-auto overflow-y-hidden", props.class);
+			return props.class;
 		},
 		get children() {
-			return createComponent$1(View, {
-				get ["class"]() {
-					return join("w-full min-w-full flex-none flex flex-col text-sm", props.contentClass);
-				},
+			return createComponent$1(CardContent, {
+				class: "gap-2",
 				get children() {
-					return props.children;
+					return [
+						createComponent$1(View, {
+							class: "flex flex-row items-center justify-between gap-3",
+							get children() {
+								return [createComponent$1(Text, {
+									class: "min-w-0 text-xs font-medium text-muted",
+									get children() {
+										return props.label;
+									}
+								}), createComponent$1(View, {
+									"aria-hidden": "true",
+									get ["class"]() {
+										return join("w-2 h-2 rounded-full bg-accent", props.indicatorClass);
+									}
+								})];
+							}
+						}),
+						createComponent$1(Text, {
+							class: "text-3xl font-semibold text-primary",
+							get children() {
+								return props.value;
+							}
+						}),
+						memo(() => {
+							return memo(() => {
+								return !!(props.description || props.trend);
+							})() ? createComponent$1(View, {
+								class: "min-w-0 flex flex-row items-center gap-2",
+								get children() {
+									return [memo(() => {
+										return memo(() => {
+											return !!props.trend;
+										})() ? createComponent$1(Text, {
+											class: "flex-none text-xs font-medium text-success-primary",
+											get children() {
+												return props.trend;
+											}
+										}) : props.trend;
+									}), memo(() => {
+										return memo(() => {
+											return !!props.description;
+										})() ? createComponent$1(Text, {
+											class: "min-w-0 text-xs text-muted whitespace-normal",
+											get children() {
+												return props.description;
+											}
+										}) : props.description;
+									})];
+								}
+							}) : props.description || props.trend;
+						})
+					];
 				}
 			});
 		}
-	}));
+	});
 }
-function TableHeader(props) {
-	return createComponent$1(View, mergeProps(props, {
+//#endregion
+//#region src/components/stepper.tsx
+function Stepper(props) {
+	const [local, setLocal] = createSignal(props.defaultValue ?? props.steps[0]?.id ?? "");
+	const value = () => props.value ?? local();
+	const currentIndex = () => Math.max(0, props.steps.findIndex((step) => step.id === value()));
+	const select = (id) => {
+		if (props.value === void 0) setLocal(id);
+		props.onValueChange?.(id);
+	};
+	return createComponent$1(View, {
 		role: "group",
 		get ["aria-label"]() {
-			return props["aria-label"] ?? "Table header";
+			return props["aria-label"] ?? "Progress steps";
 		},
 		get ["class"]() {
-			return join("w-full min-w-0 flex-none flex flex-col", props.class);
+			return join("min-w-0 flex flex-row items-start", props.class);
 		},
 		get children() {
-			return props.children;
+			return createComponent$1(For, {
+				get each() {
+					return props.steps;
+				},
+				children: (step, index) => createComponent$1(View, {
+					class: "min-w-0 flex-1 flex flex-row items-start",
+					get children() {
+						return [createComponent$1(View, {
+							class: "min-w-0 flex-1 items-center gap-2",
+							get children() {
+								return [
+									createComponent$1(Button, {
+										get ["aria-label"]() {
+											return `Go to ${step.label}`;
+										},
+										get variant() {
+											return index() <= currentIndex() ? "default" : "outline";
+										},
+										size: "icon",
+										onClick: () => select(step.id),
+										get children() {
+											return String(index() + 1);
+										}
+									}),
+									createComponent$1(Text, {
+										class: "text-sm font-medium text-primary",
+										get children() {
+											return step.label;
+										}
+									}),
+									memo(() => {
+										return memo(() => {
+											return !!step.description;
+										})() ? createComponent$1(Text, {
+											class: "text-xs text-muted whitespace-normal",
+											get children() {
+												return step.description;
+											}
+										}) : step.description;
+									})
+								];
+							}
+						}), memo(() => {
+							return memo(() => {
+								return index() < props.steps.length - 1;
+							})() && createComponent$1(View, { get ["class"]() {
+								return join("h-px flex-1 mt-4", index() < currentIndex() ? "bg-accent" : "bg-subtle");
+							} });
+						})];
+					}
+				})
+			});
 		}
-	}));
-}
-function TableBody(props) {
-	return createComponent$1(View, mergeProps(props, {
-		role: "group",
-		get ["aria-label"]() {
-			return props["aria-label"] ?? "Table body";
-		},
-		get ["class"]() {
-			return join("w-full min-w-0 flex-none flex flex-col", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	}));
-}
-function TableFooter(props) {
-	return createComponent$1(View, mergeProps(props, {
-		role: "group",
-		get ["aria-label"]() {
-			return props["aria-label"] ?? "Table footer";
-		},
-		get ["class"]() {
-			return join("w-full min-w-0 flex-none flex flex-col border-t border-subtle bg-control", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	}));
-}
-function TableRow(props) {
-	const hover = createHover();
-	const rest = omit(props, "class", "selected", "children", "onPointerEnter", "onPointerLeave");
-	return createComponent$1(View, mergeProps(rest, {
-		role: "row",
-		get ["aria-selected"]() {
-			return props.selected;
-		},
-		get ["class"]() {
-			return join("w-full min-w-0 min-h-11 flex-none flex flex-row items-stretch border-b border-subtle", props.selected ? "bg-selected" : "bg-surface", hover.hovered() && !props.selected ? "bg-control-hover" : void 0, props.class);
-		},
-		onPointerEnter: (event) => {
-			hover.bindings.onPointerEnter();
-			props.onPointerEnter?.(event);
-		},
-		onPointerLeave: (event) => {
-			hover.bindings.onPointerLeave();
-			props.onPointerLeave?.(event);
-		},
-		get children() {
-			return props.children;
-		}
-	}));
-}
-function TableHead(props) {
-	return createComponent$1(Text, mergeProps(props, {
-		role: "columnheader",
-		get ["class"]() {
-			return join("min-w-32 flex-1 px-3 flex items-center whitespace-nowrap text-xs font-medium text-muted", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	}));
-}
-function TableCell(props) {
-	return createComponent$1(View, mergeProps(props, {
-		role: "cell",
-		get ["class"]() {
-			return join("min-w-32 flex-1 px-3 flex items-center text-sm text-primary", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	}));
-}
-function TableCaption(props) {
-	return createComponent$1(Text, mergeProps(props, {
-		get role() {
-			return props.role ?? "label";
-		},
-		get ["class"]() {
-			return join("w-full min-w-0 flex-none px-3 py-3 whitespace-normal text-sm text-muted", props.class);
-		},
-		get children() {
-			return props.children;
-		}
-	}));
+	});
 }
 //#endregion
 //#region src/components/tabs.tsx
@@ -7019,6 +7495,76 @@ function TabsContent(props) {
 				get children() {
 					return props.children;
 				}
+			});
+		}
+	});
+}
+//#endregion
+//#region src/components/timeline.tsx
+function Timeline(props) {
+	return createComponent$1(View, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "Timeline";
+		},
+		get ["class"]() {
+			return join("min-w-0 flex flex-col", props.class);
+		},
+		get children() {
+			return createComponent$1(For, {
+				get each() {
+					return props.items;
+				},
+				children: (item, index) => createComponent$1(View, {
+					class: "min-w-0 flex flex-row gap-3",
+					get children() {
+						return [createComponent$1(View, {
+							class: "w-4 flex-none flex flex-col items-center",
+							get children() {
+								return [createComponent$1(View, { get ["class"]() {
+									return join("w-3 h-3 flex-none rounded-full border", item.status === "complete" ? "border-accent bg-accent" : item.status === "current" ? "border-accent bg-surface" : "border-subtle bg-control");
+								} }), memo(() => {
+									return memo(() => {
+										return index() < props.items.length - 1;
+									})() && createComponent$1(View, { class: "w-px min-h-8 flex-1 bg-subtle" });
+								})];
+							}
+						}), createComponent$1(View, {
+							class: "min-w-0 flex-1 pb-5",
+							get children() {
+								return [createComponent$1(View, {
+									class: "flex flex-row justify-between gap-3",
+									get children() {
+										return [createComponent$1(Text, {
+											class: "min-w-0 font-medium text-primary",
+											get children() {
+												return item.title;
+											}
+										}), memo(() => {
+											return memo(() => {
+												return !!item.time;
+											})() ? createComponent$1(Text, {
+												class: "flex-none text-xs text-muted",
+												get children() {
+													return item.time;
+												}
+											}) : item.time;
+										})];
+									}
+								}), memo(() => {
+									return memo(() => {
+										return !!item.description;
+									})() ? createComponent$1(Text, {
+										class: "mt-1 text-sm text-muted whitespace-normal",
+										get children() {
+											return item.description;
+										}
+									}) : item.description;
+								})];
+							}
+						})];
+					}
+				})
 			});
 		}
 	});
@@ -7566,6 +8112,55 @@ function TreeView(props) {
 	});
 }
 //#endregion
+//#region src/components/typography.tsx
+function styledText(props, className) {
+	return createComponent$1(Text, mergeProps(props, { get ["class"]() {
+		return join(className, props.class);
+	} }));
+}
+const TypographyH1 = (props) => styledText(props, "text-4xl font-bold text-primary whitespace-normal");
+const TypographyH2 = (props) => styledText(props, "text-3xl font-semibold text-primary whitespace-normal");
+const TypographyH3 = (props) => styledText(props, "text-2xl font-semibold text-primary whitespace-normal");
+const TypographyH4 = (props) => styledText(props, "text-xl font-semibold text-primary whitespace-normal");
+const TypographyP = (props) => styledText(props, "text-base leading-relaxed text-secondary whitespace-normal");
+const TypographyLead = (props) => styledText(props, "text-xl leading-relaxed text-muted whitespace-normal");
+const TypographyLarge = (props) => styledText(props, "text-lg font-semibold text-primary whitespace-normal");
+const TypographySmall = (props) => styledText(props, "text-sm font-medium text-secondary whitespace-normal");
+const TypographyMuted = (props) => styledText(props, "text-sm text-muted whitespace-normal");
+const TypographyInlineCode = (props) => styledText(props, "px-1.5 py-0.5 rounded bg-control font-mono text-sm font-medium text-primary");
+function TypographyBlockquote(props) {
+	return createComponent$1(View, {
+		class: "flex flex-row items-stretch gap-4",
+		get children() {
+			return [createComponent$1(View, {
+				"aria-hidden": "true",
+				class: "w-1 flex-none rounded-full bg-strong"
+			}), memo(() => {
+				return styledText(props, "min-w-0 flex-1 text-base leading-relaxed text-secondary whitespace-normal");
+			})];
+		}
+	});
+}
+function TypographyList(props) {
+	return createComponent$1(View, mergeProps(props, { get ["class"]() {
+		return join("flex flex-col gap-2", props.class);
+	} }));
+}
+function TypographyListItem(props) {
+	return createComponent$1(View, {
+		class: "min-w-0 flex flex-row items-start gap-2",
+		get children() {
+			return [createComponent$1(Text, {
+				"aria-hidden": "true",
+				class: "flex-none text-secondary",
+				children: "•"
+			}), memo(() => {
+				return styledText(props, "min-w-0 flex-1 text-base text-secondary whitespace-normal");
+			})];
+		}
+	});
+}
+//#endregion
 //#region src/components/index.tsx
 /** Live host frame-rate indicator with sensible performance thresholds. */
 function Fps(props) {
@@ -7926,6 +8521,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useComponentsTheme, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

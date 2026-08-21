@@ -3,6 +3,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ChartContainer,
+  ChartLegend,
   Path,
   PathBuilder,
   Text,
@@ -34,6 +36,10 @@ const samples: Sample[] = [
 
 const width = 760;
 const height = 300;
+const chartConfig = {
+  download: { label: "Download", colorClass: "bg-accent" },
+  upload: { label: "Upload", colorClass: "bg-violet-400" },
+} as const;
 const margin = { top: 20, right: 24, bottom: 36, left: 48 };
 const x = scaleLinear()
   .domain([0, samples.at(-1)?.second ?? 0])
@@ -121,9 +127,9 @@ export function ChartPage() {
           </View>
         </CardHeader>
         <CardContent>
-          <View
-            aria-label="Download and upload speed chart"
-            role="img"
+          <ChartContainer
+            label="Download and upload speed chart"
+            config={chartConfig}
             class="relative w-full h-72"
           >
             <Path class="absolute inset-0 w-full h-full" source={gridPath} />
@@ -133,11 +139,12 @@ export function ChartPage() {
               source={downloadPath}
             />
             <Path class="absolute inset-0 w-full h-full" source={uploadPath} />
-          </View>
+          </ChartContainer>
           <View class="px-12 flex items-center justify-between">
             <Text class="text-xs text-muted">0 s</Text>
             <Text class="text-xs text-muted">11 s</Text>
           </View>
+          <ChartLegend class="px-12 pt-3 justify-end" />
         </CardContent>
       </Card>
       <Text class="text-sm text-secondary">
