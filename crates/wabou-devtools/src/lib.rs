@@ -6,7 +6,7 @@
 
 #![warn(missing_docs)]
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -18,6 +18,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wabou_host_api::DebugOverlayPaintStats;
 pub use wabou_host_api::NodeKey;
+
+mod validation;
+pub use validation::{DebugValidationIssue, DebugValidationReport};
 
 /// Current newline-delimited JSON protocol version.
 pub const PROTOCOL_VERSION: u16 = 3;
@@ -56,40 +59,6 @@ pub struct Rect {
 impl Rect {
     fn contains(&self, x: f32, y: f32) -> bool {
         x >= self.x && y >= self.y && x < self.x + self.width && y < self.y + self.height
-    }
-}
-
-fn rect_is_valid(rect: &Rect) -> bool {
-    [rect.x, rect.y, rect.width, rect.height]
-        .into_iter()
-        .all(f32::is_finite)
-        && rect.width >= 0.0
-        && rect.height >= 0.0
-}
-
-fn rect_contains_rect(outer: &Rect, inner: &Rect, tolerance: f32) -> bool {
-    inner.x >= outer.x - tolerance
-        && inner.y >= outer.y - tolerance
-        && inner.x + inner.width <= outer.x + outer.width + tolerance
-        && inner.y + inner.height <= outer.y + outer.height + tolerance
-}
-
-fn validate_rect(
-    issue: &mut impl FnMut(&str, &str, String, Option<NodeKey>),
-    kind: &str,
-    rect: &Rect,
-    node_id: NodeKey,
-) {
-    if !rect_is_valid(rect) {
-        issue(
-            "error",
-            "invalid-geometry",
-            format!(
-                "{kind} has invalid geometry x={} y={} width={} height={}",
-                rect.x, rect.y, rect.width, rect.height
-            ),
-            Some(node_id),
-        );
     }
 }
 
@@ -505,41 +474,6 @@ pub struct DebugCaptureCase {
     pub frames: Vec<DebugFrame>,
     /// Optional point inspection requested with the capture.
     pub point: Option<DebugPointInspection>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[serde(rename_all = "camelCase")]
-/// One deterministic retained-snapshot validation finding.
-pub struct DebugValidationIssue {
-    /// `error` for broken invariants or `warning` for actionable diagnostics.
-    pub level: String,
-    /// Stable machine-readable category.
-    pub code: String,
-    /// Human-readable evidence.
-    pub message: String,
-    /// Related retained node when the finding is node-specific.
-    pub node_id: Option<NodeKey>,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(feature = "bindings", derive(specta::Type))]
-#[serde(rename_all = "camelCase")]
-/// Self-consistency report for the latest retained snapshot.
-pub struct DebugValidationReport {
-    /// Snapshot revision that was validated.
-    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
-    pub revision: u64,
-    /// Whether no invariant errors were found.
-    pub valid: bool,
-    /// Number of error-level findings.
-    pub error_count: usize,
-    /// Number of warning-level findings.
-    pub warning_count: usize,
-    /// Whether additional findings were omitted from [`Self::issues`].
-    pub truncated: bool,
-    /// Deterministically ordered findings.
-    pub issues: Vec<DebugValidationIssue>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -1002,202 +936,7 @@ impl DebugState {
 
     /// Validate the most recently published snapshot without mutating it.
     pub fn validation_report(&self) -> DebugValidationReport {
-        let snapshot = &self.snapshot;
-        let mut issues = Vec::new();
-        let mut issue = |level: &str, code: &str, message: String, node_id: Option<NodeKey>| {
-            issues.push(DebugValidationIssue {
-                level: level.to_owned(),
-                code: code.to_owned(),
-                message,
-                node_id,
-            });
-        };
-        if snapshot.status.node_count != snapshot.nodes.len() {
-            issue(
-                "error",
-                "node-count-mismatch",
-                format!(
-                    "status reports {} nodes but snapshot contains {}",
-                    snapshot.status.node_count,
-                    snapshot.nodes.len()
-                ),
-                None,
-            );
-        }
-        if !snapshot.status.device_scale.is_finite() || snapshot.status.device_scale <= 0.0 {
-            issue(
-                "error",
-                "invalid-device-scale",
-                format!("device scale is {}", snapshot.status.device_scale),
-                None,
-            );
-        }
-
-        let mut live = HashSet::new();
-        let mut parents = HashMap::new();
-        for node in &snapshot.nodes {
-            if !live.insert(node.id) {
-                issue(
-                    "error",
-                    "duplicate-node-id",
-                    format!("node {} appears more than once", node.id),
-                    Some(node.id),
-                );
-            }
-            parents.insert(node.id, node.parent_id);
-        }
-        for node in &snapshot.nodes {
-            if let Some(parent) = node.parent_id
-                && !live.contains(&parent)
-            {
-                issue(
-                    "error",
-                    "dangling-parent",
-                    format!("parent {parent} is not present in this snapshot"),
-                    Some(node.id),
-                );
-            }
-            validate_rect(&mut issue, "border-box", &node.rect, node.id);
-            validate_rect(&mut issue, "content-box", &node.content_rect, node.id);
-            if rect_is_valid(&node.rect)
-                && rect_is_valid(&node.content_rect)
-                && !rect_contains_rect(&node.rect, &node.content_rect, 0.25)
-            {
-                issue(
-                    "error",
-                    "content-outside-border",
-                    "content box extends outside its border box".to_owned(),
-                    Some(node.id),
-                );
-            }
-            for clip in node
-                .clip
-                .widget_local
-                .iter()
-                .chain(node.clip.chain.iter())
-                .chain(node.clip.effective.iter())
-            {
-                validate_rect(&mut issue, "clip", &clip.rect, node.id);
-                if !clip.radius.is_finite() || clip.radius < 0.0 {
-                    issue(
-                        "error",
-                        "invalid-clip-radius",
-                        format!("{} clip radius is {}", clip.kind, clip.radius),
-                        Some(node.id),
-                    );
-                }
-                if !clip.transform.iter().all(|value| value.is_finite()) {
-                    issue(
-                        "error",
-                        "invalid-clip-transform",
-                        format!("{} clip transform contains a non-finite value", clip.kind),
-                        Some(node.id),
-                    );
-                }
-            }
-            for (name, transform) in [
-                ("static", node.clip.static_transform.as_slice()),
-                ("border", node.clip.border_transform.as_slice()),
-                ("scene", node.clip.scene_transform.as_slice()),
-            ] {
-                if !transform.iter().all(|value| value.is_finite()) {
-                    issue(
-                        "error",
-                        "invalid-node-transform",
-                        format!("{name} transform contains a non-finite value"),
-                        Some(node.id),
-                    );
-                }
-            }
-            if node
-                .clip
-                .runtime_transform
-                .is_some_and(|transform| !transform.iter().all(|value| value.is_finite()))
-            {
-                issue(
-                    "error",
-                    "invalid-node-transform",
-                    "runtime transform contains a non-finite value".to_owned(),
-                    Some(node.id),
-                );
-            }
-            if !node.style_diagnostics.is_empty() {
-                issue(
-                    "warning",
-                    "style-diagnostic",
-                    node.style_diagnostics.join("; "),
-                    Some(node.id),
-                );
-            }
-            if let Some(semantic) = &node.semantic {
-                for controlled in &semantic.controls {
-                    if !live.contains(controlled) {
-                        issue(
-                            "error",
-                            "dangling-semantic-reference",
-                            format!("aria-controls target {controlled} is not live"),
-                            Some(node.id),
-                        );
-                    }
-                }
-                if let Some(active) = semantic.active_descendant
-                    && !live.contains(&active)
-                {
-                    issue(
-                        "error",
-                        "dangling-semantic-reference",
-                        format!("active descendant {active} is not live"),
-                        Some(node.id),
-                    );
-                }
-            }
-        }
-        for node in &snapshot.nodes {
-            let mut seen = HashSet::new();
-            let mut current = Some(node.id);
-            while let Some(id) = current {
-                if !seen.insert(id) {
-                    issue(
-                        "error",
-                        "parent-cycle",
-                        format!("parent chain cycles through {id}"),
-                        Some(node.id),
-                    );
-                    break;
-                }
-                current = parents.get(&id).copied().flatten();
-            }
-        }
-        for (name, id) in [
-            ("focused", snapshot.status.focused_node),
-            ("hovered", snapshot.status.hovered_node),
-        ] {
-            if let Some(id) = id
-                && !live.contains(&id)
-            {
-                issue(
-                    "error",
-                    "dangling-interaction-target",
-                    format!("{name} node {id} is not live"),
-                    Some(id),
-                );
-            }
-        }
-        let error_count = issues.iter().filter(|issue| issue.level == "error").count();
-        let warning_count = issues
-            .iter()
-            .filter(|issue| issue.level == "warning")
-            .count();
-        let truncated = issues.len() > MAX_VALIDATION_ISSUES;
-        issues.truncate(MAX_VALIDATION_ISSUES);
-        DebugValidationReport {
-            revision: snapshot.status.revision,
-            valid: error_count == 0,
-            error_count,
-            warning_count,
-            truncated,
-            issues,
-        }
+        validation::validate(&self.snapshot)
     }
 
     fn execute(&mut self, command: &DebugCommand) -> Result<Value, String> {
