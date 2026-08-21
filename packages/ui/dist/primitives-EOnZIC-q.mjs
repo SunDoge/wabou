@@ -1936,9 +1936,7 @@ function Popover(props) {
 		}
 		observer = new ResizeObserver(schedulePosition);
 		if (anchor) observer.observe(anchor);
-		frame = requestAnimationFrame(() => {
-			frame = requestAnimationFrame(() => void updatePosition());
-		});
+		frame = requestAnimationFrame(() => void updatePosition());
 	});
 	createEffect(presence.phase, (phase) => {
 		if (phase === "unmounted") setPositioned(false);
@@ -2379,4 +2377,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { createButton as $, isSelected as A, PathBuilder as B, OverlayPlaneProvider as C, Column as D, Center as E, Icon as F, View as G, Text as H, Image as I, createPresence as J, rotate2d$1 as K, NetworkImage as L, createFormDraft as M, CollapsiblePresence as N, Row as O, CodeEditor as P, Link as Q, PasswordInput as R, createTransitionPresence as S, useOverlayPlane as T, TextArea as U, Svg as V, TextInput as W, createMeasuredSize as X, createContainerMatch as Y, Button as Z, createRetainedItems as _, ScrollArea as a, createAnimationFrame as at, Spin as b, autoPlacement as c, createLoop as ct, flip as d, createSweep as dt, createActive as et, offset as f, createTransition as ft, createNotifications as g, useReducedMotion as gt, NotificationRegion as h, useMotionConfig as ht, createScrollReset as i, createFocusWithin as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createPulse as lt, size as m, MotionConfigProvider as mt, createTabs as n, createHover as nt, Popover as o, animate as ot, shift as p, normalizeSweepGeometry as pt, translate2d$1 as q, createShortcuts as r, createFocus as rt, arrow as s, animateKeyframes as st, primitives_exports as t, createPress as tt, computeHostFloatingPosition as u, createRotation as ut, Pulse as v, createOverlayLayer as w, Modal as x, Ripple as y, Path as z };
 
-//# sourceMappingURL=primitives-Cqkxs00V.mjs.map
+//# sourceMappingURL=primitives-EOnZIC-q.mjs.map

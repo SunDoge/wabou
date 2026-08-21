@@ -1,4 +1,4 @@
-import { renderComponent } from "@wabou/test/component";
+import { createTestHost, renderComponent } from "@wabou/test/component";
 import {
   Button,
   Popover,
@@ -63,6 +63,26 @@ test("supports application-owned open state", () => {
   expect(screen.getByRole("status", { name: "Open" }).text).toBe("Open");
   screen.getByRole("dialog", { name: "Filters" }).press("Escape");
   expect(screen.getByRole("status", { name: "Closed" }).text).toBe("Closed");
+});
+
+test("positions on the first frame after opening", async () => {
+  const fixture = createTestHost();
+  const screen = renderComponent(
+    () => (
+      <Popover
+        aria-label="Fast actions"
+        trigger={(trigger) => <Button {...trigger}>Actions</Button>}
+      >
+        <Text>Action list</Text>
+      </Popover>
+    ),
+    { clock: "fake", host: fixture.host },
+  );
+
+  screen.getByRole("button", { name: "Actions" }).click();
+  expect(fixture.callsTo("layout.snapshot")).toHaveLength(0);
+  await screen.advanceTime(16);
+  expect(fixture.callsTo("layout.snapshot")).toHaveLength(1);
 });
 
 test("passthrough outside dismissal preserves the underlying gesture", () => {

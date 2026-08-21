@@ -23,6 +23,11 @@ import { componentsElevation, useComponentsTheme } from "./theme";
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
+const DEFAULT_SELECT_MOTION = {
+  duration: 0.1,
+  ease: "easeOut",
+  fromScale: 0.985,
+} as const;
 
 export interface SelectOption {
   value: string;
@@ -134,7 +139,7 @@ export function Select(props: SelectProps): JSX.Element {
           ? componentsElevation(theme(), "floating")
           : props.contentShadows
       }
-      motion={props.motion}
+      motion={props.motion ?? DEFAULT_SELECT_MOTION}
       trigger={(popover) => (
         <HeadlessButton
           unstyled

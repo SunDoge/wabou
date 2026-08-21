@@ -233,11 +233,10 @@ export function Popover(props: PopoverProps): JSX.Element {
     }
     observer = new ResizeObserver(schedulePosition);
     if (anchor) observer.observe(anchor as never);
-    // The first callback flushes the portal nodes; the second reads their
-    // completed native layout if ResizeObserver has not fired first.
-    frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => void updatePosition());
-    });
+    // Portal mutations flush with the opening event, so the next native frame
+    // can normally position the panel immediately. If its completed layout is
+    // not published yet, updatePosition schedules the existing bounded retry.
+    frame = requestAnimationFrame(() => void updatePosition());
   });
   createEffect(presence.phase, (phase) => {
     if (phase === "unmounted") setPositioned(false);
