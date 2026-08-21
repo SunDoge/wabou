@@ -79,3 +79,50 @@ test("generated no-request methods are argument-free at the native boundary", as
   });
   expect(calls).toEqual([[]]);
 });
+
+test("generated point inspection preserves logical coordinates", async () => {
+  const calls: unknown[][] = [];
+  const client = createDevtoolsClient({
+    devtools: {
+      __wabouCapabilityVersion: 1,
+      inspectAtPoint: (...args: unknown[]) => {
+        calls.push(args);
+        return JSON.stringify({
+          ok: true,
+          value: { x: 320, y: 180, node: null, ancestors: [] },
+        });
+      },
+    },
+  } as unknown as Host);
+
+  await expect(
+    client.inspectAtPoint({ x: 320, y: 180 }),
+  ).resolves.toMatchObject({ x: 320, y: 180, node: null });
+  expect(calls).toEqual([[JSON.stringify({ x: 320, y: 180 })]]);
+});
+
+test("generated atomic capture preserves an absent point", async () => {
+  const calls: unknown[][] = [];
+  const client = createDevtoolsClient({
+    devtools: {
+      __wabouCapabilityVersion: 1,
+      captureCase: (...args: unknown[]) => {
+        calls.push(args);
+        return JSON.stringify({
+          ok: true,
+          value: {
+            screenshotPath: "/tmp/frame.png",
+            snapshot: { status: {}, nodes: [] },
+            frames: [],
+            point: null,
+          },
+        });
+      },
+    },
+  } as unknown as Host);
+
+  await expect(client.captureCase({ x: null, y: null })).resolves.toMatchObject(
+    { screenshotPath: "/tmp/frame.png", point: null },
+  );
+  expect(calls).toEqual([[JSON.stringify({ x: null, y: null })]]);
+});

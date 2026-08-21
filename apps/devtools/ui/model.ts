@@ -6,6 +6,11 @@ export interface Rect {
   height: number;
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export interface RpcEnvelope<T> {
   ok: boolean;
   value?: T;
@@ -74,5 +79,28 @@ export function overlayStyle(
     top: `${(rect.y / viewportHeight) * 100}%`,
     width: `${(rect.width / viewportWidth) * 100}%`,
     height: `${(rect.height / viewportHeight) * 100}%`,
+  };
+}
+
+/** Map a click in a stretched screenshot back to inspected logical pixels. */
+export function screenshotPoint(
+  offset: Point,
+  renderedSize: { width: number; height: number },
+  viewportSize: { width: number; height: number },
+): Point | undefined {
+  if (
+    renderedSize.width <= 0 ||
+    renderedSize.height <= 0 ||
+    viewportSize.width <= 0 ||
+    viewportSize.height <= 0 ||
+    !Number.isFinite(offset.x) ||
+    !Number.isFinite(offset.y)
+  )
+    return undefined;
+  const x = Math.max(0, Math.min(renderedSize.width, offset.x));
+  const y = Math.max(0, Math.min(renderedSize.height, offset.y));
+  return {
+    x: (x / renderedSize.width) * viewportSize.width,
+    y: (y / renderedSize.height) * viewportSize.height,
   };
 }

@@ -8,11 +8,12 @@ use serde_json::{Value, json};
 use snafu::{ResultExt, Whatever};
 use wabou::{HostBuilder, WindowOptions};
 use wabou_devtools::{
-    DebugFrame, DebugNode, DebugOverlay, DebugStatus, call, discover_socket, empty_params, request,
+    DebugCaptureCase, DebugFrame, DebugNode, DebugOverlay, DebugPointInspection, DebugStatus, call,
+    discover_socket, empty_params, request,
 };
 use wabou_devtools_app::bindings::{
-    CAPABILITY, ConnectRequest, InspectNodeRequest, PathResult, QueryNodesRequest,
-    RecentFramesRequest, SetOverlayRequest, method,
+    CAPABILITY, CaptureCaseRequest, ConnectRequest, InspectNodeRequest, InspectPointRequest,
+    PathResult, QueryNodesRequest, RecentFramesRequest, SetOverlayRequest, method,
 };
 
 type Target = Arc<Mutex<Option<PathBuf>>>;
@@ -105,6 +106,17 @@ fn main() -> Result<(), Whatever> {
                     json!({"id": request.id}),
                 )
             })?;
+            let inspect_point_target = target.clone();
+            capability.method(
+                method::INSPECT_AT_POINT,
+                move |request: InspectPointRequest| {
+                    rpc::<DebugPointInspection>(
+                        inspect_point_target.clone(),
+                        "inspectAtPoint",
+                        json!({"x": request.x, "y": request.y}),
+                    )
+                },
+            )?;
             let frames_target = target.clone();
             capability.method(
                 method::RECENT_FRAMES,
@@ -135,6 +147,14 @@ fn main() -> Result<(), Whatever> {
                     screenshot_target.clone(),
                     "captureScreenshot",
                     empty_params(),
+                )
+            })?;
+            let capture_case_target = target.clone();
+            capability.method(method::CAPTURE_CASE, move |request: CaptureCaseRequest| {
+                rpc::<DebugCaptureCase>(
+                    capture_case_target.clone(),
+                    "captureCase",
+                    json!({"x": request.x, "y": request.y}),
                 )
             })
         })

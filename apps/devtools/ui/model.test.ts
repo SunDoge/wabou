@@ -5,6 +5,7 @@ import {
   EMPTY_OVERLAY_LAYERS,
   overlayEvidenceLabel,
   overlayStyle,
+  screenshotPoint,
   toggleOverlayLayer,
 } from "./model";
 
@@ -27,6 +28,30 @@ describe("DevTools view model", () => {
     ).toEqual({ left: "10%", top: "10%", width: "20%", height: "20%" });
     expect(
       overlayStyle({ x: 0, y: 0, width: 1, height: 1 }, 0, 500),
+    ).toBeUndefined();
+  });
+
+  test("maps stretched screenshot clicks back to inspected logical pixels", () => {
+    expect(
+      screenshotPoint(
+        { x: 300, y: 150 },
+        { width: 600, height: 300 },
+        { width: 1_200, height: 900 },
+      ),
+    ).toEqual({ x: 600, y: 450 });
+    expect(
+      screenshotPoint(
+        { x: 900, y: -20 },
+        { width: 600, height: 300 },
+        { width: 1_200, height: 900 },
+      ),
+    ).toEqual({ x: 1_200, y: 0 });
+    expect(
+      screenshotPoint(
+        { x: 1, y: 1 },
+        { width: 0, height: 300 },
+        { width: 1_200, height: 900 },
+      ),
     ).toBeUndefined();
   });
 

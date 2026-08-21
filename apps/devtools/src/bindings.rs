@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use wabou::{Bindings, Capability, JsonCapabilityContract, JsonMethod, Type, specta};
-use wabou_devtools::{DebugFrame, DebugNode, DebugOverlay, DebugStatus, NodeKey};
+use wabou_devtools::{
+    DebugCaptureCase, DebugFrame, DebugNode, DebugOverlay, DebugPointInspection, DebugStatus,
+    NodeKey,
+};
 
 /// Host capability containing the DevTools example endpoints.
 pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("devtools", 1);
@@ -19,12 +22,18 @@ pub mod method {
     /// Inspect one retained node.
     pub const INSPECT_NODE: JsonMethod<InspectNodeRequest, DebugNode> =
         JsonMethod::new("inspectNode");
+    /// Hit-test one logical point in the inspected viewport.
+    pub const INSPECT_AT_POINT: JsonMethod<InspectPointRequest, DebugPointInspection> =
+        JsonMethod::new("inspectAtPoint");
     /// Read recent bridge frames.
     pub const RECENT_FRAMES: JsonMethod<RecentFramesRequest, Vec<DebugFrame>> =
         JsonMethod::new("recentFrames");
     /// Capture a native screenshot.
     pub const CAPTURE_SCREENSHOT: JsonMethod<(), PathResult> =
         JsonMethod::no_request("captureScreenshot");
+    /// Atomically capture pixels, retained state, frames and an optional point hit-test.
+    pub const CAPTURE_CASE: JsonMethod<CaptureCaseRequest, DebugCaptureCase> =
+        JsonMethod::new("captureCase");
     /// Configure the inspected runtime overlay.
     pub const SET_OVERLAY: JsonMethod<SetOverlayRequest, DebugOverlay> =
         JsonMethod::new("setOverlay");
@@ -60,6 +69,24 @@ pub struct InspectNodeRequest {
     pub id: NodeKey,
 }
 
+/// Request hit-testing one logical point in the inspected viewport.
+#[derive(Deserialize, Type)]
+pub struct InspectPointRequest {
+    /// Horizontal logical coordinate.
+    pub x: f32,
+    /// Vertical logical coordinate.
+    pub y: f32,
+}
+
+/// Request an atomic capture, optionally hit-testing one logical point.
+#[derive(Deserialize, Type)]
+pub struct CaptureCaseRequest {
+    /// Horizontal logical coordinate, paired with [`Self::y`].
+    pub x: Option<f32>,
+    /// Vertical logical coordinate, paired with [`Self::x`].
+    pub y: Option<f32>,
+}
+
 /// Request selecting recent protocol frames.
 #[derive(Deserialize, Type)]
 pub struct RecentFramesRequest {
@@ -89,8 +116,10 @@ pub fn manifest() -> Bindings {
             .method(method::STATUS)
             .method(method::QUERY_NODES)
             .method(method::INSPECT_NODE)
+            .method(method::INSPECT_AT_POINT)
             .method(method::RECENT_FRAMES)
             .method(method::CAPTURE_SCREENSHOT)
+            .method(method::CAPTURE_CASE)
             .method(method::SET_OVERLAY),
     )
 }
@@ -103,8 +132,14 @@ mod tests {
     fn exports_stateful_devtools_methods_from_dto_contracts() {
         let output = manifest().render();
         assert!(output.contains("queryNodes(request: QueryNodesRequest): Promise<DebugNode[]>"));
+        assert!(output.contains(
+            "inspectAtPoint(request: InspectPointRequest): Promise<DebugPointInspection>"
+        ));
         assert!(output.contains("selectedNode: NodeKey | null"));
         assert!(output.contains("captureScreenshot(): Promise<PathResult>"));
+        assert!(output.contains(
+            "captureCase(request: CaptureCaseRequest): Promise<DebugCaptureCase_Serialize>"
+        ));
         assert!(output.contains("captureScreenshot(): NativeResult<string>"));
     }
 }

@@ -3,10 +3,30 @@ import { type Host, useHost } from "@wabou/core";
 
 export type NativeResult<T> = T | PromiseLike<T>;
 
+export /**  Request an atomic capture, optionally hit-testing one logical point. */
+type CaptureCaseRequest = {
+	/**  Horizontal logical coordinate, paired with [`Self::y`]. */
+	x: number | null,
+	/**  Vertical logical coordinate, paired with [`Self::x`]. */
+	y: number | null,
+};
+
 export /**  Request selecting the inspected runtime socket. */
 type ConnectRequest = {
 	/**  Native DevTools socket path. */
 	path: string,
+};
+
+export /**  Atomic diagnostic bundle combining pixels and retained state. */
+type DebugCaptureCase_Serialize = {
+	/**  Secure temporary PNG path. */
+	screenshotPath: string,
+	/**  Snapshot corresponding to the capture request. */
+	snapshot: DebugSnapshot,
+	/**  Recent bridge frames retained with the case. */
+	frames: DebugFrame_Serialize[],
+	/**  Optional point inspection requested with the capture. */
+	point: DebugPointInspection | null,
 };
 
 export /**  One rounded clip and its coordinate transform. */
@@ -163,6 +183,18 @@ type DebugOverlayPaintStats = {
 	highlights: number,
 };
 
+export /**  Hit-test result and ancestry at one logical window point. */
+type DebugPointInspection = {
+	/**  Queried horizontal coordinate. */
+	x: number | null,
+	/**  Queried vertical coordinate. */
+	y: number | null,
+	/**  Topmost hit-testable node. */
+	node: DebugNode | null,
+	/**  Root-to-parent ancestry of [`Self::node`]. */
+	ancestors: DebugNode[],
+};
+
 export /**  Final platform-neutral accessibility projection for one retained node. */
 type DebugSemanticProjection = {
 	/**  Canonical role after native-widget and authored-role resolution. */
@@ -211,6 +243,14 @@ type DebugSemanticStates = {
 	modal: boolean | null,
 };
 
+export /**  Immutable retained-tree snapshot published by one application frame. */
+type DebugSnapshot = {
+	/**  Runtime/window status at publication time. */
+	status: DebugStatus,
+	/**  Retained nodes in paint/source order. */
+	nodes: DebugNode[],
+};
+
 export /**  Runtime/window status returned by the DevTools `status` command. */
 type DebugStatus = {
 	/**  Wire protocol version. */
@@ -255,6 +295,14 @@ export /**  Request selecting one retained node. */
 type InspectNodeRequest = {
 	/**  Retained node identifier. */
 	id: NodeKey,
+};
+
+export /**  Request hit-testing one logical point in the inspected viewport. */
+type InspectPointRequest = {
+	/**  Horizontal logical coordinate. */
+	x: number | null,
+	/**  Vertical logical coordinate. */
+	y: number | null,
 };
 
 export /**  Full-width generational identity for one retained node. */
@@ -309,13 +357,17 @@ type SetOverlayRequest = {
 	selectedNode: NodeKey | null,
 };
 
+export type DebugCaptureCase = DebugCaptureCase_Serialize;
+
 export type DebugFrame = DebugFrame_Serialize;
 
 interface NativeHostCapabilities {
   readonly devtools: {
     readonly __wabouCapabilityVersion: number;
+    captureCase(request: string): NativeResult<string>;
     captureScreenshot(): NativeResult<string>;
     connect(request: string): NativeResult<string>;
+    inspectAtPoint(request: string): NativeResult<string>;
     inspectNode(request: string): NativeResult<string>;
     queryNodes(request: string): NativeResult<string>;
     recentFrames(request: string): NativeResult<string>;
@@ -488,8 +540,10 @@ function encodeTestCapabilitySuccess(value: unknown): string {
 }
 
 export interface DevtoolsClient {
+  captureCase(request: CaptureCaseRequest): Promise<DebugCaptureCase_Serialize>;
   captureScreenshot(): Promise<PathResult>;
   connect(request: ConnectRequest): Promise<PathResult>;
+  inspectAtPoint(request: InspectPointRequest): Promise<DebugPointInspection>;
   inspectNode(request: InspectNodeRequest): Promise<DebugNode>;
   queryNodes(request: QueryNodesRequest): Promise<DebugNode[]>;
   recentFrames(request: RecentFramesRequest): Promise<DebugFrame_Serialize[]>;
@@ -502,8 +556,10 @@ export function createDevtoolsClient(host: Host): DevtoolsClient {
   const nativeCapability = nativeHost.devtools;
   assertNativeCapability(nativeCapability, "devtools", 1);
   return {
+    captureCase: async (request) => decodeNativeResult<DebugCaptureCase_Serialize>(await invokeNativeCapability(nativeCapability, "devtools", "captureCase", encodeNativeRequest(request, "devtools.captureCase")), "devtools.captureCase"),
     captureScreenshot: async () => decodeNativeResult<PathResult>(await invokeNativeCapability(nativeCapability, "devtools", "captureScreenshot"), "devtools.captureScreenshot"),
     connect: async (request) => decodeNativeResult<PathResult>(await invokeNativeCapability(nativeCapability, "devtools", "connect", encodeNativeRequest(request, "devtools.connect")), "devtools.connect"),
+    inspectAtPoint: async (request) => decodeNativeResult<DebugPointInspection>(await invokeNativeCapability(nativeCapability, "devtools", "inspectAtPoint", encodeNativeRequest(request, "devtools.inspectAtPoint")), "devtools.inspectAtPoint"),
     inspectNode: async (request) => decodeNativeResult<DebugNode>(await invokeNativeCapability(nativeCapability, "devtools", "inspectNode", encodeNativeRequest(request, "devtools.inspectNode")), "devtools.inspectNode"),
     queryNodes: async (request) => decodeNativeResult<DebugNode[]>(await invokeNativeCapability(nativeCapability, "devtools", "queryNodes", encodeNativeRequest(request, "devtools.queryNodes")), "devtools.queryNodes"),
     recentFrames: async (request) => decodeNativeResult<DebugFrame_Serialize[]>(await invokeNativeCapability(nativeCapability, "devtools", "recentFrames", encodeNativeRequest(request, "devtools.recentFrames")), "devtools.recentFrames"),
@@ -517,8 +573,10 @@ export function useDevtoolsClient(): DevtoolsClient {
 }
 
 export interface DevtoolsTestHandlers {
+  captureCase(request: CaptureCaseRequest): NativeResult<DebugCaptureCase_Serialize>;
   captureScreenshot(): NativeResult<PathResult>;
   connect(request: ConnectRequest): NativeResult<PathResult>;
+  inspectAtPoint(request: InspectPointRequest): NativeResult<DebugPointInspection>;
   inspectNode(request: InspectNodeRequest): NativeResult<DebugNode>;
   queryNodes(request: QueryNodesRequest): NativeResult<DebugNode[]>;
   recentFrames(request: RecentFramesRequest): NativeResult<DebugFrame_Serialize[]>;
@@ -529,6 +587,25 @@ export interface DevtoolsTestHandlers {
 export function createDevtoolsTestCapability(handlers: DevtoolsTestHandlers) {
   return {
     __wabouCapabilityVersion: 1,
+    captureCase: async (request: string): Promise<string> => {
+      let decodedRequest: CaptureCaseRequest;
+      try {
+        decodedRequest = JSON.parse(request) as CaptureCaseRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.captureCase(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
     captureScreenshot: async (): Promise<string> => {
       let value;
       try {
@@ -552,6 +629,25 @@ export function createDevtoolsTestCapability(handlers: DevtoolsTestHandlers) {
       let value;
       try {
         value = await handlers.connect(decodedRequest);
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    inspectAtPoint: async (request: string): Promise<string> => {
+      let decodedRequest: InspectPointRequest;
+      try {
+        decodedRequest = JSON.parse(request) as InspectPointRequest;
+      } catch (error) {
+        return encodeTestCapabilityFailure("invalidRequest", error);
+      }
+      let value;
+      try {
+        value = await handlers.inspectAtPoint(decodedRequest);
       } catch (error) {
         return encodeTestCapabilityFailure("handlerFailure", error);
       }

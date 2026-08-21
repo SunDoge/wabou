@@ -2,12 +2,14 @@
 import "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import {
+  createMeasuredSize,
   PrimitiveButton as Button,
   mount,
   PrimitivePopover,
   Text,
   PrimitiveTextInput as TextInput,
   View,
+  type WabouPointerEvent,
 } from "@wabou/ui";
 import {
   createEffect,
@@ -20,6 +22,7 @@ import {
   Show,
 } from "solid-js";
 import {
+  type DebugCaptureCase,
   type DebugClip,
   type DebugFrame,
   type DebugNode,
@@ -33,6 +36,7 @@ import {
   type OverlayLayers,
   overlayEvidenceLabel,
   overlayStyle,
+  screenshotPoint,
   toggleOverlayLayer,
 } from "./model";
 
@@ -80,6 +84,7 @@ function App() {
   const [busy, setBusy] = createSignal(false);
   const [overlayLayers, setOverlayLayers] =
     createSignal<OverlayLayers>(EMPTY_OVERLAY_LAYERS);
+  const screenshotSize = createMeasuredSize();
 
   const selectedRect = createMemo(() => {
     const node = selected();
@@ -151,14 +156,51 @@ function App() {
     setBusy(false);
   }
 
+  async function selectNode(node: DebugNode | undefined): Promise<void> {
+    await devtools.setOverlay({
+      ...overlayLayers(),
+      selectedNode: node?.id ?? null,
+    });
+    setSelected(node);
+  }
+
   async function inspect(id: NodeKey): Promise<void> {
     try {
       const node = await devtools.inspectNode({ id });
-      setSelected(node);
-      await devtools.setOverlay({ ...overlayLayers(), selectedNode: node.id });
+      await selectNode(node);
       setError(undefined);
     } catch (cause) {
       setError(String(cause));
+    }
+  }
+
+  async function inspectScreenshot(event: WabouPointerEvent): Promise<void> {
+    if (busy()) return;
+    const current = status();
+    const point = current
+      ? screenshotPoint(
+          { x: event.offsetX, y: event.offsetY },
+          { width: screenshotSize.width(), height: screenshotSize.height() },
+          {
+            width: current.viewportWidth,
+            height: current.viewportHeight,
+          },
+        )
+      : undefined;
+    if (!point) {
+      setError("Screenshot geometry is not ready for point inspection");
+      return;
+    }
+    try {
+      setBusy(true);
+      const captured = await devtools.captureCase(point);
+      applyCapture(captured);
+      await selectNode(captured.point?.node ?? undefined);
+      setError(undefined);
+    } catch (cause) {
+      setError(String(cause));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -181,11 +223,30 @@ function App() {
     }
   }
 
+  function applyCapture(value: DebugCaptureCase): void {
+    setScreenshot(value.screenshotPath);
+    setStatus(value.snapshot.status);
+    setFrames(value.frames);
+    const overlay = value.snapshot.status.overlay ?? EMPTY_OVERLAY_LAYERS;
+    setOverlayLayers({
+      layout: overlay.layout,
+      clips: overlay.clips,
+      hitTarget: overlay.hitTarget,
+    });
+    const selectedId = selected()?.id;
+    if (selectedId) {
+      setSelected(
+        value.snapshot.nodes.find((node) => sameNodeKey(node.id, selectedId)),
+      );
+    }
+  }
+
   async function capture(): Promise<void> {
+    if (busy()) return;
     try {
       setBusy(true);
-      const value = await devtools.captureScreenshot();
-      setScreenshot(value.path);
+      const value = await devtools.captureCase({ x: null, y: null });
+      applyCapture(value);
       setError(undefined);
     } catch (cause) {
       setError(String(cause));
@@ -419,9 +480,11 @@ function App() {
             >
               <View class="relative w-full h-full">
                 <img
+                  ref={screenshotSize.ref}
                   class="w-full h-full"
                   src={screenshot()}
-                  aria-label="Captured application frame"
+                  aria-label="Captured application frame; click to inspect"
+                  onClick={(event) => void inspectScreenshot(event)}
                 />
                 <Show when={selectedRect()}>
                   {(rect) => (

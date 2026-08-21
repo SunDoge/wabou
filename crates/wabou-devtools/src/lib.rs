@@ -409,6 +409,7 @@ pub struct DebugFrame {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 /// Immutable retained-tree snapshot published by one application frame.
 pub struct DebugSnapshot {
@@ -419,6 +420,7 @@ pub struct DebugSnapshot {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 /// Hit-test result and ancestry at one logical window point.
 pub struct DebugPointInspection {
@@ -433,6 +435,7 @@ pub struct DebugPointInspection {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 /// Atomic diagnostic bundle combining pixels and retained state.
 pub struct DebugCaptureCase {
