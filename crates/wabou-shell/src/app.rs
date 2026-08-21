@@ -1983,13 +1983,18 @@ impl ApplicationHandler for MultiWindowApp {
     }
 
     fn proxy_wake_up(&mut self, event_loop: &dyn ActiveEventLoop) {
+        // Native extensions are producers for window-owned background work.
+        // Drain them first so a tray callback can enqueue a host message and
+        // have a hidden/surface-released runtime consume it in this same wake
+        // cycle. Waking the proxy again from inside this callback may be
+        // coalesced by the platform event loop.
+        self.poll_extensions(event_loop);
         for app in self.windows.values_mut() {
             app.proxy_wake_up(event_loop);
         }
         for app in self.hidden_windows.values_mut() {
             app.proxy_wake_up(event_loop);
         }
-        self.poll_extensions(event_loop);
         self.apply_extension_effects(event_loop);
         self.apply_window_requests(event_loop);
     }
