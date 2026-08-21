@@ -421,7 +421,7 @@ export function AppShell(props: { children?: JSX.Element }) {
               <Icon source={x} size={17} />
             </Button>
           </TitleBar>
-          <View class="relative min-h-0 flex-1 px-2 pb-2 flex gap-3">
+          <View class="relative min-h-0 flex-1 p-2 flex gap-3">
             <Show when={draggingFile()}>
               <View
                 overlayPlane="floating"
