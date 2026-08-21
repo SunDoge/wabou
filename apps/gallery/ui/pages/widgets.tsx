@@ -91,6 +91,11 @@ import {
   MessageFooter,
   MessageGroup,
   MessageHeader,
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerViewport,
   Pagination,
   PaginationContent,
   PaginationItems,
@@ -870,6 +875,65 @@ export function MessagePage() {
             </MessageContent>
           </Message>
         </MessageGroup>
+      </Preview>
+    </View>
+  );
+}
+
+export function MessageScrollerPage() {
+  const messages = [
+    "Download started.",
+    "Metadata verified.",
+    "Segment completed.",
+    "Limit unchanged.",
+    "Transfer halfway.",
+    "Segments connected.",
+    "Checksum verified.",
+    "New event received.",
+  ];
+  const [messageCount, setMessageCount] = createSignal(messages.length - 1);
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Follow-at-end scroller">
+        <View class="w-[640px] flex flex-col items-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={messageCount() === messages.length}
+            onClick={() => setMessageCount(messages.length)}
+          >
+            Append message
+          </Button>
+          <MessageScroller
+            aria-label="Scrollable conversation"
+            class="w-full h-64 rounded-lg border border-subtle bg-surface shadow-xs"
+          >
+            <MessageScrollerViewport aria-label="Message history">
+              <MessageScrollerContent class="p-4">
+                {messages.slice(0, messageCount()).map((content, index) => (
+                  <MessageScrollerItem>
+                    <Message align={index % 2 === 0 ? "start" : "end"}>
+                      <MessageContent>
+                        <Bubble
+                          class="w-3/5"
+                          variant={index % 2 === 0 ? "secondary" : "default"}
+                        >
+                          <BubbleContent class="w-full">
+                            <Text class="whitespace-normal text-sm">
+                              {content}
+                            </Text>
+                          </BubbleContent>
+                        </Bubble>
+                      </MessageContent>
+                    </Message>
+                  </MessageScrollerItem>
+                ))}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton direction="start" />
+            <MessageScrollerButton direction="end" />
+          </MessageScroller>
+        </View>
       </Preview>
     </View>
   );

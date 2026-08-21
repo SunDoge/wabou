@@ -83,6 +83,7 @@ type ComponentId =
   | "item"
   | "attachment"
   | "message"
+  | "message-scroller"
   | "button-group"
   | "toolbar"
   | "menubar"
@@ -143,6 +144,7 @@ const groups: Array<{
       { id: "item", name: "Item" },
       { id: "attachment", name: "Attachment" },
       { id: "message", name: "Message" },
+      { id: "message-scroller", name: "Message scroller" },
       { id: "chart", name: "Chart experiment" },
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
@@ -266,6 +268,8 @@ const descriptions: Record<ComponentId, string> = {
     "Displays native file and transfer state using reusable media, content and action slots.",
   message:
     "Composes aligned avatars, metadata, bubbles, reactions and timeline markers.",
+  "message-scroller":
+    "Follows appended messages until the user explicitly scrolls away from the end.",
   "button-group":
     "Groups related actions into horizontal or vertical toolbars.",
   toolbar:
@@ -338,6 +342,7 @@ import {
   HoverCardPage,
   ItemPage,
   MessagePage,
+  MessageScrollerPage,
   PaginationPage,
   PopoverPage,
   ResizablePage,
@@ -624,6 +629,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "message"}>
                     <MessagePage />
+                  </Match>
+                  <Match when={selected() === "message-scroller"}>
+                    <MessageScrollerPage />
                   </Match>
                   <Match when={selected() === "button-group"}>
                     <ButtonGroupPage />
