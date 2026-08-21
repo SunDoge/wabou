@@ -36,6 +36,7 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
+          cache: ${{ !env.ACT }}
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
