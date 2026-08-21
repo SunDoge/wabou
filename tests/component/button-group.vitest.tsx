@@ -1,0 +1,47 @@
+import { renderComponent } from "@wabou/test/component";
+import {
+  Button,
+  ButtonGroup,
+  ButtonGroupSeparator,
+  ButtonGroupText,
+} from "@wabou/ui";
+import { expect, test } from "vitest";
+
+test("turns ordinary buttons into one horizontal control surface", () => {
+  const screen = renderComponent(() => (
+    <ButtonGroup aria-label="History">
+      <Button variant="outline">Back</Button>
+      <ButtonGroupSeparator />
+      <Button variant="outline">Forward</Button>
+      <ButtonGroupText>2 selected</ButtonGroupText>
+    </ButtonGroup>
+  ));
+  const group = screen.getByRole("group", { name: "History" });
+  expect(group.className).toContain("overflow-hidden");
+  expect(group.className).toContain("border-strong");
+  for (const button of screen.getAllByRole("button")) {
+    expect(button.className).toContain("rounded-none");
+    expect(button.className).toContain("border-transparent");
+  }
+  expect(screen.getByRole("separator").className).toContain("w-px");
+});
+
+test("propagates vertical composition without changing standalone buttons", () => {
+  const screen = renderComponent(() => (
+    <>
+      <ButtonGroup orientation="vertical" aria-label="Account">
+        <Button variant="outline">Profile</Button>
+        <ButtonGroupSeparator orientation="horizontal" />
+        <Button variant="outline">Sign out</Button>
+      </ButtonGroup>
+      <Button aria-label="Standalone">Save</Button>
+    </>
+  ));
+  expect(screen.getByRole("group", { name: "Account" }).className).toContain(
+    "flex-col",
+  );
+  expect(screen.getByRole("separator").className).toContain("h-px");
+  expect(
+    screen.getByRole("button", { name: "Standalone" }).className,
+  ).not.toContain("rounded-none");
+});

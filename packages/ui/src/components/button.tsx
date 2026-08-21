@@ -7,6 +7,7 @@ import {
   type WabouStyle,
 } from "../primitives";
 import { join } from "./class-names";
+import { useButtonGroupOrientation } from "./button-group-context";
 
 export type ButtonVariant =
   | "default"
@@ -89,6 +90,7 @@ export function Button(props: ButtonProps): JSX.Element {
   const forwarded = omit(props, "variant", "size", "class", "style");
   const variant = () => local.variant ?? "default";
   const size = () => local.size ?? "default";
+  const groupOrientation = useButtonGroupOrientation();
   return (
     <HeadlessButton
       {...forwarded}
@@ -98,6 +100,7 @@ export function Button(props: ButtonProps): JSX.Element {
           "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium",
           buttonColors(variant(), state),
           buttonSize(size()),
+          groupOrientation && "rounded-none border-transparent",
           local.class,
         )
       }

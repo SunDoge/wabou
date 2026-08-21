@@ -36,6 +36,7 @@ import {
   BubbleReactions,
   Button,
   ButtonGroup,
+  ButtonGroupSeparator,
   ButtonGroupText,
   CalendarDate,
   Carousel,
@@ -1406,16 +1407,22 @@ export function ButtonGroupPage() {
       <Preview title="Toolbar">
         <ButtonGroup>
           <Button variant="outline">Back</Button>
+          <ButtonGroupSeparator />
           <Button variant="outline">Forward</Button>
+          <ButtonGroupSeparator />
           <Button variant="outline">Reload</Button>
+          <ButtonGroupSeparator />
           <ButtonGroupText>3 selected</ButtonGroupText>
+          <ButtonGroupSeparator />
           <Button variant="destructive">Delete</Button>
         </ButtonGroup>
       </Preview>
       <Preview title="Vertical">
         <ButtonGroup orientation="vertical" class="w-40">
           <Button variant="outline">Profile</Button>
+          <ButtonGroupSeparator orientation="horizontal" />
           <Button variant="outline">Settings</Button>
+          <ButtonGroupSeparator orientation="horizontal" />
           <Button variant="outline">Sign out</Button>
         </ButtonGroup>
       </Preview>

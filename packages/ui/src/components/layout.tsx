@@ -100,33 +100,6 @@ export function EmptyContent(props: {
     </View>
   );
 }
-export function ButtonGroup(props: {
-  children?: JSX.Element;
-  orientation?: "horizontal" | "vertical";
-  class?: string;
-}) {
-  const layout = () =>
-    match(props.orientation ?? "horizontal")
-      .with("horizontal", () => "flex-row items-center")
-      .with("vertical", () => "flex-col items-stretch")
-      .exhaustive();
-  return (
-    <View role="group" class={join("flex gap-1", layout(), props.class)}>
-      {props.children}
-    </View>
-  );
-}
-export function ButtonGroupText(props: {
-  children?: JSX.Element;
-  class?: string;
-}) {
-  return (
-    <Text class={join("px-2 text-sm text-muted", props.class)}>
-      {props.children}
-    </Text>
-  );
-}
-
 export type ResponsiveGridColumnCount = 1 | 2 | 3 | 4;
 
 export interface ResponsiveGridState {
