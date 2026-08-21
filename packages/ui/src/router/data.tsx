@@ -179,10 +179,13 @@ function RouteMatch(props: RouteMatchProps): JSX.Element {
             return match()?.error;
           },
           get children() {
-            return (outlet ??= createComponent(RouteOutlet, {
-              router: props.router,
-              index: props.index + 1,
-            }));
+            if (outlet === undefined) {
+              outlet = createComponent(RouteOutlet, {
+                router: props.router,
+                index: props.index + 1,
+              });
+            }
+            return outlet;
           },
         }),
     },
