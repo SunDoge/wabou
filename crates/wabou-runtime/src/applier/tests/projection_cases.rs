@@ -1,6 +1,17 @@
 use super::*;
 
 #[test]
+fn runtime_projection_produces_a_self_consistent_debug_snapshot() {
+    let mut applier = interactive_applier();
+    let state = wabou_devtools::DebugState::shared();
+    applier.set_debug_state(state.clone());
+    applier.build_frame(&mut TextContext::new(), 800, 600);
+
+    let report = state.read().unwrap().validation_report();
+    assert!(report.valid, "{:#?}", report.issues);
+}
+
+#[test]
 fn overlay_change_wakes_and_invalidates_an_idle_frame_source_once() {
     let mut applier = interactive_applier();
     let state = wabou_devtools::DebugState::shared();

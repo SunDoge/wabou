@@ -45,6 +45,7 @@ mise exec -- cargo run -p wabou-cli -- inspect query comments
 mise exec -- cargo run -p wabou-cli -- inspect node 42:1
 mise exec -- cargo run -p wabou-cli -- inspect at 820 600
 mise exec -- cargo run -p wabou-cli -- inspect frames --limit 20
+mise exec -- cargo run -p wabou-cli -- inspect validate
 mise exec -- cargo run -p wabou-cli -- inspect screenshot
 mise exec -- cargo run -p wabou-cli -- inspect capture --x 820 --y 600 --output /tmp/wabou-case
 ```
@@ -76,6 +77,14 @@ trying to reproduce it with a separate class-merging heuristic.
 application data. Set `WABOU_DEVTOOLS_RAW_FRAMES=1` to opt in; previews are
 then capped at 4 KiB per trace record.
 
+`validate` checks the latest retained snapshot before pixel diagnosis. It
+reports stable issue codes for duplicate or dangling node identities, parent
+cycles, invalid border/content/clip geometry, non-finite transforms, stale
+focus or hover targets, dangling semantic references, and rejected style
+declarations. Warnings do not make the report invalid; broken retained-state
+invariants do. Responses retain full error/warning counts and cap serialized
+findings at 256 with `truncated: true` when more evidence exists.
+
 `at` finds the topmost hit-testable node at logical window coordinates and
 returns its ancestor chain. Node inspection includes the widget-local content
 clip, every contributing ancestor overflow clip, the effective window-logical
@@ -87,8 +96,9 @@ recent protocol frames, and optional point inspection when that same rendered
 frame completes. It writes `screenshot.png`, `manifest.json`, `tree.json`, and,
 when a point hits a node, `selected-node.json` into the output directory.
 
-Screenshots are rendered only on request and written as mode `0600` PNG files.
-Normal frames do not perform a GPU readback.
+Screenshots are rendered only on request into atomically reserved mode `0600`
+PNG files inside a private mode `0700` runtime directory. The latest 16
+completed captures are retained; normal frames do not perform a GPU readback.
 
 ## MCP
 
@@ -112,6 +122,7 @@ The server exposes:
 - `wabou_inspect_node`
 - `wabou_inspect_at_point`
 - `wabou_recent_frames`
+- `wabou_validate_snapshot`
 - `wabou_set_layout_overlay`
 - `wabou_capture_screenshot`
 - `wabou_capture_case`

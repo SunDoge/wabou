@@ -46,8 +46,15 @@ Then inspect the discovered socket:
 mise exec -- bun run wabou inspect status
 mise exec -- bun run wabou inspect query fractal
 mise exec -- bun run wabou inspect node <id>
+mise exec -- bun run wabou inspect validate
 mise exec -- bun run wabou inspect screenshot
 ```
+
+Run `validate` before interpreting pixels. An invalid report means the
+retained tree, geometry, clip chain, interaction targets, or semantic
+references are internally inconsistent; diagnose that earliest failing layer
+before relying on the screenshot. Warning-only reports remain structurally
+valid and commonly identify rejected style declarations.
 
 Use the DevTools `Layout` control for native overlays:
 

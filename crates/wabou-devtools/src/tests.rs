@@ -32,6 +32,161 @@ fn query_and_inspect_are_bounded_and_semantic() {
 }
 
 #[test]
+fn snapshot_validation_reports_structural_geometry_and_reference_evidence() {
+    let first = NodeKey::new(1, 1);
+    let second = NodeKey::new(2, 1);
+    let missing = NodeKey::new(99, 1);
+    let mut state = DebugState::default();
+    state.publish(DebugSnapshot {
+        status: DebugStatus {
+            revision: 12,
+            node_count: 2,
+            device_scale: 0.0,
+            focused_node: Some(missing),
+            ..Default::default()
+        },
+        nodes: vec![
+            DebugNode {
+                id: first,
+                parent_id: Some(second),
+                rect: Rect {
+                    width: 10.0,
+                    height: 10.0,
+                    ..Default::default()
+                },
+                content_rect: Rect {
+                    x: -2.0,
+                    width: 12.0,
+                    height: 10.0,
+                    ..Default::default()
+                },
+                style_diagnostics: vec!["unsupported utility".to_owned()],
+                semantic: Some(DebugSemanticProjection {
+                    controls: vec![missing],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            DebugNode {
+                id: second,
+                parent_id: Some(first),
+                rect: Rect {
+                    width: -1.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        ],
+    });
+
+    let report: DebugValidationReport = serde_json::from_value(
+        state
+            .execute(&request(1, "validateSnapshot", empty_params()).command)
+            .expect("validate snapshot"),
+    )
+    .expect("validation report");
+    assert_eq!(report.revision, 12);
+    assert!(!report.valid);
+    assert!(report.error_count >= 6, "{:#?}", report.issues);
+    assert_eq!(report.warning_count, 1);
+    assert!(!report.truncated);
+    let codes = report
+        .issues
+        .iter()
+        .map(|issue| issue.code.as_str())
+        .collect::<HashSet<_>>();
+    for code in [
+        "invalid-device-scale",
+        "invalid-geometry",
+        "content-outside-border",
+        "parent-cycle",
+        "dangling-interaction-target",
+        "dangling-semantic-reference",
+        "style-diagnostic",
+    ] {
+        assert!(codes.contains(code), "missing {code}: {:#?}", report.issues);
+    }
+}
+
+#[test]
+fn snapshot_validation_accepts_a_self_consistent_tree() {
+    let root = NodeKey::new(1, 1);
+    let child = NodeKey::new(2, 1);
+    let mut state = DebugState::default();
+    state.publish(DebugSnapshot {
+        status: DebugStatus {
+            revision: 3,
+            node_count: 2,
+            focused_node: Some(child),
+            ..Default::default()
+        },
+        nodes: vec![
+            DebugNode {
+                id: root,
+                rect: Rect {
+                    width: 100.0,
+                    height: 100.0,
+                    ..Default::default()
+                },
+                content_rect: Rect {
+                    width: 100.0,
+                    height: 100.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            DebugNode {
+                id: child,
+                parent_id: Some(root),
+                rect: Rect {
+                    x: 10.0,
+                    y: 10.0,
+                    width: 20.0,
+                    height: 20.0,
+                },
+                content_rect: Rect {
+                    x: 10.0,
+                    y: 10.0,
+                    width: 20.0,
+                    height: 20.0,
+                },
+                ..Default::default()
+            },
+        ],
+    });
+
+    let report = state.validation_report();
+    assert!(report.valid, "{:#?}", report.issues);
+    assert!(report.issues.is_empty());
+}
+
+#[test]
+fn snapshot_validation_bounds_serialized_findings_without_losing_counts() {
+    let mut state = DebugState::default();
+    state.publish(DebugSnapshot {
+        status: DebugStatus {
+            node_count: MAX_VALIDATION_ISSUES + 10,
+            ..Default::default()
+        },
+        nodes: (1..=(MAX_VALIDATION_ISSUES + 10))
+            .map(|slot| DebugNode {
+                id: NodeKey::new(slot as u32, 1),
+                rect: Rect {
+                    width: -1.0,
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .collect(),
+    });
+
+    let report = state.validation_report();
+    assert!(report.truncated);
+    assert_eq!(report.issues.len(), MAX_VALIDATION_ISSUES);
+    assert!(report.error_count > report.issues.len());
+}
+
+#[test]
 fn inspect_at_point_uses_paint_order_pointer_events_and_effective_clip() {
     let mut state = DebugState::default();
     let node = |id, pointer_events, clip: Option<Rect>| DebugNode {

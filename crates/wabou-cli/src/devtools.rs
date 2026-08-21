@@ -35,6 +35,8 @@ pub(super) enum InspectCommand {
         #[arg(long, default_value_t = 20)]
         limit: usize,
     },
+    /// Validate the latest retained snapshot for broken framework invariants.
+    Validate,
     Screenshot,
     Capture {
         #[arg(long)]
@@ -130,6 +132,7 @@ fn find_helper(current_exe: &Path, path: Option<&OsStr>, name: &str) -> Option<P
 
 pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Result<()> {
     let path = socket.map_or_else(discover_socket, Ok)?;
+    let validate_snapshot = matches!(&command, InspectCommand::Validate);
     let capture_output = match &command {
         InspectCommand::Capture { output, .. } => Some(output.clone()),
         _ => None,
@@ -142,6 +145,7 @@ pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Resul
         InspectCommand::Node { id } => ("inspectNode", json!({ "id": id.0 })),
         InspectCommand::At { x, y } => ("inspectAtPoint", json!({ "x": x, "y": y })),
         InspectCommand::Frames { limit } => ("recentFrames", json!({ "limit": limit })),
+        InspectCommand::Validate => ("validateSnapshot", empty_params()),
         InspectCommand::Screenshot => ("captureScreenshot", empty_params()),
         InspectCommand::Capture { x, y, .. } => {
             let params = match (x, y) {
@@ -158,6 +162,9 @@ pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Resul
         return Err(error.into());
     }
     let result = response.result.unwrap_or(Value::Null);
+    let validation_error = validate_snapshot
+        .then(|| snapshot_validation_error(&result))
+        .flatten();
     if let Some(output) = capture_output {
         let capture: DebugCaptureCase = serde_json::from_value(result)?;
         write_capture_case(&output, capture)?;
@@ -165,7 +172,19 @@ pub(super) fn inspect(socket: Option<PathBuf>, command: InspectCommand) -> Resul
     } else {
         println!("{}", serde_json::to_string_pretty(&result)?);
     }
+    if let Some(error) = validation_error {
+        return Err(error.into());
+    }
     Ok(())
+}
+
+fn snapshot_validation_error(result: &Value) -> Option<String> {
+    (result["valid"] == false).then(|| {
+        format!(
+            "snapshot validation failed with {} errors",
+            result["errorCount"].as_u64().unwrap_or(0)
+        )
+    })
 }
 
 fn write_capture_case(output: &Path, mut capture: DebugCaptureCase) -> Result<()> {
@@ -275,5 +294,17 @@ mod tests {
         assert!(output.join("manifest.json").is_file());
         assert!(output.join("tree.json").is_file());
         assert!(output.join("selected-node.json").is_file());
+    }
+
+    #[test]
+    fn validation_exit_status_ignores_warnings_but_rejects_errors() {
+        assert_eq!(
+            snapshot_validation_error(&json!({"valid": true, "warningCount": 2})),
+            None
+        );
+        assert_eq!(
+            snapshot_validation_error(&json!({"valid": false, "errorCount": 3})),
+            Some("snapshot validation failed with 3 errors".to_owned())
+        );
     }
 }

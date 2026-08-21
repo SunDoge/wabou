@@ -182,6 +182,17 @@ impl WabouMcp {
     }
 
     #[tool(
+        name = "wabou_validate_snapshot",
+        description = "Validate retained node identity, parent chains, geometry, clips, transforms, interaction targets and semantic references"
+    )]
+    async fn validate_snapshot(&self) -> CallToolResult {
+        Self::tool_result(
+            self.runtime_call("validateSnapshot", empty_params()).await,
+            None,
+        )
+    }
+
+    #[tool(
         name = "wabou_set_layout_overlay",
         description = "Show or hide native layout, clip and hit-test diagnostics"
     )]

@@ -68,7 +68,7 @@ fn mcp_lists_tools_and_forwards_status_to_the_runtime_socket() {
     let lines = [first, second, third];
     assert_eq!(lines[0]["result"]["serverInfo"]["name"], "wabou-devtools");
     let tools = lines[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 8);
+    assert_eq!(tools.len(), 9);
     assert!(
         tools
             .iter()
@@ -78,6 +78,11 @@ fn mcp_lists_tools_and_forwards_status_to_the_runtime_socket() {
         tools
             .iter()
             .any(|tool| tool["name"] == "wabou_capture_case")
+    );
+    assert!(
+        tools
+            .iter()
+            .any(|tool| tool["name"] == "wabou_validate_snapshot")
     );
     let text = lines[2]["result"]["content"][0]["text"].as_str().unwrap();
     let status: Value = serde_json::from_str(text).unwrap();
