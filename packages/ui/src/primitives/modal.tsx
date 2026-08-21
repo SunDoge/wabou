@@ -88,6 +88,8 @@ export interface ModalProps {
   backdropStyle?: WabouStyle;
   contentClass?: string;
   contentStyle?: WabouStyle;
+  /** Composes component-specific movement with the modal presence transform. */
+  contentTransform?: (base: Affine2D, presenceProgress: number) => Affine2D;
   contentShadows?: readonly Shadow[] | null;
   contentRef?: (node: Handle) => void;
   closeOnBackdrop?: boolean;
@@ -238,7 +240,9 @@ export function Modal(props: ModalProps): JSX.Element {
                 return props.contentShadows;
               },
               get transform() {
-                return modalMotionTransform(motionOptions, presence.progress());
+                const progress = presence.progress();
+                const base = modalMotionTransform(motionOptions, progress);
+                return props.contentTransform?.(base, progress) ?? base;
               },
               get interactionBlocked() {
                 return !open();

@@ -12,6 +12,9 @@
     "carousel-hidpi.ts": {
       "scaleFactor": 2
     },
+    "drawer-hidpi.ts": {
+      "scaleFactor": 2
+    },
     "attachment-hidpi.ts": {
       "scaleFactor": 2
     },

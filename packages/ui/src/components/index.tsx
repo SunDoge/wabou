@@ -39,6 +39,7 @@ export {
   type SkeletonProps,
   Spinner,
 } from "./display";
+export * from "./drawer";
 export * from "./dropdown-menu";
 export * from "./forms";
 export * from "./hover-card";

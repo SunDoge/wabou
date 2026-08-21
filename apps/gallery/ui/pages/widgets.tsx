@@ -56,6 +56,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Drawer,
+  DrawerClose,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHandle,
+  DrawerHeader,
+  DrawerTitle,
   DropdownMenu,
   Empty,
   EmptyContent,
@@ -248,6 +255,51 @@ export function SheetPage() {
           </>
         )}
       </Sheet>
+    </Preview>
+  );
+}
+
+export function DrawerPage() {
+  const [open, setOpen] = createSignal(false);
+  const [status, setStatus] = createSignal("Drawer has not opened");
+  return (
+    <Preview title="Drag-to-dismiss drawer">
+      <View class="flex flex-col items-start gap-3">
+        <Drawer
+          aria-label="Create task"
+          open={open()}
+          onOpenChange={(next, reason) => {
+            setOpen(next);
+            setStatus(next ? "Drawer opened" : `Drawer closed by ${reason}`);
+          }}
+          direction="bottom"
+          contentClass="h-[320px]"
+          trigger={(trigger) => <Button {...trigger}>Open drawer</Button>}
+        >
+          <DrawerHandle />
+          <DrawerHeader>
+            <DrawerTitle>Create a download task</DrawerTitle>
+            <DrawerDescription>
+              Drag the handle downward, press Escape, or use an explicit action.
+            </DrawerDescription>
+          </DrawerHeader>
+          <View class="min-h-0 flex-1 px-5">
+            <Input
+              aria-label="Download URL"
+              placeholder="https://example.com/archive.zip"
+            />
+          </View>
+          <DrawerFooter>
+            <Button onClick={() => setStatus("Task created")}>
+              Create task
+            </Button>
+            <DrawerClose variant="outline">Cancel</DrawerClose>
+          </DrawerFooter>
+        </Drawer>
+        <Text role="status" class="text-sm text-muted">
+          {status()}
+        </Text>
+      </View>
     </Preview>
   );
 }

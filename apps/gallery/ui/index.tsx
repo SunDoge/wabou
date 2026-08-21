@@ -67,6 +67,7 @@ type ComponentId =
   | "dialog"
   | "alert-dialog"
   | "sheet"
+  | "drawer"
   | "toast"
   | "tooltip"
   | "popover"
@@ -114,6 +115,7 @@ const groups: Array<{
       { id: "context-menu", name: "Context menu" },
       { id: "command", name: "Command" },
       { id: "sheet", name: "Sheet" },
+      { id: "drawer", name: "Drawer" },
       { id: "toast", name: "Toast" },
       { id: "popover", name: "Popover" },
       { id: "hover-card", name: "Hover card" },
@@ -248,6 +250,8 @@ const descriptions: Record<ComponentId, string> = {
   "alert-dialog":
     "Interrupts a workflow until the user explicitly confirms or cancels.",
   sheet: "A modal panel attached to a viewport edge.",
+  drawer:
+    "A focus-isolated edge panel that can be dismissed with captured pointer dragging.",
   toast: "Shows non-blocking feedback with queueing, actions and timeouts.",
   tooltip:
     "A delayed floating label for pointer hover and keyboard focus targets.",
@@ -349,6 +353,7 @@ import {
   ContextMenuPage,
   DatePickerPage,
   DialogPage,
+  DrawerPage,
   DropdownMenuPage,
   EmptyPage,
   FieldPage,
@@ -593,6 +598,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "sheet"}>
                     <SheetPage />
+                  </Match>
+                  <Match when={selected() === "drawer"}>
+                    <DrawerPage />
                   </Match>
                   <Match when={selected() === "toast"}>
                     <ToastPage />
