@@ -41,6 +41,7 @@ export {
 } from "./display";
 export * from "./drawer";
 export * from "./dropdown-menu";
+export * from "./empty";
 export * from "./forms";
 export * from "./hover-card";
 export * from "./input";

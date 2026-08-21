@@ -616,7 +616,10 @@ export function DownloadsPage() {
                       class={narrow() ? "flex-1 p-2 gap-2" : "flex-1"}
                     >
                       <Show when={!narrow()}>
-                        <EmptyMedia class="rounded-full bg-selected">
+                        <EmptyMedia
+                          variant="icon"
+                          class="rounded-full bg-selected"
+                        >
                           <Icon source={plus} size={22} class="text-accent" />
                         </EmptyMedia>
                       </Show>

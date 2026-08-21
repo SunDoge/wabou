@@ -1328,7 +1328,7 @@ export function EmptyPage() {
     <Preview title="Empty state">
       <Empty class="w-[560px]">
         <EmptyHeader>
-          <EmptyMedia>
+          <EmptyMedia variant="icon">
             <Icon source={rocket} aria-hidden="true" size={24} />
           </EmptyMedia>
           <EmptyTitle>No deployments yet</EmptyTitle>

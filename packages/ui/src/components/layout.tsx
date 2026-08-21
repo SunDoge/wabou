@@ -9,97 +9,10 @@ import {
   useContext,
 } from "solid-js";
 import { match } from "ts-pattern";
-import {
-  Center,
-  Column,
-  createMeasuredSize,
-  Text,
-  View,
-  type ViewProps,
-} from "../primitives";
+import { createMeasuredSize, View, type ViewProps } from "../primitives";
 import { join } from "./class-names";
 import { Dialog } from "./dialog";
 
-export type EmptyVariant = "surface" | "plain";
-
-export const emptyClass = (
-  variant: EmptyVariant = "surface",
-  className?: string,
-) =>
-  join(
-    "w-full min-w-0 p-8 items-center justify-center gap-4",
-    variant === "surface"
-      ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs"
-      : "min-h-0 bg-transparent",
-    className,
-  );
-
-export function Empty(props: {
-  children?: JSX.Element;
-  class?: string;
-  /** `plain` embeds inside an existing Card without creating a nested surface. */
-  variant?: EmptyVariant;
-}) {
-  return (
-    <Column class={emptyClass(props.variant, props.class)}>
-      {props.children}
-    </Column>
-  );
-}
-export function EmptyHeader(props: { children?: JSX.Element; class?: string }) {
-  return (
-    <Column class={join("max-w-md items-center gap-2", props.class)}>
-      {props.children}
-    </Column>
-  );
-}
-export function EmptyMedia(props: { children?: JSX.Element; class?: string }) {
-  return (
-    <Center
-      class={join(
-        "w-12 h-12 flex-none rounded-lg bg-control text-secondary",
-        props.class,
-      )}
-    >
-      {props.children}
-    </Center>
-  );
-}
-export function EmptyTitle(props: { children?: JSX.Element; class?: string }) {
-  return (
-    <Text
-      role="heading"
-      class={join("text-base font-semibold text-primary", props.class)}
-    >
-      {props.children}
-    </Text>
-  );
-}
-export function EmptyDescription(props: {
-  children?: JSX.Element;
-  class?: string;
-}) {
-  return (
-    <Text
-      class={join(
-        "w-full min-w-0 whitespace-normal text-center text-sm text-muted",
-        props.class,
-      )}
-    >
-      {props.children}
-    </Text>
-  );
-}
-export function EmptyContent(props: {
-  children?: JSX.Element;
-  class?: string;
-}) {
-  return (
-    <View class={join("flex items-center gap-2", props.class)}>
-      {props.children}
-    </View>
-  );
-}
 export type ResponsiveGridColumnCount = 1 | 2 | 3 | 4;
 
 export interface ResponsiveGridState {

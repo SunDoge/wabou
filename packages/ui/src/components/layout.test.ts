@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { emptyClass } from "./empty";
 import {
-  emptyClass,
   responsiveGridColumnCount,
   responsiveGridRemainderCount,
 } from "./layout";
@@ -51,7 +51,7 @@ describe("ResponsiveGrid", () => {
 describe("Empty", () => {
   test("plain variant embeds without adding another surface", () => {
     expect(emptyClass("plain", "flex-1")).toBe(
-      "w-full min-w-0 p-8 items-center justify-center gap-4 min-h-0 bg-transparent flex-1",
+      "w-full min-w-0 flex-1 p-8 items-center justify-center gap-6 text-center min-h-0 bg-transparent flex-1",
     );
     expect(emptyClass()).toContain("border-subtle");
     expect(emptyClass()).toContain("shadow-xs");

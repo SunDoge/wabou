@@ -59,7 +59,7 @@ export function NotificationsPage() {
             when={recentEvents().length}
             fallback={
               <Empty class="h-full min-h-0 rounded-none border-0 shadow-none">
-                <EmptyMedia class="rounded-full">
+                <EmptyMedia variant="icon" class="rounded-full">
                   <Icon source={checkCircle} size={22} class="text-muted" />
                 </EmptyMedia>
                 <EmptyTitle>No recent notifications</EmptyTitle>
