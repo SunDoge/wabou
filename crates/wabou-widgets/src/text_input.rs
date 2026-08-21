@@ -23,7 +23,6 @@ use wabou_shell::{PaintContext, Widget, WidgetChanges, WidgetEventResult, Widget
 use crate::single_line_y_offset;
 
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
-const CARET_COLOR: Color = Color::from_rgb8(0xe2, 0xe8, 0xf0);
 const PLACEHOLDER_COLOR: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
 const CONTENT_CHANGED: WidgetChanges = WidgetChanges::REDRAW.union(WidgetChanges::SEMANTICS);
 
@@ -134,6 +133,12 @@ impl TextInput {
 
     fn editable(&self) -> bool {
         !self.disabled && !self.read_only
+    }
+
+    fn caret_color(&self) -> Color {
+        // The computed foreground already follows the active JS theme. Using
+        // it keeps the caret visible on both light and dark input surfaces.
+        self.text_color
     }
 
     fn local_point(&self, x: f64, y: f64) -> (f32, f32) {
@@ -498,7 +503,7 @@ impl TextInput {
             scene.fill(
                 Fill::NonZero,
                 transform,
-                CARET_COLOR,
+                self.caret_color(),
                 None,
                 &Rect::new(cursor.x0, cursor.y0, cursor.x1, cursor.y1),
             );
@@ -843,6 +848,17 @@ mod tests {
         assert_eq!(
             input.attribute_removed("data-unknown"),
             WidgetChanges::empty()
+        );
+    }
+
+    #[test]
+    fn caret_follows_the_computed_foreground_color() {
+        let mut input = TextInput::new();
+        input.attribute_changed("color", "#111827");
+
+        assert_eq!(
+            input.caret_color(),
+            wabou_shell::style::parse_color("#111827").unwrap()
         );
     }
 
