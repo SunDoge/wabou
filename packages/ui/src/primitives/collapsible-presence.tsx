@@ -3,13 +3,15 @@ import { createEffect, type JSX, Show, untrack } from "solid-js";
 import { createTransition, type Easing, useReducedMotion } from "../animation";
 import { createMeasuredSize } from "./measure";
 import { createPresence } from "./presence";
-import { View, type WabouStyle } from "./view";
+import { View, type ViewProps, type WabouStyle } from "./view";
 
 export interface CollapsiblePresenceProps {
   open: boolean;
   children?: JSX.Element;
   class?: string;
   contentClass?: string;
+  /** Props applied to the retained content node inside the animated viewport. */
+  contentProps?: Omit<ViewProps, "children" | "class" | "style">;
   style?: WabouStyle;
   contentStyle?: WabouStyle;
   duration?: number;
@@ -88,7 +90,11 @@ export function CollapsiblePresence(
     >
       <Show when={presence.mounted()}>
         <View ref={measured.ref}>
-          <View class={props.contentClass} style={props.contentStyle}>
+          <View
+            {...props.contentProps}
+            class={props.contentClass}
+            style={props.contentStyle}
+          >
             {props.children}
           </View>
         </View>

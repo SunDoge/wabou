@@ -103,6 +103,7 @@ export type WabouSemanticRole =
   | "progressbar"
   | "radio"
   | "radiogroup"
+  | "region"
   | "row"
   | "rowheader"
   | "separator"

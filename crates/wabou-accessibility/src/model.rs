@@ -53,6 +53,8 @@ semantic_roles! {
     Image => "img",
     /// Container for mutually exclusive radio controls.
     RadioGroup => "radiogroup",
+    /// Named landmark region containing related content.
+    Region => "region",
     /// Navigational link.
     Link => "link",
     /// Dialog surface.

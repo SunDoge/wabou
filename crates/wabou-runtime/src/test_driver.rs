@@ -1627,6 +1627,7 @@ mod tests {
             ("group", SemanticRole::Group),
             ("img", SemanticRole::Image),
             ("radiogroup", SemanticRole::RadioGroup),
+            ("region", SemanticRole::Region),
             ("menu", SemanticRole::Menu),
             ("menubar", SemanticRole::MenuBar),
             ("menuitem", SemanticRole::MenuItem),

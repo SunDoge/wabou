@@ -1,4 +1,4 @@
-import { $ as Link, A as isSelected, B as Path, C as OverlayPlaneProvider, D as Column, E as Center, F as CodeEditor, G as TextInput, H as Svg, I as Icon, J as translate2d$1, K as View, L as Image, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as Button$1, R as NetworkImage, S as createTransitionPresence, U as Text, V as PathBuilder, W as TextArea, X as createContainerMatch, Y as createPresence, Z as createMeasuredSize, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as createButton, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as rotate2d$1, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as PasswordInput$1 } from "./primitives-QVhvet6v.mjs";
+import { $ as Link, A as isSelected, B as Path, C as OverlayPlaneProvider, D as Column, E as Center, F as CodeEditor, G as TextInput, H as Svg, I as Icon, J as translate2d$1, K as View, L as Image, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as Button$1, R as NetworkImage, S as createTransitionPresence, U as Text, V as PathBuilder, W as TextArea, X as createContainerMatch, Y as createPresence, Z as createMeasuredSize, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as createButton, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as rotate2d$1, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as PasswordInput$1 } from "./primitives-Bg9X0mo4.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -2250,33 +2250,36 @@ function Collapsible(props) {
 		disabled: state.disabled,
 		reducedMotion: () => props.reducedMotion ?? inheritedReducedMotion()
 	};
+	const rest = omit(props, "open", "defaultOpen", "disabled", "reducedMotion", "onOpenChange", "class", "children");
 	return createComponent$1(CollapsibleContext, {
 		value: context,
 		get children() {
-			return createComponent$1(View, {
+			return createComponent$1(View, mergeProps(rest, {
 				get ["class"]() {
 					return join("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
 				}
-			});
+			}));
 		}
 	});
 }
 function CollapsibleTrigger(props) {
 	const context = useCollapsible();
-	return createComponent$1(Button$1, {
+	const rest = omit(props, "children", "class", "onClick");
+	return createComponent$1(Button$1, mergeProps(rest, {
 		unstyled: true,
 		get disabled() {
-			return context.disabled();
+			return context.disabled() || props.disabled;
 		},
 		get ["aria-expanded"]() {
 			return context.open();
 		},
 		class: "w-full",
-		get onClick() {
-			return context.toggle;
+		onClick: (event) => {
+			props.onClick?.(event);
+			if (!event.defaultPrevented) context.toggle();
 		},
 		get children() {
 			return createComponent$1(View, {
@@ -2297,10 +2300,11 @@ function CollapsibleTrigger(props) {
 				}
 			});
 		}
-	});
+	}));
 }
 function CollapsibleContent(props) {
 	const context = useCollapsible();
+	const contentProps = omit(props, "children", "class", "style");
 	return createComponent$1(CollapsiblePresence, {
 		get open() {
 			return context.open();
@@ -2310,6 +2314,10 @@ function CollapsibleContent(props) {
 		},
 		get contentClass() {
 			return props.class;
+		},
+		contentProps,
+		get contentStyle() {
+			return props.style;
 		},
 		get children() {
 			return props.children;
@@ -2340,28 +2348,38 @@ function Accordion(props) {
 		disabled: () => props.disabled ?? false,
 		onChange: props.onValueChange
 	});
-	return createComponent$1(AccordionContext, {
-		value: {
-			active: (item) => isSelected(state.value(), item),
-			toggle: (item) => {
-				state.set(nextAccordionValue(state.value(), type(), item, props.collapsible));
-			},
-			disabled: () => props.disabled ?? false,
-			reducedMotion: () => props.reducedMotion ?? inheritedReducedMotion()
+	const roving = createRovingFocus({ orientation: () => "vertical" });
+	const context = {
+		active: (item) => isSelected(state.value(), item),
+		toggle: (item) => {
+			state.set(nextAccordionValue(state.value(), type(), item, props.collapsible));
 		},
+		disabled: () => props.disabled ?? false,
+		reducedMotion: () => props.reducedMotion ?? inheritedReducedMotion(),
+		register: (value, node, disabled) => roving.register({
+			id: value,
+			target: node,
+			disabled
+		}),
+		move: roving.move
+	};
+	const rest = omit(props, "type", "value", "defaultValue", "collapsible", "disabled", "reducedMotion", "onValueChange", "class", "children");
+	return createComponent$1(AccordionContext, {
+		value: context,
 		get children() {
-			return createComponent$1(View, {
+			return createComponent$1(View, mergeProps(rest, {
 				get ["class"]() {
 					return join("flex flex-col", props.class);
 				},
 				get children() {
 					return props.children;
 				}
-			});
+			}));
 		}
 	});
 }
 function AccordionItem(props) {
+	const rest = omit(props, "value", "disabled", "children", "class");
 	return createComponent$1(AccordionItemContext, {
 		get value() {
 			return {
@@ -2370,14 +2388,14 @@ function AccordionItem(props) {
 			};
 		},
 		get children() {
-			return createComponent$1(View, {
+			return createComponent$1(View, mergeProps(rest, {
 				get ["class"]() {
 					return join("flex flex-col border-b border-subtle", props.class);
 				},
 				get children() {
 					return props.children;
 				}
-			});
+			}));
 		}
 	});
 }
@@ -2385,16 +2403,31 @@ function AccordionTrigger(props) {
 	const root = useAccordion();
 	const item = useAccordionItem();
 	const open = () => root.active(item.value);
-	return createComponent$1(Button$1, {
+	const rest = omit(props, "children", "class", "ref", "onClick", "onKeyDown");
+	let unregister;
+	onCleanup(() => unregister?.());
+	return createComponent$1(Button$1, mergeProps(rest, {
 		unstyled: true,
 		get disabled() {
-			return root.disabled() || item.disabled();
+			return root.disabled() || item.disabled() || props.disabled;
 		},
 		get ["aria-expanded"]() {
 			return open();
 		},
 		class: "w-full",
-		onClick: () => root.toggle(item.value),
+		ref: (node) => {
+			unregister?.();
+			unregister = root.register(item.value, node, () => root.disabled() || item.disabled() || (props.disabled ?? false));
+			props.ref?.(node);
+		},
+		onClick: (event) => {
+			props.onClick?.(event);
+			if (!event.defaultPrevented) root.toggle(item.value);
+		},
+		onKeyDown: (event) => {
+			props.onKeyDown?.(event);
+			if (!event.defaultPrevented && root.move(item.value, event.key)) event.preventDefault();
+		},
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
@@ -2415,11 +2448,12 @@ function AccordionTrigger(props) {
 				}
 			});
 		}
-	});
+	}));
 }
 function AccordionContent(props) {
 	const root = useAccordion();
 	const item = useAccordionItem();
+	const contentProps = omit(props, "children", "class", "style");
 	return createComponent$1(CollapsiblePresence, {
 		get open() {
 			return root.active(item.value);
@@ -2429,6 +2463,10 @@ function AccordionContent(props) {
 		},
 		get contentClass() {
 			return join("pb-4", props.class);
+		},
+		contentProps,
+		get contentStyle() {
+			return props.style;
 		},
 		get children() {
 			return props.children;

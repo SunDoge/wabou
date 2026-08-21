@@ -1,5 +1,9 @@
 import { type ComponentScreen, renderComponent } from "@wabou/test/component";
 import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -66,6 +70,38 @@ test("removes closed disclosure content immediately under reduced motion", () =>
   expect(screen.queryByRole("status")).toBeNull();
 });
 
+test("collapsible forwards root, trigger and content contracts", () => {
+  const screen = renderComponent(() => (
+    <Collapsible
+      defaultOpen
+      reducedMotion
+      role="group"
+      aria-label="Advanced settings"
+    >
+      <CollapsibleTrigger
+        aria-label="Toggle advanced settings"
+        onClick={(event) => event.preventDefault()}
+      >
+        Advanced
+      </CollapsibleTrigger>
+      <CollapsibleContent role="region" aria-label="Advanced options">
+        <Text>Options</Text>
+      </CollapsibleContent>
+    </Collapsible>
+  ));
+
+  expect(screen.getByRole("group", { name: "Advanced settings" })).toBeTruthy();
+  const trigger = screen.getByRole("button", {
+    name: "Toggle advanced settings",
+  });
+  expect(trigger.expanded).toBe(true);
+  expect(screen.getByRole("region", { name: "Advanced options" }).text).toBe(
+    "Options",
+  );
+  trigger.click();
+  expect(trigger.expanded).toBe(true);
+});
+
 test("retargets an interrupted disclosure exit without remounting content", async () => {
   const screen = renderDisclosure();
   const trigger = screen.getByRole("button", { name: "Details" });
@@ -82,4 +118,51 @@ test("retargets an interrupted disclosure exit without remounting content", asyn
   expect(screen.getByRole("status").text).toBe("Expanded content");
   await screen.advanceTime(220);
   expect(screen.getByRole("status").text).toBe("Expanded content");
+});
+
+test("accordion forwards its anatomy and roves focus across enabled triggers", () => {
+  const screen = renderComponent(() => (
+    <Accordion
+      defaultValue="one"
+      collapsible
+      reducedMotion
+      role="group"
+      aria-label="Questions"
+    >
+      <AccordionItem value="one" role="group" aria-label="First item">
+        <AccordionTrigger aria-label="First question">First</AccordionTrigger>
+        <AccordionContent role="region" aria-label="First answer">
+          <Text>Answer one</Text>
+        </AccordionContent>
+      </AccordionItem>
+      <AccordionItem value="two" disabled>
+        <AccordionTrigger aria-label="Second question">Second</AccordionTrigger>
+      </AccordionItem>
+      <AccordionItem value="three">
+        <AccordionTrigger
+          aria-label="Third question"
+          onClick={(event) => event.preventDefault()}
+        >
+          Third
+        </AccordionTrigger>
+      </AccordionItem>
+    </Accordion>
+  ));
+
+  expect(screen.getByRole("group", { name: "Questions" })).toBeTruthy();
+  expect(screen.getByRole("group", { name: "First item" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "First answer" }).text).toBe(
+    "Answer one",
+  );
+
+  const first = screen.getByRole("button", { name: "First question" });
+  const third = screen.getByRole("button", { name: "Third question" });
+  first.focus();
+  first.press("ArrowDown");
+  expect(third.focused).toBe(true);
+  third.press("Home");
+  expect(first.focused).toBe(true);
+
+  third.click();
+  expect(third.expanded).toBe(false);
 });

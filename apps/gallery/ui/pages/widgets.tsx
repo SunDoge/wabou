@@ -704,12 +704,18 @@ export function AccordionPage() {
   return (
     <View class="flex flex-col gap-5">
       <Preview title="Single selection">
-        <Accordion class="w-[520px]" collapsible defaultValue="native">
+        <Accordion
+          class="w-[520px]"
+          collapsible
+          defaultValue="native"
+          role="group"
+          aria-label="Wabou questions"
+        >
           <AccordionItem value="native">
             <AccordionTrigger>
               Is Wabou rendered by the browser?
             </AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent role="region" aria-label="Native rendering">
               <Text class="w-full whitespace-normal text-sm text-muted">
                 No. Solid produces a native scene graph rendered by Rust and
                 Vello.
@@ -720,7 +726,7 @@ export function AccordionPage() {
             <AccordionTrigger>
               Does it support arbitrary browser CSS?
             </AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent role="region" aria-label="CSS support">
               <Text class="w-full whitespace-normal text-sm text-muted">
                 No. Utilities compile to explicit native style values with
                 predictable semantics.
@@ -731,7 +737,7 @@ export function AccordionPage() {
             <AccordionTrigger>
               Can applications provide multiple themes?
             </AccordionTrigger>
-            <AccordionContent>
+            <AccordionContent role="region" aria-label="Theme support">
               <Text class="w-full whitespace-normal text-sm text-muted">
                 Yes. Semantic tokens allow runtime themes without coupling
                 widgets to a palette.
@@ -741,13 +747,21 @@ export function AccordionPage() {
         </Accordion>
       </Preview>
       <Preview title="Collapsible">
-        <Collapsible class="w-[520px] rounded-lg border border-subtle p-4">
+        <Collapsible
+          class="w-[520px] rounded-lg border border-subtle p-4"
+          role="group"
+          aria-label="Advanced settings"
+        >
           <CollapsibleTrigger>
             <Text class="text-sm font-medium text-primary">
               Advanced options
             </Text>
           </CollapsibleTrigger>
-          <CollapsibleContent class="pt-3">
+          <CollapsibleContent
+            class="pt-3"
+            role="region"
+            aria-label="Advanced options"
+          >
             <Text class="text-sm text-muted">
               Tracing and renderer diagnostics are available here.
             </Text>

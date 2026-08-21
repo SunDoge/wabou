@@ -492,6 +492,7 @@ mod tests {
             ("tree", SemanticRole::Tree),
             ("treeitem", SemanticRole::TreeItem),
             ("grid", SemanticRole::Grid),
+            ("region", SemanticRole::Region),
             ("separator", SemanticRole::Separator),
             ("spinbutton", SemanticRole::SpinButton),
         ] {
