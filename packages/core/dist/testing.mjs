@@ -1,2 +1,10 @@
-import { t as dispatchResizeObservation } from "./resize-observer-dWY6jptf.mjs";
-export { dispatchResizeObservation };
+import { o as dispatchResizeObservation, t as dispatchHostMessage } from "./host-messages-DS-2XbAS.mjs";
+//#region src/testing.ts
+/** Publish one native file-drop event without requiring a window backend. */
+function dispatchFileDropEvent(event) {
+	dispatchHostMessage("wabou:file-drop", JSON.stringify(event));
+}
+//#endregion
+export { dispatchFileDropEvent, dispatchResizeObservation };
+
+//# sourceMappingURL=testing.mjs.map

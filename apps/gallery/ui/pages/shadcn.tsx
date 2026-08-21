@@ -8,6 +8,7 @@ import {
   DirectionalRow,
   DirectionalText,
   DirectionProvider,
+  DropZone,
   NativeSelect,
   PropertyList,
   PropertyRow,
@@ -31,6 +32,19 @@ import {
   TypographyP,
   View,
 } from "@wabou/ui";
+
+export function DropZonePage() {
+  return (
+    <DropZone
+      class="max-w-2xl"
+      label="Import project files"
+      activeLabel="Release to import"
+      description="Accepts native filesystem paths without routing file contents through JavaScript."
+      accept={(path) => path.endsWith(".json") || path.endsWith(".toml")}
+      onDrop={() => {}}
+    />
+  );
+}
 
 export function NativeSelectPage() {
   return (

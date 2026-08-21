@@ -47,6 +47,7 @@ export {
   Spinner,
 } from "./display";
 export * from "./drawer";
+export * from "./drop-zone";
 export * from "./dropdown-menu";
 export * from "./empty";
 export * from "./forms";

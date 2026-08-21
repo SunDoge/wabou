@@ -1,7 +1,7 @@
 import { S as createResourceKeyFamily, a as GRAPHIC_SOURCE, c as HOST_RECORD_KIND, d as TEXT_BEHAVIOR, l as INTERACTION_POLICY, n as EVENT_DATA_LEN, o as HOST_FRAME, s as HOST_NODE_PAYLOAD, t as EVENT_CODE, u as OP, v as nodeKey } from "./protocol-BkE2Fvea.mjs";
 import { a as bool, c as number, d as rgba, f as rotate2d, g as INLINE_STYLE_CONTRACT, h as translate2d, i as auto, l as percent, m as shadow, n as StyleValueKind, o as classes, p as scale2d, r as assertInlineStyleValue, s as isTypedStyleValue, t as STYLE_VALUE, u as px } from "./style-D3b6x0_C.mjs";
 import { A as VirtualList, C as removeNode, D as setTransform2D, E as setProp, F as useHost, I as PathBuilder, L as isVectorPath, M as Portal, N as HostProvider, O as spread, P as defaultHost, S as releaseOverlayRoot, T as runSweep, _ as mergeProps, a as createElement, b as ref, c as dispatchEvent, d as getRequestEvent, f as insert, g as memo, h as isServer, i as createComponent, j as createFps, k as writer, l as effect, m as isDirectEvent, n as acquireOverlayRoot, o as createTextNode, p as insertNode, r as applyRef, s as delegateEvents, t as Dynamic, u as getMountRoot, v as mount, w as render, x as registerRoot, y as observeGlobalPointerEvent } from "./renderer-dN9fgzgr.mjs";
-import { t as dispatchResizeObservation } from "./resize-observer-dWY6jptf.mjs";
+import { a as subscribeJson, i as subscribeAll, n as hostMessages, o as dispatchResizeObservation, r as subscribe, t as dispatchHostMessage } from "./host-messages-DS-2XbAS.mjs";
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
@@ -304,66 +304,6 @@ function clearTimer(id) {
 }
 globalThis.clearTimeout = clearTimer;
 globalThis.clearInterval = clearTimer;
-//#endregion
-//#region src/glue/host-messages.ts
-const listeners = /* @__PURE__ */ new Map();
-const allListeners = /* @__PURE__ */ new Set();
-const utf8 = new TextDecoder();
-/**
-* Subscribe to host messages on `topic`.
-* Returns an unsubscribe function.
-*/
-function subscribe(topic, handler) {
-	let set = listeners.get(topic);
-	if (!set) {
-		set = /* @__PURE__ */ new Set();
-		listeners.set(topic, set);
-	}
-	set.add(handler);
-	return () => {
-		set.delete(handler);
-		if (set.size === 0) listeners.delete(topic);
-	};
-}
-/** Subscribe to every topic; handler receives `(topic, payload)`. */
-function subscribeAll(handler) {
-	allListeners.add(handler);
-	return () => {
-		allListeners.delete(handler);
-	};
-}
-/** Subscribe to a host topic carrying JSON text or UTF-8 bytes. */
-function subscribeJson(topic, handler, options = {}) {
-	return subscribe(topic, (payload) => {
-		try {
-			const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : void 0;
-			if (source === void 0) throw new TypeError(`host message "${topic}" does not contain JSON text`);
-			const parsed = JSON.parse(source);
-			handler(options.decode ? options.decode(parsed) : parsed);
-		} catch (error) {
-			if (options.onError) options.onError(error, payload);
-			else console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
-		}
-	});
-}
-function dispatchHostMessage(topic, payload) {
-	const set = listeners.get(topic);
-	if (set) for (const handler of set) try {
-		handler(payload);
-	} catch (error) {
-		console.error(`[wabou-host] subscriber for "${topic}" threw`, error);
-	}
-	for (const handler of allListeners) try {
-		handler(topic, payload);
-	} catch (error) {
-		console.error(`[wabou-host] subscribeAll handler threw`, error);
-	}
-}
-const hostMessages = {
-	subscribe,
-	subscribeAll,
-	subscribeJson
-};
 //#endregion
 //#region src/glue/host-frame.ts
 const RECORD_HEADER_LEN = 8;

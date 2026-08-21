@@ -21,6 +21,7 @@ export function defineWabouTestConfig(
 ): ComponentTestUserConfig {
   const core = fileURLToPath(import.meta.resolve("@wabou/core"));
   const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
+  const testing = fileURLToPath(import.meta.resolve("@wabou/core/testing"));
   const solidEntry = `${dirname(fileURLToPath(import.meta.resolve("solid-js/package.json")))}/dist/solid.js`;
   return mergeConfig(
     {
@@ -40,6 +41,10 @@ export function defineWabouTestConfig(
           // the root entry to source creates two module instances.
           { find: /^@wabou\/core$/, replacement: core },
           { find: /^@wabou\/core\/renderer$/, replacement: renderer },
+          // Test adapters dispatch into the same host-message registry used by
+          // components. A source-resolved subpath would create an isolated
+          // registry and make native observations disappear in tests.
+          { find: /^@wabou\/core\/testing$/, replacement: testing },
           { find: /^solid-js\/web$/, replacement: renderer },
         ],
       },

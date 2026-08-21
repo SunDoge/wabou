@@ -7,6 +7,7 @@ import solid from "vite-plugin-solid";
 function defineWabouTestConfig(options = {}) {
 	const core = fileURLToPath(import.meta.resolve("@wabou/core"));
 	const renderer = fileURLToPath(import.meta.resolve("@wabou/core/renderer"));
+	const testing = fileURLToPath(import.meta.resolve("@wabou/core/testing"));
 	const solidEntry = `${dirname(fileURLToPath(import.meta.resolve("solid-js/package.json")))}/dist/solid.js`;
 	return mergeConfig({
 		plugins: solid({ solid: {
@@ -28,6 +29,10 @@ function defineWabouTestConfig(options = {}) {
 				{
 					find: /^@wabou\/core\/renderer$/,
 					replacement: renderer
+				},
+				{
+					find: /^@wabou\/core\/testing$/,
+					replacement: testing
 				},
 				{
 					find: /^solid-js\/web$/,
