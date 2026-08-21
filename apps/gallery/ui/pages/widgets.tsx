@@ -52,6 +52,10 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSeparator,
+  FieldSet,
+  FieldTitle,
   HoverCard,
   Icon,
   Input,
@@ -92,6 +96,7 @@ import {
   View,
 } from "@wabou/ui";
 import rocket from "lucide-static/icons/rocket.svg?raw";
+import search from "lucide-static/icons/search.svg?raw";
 import { createSignal } from "solid-js";
 import { Preview } from "../preview";
 
@@ -715,30 +720,52 @@ export function FieldPage() {
   return (
     <View class="flex flex-col gap-5">
       <Preview title="Form fields">
-        <FieldGroup class="w-[440px]">
-          <Field>
-            <FieldLabel>Email address</FieldLabel>
+        <FieldSet class="w-[440px]">
+          <FieldLegend>Workspace details</FieldLegend>
+          <FieldGroup>
+            <Field>
+              <FieldLabel>Email address</FieldLabel>
+              <FieldContent>
+                <Input
+                  value={email()}
+                  placeholder="you@example.com"
+                  onInput={(event) => setEmail(event.currentTarget.value)}
+                />
+                <FieldDescription>
+                  Used for security alerts and account recovery.
+                </FieldDescription>
+              </FieldContent>
+            </Field>
+            <Field invalid>
+              <FieldLabel>Workspace slug</FieldLabel>
+              <FieldContent>
+                <Input value="my workspace" />
+                <FieldError
+                  errors={[
+                    {
+                      message:
+                        "Use lowercase letters, numbers and hyphens only.",
+                    },
+                    {
+                      message:
+                        "Use lowercase letters, numbers and hyphens only.",
+                    },
+                  ]}
+                />
+              </FieldContent>
+            </Field>
+          </FieldGroup>
+          <FieldSeparator>Optional</FieldSeparator>
+          <Field orientation="horizontal">
             <FieldContent>
-              <Input
-                value={email()}
-                placeholder="you@example.com"
-                onInput={(event) => setEmail(event.currentTarget.value)}
-              />
+              <FieldTitle>Project visibility</FieldTitle>
               <FieldDescription>
-                Used for security alerts and account recovery.
+                Visibility is controlled by the application state.
               </FieldDescription>
             </FieldContent>
+            <Badge variant="secondary">Private</Badge>
           </Field>
-          <Field invalid>
-            <FieldLabel>Workspace slug</FieldLabel>
-            <FieldContent>
-              <Input value="my workspace" />
-              <FieldError>
-                Use lowercase letters, numbers and hyphens only.
-              </FieldError>
-            </FieldContent>
-          </Field>
-        </FieldGroup>
+        </FieldSet>
       </Preview>
       <Preview title="Input group">
         <View class="w-[440px] flex flex-col gap-3">
@@ -748,9 +775,11 @@ export function FieldPage() {
             <InputGroupButton>Copy</InputGroupButton>
           </InputGroup>
           <InputGroup>
-            <InputGroupText>⌕</InputGroupText>
+            <View class="w-8 h-full flex-none flex items-center justify-center text-muted">
+              <Icon source={search} aria-hidden="true" size={14} />
+            </View>
             <InputGroupInput placeholder="Search projects…" />
-            <InputGroupText>⌘ K</InputGroupText>
+            <InputGroupText>Ctrl K</InputGroupText>
           </InputGroup>
         </View>
       </Preview>
