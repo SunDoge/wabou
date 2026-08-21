@@ -1,6 +1,7 @@
 use super::*;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use wabou_host_api::NodeKey;
 
 #[test]
@@ -245,6 +246,32 @@ fn overlay_command_updates_runtime_diagnostics() {
         .expect("read status after snapshot replacement");
     assert_eq!(status["overlayPaint"]["sequence"], 1);
     assert_eq!(status["overlay"]["clips"], true);
+}
+
+#[test]
+fn overlay_only_wakes_for_an_effective_configuration_change() {
+    let mut state = DebugState::default();
+    let wakes = Arc::new(AtomicUsize::new(0));
+    let callback_wakes = wakes.clone();
+    state.set_wake(Arc::new(move || {
+        callback_wakes.fetch_add(1, Ordering::Release);
+    }));
+
+    assert!(!state.set_overlay(DebugOverlay::default()));
+    assert_eq!(wakes.load(Ordering::Acquire), 0);
+    assert!(!state.take_overlay_change());
+
+    let overlay = DebugOverlay {
+        layout: true,
+        ..Default::default()
+    };
+    assert!(state.set_overlay(overlay));
+    assert_eq!(wakes.load(Ordering::Acquire), 1);
+    assert!(state.take_overlay_change());
+
+    assert!(!state.set_overlay(overlay));
+    assert_eq!(wakes.load(Ordering::Acquire), 1);
+    assert!(!state.take_overlay_change());
 }
 
 #[cfg(unix)]

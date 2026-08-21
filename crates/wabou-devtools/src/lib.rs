@@ -678,8 +678,11 @@ impl DebugState {
         self.snapshot.status.overlay_paint = stats;
     }
 
-    /// Replace overlay configuration and wake the UI loop.
-    pub fn set_overlay(&mut self, overlay: DebugOverlay) {
+    /// Replace overlay configuration and wake the UI loop when it changed.
+    pub fn set_overlay(&mut self, overlay: DebugOverlay) -> bool {
+        if self.overlay == overlay {
+            return false;
+        }
         self.overlay = overlay;
         self.overlay_paint = DebugOverlayPaintStats {
             sequence: self.overlay_paint.sequence,
@@ -691,6 +694,7 @@ impl DebugState {
         if let Some(wake) = &self.wake {
             wake();
         }
+        true
     }
 
     /// Consume the flag indicating overlay paint state changed.

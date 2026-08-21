@@ -1,6 +1,34 @@
 use super::*;
 
 #[test]
+fn overlay_change_wakes_and_invalidates_an_idle_frame_source_once() {
+    let mut applier = interactive_applier();
+    let state = wabou_devtools::DebugState::shared();
+    applier.set_debug_state(state.clone());
+    let wakes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let callback_wakes = wakes.clone();
+    FrameSource::set_wake_callback(
+        &mut applier,
+        Arc::new(move || {
+            callback_wakes.fetch_add(1, std::sync::atomic::Ordering::Release);
+        }),
+    );
+
+    assert!(
+        state
+            .write()
+            .unwrap()
+            .set_overlay(wabou_devtools::DebugOverlay {
+                layout: true,
+                ..Default::default()
+            })
+    );
+    assert_eq!(wakes.load(std::sync::atomic::Ordering::Acquire), 1);
+    assert!(FrameSource::poll_async(&mut applier));
+    assert!(!FrameSource::poll_async(&mut applier));
+}
+
+#[test]
 fn host_layout_snapshot_reports_completed_rects_and_viewport() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let mut applier = interactive_applier();
