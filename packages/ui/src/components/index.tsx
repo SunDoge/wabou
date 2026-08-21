@@ -16,7 +16,6 @@ import {
   type ViewProps,
 } from "../primitives";
 import { join } from "./class-names";
-import { componentsElevation, useComponentsTheme } from "./theme";
 
 export * from "./alert";
 export * from "./alert-dialog";
@@ -25,6 +24,7 @@ export * from "./attachment";
 export * from "./avatar";
 export * from "./button";
 export * from "./button-group";
+export * from "./card";
 export * from "./carousel";
 export * from "./combobox";
 export * from "./command";
@@ -180,102 +180,6 @@ export function Fps(props: FpsProps): JSX.Element {
       {value()}
       {props.label === "" ? "" : ` ${props.label ?? "fps"}`}
     </Badge>
-  );
-}
-
-export function Card(props: {
-  children?: JSX.Element;
-  class?: string;
-  ref?: ViewProps["ref"];
-  shadows?: readonly import("@wabou/core/style").Shadow[] | null;
-  role?: ViewProps["role"];
-  "aria-label"?: string;
-  "aria-hidden"?: ViewProps["aria-hidden"];
-}): JSX.Element {
-  const theme = useComponentsTheme();
-  return (
-    <View
-      ref={props.ref}
-      role={props.role}
-      aria-label={props["aria-label"]}
-      aria-hidden={props["aria-hidden"]}
-      class={join(
-        "min-w-0 min-h-0 flex flex-col overflow-hidden rounded-lg border",
-        "border-subtle bg-surface",
-        props.class,
-      )}
-      shadows={
-        props.shadows === undefined
-          ? componentsElevation(theme(), "raised")
-          : props.shadows
-      }
-    >
-      {props.children}
-    </View>
-  );
-}
-export function CardHeader(props: {
-  children?: JSX.Element;
-  class?: string;
-}): JSX.Element {
-  return (
-    <View class={join("min-w-0 flex flex-col gap-1 px-4 pt-4", props.class)}>
-      {props.children}
-    </View>
-  );
-}
-export interface CardTitleProps extends TextProps {}
-
-export function CardTitle(props: CardTitleProps): JSX.Element {
-  return (
-    <Text
-      {...props}
-      class={join(
-        "min-w-0 text-base font-semibold",
-        "text-primary",
-        props.class,
-      )}
-    >
-      {props.children}
-    </Text>
-  );
-}
-export interface CardDescriptionProps extends TextProps {}
-
-export function CardDescription(props: CardDescriptionProps): JSX.Element {
-  return (
-    <Text
-      {...props}
-      class={join(
-        "w-full min-w-0 whitespace-normal text-sm",
-        "text-muted",
-        props.class,
-      )}
-    >
-      {props.children}
-    </Text>
-  );
-}
-export function CardContent(props: {
-  children?: JSX.Element;
-  class?: string;
-}): JSX.Element {
-  return (
-    <View class={join("min-w-0 min-h-0 flex flex-col gap-3 p-4", props.class)}>
-      {props.children}
-    </View>
-  );
-}
-export function CardFooter(props: {
-  children?: JSX.Element;
-  class?: string;
-}): JSX.Element {
-  return (
-    <View
-      class={join("min-w-0 flex items-center gap-2 px-4 pb-4", props.class)}
-    >
-      {props.children}
-    </View>
   );
 }
 

@@ -7,6 +7,7 @@ import {
   Badge,
   Button,
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -129,6 +130,9 @@ function CardPage() {
       <Card class="w-72">
         <CardHeader>
           <CardTitle>Create project</CardTitle>
+          <CardAction>
+            <Badge variant="secondary">Draft</Badge>
+          </CardAction>
           <CardDescription maxLines={2}>
             Deploy a new Wabou application from a reusable project template with
             predictable native text truncation.
