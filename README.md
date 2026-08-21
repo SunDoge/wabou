@@ -161,6 +161,24 @@ The first launch compiles the Rust workspace and may take several minutes.
 Later launches reuse the build cache. Run `bun run gen` if Wabou reports that
 checked-in JavaScript package artifacts are missing or stale.
 
+### Workspace commands
+
+Repository development uses Bun to run commands and Turbo to order and cache
+JavaScript package work. These are the primary workspace entry points:
+
+| Command | Purpose |
+| --- | --- |
+| `bun run dev` | Start the Gallery with Vite HMR and the native development host. |
+| `bun run build` | Generate sources, incrementally compile JavaScript packages, and build the Gallery. |
+| `bun run check` | Generate required derived sources and run TypeScript checks. |
+| `bun run test` | Run Bun unit tests, Vitest component tests, and the HMR test. |
+| `bun run verify` | Run the complete JavaScript, Rust, behavior, and capture verification used before release. |
+
+Most contributors should not need to invoke the internal `gen:*` or
+`packages:*` tasks directly. Turbo follows workspace dependencies, builds
+independent packages in parallel, and reuses per-package outputs when their
+inputs have not changed.
+
 Until binary releases are available, the CLI can also be installed directly
 from the repository (the checkout workflow above is still recommended for
 contributing):
