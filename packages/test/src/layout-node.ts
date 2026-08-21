@@ -65,33 +65,53 @@ export interface RenderLayoutFixturesOptions {
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
+  /** Checks applied to every auto-discovered fixture. */
+  readonly checks?: readonly ("visible-overflow" | "sibling-collision")[];
+  /** Per-fixture exceptions or assertions without repeating the full case list. */
+  readonly overrides?: Readonly<
+    Record<string, Omit<LayoutFixtureCase, "id">>
+  >;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
   readonly command?: readonly string[];
 }
 
 export interface LayoutFixtureResult {
   readonly id: string;
+  readonly durationMs: number;
   readonly snapshot: LayoutSnapshot;
 }
 
 export interface LayoutFixtureReport {
   readonly version: 1;
+  readonly totalDurationMs: number;
   readonly cases: readonly LayoutFixtureResult[];
 }
 
 export function parseLayoutFixtureReport(value: unknown): LayoutFixtureReport {
   if (typeof value !== "object" || value === null)
     throw new Error("Wabou layout fixture report must be an object");
-  const raw = value as { version?: unknown; cases?: unknown };
-  if (raw.version !== 1 || !Array.isArray(raw.cases))
+  const raw = value as {
+    version?: unknown;
+    totalDurationMs?: unknown;
+    cases?: unknown;
+  };
+  if (
+    raw.version !== 1 ||
+    !Number.isFinite(raw.totalDurationMs) ||
+    (raw.totalDurationMs as number) < 0 ||
+    !Array.isArray(raw.cases)
+  )
     throw new Error("invalid Wabou layout fixture report");
   return {
     version: 1,
+    totalDurationMs: raw.totalDurationMs as number,
     cases: raw.cases.map((entry, index) => {
       if (
         typeof entry !== "object" ||
         entry === null ||
         typeof (entry as { id?: unknown }).id !== "string" ||
+        !Number.isFinite((entry as { durationMs?: unknown }).durationMs) ||
+        ((entry as { durationMs: number }).durationMs as number) < 0 ||
         !("snapshot" in entry)
       )
         throw new Error(
@@ -99,6 +119,7 @@ export function parseLayoutFixtureReport(value: unknown): LayoutFixtureReport {
         );
       return {
         id: (entry as { id: string }).id,
+        durationMs: (entry as { durationMs: number }).durationMs,
         snapshot: parseLayoutSnapshot(
           (entry as { snapshot: unknown }).snapshot,
         ),
@@ -179,12 +200,25 @@ export async function renderLayoutFixtures(
     const report = parseLayoutFixtureReport(
       JSON.parse(await readFile(out, "utf8")),
     );
-    await validateLayoutFixtureReport(
-      report,
+    const fixtures =
       options.cases === "all"
-        ? report.cases.map(({ id }) => ({ id }))
-        : options.cases,
-    );
+        ? report.cases.map(({ id }) => ({
+            id,
+            checks: options.checks,
+            ...options.overrides?.[id],
+          }))
+        : options.cases;
+    if (options.cases === "all" && options.overrides) {
+      const discovered = new Set(report.cases.map(({ id }) => id));
+      const unknown = Object.keys(options.overrides).filter(
+        (id) => !discovered.has(id),
+      );
+      if (unknown.length > 0)
+        throw new Error(
+          `layout fixture overrides reference unknown fixtures: ${unknown.join(", ")}`,
+        );
+    }
+    await validateLayoutFixtureReport(report, fixtures);
     return report;
   } finally {
     await rm(directory, { recursive: true, force: true });

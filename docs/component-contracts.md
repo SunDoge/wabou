@@ -155,11 +155,23 @@ process for every component:
 
 ```tsx
 // ui/layout-fixtures.tsx
-import { defineLayoutFixtures } from "@wabou/test/layout/fixtures";
+import {
+  defineComponentFixtures,
+  defineLayoutFixtures,
+} from "@wabou/test/layout/fixtures";
 
 defineLayoutFixtures({
-  "button/default": () => <Button>Save</Button>,
-  "card/compact": () => <Card class="w-80">...</Card>,
+  ...defineComponentFixtures(
+    {
+      "button/default": () => <Button>Save</Button>,
+      "card/compact": () => <Card class="w-80">...</Card>,
+    },
+    {
+      width: 800,
+      height: 600,
+      wrap: (content) => <View class="w-full p-6">{content}</View>,
+    },
+  ),
 });
 ```
 
@@ -180,12 +192,30 @@ const report = await renderLayoutFixtures({
 });
 ```
 
-Use `cases: "all"` to query the compiled registry and run every fixture. Style
-parser diagnostics fail by default. Individual cases may additionally declare
-`checks: ["visible-overflow", "sibling-collision"]` and an `assert(snapshot)`
-callback for reactive state after Solid effects have settled. A case-level
-`waitMs` covers timers, promises, or finite animation without slowing every
-fixture.
+Use `cases: "all"` to query the compiled registry and run every fixture,
+including its colocated viewport and settling metadata. Style parser
+diagnostics fail by default. `checks` applies geometry contracts to every
+discovered fixture; `overrides` records intentional exceptions without
+duplicating the registry:
+
+```ts
+await renderLayoutFixtures({
+  app: "apps/gallery",
+  mode: "layout-test",
+  command: ["target/release/wabou"],
+  cases: "all",
+  checks: ["visible-overflow", "sibling-collision"],
+  overrides: {
+    "carousel/default": { checks: ["sibling-collision"] },
+  },
+});
+```
+
+Explicit cases may additionally declare an `assert(snapshot)` callback for
+reactive state after Solid effects have settled. A fixture-level `waitMs`
+covers timers, promises, or finite animation without slowing every fixture.
+The returned `totalDurationMs` and per-case `durationMs` make regressions in
+the edit-test loop visible instead of relying on anecdotes.
 
 Each case disposes the preceding Solid owner and resets native retained state
 before mounting. QuickJS, framework modules, Style IR, and font infrastructure
@@ -195,13 +225,22 @@ widgets, and resource bindings do not cross the case boundary.
 The Gallery regression command is the reference integration:
 
 ```bash
+# First run, after Rust changes, or before committing:
 bun run test:layout
+
+# Reuse the release CLI and compiled fixture bundle while editing TSX/styles:
+bun run test:layout:quick
+
+# Run only the affected fixture(s):
+bun run test:layout:quick widgets/Button widgets/Card
 ```
 
 It compiles the fixture entry once and runs all existing component pages with
-the release CLI. On the current suite, 40 fixtures take about 0.6 seconds after
-the bundle exists; the fixed QuickJS startup is paid once rather than once per
-component.
+the release CLI. On the current suite, the native evaluation of 40 fixtures is
+about 0.2 seconds after the bundle exists; the fixed QuickJS startup is paid
+once rather than once per component. `test:layout:quick` deliberately skips
+Vite and Rust builds, so use the full command after changing dependencies,
+generated package output, Rust, or the fixture registry itself.
 
 ## Required evidence
 

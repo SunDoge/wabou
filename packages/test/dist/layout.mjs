@@ -167,7 +167,7 @@ function overlaps(first, second, tolerance) {
 }
 /** Opt-in collision check for normal-flow siblings. */
 function siblingCollisionDiagnostics(snapshot, options = {}) {
-	const tolerance = options.tolerance ?? .5;
+	const tolerance = options.tolerance ?? 1;
 	const scope = new Set(scopedNodes(snapshot, options.within).map((node) => key(node.id)));
 	const children = childrenByParent(snapshot);
 	const diagnostics = [];

@@ -102,6 +102,17 @@ test("lets component tests opt into overflow, collision and style contracts", ()
   ).toThrow("[visible-overflow]");
 });
 
+test("ignores one-pixel flex rounding but supports strict collision checks", () => {
+  const snapshot = fixture();
+  snapshot.nodes[1].rect = { x: 0, y: 0, width: 51, height: 20 };
+  snapshot.nodes[2].rect = { x: 50, y: 0, width: 50, height: 20 };
+
+  expect(siblingCollisionDiagnostics(snapshot)).toEqual([]);
+  expect(
+    siblingCollisionDiagnostics(snapshot, { tolerance: 0 }),
+  ).toHaveLength(1);
+});
+
 test("builds the no-GPU CLI invocation for Node or Bun tests", () => {
   expect(
     layoutCommandArgs({
@@ -167,21 +178,27 @@ test("rejects drifted or malformed Rust layout snapshots at the boundary", () =>
 test("parses every native snapshot in a fixture batch", () => {
   const report = parseLayoutFixtureReport({
     version: 1,
+    totalDurationMs: 2,
     cases: [
-      { id: "first", snapshot: fixture() },
-      { id: "second", snapshot: fixture() },
+      { id: "first", durationMs: 1, snapshot: fixture() },
+      { id: "second", durationMs: 1, snapshot: fixture() },
     ],
   });
   expect(report.cases.map((entry) => entry.id)).toEqual(["first", "second"]);
   expect(() =>
-    parseLayoutFixtureReport({ version: 1, cases: [{ id: "broken" }] }),
+    parseLayoutFixtureReport({
+      version: 1,
+      totalDurationMs: 1,
+      cases: [{ id: "broken", durationMs: 1 }],
+    }),
   ).toThrow("result at index 0");
 });
 
 test("runs fixture-owned assertions and rejects style parser diagnostics by default", async () => {
   const clean = {
     version: 1 as const,
-    cases: [{ id: "clean", snapshot: fixture() }],
+    totalDurationMs: 1,
+    cases: [{ id: "clean", durationMs: 1, snapshot: fixture() }],
   };
   let asserted = false;
   await validateLayoutFixtureReport(clean, [
@@ -199,7 +216,11 @@ test("runs fixture-owned assertions and rejects style parser diagnostics by defa
   styled.nodes[0].styleDiagnostics = ["unsupported utility `broken`"];
   await expect(
     validateLayoutFixtureReport(
-      { version: 1, cases: [{ id: "styled", snapshot: styled }] },
+      {
+        version: 1,
+        totalDurationMs: 1,
+        cases: [{ id: "styled", durationMs: 1, snapshot: styled }],
+      },
       [{ id: "styled" }],
     ),
   ).rejects.toThrow("[style-diagnostic]");

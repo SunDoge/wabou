@@ -23,13 +23,15 @@ function layoutCommandArgs(options) {
 function parseLayoutFixtureReport(value) {
 	if (typeof value !== "object" || value === null) throw new Error("Wabou layout fixture report must be an object");
 	const raw = value;
-	if (raw.version !== 1 || !Array.isArray(raw.cases)) throw new Error("invalid Wabou layout fixture report");
+	if (raw.version !== 1 || !Number.isFinite(raw.totalDurationMs) || raw.totalDurationMs < 0 || !Array.isArray(raw.cases)) throw new Error("invalid Wabou layout fixture report");
 	return {
 		version: 1,
+		totalDurationMs: raw.totalDurationMs,
 		cases: raw.cases.map((entry, index) => {
-			if (typeof entry !== "object" || entry === null || typeof entry.id !== "string" || !("snapshot" in entry)) throw new Error(`invalid Wabou layout fixture result at index ${index}`);
+			if (typeof entry !== "object" || entry === null || typeof entry.id !== "string" || !Number.isFinite(entry.durationMs) || entry.durationMs < 0 || !("snapshot" in entry)) throw new Error(`invalid Wabou layout fixture result at index ${index}`);
 			return {
 				id: entry.id,
+				durationMs: entry.durationMs,
 				snapshot: parseLayoutSnapshot(entry.snapshot)
 			};
 		})
@@ -79,7 +81,17 @@ async function renderLayoutFixtures(options) {
 			command: options.command
 		});
 		const report = parseLayoutFixtureReport(JSON.parse(await readFile(out, "utf8")));
-		await validateLayoutFixtureReport(report, options.cases === "all" ? report.cases.map(({ id }) => ({ id })) : options.cases);
+		const fixtures = options.cases === "all" ? report.cases.map(({ id }) => ({
+			id,
+			checks: options.checks,
+			...options.overrides?.[id]
+		})) : options.cases;
+		if (options.cases === "all" && options.overrides) {
+			const discovered = new Set(report.cases.map(({ id }) => id));
+			const unknown = Object.keys(options.overrides).filter((id) => !discovered.has(id));
+			if (unknown.length > 0) throw new Error(`layout fixture overrides reference unknown fixtures: ${unknown.join(", ")}`);
+		}
+		await validateLayoutFixtureReport(report, fixtures);
 		return report;
 	} finally {
 		await rm(directory, {

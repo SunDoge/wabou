@@ -1,11 +1,32 @@
 import { JSX } from "solid-js";
 //#region src/layout-fixtures.d.ts
 type LayoutFixture = () => JSX.Element;
-type LayoutFixtureRegistry = Readonly<Record<string, LayoutFixture>>;
+interface LayoutFixtureDefinition {
+  readonly render: LayoutFixture;
+  readonly width?: number;
+  readonly height?: number;
+  readonly scaleFactor?: number;
+  readonly waitMs?: number;
+}
+type LayoutFixtureEntry = LayoutFixture | LayoutFixtureDefinition;
+type LayoutFixtureRegistry = Readonly<Record<string, LayoutFixtureEntry>>;
+interface ComponentFixtureOptions {
+  readonly width?: number;
+  readonly height?: number;
+  readonly scaleFactor?: number;
+  readonly waitMs?: number;
+  readonly wrap?: (content: JSX.Element) => JSX.Element;
+}
 declare global {
   var __wabou_layout_fixture_mount: ((id: string) => void) | undefined;
   var __wabou_layout_fixture_ids: (() => string) | undefined;
+  var __wabou_layout_fixture_cases: (() => string) | undefined;
 }
+/**
+ * Give component fixtures the same theme, viewport, and bounded root without
+ * repeating an application shell in every test entry.
+ */
+declare function defineComponentFixtures(fixtures: Readonly<Record<string, LayoutFixture>>, options?: ComponentFixtureOptions): LayoutFixtureRegistry;
 /**
  * Expose named component fixtures to `wabou layout --batch`.
  *
@@ -15,5 +36,5 @@ declare global {
  */
 declare function defineLayoutFixtures(fixtures: LayoutFixtureRegistry): void;
 //#endregion
-export { LayoutFixture, LayoutFixtureRegistry, defineLayoutFixtures };
+export { ComponentFixtureOptions, LayoutFixture, LayoutFixtureDefinition, LayoutFixtureEntry, LayoutFixtureRegistry, defineComponentFixtures, defineLayoutFixtures };
 //# sourceMappingURL=layout-fixtures.d.mts.map

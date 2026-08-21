@@ -32,8 +32,16 @@ function EffectFixture() {
 }
 
 defineLayoutFixtures({
-  narrow: () => <TrackedFixture name="narrow" width="120px" />,
-  wide: () => <TrackedFixture name="wide" width="320px" />,
+  narrow: {
+    width: 640,
+    height: 480,
+    render: () => <TrackedFixture name="narrow" width="120px" />,
+  },
+  wide: {
+    width: 960,
+    height: 720,
+    render: () => <TrackedFixture name="wide" width="320px" />,
+  },
   "effect/synchronous": () => <EffectFixture />,
   ...galleryLayoutFixtures,
 });

@@ -35,15 +35,21 @@ interface RenderLayoutFixturesOptions {
   readonly mode?: string;
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
+  /** Checks applied to every auto-discovered fixture. */
+  readonly checks?: readonly ("visible-overflow" | "sibling-collision")[];
+  /** Per-fixture exceptions or assertions without repeating the full case list. */
+  readonly overrides?: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>>;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
   readonly command?: readonly string[];
 }
 interface LayoutFixtureResult {
   readonly id: string;
+  readonly durationMs: number;
   readonly snapshot: LayoutSnapshot;
 }
 interface LayoutFixtureReport {
   readonly version: 1;
+  readonly totalDurationMs: number;
   readonly cases: readonly LayoutFixtureResult[];
 }
 declare function parseLayoutFixtureReport(value: unknown): LayoutFixtureReport;

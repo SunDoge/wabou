@@ -344,7 +344,10 @@ export function siblingCollisionDiagnostics(
   snapshot: LayoutSnapshot,
   options: LayoutDiagnosticOptions = {},
 ): readonly LayoutDiagnostic[] {
-  const tolerance = options.tolerance ?? 0.5;
+  // Completed layout snapshots are integer logical pixels. Fractional flex
+  // distribution can therefore make adjacent boxes overlap by exactly one
+  // pixel after independent edge rounding without a real layout collision.
+  const tolerance = options.tolerance ?? 1;
   const scope = new Set(
     scopedNodes(snapshot, options.within).map((node) => key(node.id)),
   );

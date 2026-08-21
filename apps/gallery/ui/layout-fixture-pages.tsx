@@ -1,8 +1,14 @@
-import type { LayoutFixtureRegistry } from "@wabou/test/layout/fixtures";
+import {
+  defineComponentFixtures,
+  type LayoutFixtureRegistry,
+} from "@wabou/test/layout/fixtures";
 import { ComponentsProvider, View } from "@wabou/ui";
 import { type Component, createComponent } from "solid-js";
+import * as animation from "./pages/animation";
+import * as basics from "./pages/basics";
 import * as chart from "./pages/chart";
 import * as dataTable from "./pages/data-table";
+import * as foundations from "./pages/foundations";
 import * as i18n from "./pages/i18n";
 import * as menubar from "./pages/menubar";
 import * as overlay from "./pages/overlay";
@@ -16,8 +22,8 @@ type PageModule = Readonly<Record<string, unknown>>;
 function pageFixtures(
   prefix: string,
   pages: PageModule,
-): Record<string, () => ReturnType<Component>> {
-  return Object.fromEntries(
+): LayoutFixtureRegistry {
+  const fixtures = Object.fromEntries(
     Object.entries(pages)
       .filter(
         (entry): entry is [string, Component] =>
@@ -25,19 +31,25 @@ function pageFixtures(
       )
       .map(([name, Page]) => [
         `${prefix}/${name.replace(/Page$/, "")}`,
-        () => (
-          <ComponentsProvider theme="light">
-            <View class="w-full min-h-full p-6">
-              {createComponent(Page, {})}
-            </View>
-          </ComponentsProvider>
-        ),
+        () => createComponent(Page, {}),
       ]),
   );
+  return defineComponentFixtures(fixtures, {
+    wrap: (content) => (
+      <ComponentsProvider theme="light">
+        <View class="w-full h-full min-h-0 p-6 overflow-x-hidden overflow-y-auto">
+          {content}
+        </View>
+      </ComponentsProvider>
+    ),
+  });
 }
 
 export const galleryLayoutFixtures: LayoutFixtureRegistry = {
+  ...pageFixtures("animation", animation),
+  ...pageFixtures("basics", basics),
   ...pageFixtures("widgets", widgets),
+  ...pageFixtures("foundations", foundations),
   ...pageFixtures("chart", chart),
   ...pageFixtures("data-table", dataTable),
   ...pageFixtures("i18n", i18n),

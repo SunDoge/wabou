@@ -73,6 +73,7 @@ struct LayoutBatchCase {
 #[serde(rename_all = "camelCase")]
 struct LayoutBatchReport {
     version: u32,
+    total_duration_ms: f64,
     cases: Vec<LayoutBatchResult>,
 }
 
@@ -80,6 +81,7 @@ struct LayoutBatchReport {
 #[serde(rename_all = "camelCase")]
 struct LayoutBatchResult {
     id: String,
+    duration_ms: f64,
     snapshot: serde_json::Value,
 }
 
@@ -288,20 +290,14 @@ fn run_layout_batch(
     }
     if manifest.all {
         let encoded = applier
-            .eval_string("globalThis.__wabou_layout_fixture_ids()")
+            .eval_string(
+                "typeof globalThis.__wabou_layout_fixture_cases === 'function' \
+                    ? globalThis.__wabou_layout_fixture_cases() \
+                    : JSON.stringify(JSON.parse(globalThis.__wabou_layout_fixture_ids()).map(id => ({ id })))",
+            )
             .map_err(|error| format!("failed to list layout fixtures: {error:?}"))?;
-        let ids: Vec<String> = serde_json::from_str(&encoded)
-            .map_err(|error| format!("layout fixture registry returned invalid ids: {error}"))?;
-        manifest.cases = ids
-            .into_iter()
-            .map(|id| LayoutBatchCase {
-                id,
-                width: default_layout_width(),
-                height: default_layout_height(),
-                scale_factor: default_scale_factor(),
-                wait_ms: None,
-            })
-            .collect();
+        manifest.cases = serde_json::from_str(&encoded)
+            .map_err(|error| format!("layout fixture registry returned invalid cases: {error}"))?;
     }
     if manifest.cases.is_empty() {
         return Err("layout batch manifest must contain at least one case".into());
@@ -330,9 +326,11 @@ fn run_layout_batch(
         }
     }
 
+    let batch_started = Instant::now();
     let mut results = Vec::with_capacity(manifest.cases.len());
     let mut text = TextContext::new();
     for case in manifest.cases {
+        let case_started = Instant::now();
         // The JS fixture harness disposes the preceding Solid owner. Resetting
         // the native projection as well prevents focus, scrolling, widgets,
         // and resources from surviving a malformed fixture cleanup.
@@ -378,6 +376,7 @@ fn run_layout_batch(
         let snapshot = serde_json::to_value(state.snapshot())?;
         results.push(LayoutBatchResult {
             id: case.id,
+            duration_ms: case_started.elapsed().as_secs_f64() * 1_000.0,
             snapshot,
         });
     }
@@ -389,6 +388,7 @@ fn run_layout_batch(
         out,
         serde_json::to_vec_pretty(&LayoutBatchReport {
             version: 1,
+            total_duration_ms: batch_started.elapsed().as_secs_f64() * 1_000.0,
             cases: results,
         })?,
     )?;
