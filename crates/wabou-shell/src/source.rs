@@ -665,7 +665,12 @@ pub trait FrameSource {
     }
 
     /// Report completion of the last screenshot request.
-    fn complete_screenshot(&mut self, _result: Result<PathBuf, String>) {}
+    fn complete_screenshot(
+        &mut self,
+        _requested_path: &std::path::Path,
+        _result: Result<PathBuf, String>,
+    ) {
+    }
 }
 
 #[cfg(test)]

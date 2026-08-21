@@ -831,7 +831,7 @@ impl App {
             )
             .map(|_| path.clone())
             .map_err(|error| error.to_string());
-            self.source.complete_screenshot(result);
+            self.source.complete_screenshot(&path, result);
         }
         let t2 = Instant::now();
         let presented = {

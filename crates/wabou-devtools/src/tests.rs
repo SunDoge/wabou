@@ -86,7 +86,9 @@ fn inspect_at_point_uses_paint_order_pointer_events_and_effective_clip() {
 #[test]
 fn capture_case_freezes_snapshot_when_the_screenshot_completes() {
     let mut state = DebugState::default();
-    state.request_capture_case(Some((12.0, 34.0)));
+    let requested = state
+        .request_capture_case(Some((12.0, 34.0)))
+        .expect("request capture case");
     state.publish(DebugSnapshot {
         status: DebugStatus {
             revision: 7,
@@ -95,7 +97,9 @@ fn capture_case_freezes_snapshot_when_the_screenshot_completes() {
         ..Default::default()
     });
     let path = std::env::temp_dir().join("wabou-capture-case-test.png");
-    state.complete_screenshot(Ok(path.clone()));
+    state
+        .complete_screenshot(&requested, Ok(path.clone()))
+        .expect("complete capture case");
     state.publish(DebugSnapshot {
         status: DebugStatus {
             revision: 8,
@@ -108,6 +112,62 @@ fn capture_case_freezes_snapshot_when_the_screenshot_completes() {
     assert_eq!(capture.snapshot.status.revision, 7);
     assert_eq!(capture.screenshot_path, path);
     assert_eq!(capture.point.as_ref().unwrap().x, 12.0);
+}
+
+#[test]
+fn capture_remains_single_flight_after_renderer_drains_request() {
+    let mut state = DebugState::default();
+    let first = state.request_screenshot().expect("request first capture");
+    assert_eq!(state.take_screenshot_request().as_ref(), Some(&first));
+
+    let error = state
+        .request_capture_case(None)
+        .expect_err("in-flight capture must reject another client");
+    assert!(error.contains("already in progress"));
+
+    assert!(state.cancel_screenshot(&first));
+    let second = state
+        .request_capture_case(None)
+        .expect("capture can recover after cancellation");
+    assert_ne!(first, second);
+}
+
+#[test]
+fn stale_capture_completion_cannot_finish_a_new_request() {
+    let mut state = DebugState::default();
+    let stale = state.request_screenshot().expect("request stale capture");
+    assert!(state.cancel_screenshot(&stale));
+    let current = state.request_screenshot().expect("request current capture");
+
+    let error = state
+        .complete_screenshot(&stale, Ok(stale.clone()))
+        .expect_err("stale completion must be rejected");
+    assert!(error.contains("stale DevTools capture"));
+    assert!(state.screenshot_result().is_none());
+
+    state
+        .complete_screenshot(&current, Ok(current.clone()))
+        .expect("complete current capture");
+    assert_eq!(state.screenshot_result(), Some(&Ok(current)));
+}
+
+#[cfg(unix)]
+#[test]
+fn timed_out_capture_releases_the_single_flight_slot() {
+    let state = DebugState::shared();
+    let error = execute_capture_with_timeout(
+        &state,
+        &DebugCommand::CaptureScreenshot(EmptyParams {}),
+        std::time::Duration::ZERO,
+    )
+    .expect_err("capture without a renderer must time out");
+    assert!(error.contains("screenshot timed out"));
+
+    state
+        .write()
+        .unwrap()
+        .request_screenshot()
+        .expect("timeout must release the capture slot");
 }
 
 #[test]
@@ -238,7 +298,8 @@ fn unix_socket_round_trip_uses_versioned_status() {
                 screenshot_state
                     .write()
                     .unwrap()
-                    .complete_screenshot(Ok(path));
+                    .complete_screenshot(&path, Ok(path.clone()))
+                    .unwrap();
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(1));
@@ -260,7 +321,11 @@ fn unix_socket_round_trip_uses_versioned_status() {
         loop {
             let request = { capture_state.write().unwrap().take_screenshot_request() };
             if let Some(path) = request {
-                capture_state.write().unwrap().complete_screenshot(Ok(path));
+                capture_state
+                    .write()
+                    .unwrap()
+                    .complete_screenshot(&path, Ok(path.clone()))
+                    .unwrap();
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(1));

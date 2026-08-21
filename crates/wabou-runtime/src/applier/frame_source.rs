@@ -998,16 +998,27 @@ impl FrameSource for Applier {
     }
 
     #[cfg(any(feature = "devtools", test))]
-    fn complete_screenshot(&mut self, result: Result<std::path::PathBuf, String>) {
+    fn complete_screenshot(
+        &mut self,
+        requested_path: &std::path::Path,
+        result: Result<std::path::PathBuf, String>,
+    ) {
         if let Some(state) = &self.frame.projections.debug_state
             && let Ok(mut state) = state.write()
         {
-            state.complete_screenshot(result);
+            if let Err(error) = state.complete_screenshot(requested_path, result) {
+                tracing::warn!(target: "wabou::devtools", %error);
+            }
         }
     }
 
     #[cfg(not(any(feature = "devtools", test)))]
-    fn complete_screenshot(&mut self, _result: Result<std::path::PathBuf, String>) {}
+    fn complete_screenshot(
+        &mut self,
+        _requested_path: &std::path::Path,
+        _result: Result<std::path::PathBuf, String>,
+    ) {
+    }
 
     fn handle_event(&mut self, input: UiEvent) -> EventResponse {
         #[cfg(any(feature = "devtools", test))]

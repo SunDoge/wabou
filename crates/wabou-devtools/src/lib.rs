@@ -573,6 +573,8 @@ pub struct DebugState {
     frames: VecDeque<DebugFrame>,
     trace_capacity: usize,
     screenshot_request: Option<PathBuf>,
+    pending_screenshot: Option<PathBuf>,
+    screenshot_sequence: u64,
     screenshot_result: Option<Result<PathBuf, String>>,
     capture_case_requested: bool,
     capture_case_point: Option<(f32, f32)>,
@@ -615,6 +617,8 @@ impl Default for DebugState {
             frames: VecDeque::new(),
             trace_capacity: DEFAULT_TRACE_CAPACITY,
             screenshot_request: None,
+            pending_screenshot: None,
+            screenshot_sequence: 0,
             screenshot_result: None,
             capture_case_requested: false,
             capture_case_point: None,
@@ -705,27 +709,43 @@ impl DebugState {
     }
 
     /// Request a screenshot and return its preallocated secure temporary path.
-    pub fn request_screenshot(&mut self) -> PathBuf {
+    pub fn request_screenshot(&mut self) -> Result<PathBuf, String> {
+        self.begin_screenshot(false, None)
+    }
+
+    fn begin_screenshot(
+        &mut self,
+        capture_case: bool,
+        point: Option<(f32, f32)>,
+    ) -> Result<PathBuf, String> {
+        if let Some(path) = &self.pending_screenshot {
+            return Err(format!(
+                "a DevTools capture is already in progress: {}",
+                path.display()
+            ));
+        }
+        self.screenshot_sequence = self.screenshot_sequence.wrapping_add(1);
         let path = std::env::temp_dir().join(format!(
-            "wabou-screenshot-{}-{}.png",
+            "wabou-screenshot-{}-{}-{}.png",
             std::process::id(),
-            self.snapshot.status.revision
+            self.snapshot.status.revision,
+            self.screenshot_sequence,
         ));
         self.screenshot_result = None;
+        self.capture_case_result = None;
+        self.capture_case_requested = capture_case;
+        self.capture_case_point = point;
+        self.pending_screenshot = Some(path.clone());
         self.screenshot_request = Some(path.clone());
         if let Some(wake) = &self.wake {
             wake();
         }
-        path
+        Ok(path)
     }
 
     /// Request an atomic diagnostic case with an optional inspected point.
-    pub fn request_capture_case(&mut self, point: Option<(f32, f32)>) -> PathBuf {
-        let path = self.request_screenshot();
-        self.capture_case_requested = true;
-        self.capture_case_point = point;
-        self.capture_case_result = None;
-        path
+    pub fn request_capture_case(&mut self, point: Option<(f32, f32)>) -> Result<PathBuf, String> {
+        self.begin_screenshot(true, point)
     }
 
     /// Drain the screenshot path the renderer should fulfill.
@@ -739,7 +759,19 @@ impl DebugState {
     }
 
     /// Publish renderer completion and finalize a pending capture case.
-    pub fn complete_screenshot(&mut self, result: Result<PathBuf, String>) {
+    pub fn complete_screenshot(
+        &mut self,
+        requested_path: &std::path::Path,
+        result: Result<PathBuf, String>,
+    ) -> Result<(), String> {
+        if self.pending_screenshot.as_deref() != Some(requested_path) {
+            return Err(format!(
+                "ignored completion for stale DevTools capture: {}",
+                requested_path.display()
+            ));
+        }
+        self.pending_screenshot = None;
+        self.screenshot_request = None;
         if self.capture_case_requested {
             self.capture_case_requested = false;
             self.capture_case_result = Some(result.clone().map(|screenshot_path| {
@@ -756,6 +788,19 @@ impl DebugState {
             }));
         }
         self.screenshot_result = Some(result);
+        Ok(())
+    }
+
+    /// Cancel a capture only when it still belongs to the given requester.
+    pub fn cancel_screenshot(&mut self, requested_path: &std::path::Path) -> bool {
+        if self.pending_screenshot.as_deref() != Some(requested_path) {
+            return false;
+        }
+        self.pending_screenshot = None;
+        self.screenshot_request = None;
+        self.capture_case_requested = false;
+        self.capture_case_point = None;
+        true
     }
 
     /// Borrow the most recent screenshot completion.
@@ -945,6 +990,15 @@ pub fn discover_socket() -> Result<PathBuf, String> {
 
 #[cfg(unix)]
 fn execute_capture(state: &SharedDebugState, command: &DebugCommand) -> Result<Value, String> {
+    execute_capture_with_timeout(state, command, std::time::Duration::from_secs(10))
+}
+
+#[cfg(unix)]
+fn execute_capture_with_timeout(
+    state: &SharedDebugState,
+    command: &DebugCommand,
+    timeout: std::time::Duration,
+) -> Result<Value, String> {
     let point = match command {
         DebugCommand::CaptureCase(params) => params.point(),
         DebugCommand::CaptureScreenshot(_) => Ok(None),
@@ -954,14 +1008,14 @@ fn execute_capture(state: &SharedDebugState, command: &DebugCommand) -> Result<V
     let path = state
         .write()
         .map_err(|_| "debug state poisoned".to_string())
-        .map(|mut state| {
+        .and_then(|mut state| {
             if capture_case {
                 state.request_capture_case(point)
             } else {
                 state.request_screenshot()
             }
         })?;
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = std::time::Instant::now() + timeout;
     loop {
         let result = {
             let state = state
@@ -984,6 +1038,9 @@ fn execute_capture(state: &SharedDebugState, command: &DebugCommand) -> Result<V
             return result;
         }
         if std::time::Instant::now() >= deadline {
+            if let Ok(mut state) = state.write() {
+                state.cancel_screenshot(&path);
+            }
             return Err(format!(
                 "screenshot timed out; requested {}",
                 path.display()
