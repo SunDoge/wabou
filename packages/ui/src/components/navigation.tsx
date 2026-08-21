@@ -8,10 +8,14 @@ import {
 } from "solid-js";
 import {
   Button as HeadlessButton,
+  Icon,
   Text,
+  type TextProps,
   View,
   type ViewProps,
 } from "../primitives";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { Button, type ButtonProps } from "./button";
 import { join } from "./class-names";
 import {
@@ -28,13 +32,15 @@ export {
   type PaginationRangeItem,
 } from "./pagination-state";
 
-export function Breadcrumb(props: {
-  children?: JSX.Element;
+export interface BreadcrumbProps extends Omit<ViewProps, "class" | "role"> {
   class?: string;
-  "aria-label"?: string;
-}): JSX.Element {
+}
+
+export function Breadcrumb(props: BreadcrumbProps): JSX.Element {
+  const rest = omit(props, "class", "children");
   return (
     <View
+      {...rest}
       role="group"
       aria-label={props["aria-label"] ?? "Breadcrumb"}
       class={join("min-w-0", props.class)}
@@ -52,7 +58,9 @@ export function BreadcrumbList(props: ViewProps): JSX.Element {
         "min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted",
         props.class,
       )}
-    />
+    >
+      {props.children}
+    </View>
   );
 }
 
@@ -61,7 +69,9 @@ export function BreadcrumbItem(props: ViewProps): JSX.Element {
     <View
       {...props}
       class={join("min-w-0 flex items-center gap-1.5", props.class)}
-    />
+    >
+      {props.children}
+    </View>
   );
 }
 
@@ -88,13 +98,17 @@ export function BreadcrumbLink(props: BreadcrumbLinkProps): JSX.Element {
   );
 }
 
-export function BreadcrumbPage(props: {
-  children?: JSX.Element;
+export interface BreadcrumbPageProps extends Omit<TextProps, "class" | "role"> {
   class?: string;
-}): JSX.Element {
+}
+
+export function BreadcrumbPage(props: BreadcrumbPageProps): JSX.Element {
+  const rest = omit(props, "class", "children");
   return (
     <Text
+      {...rest}
       role="link"
+      aria-disabled="true"
       aria-current="page"
       class={join("min-w-0 text-sm font-medium text-primary", props.class)}
     >
@@ -103,22 +117,51 @@ export function BreadcrumbPage(props: {
   );
 }
 
-export function BreadcrumbSeparator(props: {
-  children?: JSX.Element;
+export interface BreadcrumbSeparatorProps
+  extends Omit<ViewProps, "class" | "role"> {
   class?: string;
-}): JSX.Element {
+}
+
+export function BreadcrumbSeparator(
+  props: BreadcrumbSeparatorProps,
+): JSX.Element {
+  const rest = omit(props, "class", "children");
   return (
-    <Text aria-hidden class={join("flex-none text-xs text-muted", props.class)}>
-      {props.children ?? "/"}
-    </Text>
+    <View
+      {...rest}
+      role="presentation"
+      aria-hidden="true"
+      class={join(
+        "w-4 h-4 flex-none flex items-center justify-center text-muted",
+        props.class,
+      )}
+    >
+      {props.children ?? <Icon source={chevronRight} size={14} />}
+    </View>
   );
 }
 
-export function BreadcrumbEllipsis(props: { class?: string }): JSX.Element {
+export interface BreadcrumbEllipsisProps
+  extends Omit<ViewProps, "class" | "role" | "children"> {
+  class?: string;
+}
+
+export function BreadcrumbEllipsis(
+  props: BreadcrumbEllipsisProps,
+): JSX.Element {
+  const rest = omit(props, "class");
   return (
-    <Text aria-hidden class={join("flex-none text-sm text-muted", props.class)}>
-      ...
-    </Text>
+    <View
+      {...rest}
+      role="presentation"
+      aria-hidden="true"
+      class={join(
+        "w-8 h-8 flex-none flex items-center justify-center text-muted",
+        props.class,
+      )}
+    >
+      <Icon source={ellipsis} size={16} />
+    </View>
   );
 }
 

@@ -2,6 +2,7 @@ import { renderComponent } from "@wabou/test/component";
 import {
   Breadcrumb,
   BreadcrumbItem,
+  BreadcrumbEllipsis,
   BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
@@ -33,6 +34,10 @@ test("breadcrumb exposes explicit links and the current page", () => {
         </BreadcrumbItem>
         <BreadcrumbSeparator />
         <BreadcrumbItem>
+          <BreadcrumbEllipsis />
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
           <BreadcrumbPage>Wabou</BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
@@ -42,6 +47,12 @@ test("breadcrumb exposes explicit links and the current page", () => {
   screen.getByRole("link", { name: "Projects" }).click();
   expect(destination).toBe("projects");
   expect(screen.getByRole("link", { name: "Wabou" }).current).toBe("page");
+  const decorative = screen
+    .getByRole("group", { name: "Breadcrumb" })
+    .snapshot();
+  expect(JSON.stringify(decorative)).not.toContain('"text":"/"');
+  expect(JSON.stringify(decorative)).not.toContain('"text":"..."');
+  expect(JSON.stringify(decorative)).toContain('"tag":"svg"');
 });
 
 test("managed pagination owns range generation and boundary controls", () => {

@@ -16,6 +16,7 @@ import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
+import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
 import plus from "lucide-static/icons/plus.svg?raw";
 import star from "lucide-static/icons/star.svg?raw";
@@ -4241,7 +4242,8 @@ function createPaginationRange(options) {
 //#endregion
 //#region src/components/navigation.tsx
 function Breadcrumb(props) {
-	return createComponent$1(View, {
+	const rest = omit(props, "class", "children");
+	return createComponent$1(View, mergeProps(rest, {
 		role: "group",
 		get ["aria-label"]() {
 			return props["aria-label"] ?? "Breadcrumb";
@@ -4252,17 +4254,27 @@ function Breadcrumb(props) {
 		get children() {
 			return props.children;
 		}
-	});
+	}));
 }
 function BreadcrumbList(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted", props.class);
-	} }));
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return join("min-w-0 flex flex-wrap items-center gap-1.5 text-sm text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
 }
 function BreadcrumbItem(props) {
-	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("min-w-0 flex items-center gap-1.5", props.class);
-	} }));
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return join("min-w-0 flex items-center gap-1.5", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
 }
 function BreadcrumbLink(props) {
 	return createComponent$1(Button$1, mergeProps(props, {
@@ -4272,8 +4284,10 @@ function BreadcrumbLink(props) {
 	}));
 }
 function BreadcrumbPage(props) {
-	return createComponent$1(Text, {
+	const rest = omit(props, "class", "children");
+	return createComponent$1(Text, mergeProps(rest, {
 		role: "link",
+		"aria-disabled": "true",
 		"aria-current": "page",
 		get ["class"]() {
 			return join("min-w-0 text-sm font-medium text-primary", props.class);
@@ -4281,27 +4295,39 @@ function BreadcrumbPage(props) {
 		get children() {
 			return props.children;
 		}
-	});
+	}));
 }
 function BreadcrumbSeparator(props) {
-	return createComponent$1(Text, {
-		"aria-hidden": true,
+	const rest = omit(props, "class", "children");
+	return createComponent$1(View, mergeProps(rest, {
+		role: "presentation",
+		"aria-hidden": "true",
 		get ["class"]() {
-			return join("flex-none text-xs text-muted", props.class);
+			return join("w-4 h-4 flex-none flex items-center justify-center text-muted", props.class);
 		},
 		get children() {
-			return props.children ?? "/";
+			return props.children ?? createComponent$1(Icon, {
+				source: chevronRight,
+				size: 14
+			});
 		}
-	});
+	}));
 }
 function BreadcrumbEllipsis(props) {
-	return createComponent$1(Text, {
-		"aria-hidden": true,
+	const rest = omit(props, "class");
+	return createComponent$1(View, mergeProps(rest, {
+		role: "presentation",
+		"aria-hidden": "true",
 		get ["class"]() {
-			return join("flex-none text-sm text-muted", props.class);
+			return join("w-8 h-8 flex-none flex items-center justify-center text-muted", props.class);
 		},
-		children: "..."
-	});
+		get children() {
+			return createComponent$1(Icon, {
+				source: ellipsis,
+				size: 16
+			});
+		}
+	}));
 }
 const PaginationContext = createContext({
 	managed: false,
