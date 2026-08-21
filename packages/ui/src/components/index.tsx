@@ -18,6 +18,7 @@ import {
 import { join } from "./class-names";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
+export * from "./alert";
 export * from "./alert-dialog";
 export * from "./aspect-ratio";
 export * from "./attachment";
@@ -289,47 +290,6 @@ export function Separator(props: {
       aria-hidden="true"
       class={join("flex-none", "bg-subtle", dimensions(), props.class)}
     />
-  );
-}
-
-export function Alert(props: {
-  title: string;
-  children?: JSX.Element;
-  variant?: "default" | "destructive";
-  class?: string;
-}): JSX.Element {
-  const colors = () =>
-    match(props.variant ?? "default")
-      .with("default", () => ({
-        container: "border-subtle bg-surface",
-        title: "text-primary",
-        body: "text-secondary",
-      }))
-      .with("destructive", () => ({
-        container: "border-danger bg-danger-surface",
-        title: "text-danger-primary",
-        body: "text-danger-primary",
-      }))
-      .exhaustive();
-  return (
-    <View
-      role="alert"
-      aria-label={props.title}
-      class={join(
-        "flex flex-col gap-1 rounded-lg border p-4 shadow-xs",
-        colors().container,
-        props.class,
-      )}
-    >
-      <Text class={join("text-sm font-semibold", colors().title)}>
-        {props.title}
-      </Text>
-      <Text
-        class={join("w-full min-w-0 whitespace-normal text-sm", colors().body)}
-      >
-        {props.children}
-      </Text>
-    </View>
   );
 }
 

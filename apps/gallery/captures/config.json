@@ -6,6 +6,9 @@
     "waitMs": 250
   },
   "overrides": {
+    "alert-hidpi.ts": {
+      "scaleFactor": 2
+    },
     "aspect-ratio-hidpi.ts": {
       "scaleFactor": 2
     },

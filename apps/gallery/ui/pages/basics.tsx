@@ -1,5 +1,7 @@
 import {
   Alert,
+  AlertDescription,
+  AlertTitle,
   type AnimationControls,
   animate,
   Badge,
@@ -15,6 +17,7 @@ import {
   createHover,
   createWindow,
   Fps,
+  Icon,
   Input,
   Kbd,
   KbdGroup,
@@ -53,6 +56,8 @@ import {
   useWindow,
   View,
 } from "@wabou/ui";
+import info from "lucide-static/icons/info.svg?raw";
+import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
 import { createSignal, For, onCleanup } from "solid-js";
 import "virtual:wabou-stylesheet";
 
@@ -897,13 +902,26 @@ function AlertPage() {
     <View class="flex flex-col gap-5">
       <Preview title="Default">
         <View class="w-full max-w-xl">
-          <Alert title="Heads up">A newer framework build is available.</Alert>
+          <Alert
+            aria-label="Framework update"
+            icon={<Icon source={info} aria-hidden="true" size={16} />}
+          >
+            <AlertTitle>Heads up</AlertTitle>
+            <AlertDescription>
+              A newer framework build is available.
+            </AlertDescription>
+          </Alert>
         </View>
       </Preview>
       <Preview title="Destructive">
         <View class="w-full max-w-xl">
-          <Alert title="Build failed" variant="destructive">
-            The native bundle could not be linked.
+          <Alert
+            title="Build failed"
+            variant="destructive"
+            icon={<Icon source={triangleAlert} aria-hidden="true" size={16} />}
+          >
+            The native bundle could not be linked. Review the linker output and
+            retry the build.
           </Alert>
         </View>
       </Preview>
