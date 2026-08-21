@@ -88,6 +88,7 @@ export * from "./separator";
 export * from "./sheet";
 export * from "./sidebar";
 export * from "./slider";
+export * from "./split-button";
 export * from "./stat-card";
 export * from "./stepper";
 export * from "./table";

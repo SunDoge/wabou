@@ -9,6 +9,7 @@ import {
   DirectionalText,
   DirectionProvider,
   NativeSelect,
+  SplitButton,
   StatCard,
   Stepper,
   Text,
@@ -134,6 +135,27 @@ export function StatCardPage() {
         indicatorClass="bg-success-primary"
       />
     </View>
+  );
+}
+
+export function SplitButtonPage() {
+  return (
+    <SplitButton
+      class="w-64"
+      label="Run project"
+      items={[
+        {
+          id: "debug",
+          label: "Run with debugger",
+          description: "Attach native diagnostics",
+        },
+        {
+          id: "profile",
+          label: "Profile performance",
+          description: "Capture frame timings",
+        },
+      ]}
+    />
   );
 }
 
