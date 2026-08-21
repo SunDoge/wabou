@@ -117,13 +117,12 @@ test("opens on pointer down without waiting for the pressed state to release", (
   expect(trigger.expanded).toBe(true);
 });
 
-test("can disable popup motion without changing selection behavior", () => {
+test("opens without implicit motion by default", () => {
   const screen = renderComponent(() => (
     <Select
       aria-label="Technology"
       options={options}
       defaultValue="solid"
-      motion={false}
     />
   ));
 
@@ -132,4 +131,19 @@ test("can disable popup motion without changing selection behavior", () => {
   expect(panel?.transform).toEqual([1, 0, 0, 1, 0, 0]);
   screen.getByRole("option", { name: "Rust" }).click();
   expect(screen.getByRole("combobox").text).toContain("Rust");
+});
+
+test("supports explicit popup motion", () => {
+  const screen = renderComponent(() => (
+    <Select
+      aria-label="Technology"
+      options={options}
+      defaultValue="solid"
+      motion={{ duration: 0.1, fromScale: 0.98 }}
+    />
+  ));
+
+  screen.getByRole("combobox").click();
+  const panel = screen.getByRole("listbox").closestByRole("presentation");
+  expect(panel?.transform?.[0]).toBeLessThan(1);
 });

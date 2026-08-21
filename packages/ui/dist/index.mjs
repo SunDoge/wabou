@@ -3902,11 +3902,6 @@ function selectControlsId(listboxId, open) {
 //#region src/components/select.tsx
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
-const DEFAULT_SELECT_MOTION = {
-	duration: .1,
-	ease: "easeOut",
-	fromScale: .985
-};
 /** Shadcn-inspired single Select backed by Wabou-native interaction state. */
 function Select(props) {
 	const theme = useComponentsTheme();
@@ -3968,7 +3963,7 @@ function Select(props) {
 			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
 		},
 		get motion() {
-			return props.motion ?? DEFAULT_SELECT_MOTION;
+			return props.motion ?? false;
 		},
 		trigger: (popover) => createComponent$1(Button$1, {
 			unstyled: true,

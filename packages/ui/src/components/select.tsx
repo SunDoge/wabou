@@ -23,11 +23,6 @@ import { componentsElevation, useComponentsTheme } from "./theme";
 
 const ITEM_HEIGHT = 40;
 const VISIBLE_ITEMS = 6;
-const DEFAULT_SELECT_MOTION = {
-  duration: 0.1,
-  ease: "easeOut",
-  fromScale: 0.985,
-} as const;
 
 export interface SelectOption {
   value: string;
@@ -140,7 +135,9 @@ export function Select(props: SelectProps): JSX.Element {
           ? componentsElevation(theme(), "floating")
           : props.contentShadows
       }
-      motion={props.motion ?? DEFAULT_SELECT_MOTION}
+      // Match native selects and Kobalte's headless default: opening is
+      // immediate unless an application explicitly opts into popup motion.
+      motion={props.motion ?? false}
       trigger={(popover) => (
         <HeadlessButton
           unstyled
