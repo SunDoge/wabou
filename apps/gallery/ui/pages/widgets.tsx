@@ -58,11 +58,17 @@ import {
   InputGroupButton,
   InputGroupInput,
   InputGroupText,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemSeparator,
+  ItemTitle,
   Pagination,
   PaginationContent,
-  PaginationItem,
   PaginationItems,
-  PaginationLink,
   PaginationNext,
   PaginationPrevious,
   Popover,
@@ -736,6 +742,61 @@ export function EmptyPage() {
         </EmptyContent>
       </Empty>
     </Preview>
+  );
+}
+
+export function ItemPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Project list">
+        <ItemGroup class="w-[560px] rounded-lg border border-subtle bg-surface shadow-xs">
+          <Item>
+            <ItemMedia variant="icon">
+              <Icon source={rocket} aria-hidden="true" size={16} />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>Wabou Gallery</ItemTitle>
+              <ItemDescription>
+                Native component fixtures rendered through the Rust host.
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Badge variant="success">Running</Badge>
+              <Button size="sm" variant="outline">
+                Open
+              </Button>
+            </ItemActions>
+          </Item>
+          <ItemSeparator />
+          <Item size="sm" variant="muted">
+            <ItemContent>
+              <ItemTitle>Component contract checks</ItemTitle>
+              <ItemDescription>
+                Surface, focus and overlay ownership are validated before
+                capture.
+              </ItemDescription>
+            </ItemContent>
+            <ItemActions>
+              <Badge variant="outline">18 checks</Badge>
+            </ItemActions>
+          </Item>
+        </ItemGroup>
+      </Preview>
+      <Preview title="Standalone outline">
+        <Item class="w-[440px]" variant="outline">
+          <ItemContent>
+            <ItemTitle>Download complete</ItemTitle>
+            <ItemDescription>
+              The row remains shrinkable and truncates long descriptions at two
+              lines.
+            </ItemDescription>
+          </ItemContent>
+          <ItemActions>
+            <Button size="sm">Reveal</Button>
+          </ItemActions>
+        </Item>
+      </Preview>
+    </View>
   );
 }
 

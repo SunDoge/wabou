@@ -79,6 +79,7 @@ type ComponentId =
   | "avatar"
   | "field"
   | "empty"
+  | "item"
   | "button-group"
   | "toolbar"
   | "menubar"
@@ -136,6 +137,7 @@ const groups: Array<{
     items: [
       { id: "badge", name: "Badge" },
       { id: "card", name: "Card" },
+      { id: "item", name: "Item" },
       { id: "chart", name: "Chart experiment" },
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
@@ -251,6 +253,7 @@ const descriptions: Record<ComponentId, string> = {
   "date-picker":
     "Selects an internationalized calendar date from a native floating panel.",
   empty: "A centered placeholder for collections that do not contain data yet.",
+  item: "A composable row for lists, settings and compact application summaries.",
   "button-group":
     "Groups related actions into horizontal or vertical toolbars.",
   toolbar:
@@ -319,6 +322,7 @@ import {
   EmptyPage,
   FieldPage,
   HoverCardPage,
+  ItemPage,
   PaginationPage,
   PopoverPage,
   ResizablePage,
@@ -593,6 +597,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "empty"}>
                     <EmptyPage />
+                  </Match>
+                  <Match when={selected() === "item"}>
+                    <ItemPage />
                   </Match>
                   <Match when={selected() === "button-group"}>
                     <ButtonGroupPage />
