@@ -511,6 +511,14 @@ pub struct FrameStats {
     pub viewport_h: u32,
 }
 
+/// An atomically reserved screenshot artifact fulfilled through its open file.
+pub struct ScreenshotRequest {
+    /// Stable identity and user-visible location of the capture.
+    pub path: PathBuf,
+    /// Reserved destination handle; renderers must not reopen `path`.
+    pub file: std::fs::File,
+}
+
 impl FrameStats {
     const ALPHA: f64 = 0.1;
 
@@ -660,7 +668,7 @@ pub trait FrameSource {
 
     /// DevTools screenshot handshake. The shell renders its current scene to
     /// this path only when requested; normal frames pay no readback cost.
-    fn take_screenshot_request(&mut self) -> Option<PathBuf> {
+    fn take_screenshot_request(&mut self) -> Option<ScreenshotRequest> {
         None
     }
 

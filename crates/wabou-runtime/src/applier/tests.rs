@@ -111,18 +111,32 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
     assert_eq!(enabled_paint.clip_bounds, 0);
     assert_eq!(enabled_paint.highlights, 0);
 
-    let output = std::env::temp_dir().join(format!(
-        "wabou-debug-overlay-pixels-{}.png",
-        std::process::id()
-    ));
-    wabou_shell::renderer::render_to_png(
+    let output = debug
+        .write()
+        .expect("debug state")
+        .request_screenshot()
+        .expect("reserve secure screenshot");
+    let (requested_path, mut output_file) = debug
+        .write()
+        .expect("debug state")
+        .take_screenshot_request()
+        .expect("take secure screenshot request");
+    assert_eq!(requested_path, output);
+    wabou_shell::renderer::render_to_png_file(
         &enabled_scene,
         120,
         80,
         Color::WHITE,
-        &output.to_string_lossy(),
+        &mut output_file,
+        &output,
     )
     .expect("render debug overlay");
+    drop(output_file);
+    debug
+        .write()
+        .expect("debug state")
+        .complete_screenshot(&requested_path, Ok(output.clone()))
+        .expect("complete secure screenshot");
     let pixels = image::open(&output)
         .expect("open debug overlay png")
         .into_rgba8();

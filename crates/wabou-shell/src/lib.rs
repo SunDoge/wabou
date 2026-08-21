@@ -52,8 +52,8 @@ pub use shortcut::StandardShortcut;
 pub use source::{
     ClipboardRequest, ColorScheme, EventResponse, FileDropEvent, FileDropPhase, FrameSource,
     FrameStats, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers,
-    Point, PointerButton, PointerEvent, PointerPhase, SemanticAction, SemanticCurrent,
-    SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot, SemanticStates,
+    Point, PointerButton, PointerEvent, PointerPhase, ScreenshotRequest, SemanticAction,
+    SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot, SemanticStates,
     SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand,
     WindowMetrics, WindowOptions,
 };

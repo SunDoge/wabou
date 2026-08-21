@@ -820,18 +820,20 @@ impl App {
         shell
             .accessibility
             .set_snapshot(self.source.semantic_snapshot());
-        if let Some(path) = self.source.take_screenshot_request() {
+        if let Some(mut request) = self.source.take_screenshot_request() {
             let (width, height) = shell.size();
-            let result = crate::renderer::render_to_png(
+            let result = crate::renderer::render_to_png_file(
                 &shell.scene,
                 width,
                 height,
                 base_color,
-                &path.to_string_lossy(),
+                &mut request.file,
+                &request.path,
             )
-            .map(|_| path.clone())
+            .map(|_| request.path.clone())
             .map_err(|error| error.to_string());
-            self.source.complete_screenshot(&path, result);
+            drop(request.file);
+            self.source.complete_screenshot(&request.path, result);
         }
         let t2 = Instant::now();
         let presented = {

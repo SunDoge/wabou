@@ -1,8 +1,9 @@
 //! Headless (offscreen) rendering to a PNG file.
 
 use std::num::NonZeroUsize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
+use image::ImageEncoder as _;
 use snafu::{OptionExt, ResultExt};
 use vello::peniko::Color;
 use vello::wgpu::TextureUsages;
@@ -17,6 +18,46 @@ pub fn render_to_png(
     base_color: Color,
     out_path: &str,
 ) -> crate::Result<()> {
+    let img = render_to_image(scene, width, height, base_color)?;
+    img.save(out_path).context(crate::error::SavePngSnafu {
+        path: PathBuf::from(out_path),
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(out_path, std::fs::Permissions::from_mode(0o600)).context(
+            crate::error::SecurePngSnafu {
+                path: PathBuf::from(out_path),
+            },
+        )?;
+    }
+    Ok(())
+}
+
+/// Render `scene` into an already-open, atomically reserved PNG artifact.
+pub fn render_to_png_file(
+    scene: &Scene,
+    width: u32,
+    height: u32,
+    base_color: Color,
+    file: &mut std::fs::File,
+    path: &Path,
+) -> crate::Result<()> {
+    let img = render_to_image(scene, width, height, base_color)?;
+    image::codecs::png::PngEncoder::new(file)
+        .write_image(img.as_raw(), width, height, image::ExtendedColorType::Rgba8)
+        .context(crate::error::SavePngSnafu {
+            path: path.to_owned(),
+        })?;
+    Ok(())
+}
+
+fn render_to_image(
+    scene: &Scene,
+    width: u32,
+    height: u32,
+    base_color: Color,
+) -> crate::Result<image::RgbaImage> {
     let mut context = WGPUContext::new();
     let buffer_renderer =
         pollster::block_on(context.create_buffer_renderer(BufferRendererConfig {
@@ -56,19 +97,6 @@ pub fn render_to_png(
     let mut buf = vec![0u8; (width as usize) * (height as usize) * 4];
     buffer_renderer.copy_texture_to_buffer(&mut buf);
 
-    let img = image::RgbaImage::from_raw(width, height, buf)
-        .context(crate::error::InvalidImageBufferSnafu { width, height })?;
-    img.save(out_path).context(crate::error::SavePngSnafu {
-        path: PathBuf::from(out_path),
-    })?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(out_path, std::fs::Permissions::from_mode(0o600)).context(
-            crate::error::SecurePngSnafu {
-                path: PathBuf::from(out_path),
-            },
-        )?;
-    }
-    Ok(())
+    image::RgbaImage::from_raw(width, height, buf)
+        .context(crate::error::InvalidImageBufferSnafu { width, height })
 }

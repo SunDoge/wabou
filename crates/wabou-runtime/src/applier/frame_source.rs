@@ -982,18 +982,20 @@ impl FrameSource for Applier {
     }
 
     #[cfg(any(feature = "devtools", test))]
-    fn take_screenshot_request(&mut self) -> Option<std::path::PathBuf> {
-        self.frame
+    fn take_screenshot_request(&mut self) -> Option<wabou_shell::ScreenshotRequest> {
+        let (path, file) = self
+            .frame
             .projections
             .debug_state
             .as_ref()?
             .write()
             .ok()?
-            .take_screenshot_request()
+            .take_screenshot_request()?;
+        Some(wabou_shell::ScreenshotRequest { path, file })
     }
 
     #[cfg(not(any(feature = "devtools", test)))]
-    fn take_screenshot_request(&mut self) -> Option<std::path::PathBuf> {
+    fn take_screenshot_request(&mut self) -> Option<wabou_shell::ScreenshotRequest> {
         None
     }
 

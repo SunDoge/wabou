@@ -572,7 +572,8 @@ pub struct DebugState {
     snapshot: DebugSnapshot,
     frames: VecDeque<DebugFrame>,
     trace_capacity: usize,
-    screenshot_request: Option<PathBuf>,
+    capture_directory: Option<tempfile::TempDir>,
+    screenshot_request: Option<(PathBuf, fs::File)>,
     pending_screenshot: Option<PathBuf>,
     screenshot_sequence: u64,
     screenshot_result: Option<Result<PathBuf, String>>,
@@ -616,6 +617,7 @@ impl Default for DebugState {
             snapshot: DebugSnapshot::default(),
             frames: VecDeque::new(),
             trace_capacity: DEFAULT_TRACE_CAPACITY,
+            capture_directory: None,
             screenshot_request: None,
             pending_screenshot: None,
             screenshot_sequence: 0,
@@ -729,18 +731,42 @@ impl DebugState {
             ));
         }
         self.screenshot_sequence = self.screenshot_sequence.wrapping_add(1);
-        let path = std::env::temp_dir().join(format!(
-            "wabou-screenshot-{}-{}-{}.png",
-            std::process::id(),
-            self.snapshot.status.revision,
-            self.screenshot_sequence,
-        ));
+        if self.capture_directory.is_none() {
+            let directory = tempfile::Builder::new()
+                .prefix(&format!("wabou-captures-{}-", std::process::id()))
+                .tempdir()
+                .map_err(|error| format!("cannot create private capture directory: {error}"))?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt as _;
+                fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700))
+                    .map_err(|error| format!("cannot secure private capture directory: {error}"))?;
+            }
+            self.capture_directory = Some(directory);
+        }
+        let directory = self
+            .capture_directory
+            .as_ref()
+            .expect("capture directory initialized above");
+        let temporary = tempfile::Builder::new()
+            .prefix(&format!(
+                "wabou-screenshot-{}-{}-{}-",
+                std::process::id(),
+                self.snapshot.status.revision,
+                self.screenshot_sequence,
+            ))
+            .suffix(".png")
+            .tempfile_in(directory.path())
+            .map_err(|error| format!("cannot reserve secure screenshot file: {error}"))?;
+        let (file, path) = temporary
+            .keep()
+            .map_err(|error| format!("cannot retain secure screenshot file: {error}"))?;
         self.screenshot_result = None;
         self.capture_case_result = None;
         self.capture_case_requested = capture_case;
         self.capture_case_point = point;
         self.pending_screenshot = Some(path.clone());
-        self.screenshot_request = Some(path.clone());
+        self.screenshot_request = Some((path.clone(), file));
         if let Some(wake) = &self.wake {
             wake();
         }
@@ -753,7 +779,7 @@ impl DebugState {
     }
 
     /// Drain the screenshot path the renderer should fulfill.
-    pub fn take_screenshot_request(&mut self) -> Option<PathBuf> {
+    pub fn take_screenshot_request(&mut self) -> Option<(PathBuf, fs::File)> {
         self.screenshot_request.take()
     }
 
@@ -769,6 +795,7 @@ impl DebugState {
         result: Result<PathBuf, String>,
     ) -> Result<(), String> {
         if self.pending_screenshot.as_deref() != Some(requested_path) {
+            let _ = fs::remove_file(requested_path);
             return Err(format!(
                 "ignored completion for stale DevTools capture: {}",
                 requested_path.display()
@@ -791,6 +818,9 @@ impl DebugState {
                 }
             }));
         }
+        if result.is_err() {
+            let _ = fs::remove_file(requested_path);
+        }
         self.screenshot_result = Some(result);
         Ok(())
     }
@@ -804,6 +834,7 @@ impl DebugState {
         self.screenshot_request = None;
         self.capture_case_requested = false;
         self.capture_case_point = None;
+        let _ = fs::remove_file(requested_path);
         true
     }
 

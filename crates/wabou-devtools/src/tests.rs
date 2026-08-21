@@ -119,7 +119,10 @@ fn capture_case_freezes_snapshot_when_the_screenshot_completes() {
 fn capture_remains_single_flight_after_renderer_drains_request() {
     let mut state = DebugState::default();
     let first = state.request_screenshot().expect("request first capture");
-    assert_eq!(state.take_screenshot_request().as_ref(), Some(&first));
+    let (queued_path, _file) = state
+        .take_screenshot_request()
+        .expect("renderer drains first capture");
+    assert_eq!(queued_path, first);
 
     let error = state
         .request_capture_case(None)
@@ -127,10 +130,37 @@ fn capture_remains_single_flight_after_renderer_drains_request() {
     assert!(error.contains("already in progress"));
 
     assert!(state.cancel_screenshot(&first));
+    assert!(!first.exists());
     let second = state
         .request_capture_case(None)
         .expect("capture can recover after cancellation");
     assert_ne!(first, second);
+}
+
+#[cfg(unix)]
+#[test]
+fn capture_artifacts_are_reserved_inside_a_private_directory() {
+    let mut state = DebugState::default();
+    let path = state.request_screenshot().expect("reserve capture");
+    let parent = path.parent().expect("capture parent");
+    assert_eq!(
+        fs::metadata(parent).unwrap().permissions().mode() & 0o777,
+        0o700
+    );
+    assert_eq!(
+        fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+
+    let (queued_path, file) = state
+        .take_screenshot_request()
+        .expect("take reserved artifact");
+    assert_eq!(queued_path, path);
+    drop(file);
+    state
+        .complete_screenshot(&path, Err("renderer failed".to_owned()))
+        .expect("publish renderer failure");
+    assert!(!path.exists(), "failed captures must not leave artifacts");
 }
 
 #[test]
@@ -321,7 +351,7 @@ fn unix_socket_round_trip_uses_versioned_status() {
     let worker = std::thread::spawn(move || {
         loop {
             let request = { screenshot_state.write().unwrap().take_screenshot_request() };
-            if let Some(path) = request {
+            if let Some((path, _file)) = request {
                 screenshot_state
                     .write()
                     .unwrap()
@@ -347,7 +377,7 @@ fn unix_socket_round_trip_uses_versioned_status() {
     let worker = std::thread::spawn(move || {
         loop {
             let request = { capture_state.write().unwrap().take_screenshot_request() };
-            if let Some(path) = request {
+            if let Some((path, _file)) = request {
                 capture_state
                     .write()
                     .unwrap()

@@ -9065,6 +9065,7 @@ dependencies = [
  "serde_json",
  "specta",
  "specta-typescript",
+ "tempfile",
  "tokio",
  "wabou-host-api",
 ]
