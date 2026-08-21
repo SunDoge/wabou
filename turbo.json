@@ -1,0 +1,21 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "generate": {
+      "inputs": ["project.inlang/**", "messages/**", "package.json"],
+      "outputs": ["ui/paraglide/**"]
+    },
+    "//#check:types": {
+      "dependsOn": ["@wabou/gallery#generate"],
+      "outputs": []
+    },
+    "build": {
+      "dependsOn": ["generate", "^build"],
+      "cache": false
+    },
+    "test": {
+      "dependsOn": ["generate"],
+      "outputs": []
+    }
+  }
+}

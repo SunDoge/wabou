@@ -6,7 +6,8 @@
   "scripts": {
     "wabou": "cargo run -p wabou-cli --",
     "format": "biome format --write .",
-    "check": "bun run gen:i18n && bun x tsc --noEmit",
+    "check": "turbo run check:types --filter='//'",
+    "check:types": "bun x tsc --noEmit",
     "verify": "bun run verify:js && bun run verify:rust && bun run verify:behavior && bun run verify:captures",
     "verify:js": "bun run check && bun run test && bun run test:hmr && bun run packages:check && bun run scripts/publish-packages.ts --dry-run && bun run gen:check",
     "verify:rust": "cargo fmt --all -- --check && cargo check --workspace --all-targets && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-targets",
@@ -55,6 +56,7 @@
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.1",
     "tsdown": "0.22.14",
+    "turbo": "^2.10.11",
     "typescript": "^5.9.0",
     "unocss": "^66.7.5",
     "vite-plugin-solid": "3.0.0-next.27",

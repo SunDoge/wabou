@@ -1,6 +1,7 @@
 /target
 *.png
 node_modules/
+.turbo/
 **/dist/
 !packages/*/dist/
 !packages/*/dist/**
