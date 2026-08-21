@@ -5453,28 +5453,67 @@ function Toggle(props) {
 	});
 }
 const ToggleGroupContext = createContext();
+function nextToggleGroupValue(current, value, type) {
+	if (type === "single") return current === value ? "" : value;
+	const values = Array.isArray(current) ? current : [];
+	return values.includes(value) ? values.filter((candidate) => candidate !== value) : [...values, value];
+}
 /** Shadcn-style single-value toggle group with native roving focus. */
 function ToggleGroup(props) {
+	const entries = [];
+	const [activeValue, setActiveValue] = createSignal(void 0, { ownedWrite: true });
+	const [registryVersion, setRegistryVersion] = createSignal(0, { ownedWrite: true });
+	const type = () => props.type ?? "single";
 	const state = createControllableState({
 		value: () => props.value,
-		defaultValue: props.defaultValue,
+		defaultValue: props.defaultValue ?? (props.type === "multiple" ? [] : ""),
 		disabled: () => props.disabled ?? false,
-		onChange: (value) => value !== void 0 && props.onValueChange?.(value)
+		onChange: (value) => {
+			if (props.type === "multiple") props.onValueChange?.(Array.isArray(value) ? value : []);
+			else props.onValueChange?.(typeof value === "string" ? value : "");
+		}
 	});
 	const roving = createRovingFocus({
 		orientation: () => "horizontal",
-		onMove: (value) => state.set(value)
+		loop: props.loop,
+		onMove: setActiveValue
 	});
 	const context = {
-		value: state.value,
+		selected(value) {
+			const current = state.value();
+			return Array.isArray(current) ? current.includes(value) : current === value;
+		},
 		disabled: () => props.disabled ?? false,
-		select: (value) => state.set(value),
-		register: (value, node, disabled) => roving.register({
-			id: value,
-			target: node,
-			disabled
-		}),
-		move: roving.move
+		toggle: (value) => state.set(nextToggleGroupValue(state.value(), value, type())),
+		register(value, node, disabled) {
+			const entry = {
+				value,
+				disabled
+			};
+			entries.push(entry);
+			const unregisterRoving = roving.register({
+				id: value,
+				target: node,
+				disabled
+			});
+			setRegistryVersion((version) => version + 1);
+			return () => {
+				unregisterRoving();
+				const index = entries.indexOf(entry);
+				if (index >= 0) entries.splice(index, 1);
+				setRegistryVersion((version) => version + 1);
+			};
+		},
+		activate: setActiveValue,
+		isTabStop(value) {
+			registryVersion();
+			const enabled = entries.filter((entry) => !entry.disabled());
+			const active = activeValue();
+			return value === (enabled.some((entry) => entry.value === active) ? active : enabled.find((entry) => context.selected(entry.value))?.value ?? enabled[0]?.value);
+		},
+		move: roving.move,
+		variant: () => props.variant ?? "default",
+		size: () => props.size ?? "default"
 	};
 	return createComponent(ToggleGroupContext, {
 		value: context,
@@ -5485,7 +5524,7 @@ function ToggleGroup(props) {
 					return props["aria-label"];
 				},
 				get ["class"]() {
-					return join("flex flex-row items-center gap-0.5 rounded-md bg-control p-0.5", props.class);
+					return join("flex flex-row items-center rounded-md bg-transparent", match(props.spacing ?? 0).with(0, () => "gap-0").with(1, () => "gap-1").with(2, () => "gap-2").exhaustive(), props.class);
 				},
 				get children() {
 					return props.children;
@@ -5497,7 +5536,7 @@ function ToggleGroup(props) {
 function ToggleGroupItem(props) {
 	const group = useContext(ToggleGroupContext);
 	if (!group) throw new Error("ToggleGroupItem must be used inside ToggleGroup");
-	const selected = () => group.value() === props.value;
+	const selected = () => group.selected(props.value);
 	const disabled = () => group.disabled() || (props.disabled ?? false);
 	let unregister;
 	onCleanup(() => unregister?.());
@@ -5512,20 +5551,24 @@ function ToggleGroupItem(props) {
 		get ["aria-pressed"]() {
 			return selected();
 		},
+		get focusOrder() {
+			return group.isTabStop(props.value) ? 0 : -1;
+		},
 		ref: (node) => {
 			unregister?.();
 			unregister = group.register(props.value, node, disabled);
 		},
-		class: (state) => join("h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match({
+		class: (state) => join("h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium", match(props.size ?? group.size()).with("sm", () => "h-6 px-2 text-xs").with("default", () => "h-8 px-3 text-sm").with("lg", () => "h-10 px-4 text-sm").exhaustive(), match({
 			selected: selected(),
 			accent: props.variant === "accent",
 			hovered: state.hovered
 		}).with({
 			selected: true,
 			accent: true
-		}, () => "bg-accent text-on-accent").with({ selected: true }, () => "bg-surface text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), state.focusVisible && "border-focus", props.class),
+		}, () => "bg-accent text-on-accent").with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control-hover text-primary").otherwise(() => "bg-transparent text-muted"), (props.variant ?? group.variant()) === "outline" && "border-strong", state.focusVisible && "border-focus", props.class),
 		style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
-		onClick: () => group.select(props.value),
+		onFocus: () => group.activate(props.value),
+		onClick: () => group.toggle(props.value),
 		onKeyDown: (event) => {
 			if (group.move(props.value, event.key)) event.preventDefault();
 		},

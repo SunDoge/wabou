@@ -1171,22 +1171,34 @@ interface ToggleProps {
   onPressedChange?: (pressed: boolean) => void;
 }
 declare function Toggle(props: ToggleProps): JSX.Element;
-interface ToggleGroupProps {
-  type: "single";
-  value?: string;
-  defaultValue?: string;
+interface ToggleGroupBaseProps {
   disabled?: boolean;
   "aria-label"?: string;
+  variant?: "default" | "outline";
+  size?: "sm" | "default" | "lg";
+  spacing?: 0 | 1 | 2;
+  loop?: boolean;
   class?: string;
   children?: JSX.Element;
-  onValueChange?: (value: string) => void;
 }
+type ToggleGroupProps = ToggleGroupBaseProps & ({
+  type?: "single";
+  value?: string;
+  defaultValue?: string;
+  onValueChange?: (value: string) => void;
+} | {
+  type: "multiple";
+  value?: readonly string[];
+  defaultValue?: readonly string[];
+  onValueChange?: (value: readonly string[]) => void;
+});
 /** Shadcn-style single-value toggle group with native roving focus. */
 declare function ToggleGroup(props: ToggleGroupProps): JSX.Element;
 interface ToggleGroupItemProps {
   value: string;
   disabled?: boolean;
-  variant?: "default" | "accent";
+  variant?: "default" | "outline" | "accent";
+  size?: "sm" | "default" | "lg";
   class?: string;
   children?: JSX.Element;
 }

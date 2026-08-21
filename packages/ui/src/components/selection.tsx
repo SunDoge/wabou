@@ -4,6 +4,7 @@ import minus from "lucide-static/icons/minus.svg?raw";
 import {
   createComponent,
   createContext,
+  createSignal,
   type JSX,
   onCleanup,
   useContext,
@@ -288,45 +289,126 @@ export function Toggle(props: ToggleProps): JSX.Element {
 }
 
 interface ToggleGroupContextValue {
-  value: () => string | undefined;
+  selected(value: string): boolean;
   disabled: () => boolean;
-  select(value: string): void;
+  toggle(value: string): void;
   register(value: string, node: Handle, disabled: () => boolean): () => void;
+  activate(value: string): void;
+  isTabStop(value: string): boolean;
   move(value: string, key: string): boolean;
+  variant: () => "default" | "outline";
+  size: () => "sm" | "default" | "lg";
 }
 
 const ToggleGroupContext = createContext<ToggleGroupContextValue>();
 
-export interface ToggleGroupProps {
-  type: "single";
-  value?: string;
-  defaultValue?: string;
+interface ToggleGroupBaseProps {
   disabled?: boolean;
   "aria-label"?: string;
+  variant?: "default" | "outline";
+  size?: "sm" | "default" | "lg";
+  spacing?: 0 | 1 | 2;
+  loop?: boolean;
   class?: string;
   children?: JSX.Element;
-  onValueChange?: (value: string) => void;
+}
+
+export type ToggleGroupProps = ToggleGroupBaseProps &
+  (
+    | {
+        type?: "single";
+        value?: string;
+        defaultValue?: string;
+        onValueChange?: (value: string) => void;
+      }
+    | {
+        type: "multiple";
+        value?: readonly string[];
+        defaultValue?: readonly string[];
+        onValueChange?: (value: readonly string[]) => void;
+      }
+  );
+
+export function nextToggleGroupValue(
+  current: string | readonly string[],
+  value: string,
+  type: "single" | "multiple",
+): string | readonly string[] {
+  if (type === "single") return current === value ? "" : value;
+  const values = Array.isArray(current) ? current : [];
+  return values.includes(value)
+    ? values.filter((candidate) => candidate !== value)
+    : [...values, value];
 }
 
 /** Shadcn-style single-value toggle group with native roving focus. */
 export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
-  const state = createControllableState<string | undefined>({
+  const entries: Array<{ value: string; disabled: () => boolean }> = [];
+  const [activeValue, setActiveValue] = createSignal<string | undefined>(
+    undefined,
+    { ownedWrite: true },
+  );
+  const [registryVersion, setRegistryVersion] = createSignal(0, {
+    ownedWrite: true,
+  });
+  const type = () => props.type ?? "single";
+  const state = createControllableState<string | readonly string[]>({
     value: () => props.value,
-    defaultValue: props.defaultValue,
+    defaultValue: props.defaultValue ?? (props.type === "multiple" ? [] : ""),
     disabled: () => props.disabled ?? false,
-    onChange: (value) => value !== undefined && props.onValueChange?.(value),
+    onChange: (value) => {
+      if (props.type === "multiple") {
+        props.onValueChange?.(Array.isArray(value) ? value : []);
+      } else {
+        props.onValueChange?.(typeof value === "string" ? value : "");
+      }
+    },
   });
   const roving = createRovingFocus({
     orientation: () => "horizontal",
-    onMove: (value) => state.set(value),
+    loop: props.loop,
+    onMove: setActiveValue,
   });
   const context: ToggleGroupContextValue = {
-    value: state.value,
+    selected(value) {
+      const current = state.value();
+      return Array.isArray(current)
+        ? current.includes(value)
+        : current === value;
+    },
     disabled: () => props.disabled ?? false,
-    select: (value) => state.set(value),
-    register: (value, node, disabled) =>
-      roving.register({ id: value, target: node, disabled }),
+    toggle: (value) =>
+      state.set(nextToggleGroupValue(state.value(), value, type())),
+    register(value, node, disabled) {
+      const entry = { value, disabled };
+      entries.push(entry);
+      const unregisterRoving = roving.register({
+        id: value,
+        target: node,
+        disabled,
+      });
+      setRegistryVersion((version) => version + 1);
+      return () => {
+        unregisterRoving();
+        const index = entries.indexOf(entry);
+        if (index >= 0) entries.splice(index, 1);
+        setRegistryVersion((version) => version + 1);
+      };
+    },
+    activate: setActiveValue,
+    isTabStop(value) {
+      registryVersion();
+      const enabled = entries.filter((entry) => !entry.disabled());
+      const active = activeValue();
+      const current = enabled.some((entry) => entry.value === active)
+        ? active
+        : (enabled.find((entry) => context.selected(entry.value))?.value ??
+          enabled[0]?.value);
+      return value === current;
+    },
     move: roving.move,
+    variant: () => props.variant ?? "default",
+    size: () => props.size ?? "default",
   };
   return createComponent(ToggleGroupContext, {
     value: context,
@@ -336,7 +418,12 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
           role="group"
           aria-label={props["aria-label"]}
           class={join(
-            "flex flex-row items-center gap-0.5 rounded-md bg-control p-0.5",
+            "flex flex-row items-center rounded-md bg-transparent",
+            match(props.spacing ?? 0)
+              .with(0, () => "gap-0")
+              .with(1, () => "gap-1")
+              .with(2, () => "gap-2")
+              .exhaustive(),
             props.class,
           )}
         >
@@ -350,7 +437,8 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
 export interface ToggleGroupItemProps {
   value: string;
   disabled?: boolean;
-  variant?: "default" | "accent";
+  variant?: "default" | "outline" | "accent";
+  size?: "sm" | "default" | "lg";
   class?: string;
   children?: JSX.Element;
 }
@@ -359,7 +447,7 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
   const group = useContext(ToggleGroupContext);
   if (!group)
     throw new Error("ToggleGroupItem must be used inside ToggleGroup");
-  const selected = () => group.value() === props.value;
+  const selected = () => group.selected(props.value);
   const disabled = () => group.disabled() || (props.disabled ?? false);
   let unregister: (() => void) | undefined;
   onCleanup(() => unregister?.());
@@ -369,6 +457,7 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
       disabled={disabled()}
       selected={selected()}
       aria-pressed={selected()}
+      focusOrder={group.isTabStop(props.value) ? 0 : -1}
       ref={(node) => {
         unregister?.();
         unregister = group.register(props.value, node, disabled);
@@ -376,6 +465,11 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
       class={(state) =>
         join(
           "h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
+          match(props.size ?? group.size())
+            .with("sm", () => "h-6 px-2 text-xs")
+            .with("default", () => "h-8 px-3 text-sm")
+            .with("lg", () => "h-10 px-4 text-sm")
+            .exhaustive(),
           match({
             selected: selected(),
             accent: props.variant === "accent",
@@ -385,15 +479,17 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
               { selected: true, accent: true },
               () => "bg-accent text-on-accent",
             )
-            .with({ selected: true }, () => "bg-surface text-primary")
+            .with({ selected: true }, () => "bg-selected text-primary")
             .with({ hovered: true }, () => "bg-control-hover text-primary")
             .otherwise(() => "bg-transparent text-muted"),
+          (props.variant ?? group.variant()) === "outline" && "border-strong",
           state.focusVisible && "border-focus",
           props.class,
         )
       }
       style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
-      onClick={() => group.select(props.value)}
+      onFocus={() => group.activate(props.value)}
+      onClick={() => group.toggle(props.value)}
       onKeyDown={(event) => {
         if (group.move(props.value, event.key)) event.preventDefault();
       }}

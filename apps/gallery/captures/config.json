@@ -32,6 +32,9 @@
     },
     "navigation-menu-hidpi.ts": {
       "scaleFactor": 2
+    },
+    "toggle-hidpi.ts": {
+      "scaleFactor": 2
     }
   }
 }

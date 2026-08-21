@@ -206,11 +206,7 @@ function InputPage() {
       <Preview title="States">
         <View class="w-96 flex flex-col gap-3">
           <Input aria-label="Editable input" value="Editable value" />
-          <Input
-            aria-label="Disabled input"
-            disabled
-            value="Disabled value"
-          />
+          <Input aria-label="Disabled input" disabled value="Disabled value" />
         </View>
       </Preview>
       <Preview title="Multiline">
@@ -321,6 +317,7 @@ function TogglePage() {
   const [bold, setBold] = createSignal(true);
   const [italic, setItalic] = createSignal(false);
   const [mode, setMode] = createSignal("rule");
+  const [formats, setFormats] = createSignal<readonly string[]>(["bold"]);
   return (
     <View class="flex flex-col gap-5">
       <Preview title="Formatting toolbar">
@@ -356,6 +353,42 @@ function TogglePage() {
           <ToggleGroupItem value="global">Global</ToggleGroupItem>
           <ToggleGroupItem value="direct">Direct</ToggleGroupItem>
         </ToggleGroup>
+        <Text role="status" class="text-sm text-muted">
+          {`Routing mode: ${mode()}`}
+        </Text>
+      </Preview>
+      <Preview title="Multiple selection">
+        <View class="flex flex-col items-start gap-3">
+          <ToggleGroup
+            type="multiple"
+            value={formats()}
+            onValueChange={setFormats}
+            aria-label="Text formatting"
+            variant="outline"
+            spacing={1}
+          >
+            <ToggleGroupItem value="bold" aria-label="Bold">
+              Bold
+            </ToggleGroupItem>
+            <ToggleGroupItem value="italic" aria-label="Italic">
+              Italic
+            </ToggleGroupItem>
+            <ToggleGroupItem value="underline" aria-label="Underline">
+              Underline
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <Text role="status" class="text-sm text-muted">
+            {`Formatting: ${
+              formats().length > 0
+                ? formats()
+                    .map(
+                      (value) => `${value[0]?.toUpperCase()}${value.slice(1)}`,
+                    )
+                    .join(", ")
+                : "None"
+            }`}
+          </Text>
+        </View>
       </Preview>
     </View>
   );
