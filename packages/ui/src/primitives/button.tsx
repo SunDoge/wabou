@@ -73,6 +73,11 @@ export interface ButtonEvent {
 
 export interface ButtonKeyEvent extends ButtonEvent {
   key: string;
+  code?: string;
+  /** Physical Shift, Control, Alt, and Meta modifier bits. */
+  mods?: number;
+  /** Whether the physical modifiers form this platform's primary chord. */
+  primary?: boolean;
   repeat?: boolean;
   readonly defaultPrevented?: boolean;
 }

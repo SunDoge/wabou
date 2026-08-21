@@ -662,12 +662,15 @@ function renderComponent(render, options = {}) {
 				ensureEnabled(node, "open context menu for");
 				commitEvent(node, EVENT_CODE.contextmenu, pointerPayload(position, 0, 2));
 			},
-			press: (pressedKey) => {
+			press: (pressedKey, options = {}) => {
 				ensureEnabled(node, "press");
 				if (pressedKey.length === 0) throw new Error("key must not be empty");
 				const payload = JSON.stringify({
 					key: pressedKey,
-					repeat: false
+					code: options.code ?? "",
+					mods: options.mods ?? 0,
+					primary: options.primary ?? false,
+					repeat: options.repeat ?? false
 				});
 				commitEvent(node, EVENT_CODE.keydown, payload);
 				commitEvent(node, EVENT_CODE.keyup, payload);

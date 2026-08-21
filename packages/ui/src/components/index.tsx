@@ -86,6 +86,7 @@ export {
 } from "./selection";
 export * from "./separator";
 export * from "./sheet";
+export * from "./shortcut-recorder";
 export * from "./sidebar";
 export * from "./slider";
 export * from "./split-button";

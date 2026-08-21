@@ -167,7 +167,7 @@ export interface ComponentLocator extends ComponentQueries {
   click(): void;
   /** Dispatch a secondary-click context-menu event at a deterministic point. */
   contextMenu(position?: ComponentPointerPosition): void;
-  press(key: string): void;
+  press(key: string, options?: ComponentKeyOptions): void;
   input(value: string): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
@@ -184,6 +184,14 @@ export interface ComponentPointerPosition {
   clientY?: number;
   offsetX?: number;
   offsetY?: number;
+}
+
+export interface ComponentKeyOptions {
+  code?: string;
+  /** Physical Shift, Control, Alt, and Meta modifier bits. */
+  mods?: number;
+  primary?: boolean;
+  repeat?: boolean;
 }
 
 export interface ComponentScreen extends ComponentQueries {
@@ -1093,10 +1101,16 @@ export function renderComponent(
           pointerPayload(position, 0, 2),
         );
       },
-      press: (pressedKey) => {
+      press: (pressedKey, options = {}) => {
         ensureEnabled(node, "press");
         if (pressedKey.length === 0) throw new Error("key must not be empty");
-        const payload = JSON.stringify({ key: pressedKey, repeat: false });
+        const payload = JSON.stringify({
+          key: pressedKey,
+          code: options.code ?? "",
+          mods: options.mods ?? 0,
+          primary: options.primary ?? false,
+          repeat: options.repeat ?? false,
+        });
         commitEvent(node, EVENT_CODE.keydown, payload);
         commitEvent(node, EVENT_CODE.keyup, payload);
       },

@@ -9,6 +9,7 @@ import {
   DirectionalText,
   DirectionProvider,
   NativeSelect,
+  ShortcutRecorder,
   SplitButton,
   StatCard,
   Stepper,
@@ -156,6 +157,22 @@ export function SplitButtonPage() {
         },
       ]}
     />
+  );
+}
+
+export function ShortcutRecorderPage() {
+  return (
+    <Card class="max-w-lg">
+      <CardHeader>
+        <CardTitle>Keyboard shortcuts</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ShortcutRecorder
+          label="Open command palette"
+          defaultValue="Primary+Shift+P"
+        />
+      </CardContent>
+    </Card>
   );
 }
 

@@ -109,7 +109,7 @@ interface ComponentLocator extends ComponentQueries {
   click(): void;
   /** Dispatch a secondary-click context-menu event at a deterministic point. */
   contextMenu(position?: ComponentPointerPosition): void;
-  press(key: string): void;
+  press(key: string, options?: ComponentKeyOptions): void;
   input(value: string): void;
   /** Dispatch native focus/focusin, blurring the previously focused locator. */
   focus(): void;
@@ -128,6 +128,13 @@ interface ComponentPointerPosition {
   clientY?: number;
   offsetX?: number;
   offsetY?: number;
+}
+interface ComponentKeyOptions {
+  code?: string;
+  /** Physical Shift, Control, Alt, and Meta modifier bits. */
+  mods?: number;
+  primary?: boolean;
+  repeat?: boolean;
 }
 interface ComponentScreen extends ComponentQueries {
   /** Current top-level authored nodes, including synthetic overlay roots. */
@@ -197,5 +204,5 @@ declare function cleanupComponents(): void;
  */
 declare function renderComponent(render: () => JSX.Element, options?: RenderComponentOptions): ComponentScreen;
 //#endregion
-export { ComponentLocator, ComponentOverlayPlane, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentSnapshotNode, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, assertFocusOwnerCount, assertInOverlayPlane, assertSingleSurfaceOwner, cleanupComponents, createTestHost, renderComponent };
+export { ComponentKeyOptions, ComponentLocator, ComponentOverlayPlane, ComponentPointerPosition, ComponentQueries, ComponentRoleListOptions, ComponentRoleQueryOptions, ComponentScreen, ComponentSnapshotNode, ComponentStyleValue, ComponentTypedStyleValue, ComponentWaitForOptions, RenderComponentOptions, TestBuiltinHost, TestHostCall, TestHostFixture, assertFocusOwnerCount, assertInOverlayPlane, assertSingleSurfaceOwner, cleanupComponents, createTestHost, renderComponent };
 //# sourceMappingURL=component.d.mts.map
