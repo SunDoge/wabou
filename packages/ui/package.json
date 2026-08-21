@@ -41,6 +41,9 @@
       "import": "./dist/jsx-runtime.mjs"
     }
   },
+  "scripts": {
+    "build": "bun run ../../scripts/build-packages.ts ui"
+  },
   "dependencies": {
     "@floating-ui/core": "^1.8.0",
     "@internationalized/date": "^3.12.3",

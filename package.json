@@ -22,7 +22,7 @@
     "commit:hook": "cog install-hook commit-msg",
     "test:hmr": "bun --conditions=browser --conditions=development --conditions=wabou-source test packages/core/src/renderer/hmr.test.ts",
     "test:router": "bun --conditions=browser --conditions=wabou-source test packages/ui/src/router/data.test.tsx",
-    "packages:build": "bun run scripts/build-packages.ts",
+    "packages:build": "turbo run build --filter='./packages/*'",
     "packages:check": "bun run scripts/check-package-boundaries.ts && tsc -p tests/package-consumer/tsconfig.json && bun run scripts/check-ui-tarball.ts",
     "size:report": "bun run scripts/report-artifact-sizes.ts",
     "perf:report": "bun run scripts/report-performance.ts",

@@ -26,6 +26,9 @@
       "import": "./dist/component.mjs"
     }
   },
+  "scripts": {
+    "build": "bun run ../../scripts/build-packages.ts test"
+  },
   "dependencies": {
     "@wabou/core": "workspace:*"
   },

@@ -66,6 +66,9 @@
       "import": "./dist/jsx-runtime.mjs"
     }
   },
+  "scripts": {
+    "build": "bun run ../../scripts/build-packages.ts core"
+  },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.1",
     "@tanstack/virtual-core": "3.17.7",

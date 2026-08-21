@@ -21,6 +21,9 @@
       "import": "./dist/index.mjs"
     }
   },
+  "scripts": {
+    "build": "bun run ../../scripts/build-packages.ts terminal"
+  },
   "dependencies": {
     "@wabou/core": "workspace:*",
     "solid-js": "2.0.0-rc.1"

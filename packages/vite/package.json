@@ -43,6 +43,7 @@
     }
   },
   "scripts": {
+    "build": "bun run ../../scripts/build-packages.ts vite",
     "test": "bun test"
   },
   "dependencies": {

@@ -3,7 +3,20 @@ import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
-const packageNames = ["core", "terminal", "test", "ui", "vite"] as const;
+const allPackageNames = ["core", "terminal", "test", "ui", "vite"] as const;
+type PackageName = (typeof allPackageNames)[number];
+
+const requestedNames = process.argv.slice(2);
+const unknownNames = requestedNames.filter(
+  (name) => !allPackageNames.includes(name as PackageName),
+);
+if (unknownNames.length > 0) {
+  throw new Error(`unknown package(s): ${unknownNames.join(", ")}`);
+}
+const packageNames: readonly PackageName[] =
+  requestedNames.length > 0
+    ? requestedNames.map((name) => name as PackageName)
+    : allPackageNames;
 const stageName = `.wabou-dist-${randomUUID()}`;
 
 async function filesBelow(directory: string): Promise<string[]> {
@@ -19,7 +32,7 @@ async function filesBelow(directory: string): Promise<string[]> {
   return result;
 }
 
-async function promotePackage(name: (typeof packageNames)[number]) {
+async function promotePackage(name: PackageName) {
   const staged = resolve(root, "packages", name, stageName);
   const destination = resolve(root, "packages", name, "dist");
   const stagedFiles = await filesBelow(staged);
@@ -41,12 +54,19 @@ async function promotePackage(name: (typeof packageNames)[number]) {
 }
 
 try {
-  const child = Bun.spawn(["bun", "--bun", "tsdown", "--concurrency", "1"], {
-    cwd: root,
-    env: { ...process.env, WABOU_PACKAGE_STAGE_NAME: stageName },
-    stdout: "inherit",
-    stderr: "inherit",
-  });
+  const filters = packageNames.flatMap((name) => [
+    "--filter",
+    `@wabou/${name}`,
+  ]);
+  const child = Bun.spawn(
+    ["bun", "--bun", "tsdown", "--concurrency", "1", ...filters],
+    {
+      cwd: root,
+      env: { ...process.env, WABOU_PACKAGE_STAGE_NAME: stageName },
+      stdout: "inherit",
+      stderr: "inherit",
+    },
+  );
   if ((await child.exited) !== 0) throw new Error("package build failed");
 
   for (const name of packageNames) {

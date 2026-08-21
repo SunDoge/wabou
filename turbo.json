@@ -1,5 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "scripts/build-packages.ts",
+    "tsconfig.json",
+    "tsdown.config.ts"
+  ],
   "tasks": {
     "generate": {
       "inputs": ["project.inlang/**", "messages/**", "package.json"],
@@ -11,7 +16,8 @@
     },
     "build": {
       "dependsOn": ["generate", "^build"],
-      "cache": false
+      "outputs": ["dist/**"],
+      "outputLogs": "new-only"
     },
     "test": {
       "dependsOn": ["generate"],
