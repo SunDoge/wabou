@@ -1,4 +1,4 @@
-import { $ as createButton, A as isSelected, B as PathBuilder, C as OverlayPlaneProvider, D as Column, E as Center, F as Icon, G as View, H as Text, I as Image, J as createPresence, K as rotate2d$1, L as NetworkImage, M as createFormDraft, N as CollapsiblePresence, O as Row, P as CodeEditor, Q as Link, R as PasswordInput$1, S as createTransitionPresence, U as TextArea, V as Svg, W as TextInput, X as createMeasuredSize, Y as createContainerMatch, Z as Button$1, _ as createRetainedItems, a as ScrollArea, at as createAnimationFrame, b as Spin, ct as createLoop, dt as createSweep, et as createActive, ft as createTransition, g as createNotifications, gt as useReducedMotion, h as NotificationRegion, ht as useMotionConfig, i as createScrollReset, it as createFocusWithin, j as toggleSelection, k as createKeyedSelection, lt as createPulse, mt as MotionConfigProvider, n as createTabs, nt as createHover, o as Popover$1, ot as animate, pt as normalizeSweepGeometry, q as translate2d$1, r as createShortcuts, rt as createFocus, st as animateKeyframes, t as primitives_exports, tt as createPress, ut as createRotation, v as Pulse, w as createOverlayLayer, x as Modal, y as Ripple, z as Path } from "./primitives-EOnZIC-q.mjs";
+import { $ as createButton, A as isSelected, B as PathBuilder, C as OverlayPlaneProvider, D as Column, E as Center, F as Icon, G as View, H as Text, I as Image, J as createPresence, K as rotate2d$1, L as NetworkImage, M as createFormDraft, N as CollapsiblePresence, O as Row, P as CodeEditor, Q as Link, R as PasswordInput$1, S as createTransitionPresence, U as TextArea, V as Svg, W as TextInput, X as createMeasuredSize, Y as createContainerMatch, Z as Button$1, _ as createRetainedItems, a as ScrollArea, at as createAnimationFrame, b as Spin, ct as createLoop, dt as createSweep, et as createActive, ft as createTransition, g as createNotifications, gt as useReducedMotion, h as NotificationRegion, ht as useMotionConfig, i as createScrollReset, it as createFocusWithin, j as toggleSelection, k as createKeyedSelection, lt as createPulse, mt as MotionConfigProvider, n as createTabs, nt as createHover, o as Popover$1, ot as animate, pt as normalizeSweepGeometry, q as translate2d$1, r as createShortcuts, rt as createFocus, st as animateKeyframes, t as primitives_exports, tt as createPress, ut as createRotation, v as Pulse, w as createOverlayLayer, x as Modal, y as Ripple, z as Path } from "./primitives-Oxoe1V1J.mjs";
 import { rgba, useDialog, useHost, useWindow } from "@wabou/core";
 import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -3958,6 +3958,7 @@ function Select(props) {
 			interaction.send({ type: open ? "OPEN" : "CLOSE" });
 		},
 		placement: "bottom-start",
+		openOnPointerDown: true,
 		get contentClass() {
 			return join("w-72 p-1 rounded-lg border border-subtle bg-surface", props.contentClass);
 		},
@@ -3993,6 +3994,12 @@ function Select(props) {
 			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
 			get onClick() {
 				return popover.onClick;
+			},
+			get onPointerDown() {
+				return popover.onPointerDown;
+			},
+			get onPointerCancel() {
+				return popover.onPointerCancel;
 			},
 			onKeyDown: (event) => {
 				popover.onKeyDown(event);

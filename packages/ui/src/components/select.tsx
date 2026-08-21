@@ -130,6 +130,7 @@ export function Select(props: SelectProps): JSX.Element {
         interaction.send({ type: open ? "OPEN" : "CLOSE" });
       }}
       placement="bottom-start"
+      openOnPointerDown
       contentClass={join(
         "w-72 p-1 rounded-lg border border-subtle bg-surface",
         props.contentClass,
@@ -162,6 +163,8 @@ export function Select(props: SelectProps): JSX.Element {
           }
           style={(state) => ({ opacity: state.disabled ? 0.45 : 1 })}
           onClick={popover.onClick}
+          onPointerDown={popover.onPointerDown}
+          onPointerCancel={popover.onPointerCancel}
           onKeyDown={(event) => {
             popover.onKeyDown(event);
             handleKeyDown(event);

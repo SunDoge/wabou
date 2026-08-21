@@ -35,6 +35,8 @@ import { View, type ViewProps, type WabouStyle } from "./view";
 
 export interface PopoverTriggerProps {
   ref: (node: Handle) => void;
+  onPointerDown: (event: { button?: number; stopPropagation(): void }) => void;
+  onPointerCancel: () => void;
   onClick: (event: { stopPropagation(): void }) => void;
   onKeyDown: (event: {
     key: string;
@@ -80,6 +82,8 @@ interface PopoverBaseProps {
   plane?: OverlayPlane;
   /** Set to false to keep presence semantics while disabling visual motion. */
   motion?: false | PopoverMotionOptions;
+  /** Open on primary pointer-down; useful for native-feeling selects and menus. */
+  openOnPointerDown?: boolean;
 }
 
 export interface PopoverMotionOptions {
@@ -128,6 +132,7 @@ export function Popover(props: PopoverProps): JSX.Element {
   let content: Handle | undefined;
   let frame = 0;
   let positionRequest = 0;
+  let suppressPointerClick = false;
   let observer: ResizeObserver | undefined;
   const motionFromScale = () =>
     motion === false ? 1 : (motion?.fromScale ?? 0.98);
@@ -269,8 +274,26 @@ export function Popover(props: PopoverProps): JSX.Element {
       anchor = node;
       if (open()) observe(node);
     },
+    onPointerDown: (event) => {
+      if (
+        !props.openOnPointerDown ||
+        open() ||
+        (event.button !== undefined && event.button !== 0)
+      )
+        return;
+      event.stopPropagation();
+      suppressPointerClick = true;
+      setOpen(true, "trigger");
+    },
+    onPointerCancel: () => {
+      suppressPointerClick = false;
+    },
     onClick: (event) => {
       event.stopPropagation();
+      if (suppressPointerClick) {
+        suppressPointerClick = false;
+        return;
+      }
       setOpen(!open(), "trigger");
     },
     onKeyDown: handleEscape,

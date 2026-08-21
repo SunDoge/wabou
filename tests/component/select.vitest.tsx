@@ -100,6 +100,23 @@ test("keeps controlled open state owned by the application", () => {
   expect(trigger.expanded).toBe(false);
 });
 
+test("opens on pointer down without waiting for the pressed state to release", () => {
+  const screen = renderComponent(() => (
+    <Select aria-label="Technology" options={options} defaultValue="solid" />
+  ));
+  const trigger = screen.getByRole("combobox", { name: "Technology" });
+
+  trigger.pointerDown();
+  expect(trigger.expanded).toBe(true);
+  expect(screen.getByRole("listbox", { name: "Technology" })).not.toBeNull();
+
+  trigger.pointerUp();
+  // The synthetic click following the pointer gesture must not immediately
+  // close the panel opened by pointer-down.
+  trigger.click();
+  expect(trigger.expanded).toBe(true);
+});
+
 test("can disable popup motion without changing selection behavior", () => {
   const screen = renderComponent(() => (
     <Select
