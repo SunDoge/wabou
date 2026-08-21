@@ -9,6 +9,9 @@
     "aspect-ratio-hidpi.ts": {
       "scaleFactor": 2
     },
+    "attachment-hidpi.ts": {
+      "scaleFactor": 2
+    },
     "field-hidpi.ts": {
       "scaleFactor": 2
     },

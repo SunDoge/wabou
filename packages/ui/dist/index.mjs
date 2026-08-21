@@ -301,6 +301,138 @@ function AspectRatio(props) {
 	}));
 }
 //#endregion
+//#region src/components/attachment.tsx
+const AttachmentContext = createContext({
+	state: () => "done",
+	size: () => "default",
+	orientation: () => "horizontal"
+});
+function attachmentClass(options) {
+	const state = options.state ?? "done";
+	const size = options.size ?? "default";
+	const orientation = options.orientation ?? "horizontal";
+	return join("max-w-full min-w-0 flex-none flex border bg-surface text-primary", match(orientation).with("horizontal", () => "min-w-40 flex-row flex-wrap items-center").with("vertical", () => "w-28 flex-col items-stretch").exhaustive(), match(size).with("default", () => "gap-2 rounded-xl p-2 text-sm").with("sm", () => "gap-2 rounded-lg p-1.5 text-xs").with("xs", () => "gap-1.5 rounded-md p-1 text-xs").exhaustive(), match(state).with("idle", () => "border-strong").with("uploading", () => "border-focus").with("processing", () => "border-accent").with("error", () => "border-danger bg-danger-surface").with("done", () => "border-subtle").exhaustive(), options.class);
+}
+/** File/task summary anatomy adapted from shadcn without DOM data selectors. */
+function Attachment(props) {
+	const forwarded = omit(props, "state", "size", "orientation", "class", "children");
+	const context = {
+		state: () => props.state ?? "done",
+		size: () => props.size ?? "default",
+		orientation: () => props.orientation ?? "horizontal"
+	};
+	return createComponent$1(AttachmentContext, {
+		value: context,
+		get children() {
+			return createComponent$1(View, mergeProps(forwarded, {
+				get ["class"]() {
+					return attachmentClass({
+						state: context.state(),
+						size: context.size(),
+						orientation: context.orientation(),
+						class: props.class
+					});
+				},
+				get children() {
+					return props.children;
+				}
+			}));
+		}
+	});
+}
+function attachmentMediaClass(variant, context, className) {
+	const size = context.size();
+	const orientation = context.orientation();
+	const state = context.state();
+	return join("aspect-square flex-none overflow-hidden flex items-center justify-center rounded-lg", orientation === "vertical" ? "w-full" : match(size).with("default", () => "w-10").with("sm", () => "w-8").with("xs", () => "w-7").exhaustive(), state === "error" ? "bg-danger-surface text-danger-primary" : "bg-control text-primary", variant === "image" && state !== "done" && "opacity-60", className);
+}
+function AttachmentMedia(props) {
+	const context = useContext(AttachmentContext);
+	return createComponent$1(View, {
+		get ["class"]() {
+			return attachmentMediaClass(props.variant ?? "icon", context, props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	});
+}
+function AttachmentContent(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return join("max-w-full min-w-0 flex-1 flex flex-col gap-0.5", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function AttachmentTitle(props) {
+	return createComponent$1(Text, mergeProps(props, {
+		get maxLines() {
+			return props.maxLines ?? 1;
+		},
+		get ["class"]() {
+			return join("max-w-full min-w-0 font-medium text-primary", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function AttachmentDescription(props) {
+	const context = useContext(AttachmentContext);
+	return createComponent$1(Text, mergeProps(props, {
+		get maxLines() {
+			return props.maxLines ?? 1;
+		},
+		get ["class"]() {
+			return join("max-w-full min-w-0 text-xs", context.state() === "error" ? "text-danger-primary" : "text-muted", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function AttachmentActions(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return join("flex-none flex items-center gap-1", props.class);
+		},
+		get children() {
+			return props.children;
+		}
+	}));
+}
+function AttachmentAction(props) {
+	return createComponent$1(Button, mergeProps(props, {
+		get variant() {
+			return props.variant ?? "ghost";
+		},
+		get size() {
+			return props.size ?? "sm";
+		}
+	}));
+}
+function AttachmentGroup(props) {
+	return createComponent$1(View, mergeProps(props, {
+		get ["class"]() {
+			return join("w-full min-w-0 overflow-x-auto overflow-y-hidden py-1", props.class);
+		},
+		get scrollbar() {
+			return props.scrollbar ?? { visibility: "hidden" };
+		},
+		get children() {
+			return createComponent$1(View, {
+				class: "min-w-full flex-none flex flex-row items-start gap-3",
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	}));
+}
+//#endregion
 //#region src/components/avatar.tsx
 function Avatar(props) {
 	const size = () => match(props.size ?? "default").with("sm", () => "w-8 h-8 text-xs").with("default", () => "w-10 h-10 text-sm").with("lg", () => "w-12 h-12 text-base").exhaustive();
@@ -6137,6 +6269,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AspectRatio, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, aspectRatioStyle, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, itemClass, itemMediaClass, moveMenuHighlight, nextAccordionValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Menubar, MenubarMenu, Modal, MotionConfigProvider, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, itemClass, itemMediaClass, moveMenuHighlight, nextAccordionValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useComponentsTheme, useLoaderData, useLocation, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

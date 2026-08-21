@@ -81,6 +81,7 @@ type ComponentId =
   | "field"
   | "empty"
   | "item"
+  | "attachment"
   | "button-group"
   | "toolbar"
   | "menubar"
@@ -139,6 +140,7 @@ const groups: Array<{
       { id: "badge", name: "Badge" },
       { id: "card", name: "Card" },
       { id: "item", name: "Item" },
+      { id: "attachment", name: "Attachment" },
       { id: "chart", name: "Chart experiment" },
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
@@ -258,6 +260,8 @@ const descriptions: Record<ComponentId, string> = {
     "Selects an internationalized calendar date from a native floating panel.",
   empty: "A centered placeholder for collections that do not contain data yet.",
   item: "A composable row for lists, settings and compact application summaries.",
+  attachment:
+    "Displays native file and transfer state using reusable media, content and action slots.",
   "button-group":
     "Groups related actions into horizontal or vertical toolbars.",
   toolbar:
@@ -315,6 +319,7 @@ import {
   AccordionPage,
   AlertDialogPage,
   AspectRatioPage,
+  AttachmentPage,
   AvatarPage,
   BreadcrumbPageDemo,
   ButtonGroupPage,
@@ -608,6 +613,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "item"}>
                     <ItemPage />
+                  </Match>
+                  <Match when={selected() === "attachment"}>
+                    <AttachmentPage />
                   </Match>
                   <Match when={selected() === "button-group"}>
                     <ButtonGroupPage />

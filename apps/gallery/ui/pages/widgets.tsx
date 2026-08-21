@@ -11,6 +11,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AspectRatio,
+  Attachment,
+  AttachmentAction,
+  AttachmentActions,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentTitle,
   Avatar,
   AvatarGroup,
   AvatarGroupCount,
@@ -90,13 +98,16 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
+  Spinner,
   Text,
   Toaster,
   Tooltip,
   View,
 } from "@wabou/ui";
+import file from "lucide-static/icons/file.svg?raw";
 import rocket from "lucide-static/icons/rocket.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
+import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
 import { createSignal } from "solid-js";
 import { Preview } from "../preview";
 
@@ -710,6 +721,65 @@ export function AspectRatioPage() {
             <Text class="font-medium text-secondary">4:3</Text>
           </View>
         </AspectRatio>
+      </Preview>
+    </View>
+  );
+}
+
+export function AttachmentPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Transfer states">
+        <AttachmentGroup class="w-[680px]">
+          <Attachment state="done">
+            <AttachmentMedia>
+              <Icon source={file} aria-hidden="true" size={18} />
+            </AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle>release-notes.pdf</AttachmentTitle>
+              <AttachmentDescription>2.4 MB - Complete</AttachmentDescription>
+            </AttachmentContent>
+            <AttachmentActions>
+              <AttachmentAction aria-label="Open release notes">
+                Open
+              </AttachmentAction>
+            </AttachmentActions>
+          </Attachment>
+          <Attachment state="uploading">
+            <AttachmentMedia>
+              <Spinner label="Uploading design archive" />
+            </AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle>design-assets.zip</AttachmentTitle>
+              <AttachmentDescription>Uploading - 68%</AttachmentDescription>
+            </AttachmentContent>
+          </Attachment>
+          <Attachment state="error">
+            <AttachmentMedia>
+              <Icon source={triangleAlert} aria-hidden="true" size={18} />
+            </AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle>recording.mov</AttachmentTitle>
+              <AttachmentDescription>Upload failed</AttachmentDescription>
+            </AttachmentContent>
+            <AttachmentActions>
+              <AttachmentAction aria-label="Retry recording upload">
+                Retry
+              </AttachmentAction>
+            </AttachmentActions>
+          </Attachment>
+        </AttachmentGroup>
+      </Preview>
+      <Preview title="Vertical media">
+        <Attachment orientation="vertical" class="w-32">
+          <AttachmentMedia>
+            <Icon source={file} aria-hidden="true" size={28} />
+          </AttachmentMedia>
+          <AttachmentContent>
+            <AttachmentTitle>preview.png</AttachmentTitle>
+            <AttachmentDescription>1280 x 720</AttachmentDescription>
+          </AttachmentContent>
+        </Attachment>
       </Preview>
     </View>
   );
