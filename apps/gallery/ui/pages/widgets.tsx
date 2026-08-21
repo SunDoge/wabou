@@ -10,6 +10,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AspectRatio,
   Avatar,
   AvatarGroup,
   AvatarGroupCount,
@@ -669,6 +670,41 @@ export function AvatarPage() {
           <Avatar fallback="CK" />
           <AvatarGroupCount>+5</AvatarGroupCount>
         </AvatarGroup>
+      </Preview>
+    </View>
+  );
+}
+
+export function AspectRatioPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Video 16:9">
+        <AspectRatio
+          ratio={16 / 9}
+          class="w-[560px] rounded-lg border border-subtle bg-control shadow-xs"
+        >
+          <View class="w-full h-full flex items-center justify-center bg-control-hover">
+            <View class="flex flex-col items-center gap-1">
+              <Text class="text-lg font-semibold text-primary">16:9</Text>
+              <Text class="text-sm text-muted">Native layout constraint</Text>
+            </View>
+          </View>
+        </AspectRatio>
+      </Preview>
+      <Preview title="Square and 4:3">
+        <AspectRatio class="w-40 rounded-lg border border-subtle bg-control">
+          <View class="w-full h-full flex items-center justify-center">
+            <Text class="font-medium text-secondary">1:1</Text>
+          </View>
+        </AspectRatio>
+        <AspectRatio
+          ratio={4 / 3}
+          class="w-56 rounded-lg border border-subtle bg-control"
+        >
+          <View class="w-full h-full flex items-center justify-center">
+            <Text class="font-medium text-secondary">4:3</Text>
+          </View>
+        </AspectRatio>
       </Preview>
     </View>
   );

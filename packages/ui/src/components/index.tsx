@@ -19,6 +19,7 @@ import { join } from "./class-names";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
 export * from "./alert-dialog";
+export * from "./aspect-ratio";
 export * from "./avatar";
 export * from "./button";
 export * from "./combobox";

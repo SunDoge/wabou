@@ -56,6 +56,7 @@ type ComponentId =
   | "utilities"
   | "scroll-area"
   | "resizable"
+  | "aspect-ratio"
   | "overlay"
   | "alert"
   | "skeleton"
@@ -177,6 +178,7 @@ const groups: Array<{
   {
     label: "Layout",
     items: [
+      { id: "aspect-ratio", name: "Aspect ratio" },
       { id: "utilities", name: "Utilities" },
       { id: "scroll-area", name: "Scroll area" },
       { id: "resizable", name: "Resizable" },
@@ -220,6 +222,8 @@ const descriptions: Record<ComponentId, string> = {
   "scroll-area": "A native scrolling viewport with intrinsic flex content.",
   resizable:
     "Composes explicitly identified panels with pointer and keyboard resizing.",
+  "aspect-ratio":
+    "Maintains a native width-to-height layout constraint for media and previews.",
   overlay: "Explicit floating and modal planes shared by JavaScript portals.",
   alert: "Calls attention to information that needs user awareness.",
   skeleton: "A lightweight animated placeholder for content that is loading.",
@@ -310,6 +314,7 @@ import { TreeViewPage } from "./pages/tree-view";
 import {
   AccordionPage,
   AlertDialogPage,
+  AspectRatioPage,
   AvatarPage,
   BreadcrumbPageDemo,
   ButtonGroupPage,
@@ -570,6 +575,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "resizable"}>
                     <ResizablePage />
+                  </Match>
+                  <Match when={selected() === "aspect-ratio"}>
+                    <AspectRatioPage />
                   </Match>
                   <Match when={selected() === "breadcrumb"}>
                     <BreadcrumbPageDemo />
