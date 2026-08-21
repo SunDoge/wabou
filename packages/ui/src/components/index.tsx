@@ -48,6 +48,7 @@ export * from "./hover-card";
 export * from "./input";
 export * from "./input-otp";
 export * from "./item";
+export * from "./label";
 export * from "./layout";
 export * from "./menubar";
 export * from "./message";

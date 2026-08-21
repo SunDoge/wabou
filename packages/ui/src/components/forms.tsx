@@ -12,6 +12,7 @@ import {
 import { Button, type ButtonProps } from "./button";
 import { join } from "./class-names";
 import { Input, type InputProps } from "./input";
+import { Label, type LabelProps } from "./label";
 export type FieldOrientation = "vertical" | "horizontal";
 export function fieldClass(
   orientation: FieldOrientation = "vertical",
@@ -82,12 +83,10 @@ export function FieldGroup(props: { children?: JSX.Element; class?: string }) {
     </View>
   );
 }
-export function FieldLabel(props: { children?: JSX.Element; class?: string }) {
-  return (
-    <Text class={join("text-sm font-medium text-primary", props.class)}>
-      {props.children}
-    </Text>
-  );
+export interface FieldLabelProps extends LabelProps {}
+
+export function FieldLabel(props: FieldLabelProps) {
+  return <Label {...props} />;
 }
 
 export function FieldTitle(props: { children?: JSX.Element; class?: string }) {
