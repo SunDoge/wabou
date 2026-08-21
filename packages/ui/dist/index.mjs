@@ -5695,10 +5695,11 @@ function RouteMatch(props) {
 				return match()?.error;
 			},
 			get children() {
-				return outlet ??= createComponent(RouteOutlet, {
+				if (outlet === void 0) outlet = createComponent(RouteOutlet, {
 					router: props.router,
 					index: props.index + 1
 				});
+				return outlet;
 			}
 		})
 	});
