@@ -208,7 +208,8 @@ application viewport default and per-file overrides; the verifier rejects
 overrides whose scenario was removed, so metadata cannot silently drift.
 The first capture for each application builds its frontend and subsequent
 captures use `wabou render --skip-build` against that exact debug bundle.
-After a full render, `bun run check:captures` reapplies structural validation to
+After a full render, `bun run scripts/check-captures.ts --check-existing`
+reapplies structural validation to
 the existing artifacts without rebuilding or starting application hosts. This
 is intended for iterating on validation rules; because it does not render the
 current sources, it is not a replacement for `verify:captures` in CI.
