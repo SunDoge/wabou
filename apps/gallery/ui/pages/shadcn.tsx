@@ -9,6 +9,7 @@ import {
   DirectionalText,
   DirectionProvider,
   DropZone,
+  InlineEdit,
   NativeSelect,
   PropertyList,
   PropertyRow,
@@ -32,6 +33,24 @@ import {
   TypographyP,
   View,
 } from "@wabou/ui";
+
+export function InlineEditPage() {
+  return (
+    <Card class="max-w-xl">
+      <CardHeader>
+        <CardTitle>Project identity</CardTitle>
+      </CardHeader>
+      <CardContent class="flex flex-row items-center gap-3">
+        <Text class="text-sm text-muted">Name</Text>
+        <InlineEdit
+          aria-label="Project name"
+          class="min-w-0 flex-1"
+          defaultValue="Native workspace"
+        />
+      </CardContent>
+    </Card>
+  );
+}
 
 export function DropZonePage() {
   return (

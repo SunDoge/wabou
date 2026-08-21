@@ -255,6 +255,8 @@ function renderComponent(render, options = {}) {
 		if (!child) return;
 		detach(child);
 		const parent = nodes.get(key(parentId)) ?? null;
+		if (parent === child) throw new Error(`component protocol attempted to attach node ${key(childId)} to itself`);
+		for (let ancestor = parent; ancestor; ancestor = ancestor.parent) if (ancestor === child) throw new Error(`component protocol attempted to attach ancestor node ${key(childId)} below its descendant`);
 		const siblings = parent?.children ?? roots;
 		const refIndex = refId ? siblings.findIndex((candidate) => key(candidate.id) === key(refId)) : -1;
 		siblings.splice(refIndex < 0 ? siblings.length : refIndex, 0, child);
