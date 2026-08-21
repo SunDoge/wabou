@@ -1007,10 +1007,9 @@ impl FrameSource for Applier {
     ) {
         if let Some(state) = &self.frame.projections.debug_state
             && let Ok(mut state) = state.write()
+            && let Err(error) = state.complete_screenshot(requested_path, result)
         {
-            if let Err(error) = state.complete_screenshot(requested_path, result) {
-                tracing::warn!(target: "wabou::devtools", %error);
-            }
+            tracing::warn!(target: "wabou::devtools", %error);
         }
     }
 

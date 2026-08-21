@@ -85,8 +85,6 @@ pub(super) fn lock(workspace: &Path, app: &App) -> Result<fs::File> {
 mod tests {
     use std::fs::OpenOptions;
 
-    use fs4::fs_std::FileExt as _;
-
     use super::*;
 
     #[test]
