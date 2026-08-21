@@ -1,7 +1,7 @@
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.mjs";
 import { PathBuilder } from "@wabou/core";
 import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
-import { animateValue } from "motion-dom";
+import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
@@ -101,6 +101,50 @@ function animateKeyframes(keyframes, options = {}) {
 }
 const read = (value, fallback) => typeof value === "function" ? value() : value ?? fallback;
 /**
+* Lifecycle-owned finite or repeating keyframe animation.
+*
+* This is the general primitive behind loops, pulses and component-specific
+* effects. It owns cleanup and reduced-motion behavior so components don't
+* need to coordinate raw Motion controls themselves.
+*/
+function createKeyframeAnimation(keyframes, options = {}) {
+	const { reducedMotion, reducedValue = keyframes[keyframes.length - 1], onUpdate, ...animationOptions } = options;
+	const authoredAutoplay = animationOptions.autoplay ?? true;
+	const initiallyReduced = untrack(() => read(reducedMotion, false));
+	const [box, setBox] = createSignal({ value: initiallyReduced ? reducedValue : keyframes[0] });
+	const value = () => box().value;
+	const controls = animateKeyframes(keyframes, {
+		...animationOptions,
+		autoplay: authoredAutoplay && !initiallyReduced,
+		onUpdate(next) {
+			setBox({ value: next });
+			onUpdate?.(next);
+		}
+	});
+	let initialized = false;
+	let resumeAfterReduction = authoredAutoplay;
+	createEffect(() => read(reducedMotion, false), (reduced) => {
+		if (reduced) {
+			if (initialized) resumeAfterReduction = controls.state === "running";
+			controls.pause();
+			setBox({ value: reducedValue });
+			onUpdate?.(reducedValue);
+		} else if (initialized && resumeAfterReduction) controls.play();
+		initialized = true;
+	});
+	onCleanup(() => controls.stop());
+	return {
+		value,
+		controls
+	};
+}
+function createInterpolation(source, input, output, options = {}) {
+	if (input.length === 0 || input.length !== output.length) throw new RangeError("animation input and output ranges must have equal non-zero lengths");
+	if (!input.every(Number.isFinite)) throw new RangeError("animation input range must contain only finite numbers");
+	const transform = interpolate([...input], [...output], options);
+	return () => transform(source());
+}
+/**
 * Lifecycle-owned scalar transition that retargets from its current value.
 *
 * Unlike a one-shot animation, changing `target` while a run is active does
@@ -163,34 +207,7 @@ function createTransition(target, options = {}) {
 	};
 }
 function createRepeatingAnimation(keyframes, options) {
-	const { reducedMotion, reducedValue, onUpdate, ...animationOptions } = options;
-	const authoredAutoplay = animationOptions.autoplay ?? true;
-	const initiallyReduced = untrack(() => read(reducedMotion, false));
-	const [value, setValue] = createSignal(initiallyReduced ? reducedValue : keyframes[0]);
-	const controls = animateKeyframes(keyframes, {
-		...animationOptions,
-		autoplay: authoredAutoplay && !initiallyReduced,
-		onUpdate(next) {
-			setValue(next);
-			onUpdate?.(next);
-		}
-	});
-	let initialized = false;
-	let resumeAfterReduction = authoredAutoplay;
-	createEffect(() => read(reducedMotion, false), (reduced) => {
-		if (reduced) {
-			if (initialized) resumeAfterReduction = controls.state === "running";
-			controls.pause();
-			setValue(reducedValue);
-			onUpdate?.(reducedValue);
-		} else if (initialized && resumeAfterReduction) controls.play();
-		initialized = true;
-	});
-	onCleanup(() => controls.stop());
-	return {
-		value,
-		controls
-	};
+	return createKeyframeAnimation(keyframes, options);
 }
 /**
 * Lifecycle-owned repeating scalar animation for Solid components.
@@ -2393,6 +2410,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { Link as $, isSelected as A, Path as B, OverlayPlaneProvider as C, Column as D, Center as E, CodeEditor as F, TextInput as G, Svg as H, Icon as I, translate2d$1 as J, View as K, Image as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, Button as Q, NetworkImage as R, createTransitionPresence as S, useOverlayPlane as T, Text as U, PathBuilder as V, TextArea as W, createContainerMatch as X, createPresence as Y, createMeasuredSize as Z, createRetainedItems as _, useReducedMotion as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createRotation as dt, createButton as et, offset as f, createSweep as ft, createNotifications as g, useMotionConfig as gt, NotificationRegion as h, MotionConfigProvider as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createLoop as lt, size as m, normalizeSweepGeometry as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createTransition as pt, rotate2d$1 as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createPulse as ut, Pulse as v, createOverlayLayer as w, Modal as x, Ripple as y, PasswordInput as z };
+export { Link as $, isSelected as A, Path as B, OverlayPlaneProvider as C, Column as D, Center as E, CodeEditor as F, TextInput as G, Svg as H, Icon as I, translate2d$1 as J, View as K, Image as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, Button as Q, NetworkImage as R, createTransitionPresence as S, useOverlayPlane as T, Text as U, PathBuilder as V, TextArea as W, createContainerMatch as X, createPresence as Y, createMeasuredSize as Z, createRetainedItems as _, MotionConfigProvider as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createLoop as dt, createButton as et, offset as f, createPulse as ft, createNotifications as g, normalizeSweepGeometry as gt, NotificationRegion as h, createTransition as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createInterpolation as lt, size as m, createSweep as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createRotation as pt, rotate2d$1 as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createKeyframeAnimation as ut, Pulse as v, useMotionConfig as vt, createOverlayLayer as w, Modal as x, Ripple as y, useReducedMotion as yt, PasswordInput as z };
 
-//# sourceMappingURL=primitives-DI5WWKIs.mjs.map
+//# sourceMappingURL=primitives-NQ1LA-bh.mjs.map

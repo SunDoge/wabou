@@ -47,3 +47,19 @@ const pulse = createPulse({ from: 0.45, to: 0.85, duration: 1.8 });
 `createLoop` is the lower-level repeating scalar controller. Rotation matrices
 contain no manual pivot translation: Wabou's native scene builder applies
 runtime transforms around the node's border-box center.
+# Animation primitives
+
+Wabou uses Motion's DOM-independent value engine and keeps native rendering
+under application control. Prefer lifecycle-owned primitives over calling
+`motion-dom` directly:
+
+- `createTransition` retargets a scalar from its current value.
+- `createKeyframeAnimation` owns arbitrary numeric or string keyframes.
+- `createInterpolation` derives numbers, colors, or complex values from one
+  shared progress signal.
+- `createLoop`, `createPulse`, `createRotation`, and `createSweep` are focused
+  compositions of the general primitive.
+
+All running primitives stop with their Solid owner. Repeating and keyframe
+animations share the same reduced-motion behavior, so components don't need
+local pause/resume state machines.

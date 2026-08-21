@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { createRoot, createSignal, flush } from "solid-js";
 import {
   createLoop,
+  createInterpolation,
+  createKeyframeAnimation,
   createPulse,
   createRotation,
   createSweep,
@@ -28,6 +30,38 @@ describe("Solid animation primitives", () => {
       dispose();
       expect(loop.controls.state).toBe("idle");
     }));
+
+  test("owns general keyframes and stops them with the Solid lifecycle", () =>
+    createRoot((dispose) => {
+      const animation = createKeyframeAnimation([2, 6, 10], {
+        autoplay: false,
+      });
+      expect(animation.value()).toBe(2);
+      expect(animation.controls.state).toBe("paused");
+      dispose();
+      expect(animation.controls.state).toBe("idle");
+    }));
+
+  test("interpolates reusable numeric and color outputs", () => {
+    const [progress, setProgress] = createSignal(0);
+    const distance = createInterpolation(progress, [0, 1], [10, 30]);
+    const color = createInterpolation(progress, [0, 1], ["#000", "#fff"]);
+    expect(distance()).toBe(10);
+    expect(color()).toBe("rgba(0, 0, 0, 1)");
+    setProgress(0.5);
+    flush();
+    expect(distance()).toBe(20);
+    expect(color()).toBe("rgba(180, 180, 180, 1)");
+  });
+
+  test("rejects malformed interpolation ranges at the public boundary", () => {
+    expect(() => createInterpolation(() => 0, [0], [])).toThrow(
+      "equal non-zero lengths",
+    );
+    expect(() => createInterpolation(() => 0, [0, Number.NaN], [0, 1])).toThrow(
+      "finite numbers",
+    );
+  });
 
   test("creates a center-pivoted rotation matrix", () =>
     createRoot((dispose) => {

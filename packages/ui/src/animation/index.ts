@@ -2,9 +2,10 @@ import "@wabou/core";
 import { type Affine2D, rotate2d, translate2d } from "@wabou/core/style";
 import type {
   AnimationPlaybackControlsWithThen as MotionControls,
+  InterpolateOptions,
   ValueAnimationOptions,
 } from "motion-dom";
-import { animateValue } from "motion-dom";
+import { animateValue, interpolate } from "motion-dom";
 import {
   type Accessor,
   createEffect,
@@ -180,6 +181,101 @@ type MaybeAccessor<T> = T | Accessor<T>;
 const read = <T>(value: MaybeAccessor<T> | undefined, fallback: T): T =>
   typeof value === "function" ? (value as Accessor<T>)() : (value ?? fallback);
 
+export interface KeyframeAnimationOptions<V extends AnimationValue>
+  extends AnimationOptions<V> {
+  /** Reactive policy which pauses interpolation and publishes the final keyframe. */
+  reducedMotion?: MaybeAccessor<boolean>;
+  /** Value exposed while motion is reduced. Defaults to the final keyframe. */
+  reducedValue?: V;
+}
+
+/**
+ * Lifecycle-owned finite or repeating keyframe animation.
+ *
+ * This is the general primitive behind loops, pulses and component-specific
+ * effects. It owns cleanup and reduced-motion behavior so components don't
+ * need to coordinate raw Motion controls themselves.
+ */
+export function createKeyframeAnimation<V extends AnimationValue>(
+  keyframes: readonly [V, V, ...V[]],
+  options: KeyframeAnimationOptions<V> = {},
+): ReactiveAnimation<V> {
+  const {
+    reducedMotion,
+    reducedValue = keyframes[keyframes.length - 1],
+    onUpdate,
+    ...animationOptions
+  } = options;
+  const authoredAutoplay = animationOptions.autoplay ?? true;
+  const initiallyReduced = untrack(() => read(reducedMotion, false));
+  const [box, setBox] = createSignal({
+    value: initiallyReduced ? reducedValue : keyframes[0],
+  });
+  const value = () => box().value;
+  const controls = animateKeyframes(keyframes, {
+    ...animationOptions,
+    autoplay: authoredAutoplay && !initiallyReduced,
+    onUpdate(next) {
+      setBox({ value: next });
+      onUpdate?.(next);
+    },
+  });
+  let initialized = false;
+  let resumeAfterReduction = authoredAutoplay;
+  createEffect(
+    () => read(reducedMotion, false),
+    (reduced) => {
+      if (reduced) {
+        if (initialized) resumeAfterReduction = controls.state === "running";
+        controls.pause();
+        setBox({ value: reducedValue });
+        onUpdate?.(reducedValue);
+      } else if (initialized && resumeAfterReduction) {
+        controls.play();
+      }
+      initialized = true;
+    },
+  );
+  onCleanup(() => controls.stop());
+  return { value, controls };
+}
+
+export interface MotionInterpolationOptions<V extends AnimationValue>
+  extends Pick<InterpolateOptions<V>, "clamp" | "ease"> {}
+
+/** Map one reactive progress value to numeric, color, or complex keyframes. */
+export function createInterpolation(
+  source: Accessor<number>,
+  input: readonly number[],
+  output: readonly number[],
+  options?: MotionInterpolationOptions<number>,
+): Accessor<number>;
+export function createInterpolation(
+  source: Accessor<number>,
+  input: readonly number[],
+  output: readonly string[],
+  options?: MotionInterpolationOptions<string>,
+): Accessor<string>;
+export function createInterpolation<V extends AnimationValue>(
+  source: Accessor<number>,
+  input: readonly number[],
+  output: readonly V[],
+  options: MotionInterpolationOptions<V> = {},
+): Accessor<V> {
+  if (input.length === 0 || input.length !== output.length) {
+    throw new RangeError(
+      "animation input and output ranges must have equal non-zero lengths",
+    );
+  }
+  if (!input.every(Number.isFinite)) {
+    throw new RangeError(
+      "animation input range must contain only finite numbers",
+    );
+  }
+  const transform = interpolate([...input], [...output], options);
+  return () => transform(source());
+}
+
 export interface TransitionOptions
   extends Omit<
     AnimationOptions<number>,
@@ -294,39 +390,7 @@ function createRepeatingAnimation(
   keyframes: readonly [number, number, ...number[]],
   options: RepeatingOptions & { reducedValue: number },
 ): ReactiveAnimation<number> {
-  const { reducedMotion, reducedValue, onUpdate, ...animationOptions } =
-    options;
-  const authoredAutoplay = animationOptions.autoplay ?? true;
-  const initiallyReduced = untrack(() => read(reducedMotion, false));
-  const [value, setValue] = createSignal(
-    initiallyReduced ? reducedValue : keyframes[0],
-  );
-  const controls = animateKeyframes(keyframes, {
-    ...animationOptions,
-    autoplay: authoredAutoplay && !initiallyReduced,
-    onUpdate(next) {
-      setValue(next);
-      onUpdate?.(next);
-    },
-  });
-  let initialized = false;
-  let resumeAfterReduction = authoredAutoplay;
-  createEffect(
-    () => read(reducedMotion, false),
-    (reduced) => {
-      if (reduced) {
-        if (initialized) resumeAfterReduction = controls.state === "running";
-        controls.pause();
-        setValue(reducedValue);
-        onUpdate?.(reducedValue);
-      } else if (initialized && resumeAfterReduction) {
-        controls.play();
-      }
-      initialized = true;
-    },
-  );
-  onCleanup(() => controls.stop());
-  return { value, controls };
+  return createKeyframeAnimation(keyframes, options);
 }
 
 /**
