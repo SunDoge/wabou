@@ -91,6 +91,7 @@ export * from "./sidebar";
 export * from "./slider";
 export * from "./split-button";
 export * from "./stat-card";
+export * from "./status-bar";
 export * from "./stepper";
 export * from "./table";
 export {

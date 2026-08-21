@@ -12,6 +12,9 @@ import {
   ShortcutRecorder,
   SplitButton,
   StatCard,
+  StatusBar,
+  StatusBarItem,
+  StatusBarSeparator,
   Stepper,
   Text,
   Timeline,
@@ -173,6 +176,23 @@ export function ShortcutRecorderPage() {
         />
       </CardContent>
     </Card>
+  );
+}
+
+export function StatusBarPage() {
+  return (
+    <View class="w-full max-w-3xl overflow-hidden rounded-lg border border-subtle bg-surface">
+      <View class="h-48 items-center justify-center">
+        <Text class="text-sm text-muted">Editor workspace</Text>
+      </View>
+      <StatusBar aria-label="Editor status">
+        <StatusBarItem grow>src/main.rs</StatusBarItem>
+        <StatusBarSeparator />
+        <StatusBarItem>Ln 12, Col 4</StatusBarItem>
+        <StatusBarSeparator />
+        <StatusBarItem>UTF-8</StatusBarItem>
+      </StatusBar>
+    </View>
   );
 }
 
