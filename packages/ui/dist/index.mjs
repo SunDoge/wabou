@@ -4,6 +4,10 @@ import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { applyRef, createComponent as createComponent$1, createElement, createFps, insertNode, memo, mergeProps } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
+import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
+import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
+import arrowRight from "lucide-static/icons/arrow-right.svg?raw";
+import arrowUp from "lucide-static/icons/arrow-up.svg?raw";
 import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import { CalendarDate, endOfMonth, isSameDay, startOfMonth } from "@internationalized/date";
 import calendarIcon from "lucide-static/icons/calendar.svg?raw";
@@ -12,7 +16,6 @@ import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import folder from "lucide-static/icons/folder.svg?raw";
 import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import minus from "lucide-static/icons/minus.svg?raw";
-import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
 import plus from "lucide-static/icons/plus.svg?raw";
 import star from "lucide-static/icons/star.svg?raw";
@@ -492,302 +495,6 @@ function AvatarGroupCount(props) {
 	});
 }
 //#endregion
-//#region src/components/menu-state.ts
-/** Resolve one keyboard move without coupling menu state to rendering. */
-function moveMenuHighlight(items, current, move) {
-	const enabled = items.filter((item) => !item.disabled);
-	if (enabled.length === 0) return void 0;
-	if (move === "first") return enabled[0].id;
-	if (move === "last") return enabled.at(-1)?.id;
-	const index = enabled.findIndex((item) => item.id === current);
-	if (move === "next") return enabled[(index + 1) % enabled.length].id;
-	return enabled[(index <= 0 ? enabled.length : index) - 1].id;
-}
-//#endregion
-//#region src/components/command-state.ts
-function filterCommandItems(items, query) {
-	const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
-	if (terms.length === 0) return [...items];
-	return items.filter((item) => {
-		const haystack = [item.label, ...item.keywords ?? []].join(" ").toLocaleLowerCase();
-		return terms.every((term) => haystack.includes(term));
-	});
-}
-function reconcileCommandHighlight(items, highlighted) {
-	if (items.some((item) => item.id === highlighted && !item.disabled)) return highlighted;
-	return moveMenuHighlight(items, void 0, "first");
-}
-//#endregion
-//#region src/components/input.tsx
-/** A plain-text input. Secrets must use `PasswordInput`. */
-function Input(props) {
-	const forwarded = omit(props, "chrome", "surfaceClass");
-	return createComponent$1(TextInput, mergeProps(forwarded, {
-		get ["data-wabou-owns"]() {
-			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
-		},
-		get ["class"]() {
-			return join("h-8 w-full px-3 text-sm text-primary", (props.chrome ?? "default") === "default" && join("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
-		}
-	}));
-}
-//#endregion
-//#region src/components/command.tsx
-/** Searchable command list whose filtering and keyboard behavior are host-independent. */
-function Command(props) {
-	const [uncontrolledQuery, setUncontrolledQuery] = createSignal(props.defaultQuery ?? "");
-	const [highlighted, setHighlighted] = createSignal();
-	const query = () => props.query ?? uncontrolledQuery();
-	const filtered = createMemo(() => filterCommandItems(props.items, query()));
-	createEffect(() => ({
-		items: filtered(),
-		highlighted: highlighted()
-	}), ({ items, highlighted: current }) => {
-		setHighlighted(reconcileCommandHighlight(items, current));
-	});
-	const setQuery = (next) => {
-		if (props.query === void 0) setUncontrolledQuery(next);
-		props.onQueryChange?.(next);
-	};
-	const select = (id) => {
-		const item = filtered().find((candidate) => candidate.id === id);
-		if (!item || item.disabled) return false;
-		item.onSelect?.();
-		props.onAction?.(item.id);
-		return true;
-	};
-	const move = (direction) => {
-		const next = moveMenuHighlight(filtered(), highlighted(), direction);
-		if (next === void 0) return false;
-		setHighlighted(next);
-		return true;
-	};
-	const onKeyDown = (event) => {
-		if (match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).with("Escape", () => {
-			props.onDismiss?.();
-			return props.onDismiss !== void 0;
-		}).otherwise(() => false)) event.preventDefault();
-	};
-	return createComponent$1(View, {
-		get ["class"]() {
-			return join("min-w-0 flex flex-col gap-2", props.class);
-		},
-		get children() {
-			return [createComponent$1(Input, {
-				get ["aria-label"]() {
-					return props["aria-label"];
-				},
-				get value() {
-					return query();
-				},
-				get placeholder() {
-					return props.placeholder ?? "Type a command";
-				},
-				ref(r$) {
-					var _ref$ = props.inputRef;
-					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.inputRef = r$;
-				},
-				onInput: (event) => setQuery(event.currentTarget.value),
-				onKeyDown
-			}), createComponent$1(View, {
-				role: "listbox",
-				get ["aria-label"]() {
-					return `${props["aria-label"]} results`;
-				},
-				get ["aria-activedescendant"]() {
-					return highlighted();
-				},
-				get ["class"]() {
-					return join("min-w-0 flex flex-col gap-1", props.listClass);
-				},
-				get children() {
-					return memo(() => {
-						return filtered().length === 0;
-					})() ? createComponent$1(Text, {
-						role: "status",
-						class: "px-3 py-4 text-sm text-muted text-center",
-						get children() {
-							return props.emptyText ?? "No results found.";
-						}
-					}) : createComponent$1(For, {
-						get each() {
-							return filtered();
-						},
-						keyed: false,
-						children: (item) => createComponent$1(View, {
-							get id() {
-								return item().id;
-							},
-							role: "option",
-							get ["aria-label"]() {
-								return item().label;
-							},
-							get ["aria-selected"]() {
-								return highlighted() === item().id;
-							},
-							get ["aria-disabled"]() {
-								return item().disabled;
-							},
-							get ["class"]() {
-								return join("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
-							},
-							get style() {
-								return { opacity: item().disabled ? .45 : 1 };
-							},
-							onPointerMove: () => !item().disabled && setHighlighted(item().id),
-							onClick: () => select(item().id),
-							get children() {
-								return [createComponent$1(Text, {
-									class: "text-sm",
-									get children() {
-										return item().label;
-									}
-								}), memo(() => {
-									return memo(() => {
-										return !!item().description;
-									})() ? createComponent$1(Text, {
-										class: "text-xs text-muted",
-										get children() {
-											return item().description;
-										}
-									}) : item().description;
-								})];
-							}
-						})
-					});
-				}
-			})];
-		}
-	});
-}
-//#endregion
-//#region src/components/combobox.tsx
-/** A searchable single-value picker built from Popover and Command. */
-function Combobox(props) {
-	const theme = useComponentsTheme();
-	const [uncontrolledValue, setUncontrolledValue] = createSignal(props.defaultValue);
-	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
-	const [query, setQuery] = createSignal("");
-	let trigger;
-	let search;
-	const value = () => props.value ?? uncontrolledValue();
-	const open = () => props.open ?? uncontrolledOpen();
-	const selected = () => props.options.find((option) => option.value === value());
-	const setOpen = (next) => {
-		if (props.open === void 0) setUncontrolledOpen(next);
-		props.onOpenChange?.(next);
-		if (next) {
-			setQuery("");
-			requestAnimationFrame(() => search?.focus());
-		} else requestAnimationFrame(() => trigger?.focus());
-	};
-	const select = (id) => {
-		const option = props.options.find((candidate) => candidate.id === id);
-		if (!option || option.disabled) return;
-		if (props.value === void 0) setUncontrolledValue(option.value);
-		option.onSelect?.();
-		props.onValueChange?.(option.value);
-		setOpen(false);
-	};
-	return createComponent$1(Popover$1, {
-		contentRole: "presentation",
-		popupRole: "listbox",
-		get open() {
-			return open();
-		},
-		onOpenChange: setOpen,
-		placement: "bottom-start",
-		get contentClass() {
-			return join("w-72 p-2 rounded-lg border border-subtle bg-surface", props.contentClass);
-		},
-		get contentShadows() {
-			return memo(() => {
-				return props.contentShadows === void 0;
-			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
-		},
-		get motion() {
-			return props.motion;
-		},
-		trigger: (popover) => createComponent$1(Button$1, {
-			unstyled: true,
-			role: "combobox",
-			get disabled() {
-				return props.disabled;
-			},
-			get ["aria-label"]() {
-				return props["aria-label"];
-			},
-			"aria-haspopup": "listbox",
-			get ["aria-expanded"]() {
-				return open();
-			},
-			ref: (node) => {
-				trigger = node;
-				popover.ref(node);
-			},
-			class: (state) => join("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
-			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
-			get onClick() {
-				return popover.onClick;
-			},
-			get onKeyDown() {
-				return popover.onKeyDown;
-			},
-			get children() {
-				return [createComponent$1(Text, {
-					get ["class"]() {
-						return join("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
-					},
-					get children() {
-						return selected()?.label ?? props.placeholder ?? "Select an option";
-					}
-				}), createComponent$1(Icon, {
-					source: chevronsUpDown,
-					class: "flex-none text-muted",
-					size: 16
-				})];
-			}
-		}),
-		get children() {
-			return createComponent$1(Command, {
-				get ["aria-label"]() {
-					return `${props["aria-label"]} search`;
-				},
-				get query() {
-					return query();
-				},
-				onQueryChange: setQuery,
-				get placeholder() {
-					return props.searchPlaceholder ?? "Search options";
-				},
-				get emptyText() {
-					return props.emptyText;
-				},
-				get items() {
-					return props.options;
-				},
-				onAction: select,
-				onDismiss: () => setOpen(false),
-				inputRef: (node) => search = node
-			});
-		}
-	});
-}
-//#endregion
-//#region src/components/config-editor.tsx
-/**
-* Experimental native configuration editor. Its Wabou-owned props deliberately
-* hide the editor-core implementation so the backend can evolve independently.
-*/
-function ConfigEditor(props) {
-	return createComponent$1(CodeEditor, mergeProps(props, {
-		language: "json",
-		get ["class"]() {
-			return join("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
-		}
-	}));
-}
-//#endregion
 //#region src/primitives/interactions/collection.ts
 function createCollection(source) {
 	const enabled = () => source().filter((item) => !item.disabled);
@@ -1086,6 +793,558 @@ function createSelectInteraction(options) {
 			}) : false;
 		}
 	};
+}
+//#endregion
+//#region src/components/carousel.tsx
+const CarouselContext = createContext();
+function useCarousel() {
+	const context = useContext(CarouselContext);
+	if (!context) throw new Error("Carousel child must be used inside Carousel");
+	return context;
+}
+function normalizeCarouselIndex(index, count, loop) {
+	if (count <= 0) return 0;
+	if (loop) return (Math.trunc(index) % count + count) % count;
+	return Math.min(count - 1, Math.max(0, Math.trunc(index)));
+}
+/** A native snapping carousel with captured pointer dragging and keyboard navigation. */
+function Carousel(props) {
+	const items = [];
+	const [revision, setRevision] = createSignal(0, { ownedWrite: true });
+	const state = createControllableState({
+		value: () => props.index,
+		defaultValue: normalizeCarouselIndex(props.defaultIndex ?? 0, 1, false),
+		onChange: props.onIndexChange
+	});
+	const count = () => {
+		revision();
+		return items.length;
+	};
+	const selectedIndex = () => normalizeCarouselIndex(state.value(), count(), props.loop ?? false);
+	const scrollTo = (index) => {
+		if (count() === 0) return;
+		state.set(normalizeCarouselIndex(index, count(), props.loop ?? false));
+	};
+	const context = {
+		orientation: () => props.orientation ?? "horizontal",
+		selectedIndex,
+		itemCount: count,
+		canScrollPrevious: () => count() > 1 && ((props.loop ?? false) || selectedIndex() > 0),
+		canScrollNext: () => count() > 1 && ((props.loop ?? false) || selectedIndex() < count() - 1),
+		scrollPrevious: () => scrollTo(selectedIndex() - 1),
+		scrollNext: () => scrollTo(selectedIndex() + 1),
+		scrollTo,
+		register(id) {
+			items.push(id);
+			setRevision((value) => value + 1);
+			return () => {
+				const index = items.indexOf(id);
+				if (index >= 0) items.splice(index, 1);
+				setRevision((value) => value + 1);
+			};
+		}
+	};
+	props.setApi?.(context);
+	return createComponent(CarouselContext, {
+		value: context,
+		get children() {
+			return createComponent$1(View, {
+				role: "group",
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				get ["class"]() {
+					return join("relative min-w-0 min-h-0", props.class);
+				},
+				onKeyDown: (event) => {
+					if (match({
+						orientation: context.orientation(),
+						key: event.key
+					}).with({
+						orientation: "horizontal",
+						key: "ArrowLeft"
+					}, () => {
+						context.scrollPrevious();
+						return true;
+					}).with({
+						orientation: "horizontal",
+						key: "ArrowRight"
+					}, () => {
+						context.scrollNext();
+						return true;
+					}).with({
+						orientation: "vertical",
+						key: "ArrowUp"
+					}, () => {
+						context.scrollPrevious();
+						return true;
+					}).with({
+						orientation: "vertical",
+						key: "ArrowDown"
+					}, () => {
+						context.scrollNext();
+						return true;
+					}).otherwise(() => false)) event.preventDefault();
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	});
+}
+function CarouselContent(props) {
+	const carousel = useCarousel();
+	const measured = createMeasuredSize();
+	const reducedMotion = useReducedMotion();
+	const [offset, setOffset] = createSignal(0, { ownedWrite: true });
+	const [dragDelta, setDragDelta] = createSignal(0, { ownedWrite: true });
+	const [dragging, setDragging] = createSignal(false, { ownedWrite: true });
+	let startCoordinate = 0;
+	let controls;
+	const axisSize = () => carousel.orientation() === "horizontal" ? measured.width() : measured.height();
+	const targetOffset = () => -carousel.selectedIndex() * axisSize();
+	const coordinate = (event) => carousel.orientation() === "horizontal" ? event.clientX : event.clientY;
+	const settle = () => {
+		controls?.cancel();
+		const target = targetOffset();
+		if (reducedMotion() || Math.abs(target - offset()) < .5) {
+			setOffset(target);
+			return;
+		}
+		controls = animate(offset(), target, {
+			duration: .28,
+			ease: [
+				.22,
+				1,
+				.36,
+				1
+			],
+			onUpdate: setOffset
+		});
+	};
+	createEffect(() => [targetOffset(), measured.measured()], () => {
+		if (!dragging()) settle();
+	});
+	onCleanup(() => controls?.cancel());
+	const stopDragging = (cancelled = false) => {
+		if (!dragging()) return;
+		const delta = dragDelta();
+		const threshold = Math.max(12, axisSize() * (props.dragThreshold ?? .15));
+		setOffset(offset() + delta);
+		setDragDelta(0);
+		setDragging(false);
+		if (!cancelled && Math.abs(delta) >= threshold) {
+			if (delta < 0) carousel.scrollNext();
+			else carousel.scrollPrevious();
+		}
+		requestAnimationFrame(settle);
+	};
+	const forwarded = omit(props, "trackClass", "dragThreshold", "children", "class", "ref", "onPointerDown", "onPointerMove", "onPointerUp", "onPointerCancel");
+	return createComponent$1(View, mergeProps(forwarded, {
+		ref: (node) => {
+			measured.ref(node);
+			props.ref?.(node);
+		},
+		get ["class"]() {
+			return join("min-w-0 min-h-0 overflow-hidden", props.class);
+		},
+		onPointerDown: (event) => {
+			if (event.button !== 0 || axisSize() <= 0) return;
+			controls?.cancel();
+			startCoordinate = coordinate(event);
+			setDragDelta(0);
+			setDragging(true);
+			event.preventDefault();
+			props.onPointerDown?.(event);
+		},
+		onPointerMove: (event) => {
+			if (dragging() && event.buttons !== 0) setDragDelta(coordinate(event) - startCoordinate);
+			props.onPointerMove?.(event);
+		},
+		onPointerUp: (event) => {
+			stopDragging();
+			props.onPointerUp?.(event);
+		},
+		onPointerCancel: (event) => {
+			stopDragging(true);
+			props.onPointerCancel?.(event);
+		},
+		get children() {
+			return createComponent$1(View, {
+				get ["class"]() {
+					return join("flex w-full h-full flex-none", carousel.orientation() === "horizontal" ? "flex-row" : "flex-col", props.trackClass);
+				},
+				get transform() {
+					return memo(() => {
+						return carousel.orientation() === "horizontal";
+					})() ? translate2d$1(offset() + dragDelta(), 0) : translate2d$1(0, offset() + dragDelta());
+				},
+				get children() {
+					return props.children;
+				}
+			});
+		}
+	}));
+}
+function CarouselItem(props) {
+	const carousel = useCarousel();
+	const id = createUniqueId();
+	const unregister = carousel.register(id);
+	onCleanup(unregister);
+	return createComponent$1(View, mergeProps(props, {
+		role: "group",
+		get ["aria-label"]() {
+			return props["aria-label"];
+		},
+		get ["class"]() {
+			return join("min-w-0 min-h-0 flex-none", carousel.orientation() === "horizontal" ? "w-full" : "h-full", props.class);
+		}
+	}));
+}
+function CarouselNavigationButton(props) {
+	const carousel = useCarousel();
+	const previous = props.direction === "previous";
+	const forwarded = omit(props, "direction", "children", "onClick");
+	return createComponent$1(Button, mergeProps(forwarded, {
+		get ["aria-label"]() {
+			return props["aria-label"] ?? (previous ? "Previous slide" : "Next slide");
+		},
+		get variant() {
+			return props.variant ?? "outline";
+		},
+		get size() {
+			return props.size ?? "icon";
+		},
+		get disabled() {
+			return props.disabled ?? (previous ? !carousel.canScrollPrevious() : !carousel.canScrollNext());
+		},
+		onClick: (event) => {
+			if (previous) carousel.scrollPrevious();
+			else carousel.scrollNext();
+			props.onClick?.(event);
+		},
+		get children() {
+			return props.children ?? createComponent$1(Icon, {
+				"aria-hidden": "true",
+				get source() {
+					return match({
+						previous,
+						orientation: carousel.orientation()
+					}).with({
+						orientation: "vertical",
+						previous: true
+					}, () => arrowUp).with({
+						orientation: "vertical",
+						previous: false
+					}, () => arrowDown).with({ previous: true }, () => arrowLeft).otherwise(() => arrowRight);
+				},
+				size: 16
+			});
+		}
+	}));
+}
+function CarouselPrevious(props) {
+	return createComponent$1(CarouselNavigationButton, mergeProps(props, { direction: "previous" }));
+}
+function CarouselNext(props) {
+	return createComponent$1(CarouselNavigationButton, mergeProps(props, { direction: "next" }));
+}
+//#endregion
+//#region src/components/menu-state.ts
+/** Resolve one keyboard move without coupling menu state to rendering. */
+function moveMenuHighlight(items, current, move) {
+	const enabled = items.filter((item) => !item.disabled);
+	if (enabled.length === 0) return void 0;
+	if (move === "first") return enabled[0].id;
+	if (move === "last") return enabled.at(-1)?.id;
+	const index = enabled.findIndex((item) => item.id === current);
+	if (move === "next") return enabled[(index + 1) % enabled.length].id;
+	return enabled[(index <= 0 ? enabled.length : index) - 1].id;
+}
+//#endregion
+//#region src/components/command-state.ts
+function filterCommandItems(items, query) {
+	const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+	if (terms.length === 0) return [...items];
+	return items.filter((item) => {
+		const haystack = [item.label, ...item.keywords ?? []].join(" ").toLocaleLowerCase();
+		return terms.every((term) => haystack.includes(term));
+	});
+}
+function reconcileCommandHighlight(items, highlighted) {
+	if (items.some((item) => item.id === highlighted && !item.disabled)) return highlighted;
+	return moveMenuHighlight(items, void 0, "first");
+}
+//#endregion
+//#region src/components/input.tsx
+/** A plain-text input. Secrets must use `PasswordInput`. */
+function Input(props) {
+	const forwarded = omit(props, "chrome", "surfaceClass");
+	return createComponent$1(TextInput, mergeProps(forwarded, {
+		get ["data-wabou-owns"]() {
+			return (props.chrome ?? "default") === "default" ? "surface native-editor" : "native-editor";
+		},
+		get ["class"]() {
+			return join("h-8 w-full px-3 text-sm text-primary", (props.chrome ?? "default") === "default" && join("rounded-md border border-subtle shadow-xs", props.surfaceClass ?? "bg-input"), props.disabled && "opacity-50", props.class);
+		}
+	}));
+}
+//#endregion
+//#region src/components/command.tsx
+/** Searchable command list whose filtering and keyboard behavior are host-independent. */
+function Command(props) {
+	const [uncontrolledQuery, setUncontrolledQuery] = createSignal(props.defaultQuery ?? "");
+	const [highlighted, setHighlighted] = createSignal();
+	const query = () => props.query ?? uncontrolledQuery();
+	const filtered = createMemo(() => filterCommandItems(props.items, query()));
+	createEffect(() => ({
+		items: filtered(),
+		highlighted: highlighted()
+	}), ({ items, highlighted: current }) => {
+		setHighlighted(reconcileCommandHighlight(items, current));
+	});
+	const setQuery = (next) => {
+		if (props.query === void 0) setUncontrolledQuery(next);
+		props.onQueryChange?.(next);
+	};
+	const select = (id) => {
+		const item = filtered().find((candidate) => candidate.id === id);
+		if (!item || item.disabled) return false;
+		item.onSelect?.();
+		props.onAction?.(item.id);
+		return true;
+	};
+	const move = (direction) => {
+		const next = moveMenuHighlight(filtered(), highlighted(), direction);
+		if (next === void 0) return false;
+		setHighlighted(next);
+		return true;
+	};
+	const onKeyDown = (event) => {
+		if (match(event.key).with("ArrowDown", () => move("next")).with("ArrowUp", () => move("previous")).with("Home", () => move("first")).with("End", () => move("last")).with("Enter", () => select(highlighted())).with("Escape", () => {
+			props.onDismiss?.();
+			return props.onDismiss !== void 0;
+		}).otherwise(() => false)) event.preventDefault();
+	};
+	return createComponent$1(View, {
+		get ["class"]() {
+			return join("min-w-0 flex flex-col gap-2", props.class);
+		},
+		get children() {
+			return [createComponent$1(Input, {
+				get ["aria-label"]() {
+					return props["aria-label"];
+				},
+				get value() {
+					return query();
+				},
+				get placeholder() {
+					return props.placeholder ?? "Type a command";
+				},
+				ref(r$) {
+					var _ref$ = props.inputRef;
+					typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.inputRef = r$;
+				},
+				onInput: (event) => setQuery(event.currentTarget.value),
+				onKeyDown
+			}), createComponent$1(View, {
+				role: "listbox",
+				get ["aria-label"]() {
+					return `${props["aria-label"]} results`;
+				},
+				get ["aria-activedescendant"]() {
+					return highlighted();
+				},
+				get ["class"]() {
+					return join("min-w-0 flex flex-col gap-1", props.listClass);
+				},
+				get children() {
+					return memo(() => {
+						return filtered().length === 0;
+					})() ? createComponent$1(Text, {
+						role: "status",
+						class: "px-3 py-4 text-sm text-muted text-center",
+						get children() {
+							return props.emptyText ?? "No results found.";
+						}
+					}) : createComponent$1(For, {
+						get each() {
+							return filtered();
+						},
+						keyed: false,
+						children: (item) => createComponent$1(View, {
+							get id() {
+								return item().id;
+							},
+							role: "option",
+							get ["aria-label"]() {
+								return item().label;
+							},
+							get ["aria-selected"]() {
+								return highlighted() === item().id;
+							},
+							get ["aria-disabled"]() {
+								return item().disabled;
+							},
+							get ["class"]() {
+								return join("min-h-9 px-3 py-1.5 flex flex-col justify-center rounded-md", highlighted() === item().id ? "bg-control-hover text-primary" : "bg-transparent text-secondary");
+							},
+							get style() {
+								return { opacity: item().disabled ? .45 : 1 };
+							},
+							onPointerMove: () => !item().disabled && setHighlighted(item().id),
+							onClick: () => select(item().id),
+							get children() {
+								return [createComponent$1(Text, {
+									class: "text-sm",
+									get children() {
+										return item().label;
+									}
+								}), memo(() => {
+									return memo(() => {
+										return !!item().description;
+									})() ? createComponent$1(Text, {
+										class: "text-xs text-muted",
+										get children() {
+											return item().description;
+										}
+									}) : item().description;
+								})];
+							}
+						})
+					});
+				}
+			})];
+		}
+	});
+}
+//#endregion
+//#region src/components/combobox.tsx
+/** A searchable single-value picker built from Popover and Command. */
+function Combobox(props) {
+	const theme = useComponentsTheme();
+	const [uncontrolledValue, setUncontrolledValue] = createSignal(props.defaultValue);
+	const [uncontrolledOpen, setUncontrolledOpen] = createSignal(props.defaultOpen ?? false);
+	const [query, setQuery] = createSignal("");
+	let trigger;
+	let search;
+	const value = () => props.value ?? uncontrolledValue();
+	const open = () => props.open ?? uncontrolledOpen();
+	const selected = () => props.options.find((option) => option.value === value());
+	const setOpen = (next) => {
+		if (props.open === void 0) setUncontrolledOpen(next);
+		props.onOpenChange?.(next);
+		if (next) {
+			setQuery("");
+			requestAnimationFrame(() => search?.focus());
+		} else requestAnimationFrame(() => trigger?.focus());
+	};
+	const select = (id) => {
+		const option = props.options.find((candidate) => candidate.id === id);
+		if (!option || option.disabled) return;
+		if (props.value === void 0) setUncontrolledValue(option.value);
+		option.onSelect?.();
+		props.onValueChange?.(option.value);
+		setOpen(false);
+	};
+	return createComponent$1(Popover$1, {
+		contentRole: "presentation",
+		popupRole: "listbox",
+		get open() {
+			return open();
+		},
+		onOpenChange: setOpen,
+		placement: "bottom-start",
+		get contentClass() {
+			return join("w-72 p-2 rounded-lg border border-subtle bg-surface", props.contentClass);
+		},
+		get contentShadows() {
+			return memo(() => {
+				return props.contentShadows === void 0;
+			})() ? componentsElevation(theme(), "floating") : props.contentShadows;
+		},
+		get motion() {
+			return props.motion;
+		},
+		trigger: (popover) => createComponent$1(Button$1, {
+			unstyled: true,
+			role: "combobox",
+			get disabled() {
+				return props.disabled;
+			},
+			get ["aria-label"]() {
+				return props["aria-label"];
+			},
+			"aria-haspopup": "listbox",
+			get ["aria-expanded"]() {
+				return open();
+			},
+			ref: (node) => {
+				trigger = node;
+				popover.ref(node);
+			},
+			class: (state) => join("w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs", state.focused ? "border-focus" : "border-subtle", props.class),
+			style: (state) => ({ opacity: state.disabled ? .45 : 1 }),
+			get onClick() {
+				return popover.onClick;
+			},
+			get onKeyDown() {
+				return popover.onKeyDown;
+			},
+			get children() {
+				return [createComponent$1(Text, {
+					get ["class"]() {
+						return join("min-w-0 flex-1 text-left truncate", selected() ? "text-primary" : "text-muted");
+					},
+					get children() {
+						return selected()?.label ?? props.placeholder ?? "Select an option";
+					}
+				}), createComponent$1(Icon, {
+					source: chevronsUpDown,
+					class: "flex-none text-muted",
+					size: 16
+				})];
+			}
+		}),
+		get children() {
+			return createComponent$1(Command, {
+				get ["aria-label"]() {
+					return `${props["aria-label"]} search`;
+				},
+				get query() {
+					return query();
+				},
+				onQueryChange: setQuery,
+				get placeholder() {
+					return props.searchPlaceholder ?? "Search options";
+				},
+				get emptyText() {
+					return props.emptyText;
+				},
+				get items() {
+					return props.options;
+				},
+				onAction: select,
+				onDismiss: () => setOpen(false),
+				inputRef: (node) => search = node
+			});
+		}
+	});
+}
+//#endregion
+//#region src/components/config-editor.tsx
+/**
+* Experimental native configuration editor. Its Wabou-owned props deliberately
+* hide the editor-core implementation so the backend can evolve independently.
+*/
+function ConfigEditor(props) {
+	return createComponent$1(CodeEditor, mergeProps(props, {
+		language: "json",
+		get ["class"]() {
+			return join("min-h-48 w-full rounded-md border border-strong bg-input text-primary", props.class);
+		}
+	}));
 }
 //#endregion
 //#region src/components/dropdown-menu.tsx
@@ -7056,6 +7315,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, bubbleClass, bubbleContentClass, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useComponentsTheme, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupText, Calendar, CalendarDate, Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, Checkbox, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectoryPicker, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, Input, InputGroup, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitPane, SplitPaneAside, SplitPaneMain, Svg, Switch, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, View, WindowFrame, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, bubbleClass, bubbleContentClass, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, emptyClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useComponentsTheme, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

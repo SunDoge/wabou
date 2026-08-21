@@ -38,6 +38,11 @@ import {
   ButtonGroup,
   ButtonGroupText,
   CalendarDate,
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -1051,6 +1056,119 @@ export function NavigationMenuPage() {
           </NavigationMenu>
           <Text class="text-sm text-muted">{selection()}</Text>
         </View>
+      </Preview>
+    </View>
+  );
+}
+
+export function CarouselPage() {
+  const [index, setIndex] = createSignal(0);
+  const [verticalIndex, setVerticalIndex] = createSignal(0);
+  const slides = [
+    {
+      eyebrow: "Native rendering",
+      title: "Retained scenes",
+      description: "Update only the nodes whose state actually changed.",
+      tone: "selected",
+    },
+    {
+      eyebrow: "Solid 2",
+      title: "Fine-grained UI",
+      description:
+        "Keep application state and native views in one reactive tree.",
+      tone: "control",
+    },
+    {
+      eyebrow: "Desktop input",
+      title: "Captured dragging",
+      description: "Pointer, keyboard and button navigation share one index.",
+      tone: "success",
+    },
+  ] as const;
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Snapping carousel">
+        <View class="w-[560px] flex flex-col items-center gap-3">
+          <Carousel
+            aria-label="Framework highlights"
+            index={index()}
+            onIndexChange={setIndex}
+            class="w-full"
+          >
+            <CarouselContent
+              role="group"
+              aria-label="Feature slides"
+              class="w-full h-52 rounded-xl border border-subtle bg-surface"
+            >
+              {slides.map((slide, slideIndex) => (
+                <CarouselItem
+                  aria-label={`Slide ${slideIndex + 1} of ${slides.length}`}
+                >
+                  <View
+                    class="w-full h-full p-8 flex flex-col items-start justify-center gap-2"
+                    classList={{
+                      "bg-selected": slide.tone === "selected",
+                      "bg-control": slide.tone === "control",
+                      "bg-success-surface": slide.tone === "success",
+                    }}
+                  >
+                    <Text class="text-xs font-medium text-muted">
+                      {slide.eyebrow}
+                    </Text>
+                    <Text class="text-xl font-semibold text-primary">
+                      {slide.title}
+                    </Text>
+                    <Text class="max-w-sm whitespace-normal text-sm text-secondary">
+                      {slide.description}
+                    </Text>
+                  </View>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <View class="flex items-center gap-3">
+              <CarouselPrevious />
+              <Text role="status" class="w-24 text-center text-sm text-muted">
+                {`Slide ${index() + 1} of ${slides.length}`}
+              </Text>
+              <CarouselNext />
+            </View>
+          </Carousel>
+        </View>
+      </Preview>
+      <Preview title="Vertical orientation">
+        <Carousel
+          aria-label="Vertical highlights"
+          orientation="vertical"
+          index={verticalIndex()}
+          onIndexChange={setVerticalIndex}
+          class="w-[420px]"
+        >
+          <CarouselContent
+            role="group"
+            aria-label="Vertical feature slides"
+            class="w-full h-40 rounded-xl border border-subtle"
+          >
+            {slides.map((slide, slideIndex) => (
+              <CarouselItem
+                aria-label={`Vertical slide ${slideIndex + 1} of ${slides.length}`}
+              >
+                <View class="w-full h-full p-6 flex flex-col items-start justify-center gap-1 bg-control">
+                  <Text class="text-xs text-muted">{slide.eyebrow}</Text>
+                  <Text class="text-lg font-semibold text-primary">
+                    {slide.title}
+                  </Text>
+                </View>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          <View class="flex items-center gap-3">
+            <CarouselPrevious aria-label="Previous vertical slide" />
+            <Text role="status" class="w-32 text-center text-sm text-muted">
+              {`Vertical slide ${verticalIndex() + 1} of ${slides.length}`}
+            </Text>
+            <CarouselNext aria-label="Next vertical slide" />
+          </View>
+        </Carousel>
       </Preview>
     </View>
   );

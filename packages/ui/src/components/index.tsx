@@ -23,6 +23,7 @@ export * from "./aspect-ratio";
 export * from "./attachment";
 export * from "./avatar";
 export * from "./button";
+export * from "./carousel";
 export * from "./combobox";
 export * from "./command";
 export * from "./config-editor";

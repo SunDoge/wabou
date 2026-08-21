@@ -9,6 +9,9 @@
     "aspect-ratio-hidpi.ts": {
       "scaleFactor": 2
     },
+    "carousel-hidpi.ts": {
+      "scaleFactor": 2
+    },
     "attachment-hidpi.ts": {
       "scaleFactor": 2
     },
