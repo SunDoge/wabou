@@ -100,6 +100,12 @@ import {
   MessageScrollerContent,
   MessageScrollerItem,
   MessageScrollerViewport,
+  NavigationMenu,
+  NavigationMenuContent,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+  NavigationMenuTrigger,
   Pagination,
   PaginationContent,
   PaginationItems,
@@ -977,6 +983,73 @@ export function InputOTPPage() {
               ? `Code complete: ${code()}`
               : `Code: ${code() || "empty"}`}
           </Text>
+        </View>
+      </Preview>
+    </View>
+  );
+}
+
+export function NavigationMenuPage() {
+  const [selection, setSelection] = createSignal("No destination selected");
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Shared navigation viewport">
+        <View class="min-h-56 flex flex-col items-start gap-4">
+          <NavigationMenu aria-label="Product navigation">
+            <NavigationMenuList>
+              <NavigationMenuItem value="products">
+                <NavigationMenuTrigger aria-label="Products">
+                  Products
+                </NavigationMenuTrigger>
+                <NavigationMenuContent class="grid grid-cols-2 gap-2">
+                  <NavigationMenuLink
+                    aria-label="Wabou Runtime"
+                    onClick={() => setSelection("Wabou Runtime")}
+                  >
+                    <Text class="font-medium text-primary">Wabou Runtime</Text>
+                    <Text class="whitespace-normal text-xs text-muted">
+                      Native rendering and QuickJS application hosting.
+                    </Text>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink
+                    aria-label="Wabou UI"
+                    onClick={() => setSelection("Wabou UI")}
+                  >
+                    <Text class="font-medium text-primary">Wabou UI</Text>
+                    <Text class="whitespace-normal text-xs text-muted">
+                      Composable application components for Solid.
+                    </Text>
+                  </NavigationMenuLink>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+              <NavigationMenuItem value="resources">
+                <NavigationMenuTrigger aria-label="Resources">
+                  Resources
+                </NavigationMenuTrigger>
+                <NavigationMenuContent>
+                  <NavigationMenuLink
+                    aria-label="Guides"
+                    onClick={() => setSelection("Guides")}
+                  >
+                    <Text class="font-medium text-primary">Guides</Text>
+                    <Text class="whitespace-normal text-xs text-muted">
+                      Architecture, components and native integration.
+                    </Text>
+                  </NavigationMenuLink>
+                  <NavigationMenuLink
+                    aria-label="Examples"
+                    onClick={() => setSelection("Examples")}
+                  >
+                    <Text class="font-medium text-primary">Examples</Text>
+                    <Text class="whitespace-normal text-xs text-muted">
+                      Complete desktop applications built with Wabou.
+                    </Text>
+                  </NavigationMenuLink>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
+          <Text class="text-sm text-muted">{selection()}</Text>
         </View>
       </Preview>
     </View>

@@ -73,6 +73,7 @@ type ComponentId =
   | "hover-card"
   | "breadcrumb"
   | "pagination"
+  | "navigation-menu"
   | "dropdown-menu"
   | "context-menu"
   | "command"
@@ -136,6 +137,7 @@ const groups: Array<{
     items: [
       { id: "breadcrumb", name: "Breadcrumb" },
       { id: "pagination", name: "Pagination" },
+      { id: "navigation-menu", name: "Navigation menu" },
     ],
   },
   {
@@ -254,6 +256,8 @@ const descriptions: Record<ComponentId, string> = {
   breadcrumb:
     "Shows the current location while leaving navigation behavior to the application.",
   pagination: "Composes explicit controls for navigating a paged collection.",
+  "navigation-menu":
+    "Switches rich navigation content inside one shared native floating viewport.",
   "dropdown-menu":
     "Presents a compact list of actions with native focus and typeahead.",
   "context-menu": "Anchors actions to a native secondary-click coordinate.",
@@ -348,6 +352,7 @@ import {
   ItemPage,
   MessagePage,
   MessageScrollerPage,
+  NavigationMenuPage,
   PaginationPage,
   PopoverPage,
   ResizablePage,
@@ -607,6 +612,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "pagination"}>
                     <PaginationPage />
+                  </Match>
+                  <Match when={selected() === "navigation-menu"}>
+                    <NavigationMenuPage />
                   </Match>
                   <Match when={selected() === "dropdown-menu"}>
                     <DropdownMenuPage />

@@ -49,6 +49,7 @@ export * from "./menubar";
 export * from "./message";
 export * from "./message-scroller";
 export * from "./navigation";
+export * from "./navigation-menu";
 export * from "./number-field";
 export * from "./page";
 export * from "./popover";

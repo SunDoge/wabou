@@ -29,6 +29,9 @@
     },
     "message-scroller-hidpi.ts": {
       "scaleFactor": 2
+    },
+    "navigation-menu-hidpi.ts": {
+      "scaleFactor": 2
     }
   }
 }
