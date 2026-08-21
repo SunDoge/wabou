@@ -1,5 +1,5 @@
-import { defaultHost } from "@wabou/core/renderer";
 import { expect, test } from "@wabou/test";
+import { defaultHost } from "@wabou/ui";
 
 test("gallery layout control paints native diagnostic bounds", async ({
   page,

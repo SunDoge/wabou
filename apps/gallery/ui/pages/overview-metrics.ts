@@ -1,4 +1,4 @@
-import type { FrameStats } from "@wabou/core";
+import type { FrameStats } from "@wabou/ui";
 
 export interface FrameStage {
   label: "JS" | "Build" | "Scene" | "Present";

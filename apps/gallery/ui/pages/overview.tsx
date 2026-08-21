@@ -1,4 +1,3 @@
-import { useHost } from "@wabou/core";
 import {
   Badge,
   Button,
@@ -16,6 +15,7 @@ import {
   SplitPaneMain,
   Switch,
   Text,
+  useHost,
   useWindow,
   View,
 } from "@wabou/ui";
