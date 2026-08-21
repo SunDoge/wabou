@@ -13,6 +13,7 @@ import {
   translate2d,
   View,
 } from "../primitives";
+import { Badge, type BadgeProps } from "./badge";
 import { join } from "./class-names";
 
 export * from "./alert";
@@ -20,6 +21,7 @@ export * from "./alert-dialog";
 export * from "./aspect-ratio";
 export * from "./attachment";
 export * from "./avatar";
+export * from "./badge";
 export * from "./button";
 export * from "./button-group";
 export * from "./card";
@@ -102,45 +104,6 @@ export * from "./toast";
 export * from "./toolbar";
 export * from "./tooltip";
 export * from "./tree-view";
-
-export interface BadgeProps {
-  children?: JSX.Element;
-  variant?: "default" | "secondary" | "outline" | "success" | "destructive";
-  /** Typography weight selected without competing utility declarations. */
-  weight?: "normal" | "medium";
-  class?: string;
-}
-
-function badgeColors(variant: NonNullable<BadgeProps["variant"]>): string {
-  return match(variant)
-    .with("default", () => "bg-accent border-accent text-on-accent")
-    .with("secondary", () => "bg-control border-subtle text-primary")
-    .with("outline", () => "bg-transparent border-strong text-secondary")
-    .with(
-      "success",
-      () => "bg-success-surface border-success-primary text-success-primary",
-    )
-    .with(
-      "destructive",
-      () => "bg-danger-surface border-danger text-danger-primary",
-    )
-    .exhaustive();
-}
-
-export function Badge(props: BadgeProps): JSX.Element {
-  return (
-    <Text
-      class={join(
-        "flex-none whitespace-nowrap px-2 py-0.5 rounded-md border text-xs",
-        props.weight === "normal" ? "font-normal" : "font-medium",
-        badgeColors(props.variant ?? "default"),
-        props.class,
-      )}
-    >
-      {props.children}
-    </Text>
-  );
-}
 
 export interface FpsProps {
   /** Controlled FPS value. When omitted, the component measures host frames. */
