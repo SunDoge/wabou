@@ -202,7 +202,7 @@ fn rgba_pixels(graphic: &GraphicData) -> Option<Vec<u8>> {
         }
         ColorType::Rgb if graphic.pixels.len() == pixels.checked_mul(3)? => {
             let mut rgba = Vec::with_capacity(pixels * 4);
-            for rgb in graphic.pixels.chunks_exact(3) {
+            for rgb in graphic.pixels.as_chunks::<3>().0 {
                 rgba.extend_from_slice(rgb);
                 rgba.push(255);
             }
