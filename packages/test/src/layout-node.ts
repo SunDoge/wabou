@@ -49,6 +49,18 @@ export function layoutCommandArgs(
   return args;
 }
 
+/** Return the first Solid runtime diagnostic that makes a layout run invalid. */
+export function reactiveRuntimeDiagnostic(output: string): string | undefined {
+  return output
+    .split(/\r?\n/)
+    .find(
+      (line) =>
+        line.includes("[STRICT_READ_UNTRACKED]") ||
+        line.includes("[REACTIVITY_HALTED]"),
+    )
+    ?.trim();
+}
+
 export interface LayoutFixtureCase {
   readonly id: string;
   readonly width?: number;
@@ -244,22 +256,45 @@ async function runLayoutCommand(
   const command = options.command ?? ["wabou"];
   if (command.length === 0) throw new Error("layout command must not be empty");
   await new Promise<void>((resolve, reject) => {
+    let diagnostics = "";
     const child = spawn(
       command[0],
       [...command.slice(1), ...layoutCommandArgs(options)],
       {
-        stdio: ["ignore", "inherit", "inherit"],
+        env: { ...process.env, NODE_ENV: "development" },
+        stdio: ["ignore", "pipe", "pipe"],
       },
     );
+    child.stdout.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      diagnostics += text;
+      process.stdout.write(text);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      diagnostics += text;
+      process.stderr.write(text);
+    });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
-      if (code === 0) resolve();
-      else
+      if (code !== 0) {
         reject(
           new Error(
             `layout command failed ${signal ? `with signal ${signal}` : `with exit status ${code}`}`,
           ),
         );
+        return;
+      }
+      const reactiveDiagnostic = reactiveRuntimeDiagnostic(diagnostics);
+      if (reactiveDiagnostic) {
+        reject(
+          new Error(
+            `layout command emitted a reactive runtime diagnostic: ${reactiveDiagnostic.trim()}`,
+          ),
+        );
+        return;
+      }
+      resolve();
     });
   });
 }

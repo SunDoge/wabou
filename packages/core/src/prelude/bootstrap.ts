@@ -77,7 +77,16 @@ function formatConsoleValue(value: unknown): string {
 runtime.console ??= {};
 for (const level of ["log", "info", "warn", "error", "debug"] as const) {
   runtime.console[level] ??= (...values: unknown[]) => {
-    __wabou_log(level, values.map(formatConsoleValue).join(" "));
+    let message = values.map(formatConsoleValue).join(" ");
+    if (
+      level === "warn" &&
+      message.includes("[STRICT_READ_UNTRACKED]") &&
+      typeof Error === "function"
+    ) {
+      const stack = new Error().stack;
+      if (stack) message = `${message}\n${stack}`;
+    }
+    __wabou_log(level, message);
   };
 }
 runtime.console.assert ??= (condition: unknown, ...values: unknown[]) => {

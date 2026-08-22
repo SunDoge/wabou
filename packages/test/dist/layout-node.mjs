@@ -20,6 +20,10 @@ function layoutCommandArgs(options) {
 	if (options.waitMs !== void 0) args.push("--wait-ms", String(options.waitMs));
 	return args;
 }
+/** Return the first Solid runtime diagnostic that makes a layout run invalid. */
+function reactiveRuntimeDiagnostic(output) {
+	return output.split(/\r?\n/).find((line) => line.includes("[STRICT_READ_UNTRACKED]") || line.includes("[REACTIVITY_HALTED]"))?.trim();
+}
 function parseLayoutFixtureReport(value) {
 	if (typeof value !== "object" || value === null) throw new Error("Wabou layout fixture report must be an object");
 	const raw = value;
@@ -108,19 +112,44 @@ async function runLayoutCommand(options) {
 	const command = options.command ?? ["wabou"];
 	if (command.length === 0) throw new Error("layout command must not be empty");
 	await new Promise((resolve, reject) => {
-		const child = spawn(command[0], [...command.slice(1), ...layoutCommandArgs(options)], { stdio: [
-			"ignore",
-			"inherit",
-			"inherit"
-		] });
+		let diagnostics = "";
+		const child = spawn(command[0], [...command.slice(1), ...layoutCommandArgs(options)], {
+			env: {
+				...process.env,
+				NODE_ENV: "development"
+			},
+			stdio: [
+				"ignore",
+				"pipe",
+				"pipe"
+			]
+		});
+		child.stdout.on("data", (chunk) => {
+			const text = chunk.toString();
+			diagnostics += text;
+			process.stdout.write(text);
+		});
+		child.stderr.on("data", (chunk) => {
+			const text = chunk.toString();
+			diagnostics += text;
+			process.stderr.write(text);
+		});
 		child.once("error", reject);
 		child.once("exit", (code, signal) => {
-			if (code === 0) resolve();
-			else reject(/* @__PURE__ */ new Error(`layout command failed ${signal ? `with signal ${signal}` : `with exit status ${code}`}`));
+			if (code !== 0) {
+				reject(/* @__PURE__ */ new Error(`layout command failed ${signal ? `with signal ${signal}` : `with exit status ${code}`}`));
+				return;
+			}
+			const reactiveDiagnostic = reactiveRuntimeDiagnostic(diagnostics);
+			if (reactiveDiagnostic) {
+				reject(/* @__PURE__ */ new Error(`layout command emitted a reactive runtime diagnostic: ${reactiveDiagnostic.trim()}`));
+				return;
+			}
+			resolve();
 		});
 	});
 }
 //#endregion
-export { layoutCommandArgs, parseLayoutFixtureReport, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
+export { layoutCommandArgs, parseLayoutFixtureReport, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
 
 //# sourceMappingURL=layout-node.mjs.map

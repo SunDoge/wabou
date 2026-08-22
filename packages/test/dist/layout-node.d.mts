@@ -15,6 +15,8 @@ interface RenderAppLayoutOptions {
   readonly command?: readonly string[];
 }
 declare function layoutCommandArgs(options: RenderAppLayoutOptions): readonly string[];
+/** Return the first Solid runtime diagnostic that makes a layout run invalid. */
+declare function reactiveRuntimeDiagnostic(output: string): string | undefined;
 interface LayoutFixtureCase {
   readonly id: string;
   readonly width?: number;
@@ -59,5 +61,5 @@ declare function validateLayoutFixtureReport(report: LayoutFixtureReport, fixtur
 declare function renderLayoutFixtures(options: RenderLayoutFixturesOptions): Promise<LayoutFixtureReport>;
 declare function renderAppLayout(options: RenderAppLayoutOptions): Promise<LayoutSnapshot>;
 //#endregion
-export { LayoutFixtureCase, LayoutFixtureReport, LayoutFixtureResult, LayoutGeometryCheck, RenderAppLayoutOptions, RenderLayoutFixturesOptions, layoutCommandArgs, parseLayoutFixtureReport, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
+export { LayoutFixtureCase, LayoutFixtureReport, LayoutFixtureResult, LayoutGeometryCheck, RenderAppLayoutOptions, RenderLayoutFixturesOptions, layoutCommandArgs, parseLayoutFixtureReport, reactiveRuntimeDiagnostic, renderAppLayout, renderLayoutFixtures, validateLayoutFixtureReport };
 //# sourceMappingURL=layout-node.d.mts.map

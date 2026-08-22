@@ -4,6 +4,7 @@ import {
   layoutRectBottom,
   layoutRectRight,
 } from "./layout";
+import { reactiveRuntimeDiagnostic } from "./layout-node";
 
 describe("layout rect assertions", () => {
   test("reports stable right and bottom edges", () => {
@@ -31,5 +32,17 @@ describe("layout rect assertions", () => {
         { label: "component body" },
       ),
     ).toThrow("component body");
+  });
+
+  test("recognizes reactive runtime diagnostics in command output", () => {
+    expect(
+      reactiveRuntimeDiagnostic(
+        "info before\nWARN js: [STRICT_READ_UNTRACKED] direct read\ninfo after",
+      ),
+    ).toBe("WARN js: [STRICT_READ_UNTRACKED] direct read");
+    expect(
+      reactiveRuntimeDiagnostic("ERROR js: [REACTIVITY_HALTED] update ignored"),
+    ).toContain("[REACTIVITY_HALTED]");
+    expect(reactiveRuntimeDiagnostic("ordinary renderer warning")).toBeUndefined();
   });
 });
