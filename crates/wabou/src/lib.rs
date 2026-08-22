@@ -24,8 +24,9 @@ pub use wabou_runtime::{
     HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter,
     HostService, HostServiceContext, HostServiceHandle, JsonCapability, ManagedHostService,
     NativeCapability, Result, RevisionedHostPublication, RevisionedHostPublisher,
-    RevisionedHostSnapshot, ShellExtension, WindowMetrics, WindowOptions, WindowResourceKey,
-    initial_window_resource_key, managed_host_service, widget_api,
+    RevisionedHostSnapshot, ShellExtension, WindowInputMode, WindowLevel, WindowMetrics,
+    WindowOptions, WindowResourceKey, initial_window_resource_key, managed_host_service,
+    widget_api,
 };
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayImage};

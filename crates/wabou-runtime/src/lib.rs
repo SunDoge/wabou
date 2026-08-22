@@ -62,9 +62,10 @@ pub use rquickjs;
 pub use vello;
 pub use wabou_shell::{
     AppDirectories, AppDirectoryConfig, ExtensionContext, FrameSource, FrameSourceFactory,
-    RunOutcome, ShellExtension, TextContext, WindowMetrics, WindowOptions, WindowResourceKey,
-    initial_window_resource_key, run_window, run_window_with_options, run_window_with_size,
-    run_windows, run_windows_with_factory, run_windows_with_factory_and_extensions, style,
+    RunOutcome, ShellExtension, TextContext, WindowInputMode, WindowLevel, WindowMetrics,
+    WindowOptions, WindowResourceKey, initial_window_resource_key, run_window,
+    run_window_with_options, run_window_with_size, run_windows, run_windows_with_factory,
+    run_windows_with_factory_and_extensions, style,
 };
 pub use widget::WidgetFactory;
 pub use widget::{

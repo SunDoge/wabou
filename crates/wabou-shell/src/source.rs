@@ -29,6 +29,32 @@ use vello::Scene;
 /// this value so high-resolution trackpads and discrete wheels share one unit.
 pub const WHEEL_LINE_DELTA: f64 = 40.0;
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+/// Initial stacking level requested for a native window.
+pub enum WindowLevel {
+    /// Keep the window below ordinary application windows where supported.
+    AlwaysOnBottom,
+    /// Use the platform's ordinary application-window level.
+    #[default]
+    Normal,
+    /// Keep the window above ordinary application windows where supported.
+    ///
+    /// Wayland compositors generally do not expose this operation.
+    AlwaysOnTop,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+/// Whether a native window participates in pointer hit testing.
+pub enum WindowInputMode {
+    /// Deliver pointer input to the window normally.
+    #[default]
+    Interactive,
+    /// Let pointer input pass through to windows underneath where supported.
+    Passthrough,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// Requested properties used when creating a native window.
@@ -48,6 +74,10 @@ pub struct WindowOptions {
     pub decorations: bool,
     /// Whether the native surface preserves alpha.
     pub transparent: bool,
+    /// Requested initial stacking level.
+    pub window_level: WindowLevel,
+    /// Requested initial pointer hit-test behavior.
+    pub input_mode: WindowInputMode,
 }
 
 impl Default for WindowOptions {
@@ -59,6 +89,8 @@ impl Default for WindowOptions {
             resizable: true,
             decorations: true,
             transparent: false,
+            window_level: WindowLevel::Normal,
+            input_mode: WindowInputMode::Interactive,
         }
     }
 }
@@ -99,6 +131,16 @@ impl WindowOptions {
     /// painting an opaque root background for transparency to be visible.
     pub fn transparent(mut self, transparent: bool) -> Self {
         self.transparent = transparent;
+        self
+    }
+    /// Set the initial native stacking level.
+    pub fn window_level(mut self, window_level: WindowLevel) -> Self {
+        self.window_level = window_level;
+        self
+    }
+    /// Set the initial pointer hit-test behavior.
+    pub fn input_mode(mut self, input_mode: WindowInputMode) -> Self {
+        self.input_mode = input_mode;
         self
     }
 }
@@ -683,7 +725,7 @@ pub trait FrameSource {
 
 #[cfg(test)]
 mod tests {
-    use super::{Modifiers, WindowOptions};
+    use super::{Modifiers, WindowInputMode, WindowLevel, WindowOptions};
 
     #[test]
     fn modifier_flags_match_host_protocol_bits() {
@@ -703,13 +745,17 @@ mod tests {
             .min_inner_size(960, 600)
             .resizable(false)
             .decorations(false)
-            .transparent(true);
+            .transparent(true)
+            .window_level(WindowLevel::AlwaysOnTop)
+            .input_mode(WindowInputMode::Passthrough);
         assert_eq!(options.title, "Inspector");
         assert_eq!(options.initial_inner_size, (1440, 900));
         assert_eq!(options.min_inner_size, Some((960, 600)));
         assert!(!options.resizable);
         assert!(!options.decorations);
         assert!(options.transparent);
+        assert_eq!(options.window_level, WindowLevel::AlwaysOnTop);
+        assert_eq!(options.input_mode, WindowInputMode::Passthrough);
     }
 
     #[test]

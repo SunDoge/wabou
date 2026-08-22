@@ -26,6 +26,10 @@ export interface CreateWindowOptions {
   decorations?: boolean;
   /** Preserve rendered alpha when the platform compositor supports it. */
   transparent?: boolean;
+  /** Initial native stacking request. Wayland generally ignores non-normal levels. */
+  windowLevel?: "alwaysOnBottom" | "normal" | "alwaysOnTop";
+  /** Allow pointer input to pass through this native window where supported. */
+  inputMode?: "interactive" | "passthrough";
 }
 
 export interface WindowHandle {

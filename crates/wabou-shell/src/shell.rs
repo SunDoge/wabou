@@ -21,7 +21,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowAttributes};
 
 use crate::accessibility::AccessibilityState;
-use crate::source::WindowOptions;
+use crate::source::{WindowInputMode, WindowLevel, WindowOptions};
 use crate::text::TextContext;
 
 /// Native rendering resources owned by one live window.
@@ -53,6 +53,11 @@ impl Shell {
             .with_resizable(options.resizable)
             .with_decorations(options.decorations)
             .with_transparent(options.transparent)
+            .with_window_level(match options.window_level {
+                WindowLevel::AlwaysOnBottom => winit::window::WindowLevel::AlwaysOnBottom,
+                WindowLevel::Normal => winit::window::WindowLevel::Normal,
+                WindowLevel::AlwaysOnTop => winit::window::WindowLevel::AlwaysOnTop,
+            })
             .with_surface_size(winit::dpi::LogicalSize::new(
                 options.initial_inner_size.0,
                 options.initial_inner_size.1,
@@ -68,6 +73,11 @@ impl Shell {
         );
         let physical_size = window.surface_size();
         let accessibility = AccessibilityState::new(window.clone(), options.title.clone());
+        if options.input_mode == WindowInputMode::Passthrough
+            && let Err(error) = window.set_cursor_hittest(false)
+        {
+            tracing::warn!(?error, "pointer passthrough is unavailable for this window");
+        }
         window.set_visible(true);
         let surface_width = physical_size.width.max(1);
         let surface_height = physical_size.height.max(1);

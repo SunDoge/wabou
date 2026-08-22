@@ -1,0 +1,13 @@
+[package]
+name = "transparent-window"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "transparent-window"
+path = "src/main.rs"
+
+[dependencies]
+snafu = { workspace = true }
+wabou = { workspace = true }

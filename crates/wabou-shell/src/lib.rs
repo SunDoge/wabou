@@ -55,7 +55,7 @@ pub use source::{
     Point, PointerButton, PointerEvent, PointerPhase, ScreenshotRequest, SemanticAction,
     SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot, SemanticStates,
     SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand,
-    WindowMetrics, WindowOptions,
+    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;
 pub use widget::{
