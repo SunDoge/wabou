@@ -169,6 +169,8 @@ export {
   type IconProps,
   Image,
   type ImageProps,
+  type ImageResourceErrorEvent,
+  type ImageResourceReadyEvent,
   type ImageSource,
   NetworkImage,
   type NetworkImageProps,

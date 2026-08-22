@@ -391,7 +391,7 @@ impl Applier {
         }
     }
 
-    fn load_image_source(&mut self, node: NodeId, value: &str) {
+    fn load_image_source(&mut self, node: NodeId, value: &str, network: bool) {
         let source: Arc<str> = Arc::from(value);
         self.clear_image_source(node);
         self.document
@@ -416,7 +416,8 @@ impl Applier {
         {
             return;
         }
-        let Ok(url) = url::Url::parse(value) else {
+        let url = network.then(|| url::Url::parse(value)).transpose();
+        let Ok(url) = url else {
             self.document.resources.pending_images.remove(&source);
             let result = Err(Arc::from("network image URL must use HTTP(S)"));
             self.document
@@ -426,7 +427,10 @@ impl Applier {
             self.finish_image_source(&source, &result);
             return;
         };
-        if !matches!(url.scheme(), "http" | "https") {
+        if url
+            .as_ref()
+            .is_some_and(|url| !matches!(url.scheme(), "http" | "https"))
+        {
             self.document.resources.pending_images.remove(&source);
             let result = Err(Arc::from("network image URL must use HTTP(S)"));
             self.document
@@ -439,10 +443,18 @@ impl Applier {
         let tx = self.document.resources.result_tx.clone();
         let wake = self.runtime.wake_callback.clone();
         let asset_cache = self.document.resources.cache.clone();
-        tracing::debug!(source = %source, "loading network image");
+        let path = (!network).then(|| value.to_owned());
+        tracing::debug!(source = %source, network, "loading raster image");
         let load = async move {
             let result = async {
-                let bytes = asset_cache.network_image_bytes(url).await?;
+                let bytes = match (url, path) {
+                    (Some(url), _) => asset_cache.network_image_bytes(url).await?,
+                    (_, Some(path)) => tokio::fs::read(path)
+                        .await
+                        .map_err(|error| error.to_string())?
+                        .into(),
+                    _ => unreachable!(),
+                };
                 wabou_shell::image::RasterImage::decode(&bytes)
                     .map(Arc::new)
                     .map_err(|error| error.to_string())
@@ -500,9 +512,15 @@ impl Applier {
             }
             crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
                 if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
-                    declared.network_image_url = Some(Arc::from(source));
+                    declared.raster_image_source = Some(Arc::from(source));
                 }
-                self.load_image_source(node, source);
+                self.load_image_source(node, source, true);
+            }
+            crate::protocol::GRAPHIC_SOURCE_FILE_RASTER => {
+                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
+                    declared.raster_image_source = Some(Arc::from(source));
+                }
+                self.load_image_source(node, source, false);
             }
             _ => unreachable!("graphic source kind was validated by the decoder"),
         }
@@ -521,7 +539,13 @@ impl Applier {
             }
             crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
                 if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
-                    declared.network_image_url = None;
+                    declared.raster_image_source = None;
+                }
+                self.clear_image_source(node);
+            }
+            crate::protocol::GRAPHIC_SOURCE_FILE_RASTER => {
+                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
+                    declared.raster_image_source = None;
                 }
                 self.clear_image_source(node);
             }

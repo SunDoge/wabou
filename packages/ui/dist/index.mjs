@@ -1,4 +1,4 @@
-import { $ as rotate2d$1, A as isSelected, B as createButton, C as OverlayPlaneProvider, D as Column, E as Center, F as createPresence, G as PasswordInput$1, H as Icon, I as createContainerMatch, J as Svg, K as Path, L as createMeasuredSize, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as View, R as Button$1, S as createTransitionPresence, U as Image, V as CodeEditor, W as NetworkImage, X as TextArea, Y as Text, Z as TextInput, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as translate2d$1, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as PathBuilder, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as Link } from "./primitives-BdI7fk78.mjs";
+import { $ as rotate2d$1, A as isSelected, B as createButton, C as OverlayPlaneProvider, D as Column, E as Center, F as createPresence, G as PasswordInput$1, H as Icon, I as createContainerMatch, J as Svg, K as Path, L as createMeasuredSize, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as View, R as Button$1, S as createTransitionPresence, U as Image, V as CodeEditor, W as NetworkImage, X as TextArea, Y as Text, Z as TextInput, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as translate2d$1, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as PathBuilder, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as Link } from "./primitives-9A92ZpYh.mjs";
 import { rgba, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
 import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -3865,14 +3865,17 @@ const ImageViewportContext = createContext();
 /** A clipped image-space viewport with one explicit, reusable coordinate model. */
 function ImageViewport(props) {
 	const measured = createMeasuredSize();
+	const [intrinsicSize, setIntrinsicSize] = createSignal();
 	const transform = createMemo(() => {
+		const image = props.imageSize ?? intrinsicSize();
 		if (!measured.measured() || measured.width() <= 0 || measured.height() <= 0) return null;
+		if (!image) return null;
 		return imageViewportTransform({
 			viewport: {
 				width: measured.width(),
 				height: measured.height()
 			},
-			image: props.imageSize,
+			image,
 			zoom: props.zoom,
 			pan: props.pan
 		});
@@ -3889,7 +3892,7 @@ function ImageViewport(props) {
 			height: "0px"
 		};
 	};
-	const rest = omit(props, "source", "imageSize", "zoom", "pan", "media", "children", "imageLabel");
+	const rest = omit(props, "source", "imageSize", "zoom", "pan", "media", "children", "imageLabel", "onResourceReady", "onResourceError");
 	return createComponent$1(ImageViewportContext, {
 		value: { transform },
 		get children() {
@@ -3919,7 +3922,17 @@ function ImageViewport(props) {
 								get ["aria-label"]() {
 									return props.imageLabel ?? "Image";
 								},
-								class: "w-full h-full"
+								class: "w-full h-full",
+								onResourceReady: (event) => {
+									setIntrinsicSize({
+										width: event.width,
+										height: event.height
+									});
+									props.onResourceReady?.(event);
+								},
+								get onResourceError() {
+									return props.onResourceError;
+								}
 							});
 						}
 					}), memo(() => {

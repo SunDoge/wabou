@@ -58,6 +58,8 @@ export {
   type IconProps,
   Image,
   type ImageProps,
+  type ImageResourceErrorEvent,
+  type ImageResourceReadyEvent,
   type ImageSource,
   type KeyedSelection,
   type KeyedSelectionOptions,

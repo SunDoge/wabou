@@ -235,8 +235,8 @@ struct Declared {
     focus_contained: bool,
     /// Trusted inline SVG source authored through the typed graphic contract.
     svg_source: Option<Arc<str>>,
-    /// Network raster URL authored through the typed graphic contract.
-    network_image_url: Option<Arc<str>>,
+    /// Raster cache key authored through the typed graphic contract.
+    raster_image_source: Option<Arc<str>>,
     /// Decoded local-coordinate vector path.
     vector_path: Option<Arc<wabou_shell::style::VectorPath>>,
 }

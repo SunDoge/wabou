@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { writer } from "@wabou/core/renderer";
+import { GRAPHIC_SOURCE } from "@wabou/core/protocol";
 import { createRoot, createSignal, flush } from "solid-js";
 import { resolveButtonFocusOrder } from "./button";
 import {
@@ -410,17 +411,16 @@ describe("host primitives", () => {
   });
 
   test("maps explicit file image sources onto the internal native widget", () => {
-    const attributes: Array<[string, string]> = [];
-    const setAttribute = writer.setAttribute.bind(writer);
-    writer.setAttribute = (_id, name, value) => {
-      if (name === "src") attributes.push([name, value]);
-    };
+    const sources: Array<[number, string]> = [];
+    const setGraphicSource = writer.setGraphicSource.bind(writer);
+    writer.setGraphicSource = (_id, kind, source) =>
+      sources.push([kind, source]);
     try {
       Image({ source: { kind: "file", path: "/tmp/capture.png" } });
     } finally {
-      writer.setAttribute = setAttribute;
+      writer.setGraphicSource = setGraphicSource;
     }
-    expect(attributes).toEqual([["src", "/tmp/capture.png"]]);
+    expect(sources).toEqual([[GRAPHIC_SOURCE.FileRaster, "/tmp/capture.png"]]);
   });
 
   test("rejects invalid text line limits before crossing the bridge", () => {

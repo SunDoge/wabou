@@ -220,12 +220,13 @@ const INTERACTION_POLICY = {
 const INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
 const GRAPHIC_SOURCE = {
 	Svg: 1,
-	NetworkRaster: 2
+	NetworkRaster: 2,
+	FileRaster: 3
 };
 const GRAPHIC_DATA = { VectorPath: 1 };
 const MAX_GRAPHIC_DATA_BYTES = 16777216;
 function validGraphicSourceKind(kind) {
-	return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
+	return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster || kind === GRAPHIC_SOURCE.FileRaster;
 }
 const EVENT_CODE = {
 	click: 1,
@@ -630,4 +631,4 @@ var Writer = class {
 //#endregion
 export { formatResourceKeyParts as C, createResourceKeyFamily as S, validateResourceKeyParts as T, isNodeKey as _, GRAPHIC_SOURCE as a, nodeKeyFromSlotMapFfi as b, HOST_RECORD_KIND as c, TEXT_BEHAVIOR as d, Writer as f, formatNodeKey as g, ROOT_NODE_KEY as h, GRAPHIC_DATA as i, INTERACTION_POLICY as l, NodeKeyTable as m, EVENT_DATA_LEN as n, HOST_FRAME as o, NodeKeyAllocator as p, EVENT_DATA_SLOT as r, HOST_NODE_PAYLOAD as s, EVENT_CODE as t, OP as u, nodeKey as v, isResourceKeyParts as w, ResourceKeyTable as x, nodeKeyEquals as y };
 
-//# sourceMappingURL=protocol-BkE2Fvea.mjs.map
+//# sourceMappingURL=protocol-Dkalv0Si.mjs.map

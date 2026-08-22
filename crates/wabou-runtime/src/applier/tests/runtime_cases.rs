@@ -858,9 +858,52 @@ fn image_resource_failure_routes_to_the_current_node_handle() {
     assert_eq!(
         payload,
         serde_json::json!({
-            "url": "https://example.test/icon.png",
+            "source": "https://example.test/icon.png",
             "error": "bad image",
         })
+    );
+}
+
+#[test]
+fn image_resource_ready_reports_intrinsic_dimensions() {
+    use image::ImageEncoder as _;
+
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let img = applier.document.atoms.borrow_mut().intern("img");
+    applier.apply_op(&Op::CreateElement {
+        id: NodeKey::new(2, 1),
+        tag: img,
+    });
+    applier.apply_op(&Op::AppendChild {
+        parent: NodeKey::new(1, 1),
+        child: NodeKey::new(2, 1),
+    });
+    applier.apply_op(&Op::AddEventListener {
+        id: NodeKey::new(2, 1),
+        event_type: event::RESOURCEREADY,
+    });
+
+    let mut png = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(&[0; 8], 2, 1, image::ExtendedColorType::Rgba8)
+        .unwrap();
+    let raster = Arc::new(wabou_shell::image::RasterImage::decode(&png).unwrap());
+    let node = applier.document.node_store.solid_to_node[&NodeKey::new(2, 1)];
+    applier.dispatch_image_resource_result(node, "/tmp/page.png", &Ok(raster));
+
+    let dispatched = applier
+        .runtime
+        .js
+        .with(|ctx| ctx.eval::<String, _>("JSON.stringify(globalThis.dispatched)"))
+        .unwrap();
+    let dispatched: serde_json::Value = serde_json::from_str(&dispatched).unwrap();
+    let payload: serde_json::Value =
+        serde_json::from_str(dispatched[0][2].as_str().unwrap()).unwrap();
+    assert_eq!(
+        payload,
+        serde_json::json!({ "source": "/tmp/page.png", "width": 2.0, "height": 1.0 })
     );
 }
 
@@ -929,7 +972,7 @@ fn image_completion_only_notifies_current_source_subscribers() {
     assert_eq!(
         payload,
         serde_json::json!({
-            "url": "https://example.test/first.png",
+            "source": "https://example.test/first.png",
             "error": "first failed",
         })
     );

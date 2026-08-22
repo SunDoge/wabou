@@ -4,20 +4,26 @@ impl Applier {
     pub(super) fn dispatch_image_resource_result(
         &mut self,
         node: taffy::NodeId,
-        url: &str,
+        source: &str,
         result: &crate::asset_cache::RasterAsset,
     ) {
         let Some(&target) = self.document.node_store.node_to_solid.get(&node) else {
             return;
         };
         match result {
-            Ok(_) => {
-                let payload = serde_json::json!({ "url": url }).to_string();
+            Ok(image) => {
+                let [width, height] = image.size();
+                let payload = serde_json::json!({
+                    "source": source,
+                    "width": width,
+                    "height": height,
+                })
+                .to_string();
                 self.dispatch_json(target, event::RESOURCEREADY, &payload);
             }
             Err(error) => {
                 let payload =
-                    serde_json::json!({ "url": url, "error": error.as_ref() }).to_string();
+                    serde_json::json!({ "source": source, "error": error.as_ref() }).to_string();
                 self.dispatch_json(target, event::RESOURCEERROR, &payload);
             }
         }

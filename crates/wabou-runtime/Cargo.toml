@@ -39,7 +39,7 @@ slotmap = { workspace = true }
 sourcemap = "9.2.2"
 sys-locale = { workspace = true }
 taffy = { workspace = true, features = ["content_size", "parse"] }
-tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 tracing = { workspace = true }
 tracing-chrome = { version = "0.7.2", optional = true }

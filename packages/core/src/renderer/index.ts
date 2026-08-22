@@ -604,6 +604,19 @@ function applyProperty(
     }
     if (value == null || value === false) {
       writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster);
+      writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.FileRaster);
+      return;
+    }
+    if (
+      typeof value === "object" &&
+      (value as { kind?: unknown }).kind === "file" &&
+      typeof (value as { path?: unknown }).path === "string"
+    ) {
+      writer.setGraphicSource(
+        node.id,
+        GRAPHIC_SOURCE.FileRaster,
+        (value as { path: string }).path,
+      );
       return;
     }
     if (

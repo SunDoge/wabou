@@ -107,9 +107,22 @@ export interface FileImageSource {
 
 export type ImageSource = FileImageSource | NetworkImageSource;
 
+export interface ImageResourceReadyEvent {
+  source: string;
+  width: number;
+  height: number;
+}
+
+export interface ImageResourceErrorEvent {
+  source: string;
+  error: string;
+}
+
 export interface ImageProps extends Omit<PrimitiveProps, "children"> {
   /** Low-level native source. Prefer a source-specific component. */
   source?: ImageSource;
+  onResourceReady?: (event: ImageResourceReadyEvent) => void;
+  onResourceError?: (event: ImageResourceErrorEvent) => void;
 }
 
 export interface NetworkImageProps extends Omit<ImageProps, "source"> {
@@ -118,9 +131,9 @@ export interface NetworkImageProps extends Omit<ImageProps, "source"> {
   format: "raster";
   cache: "memory";
   /** Fired when the current URL is decoded and ready for native painting. */
-  onResourceReady?: (event: { url: string }) => void;
+  onResourceReady?: (event: ImageResourceReadyEvent) => void;
   /** Fired when the current URL fails to download or decode. */
-  onResourceError?: (event: { url: string; error: string }) => void;
+  onResourceError?: (event: ImageResourceErrorEvent) => void;
 }
 
 export interface TextInputProps extends Omit<PrimitiveProps, "children"> {
@@ -342,13 +355,8 @@ export function Image(props: ImageProps): JSX.Element {
   spread(
     node,
     {
-      get src(): string | undefined {
-        const source = props.source;
-        return source?.kind === "file" ? source.path : undefined;
-      },
-      get source(): NetworkImageSource | undefined {
-        const source = props.source;
-        return source?.kind === "network" ? source : undefined;
+      get source(): ImageSource | undefined {
+        return props.source;
       },
     },
     false,

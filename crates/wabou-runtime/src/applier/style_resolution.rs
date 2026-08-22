@@ -681,7 +681,7 @@ impl Applier {
             .node_store
             .declared
             .get(&node)
-            .and_then(|declared| declared.network_image_url.clone());
+            .and_then(|declared| declared.raster_image_source.clone());
         let image = image_url
             .and_then(|url| self.document.resources.cache.raster(url.as_ref()))
             .and_then(Result::ok);
@@ -1076,7 +1076,7 @@ impl Applier {
                 }
             }
             if decl.tag.and_then(|tag| atoms.resolve(tag)) == Some("img")
-                && let Some(url) = decl.network_image_url.as_ref()
+                && let Some(url) = decl.raster_image_source.as_ref()
                 && let Some(size) = self
                     .document
                     .resources

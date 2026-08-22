@@ -64,6 +64,12 @@ test("graphic sources use the typed resource protocol", () => {
       },
       undefined,
     );
+    setProp(
+      image,
+      "source",
+      { kind: "file", path: "/tmp/icon.png" },
+      undefined,
+    );
     setProp(svg, "source", undefined, "<svg/>");
     setProp(image, "source", undefined, {
       kind: "network",
@@ -79,8 +85,13 @@ test("graphic sources use the typed resource protocol", () => {
   expect(sources).toEqual([
     [GRAPHIC_SOURCE.Svg, "<svg/>"],
     [GRAPHIC_SOURCE.NetworkRaster, "https://x.test/icon.png"],
+    [GRAPHIC_SOURCE.FileRaster, "/tmp/icon.png"],
   ]);
-  expect(cleared).toEqual([GRAPHIC_SOURCE.Svg, GRAPHIC_SOURCE.NetworkRaster]);
+  expect(cleared).toEqual([
+    GRAPHIC_SOURCE.Svg,
+    GRAPHIC_SOURCE.NetworkRaster,
+    GRAPHIC_SOURCE.FileRaster,
+  ]);
 });
 
 test("non-drawing vector paths clear stale native geometry", () => {

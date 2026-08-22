@@ -31,9 +31,13 @@ const INTERACTION_POLICY_MASK: u8 = INTERACTION_POLICY_FOCUSABLE
     | INTERACTION_POLICY_CONTAIN_FOCUS;
 pub const GRAPHIC_SOURCE_SVG: u8 = 0x01;
 pub const GRAPHIC_SOURCE_NETWORK_RASTER: u8 = 0x02;
+pub const GRAPHIC_SOURCE_FILE_RASTER: u8 = 0x03;
 
 fn valid_graphic_source_kind(kind: u8) -> bool {
-    matches!(kind, GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_NETWORK_RASTER)
+    matches!(
+        kind,
+        GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_NETWORK_RASTER | GRAPHIC_SOURCE_FILE_RASTER
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -964,10 +968,10 @@ mod tests {
             }
         ));
 
-        bytes[17] = 3;
+        bytes[17] = 4;
         assert!(matches!(
             decode_frame(&bytes),
-            Err(DecodeError::BadGraphicSourceKind { kind: 3 })
+            Err(DecodeError::BadGraphicSourceKind { kind: 4 })
         ));
     }
 

@@ -249,7 +249,7 @@ describe("Writer limits", () => {
     expect(frame[40]).toBe(OP.ClearGraphicSource);
     expect(view.getUint32(41, true)).toBe(42);
     expect(frame[49]).toBe(GRAPHIC_SOURCE.NetworkRaster);
-    expect(() => writer.setGraphicSource(k(1), 3, "x")).toThrow(RangeError);
+    expect(() => writer.setGraphicSource(k(1), 4, "x")).toThrow(RangeError);
   });
 
   test("encodes one structured widget config without a dynamic property name", () => {

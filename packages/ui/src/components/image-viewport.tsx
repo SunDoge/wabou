@@ -12,6 +12,8 @@ import {
 import {
   createMeasuredSize,
   Image,
+  type ImageResourceErrorEvent,
+  type ImageResourceReadyEvent,
   type ImageSource,
   View,
   type ViewProps,
@@ -109,24 +111,29 @@ export interface ImageViewportProps
   extends Omit<ViewProps, "children" | "ref" | "onWheel"> {
   source?: ImageSource;
   /** Intrinsic image size in image pixels. */
-  imageSize: ImageViewportSize;
+  imageSize?: ImageViewportSize;
   zoom?: number;
   pan?: ImageViewportPoint;
   /** Optional replacement for the native Image, useful for generated media. */
   media?: JSX.Element;
   children?: JSX.Element;
   imageLabel?: string;
+  onResourceReady?: (event: ImageResourceReadyEvent) => void;
+  onResourceError?: (event: ImageResourceErrorEvent) => void;
 }
 
 /** A clipped image-space viewport with one explicit, reusable coordinate model. */
 export function ImageViewport(props: ImageViewportProps): JSX.Element {
   const measured = createMeasuredSize();
+  const [intrinsicSize, setIntrinsicSize] = createSignal<ImageViewportSize>();
   const transform = createMemo(() => {
+    const image = props.imageSize ?? intrinsicSize();
     if (!measured.measured() || measured.width() <= 0 || measured.height() <= 0)
       return null;
+    if (!image) return null;
     return imageViewportTransform({
       viewport: { width: measured.width(), height: measured.height() },
-      image: props.imageSize,
+      image,
       zoom: props.zoom,
       pan: props.pan,
     });
@@ -151,6 +158,8 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
     "media",
     "children",
     "imageLabel",
+    "onResourceReady",
+    "onResourceError",
   );
   return (
     <ImageViewportContext value={{ transform }}>
@@ -173,6 +182,11 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
               source={props.source}
               aria-label={props.imageLabel ?? "Image"}
               class="w-full h-full"
+              onResourceReady={(event) => {
+                setIntrinsicSize({ width: event.width, height: event.height });
+                props.onResourceReady?.(event);
+              }}
+              onResourceError={props.onResourceError}
             />
           )}
         </View>

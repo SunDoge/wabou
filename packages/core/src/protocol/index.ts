@@ -87,13 +87,18 @@ const INTERACTION_POLICY_MASK =
 export const GRAPHIC_SOURCE = {
   Svg: 0x01,
   NetworkRaster: 0x02,
+  FileRaster: 0x03,
 } as const;
 
 export const GRAPHIC_DATA = { VectorPath: 0x01 } as const;
 const MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
 
 function validGraphicSourceKind(kind: number): boolean {
-  return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster;
+  return (
+    kind === GRAPHIC_SOURCE.Svg ||
+    kind === GRAPHIC_SOURCE.NetworkRaster ||
+    kind === GRAPHIC_SOURCE.FileRaster
+  );
 }
 
 export const EVENT_CODE = {

@@ -527,16 +527,9 @@ function Image(props) {
 	const node = createElement("img");
 	spread(node, { role: "img" }, false);
 	spread(node, rest, false);
-	spread(node, {
-		get src() {
-			const source = props.source;
-			return source?.kind === "file" ? source.path : void 0;
-		},
-		get source() {
-			const source = props.source;
-			return source?.kind === "network" ? source : void 0;
-		}
-	}, false);
+	spread(node, { get source() {
+		return props.source;
+	} }, false);
 	return node;
 }
 /** An explicit network-backed image with bounded decoding and host caching. */
@@ -2432,4 +2425,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { rotate2d$1 as $, isSelected as A, createButton as B, OverlayPlaneProvider as C, Column as D, Center as E, createPresence as F, PasswordInput as G, Icon as H, createContainerMatch as I, Svg as J, Path as K, createMeasuredSize as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, View as Q, Button as R, createTransitionPresence as S, useOverlayPlane as T, Image as U, CodeEditor as V, NetworkImage as W, TextArea as X, Text as Y, TextInput as Z, createRetainedItems as _, MotionConfigProvider as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createLoop as dt, translate2d$1 as et, offset as f, createPulse as ft, createNotifications as g, normalizeSweepGeometry as gt, NotificationRegion as h, createTransition as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createInterpolation as lt, size as m, createSweep as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createRotation as pt, PathBuilder as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createKeyframeAnimation as ut, Pulse as v, useMotionConfig as vt, createOverlayLayer as w, Modal as x, Ripple as y, useReducedMotion as yt, Link as z };
 
-//# sourceMappingURL=primitives-BdI7fk78.mjs.map
+//# sourceMappingURL=primitives-9A92ZpYh.mjs.map
