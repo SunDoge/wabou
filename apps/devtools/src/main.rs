@@ -8,8 +8,8 @@ use serde_json::{Value, json};
 use snafu::{ResultExt, Whatever};
 use wabou::{HostBuilder, WindowOptions};
 use wabou_devtools::{
-    DebugCaptureCase, DebugFrame, DebugNode, DebugOverlay, DebugPointInspection, DebugStatus, call,
-    discover_socket, empty_params, request,
+    DebugCaptureCase, DebugFrame, DebugNode, DebugOverlay, DebugPointInspection, DebugStatus,
+    DebugValidationReport, call, discover_socket, empty_params, request,
 };
 use wabou_devtools_app::bindings::{
     CAPABILITY, CaptureCaseRequest, ConnectRequest, InspectNodeRequest, InspectPointRequest,
@@ -128,6 +128,14 @@ fn main() -> Result<(), Whatever> {
                     )
                 },
             )?;
+            let validation_target = target.clone();
+            capability.method(method::VALIDATE_SNAPSHOT, move |(): ()| {
+                rpc::<DebugValidationReport>(
+                    validation_target.clone(),
+                    "validateSnapshot",
+                    empty_params(),
+                )
+            })?;
             let screenshot_target = target.clone();
             let overlay_target = target.clone();
             capability.method(method::SET_OVERLAY, move |request: SetOverlayRequest| {

@@ -2,12 +2,24 @@
 import "@wabou/ui";
 import "virtual:wabou-stylesheet";
 import {
+  Badge,
+  Button,
+  ComponentsProvider,
   createMeasuredSize,
-  PrimitiveButton as Button,
+  Input,
   mount,
+  PrimitiveButton,
   PrimitivePopover,
+  ScrollArea,
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  StatusBar,
+  StatusBarItem,
+  StatusBarSeparator,
   Text,
-  PrimitiveTextInput as TextInput,
+  Toolbar,
+  ToolbarToggle,
   View,
   type WabouPointerEvent,
 } from "@wabou/ui";
@@ -27,10 +39,13 @@ import {
   type DebugFrame,
   type DebugNode,
   type DebugStatus,
+  type DebugValidationReport,
   type NodeKey,
   useDevtoolsClient,
 } from "./generated/host-bindings";
 import {
+  containSize,
+  createLatestRequestGate,
   EMPTY_OVERLAY_LAYERS,
   type OverlayLayer,
   type OverlayLayers,
@@ -38,6 +53,7 @@ import {
   overlayStyle,
   screenshotPoint,
   toggleOverlayLayer,
+  validationStatusLabel,
 } from "./model";
 
 function shortText(node: DebugNode): string {
@@ -58,6 +74,10 @@ function nodeKeyLabel(key: NodeKey): string {
   return `${key.lo}:${key.hi}`;
 }
 
+function parentNodeLabel(key: NodeKey | null | undefined): string {
+  return key ? `#${nodeKeyLabel(key)}` : "—";
+}
+
 function clipLabel(clip: DebugClip): string {
   const rect = clip.rect;
   return `${clip.coordinateSpace} · ${rect.x}, ${rect.y} · ${rect.width}×${rect.height} · r${clip.radius} · [${clip.transform?.join(", ") ?? "1, 0, 0, 1, 0, 0"}]`;
@@ -76,6 +96,7 @@ function App() {
   const [nodes, setNodes] = createSignal<DebugNode[]>([]);
   const [selected, setSelected] = createSignal<DebugNode>();
   const [frames, setFrames] = createSignal<DebugFrame[]>([]);
+  const [validation, setValidation] = createSignal<DebugValidationReport>();
   const [query, setQuery] = createSignal("");
   const [socket, setSocket] = createSignal("");
   const [connectedSocket, setConnectedSocket] = createSignal<string>();
@@ -85,6 +106,21 @@ function App() {
   const [overlayLayers, setOverlayLayers] =
     createSignal<OverlayLayers>(EMPTY_OVERLAY_LAYERS);
   const screenshotSize = createMeasuredSize();
+  const screenshotStageSize = createMeasuredSize();
+  const nodeQueryGate = createLatestRequestGate();
+
+  const fittedScreenshotSize = createMemo(() => {
+    const current = status();
+    return current
+      ? containSize(
+          { width: current.viewportWidth, height: current.viewportHeight },
+          {
+            width: screenshotStageSize.width(),
+            height: screenshotStageSize.height(),
+          },
+        )
+      : undefined;
+  });
 
   const selectedRect = createMemo(() => {
     const node = selected();
@@ -97,6 +133,11 @@ function App() {
       current.viewportHeight,
     );
   });
+
+  function isSelected(id: NodeKey): boolean {
+    const current = selected();
+    return current !== undefined && sameNodeKey(current.id, id);
+  }
 
   async function refreshStatus(): Promise<void> {
     try {
@@ -115,14 +156,30 @@ function App() {
   }
 
   async function refreshNodes(): Promise<void> {
+    const token = nodeQueryGate.begin();
+    const requestedQuery = query();
     try {
-      const value = await devtools.queryNodes({ query: query(), limit: 150 });
+      const value = await devtools.queryNodes({
+        query: requestedQuery,
+        limit: 150,
+      });
+      if (!nodeQueryGate.isCurrent(token)) return;
       setNodes(value);
       const id = selected()?.id;
       if (id) {
         const next = value.find((node) => sameNodeKey(node.id, id));
         if (next) setSelected(next);
       }
+      setError(undefined);
+    } catch (cause) {
+      if (!nodeQueryGate.isCurrent(token)) return;
+      setError(String(cause));
+    }
+  }
+
+  async function refreshValidation(): Promise<void> {
+    try {
+      setValidation(await devtools.validateSnapshot());
       setError(undefined);
     } catch (cause) {
       setError(String(cause));
@@ -152,7 +209,12 @@ function App() {
   async function refreshAll(): Promise<void> {
     if (busy()) return;
     setBusy(true);
-    await Promise.all([refreshStatus(), refreshNodes(), refreshFrames()]);
+    await Promise.all([
+      refreshStatus(),
+      refreshNodes(),
+      refreshFrames(),
+      refreshValidation(),
+    ]);
     setBusy(false);
   }
 
@@ -214,6 +276,7 @@ function App() {
       setSocket(result.path);
       setConnectedSocket(result.path);
       setSelected(undefined);
+      setValidation(undefined);
       setOverlayLayers(EMPTY_OVERLAY_LAYERS);
       setScreenshot(undefined);
       await refreshAll();
@@ -247,6 +310,7 @@ function App() {
       setBusy(true);
       const value = await devtools.captureCase({ x: null, y: null });
       applyCapture(value);
+      await refreshValidation();
       setError(undefined);
     } catch (cause) {
       setError(String(cause));
@@ -290,222 +354,201 @@ function App() {
   onCleanup(() => clearTimeout(queryTimer));
 
   return (
-    <View class="w-full h-full flex flex-col overflow-hidden bg-slate-950 text-slate-200 font-sans">
-      <View class="flex-none h-14 px-3 flex items-center gap-3 border-b border-slate-700 bg-slate-900">
-        <Text class="text-base text-white whitespace-nowrap">
-          Wabou DevTools
-        </Text>
-        <TextInput
-          class="flex-1 min-w-0 h-8 px-2 rounded border border-slate-600 bg-slate-950 text-sm text-slate-200"
+    <View class="w-full h-full flex flex-col overflow-hidden bg-canvas text-primary font-sans">
+      <View class="flex-none h-14 px-3 flex items-center gap-3 border-b border-subtle bg-surface shadow-sm">
+        <View class="flex-none flex flex-col">
+          <Text class="text-sm font-semibold whitespace-nowrap">
+            Wabou DevTools
+          </Text>
+          <Text class="text-xs text-muted whitespace-nowrap">
+            Native runtime inspector
+          </Text>
+        </View>
+        <Input
+          aria-label="Runtime socket"
+          class="flex-1 min-w-0"
           value={socket()}
           placeholder="Auto-discover, or enter /run/user/.../wabou-123.sock"
           onInput={(event) => setSocket(event.currentTarget.value)}
         />
-        <Text class="text-xs text-slate-500">Overlay</Text>
-        <For
-          each={
-            [
-              ["layout", "Bounds"],
-              ["clips", "Clips"],
-              ["hitTarget", "Hit"],
-            ] as const
-          }
-        >
-          {([layer, label]) => (
-            <Button
-              unstyled
-              aria-pressed={overlayLayers()[layer]}
-              class="h-8 px-2 rounded text-white"
-              style={(state) => ({
-                "background-color": overlayLayers()[layer]
-                  ? state.hovered
-                    ? "#7e22ce"
-                    : "#9333ea"
-                  : state.hovered
-                    ? "#475569"
-                    : "#334155",
-              })}
-              onClick={() => void toggleOverlay(layer)}
-            >
-              {label}
-            </Button>
-          )}
-        </For>
+        <Toolbar aria-label="Debug overlay layers" class="flex-none">
+          <For
+            each={
+              [
+                ["layout", "Bounds"],
+                ["clips", "Clips"],
+                ["hitTarget", "Hit"],
+              ] as const
+            }
+          >
+            {([layer, label]) => (
+              <ToolbarToggle
+                pressed={overlayLayers()[layer]}
+                onPressedChange={() => void toggleOverlay(layer)}
+              >
+                {label}
+              </ToolbarToggle>
+            )}
+          </For>
+        </Toolbar>
         <Button
-          unstyled
-          variant="ghost"
-          class="h-8 px-3 rounded bg-slate-700 text-white"
-          style={(state) => ({
-            "background-color": state.hovered ? "#475569" : "#334155",
-          })}
+          variant="secondary"
+          disabled={busy()}
           onClick={() => void connect()}
         >
           Connect
         </Button>
         <Button
-          unstyled
-          tone="sky"
-          class="h-8 px-3 rounded bg-blue-600 text-white"
-          style={(state) => ({
-            "background-color": state.hovered ? "#2563eb" : "#1d4ed8",
-          })}
+          variant="outline"
+          disabled={busy()}
           onClick={() => void refreshAll()}
         >
           Refresh
         </Button>
-        <Button
-          unstyled
-          tone="neutral"
-          class="h-8 px-3 rounded bg-emerald-700 text-white"
-          style={(state) => ({
-            "background-color": state.hovered ? "#047857" : "#065f46",
-          })}
-          onClick={() => void capture()}
-        >
-          Capture
+        <Button disabled={busy()} onClick={() => void capture()}>
+          {busy() ? "Working…" : "Capture"}
         </Button>
         <PrimitivePopover
           aria-label="Help"
           placement="bottom-end"
           trigger={(triggerProps) => (
-            <Button
-              {...triggerProps}
-              unstyled
-              variant="ghost"
-              class="h-8 px-3 rounded text-white"
-              style={(state) => ({
-                "background-color": state.hovered ? "#475569" : "#334155",
-              })}
-            >
+            <Button {...triggerProps} variant="ghost">
               Help
             </Button>
           )}
-          contentClass="w-72 p-3 flex flex-col gap-2 rounded border text-sm"
-          contentStyle={{
-            "background-color": "#0f172a",
-            "border-color": "#475569",
-            color: "#e2e8f0",
-          }}
+          contentClass="w-72 p-3 flex flex-col gap-2 rounded-lg border border-subtle bg-surface shadow-lg text-sm"
         >
-          <Text class="font-semibold">Native Popover</Text>
-          <Text class="text-xs text-slate-400">
-            Positioned from Wabou layout snapshots with Floating UI core.
+          <Text class="font-semibold">Inspect a native runtime</Text>
+          <Text class="whitespace-normal text-xs text-muted">
+            Connect to a Wabou DevTools socket, validate the retained tree, and
+            capture pixels plus geometry from one frame.
           </Text>
         </PrimitivePopover>
-        <Text class="text-xs text-slate-400 whitespace-nowrap">
+        <Badge variant={status() ? "success" : "secondary"}>
           <Show when={status()} fallback="disconnected">
             {(current) => `pid ${current().pid} · r${current().revision}`}
           </Show>
-        </Text>
+        </Badge>
       </View>
 
       <Show when={error()}>
-        <View class="flex-none px-3 py-2 bg-red-950 text-red-300 text-xs border-b border-red-800">
-          {error()} · last snapshot retained
+        <View
+          role="alert"
+          class="flex-none px-3 py-2 bg-danger-surface text-danger-primary text-xs border-b border-danger"
+        >
+          {error()} · the last successful snapshot remains visible
         </View>
       </Show>
 
-      <Show when={connectedSocket()}>
-        {(path) => (
-          <View class="flex-none px-3 py-1 flex flex-row items-center justify-between gap-4 bg-emerald-950 text-emerald-300 text-xs border-b border-emerald-800">
-            <Text class="min-w-0">Connected to {path()}</Text>
-            <Text class="flex-none whitespace-nowrap">
-              <Show when={status()}>
-                {(current) =>
-                  overlayEvidenceLabel(
-                    current().overlay,
-                    current().overlayPaint,
-                  )
-                }
-              </Show>
-            </Text>
-          </View>
-        )}
-      </Show>
-
       <View class="flex-1 min-h-0 flex overflow-hidden">
-        <View class="w-80 flex-none min-h-0 flex flex-col border-r border-slate-700 bg-slate-900">
-          <View class="flex-none p-2 border-b border-slate-700">
-            <TextInput
-              class="w-full h-8 px-2 rounded border border-slate-600 bg-slate-950 text-sm text-slate-200"
+        <Sidebar
+          aria-label="Retained nodes"
+          class="w-80 border-r border-subtle"
+        >
+          <SidebarHeader class="p-3 flex flex-col gap-2">
+            <View class="flex items-center justify-between">
+              <Text class="text-sm font-semibold">Retained nodes</Text>
+              <Badge variant="secondary">{nodes().length}</Badge>
+            </View>
+            <Input
+              aria-label="Search retained nodes"
+              class="w-full"
               value={query()}
               placeholder="Search tag, text or class"
               onInput={(event) => setQuery(event.currentTarget.value)}
             />
-            <View class="mt-1 text-xs text-slate-500">
-              {nodes().length} nodes
-            </View>
-          </View>
-          <View class="flex-1 min-h-0 overflow-y-scroll">
+          </SidebarHeader>
+          <SidebarContent contentClass="p-0">
             <For each={nodes()}>
               {(node) => (
-                <Button
+                <PrimitiveButton
                   unstyled
-                  variant="ghost"
-                  class="w-full px-2 py-2 flex text-left border-b border-slate-800 bg-slate-900"
+                  selected={isSelected(node.id)}
+                  class="w-full min-h-10 px-3 py-2 flex text-left border-b border-subtle"
                   style={(state) => ({
-                    "background-color":
-                      selected() && sameNodeKey(selected()!.id, node.id)
-                        ? "#1e3a5f"
-                        : state.hovered
-                          ? "#172033"
-                          : "#0f172a",
+                    "background-color": state.selected
+                      ? "#1f3a5f"
+                      : state.hovered
+                        ? "#27272a"
+                        : "#00000000",
                   })}
                   onClick={() => void inspect(node.id)}
                 >
-                  <Text class="w-12 flex-none text-xs text-slate-500">
+                  <Text class="w-14 flex-none font-mono text-xs text-muted">
                     #{nodeKeyLabel(node.id)}
                   </Text>
-                  <Text class="w-20 flex-none text-sm text-cyan-400">
+                  <Text class="w-20 flex-none text-sm text-accent">
                     {node.tag}
                   </Text>
-                  <Text class="flex-1 min-w-0 text-xs text-slate-300">
+                  <Text class="flex-1 min-w-0 truncate text-xs text-secondary">
                     {shortText(node)}
                   </Text>
-                </Button>
+                </PrimitiveButton>
               )}
             </For>
-          </View>
-        </View>
+          </SidebarContent>
+        </Sidebar>
 
-        <View class="flex-1 min-w-0 min-h-0 flex flex-col bg-slate-950">
-          <View class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
+        <View class="flex-1 min-w-0 min-h-0 flex flex-col bg-canvas">
+          <View
+            ref={screenshotStageSize.ref}
+            class="flex-1 min-h-0 p-4 relative flex items-center justify-center overflow-hidden"
+          >
             <Show
               when={screenshot()}
               fallback={
-                <View class="text-sm text-slate-600">
-                  <Text>Capture a screenshot to inspect pixels</Text>
+                <View class="items-center gap-2 text-sm text-muted">
+                  <Text class="font-medium">No captured frame</Text>
+                  <Text class="text-xs text-muted">
+                    Capture one frame to inspect pixels and hit targets.
+                  </Text>
                 </View>
               }
             >
-              <View class="relative w-full h-full">
-                <img
-                  ref={screenshotSize.ref}
-                  class="w-full h-full"
-                  src={screenshot()}
-                  aria-label="Captured application frame; click to inspect"
-                  onClick={(event) => void inspectScreenshot(event)}
-                />
-                <Show when={selectedRect()}>
-                  {(rect) => (
-                    <View
-                      class="absolute border-2 border-red-500 pointer-events-none"
-                      style={rect()}
+              <Show when={fittedScreenshotSize()}>
+                {(size) => (
+                  <View
+                    class="relative overflow-hidden rounded-lg border border-subtle bg-surface shadow-lg"
+                    style={{
+                      width: `${size().width}px`,
+                      height: `${size().height}px`,
+                    }}
+                  >
+                    {/* Point inspection is inherently positional; the retained-node
+                        sidebar provides the keyboard-accessible inspection path. */}
+                    {/* biome-ignore lint/a11y/useKeyWithClickEvents: see above */}
+                    <img
+                      ref={screenshotSize.ref}
+                      class="w-full h-full"
+                      src={screenshot()}
+                      aria-label="Captured application frame; click to inspect"
+                      onClick={(event) => void inspectScreenshot(event)}
                     />
-                  )}
-                </Show>
-              </View>
+                    <Show when={selectedRect()}>
+                      {(rect) => (
+                        <View
+                          class="absolute border-2 border-danger pointer-events-none"
+                          style={rect()}
+                        />
+                      )}
+                    </Show>
+                  </View>
+                )}
+              </Show>
             </Show>
           </View>
 
-          <View class="h-52 flex-none border-t border-slate-700 bg-slate-900 flex flex-col">
-            <View class="flex-none px-3 py-2 text-xs font-semibold text-slate-400 border-b border-slate-700">
-              <Text>Protocol frames</Text>
+          <View class="h-48 flex-none border-t border-subtle bg-surface flex flex-col">
+            <View class="h-9 flex-none px-3 flex items-center justify-between border-b border-subtle">
+              <Text class="text-xs font-semibold text-secondary">
+                Protocol frames
+              </Text>
+              <Badge variant="secondary">{frames().length}</Badge>
             </View>
-            <View class="flex-1 min-h-0 overflow-y-scroll px-2">
+            <ScrollArea class="flex-1 min-h-0" contentClass="px-2">
               <For each={frames()} keyed={false}>
                 {(frame) => (
-                  <View class="h-8 flex items-center gap-3 border-b border-slate-800 text-xs font-mono">
+                  <View class="h-8 flex-none flex items-center gap-3 border-b border-subtle text-xs font-mono">
                     <Text
                       class="w-20"
                       style={{
@@ -519,34 +562,48 @@ function App() {
                         ? "Host → JS"
                         : "JS → Host"}
                     </Text>
-                    <Text class="w-20 text-slate-500">
-                      seq {frame().sequence}
-                    </Text>
+                    <Text class="w-20 text-muted">seq {frame().sequence}</Text>
                     <Text class="w-20">{frame().recordCount} records</Text>
-                    <Text class="text-slate-500">{frame().byteLen} bytes</Text>
+                    <Text class="text-muted">{frame().byteLen} bytes</Text>
                   </View>
                 )}
               </For>
-            </View>
+            </ScrollArea>
           </View>
         </View>
 
-        <View class="w-96 flex-none min-h-0 overflow-y-scroll border-l border-slate-700 bg-slate-900 p-3">
+        <ScrollArea
+          role="region"
+          aria-label="Node inspector"
+          class="w-96 flex-none min-h-0 border-l border-subtle bg-surface"
+          contentClass="p-3"
+        >
+          <ValidationPanel
+            report={validation()}
+            currentRevision={status()?.revision}
+            busy={busy()}
+            onValidate={() => void refreshValidation()}
+            onInspect={(id) => void inspect(id)}
+          />
           <Show
             when={selected()}
-            fallback={<Text class="text-sm text-slate-500">Select a node</Text>}
+            fallback={
+              <View class="p-4 items-center rounded-lg border border-subtle bg-surface-muted">
+                <Text class="text-sm text-muted">Select a retained node</Text>
+              </View>
+            }
           >
             {(node) => (
               <>
                 <View class="flex items-center gap-2 mb-3">
-                  <Text class="text-lg text-cyan-400">{node().tag}</Text>
-                  <Text class="text-sm text-slate-500">
+                  <Text class="text-lg font-semibold text-accent">
+                    {node().tag}
+                  </Text>
+                  <Text class="font-mono text-sm text-muted">
                     #{nodeKeyLabel(node().id)}
                   </Text>
                   <Show when={node().widget}>
-                    <Text class="px-2 py-1 rounded bg-purple-900 text-purple-300 text-xs">
-                      {node().widget}
-                    </Text>
+                    <Badge variant="secondary">{node().widget}</Badge>
                   </Show>
                 </View>
                 <Panel title="Layout">
@@ -560,18 +617,14 @@ function App() {
                   />
                   <Row
                     label="parent"
-                    value={
-                      node().parentId
-                        ? `#${nodeKeyLabel(node().parentId!)}`
-                        : "—"
-                    }
+                    value={parentNodeLabel(node().parentId)}
                   />
                 </Panel>
                 <Panel title="Classes">
                   <View class="flex flex-wrap gap-1">
                     <For each={node().classes}>
                       {(value) => (
-                        <Text class="px-2 py-1 rounded bg-slate-800 text-xs text-amber-300">
+                        <Text class="px-2 py-1 rounded bg-control text-xs text-warning-primary">
                           .{value}
                         </Text>
                       )}
@@ -665,16 +718,35 @@ function App() {
               </>
             )}
           </Show>
-        </View>
+        </ScrollArea>
       </View>
+      <StatusBar>
+        <StatusBarItem grow>
+          {connectedSocket()
+            ? `Connected · ${connectedSocket()}`
+            : "No runtime connected"}
+        </StatusBarItem>
+        <StatusBarSeparator />
+        <StatusBarItem>
+          {validationStatusLabel(validation(), status()?.revision)}
+        </StatusBarItem>
+        <StatusBarSeparator />
+        <StatusBarItem>
+          <Show when={status()} fallback="overlay unavailable">
+            {(current) =>
+              overlayEvidenceLabel(current().overlay, current().overlayPaint)
+            }
+          </Show>
+        </StatusBarItem>
+      </StatusBar>
     </View>
   );
 }
 
 function Panel(props: { title: string; children?: JSX.Element }) {
   return (
-    <View class="mb-4 border border-slate-700 rounded overflow-hidden">
-      <View class="px-2 py-2 bg-slate-800 text-xs font-semibold text-slate-300">
+    <View class="mb-4 border border-subtle rounded-lg overflow-hidden bg-surface-muted">
+      <View class="px-2 py-2 bg-control text-xs font-semibold text-secondary border-b border-subtle">
         <Text>{props.title}</Text>
       </View>
       <View class="p-2">{props.children}</View>
@@ -684,11 +756,106 @@ function Panel(props: { title: string; children?: JSX.Element }) {
 
 function Row(props: { label: string; value: string }) {
   return (
-    <View class="flex gap-2 py-1 border-b border-slate-800 text-xs">
-      <Text class="w-24 flex-none text-slate-500">{props.label}</Text>
-      <Text class="flex-1 min-w-0 text-slate-200">{props.value}</Text>
+    <View class="flex gap-2 py-1 border-b border-subtle text-xs">
+      <Text class="w-24 flex-none text-muted">{props.label}</Text>
+      <Text class="flex-1 min-w-0 whitespace-normal text-secondary">
+        {props.value}
+      </Text>
     </View>
   );
 }
 
-mount(() => <App />);
+function ValidationPanel(props: {
+  report: DebugValidationReport | undefined;
+  currentRevision: number | undefined;
+  busy: boolean;
+  onValidate(): void;
+  onInspect(id: NodeKey): void;
+}) {
+  return (
+    <View class="mb-4 rounded-lg border border-subtle bg-surface-muted overflow-hidden">
+      <View class="p-2 flex items-center justify-between gap-2 border-b border-subtle bg-control">
+        <View class="min-w-0 flex flex-col gap-0.5">
+          <Text class="text-xs font-semibold text-secondary">
+            Snapshot validation
+          </Text>
+          <Text class="truncate font-mono text-xs text-muted">
+            {validationStatusLabel(props.report, props.currentRevision)}
+          </Text>
+        </View>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={props.busy}
+          onClick={props.onValidate}
+        >
+          Validate
+        </Button>
+      </View>
+      <Show
+        when={props.report}
+        fallback={
+          <Text class="p-3 whitespace-normal text-xs text-muted">
+            Validate the retained tree before trusting pixels or layout.
+          </Text>
+        }
+      >
+        {(report) => (
+          <Show
+            when={report().issues.length > 0}
+            fallback={
+              <View class="p-3 flex items-center gap-2">
+                <Badge variant="success">Valid</Badge>
+                <Text class="text-xs text-muted">
+                  No structural or geometry findings.
+                </Text>
+              </View>
+            }
+          >
+            <View class="flex flex-col">
+              <For each={report().issues}>
+                {(issue) => (
+                  <PrimitiveButton
+                    unstyled
+                    disabled={!issue.nodeId}
+                    class="w-full min-w-0 p-2 flex items-start gap-2 text-left border-b border-subtle"
+                    style={(state) => ({
+                      "background-color": state.hovered
+                        ? "#27272a"
+                        : "#00000000",
+                    })}
+                    onClick={() => {
+                      if (issue.nodeId) props.onInspect(issue.nodeId);
+                    }}
+                  >
+                    <Badge
+                      variant={
+                        issue.level === "error" ? "destructive" : "secondary"
+                      }
+                    >
+                      {issue.level}
+                    </Badge>
+                    <View class="min-w-0 flex-1 flex flex-col gap-0.5">
+                      <Text class="font-mono text-xs text-secondary">
+                        {issue.code}
+                      </Text>
+                      <Text class="whitespace-normal text-xs text-muted">
+                        {issue.message}
+                      </Text>
+                    </View>
+                  </PrimitiveButton>
+                )}
+              </For>
+            </View>
+          </Show>
+        )}
+      </Show>
+    </View>
+  );
+}
+
+mount(() => (
+  <ComponentsProvider theme="dark">
+    <App />
+  </ComponentsProvider>
+));

@@ -30,8 +30,10 @@ pub struct DebugValidationReport {
     /// Whether no invariant errors were found.
     pub valid: bool,
     /// Number of error-level findings.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub error_count: usize,
     /// Number of warning-level findings.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub warning_count: usize,
     /// Whether additional findings were omitted from [`Self::issues`].
     pub truncated: bool,

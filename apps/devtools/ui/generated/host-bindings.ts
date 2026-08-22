@@ -291,6 +291,34 @@ type DebugStyleCascade = {
 	overriddenSources: string[],
 };
 
+export /**  One deterministic retained-snapshot validation finding. */
+type DebugValidationIssue = {
+	/**  `error` for broken invariants or `warning` for actionable diagnostics. */
+	level: string,
+	/**  Stable machine-readable category. */
+	code: string,
+	/**  Human-readable evidence. */
+	message: string,
+	/**  Related retained node when the finding is node-specific. */
+	nodeId: NodeKey | null,
+};
+
+export /**  Self-consistency report for the latest retained snapshot. */
+type DebugValidationReport = {
+	/**  Snapshot revision that was validated. */
+	revision: number,
+	/**  Whether no invariant errors were found. */
+	valid: boolean,
+	/**  Number of error-level findings. */
+	errorCount: number,
+	/**  Number of warning-level findings. */
+	warningCount: number,
+	/**  Whether additional findings were omitted from [`Self::issues`]. */
+	truncated: boolean,
+	/**  Deterministically ordered findings. */
+	issues: DebugValidationIssue[],
+};
+
 export /**  Request selecting one retained node. */
 type InspectNodeRequest = {
 	/**  Retained node identifier. */
@@ -373,6 +401,7 @@ interface NativeHostCapabilities {
     recentFrames(request: string): NativeResult<string>;
     setOverlay(request: string): NativeResult<string>;
     status(): NativeResult<string>;
+    validateSnapshot(): NativeResult<string>;
   };
 }
 
@@ -549,6 +578,7 @@ export interface DevtoolsClient {
   recentFrames(request: RecentFramesRequest): Promise<DebugFrame_Serialize[]>;
   setOverlay(request: SetOverlayRequest): Promise<DebugOverlay>;
   status(): Promise<DebugStatus>;
+  validateSnapshot(): Promise<DebugValidationReport>;
 }
 
 export function createDevtoolsClient(host: Host): DevtoolsClient {
@@ -565,6 +595,7 @@ export function createDevtoolsClient(host: Host): DevtoolsClient {
     recentFrames: async (request) => decodeNativeResult<DebugFrame_Serialize[]>(await invokeNativeCapability(nativeCapability, "devtools", "recentFrames", encodeNativeRequest(request, "devtools.recentFrames")), "devtools.recentFrames"),
     setOverlay: async (request) => decodeNativeResult<DebugOverlay>(await invokeNativeCapability(nativeCapability, "devtools", "setOverlay", encodeNativeRequest(request, "devtools.setOverlay")), "devtools.setOverlay"),
     status: async () => decodeNativeResult<DebugStatus>(await invokeNativeCapability(nativeCapability, "devtools", "status"), "devtools.status"),
+    validateSnapshot: async () => decodeNativeResult<DebugValidationReport>(await invokeNativeCapability(nativeCapability, "devtools", "validateSnapshot"), "devtools.validateSnapshot"),
   };
 }
 
@@ -582,6 +613,7 @@ export interface DevtoolsTestHandlers {
   recentFrames(request: RecentFramesRequest): NativeResult<DebugFrame_Serialize[]>;
   setOverlay(request: SetOverlayRequest): NativeResult<DebugOverlay>;
   status(): NativeResult<DebugStatus>;
+  validateSnapshot(): NativeResult<DebugValidationReport>;
 }
 
 export function createDevtoolsTestCapability(handlers: DevtoolsTestHandlers) {
@@ -737,6 +769,19 @@ export function createDevtoolsTestCapability(handlers: DevtoolsTestHandlers) {
       let value;
       try {
         value = await handlers.status();
+      } catch (error) {
+        return encodeTestCapabilityFailure("handlerFailure", error);
+      }
+      try {
+        return encodeTestCapabilitySuccess(value);
+      } catch (error) {
+        return encodeTestCapabilityFailure("responseEncodingFailure", error);
+      }
+    },
+    validateSnapshot: async (): Promise<string> => {
+      let value;
+      try {
+        value = await handlers.validateSnapshot();
       } catch (error) {
         return encodeTestCapabilityFailure("handlerFailure", error);
       }

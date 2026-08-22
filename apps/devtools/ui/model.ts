@@ -11,6 +11,11 @@ export interface Point {
   y: number;
 }
 
+export interface Size {
+  width: number;
+  height: number;
+}
+
 export interface RpcEnvelope<T> {
   ok: boolean;
   value?: T;
@@ -33,6 +38,19 @@ export interface OverlayPaintEvidence {
   highlights: number;
 }
 
+export interface ValidationSummary {
+  revision: number;
+  valid: boolean;
+  errorCount: number;
+  warningCount: number;
+  truncated: boolean;
+}
+
+export interface LatestRequestGate {
+  begin(): number;
+  isCurrent(token: number): boolean;
+}
+
 export const EMPTY_OVERLAY_LAYERS: OverlayLayers = Object.freeze({
   layout: false,
   clips: false,
@@ -44,6 +62,30 @@ export function toggleOverlayLayer(
   layer: OverlayLayer,
 ): OverlayLayers {
   return { ...layers, [layer]: !layers[layer] };
+}
+
+/** Ignore responses from requests superseded by a newer user intent. */
+export function createLatestRequestGate(): LatestRequestGate {
+  let current = 0;
+  return {
+    begin: () => ++current,
+    isCurrent: (token) => token === current,
+  };
+}
+
+export function validationStatusLabel(
+  report: ValidationSummary | undefined,
+  currentRevision: number | undefined,
+): string {
+  if (!report) return "snapshot not validated";
+  const stale =
+    currentRevision !== undefined && report.revision !== currentRevision;
+  const summary = report.valid
+    ? report.warningCount === 0
+      ? "valid"
+      : `valid · ${report.warningCount} warning${report.warningCount === 1 ? "" : "s"}`
+    : `${report.errorCount} error${report.errorCount === 1 ? "" : "s"} · ${report.warningCount} warning${report.warningCount === 1 ? "" : "s"}`;
+  return `${stale ? "stale · " : ""}r${report.revision} · ${summary}${report.truncated ? " · truncated" : ""}`;
 }
 
 export function overlayEvidenceLabel(
@@ -103,4 +145,20 @@ export function screenshotPoint(
     x: (x / renderedSize.width) * viewportSize.width,
     y: (y / renderedSize.height) * viewportSize.height,
   };
+}
+
+/** Fit captured pixels inside the available stage without distorting them. */
+export function containSize(content: Size, bounds: Size): Size | undefined {
+  if (
+    content.width <= 0 ||
+    content.height <= 0 ||
+    bounds.width <= 0 ||
+    bounds.height <= 0
+  )
+    return undefined;
+  const scale = Math.min(
+    bounds.width / content.width,
+    bounds.height / content.height,
+  );
+  return { width: content.width * scale, height: content.height * scale };
 }

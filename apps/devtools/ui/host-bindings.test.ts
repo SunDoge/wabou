@@ -80,6 +80,43 @@ test("generated no-request methods are argument-free at the native boundary", as
   expect(calls).toEqual([[]]);
 });
 
+test("generated snapshot validation preserves report evidence", async () => {
+  const calls: unknown[][] = [];
+  const client = createDevtoolsClient({
+    devtools: {
+      __wabouCapabilityVersion: 1,
+      validateSnapshot: (...args: unknown[]) => {
+        calls.push(args);
+        return JSON.stringify({
+          ok: true,
+          value: {
+            revision: 42,
+            valid: false,
+            errorCount: 1,
+            warningCount: 0,
+            truncated: false,
+            issues: [
+              {
+                level: "error",
+                code: "missing-parent",
+                message: "node references a missing parent",
+                nodeId: { lo: 7, hi: 1 },
+              },
+            ],
+          },
+        });
+      },
+    },
+  } as unknown as Host);
+
+  await expect(client.validateSnapshot()).resolves.toMatchObject({
+    revision: 42,
+    valid: false,
+    issues: [{ code: "missing-parent", nodeId: { lo: 7, hi: 1 } }],
+  });
+  expect(calls).toEqual([[]]);
+});
+
 test("generated point inspection preserves logical coordinates", async () => {
   const calls: unknown[][] = [];
   const client = createDevtoolsClient({

@@ -1,12 +1,15 @@
 // DevTools UI model tests.
 import { describe, expect, test } from "bun:test";
 import {
+  containSize,
+  createLatestRequestGate,
   decode,
   EMPTY_OVERLAY_LAYERS,
   overlayEvidenceLabel,
   overlayStyle,
   screenshotPoint,
   toggleOverlayLayer,
+  validationStatusLabel,
 } from "./model";
 
 describe("DevTools view model", () => {
@@ -55,6 +58,18 @@ describe("DevTools view model", () => {
     ).toBeUndefined();
   });
 
+  test("fits screenshots without changing their aspect ratio", () => {
+    expect(
+      containSize({ width: 1_600, height: 900 }, { width: 800, height: 800 }),
+    ).toEqual({ width: 800, height: 450 });
+    expect(
+      containSize({ width: 800, height: 1_200 }, { width: 900, height: 600 }),
+    ).toEqual({ width: 400, height: 600 });
+    expect(
+      containSize({ width: 0, height: 100 }, { width: 100, height: 100 }),
+    ).toBeUndefined();
+  });
+
   test("toggles diagnostic layers independently", () => {
     const layout = toggleOverlayLayer(EMPTY_OVERLAY_LAYERS, "layout");
     const clips = toggleOverlayLayer(layout, "clips");
@@ -96,5 +111,42 @@ describe("DevTools view model", () => {
         },
       ),
     ).toBe("overlay pass 5 · 42 bounds · 3 clips · 1 highlights");
+  });
+
+  test("only accepts the latest asynchronous request", () => {
+    const gate = createLatestRequestGate();
+    const first = gate.begin();
+    const second = gate.begin();
+
+    expect(gate.isCurrent(first)).toBe(false);
+    expect(gate.isCurrent(second)).toBe(true);
+  });
+
+  test("summarizes valid, invalid, stale, and truncated snapshots", () => {
+    expect(validationStatusLabel(undefined, 4)).toBe("snapshot not validated");
+    expect(
+      validationStatusLabel(
+        {
+          revision: 4,
+          valid: true,
+          errorCount: 0,
+          warningCount: 1,
+          truncated: false,
+        },
+        4,
+      ),
+    ).toBe("r4 · valid · 1 warning");
+    expect(
+      validationStatusLabel(
+        {
+          revision: 3,
+          valid: false,
+          errorCount: 2,
+          warningCount: 4,
+          truncated: true,
+        },
+        4,
+      ),
+    ).toBe("stale · r3 · 2 errors · 4 warnings · truncated");
   });
 });

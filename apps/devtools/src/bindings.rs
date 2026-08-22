@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use wabou::{Bindings, Capability, JsonCapabilityContract, JsonMethod, Type, specta};
 use wabou_devtools::{
     DebugCaptureCase, DebugFrame, DebugNode, DebugOverlay, DebugPointInspection, DebugStatus,
-    NodeKey,
+    DebugValidationReport, NodeKey,
 };
 
 /// Host capability containing the DevTools example endpoints.
@@ -28,6 +28,9 @@ pub mod method {
     /// Read recent bridge frames.
     pub const RECENT_FRAMES: JsonMethod<RecentFramesRequest, Vec<DebugFrame>> =
         JsonMethod::new("recentFrames");
+    /// Validate the current retained snapshot.
+    pub const VALIDATE_SNAPSHOT: JsonMethod<(), DebugValidationReport> =
+        JsonMethod::no_request("validateSnapshot");
     /// Capture a native screenshot.
     pub const CAPTURE_SCREENSHOT: JsonMethod<(), PathResult> =
         JsonMethod::no_request("captureScreenshot");
@@ -118,6 +121,7 @@ pub fn manifest() -> Bindings {
             .method(method::INSPECT_NODE)
             .method(method::INSPECT_AT_POINT)
             .method(method::RECENT_FRAMES)
+            .method(method::VALIDATE_SNAPSHOT)
             .method(method::CAPTURE_SCREENSHOT)
             .method(method::CAPTURE_CASE)
             .method(method::SET_OVERLAY),
@@ -136,6 +140,7 @@ mod tests {
             "inspectAtPoint(request: InspectPointRequest): Promise<DebugPointInspection>"
         ));
         assert!(output.contains("selectedNode: NodeKey | null"));
+        assert!(output.contains("validateSnapshot(): Promise<DebugValidationReport>"));
         assert!(output.contains("captureScreenshot(): Promise<PathResult>"));
         assert!(output.contains(
             "captureCase(request: CaptureCaseRequest): Promise<DebugCaptureCase_Serialize>"
