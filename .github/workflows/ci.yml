@@ -82,6 +82,9 @@ jobs:
             apps/motrix/tests/engine-failure.scenario.ts \
             --artifacts target/wabou-test/motrix/engine-failure-artifacts
 
+      - name: Test component layout contracts
+        run: bun run verify:layout
+
       - name: Render authored application captures
         run: bun run verify:captures
 

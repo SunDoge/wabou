@@ -72,6 +72,36 @@ export interface LayoutDiagnosticOptions {
   readonly within?: LayoutSnapshotNode;
 }
 
+export interface LayoutRectAssertionOptions {
+  readonly tolerance?: number;
+  readonly label?: string;
+}
+
+export const layoutRectRight = (rect: LayoutRect): number =>
+  rect.x + rect.width;
+
+export const layoutRectBottom = (rect: LayoutRect): number =>
+  rect.y + rect.height;
+
+/** Assert that a completed native layout rect stays inside another rect. */
+export function assertLayoutRectContains(
+  outer: LayoutRect,
+  inner: LayoutRect,
+  options: LayoutRectAssertionOptions = {},
+): void {
+  const tolerance = options.tolerance ?? 1;
+  if (
+    inner.x < outer.x - tolerance ||
+    inner.y < outer.y - tolerance ||
+    layoutRectRight(inner) > layoutRectRight(outer) + tolerance ||
+    layoutRectBottom(inner) > layoutRectBottom(outer) + tolerance
+  ) {
+    throw new Error(
+      `${options.label ?? "layout rect"} (${rectText(inner)}) is outside (${rectText(outer)})`,
+    );
+  }
+}
+
 function record(value: unknown, path: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`invalid layout snapshot: ${path} must be an object`);

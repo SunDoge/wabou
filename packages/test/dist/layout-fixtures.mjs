@@ -9,16 +9,19 @@ function normalizeFixture(entry) {
 * repeating an application shell in every test entry.
 */
 function defineComponentFixtures(fixtures, options = {}) {
-	return Object.fromEntries(Object.entries(fixtures).map(([id, fixture]) => [id, {
-		width: options.width,
-		height: options.height,
-		scaleFactor: options.scaleFactor,
-		waitMs: options.waitMs,
-		render: () => {
-			const content = createComponent(fixture, {});
-			return options.wrap?.(content) ?? content;
-		}
-	}]));
+	return Object.fromEntries(Object.entries(fixtures).map(([id, entry]) => {
+		const fixture = normalizeFixture(entry);
+		return [id, {
+			width: fixture.width ?? options.width,
+			height: fixture.height ?? options.height,
+			scaleFactor: fixture.scaleFactor ?? options.scaleFactor,
+			waitMs: fixture.waitMs ?? options.waitMs,
+			render: () => {
+				const content = createComponent(fixture.render, {});
+				return options.wrap?.(content) ?? content;
+			}
+		}];
+	}));
 }
 /**
 * Expose named component fixtures to `wabou layout --batch`.

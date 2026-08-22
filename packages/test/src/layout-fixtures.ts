@@ -10,7 +10,9 @@ export interface LayoutFixtureDefinition {
   readonly waitMs?: number;
 }
 export type LayoutFixtureEntry = LayoutFixture | LayoutFixtureDefinition;
-export type LayoutFixtureRegistry = Readonly<Record<string, LayoutFixtureEntry>>;
+export type LayoutFixtureRegistry = Readonly<
+  Record<string, LayoutFixtureEntry>
+>;
 
 export interface ComponentFixtureOptions {
   readonly width?: number;
@@ -23,9 +25,7 @@ export interface ComponentFixtureOptions {
 declare global {
   // Called by the native layout-batch runner after the fixture bundle boots.
   // This is deliberately not part of the application host API.
-  var __wabou_layout_fixture_mount:
-    | ((id: string) => void)
-    | undefined;
+  var __wabou_layout_fixture_mount: ((id: string) => void) | undefined;
   var __wabou_layout_fixture_ids: (() => string) | undefined;
   var __wabou_layout_fixture_cases: (() => string) | undefined;
 }
@@ -39,23 +39,26 @@ function normalizeFixture(entry: LayoutFixtureEntry): LayoutFixtureDefinition {
  * repeating an application shell in every test entry.
  */
 export function defineComponentFixtures(
-  fixtures: Readonly<Record<string, LayoutFixture>>,
+  fixtures: LayoutFixtureRegistry,
   options: ComponentFixtureOptions = {},
 ): LayoutFixtureRegistry {
   return Object.fromEntries(
-    Object.entries(fixtures).map(([id, fixture]) => [
-      id,
-      {
-        width: options.width,
-        height: options.height,
-        scaleFactor: options.scaleFactor,
-        waitMs: options.waitMs,
-        render: () => {
-          const content = createComponent(fixture, {});
-          return options.wrap?.(content) ?? content;
+    Object.entries(fixtures).map(([id, entry]) => {
+      const fixture = normalizeFixture(entry);
+      return [
+        id,
+        {
+          width: fixture.width ?? options.width,
+          height: fixture.height ?? options.height,
+          scaleFactor: fixture.scaleFactor ?? options.scaleFactor,
+          waitMs: fixture.waitMs ?? options.waitMs,
+          render: () => {
+            const content = createComponent(fixture.render, {});
+            return options.wrap?.(content) ?? content;
+          },
         },
-      },
-    ]),
+      ];
+    }),
   );
 }
 
@@ -84,15 +87,13 @@ export function defineLayoutFixtures(fixtures: LayoutFixtureRegistry): void {
     JSON.stringify([...registry.keys()]);
   globalThis.__wabou_layout_fixture_cases = () =>
     JSON.stringify(
-      [...registry].map(
-        ([id, { width, height, scaleFactor, waitMs }]) => ({
-          id,
-          width,
-          height,
-          scaleFactor,
-          waitMs,
-        }),
-      ),
+      [...registry].map(([id, { width, height, scaleFactor, waitMs }]) => ({
+        id,
+        width,
+        height,
+        scaleFactor,
+        waitMs,
+      })),
     );
   globalThis.__wabou_layout_fixture_mount = (id) => {
     const fixture = registry.get(id);

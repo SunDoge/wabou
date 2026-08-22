@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "../primitives";
-import { ScrollArea } from "../primitives/scroll-area";
+import { ScrollArea, type ScrollAreaProps } from "../primitives/scroll-area";
 import { join } from "./class-names";
 import { componentsElevation, useComponentsTheme } from "./theme";
 
@@ -65,13 +65,16 @@ export function DialogFooter(props: {
  * The shrinking, independently scrollable region between a dialog's fixed
  * header and footer. The dialog surface must have a bounded or maximum height.
  */
-export function DialogScrollBody(props: {
-  children?: JSX.Element;
+export interface DialogScrollBodyProps
+  extends Omit<ScrollAreaProps, "class" | "contentClass"> {
   class?: string;
   contentClass?: string;
-}) {
+}
+
+export function DialogScrollBody(props: DialogScrollBodyProps) {
   return (
     <ScrollArea
+      {...props}
       class={join("min-h-0 flex-1", props.class)}
       contentClass={props.contentClass}
     >

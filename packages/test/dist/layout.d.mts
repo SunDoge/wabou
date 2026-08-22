@@ -60,6 +60,14 @@ interface LayoutDiagnosticOptions {
   /** Restrict checks to descendants of this node, including itself. */
   readonly within?: LayoutSnapshotNode;
 }
+interface LayoutRectAssertionOptions {
+  readonly tolerance?: number;
+  readonly label?: string;
+}
+declare const layoutRectRight: (rect: LayoutRect) => number;
+declare const layoutRectBottom: (rect: LayoutRect) => number;
+/** Assert that a completed native layout rect stays inside another rect. */
+declare function assertLayoutRectContains(outer: LayoutRect, inner: LayoutRect, options?: LayoutRectAssertionOptions): void;
 /** Validate the Rust snapshot boundary before layout assertions consume it. */
 declare function parseLayoutSnapshot(value: unknown): LayoutSnapshot;
 declare function layoutRole(node: LayoutSnapshotNode): string;
@@ -80,5 +88,5 @@ declare function textCollisionDiagnostics(snapshot: LayoutSnapshot, options?: La
 declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
 //#endregion
-export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
+export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
 //# sourceMappingURL=layout.d.mts.map

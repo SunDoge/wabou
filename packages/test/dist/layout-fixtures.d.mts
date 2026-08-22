@@ -26,7 +26,7 @@ declare global {
  * Give component fixtures the same theme, viewport, and bounded root without
  * repeating an application shell in every test entry.
  */
-declare function defineComponentFixtures(fixtures: Readonly<Record<string, LayoutFixture>>, options?: ComponentFixtureOptions): LayoutFixtureRegistry;
+declare function defineComponentFixtures(fixtures: LayoutFixtureRegistry, options?: ComponentFixtureOptions): LayoutFixtureRegistry;
 /**
  * Expose named component fixtures to `wabou layout --batch`.
  *

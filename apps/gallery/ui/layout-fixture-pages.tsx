@@ -4,6 +4,13 @@ import {
 } from "@wabou/test/layout/fixtures";
 import { ComponentsProvider, View } from "@wabou/ui";
 import { type Component, createComponent } from "solid-js";
+import {
+  AdaptiveSplitPaneLayoutFixture,
+  DialogLayoutFixture,
+  ScrollAreaLayoutFixture,
+  SelectLayoutFixture,
+  SidebarLayoutFixture,
+} from "./layout-fixture-components";
 import * as animation from "./pages/animation";
 import * as basics from "./pages/basics";
 import * as chart from "./pages/chart";
@@ -47,6 +54,41 @@ function pageFixtures(
 }
 
 export const galleryLayoutFixtures: LayoutFixtureRegistry = {
+  ...defineComponentFixtures(
+    {
+      "component/Sidebar": {
+        width: 360,
+        height: 420,
+        render: SidebarLayoutFixture,
+      },
+      "component/ScrollArea": {
+        width: 360,
+        height: 240,
+        render: ScrollAreaLayoutFixture,
+      },
+      "component/Select": {
+        width: 480,
+        height: 420,
+        waitMs: 20,
+        render: SelectLayoutFixture,
+      },
+      "component/Dialog": {
+        width: 640,
+        height: 480,
+        render: DialogLayoutFixture,
+      },
+      "component/AdaptiveSplitPane": {
+        width: 720,
+        height: 360,
+        render: AdaptiveSplitPaneLayoutFixture,
+      },
+    },
+    {
+      wrap: (content) => (
+        <ComponentsProvider theme="light">{content}</ComponentsProvider>
+      ),
+    },
+  ),
   ...pageFixtures("animation", animation),
   ...pageFixtures("basics", basics),
   ...pageFixtures("widgets", widgets),

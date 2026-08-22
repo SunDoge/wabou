@@ -2113,7 +2113,8 @@ const scrollAreaViewportClass = (className) => join("min-w-0 min-h-0 overflow-x-
 * establishing its own scroll range.
 */
 function ScrollArea(props) {
-	return createComponent$1(View, {
+	const forwarded = omit(props, "children", "class", "contentClass", "style", "ref", "scrollbar", "onScroll");
+	return createComponent$1(View, mergeProps(forwarded, {
 		ref(r$) {
 			var _ref$ = props.ref;
 			typeof _ref$ === "function" || Array.isArray(_ref$) ? applyRef(_ref$, r$) : props.ref = r$;
@@ -2140,7 +2141,7 @@ function ScrollArea(props) {
 				}
 			});
 		}
-	});
+	}));
 }
 //#endregion
 //#region src/primitives/scroll-reset.ts
@@ -2416,4 +2417,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { Link as $, isSelected as A, Path as B, OverlayPlaneProvider as C, Column as D, Center as E, CodeEditor as F, TextInput as G, Svg as H, Icon as I, translate2d$1 as J, View as K, Image as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, Button as Q, NetworkImage as R, createTransitionPresence as S, useOverlayPlane as T, Text as U, PathBuilder as V, TextArea as W, createContainerMatch as X, createPresence as Y, createMeasuredSize as Z, createRetainedItems as _, MotionConfigProvider as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createLoop as dt, createButton as et, offset as f, createPulse as ft, createNotifications as g, normalizeSweepGeometry as gt, NotificationRegion as h, createTransition as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createInterpolation as lt, size as m, createSweep as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createRotation as pt, rotate2d$1 as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createKeyframeAnimation as ut, Pulse as v, useMotionConfig as vt, createOverlayLayer as w, Modal as x, Ripple as y, useReducedMotion as yt, PasswordInput as z };
 
-//# sourceMappingURL=primitives-Bg9X0mo4.mjs.map
+//# sourceMappingURL=primitives-CN9r8pQY.mjs.map

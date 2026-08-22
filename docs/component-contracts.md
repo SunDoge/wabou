@@ -235,12 +235,20 @@ bun run test:layout:quick
 bun run test:layout:quick widgets/Button widgets/Card
 ```
 
-It compiles the fixture entry once and runs all existing component pages with
-the release CLI. On the current suite, the native evaluation of 40 fixtures is
-about 0.2 seconds after the bundle exists; the fixed QuickJS startup is paid
-once rather than once per component. `test:layout:quick` deliberately skips
+It compiles the fixture entry once and runs isolated high-risk components plus
+the existing component pages with the release CLI. On the current suite, the
+native evaluation of 85 fixtures is about 0.6 seconds after the bundle exists;
+the fixed QuickJS startup is paid once rather than once per component.
+`test:layout:quick` deliberately skips
 Vite and Rust builds, so use the full command after changing dependencies,
 generated package output, Rust, or the fixture registry itself.
+
+The isolated reference fixtures cover `Sidebar`, `ScrollArea`, `Select`,
+`Dialog`, and `AdaptiveSplitPane`. They assert their component contracts using
+semantic names and final native bounds rather than private node order or
+application-specific pixel heights. Add new fixtures to
+`apps/gallery/ui/layout-fixture-components.tsx` and their focused assertions to
+`apps/gallery/tests/layout.ts`.
 
 ## Required evidence
 

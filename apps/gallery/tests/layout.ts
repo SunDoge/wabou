@@ -1,23 +1,159 @@
 import { resolve } from "node:path";
-import { getLayoutNode } from "@wabou/test/layout";
-import { renderLayoutFixtures } from "@wabou/test/layout/node";
+import {
+  assertLayoutRectContains,
+  getLayoutNode,
+  type LayoutSnapshot,
+  layoutRectBottom,
+  layoutRectRight,
+  queryLayoutNodes,
+} from "@wabou/test/layout";
+import {
+  type LayoutFixtureCase,
+  renderLayoutFixtures,
+} from "@wabou/test/layout/node";
 
 const command = process.env.WABOU_LAYOUT_COMMAND
   ? process.env.WABOU_LAYOUT_COMMAND.split(" ").filter(Boolean)
   : [resolve("target/release/wabou")];
 const selected = process.argv.slice(2).filter(Boolean);
 const checks = ["visible-overflow", "sibling-collision"] as const;
-const overrides = {
+
+const assertClose = (actual: number, expected: number, label: string) => {
+  if (Math.abs(actual - expected) > 1)
+    throw new Error(`${label}: expected ${expected}, received ${actual}`);
+};
+
+const assertSidebarLayout = (snapshot: LayoutSnapshot) => {
+  const boundary = getLayoutNode(snapshot, {
+    name: "Sidebar fixture boundary",
+  });
+  const sidebar = getLayoutNode(snapshot, { name: "Fixture sidebar" });
+  const navigation = getLayoutNode(snapshot, { name: "Fixture navigation" });
+  const footer = getLayoutNode(snapshot, { name: "Fixture sidebar footer" });
+  assertLayoutRectContains(boundary.contentRect, sidebar.rect, {
+    label: "sidebar",
+  });
+  assertLayoutRectContains(sidebar.rect, navigation.rect, {
+    label: "sidebar navigation",
+  });
+  assertLayoutRectContains(sidebar.rect, footer.rect, {
+    label: "sidebar footer",
+  });
+  assertClose(layoutRectBottom(navigation.rect), footer.rect.y, "footer edge");
+  assertClose(
+    layoutRectBottom(footer.rect),
+    layoutRectBottom(sidebar.rect),
+    "sidebar bottom edge",
+  );
+  if (navigation.computed.overflowY !== "Scroll")
+    throw new Error("sidebar content did not establish a scroll viewport");
+};
+
+const assertScrollAreaLayout = (snapshot: LayoutSnapshot) => {
+  const viewport = getLayoutNode(snapshot, {
+    role: "region",
+    name: "Fixture scroll viewport",
+  });
+  const finalRow = getLayoutNode(snapshot, { text: "Scrollable row 12" });
+  if (viewport.computed.overflowY !== "Scroll")
+    throw new Error("ScrollArea did not retain overflow-y scrolling");
+  if (layoutRectBottom(finalRow.rect) <= layoutRectBottom(viewport.contentRect))
+    throw new Error("ScrollArea fixture did not produce a real scroll range");
+};
+
+const assertSelectLayout = (snapshot: LayoutSnapshot) => {
+  const trigger = getLayoutNode(snapshot, {
+    role: "combobox",
+    name: "Fixture select",
+  });
+  const listbox = getLayoutNode(snapshot, {
+    role: "listbox",
+    name: "Fixture select",
+  });
+  assertLayoutRectContains(
+    {
+      x: 0,
+      y: 0,
+      width: snapshot.status.viewportWidth,
+      height: snapshot.status.viewportHeight,
+    },
+    listbox.rect,
+    { label: "select popup" },
+  );
+  if (listbox.rect.y < layoutRectBottom(trigger.rect))
+    throw new Error("select popup overlaps its trigger");
+  const selectedOption = queryLayoutNodes(snapshot, { role: "option" }).find(
+    (node) =>
+      node.attrs.some(
+        ([name, value]) => name === "aria-selected" && value === "true",
+      ),
+  );
+  if (!selectedOption)
+    throw new Error("select popup did not expose its selected option");
+};
+
+const assertDialogLayout = (snapshot: LayoutSnapshot) => {
+  const dialog = getLayoutNode(snapshot, {
+    role: "dialog",
+    name: "Fixture dialog",
+  });
+  const body = getLayoutNode(snapshot, { name: "Fixture dialog body" });
+  const footer = getLayoutNode(snapshot, { name: "Fixture dialog footer" });
+  assertLayoutRectContains(dialog.contentRect, body.rect, {
+    label: "dialog scroll body",
+  });
+  assertLayoutRectContains(dialog.contentRect, footer.rect, {
+    label: "dialog footer",
+  });
+  if (body.computed.overflowY !== "Scroll")
+    throw new Error("dialog body did not establish an independent scroll area");
+  if (layoutRectBottom(body.rect) > footer.rect.y)
+    throw new Error("dialog body overlaps its fixed footer");
+  assertClose(
+    layoutRectBottom(footer.rect),
+    layoutRectBottom(dialog.contentRect),
+    "dialog footer bottom edge",
+  );
+};
+
+const assertAdaptiveSplitPaneLayout = (snapshot: LayoutSnapshot) => {
+  const boundary = getLayoutNode(snapshot, {
+    name: "Adaptive split pane boundary",
+  });
+  const main = getLayoutNode(snapshot, { name: "Fixture split main" });
+  const detail = getLayoutNode(snapshot, { name: "Fixture split detail" });
+  assertLayoutRectContains(boundary.contentRect, main.rect, {
+    label: "split pane main",
+  });
+  assertLayoutRectContains(boundary.contentRect, detail.rect, {
+    label: "split pane detail",
+  });
+  assertClose(main.rect.y, detail.rect.y, "split pane top edge");
+  assertClose(main.rect.height, detail.rect.height, "split pane height");
+  assertClose(detail.rect.x - layoutRectRight(main.rect), 12, "split pane gap");
+  assertClose(
+    layoutRectRight(detail.rect),
+    layoutRectRight(boundary.contentRect),
+    "split pane right edge",
+  );
+};
+
+const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
   "widgets/Carousel": { checks: ["sibling-collision"] as const },
   "widgets/Message": {
     checks: ["sibling-collision", "text-collision"] as const,
   },
+  "component/Sidebar": { assert: assertSidebarLayout },
+  "component/ScrollArea": { assert: assertScrollAreaLayout },
+  "component/Select": { assert: assertSelectLayout },
+  "component/Dialog": { assert: assertDialogLayout },
+  "component/AdaptiveSplitPane": { assert: assertAdaptiveSplitPaneLayout },
 };
 const fixtureCase = (id: string) => {
-  const override = overrides[id as keyof typeof overrides];
-  return { id, checks: override?.checks ?? checks };
+  const override = overrides[id];
+  return { id, ...override, checks: override?.checks ?? checks };
 };
 
 const report = await renderLayoutFixtures({

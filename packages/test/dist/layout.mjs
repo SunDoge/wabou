@@ -1,4 +1,11 @@
 //#region src/layout.ts
+const layoutRectRight = (rect) => rect.x + rect.width;
+const layoutRectBottom = (rect) => rect.y + rect.height;
+/** Assert that a completed native layout rect stays inside another rect. */
+function assertLayoutRectContains(outer, inner, options = {}) {
+	const tolerance = options.tolerance ?? 1;
+	if (inner.x < outer.x - tolerance || inner.y < outer.y - tolerance || layoutRectRight(inner) > layoutRectRight(outer) + tolerance || layoutRectBottom(inner) > layoutRectBottom(outer) + tolerance) throw new Error(`${options.label ?? "layout rect"} (${rectText(inner)}) is outside (${rectText(outer)})`);
+}
 function record(value, path) {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error(`invalid layout snapshot: ${path} must be an object`);
 	return value;
@@ -219,6 +226,6 @@ function assertNoLayoutDiagnostics(diagnostics) {
 	throw new Error(`layout diagnostics:\n${diagnostics.map((item) => `  - [${item.code}] ${item.message}`).join("\n")}`);
 }
 //#endregion
-export { assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
+export { assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
 
 //# sourceMappingURL=layout.mjs.map

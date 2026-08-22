@@ -1,12 +1,16 @@
 import type { Handle, NativeScrollbarStyle } from "@wabou/core/renderer";
-import type { JSX } from "solid-js";
+import { type JSX, omit } from "solid-js";
 import { join } from "./class-names";
-import { View, type WabouStyle } from "./view";
+import { View, type ViewProps, type WabouStyle } from "./view";
 
 export const scrollAreaViewportClass = (className?: string) =>
   join("min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", className);
 
-export interface ScrollAreaProps {
+export interface ScrollAreaProps
+  extends Omit<
+    ViewProps,
+    "children" | "class" | "style" | "ref" | "scrollbar" | "onScroll"
+  > {
   children?: JSX.Element;
   /**
    * Classes applied to the clipped scrolling viewport.
@@ -37,8 +41,19 @@ export interface ScrollAreaProps {
  * establishing its own scroll range.
  */
 export function ScrollArea(props: ScrollAreaProps): JSX.Element {
+  const forwarded = omit(
+    props,
+    "children",
+    "class",
+    "contentClass",
+    "style",
+    "ref",
+    "scrollbar",
+    "onScroll",
+  );
   return (
     <View
+      {...forwarded}
       ref={props.ref}
       class={scrollAreaViewportClass(props.class)}
       style={props.style}
