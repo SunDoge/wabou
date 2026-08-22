@@ -297,7 +297,11 @@ export function DownloadsPage() {
       ),
   );
   return (
-    <View class="h-full min-h-0 flex flex-col gap-3">
+    <View
+      role="group"
+      aria-label="Downloads page"
+      class="h-full min-h-0 flex flex-col gap-3"
+    >
       <PageHeader
         title="All Downloads"
         stacked={compactToolbar()}
@@ -1129,7 +1133,11 @@ export function DownloadsPage() {
           )}
         </Show>
       </AdaptiveSplitPane>
-      <View class="h-10 flex-none px-4 flex items-center justify-between rounded-lg border border-subtle bg-surface">
+      <View
+        role="status"
+        aria-label="Download status summary"
+        class="h-10 flex-none px-4 flex items-center justify-between rounded-lg border border-subtle bg-surface"
+      >
         <View class="flex gap-5">
           <Text class="text-xs text-muted">
             {

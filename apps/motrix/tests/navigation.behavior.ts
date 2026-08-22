@@ -174,12 +174,33 @@ test("Motrix download controls remain inside the minimum viewport", async ({
   await expect(
     page.getByRole("button", { name: "Sort downloads: Newest first" }),
   ).toBeInViewport();
-  const downloadList = await page
-    .getByRole("group", { name: "Download list" })
+  const downloadsPage = await page
+    .getByRole("group", { name: "Downloads page" })
     .snapshot();
-  if (downloadList.bounds.height < 300) {
+  const downloadListLocator = page.getByRole("group", {
+    name: "Download list",
+  });
+  await expect(downloadListLocator).toBeWithinBounds(downloadsPage.bounds, {
+    tolerance: 1,
+  });
+  const downloadList = await downloadListLocator.snapshot();
+  const statusSummaryLocator = page.getByRole("status", {
+    name: "Download status summary",
+  });
+  await expect(statusSummaryLocator).toBeWithinBounds(downloadsPage.bounds, {
+    tolerance: 1,
+  });
+  const statusSummary = await statusSummaryLocator.snapshot();
+  const pageBottom = downloadsPage.bounds.y + downloadsPage.bounds.height;
+  const listBottom = downloadList.bounds.y + downloadList.bounds.height;
+  const statusBottom = statusSummary.bounds.y + statusSummary.bounds.height;
+  const contentGap = statusSummary.bounds.y - listBottom;
+  if (
+    Math.abs(contentGap - 12) > 1 ||
+    Math.abs(pageBottom - statusBottom) > 1
+  ) {
     throw new Error(
-      `download list did not consume the available viewport: ${downloadList.bounds.height}px`,
+      `download content did not fill the page: gap=${contentGap}, page bottom=${pageBottom}, status bottom=${statusBottom}`,
     );
   }
   await page.getByRole("button", { name: "Add a download" }).click();
