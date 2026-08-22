@@ -178,6 +178,19 @@ const assertQrCodeLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertInputGroupLayout = (snapshot: LayoutSnapshot) => {
+  const group = getLayoutNode(snapshot, { name: "Fixture input group" });
+  const addon = getLayoutNode(snapshot, { name: "Fixture scheme addon" });
+  const input = getLayoutNode(snapshot, { name: "Fixture hostname input" });
+  assertClose(addon.rect.height, input.rect.height, "input group item height");
+  assertLayoutRectContains(group.contentRect, addon.rect, {
+    label: "input group addon",
+  });
+  assertLayoutRectContains(group.contentRect, input.rect, {
+    label: "input group input",
+  });
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -201,6 +214,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     assert: assertImageListLayout,
   },
   "component/QRCode": { assert: assertQrCodeLayout },
+  "component/InputGroup": { assert: assertInputGroupLayout },
 };
 const fixtureCase = (id: string) => {
   const override = overrides[id];

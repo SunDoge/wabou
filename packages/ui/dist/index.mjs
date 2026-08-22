@@ -3648,7 +3648,7 @@ function InputGroupInput(props) {
 		},
 		chrome: "none",
 		get ["class"]() {
-			return join("flex-1 min-w-0", props.class);
+			return join("h-full flex-1 min-w-0", props.class);
 		}
 	}));
 }

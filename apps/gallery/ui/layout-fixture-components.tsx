@@ -10,6 +10,10 @@ import {
   DialogTitle,
   ImageList,
   ImageViewport,
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
   QRCode,
   ScrollArea,
   Select,
@@ -90,6 +94,22 @@ export function QRCodeLayoutFixture() {
         size={196}
         class="rounded-lg shadow-md"
       />
+    </View>
+  );
+}
+
+export function InputGroupLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-center justify-center bg-canvas">
+      <InputGroup aria-label="Fixture input group" class="w-80">
+        <InputGroupAddon aria-label="Fixture scheme addon" align="inline-start">
+          <InputGroupText>https://</InputGroupText>
+        </InputGroupAddon>
+        <InputGroupInput
+          aria-label="Fixture hostname input"
+          placeholder="example.com"
+        />
+      </InputGroup>
     </View>
   );
 }

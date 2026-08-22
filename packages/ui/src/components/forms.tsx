@@ -294,7 +294,7 @@ export function InputGroupInput(props: InputProps) {
         props.ref?.(node);
       }}
       chrome="none"
-      class={join("flex-1 min-w-0", props.class)}
+      class={join("h-full flex-1 min-w-0", props.class)}
     />
   );
 }
