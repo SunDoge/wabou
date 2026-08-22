@@ -64,7 +64,6 @@ import type { JSX } from "./jsx";
  */
 export interface WabouBuiltinIntrinsicElements {
   button: WabouControlProps;
-  img: WabouImageProps;
   input: WabouInputProps;
   view: WabouElementProps;
   svg: WabouSvgProps;

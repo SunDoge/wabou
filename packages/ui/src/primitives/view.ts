@@ -1,3 +1,4 @@
+import type { VectorPath } from "@wabou/core";
 import {
   createElement,
   type Handle,
@@ -8,9 +9,10 @@ import {
   type WabouElementProps,
 } from "@wabou/core/renderer";
 import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
-import type { VectorPath } from "@wabou/core";
-export { PathBuilder } from "@wabou/core";
+
 export type { VectorPath, VectorPathPaint } from "@wabou/core";
+export { PathBuilder } from "@wabou/core";
+
 import { type JSX, omit, untrack } from "solid-js";
 
 export type { Affine2D, WabouStyle } from "@wabou/core/style";
@@ -97,7 +99,13 @@ export interface NetworkImageSource {
   cache: "memory";
 }
 
-export type ImageSource = NetworkImageSource;
+export interface FileImageSource {
+  kind: "file";
+  /** Absolute or application-resolved path owned by the native host. */
+  path: string;
+}
+
+export type ImageSource = FileImageSource | NetworkImageSource;
 
 export interface ImageProps extends Omit<PrimitiveProps, "children"> {
   /** Low-level native source. Prefer a source-specific component. */
@@ -307,18 +315,32 @@ export function Icon(props: IconProps): JSX.Element {
 
 /** A replaced image node rendered by the native host. */
 export function Image(props: ImageProps): JSX.Element {
-  return semanticPrimitive("img", "img", props);
-}
-
-/** An explicit network-backed image with bounded decoding and host caching. */
-export function NetworkImage(props: NetworkImageProps): JSX.Element {
-  const rest = omit(props, "url", "format", "cache");
+  const rest = omit(props, "source");
   const node = createElement("img");
   spread(node, { role: "img" }, false);
   spread(node, rest, false);
   spread(
     node,
     {
+      get src(): string | undefined {
+        const source = props.source;
+        return source?.kind === "file" ? source.path : undefined;
+      },
+      get source(): NetworkImageSource | undefined {
+        const source = props.source;
+        return source?.kind === "network" ? source : undefined;
+      },
+    },
+    false,
+  );
+  return node as unknown as JSX.Element;
+}
+
+/** An explicit network-backed image with bounded decoding and host caching. */
+export function NetworkImage(props: NetworkImageProps): JSX.Element {
+  const rest = omit(props, "url", "format", "cache");
+  return Image(
+    mergeProps(rest, {
       get source(): NetworkImageSource {
         return {
           kind: "network",
@@ -327,10 +349,8 @@ export function NetworkImage(props: NetworkImageProps): JSX.Element {
           cache: props.cache,
         };
       },
-    },
-    false,
+    }) as ImageProps,
   );
-  return node as unknown as JSX.Element;
 }
 
 /** A native single-line text editor with selection and scrolling. */

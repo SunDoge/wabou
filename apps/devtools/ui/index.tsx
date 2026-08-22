@@ -6,6 +6,7 @@ import {
   Button,
   ComponentsProvider,
   createMeasuredSize,
+  Image,
   Input,
   mount,
   PrimitiveButton,
@@ -514,13 +515,10 @@ function App() {
                       height: `${size().height}px`,
                     }}
                   >
-                    {/* Point inspection is inherently positional; the retained-node
-                        sidebar provides the keyboard-accessible inspection path. */}
-                    {/* biome-ignore lint/a11y/useKeyWithClickEvents: see above */}
-                    <img
+                    <Image
                       ref={screenshotSize.ref}
                       class="w-full h-full"
-                      src={screenshot()}
+                      source={{ kind: "file", path: screenshot() ?? "" }}
                       aria-label="Captured application frame; click to inspect"
                       onClick={(event) => void inspectScreenshot(event)}
                     />

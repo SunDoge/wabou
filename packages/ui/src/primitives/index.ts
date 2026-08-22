@@ -98,11 +98,6 @@ export {
   type PopoverTriggerProps,
 } from "./popover";
 export {
-  createRetainedItems,
-  type RetainedItem,
-  type RetainedItems,
-} from "./retained-items";
-export {
   arrow,
   autoPlacement,
   type ComputeFloatingPositionOptions,
@@ -132,6 +127,11 @@ export {
   type PressOptions,
   type PressResult,
 } from "./press";
+export {
+  createRetainedItems,
+  type RetainedItem,
+  type RetainedItems,
+} from "./retained-items";
 export { ScrollArea, type ScrollAreaProps } from "./scroll-area";
 export {
   createScrollReset,
@@ -164,6 +164,7 @@ export {
   type Affine2D,
   CodeEditor,
   type CodeEditorProps,
+  type FileImageSource,
   Icon,
   type IconProps,
   Image,

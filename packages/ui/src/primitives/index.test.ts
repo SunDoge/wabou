@@ -11,9 +11,10 @@ import {
   createPress,
   createShortcuts,
   createTabs,
+  Icon,
+  Image,
   NetworkImage,
   PasswordInput,
-  Icon,
   Svg,
   Text,
   TextArea,
@@ -406,6 +407,20 @@ describe("host primitives", () => {
       ["role", "img"],
       ["role", "img"],
     ]);
+  });
+
+  test("maps explicit file image sources onto the internal native widget", () => {
+    const attributes: Array<[string, string]> = [];
+    const setAttribute = writer.setAttribute.bind(writer);
+    writer.setAttribute = (_id, name, value) => {
+      if (name === "src") attributes.push([name, value]);
+    };
+    try {
+      Image({ source: { kind: "file", path: "/tmp/capture.png" } });
+    } finally {
+      writer.setAttribute = setAttribute;
+    }
+    expect(attributes).toEqual([["src", "/tmp/capture.png"]]);
   });
 
   test("rejects invalid text line limits before crossing the bridge", () => {

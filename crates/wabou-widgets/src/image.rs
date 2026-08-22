@@ -1,5 +1,6 @@
 //! ImageWidget — displays a raster image (PNG/JPEG/GIF/WebP/BMP) from a file
-//! path. JS passes the path via `<img src="photo.png" />`; Rust decodes the
+//! path. The public `Image` component passes the path to the internal `img`
+//! primitive; Rust decodes the
 //! image (via the `image` crate, like blitz's `ImageHandler::parse`) into an
 //! RGBA buffer, wraps it in a vello `ImageBrush`, and paints it with
 //! `draw_image`. The image is decoded once (cached by `src`) and scaled to
