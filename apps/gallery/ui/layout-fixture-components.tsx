@@ -10,6 +10,7 @@ import {
   DialogTitle,
   ImageList,
   ImageViewport,
+  QRCode,
   ScrollArea,
   Select,
   Sidebar,
@@ -76,6 +77,19 @@ export function ScrollAreaLayoutFixture() {
           )}
         </For>
       </ScrollArea>
+    </View>
+  );
+}
+
+export function QRCodeLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 items-center justify-center bg-canvas">
+      <QRCode
+        value="https://github.com/SunDoge/wabou"
+        aria-label="Fixture QR code"
+        size={196}
+        class="rounded-lg shadow-md"
+      />
     </View>
   );
 }

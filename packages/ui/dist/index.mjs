@@ -1,6 +1,6 @@
 import { $ as rotate2d$1, A as isSelected, B as createButton, C as OverlayPlaneProvider, D as Column, E as Center, F as createPresence, G as PasswordInput$1, H as Icon, I as createContainerMatch, J as Svg, K as Path, L as createMeasuredSize, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as View, R as Button$1, S as createTransitionPresence, U as Image, V as CodeEditor, W as NetworkImage, X as TextArea, Y as Text, Z as TextInput, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as translate2d$1, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as PathBuilder, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as Link } from "./primitives-9A92ZpYh.mjs";
 import { rgba, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
-import { mergeClasses, scale2d, shadow } from "@wabou/core/style";
+import { mergeClasses, rgba as rgba$1, scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
@@ -22,6 +22,7 @@ import check from "lucide-static/icons/check.svg?raw";
 import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
 import plus from "lucide-static/icons/plus.svg?raw";
+import { encode } from "uqr";
 import star from "lucide-static/icons/star.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
@@ -3822,6 +3823,154 @@ function HoverCard(props) {
 	});
 }
 //#endregion
+//#region src/components/image-list.tsx
+function finitePositive(value, name) {
+	if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be finite and positive`);
+	return value;
+}
+/**
+* A virtualized, selectable image list for page strips, albums and file pickers.
+* Resource loading remains owned by Image; this component owns list lifecycle.
+*/
+function ImageList(props) {
+	const config = untrack(() => ({
+		items: props.items,
+		getItemKey: props.getItemKey,
+		getSource: props.getSource,
+		getLabel: props.getLabel,
+		getDescription: props.getDescription,
+		viewportHeight: props.viewportHeight,
+		overscan: props.overscan,
+		onSelectionChange: props.onSelectionChange,
+		onResourceReady: props.onResourceReady,
+		onResourceError: props.onResourceError,
+		accessibilityLabel: props.accessibilityLabel,
+		class: props.class,
+		renderTrailing: props.renderTrailing,
+		renderThumbnail: props.renderThumbnail
+	}));
+	const { itemHeight, thumbnailWidth, thumbnailHeight } = untrack(() => ({
+		itemHeight: finitePositive(props.itemHeight ?? 88, "itemHeight"),
+		thumbnailWidth: finitePositive(props.thumbnailWidth ?? 56, "thumbnailWidth"),
+		thumbnailHeight: finitePositive(props.thumbnailHeight ?? 72, "thumbnailHeight")
+	}));
+	return createComponent$1(View, {
+		get ["class"]() {
+			return mergeClasses("min-w-0 min-h-0 overflow-hidden", config.class);
+		},
+		get style() {
+			return memo(() => {
+				return config.viewportHeight === void 0;
+			})() ? void 0 : { height: `${config.viewportHeight}px` };
+		},
+		get children() {
+			return createComponent$1(VirtualList, {
+				get items() {
+					return config.items;
+				},
+				itemHeight,
+				get viewportHeight() {
+					return config.viewportHeight;
+				},
+				get overscan() {
+					return config.overscan;
+				},
+				get getItemKey() {
+					return config.getItemKey;
+				},
+				role: "listbox",
+				get accessibilityLabel() {
+					return config.accessibilityLabel ?? "Images";
+				},
+				class: "w-full h-full min-w-0 min-h-0",
+				children: (item, index) => {
+					const [failed, setFailed] = createSignal(false);
+					const key = createMemo(() => config.getItemKey(item(), index()));
+					const label = createMemo(() => config.getLabel(item(), index()));
+					const source = createMemo(() => config.getSource(item(), index()));
+					const description = createMemo(() => config.getDescription?.(item(), index()));
+					const selected = createMemo(() => props.selectedKey === key());
+					return createComponent$1(Button$1, {
+						role: "option",
+						get ["aria-label"]() {
+							return label();
+						},
+						get ["aria-selected"]() {
+							return selected();
+						},
+						class: (state) => mergeClasses("w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 rounded-md text-left", match({
+							selected: selected(),
+							hovered: state.hovered
+						}).with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control text-primary").with(P._, () => "bg-transparent text-primary").exhaustive()),
+						onClick: () => config.onSelectionChange?.(item(), index()),
+						get children() {
+							return [
+								createComponent$1(View, {
+									"aria-hidden": "true",
+									class: "flex-none flex items-center justify-center overflow-hidden rounded-sm bg-control",
+									style: {
+										width: `${thumbnailWidth}px`,
+										height: `${thumbnailHeight}px`
+									},
+									get children() {
+										return config.renderThumbnail?.(item(), index()) ?? createComponent$1(Show, {
+											get when() {
+												return !failed();
+											},
+											get children() {
+												return createComponent$1(Image, {
+													get source() {
+														return source();
+													},
+													get ["aria-label"]() {
+														return label();
+													},
+													class: "w-full h-full",
+													onResourceReady: (event) => config.onResourceReady?.(item(), index(), event),
+													onResourceError: (event) => {
+														setFailed(true);
+														config.onResourceError?.(item(), index(), event);
+													}
+												});
+											}
+										});
+									}
+								}),
+								createComponent$1(View, {
+									class: "flex-1 min-w-0 flex flex-col gap-1",
+									get children() {
+										return [createComponent$1(Text, {
+											maxLines: 1,
+											class: "w-full min-w-0 font-medium",
+											get children() {
+												return label();
+											}
+										}), createComponent$1(Show, {
+											get when() {
+												return description();
+											},
+											children: (description) => createComponent$1(Text, {
+												maxLines: 2,
+												class: "w-full min-w-0 text-sm text-muted",
+												get children() {
+													return description();
+												}
+											})
+										})];
+									}
+								}),
+								memo(() => {
+									return config.renderTrailing?.(item(), index());
+								})
+							];
+						}
+					});
+				}
+			});
+		}
+	});
+}
+//#endregion
 //#region src/components/image-viewport.tsx
 function positiveSize(size, name) {
 	if (!Number.isFinite(size.width) || !Number.isFinite(size.height) || size.width <= 0 || size.height <= 0) throw new RangeError(`${name} width and height must be finite and positive`);
@@ -4142,154 +4291,6 @@ function AnnotationLayer(props) {
 			})];
 		}
 	}));
-}
-//#endregion
-//#region src/components/image-list.tsx
-function finitePositive(value, name) {
-	if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be finite and positive`);
-	return value;
-}
-/**
-* A virtualized, selectable image list for page strips, albums and file pickers.
-* Resource loading remains owned by Image; this component owns list lifecycle.
-*/
-function ImageList(props) {
-	const config = untrack(() => ({
-		items: props.items,
-		getItemKey: props.getItemKey,
-		getSource: props.getSource,
-		getLabel: props.getLabel,
-		getDescription: props.getDescription,
-		viewportHeight: props.viewportHeight,
-		overscan: props.overscan,
-		onSelectionChange: props.onSelectionChange,
-		onResourceReady: props.onResourceReady,
-		onResourceError: props.onResourceError,
-		accessibilityLabel: props.accessibilityLabel,
-		class: props.class,
-		renderTrailing: props.renderTrailing,
-		renderThumbnail: props.renderThumbnail
-	}));
-	const { itemHeight, thumbnailWidth, thumbnailHeight } = untrack(() => ({
-		itemHeight: finitePositive(props.itemHeight ?? 88, "itemHeight"),
-		thumbnailWidth: finitePositive(props.thumbnailWidth ?? 56, "thumbnailWidth"),
-		thumbnailHeight: finitePositive(props.thumbnailHeight ?? 72, "thumbnailHeight")
-	}));
-	return createComponent$1(View, {
-		get ["class"]() {
-			return mergeClasses("min-w-0 min-h-0 overflow-hidden", config.class);
-		},
-		get style() {
-			return memo(() => {
-				return config.viewportHeight === void 0;
-			})() ? void 0 : { height: `${config.viewportHeight}px` };
-		},
-		get children() {
-			return createComponent$1(VirtualList, {
-				get items() {
-					return config.items;
-				},
-				itemHeight,
-				get viewportHeight() {
-					return config.viewportHeight;
-				},
-				get overscan() {
-					return config.overscan;
-				},
-				get getItemKey() {
-					return config.getItemKey;
-				},
-				role: "listbox",
-				get accessibilityLabel() {
-					return config.accessibilityLabel ?? "Images";
-				},
-				class: "w-full h-full min-w-0 min-h-0",
-				children: (item, index) => {
-					const [failed, setFailed] = createSignal(false);
-					const key = createMemo(() => config.getItemKey(item(), index()));
-					const label = createMemo(() => config.getLabel(item(), index()));
-					const source = createMemo(() => config.getSource(item(), index()));
-					const description = createMemo(() => config.getDescription?.(item(), index()));
-					const selected = createMemo(() => props.selectedKey === key());
-					return createComponent$1(Button$1, {
-						role: "option",
-						get ["aria-label"]() {
-							return label();
-						},
-						get ["aria-selected"]() {
-							return selected();
-						},
-						class: (state) => mergeClasses("w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 rounded-md text-left", match({
-							selected: selected(),
-							hovered: state.hovered
-						}).with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control text-primary").with(P._, () => "bg-transparent text-primary").exhaustive()),
-						onClick: () => config.onSelectionChange?.(item(), index()),
-						get children() {
-							return [
-								createComponent$1(View, {
-									"aria-hidden": "true",
-									class: "flex-none flex items-center justify-center overflow-hidden rounded-sm bg-control",
-									style: {
-										width: `${thumbnailWidth}px`,
-										height: `${thumbnailHeight}px`
-									},
-									get children() {
-										return config.renderThumbnail?.(item(), index()) ?? createComponent$1(Show, {
-											get when() {
-												return !failed();
-											},
-											get children() {
-												return createComponent$1(Image, {
-													get source() {
-														return source();
-													},
-													get ["aria-label"]() {
-														return label();
-													},
-													class: "w-full h-full",
-													onResourceReady: (event) => config.onResourceReady?.(item(), index(), event),
-													onResourceError: (event) => {
-														setFailed(true);
-														config.onResourceError?.(item(), index(), event);
-													}
-												});
-											}
-										});
-									}
-								}),
-								createComponent$1(View, {
-									class: "flex-1 min-w-0 flex flex-col gap-1",
-									get children() {
-										return [createComponent$1(Text, {
-											maxLines: 1,
-											class: "w-full min-w-0 font-medium",
-											get children() {
-												return label();
-											}
-										}), createComponent$1(Show, {
-											get when() {
-												return description();
-											},
-											children: (description) => createComponent$1(Text, {
-												maxLines: 2,
-												class: "w-full min-w-0 text-sm text-muted",
-												get children() {
-													return description();
-												}
-											})
-										})];
-									}
-								}),
-								memo(() => {
-									return config.renderTrailing?.(item(), index());
-								})
-							];
-						}
-					});
-				}
-			});
-		}
-	});
 }
 //#endregion
 //#region src/components/inline-edit.tsx
@@ -6782,6 +6783,94 @@ function PropertyRow(props) {
 			})];
 		}
 	});
+}
+//#endregion
+//#region src/components/qr-code.tsx
+function positive(name, value) {
+	if (!Number.isFinite(value) || value <= 0) throw new RangeError(`${name} must be a positive finite number`);
+	return value;
+}
+function quietZone(value) {
+	const resolved = value ?? 4;
+	if (!Number.isInteger(resolved) || resolved < 0) throw new RangeError("QRCode quietZone must be a non-negative integer");
+	return resolved;
+}
+/** Encode with uqr while keeping its renderer-independent matrix contract. */
+function encodeQrCode(value, errorCorrection = "M") {
+	const encoded = encode(value, {
+		border: 0,
+		ecc: errorCorrection
+	});
+	return {
+		size: encoded.size,
+		data: encoded.data
+	};
+}
+function rectangle(path, x, y, width, height) {
+	path.moveTo(x, y).lineTo(x + width, y).lineTo(x + width, y + height).lineTo(x, y + height).close();
+}
+/**
+* Convert consecutive dark modules into one retained Vello path. Horizontal
+* runs keep the bridge traffic and native scene node count independent of the
+* number of QR modules.
+*/
+function qrCodePath(matrix, renderedSize, quiet, foreground = 255) {
+	positive("QRCode size", renderedSize);
+	const border = quietZone(quiet);
+	const moduleSize = renderedSize / (matrix.size + border * 2);
+	const path = new PathBuilder();
+	for (let row = 0; row < matrix.size; row++) {
+		const modules = matrix.data[row];
+		for (let column = 0; column < matrix.size;) {
+			if (!modules[column]) {
+				column++;
+				continue;
+			}
+			const start = column;
+			while (column < matrix.size && modules[column]) column++;
+			rectangle(path, (border + start) * moduleSize, (border + row) * moduleSize, (column - start) * moduleSize, moduleSize);
+		}
+	}
+	return path.build({ fill: foreground });
+}
+/** A QR encoder from the JS ecosystem rendered as one native vector path. */
+function QRCode(props) {
+	const rest = omit(props, "value", "size", "errorCorrection", "quietZone", "foreground", "background", "style", "class");
+	const renderedSize = () => positive("QRCode size", props.size ?? 180);
+	const matrix = createMemo(() => encodeQrCode(props.value, props.errorCorrection));
+	const source = createMemo(() => qrCodePath(matrix(), renderedSize(), quietZone(props.quietZone), props.foreground));
+	return createComponent$1(View, mergeProps(rest, {
+		role: "img",
+		get ["aria-label"]() {
+			return props["aria-label"] ?? "QR code";
+		},
+		get ["class"]() {
+			return join("relative flex-none overflow-hidden", props.class);
+		},
+		get style() {
+			return {
+				...props.style,
+				width: renderedSize(),
+				height: renderedSize(),
+				"background-color": props.background ?? rgba$1(4294967295)
+			};
+		},
+		get children() {
+			return createComponent$1(Path, {
+				"aria-hidden": "true",
+				class: "absolute inset-0",
+				get style() {
+					return {
+						width: renderedSize(),
+						height: renderedSize()
+					};
+				},
+				get source() {
+					return source();
+				}
+			});
+		}
+	}));
 }
 //#endregion
 //#region src/components/rating-state.ts
@@ -9427,6 +9516,6 @@ function useLoaderData() {
 	return createMemo(() => router.state.matches.at(-1)?.loaderData);
 }
 //#endregion
-export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, ImageList, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, PropertyList, PropertyRow, Pulse, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
+export { Accordion, AccordionContent, AccordionItem, AccordionTrigger, AdaptiveSplitPane, AdaptiveSplitPaneDetail, AdaptiveSplitPaneMain, Alert, AlertDescription, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertTitle, AnnotationLayer, AspectRatio, Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle, Avatar, AvatarGroup, AvatarGroupCount, Badge, BaseRootRoute, BaseRoute, Breadcrumb, BreadcrumbEllipsis, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator, Bubble, BubbleContent, BubbleGroup, BubbleReactions, Button, ButtonGroup, ButtonGroupSeparator, ButtonGroupText, Calendar, CalendarDate, Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle, Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, Center, ChartContainer, ChartEmpty, ChartLegend, Checkbox, CodeBlock, CodeEditor, Collapsible, CollapsibleContent, CollapsiblePresence, CollapsibleTrigger, Column, Combobox, Command, ComponentsProvider, ConfigEditor, ContextMenu, CopyButton, DataTable, DatePicker, Dialog, DialogDescription, DialogDescription as SheetDescription, DialogFooter, DialogFooter as SheetFooter, DialogHeader, DialogHeader as SheetHeader, DialogScrollBody, DialogScrollBody as SheetScrollBody, DialogTitle, DialogTitle as SheetTitle, DirectionProvider, DirectionalRow, DirectionalText, DirectoryPicker, Drawer, DrawerClose, DrawerDescription, DrawerFooter, DrawerHandle, DrawerHeader, DrawerTitle, DropZone, DropdownMenu, Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle, FORM_ERROR, Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSeparator, FieldSet, FieldTitle, Fps, HoverCard, Icon, Image, ImageList, ImageViewport, InlineEdit, Input, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, InputGroupText, InputGroupTextArea, InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot, Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemHeader, ItemMedia, ItemSeparator, ItemTitle, Kbd, KbdGroup, Label, Marker, MarkerContent, MarkerIcon, Menubar, MenubarMenu, Message, MessageAvatar, MessageContent, MessageFooter, MessageGroup, MessageHeader, MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerViewport, Modal, MotionConfigProvider, NativeSelect, NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuItem, NavigationMenuLink, NavigationMenuList, NavigationMenuTrigger, NavigationMenuViewport, NetworkImage, NotificationRegion, NumberField, OverlayPlaneProvider, PageHeader, PageViewport, Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationItems, PaginationLink, PaginationNext, PaginationPrevious, PasswordInput, Path, PathBuilder, Popover, PopoverDescription, PopoverFooter, PopoverHeader, PopoverTitle, Button$1 as PrimitiveButton, Link as PrimitiveLink, PasswordInput$1 as PrimitivePasswordInput, Popover$1 as PrimitivePopover, TextArea as PrimitiveTextArea, TextInput as PrimitiveTextInput, Progress, ProgressFill, ProgressLabel, ProgressRoot, ProgressTrack, ProgressValueLabel, PropertyList, PropertyRow, Pulse, QRCode, RadioGroup, RadioGroupItem, Rating, ResizableHandle, ResizablePanel, ResizablePanelGroup, ResponsiveGrid, ResponsiveGridRemainder, Ripple, RouterProvider, Row, ScrollArea, SearchField, Select, Separator, Sheet, ShortcutRecorder, Sidebar, SidebarContent, SidebarEmpty, SidebarFooter, SidebarGroup, SidebarGroupLabel, SidebarHeader, SidebarMenuButton, SidebarSearch, Skeleton, Slider, Spin, Spinner, SplitButton, SplitPane, SplitPaneAside, SplitPaneMain, StatCard, StatusBar, StatusBarItem, StatusBarSeparator, Stepper, Svg, Switch, Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow, Tabs, TabsContent, TabsList, TabsTrigger, Text, TextArea$1 as TextArea, Timeline, TitleBar, TitleBarDragRegion, Toaster, Toggle, ToggleGroup, ToggleGroupItem, Toolbar, ToolbarButton, ToolbarGroup, ToolbarSeparator, ToolbarToggle, Tooltip, TreeView, TypographyBlockquote, TypographyH1, TypographyH2, TypographyH3, TypographyH4, TypographyInlineCode, TypographyLarge, TypographyLead, TypographyList, TypographyListItem, TypographyMuted, TypographyP, TypographySmall, View, WindowFrame, alertColors, animate, animateKeyframes, aspectRatioStyle, attachmentClass, attachmentMediaClass, badgeClass, bubbleClass, bubbleContentClass, clampAnnotationRegion, clampPage, clampRatingValue, componentsElevation, createActive, createAnimationFrame, createButton, createContainerMatch, createDataRouter, createDelayedOpenController, createDelayedOpenController as createTooltipDelayController, createFocus, createFocusWithin, createFormDraft, createHover, createInterpolation, createKeyedSelection, createKeyframeAnimation, createLoop, createMeasuredSize, createMemoryHistory, createNotifications, createOverlayLayer, createPaginationRange, createPresence, createPress, createPulse, createResizablePanelState, createRetainedItems, createRotation, createScrollReset, createShortcuts, createStandardSchemaValidator, createSweep, createTabs, createTanStackDataTable, createToasts, createTransition, createTransitionPresence, createTreeModel, drawerDragOffset, drawerShouldDismiss, emptyClass, emptyMediaClass, encodeQrCode, fieldClass, fieldErrorLabel, filterCommandItems, filterSidebarGroups, imageViewportTransform, inputGroupAddonClass, inputGroupClass, isMessageScrollNearEnd, itemClass, itemMediaClass, messageClass, messageScrollRange, moveMenuHighlight, navigationMenuTriggerClass, nextAccordionValue, normalizeCarouselIndex, normalizeOtpValue, normalizePageCount, normalizeProgressValue, normalizeRatingMax, normalizeSweepGeometry, notFound, pageHeaderClass, pageViewportClass, pageViewportContentClass, pointInLayoutRect, primitives_exports as primitives, qrCodePath, ratingLabel, reconcileCommandHighlight, redirect, responsiveGridColumnCount, responsiveGridRemainderCount, shortcutFromKeyEvent, titleBarClass, titleBarDragRegionLayoutStyle, titleBarLayoutStyle, uniqueFieldErrors, useChartConfig, useComponentsTheme, useDirection, useLoaderData, useLocation, useMessageScroller, useMotionConfig, useNavigate, useParams, useReducedMotion, useResponsiveGrid, useRouteActive, useRouter, useRouterState, validateResizableSizes, windowFrameBackdropClassList, windowFrameClientClassList, windowFrameShadows };
 
 //# sourceMappingURL=index.mjs.map

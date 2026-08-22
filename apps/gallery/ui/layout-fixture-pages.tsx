@@ -9,6 +9,7 @@ import {
   DialogLayoutFixture,
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
+  QRCodeLayoutFixture,
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
   SidebarLayoutFixture,
@@ -89,6 +90,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 720,
         height: 520,
         render: ImageViewportLayoutFixture,
+      },
+      "component/QRCode": {
+        width: 320,
+        height: 320,
+        render: QRCodeLayoutFixture,
       },
       "component/ImageList": {
         width: 360,

@@ -162,6 +162,22 @@ const assertImageListLayout = (snapshot: LayoutSnapshot) => {
   assertClose(first.rect.height, 80, "virtual image row height");
 };
 
+const assertQrCodeLayout = (snapshot: LayoutSnapshot) => {
+  const code = getLayoutNode(snapshot, { name: "Fixture QR code" });
+  assertClose(code.rect.width, 196, "QR code width");
+  assertClose(code.rect.height, 196, "QR code height");
+  assertLayoutRectContains(
+    {
+      x: 0,
+      y: 0,
+      width: snapshot.status.viewportWidth,
+      height: snapshot.status.viewportHeight,
+    },
+    code.rect,
+    { label: "QR code" },
+  );
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -184,6 +200,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     height: 360,
     assert: assertImageListLayout,
   },
+  "component/QRCode": { assert: assertQrCodeLayout },
 };
 const fixtureCase = (id: string) => {
   const override = overrides[id];

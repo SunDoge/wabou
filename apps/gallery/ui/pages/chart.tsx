@@ -7,6 +7,7 @@ import {
   ChartLegend,
   Path,
   PathBuilder,
+  QRCode,
   Text,
   View,
 } from "@wabou/ui";
@@ -151,6 +152,31 @@ export function ChartPage() {
         The library only computes scales, ticks, and path geometry. Wabou owns
         layout, accessibility, interaction, and native rendering.
       </Text>
+      <Card>
+        <CardHeader>
+          <CardTitle>JS algorithms, native vector drawing</CardTitle>
+          <Text class="text-sm text-muted">
+            uqr encodes the data; Wabou batches its matrix into one retained
+            Vello path instead of creating hundreds of view nodes.
+          </Text>
+        </CardHeader>
+        <CardContent class="flex flex-row flex-wrap items-center gap-6">
+          <QRCode
+            value="https://github.com/SunDoge/wabou"
+            aria-label="Open the Wabou repository"
+            size={196}
+            class="rounded-lg shadow-md"
+          />
+          <View class="min-w-0 flex-1 gap-2">
+            <Text class="font-semibold">A canvas-like retained path API</Text>
+            <Text class="text-sm text-secondary whitespace-normal">
+              Existing JavaScript geometry libraries can produce drawing
+              commands while layout, clipping, HiDPI rendering, and caching
+              remain native.
+            </Text>
+          </View>
+        </CardContent>
+      </Card>
     </View>
   );
 }
