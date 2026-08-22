@@ -9,6 +9,7 @@ const generatedPatterns = [
   "packages/*/dist/**/*",
   "packages/*/generated/**/*",
   "packages/core/src/generated/**/*",
+  "packages/core/src/style/generated/**/*",
   "packages/vite/src/preset/manifest.json",
   "packages/vite/src/style-compiler/css-support-matrix.json",
 ];

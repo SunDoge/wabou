@@ -3,12 +3,14 @@ import {
   assertInlineStyleValue,
   classes,
   isTypedStyleValue,
+  mergeClasses,
   number,
   percent,
   px,
   rgba,
   rotate2d,
   shadow,
+  utilityConflictProperties,
   type WabouStyle,
   type WabouUtility,
 } from "./index.ts";
@@ -57,6 +59,44 @@ describe("typed style", () => {
     expect(classes("flex", "px-[13px]", utility)).toBe(
       "flex px-[13px] bg-slate-900",
     );
+  });
+
+  test("merges utility conflicts by their Style IR properties", () => {
+    expect(utilityConflictProperties("text-[18px]")).toEqual([
+      "font-size",
+    ]);
+    expect(utilityConflictProperties("border-[3px]")).toEqual([
+      "border-top-width",
+      "border-right-width",
+      "border-bottom-width",
+      "border-left-width",
+    ]);
+    expect(utilityConflictProperties("aspect-[16/9]")).toEqual([
+      "aspect-ratio",
+    ]);
+    expect(mergeClasses("w-full min-w-0", "w-48")).toBe("min-w-0 w-48");
+    expect(mergeClasses("p-2", "px-4")).toBe("p-2 px-4");
+    expect(mergeClasses("px-4", "p-2")).toBe("p-2");
+    expect(mergeClasses("overflow-hidden", "overflow-x-scroll")).toBe(
+      "overflow-hidden overflow-x-scroll",
+    );
+    expect(mergeClasses("overflow-x-scroll", "overflow-hidden")).toBe(
+      "overflow-hidden",
+    );
+    expect(mergeClasses("translate-x-2", "translate-y-4")).toBe(
+      "translate-x-2 translate-y-4",
+    );
+    expect(mergeClasses("translate-x-2", "translate-x-4")).toBe(
+      "translate-x-4",
+    );
+  });
+
+  test("preserves conditional and unknown third-party classes", () => {
+    expect(
+      mergeClasses("flex lucide-image", false, undefined, "lucide-image block"),
+    ).toBe("lucide-image lucide-image block");
+    expect(mergeClasses("-w-4", "w-full")).toBe("-w-4 w-full");
+    expect(mergeClasses("p-auto", "p-2")).toBe("p-auto p-2");
   });
 
   test("constructs Vello-native shadows in stdDev units", () => {

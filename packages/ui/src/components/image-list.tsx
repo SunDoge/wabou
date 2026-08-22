@@ -1,4 +1,5 @@
 import { VirtualList } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { createMemo, createSignal, type JSX, Show, untrack } from "solid-js";
 import { match, P } from "ts-pattern";
 import {
@@ -83,12 +84,10 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
 
   return (
     <View
-      class={config.class}
-      classList={{
-        "min-w-0": true,
-        "min-h-0": true,
-        "overflow-hidden": true,
-      }}
+      class={mergeClasses(
+        "min-w-0 min-h-0 overflow-hidden",
+        config.class,
+      )}
       style={
         config.viewportHeight === undefined
           ? undefined
@@ -120,25 +119,21 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
               aria-label={label()}
               aria-selected={selected()}
               class={(state) =>
-                match({ selected: selected(), hovered: state.hovered })
-                  .with({ selected: true }, () => "bg-selected text-primary")
-                  .with({ hovered: true }, () => "bg-control text-primary")
-                  .with(P._, () => "bg-transparent text-primary")
-                  .exhaustive()
+                mergeClasses(
+                  "w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 rounded-md text-left",
+                  match({ selected: selected(), hovered: state.hovered })
+                    .with(
+                      { selected: true },
+                      () => "bg-selected text-primary",
+                    )
+                    .with(
+                      { hovered: true },
+                      () => "bg-control text-primary",
+                    )
+                    .with(P._, () => "bg-transparent text-primary")
+                    .exhaustive(),
+                )
               }
-              classList={{
-                "w-full": true,
-                "h-full": true,
-                "min-w-0": true,
-                flex: true,
-                "flex-row": true,
-                "items-center": true,
-                "gap-3": true,
-                "px-3": true,
-                "py-2": true,
-                "rounded-md": true,
-                "text-left": true,
-              }}
               onClick={() => config.onSelectionChange?.(item(), index())}
             >
               <View

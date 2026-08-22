@@ -1,6 +1,6 @@
 import { $ as rotate2d$1, A as isSelected, B as createButton, C as OverlayPlaneProvider, D as Column, E as Center, F as createPresence, G as PasswordInput$1, H as Icon, I as createContainerMatch, J as Svg, K as Path, L as createMeasuredSize, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as View, R as Button$1, S as createTransitionPresence, U as Image, V as CodeEditor, W as NetworkImage, X as TextArea, Y as Text, Z as TextInput, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as translate2d$1, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as PathBuilder, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as Link } from "./primitives-9A92ZpYh.mjs";
 import { rgba, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
-import { scale2d, shadow } from "@wabou/core/style";
+import { mergeClasses, scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
@@ -4177,12 +4177,7 @@ function ImageList(props) {
 	}));
 	return createComponent$1(View, {
 		get ["class"]() {
-			return config.class;
-		},
-		classList: {
-			"min-w-0": true,
-			"min-h-0": true,
-			"overflow-hidden": true
+			return mergeClasses("min-w-0 min-h-0 overflow-hidden", config.class);
 		},
 		get style() {
 			return memo(() => {
@@ -4224,23 +4219,10 @@ function ImageList(props) {
 						get ["aria-selected"]() {
 							return selected();
 						},
-						class: (state) => match({
+						class: (state) => mergeClasses("w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 rounded-md text-left", match({
 							selected: selected(),
 							hovered: state.hovered
-						}).with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control text-primary").with(P._, () => "bg-transparent text-primary").exhaustive(),
-						classList: {
-							"w-full": true,
-							"h-full": true,
-							"min-w-0": true,
-							flex: true,
-							"flex-row": true,
-							"items-center": true,
-							"gap-3": true,
-							"px-3": true,
-							"py-2": true,
-							"rounded-md": true,
-							"text-left": true
-						},
+						}).with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control text-primary").with(P._, () => "bg-transparent text-primary").exhaustive()),
 						onClick: () => config.onSelectionChange?.(item(), index()),
 						get children() {
 							return [

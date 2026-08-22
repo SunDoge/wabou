@@ -429,6 +429,15 @@ declare const scale2d: (scale: number) => Affine2D;
 declare const rotate2d: (angle: number) => Affine2D;
 /** Type-check a list of utilities while producing Solid's class string. */
 declare const classes: (...values: readonly WabouUtility[]) => string;
+type ClassValue = string | false | null | undefined;
+/** Return the Style IR properties affected by a supported utility candidate. */
+declare function utilityConflictProperties(candidate: string): readonly string[] | undefined;
+/**
+ * Merge Wabou utility strings using their Style IR properties. Later values
+ * win, while utilities that still contribute an uncovered property remain.
+ * Unknown third-party classes are preserved unchanged.
+ */
+declare function mergeClasses(...values: readonly ClassValue[]): string;
 //#endregion
-export { WabouSpacingToken as C, WabouStyle as D, INLINE_STYLE_CONTRACT as E, WabouDynamicUtility as S, WabouUtility as T, scale2d as _, StyleValueKind as a, WabouBaseUtility as b, auto as c, isTypedStyleValue as d, number as f, rotate2d as g, rgba as h, ShadowOptions as i, bool as l, px as m, STYLE_VALUE as n, TypedStyleValue as o, percent as p, Shadow as r, assertInlineStyleValue as s, Affine2D as t, classes as u, shadow as v, WabouStaticUtility as w, WabouColorToken as x, translate2d as y };
-//# sourceMappingURL=style-B1vJn3ZY.d.mts.map
+export { WabouStyle as A, WabouBaseUtility as C, WabouStaticUtility as D, WabouSpacingToken as E, WabouUtility as O, utilityConflictProperties as S, WabouDynamicUtility as T, rgba as _, ShadowOptions as a, shadow as b, assertInlineStyleValue as c, classes as d, isTypedStyleValue as f, px as g, percent as h, Shadow as i, INLINE_STYLE_CONTRACT as k, auto as l, number as m, ClassValue as n, StyleValueKind as o, mergeClasses as p, STYLE_VALUE as r, TypedStyleValue as s, Affine2D as t, bool as u, rotate2d as v, WabouColorToken as w, translate2d as x, scale2d as y };
+//# sourceMappingURL=style-DmvRO3mt.d.mts.map

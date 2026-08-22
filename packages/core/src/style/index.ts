@@ -6,6 +6,7 @@ export * from "./generated/utility-types.ts";
 
 import { INLINE_STYLE_CONTRACT } from "./generated/style-properties.ts";
 import type { WabouUtility } from "./generated/utility-types.ts";
+import { UTILITY_CONFLICT_DATA } from "./generated/utility-conflicts.ts";
 
 export const STYLE_VALUE = "__wabou_style_value__" as const;
 
@@ -197,3 +198,120 @@ export const rotate2d = (angle: number): Affine2D => {
 /** Type-check a list of utilities while producing Solid's class string. */
 export const classes = (...values: readonly WabouUtility[]): string =>
   values.join(" ");
+
+export type ClassValue = string | false | null | undefined;
+
+const staticConflictProperties = new Map<string, readonly string[]>(
+  Object.entries(UTILITY_CONFLICT_DATA.staticUtilities),
+);
+const spacingTokens = new Set<string>(UTILITY_CONFLICT_DATA.spacing);
+const colorTokens = new Set<string>(UTILITY_CONFLICT_DATA.colors);
+const dynamicConflictRules = [...UTILITY_CONFLICT_DATA.dynamicRules].sort(
+  (left, right) => right.name.length - left.name.length,
+);
+const dynamicConflictCache = new Map<string, readonly string[] | null>();
+const arbitraryNumber = /^\[-?(?:\d+(?:\.\d*)?|\.\d+)\]$/;
+const arbitraryLength =
+  /^\[-?(?:\d+(?:\.\d*)?|\.\d+)(?:px|rem|%)\]$/;
+const barePercent = /^-?(?:\d+(?:\.\d*)?|\.\d+)%$/;
+const fraction = /^\d+\/[1-9]\d*$/;
+
+function dynamicTokenMatches(
+  resolver: string,
+  token: string,
+  allowAuto: boolean,
+): boolean {
+  const colorAndOpacity = token.split("/", 2);
+  switch (resolver) {
+    case "spacing":
+      return (
+        spacingTokens.has(token) ||
+        (allowAuto && token === "auto") ||
+        arbitraryLength.test(token)
+      );
+    case "dimension":
+      return (
+        spacingTokens.has(token) ||
+        token === "full" ||
+        arbitraryLength.test(token) ||
+        barePercent.test(token) ||
+        fraction.test(token)
+      );
+    case "color":
+      return (
+        (colorTokens.has(colorAndOpacity[0] ?? "") &&
+          (colorAndOpacity.length === 1 ||
+            /^(?:100|\d{1,2})$/.test(colorAndOpacity[1] ?? ""))) ||
+        /^\[#[0-9a-fA-F]{3,8}\](?:\/\d+)?$/.test(token)
+      );
+    case "opacity":
+      return (
+        /^\d+(?:\.\d+)?$/.test(token) &&
+        Number(token) >= 0 &&
+        Number(token) <= 100
+      );
+    case "number":
+    case "scale":
+    case "rotate":
+      return arbitraryNumber.test(token) || /^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(token);
+    case "ratio":
+      return /^\[(?:\d+(?:\.\d*)?|\.\d+)(?:\/(?:\d+(?:\.\d*)?|\.\d+))?\]$/.test(
+        token,
+      );
+    case "length":
+      return arbitraryLength.test(token);
+    case "translate":
+      return spacingTokens.has(token) || arbitraryLength.test(token);
+    default:
+      return false;
+  }
+}
+
+/** Return the Style IR properties affected by a supported utility candidate. */
+export function utilityConflictProperties(
+  candidate: string,
+): readonly string[] | undefined {
+  const staticProperties = staticConflictProperties.get(candidate);
+  if (staticProperties) return staticProperties;
+  const cached = dynamicConflictCache.get(candidate);
+  if (cached !== undefined) return cached ?? undefined;
+  const negative = candidate.startsWith("-");
+  const normalized = negative ? candidate.slice(1) : candidate;
+  for (const rule of dynamicConflictRules) {
+    const marker = `${rule.name}-`;
+    if (!normalized.startsWith(marker)) continue;
+    if (negative && !rule.negative) continue;
+    const token = normalized.slice(marker.length);
+    if (dynamicTokenMatches(rule.resolver, token, rule.auto)) {
+      dynamicConflictCache.set(candidate, rule.properties);
+      return rule.properties;
+    }
+  }
+  dynamicConflictCache.set(candidate, null);
+}
+
+/**
+ * Merge Wabou utility strings using their Style IR properties. Later values
+ * win, while utilities that still contribute an uncovered property remain.
+ * Unknown third-party classes are preserved unchanged.
+ */
+export function mergeClasses(...values: readonly ClassValue[]): string {
+  const candidates = values.flatMap((value) =>
+    typeof value === "string" ? value.trim().split(/\s+/).filter(Boolean) : [],
+  );
+  const covered = new Set<string>();
+  const merged: string[] = [];
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const candidate = candidates[index];
+    if (!candidate) continue;
+    const properties = utilityConflictProperties(candidate);
+    if (!properties) {
+      merged.push(candidate);
+      continue;
+    }
+    if (properties.every((property) => covered.has(property))) continue;
+    merged.push(candidate);
+    for (const property of properties) covered.add(property);
+  }
+  return merged.reverse().join(" ");
+}
