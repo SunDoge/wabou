@@ -1,4 +1,4 @@
 interface:
-  display_name: "Debug Wabou"
-  short_description: "Reproduce and diagnose Wabou rendering and runtime bugs"
-  default_prompt: "Use $wabou-debug to reproduce and diagnose this Wabou rendering or runtime issue with evidence."
+  display_name: "Test and Debug Wabou"
+  short_description: "Prove Wabou UI fixes at the cheapest reliable layer"
+  default_prompt: "Use $wabou-debug to reproduce this Wabou issue with component or layout tests first, escalating to native and pixel evidence only when required."

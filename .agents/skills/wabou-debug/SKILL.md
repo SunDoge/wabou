@@ -1,11 +1,86 @@
 ---
 name: wabou-debug
-description: Reproduce and diagnose Wabou native UI bugs using layout snapshots, DevTools sockets, debug overlays, headless PNG rendering, protocol tests, and platform/HiDPI comparisons. Use for incorrect layout, clipping, custom-widget rendering, blank or stale windows, resize/maximize failures, HMR discrepancies, hit-testing issues, Linux-versus-macOS differences, and performance regressions in this repository.
+description: Reproduce, test, and diagnose Wabou UI bugs with component Vitest tests, QuickJS + Style IR + Taffy layout contracts, native behavior scenarios, protocol tests, DevTools inspection, and focused pixel/platform captures. Use for component behavior, reactive warnings, incorrect layout, clipping, custom-widget rendering, blank or stale windows, resize/maximize failures, HMR discrepancies, hit-testing issues, Linux-versus-macOS differences, and performance regressions in this repository.
 ---
 
 # Debug Wabou
 
-Gather evidence at the failing layer before editing. Do not treat a passing Linux 1× render as proof of macOS 2× correctness.
+Gather evidence at the failing layer before editing. Make the cheapest deterministic
+test reproduce the bug, then keep that test as the regression. Do not use screenshots
+as the default validation loop. Do not treat a passing Linux 1× render as proof of
+macOS 2× correctness.
+
+## Default verification ladder
+
+Choose the first layer that can prove the requested property and stop there unless a
+lower layer remains suspect:
+
+1. **Component Vitest** for state, roles, semantic attributes, event handlers,
+   composition, timers, capability calls, authored style, and transforms.
+2. **Protocol/style tests** for candidate parsing, class resolution, computed style,
+   op encoding, resource handles, and generated DTO boundaries.
+3. **Component layout fixtures** for QuickJS effects, Style IR, text measurement,
+   Taffy geometry, overflow, clipping, collision, scroll ranges, and responsive
+   layout. Run fixtures in one release CLI batch.
+4. **Native behavior tests** only for native hit testing, keyboard/IME, clipboard,
+   native widgets, multiple windows, tray, resize, drag/drop, or completed semantic
+   frames.
+5. **Headless pixel capture** only when geometry and semantics are correct but paint
+   is wrong: glyph rasterization, shadows, rounded clips, image decoding, native
+   widget paint, Vello scene composition, or transparency.
+6. **Platform capture** only for backend, compositor, DPI, font-resolution, or
+   operating-system behavior that cannot be established at earlier layers.
+
+Do not add a broad behavior or screenshot test when a component or layout test can
+express the contract. Do not repeatedly inspect screenshots after style-only edits;
+add or update the component fixture and run the batch.
+
+## Fast component and layout loop
+
+Use `@wabou/test/component` with Vitest for independently testable components. Drive
+controls by role and accessible name, then assert semantic state or authored output.
+Use fake time for tooltip, debounce, and finite animation behavior; use typed host and
+platform fixtures for capabilities. Read `docs/testing.md` when adding a component
+test.
+
+Run the narrow unit test first:
+
+```bash
+bun --conditions=browser --conditions=wabou-source test path/to/component.test.tsx
+```
+
+For real layout, add or reuse a fixture in
+`apps/gallery/ui/layout-fixture-components.tsx` and its focused contract in
+`apps/gallery/tests/layout.ts`. Prefer semantic node lookup plus explicit overflow or
+collision checks over full-tree snapshots.
+
+```bash
+# Reuse the current release CLI and fixture bundle while editing TSX/styles.
+bun run test:layout:quick widgets/Button widgets/Card
+
+# Rebuild packages, release CLI, and fixture bundle after Rust, dependency,
+# generated-output, or fixture-registry changes, and before committing.
+bun run test:layout
+```
+
+The layout runner enables Solid development diagnostics. Treat
+`[STRICT_READ_UNTRACKED]` and `[REACTIVITY_HALTED]` as test failures, not ignorable
+logs. If a warning only appears during application startup, exercise the real entry
+with `renderAppLayout` from `@wabou/test/layout/node`; the captured diagnostic stack
+is source-mapped by the runtime.
+
+Use `waitMs` only for an authored timer, promise, or finite animation. Never add a
+sleep merely to make a flaky assertion pass. Use `page.waitForIdle()` in native
+behavior tests to cross completed JS/native frame boundaries; it intentionally does
+not wait for infinite animations.
+
+After changing a shared component, require:
+
+- a component Vitest contract;
+- a layout fixture when it owns geometry, clipping, scrolling, overlay placement,
+  native paint, or responsive behavior;
+- a behavior test only for a genuinely native interaction;
+- a pixel capture only for a paint-specific regression.
 
 ## Start with state
 
@@ -32,7 +107,7 @@ Trace one suspect node through these layers:
 
 Prefer an assertion at the earliest incorrect layer. If geometry is correct but pixels are wrong, add an offscreen render or platform-specific reproduction instead of more layout assertions.
 
-## Inspect a running app
+## Inspect a running app when deterministic tests cannot isolate it
 
 Start with DevTools enabled:
 
@@ -40,14 +115,14 @@ Start with DevTools enabled:
 mise exec -- bun run wabou dev apps/gallery --devtools
 ```
 
-Then inspect the discovered socket:
+Then inspect the discovered socket. Query and validate the tree before taking any
+screenshot:
 
 ```bash
 mise exec -- bun run wabou inspect status
 mise exec -- bun run wabou inspect query fractal
 mise exec -- bun run wabou inspect node <id>
 mise exec -- bun run wabou inspect validate
-mise exec -- bun run wabou inspect screenshot
 ```
 
 Run `validate` before interpreting pixels. An invalid report means the
@@ -65,9 +140,10 @@ Use the DevTools `Layout` control for native overlays:
 
 The MCP tool `wabou_set_layout_overlay` exposes the same target-window overlay for agent-driven diagnosis.
 
-## Capture without a display server
+## Capture pixels only after earlier layers pass
 
-Use `scripts/capture-png.sh` for a deterministic offscreen render:
+First record why component, protocol, layout, and behavior evidence cannot prove the
+property. Then use `scripts/capture-png.sh` for a deterministic offscreen render:
 
 ```bash
 .agents/skills/wabou-debug/scripts/capture-png.sh gallery /tmp/gallery.png 1440 900
@@ -83,6 +159,7 @@ capture. Set `WABOU_CAPTURE_BUNDLE_ONLY=1` for a faster frontend-only capture.
 Coordinate click capture currently selects the bundle-only path.
 
 Inspect the resulting PNG with an image viewer/tool, not by file existence alone.
+Prefer a focused crop or pixel assertion over repeatedly judging the whole app by eye.
 
 Limitations:
 
@@ -148,10 +225,17 @@ platforms. Platform-specific outline behavior belongs in the single
 
 ## Choose the right test
 
+- Component state/composition bug: `@wabou/test/component` Vitest test.
 - Parser/preset bug: TypeScript unit test for candidate → typed Style IR.
 - Cascade bug: `computed_style` snapshot test.
-- Layout/clip bug: `layout_fixtures` or `wabou-shell::layout` geometry test.
-- Event bug: encoded op/event replay test with hit target assertions.
+- Layout/clip/scroll/collision bug: batched TypeScript layout fixture; use a lower-level
+  `wabou-shell::layout` test only for engine internals.
+- Reactive warning/effect bug: development-mode `renderAppLayout` or layout fixture;
+  the command must fail on the diagnostic.
+- JavaScript event bug: component test; use encoded op/event replay only when native
+  routing is in question.
+- Native input/window/tray bug: focused behavior scenario with semantic and state
+  assertions.
 - Scene/backend bug: offscreen pixel test or a minimal platform reproduction.
 - Resize/maximize bug: dispatch real `WindowMetrics` transitions; do not test only the initial size.
 
@@ -159,14 +243,20 @@ An op replay can verify deterministic tree, style, layout, invalidation, and eve
 
 ## Validate proportionally
 
-Run the narrow test first, then the affected app build:
+Run the narrow test first, then the affected verification layer:
 
 ```bash
 cargo test -p wabou-shell --lib
-cargo test -p wabou-quick --lib
-mise exec -- bun x tsc --noEmit
-mise exec -- bun run wabou build apps/gallery
+bun --conditions=browser --conditions=wabou-source test path/to/test.tsx
+bun run test:layout:quick affected/Fixture
+bun run test:layout
+bun x tsc --noEmit
 git diff --check
 ```
 
-Report what was directly reproduced, the platform/scale tested, and what remains inferred. Never say a visual bug is fixed based only on compilation or geometry tests.
+Do not run every command mechanically; select commands that prove the changed layer.
+Run the full layout command before committing layout-affecting shared components.
+Report what was directly reproduced, the layer tested, the platform/scale when
+relevant, and what remains inferred. Never say a visual bug is fixed based only on
+compilation. Never claim pixel correctness from geometry tests, and never claim
+layout correctness merely because a screenshot looked acceptable.
