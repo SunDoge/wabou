@@ -8,6 +8,7 @@ import {
   createDataRouter,
   createMemoryHistory,
   createScrollReset,
+  currentWindow,
   createWindowMatch,
   Fps,
   type Handle,
@@ -392,7 +393,8 @@ import {
 function App() {
   const window = useWindow();
   const compact = createWindowMatch({ maxWidth: 1099 }, window);
-  if (window.id.lo !== 1 || window.id.hi !== 1) return <ChildWindowPage />;
+  const windowId = currentWindow().id;
+  if (windowId.lo !== 1 || windowId.hi !== 1) return <ChildWindowPage />;
   const [theme, setTheme] = createSignal<GalleryTheme>("dark");
   const dark = () => theme() !== "light";
   const themeLabel = () =>

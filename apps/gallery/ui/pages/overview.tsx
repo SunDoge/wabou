@@ -96,7 +96,7 @@ export function OverviewPage(props: {
       ? `${Math.round(stats.viewport_w)} x ${Math.round(stats.viewport_h)}`
       : "Waiting for native frame";
   });
-  const debugOverlayAvailable = overlayPaint() !== null;
+  const debugOverlayAvailable = () => overlayPaint() !== null;
   const [selectedNode, setSelectedNode] = createSignal("hero");
   const [motion, setMotion] = createSignal(72);
   const [inspectLayout, setInspectLayout] = createSignal(false);
@@ -128,7 +128,7 @@ export function OverviewPage(props: {
     }
   };
   const layoutOverlayStatus = () => {
-    if (!debugOverlayAvailable) return "Available in debug builds";
+    if (!debugOverlayAvailable()) return "Available in debug builds";
     if (!inspectLayout()) return "Inspect native bounds";
     const paint = overlayPaint();
     if (!paint?.enabled || paint.layout_bounds === 0)
@@ -381,7 +381,7 @@ export function OverviewPage(props: {
               </View>
               <Switch
                 checked={inspectLayout()}
-                disabled={!debugOverlayAvailable}
+                disabled={!debugOverlayAvailable()}
                 aria-label="Layout overlay"
                 onCheckedChange={toggleLayoutOverlay}
               />
