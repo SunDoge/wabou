@@ -1,8 +1,8 @@
-import { $ as Link, A as isSelected, B as Path, C as OverlayPlaneProvider, D as Column, E as Center, F as CodeEditor, G as TextInput, H as Svg, I as Icon, J as translate2d$1, K as View, L as Image, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as Button$1, R as NetworkImage, S as createTransitionPresence, U as Text, V as PathBuilder, W as TextArea, X as createContainerMatch, Y as createPresence, Z as createMeasuredSize, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as createButton, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as rotate2d$1, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as PasswordInput$1 } from "./primitives-CN9r8pQY.mjs";
+import { $ as rotate2d$1, A as isSelected, B as createButton, C as OverlayPlaneProvider, D as Column, E as Center, F as createPresence, G as PasswordInput$1, H as Icon, I as createContainerMatch, J as Svg, K as Path, L as createMeasuredSize, M as FORM_ERROR, N as createFormDraft, O as Row, P as CollapsiblePresence, Q as View, R as Button$1, S as createTransitionPresence, U as Image, V as CodeEditor, W as NetworkImage, X as TextArea, Y as Text, Z as TextInput, _ as createRetainedItems, _t as MotionConfigProvider, a as ScrollArea, at as createFocusWithin, b as Spin, ct as animateKeyframes, dt as createLoop, et as translate2d$1, ft as createPulse, g as createNotifications, gt as normalizeSweepGeometry, h as NotificationRegion, ht as createTransition, i as createScrollReset, it as createFocus, j as toggleSelection, k as createKeyedSelection, lt as createInterpolation, mt as createSweep, n as createTabs, nt as createPress, o as Popover$1, ot as createAnimationFrame, pt as createRotation, q as PathBuilder, r as createShortcuts, rt as createHover, st as animate, t as primitives_exports, tt as createActive, ut as createKeyframeAnimation, v as Pulse, vt as useMotionConfig, w as createOverlayLayer, x as Modal, y as Ripple, yt as useReducedMotion, z as Link } from "./primitives-BdI7fk78.mjs";
 import { rgba, useClipboard, useDialog, useFileDrop, useHost, useWindow } from "@wabou/core";
 import { scale2d, shadow } from "@wabou/core/style";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
-import { applyRef, createComponent as createComponent$1, createElement, createFps, insertNode, memo, mergeProps } from "@wabou/core/renderer";
+import { applyRef, createComponent as createComponent$1, createFps, memo, mergeProps } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
 import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
 import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
@@ -2917,6 +2917,7 @@ function AccordionContent(props) {
 }
 //#endregion
 //#region src/components/display.tsx
+const SPINNER_SOURCE = `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M 12 3 A 9 9 0 0 1 21 12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`;
 function Skeleton(props) {
 	const reducedMotion = useReducedMotion();
 	const motionDisabled = () => props.animated === false || reducedMotion();
@@ -2963,29 +2964,11 @@ function Spinner(props) {
 		},
 		duration: .9,
 		get children() {
-			var _el$ = createElement("svg", {
+			return createComponent$1(Svg, {
 				"aria-hidden": "true",
 				class: "w-full h-full",
-				viewBox: "0 0 24 24",
-				fill: "none"
+				source: SPINNER_SOURCE
 			});
-			var _el$2 = createElement("circle", {
-				cx: "12",
-				cy: "12",
-				r: "9",
-				stroke: "currentColor",
-				"stroke-width": "3",
-				opacity: "0.25"
-			});
-			var _el$3 = createElement("path", {
-				d: "M 12 3 A 9 9 0 0 1 21 12",
-				stroke: "currentColor",
-				"stroke-width": "3",
-				"stroke-linecap": "round"
-			});
-			insertNode(_el$, _el$2);
-			insertNode(_el$, _el$3);
-			return _el$;
 		}
 	});
 }

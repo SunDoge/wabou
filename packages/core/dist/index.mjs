@@ -546,6 +546,12 @@ const windowKeys = createResourceKeyFamily("window");
 function windowKeyFromJSON(value) {
 	return windowKeys.fromJSON(value);
 }
+/** Immutable native creation options for the JavaScript runtime's window. */
+function currentWindowOptions() {
+	const serialized = globalThis.__wabou_window_options_json;
+	if (!serialized) return Object.freeze({});
+	return Object.freeze(JSON.parse(serialized));
+}
 function handle(id) {
 	return Object.freeze({
 		id,
@@ -1488,6 +1494,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
+export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeFileDrop, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useClipboard, useColorTheme, useDialog, useFileDrop, useHost, useNotification, useWindow, writer };
 
 //# sourceMappingURL=index.mjs.map

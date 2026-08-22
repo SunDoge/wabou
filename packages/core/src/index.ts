@@ -153,6 +153,7 @@ export {
   type CreateWindowOptions,
   createWindow,
   currentWindow,
+  currentWindowOptions,
   type WindowHandle,
   type WindowKey,
 } from "./glue/window";

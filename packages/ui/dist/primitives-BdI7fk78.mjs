@@ -3,7 +3,7 @@ import { PathBuilder } from "@wabou/core";
 import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
 import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
-import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, insert, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
+import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 import { formatNodeKey } from "@wabou/core/protocol";
@@ -396,12 +396,187 @@ function createActive(disabled) {
 	};
 }
 //#endregion
+//#region src/primitives/view.ts
+const ICON_SIZE_UNITLESS_RE = /^-?\d*\.?\d+$/;
+function normalizeIconSize(size) {
+	if (size == null) return "1em";
+	if (typeof size === "number") return size;
+	const value = size.trim();
+	if (!value) return "1em";
+	const parsed = Number.parseFloat(value);
+	if (Number.isFinite(parsed) && ICON_SIZE_UNITLESS_RE.test(value)) return parsed;
+	return value;
+}
+function applyIconFill(source, fill) {
+	return source.replace(/fill=(["'])none\1/, `fill="${fill}"`);
+}
+/** @internal Host tags are renderer details, not public JSX elements. */
+function createInternalPrimitive(tag, props) {
+	const node = createElement(tag);
+	spread(node, props, false);
+	return node;
+}
+function primitive(tag, props) {
+	return createInternalPrimitive(tag, props);
+}
+function editorPrimitive(tag, props) {
+	return primitive(tag, mergeProps(props, {
+		get role() {
+			return props.role ?? "textbox";
+		},
+		get focusOrder() {
+			return props.disabled ? -1 : props.focusOrder ?? 0;
+		},
+		get "aria-disabled"() {
+			return props.disabled ?? false;
+		}
+	}));
+}
+function semanticPrimitive(tag, role, props) {
+	const node = createElement(tag);
+	spread(node, { role }, false);
+	spread(node, props, false);
+	return node;
+}
+/** A layout container. Text content should be placed in a {@link Text}. */
+function View(props) {
+	return primitive("view", props);
+}
+function resolvedTextBehavior(maxLines) {
+	if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) throw new RangeError("Text maxLines must be a positive integer");
+	return {
+		flags: TEXT_BEHAVIOR.AggregateDirectText | (maxLines == null || maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
+		maxLines: maxLines ?? 0
+	};
+}
+/**
+* A single measured text run.
+*
+* Static and reactive child text nodes are concatenated by the native host and
+* participate in the parent layout as one item.
+*/
+function Text(props) {
+	resolvedTextBehavior(untrack(() => props.maxLines));
+	const node = createElement("text");
+	spread(node, omit(props, "maxLines"), false);
+	spread(node, {
+		role: props.role ?? "label",
+		get textBehavior() {
+			return resolvedTextBehavior(props.maxLines);
+		}
+	}, false);
+	return node;
+}
+/** A static SVG asset rendered through the native usvg/Vello pipeline. */
+function Svg(props) {
+	return semanticPrimitive("svg", "img", props);
+}
+/** A native Vello vector path in local logical-pixel coordinates. */
+function Path(props) {
+	return primitive("vector-path", props);
+}
+/** A theme-colored SVG icon with stable native sizing and semantics. */
+function Icon(props) {
+	const rest = omit(props, "source", "size", "fill", "label", "class");
+	const node = createElement("svg");
+	spread(node, rest, false);
+	spread(node, {
+		get class() {
+			return props.class ? `self-center shrink-0 ${props.class}` : "self-center shrink-0";
+		},
+		get style() {
+			const iconSize = normalizeIconSize(props.size);
+			return {
+				display: "inline-flex",
+				"align-items": "center",
+				"justify-content": "center",
+				"align-self": "center",
+				width: iconSize,
+				height: iconSize,
+				"flex-shrink": 0,
+				"line-height": "1",
+				...props.style ?? {}
+			};
+		},
+		get width() {
+			const iconSize = normalizeIconSize(props.size);
+			return typeof iconSize === "number" ? String(iconSize) : void 0;
+		},
+		get source() {
+			return props.fill && props.fill !== "none" ? applyIconFill(props.source, props.fill) : props.source;
+		},
+		get height() {
+			const iconSize = normalizeIconSize(props.size);
+			return typeof iconSize === "number" ? String(iconSize) : void 0;
+		},
+		get role() {
+			return props.label ? "img" : void 0;
+		},
+		get "aria-label"() {
+			return props.label;
+		},
+		get "aria-hidden"() {
+			return props.label ? void 0 : "true";
+		}
+	}, false);
+	return node;
+}
+/** A replaced image node rendered by the native host. */
+function Image(props) {
+	const rest = omit(props, "source");
+	const node = createElement("img");
+	spread(node, { role: "img" }, false);
+	spread(node, rest, false);
+	spread(node, {
+		get src() {
+			const source = props.source;
+			return source?.kind === "file" ? source.path : void 0;
+		},
+		get source() {
+			const source = props.source;
+			return source?.kind === "network" ? source : void 0;
+		}
+	}, false);
+	return node;
+}
+/** An explicit network-backed image with bounded decoding and host caching. */
+function NetworkImage(props) {
+	const rest = omit(props, "url", "format", "cache");
+	return Image(mergeProps(rest, { get source() {
+		return {
+			kind: "network",
+			url: props.url,
+			format: props.format,
+			cache: props.cache
+		};
+	} }));
+}
+/** A native single-line text editor with selection and scrolling. */
+function TextInput(props) {
+	return editorPrimitive("input", props);
+}
+/** A native multiline text editor with wrapping, selection, and scrolling. */
+function TextArea(props) {
+	return editorPrimitive("textarea", props);
+}
+/** Native password editor whose value remains in a Rust SecretStore. */
+function PasswordInput(props) {
+	return editorPrimitive("password-input", props);
+}
+/** Experimental native editor for config and script-sized documents. */
+function CodeEditor(props) {
+	return editorPrimitive("code-editor", props);
+}
+//#endregion
 //#region src/primitives/button.tsx
 const ACCENTS = {
 	neutral: "#475569",
 	sky: "#0284c7",
 	amber: "#d97706"
 };
+function InternalButton(props) {
+	return createInternalPrimitive("button", props);
+}
 function resolveButtonFocusOrder(disabled, focusOrder) {
 	return disabled ? -1 : focusOrder ?? 0;
 }
@@ -506,8 +681,7 @@ function Button(props) {
 		if (state().hovered && !props.selected) return "#334155";
 		return accent();
 	};
-	var _el$ = createElement("button");
-	spread(_el$, mergeProps(refProps, {
+	return createComponent$1(InternalButton, mergeProps(refProps, {
 		get disabled() {
 			return disabled();
 		},
@@ -620,12 +794,11 @@ function Button(props) {
 		},
 		get onWheel() {
 			return props.onWheel;
+		},
+		get children() {
+			return props.children;
 		}
-	}), true);
-	insert(_el$, () => {
-		return props.children;
-	});
-	return _el$;
+	}));
 }
 /**
 * An explicit external-link interaction.
@@ -721,164 +894,6 @@ function createPresence(open) {
 			if (!untrack(open)) setPhase((current) => current === "exiting" ? "unmounted" : current);
 		}
 	};
-}
-//#endregion
-//#region src/primitives/view.ts
-const ICON_SIZE_UNITLESS_RE = /^-?\d*\.?\d+$/;
-function normalizeIconSize(size) {
-	if (size == null) return "1em";
-	if (typeof size === "number") return size;
-	const value = size.trim();
-	if (!value) return "1em";
-	const parsed = Number.parseFloat(value);
-	if (Number.isFinite(parsed) && ICON_SIZE_UNITLESS_RE.test(value)) return parsed;
-	return value;
-}
-function applyIconFill(source, fill) {
-	return source.replace(/fill=(["'])none\1/, `fill="${fill}"`);
-}
-function primitive(tag, props) {
-	const node = createElement(tag);
-	spread(node, props, false);
-	return node;
-}
-function editorPrimitive(tag, props) {
-	return primitive(tag, mergeProps(props, {
-		get role() {
-			return props.role ?? "textbox";
-		},
-		get focusOrder() {
-			return props.disabled ? -1 : props.focusOrder ?? 0;
-		},
-		get "aria-disabled"() {
-			return props.disabled ?? false;
-		}
-	}));
-}
-function semanticPrimitive(tag, role, props) {
-	const node = createElement(tag);
-	spread(node, { role }, false);
-	spread(node, props, false);
-	return node;
-}
-/** A layout container. Text content should be placed in a {@link Text}. */
-function View(props) {
-	return primitive("view", props);
-}
-function resolvedTextBehavior(maxLines) {
-	if (maxLines != null && (!Number.isInteger(maxLines) || maxLines < 1)) throw new RangeError("Text maxLines must be a positive integer");
-	return {
-		flags: TEXT_BEHAVIOR.AggregateDirectText | (maxLines == null || maxLines === 1 ? TEXT_BEHAVIOR.SingleLine : 0),
-		maxLines: maxLines ?? 0
-	};
-}
-/**
-* A single measured text run.
-*
-* Static and reactive child text nodes are concatenated by the native host and
-* participate in the parent layout as one item.
-*/
-function Text(props) {
-	resolvedTextBehavior(untrack(() => props.maxLines));
-	const node = createElement("text");
-	spread(node, omit(props, "maxLines"), false);
-	spread(node, {
-		role: props.role ?? "label",
-		get textBehavior() {
-			return resolvedTextBehavior(props.maxLines);
-		}
-	}, false);
-	return node;
-}
-/** A static SVG asset rendered through the native usvg/Vello pipeline. */
-function Svg(props) {
-	return semanticPrimitive("svg", "img", props);
-}
-/** A native Vello vector path in local logical-pixel coordinates. */
-function Path(props) {
-	return primitive("vector-path", props);
-}
-/** A theme-colored SVG icon with stable native sizing and semantics. */
-function Icon(props) {
-	const rest = omit(props, "source", "size", "fill", "label", "class");
-	const node = createElement("svg");
-	spread(node, rest, false);
-	spread(node, {
-		get class() {
-			return props.class ? `self-center shrink-0 ${props.class}` : "self-center shrink-0";
-		},
-		get style() {
-			const iconSize = normalizeIconSize(props.size);
-			return {
-				display: "inline-flex",
-				"align-items": "center",
-				"justify-content": "center",
-				"align-self": "center",
-				width: iconSize,
-				height: iconSize,
-				"flex-shrink": 0,
-				"line-height": "1",
-				...props.style ?? {}
-			};
-		},
-		get width() {
-			const iconSize = normalizeIconSize(props.size);
-			return typeof iconSize === "number" ? String(iconSize) : void 0;
-		},
-		get source() {
-			return props.fill && props.fill !== "none" ? applyIconFill(props.source, props.fill) : props.source;
-		},
-		get height() {
-			const iconSize = normalizeIconSize(props.size);
-			return typeof iconSize === "number" ? String(iconSize) : void 0;
-		},
-		get role() {
-			return props.label ? "img" : void 0;
-		},
-		get "aria-label"() {
-			return props.label;
-		},
-		get "aria-hidden"() {
-			return props.label ? void 0 : "true";
-		}
-	}, false);
-	return node;
-}
-/** A replaced image node rendered by the native host. */
-function Image(props) {
-	return semanticPrimitive("img", "img", props);
-}
-/** An explicit network-backed image with bounded decoding and host caching. */
-function NetworkImage(props) {
-	const rest = omit(props, "url", "format", "cache");
-	const node = createElement("img");
-	spread(node, { role: "img" }, false);
-	spread(node, rest, false);
-	spread(node, { get source() {
-		return {
-			kind: "network",
-			url: props.url,
-			format: props.format,
-			cache: props.cache
-		};
-	} }, false);
-	return node;
-}
-/** A native single-line text editor with selection and scrolling. */
-function TextInput(props) {
-	return editorPrimitive("input", props);
-}
-/** A native multiline text editor with wrapping, selection, and scrolling. */
-function TextArea(props) {
-	return editorPrimitive("textarea", props);
-}
-/** Native password editor whose value remains in a Rust SecretStore. */
-function PasswordInput(props) {
-	return editorPrimitive("password-input", props);
-}
-/** Experimental native editor for config and script-sized documents. */
-function CodeEditor(props) {
-	return editorPrimitive("code-editor", props);
 }
 //#endregion
 //#region src/primitives/collapsible-presence.tsx
@@ -2415,6 +2430,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { Link as $, isSelected as A, Path as B, OverlayPlaneProvider as C, Column as D, Center as E, CodeEditor as F, TextInput as G, Svg as H, Icon as I, translate2d$1 as J, View as K, Image as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, Button as Q, NetworkImage as R, createTransitionPresence as S, useOverlayPlane as T, Text as U, PathBuilder as V, TextArea as W, createContainerMatch as X, createPresence as Y, createMeasuredSize as Z, createRetainedItems as _, MotionConfigProvider as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createLoop as dt, createButton as et, offset as f, createPulse as ft, createNotifications as g, normalizeSweepGeometry as gt, NotificationRegion as h, createTransition as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createInterpolation as lt, size as m, createSweep as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createRotation as pt, rotate2d$1 as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createKeyframeAnimation as ut, Pulse as v, useMotionConfig as vt, createOverlayLayer as w, Modal as x, Ripple as y, useReducedMotion as yt, PasswordInput as z };
+export { rotate2d$1 as $, isSelected as A, createButton as B, OverlayPlaneProvider as C, Column as D, Center as E, createPresence as F, PasswordInput as G, Icon as H, createContainerMatch as I, Svg as J, Path as K, createMeasuredSize as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, View as Q, Button as R, createTransitionPresence as S, useOverlayPlane as T, Image as U, CodeEditor as V, NetworkImage as W, TextArea as X, Text as Y, TextInput as Z, createRetainedItems as _, MotionConfigProvider as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createLoop as dt, translate2d$1 as et, offset as f, createPulse as ft, createNotifications as g, normalizeSweepGeometry as gt, NotificationRegion as h, createTransition as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createInterpolation as lt, size as m, createSweep as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createRotation as pt, PathBuilder as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createKeyframeAnimation as ut, Pulse as v, useMotionConfig as vt, createOverlayLayer as w, Modal as x, Ripple as y, useReducedMotion as yt, Link as z };
 
-//# sourceMappingURL=primitives-CN9r8pQY.mjs.map
+//# sourceMappingURL=primitives-BdI7fk78.mjs.map

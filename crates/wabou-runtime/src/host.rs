@@ -531,7 +531,11 @@ struct RuntimeSourceConfig {
 }
 
 impl RuntimeSourceConfig {
-    fn create(&self, window_key: wabou_shell::WindowResourceKey) -> crate::Result<Applier> {
+    fn create(
+        &self,
+        window_key: wabou_shell::WindowResourceKey,
+        window_options: &WindowOptions,
+    ) -> crate::Result<Applier> {
         #[cfg(feature = "vite")]
         let js = match &self.source {
             ApplicationSource::Vite { url, .. } => {
@@ -555,10 +559,23 @@ impl RuntimeSourceConfig {
                 operation: "mount JavaScript capability",
             })?;
         }
+        let serialized_window_options =
+            serde_json::to_string(window_options).expect("WindowOptions must remain serializable");
+        js.with(|ctx| {
+            ctx.globals()
+                .set("__wabou_window_options_json", serialized_window_options)
+        })
+        .context(crate::error::JavaScriptSnafu {
+            operation: "install native window creation options",
+        })?;
         let mut applier = Applier::from_runtime_with_factories_and_window(
             js,
             self.widget_factories.clone(),
-            self.base_color,
+            if window_options.transparent {
+                Color::TRANSPARENT
+            } else {
+                self.base_color
+            },
             window_key,
         );
         install_host_message_producers(&self.host_message_producers, window_key, &applier);
@@ -1035,7 +1052,7 @@ impl HostBuilder {
         for (index, options) in windows.into_iter().enumerate() {
             let window_key = wabou_shell::initial_window_resource_key(index);
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
-            let mut applier = runtime_sources.create(window_key)?;
+            let mut applier = runtime_sources.create(window_key, &options)?;
             if index == 0
                 && let Some(script) = &test_script
             {
@@ -1070,10 +1087,10 @@ impl HostBuilder {
         let child_hmr_store = child_hmr_clients.clone();
         let child_sources = runtime_sources.clone();
         #[allow(clippy::arc_with_non_send_sync)] // winit invokes this only on its event thread.
-        let factory: crate::FrameSourceFactory = Arc::new(move |window_key, _options| {
+        let factory: crate::FrameSourceFactory = Arc::new(move |window_key, options| {
             #[cfg_attr(not(feature = "vite"), allow(unused_mut))]
             let mut applier = child_sources
-                .create(window_key)
+                .create(window_key, options)
                 .map_err(|error| error.to_string())?;
             #[cfg(feature = "vite")]
             if let Some(client) = child_sources

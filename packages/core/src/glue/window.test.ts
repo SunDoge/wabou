@@ -8,6 +8,8 @@ test("createWindow returns a handle that targets the created window", async () =
     __wabou_effect_abi: EFFECT_ABI_VERSION,
     __wabou_window_id_lo: 3,
     __wabou_window_id_hi: 1,
+    __wabou_window_options_json:
+      '{"title":"Overlay","transparent":true,"windowLevel":"alwaysOnTop"}',
     __wabou_effect_submit: (
       capability: number,
       method: number,
@@ -29,7 +31,15 @@ test("createWindow returns a handle that targets the created window", async () =
       return request;
     },
   });
-  const { createWindow, currentWindow } = await import("./window");
+  const { createWindow, currentWindow, currentWindowOptions } = await import(
+    "./window"
+  );
+
+  expect(currentWindowOptions()).toMatchObject({
+    title: "Overlay",
+    transparent: true,
+    windowLevel: "alwaysOnTop",
+  });
 
   const child = await createWindow({
     title: "Inspector",

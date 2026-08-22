@@ -32,6 +32,17 @@ export interface CreateWindowOptions {
   inputMode?: "interactive" | "passthrough";
 }
 
+/** Immutable native creation options for the JavaScript runtime's window. */
+export function currentWindowOptions(): Readonly<CreateWindowOptions> {
+  const serialized = (
+    globalThis as typeof globalThis & {
+      __wabou_window_options_json?: string;
+    }
+  ).__wabou_window_options_json;
+  if (!serialized) return Object.freeze({});
+  return Object.freeze(JSON.parse(serialized) as CreateWindowOptions);
+}
+
 export interface WindowHandle {
   readonly id: WindowKey;
   close(): void;

@@ -17,6 +17,7 @@ import {
   ConfigEditor,
   createHover,
   createWindow,
+  currentWindowOptions,
   Fps,
   Icon,
   Input,
@@ -845,20 +846,39 @@ function PlatformPage() {
               {window.width()} × {window.height()} logical pixels
             </ThemeText>
           </View>
-          <Button
-            onClick={() => {
-              void createWindow({
-                title: "Wabou child window",
-                width: 640,
-                height: 420,
-                minWidth: 360,
-                minHeight: 240,
-                decorations: false,
-              });
-            }}
-          >
-            Open native window
-          </Button>
+          <View class="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              onClick={() => {
+                void createWindow({
+                  title: "Wabou child window",
+                  width: 640,
+                  height: 420,
+                  minWidth: 360,
+                  minHeight: 240,
+                  decorations: false,
+                });
+              }}
+            >
+              Open native window
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void createWindow({
+                  title: "Wabou transparent window",
+                  width: 900,
+                  height: 600,
+                  minWidth: 640,
+                  minHeight: 400,
+                  decorations: false,
+                  transparent: true,
+                  windowLevel: "alwaysOnTop",
+                });
+              }}
+            >
+              Open transparent window
+            </Button>
+          </View>
         </View>
       </Preview>
     </View>
@@ -867,6 +887,7 @@ function PlatformPage() {
 
 function ChildWindowPage() {
   const window = useWindow();
+  if (currentWindowOptions().transparent) return <TransparentWindowPage />;
   return (
     <View class="w-full h-full flex flex-col bg-slate-900 text-white">
       <TitleBar class="border-slate-700 bg-slate-950">
@@ -897,6 +918,78 @@ function ChildWindowPage() {
           </Button>
         </View>
       </View>
+    </View>
+  );
+}
+
+function TransparentWindowPage() {
+  const window = useWindow();
+  const [start, setStart] = createSignal<{ x: number; y: number } | null>(null);
+  const [end, setEnd] = createSignal<{ x: number; y: number } | null>(null);
+  const selection = () => {
+    const a = start();
+    const b = end();
+    if (!a || !b) return null;
+    return {
+      left: Math.min(a.x, b.x),
+      top: Math.min(a.y, b.y),
+      width: Math.abs(a.x - b.x),
+      height: Math.abs(a.y - b.y),
+    };
+  };
+  return (
+    <View
+      class="relative w-full h-full overflow-hidden bg-transparent"
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        const point = { x: event.clientX, y: event.clientY };
+        setStart(point);
+        setEnd(point);
+      }}
+      onPointerMove={(event) => {
+        if (event.buttons !== 1 || !start()) return;
+        setEnd({ x: event.clientX, y: event.clientY });
+      }}
+      onPointerUp={(event) => {
+        if (!start()) return;
+        setEnd({ x: event.clientX, y: event.clientY });
+      }}
+    >
+      <View class="absolute inset-0 bg-black opacity-20 pointer-events-none" />
+      <View class="absolute left-6 top-6 w-96 p-4 flex flex-col gap-2 rounded-xl border border-subtle bg-surface shadow-lg">
+        <View class="flex items-center gap-3">
+          <View class="min-w-0 flex-1 flex flex-col gap-1">
+            <Text class="text-base font-semibold">Transparent window</Text>
+            <Text class="text-sm text-muted">
+              Drag anywhere to draw a screen-selection rectangle.
+            </Text>
+          </View>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              window.close();
+            }}
+          >
+            Close
+          </Button>
+        </View>
+        <Text class="text-xs text-muted">
+          The desktop should remain visible through the dimmed surface.
+        </Text>
+      </View>
+      {selection() && (
+        <View
+          class="absolute border-2 border-accent bg-transparent pointer-events-none"
+          style={{
+            left: px(selection()!.left),
+            top: px(selection()!.top),
+            width: px(selection()!.width),
+            height: px(selection()!.height),
+          }}
+        />
+      )}
     </View>
   );
 }
