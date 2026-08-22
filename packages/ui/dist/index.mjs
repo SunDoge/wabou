@@ -4717,7 +4717,7 @@ const MessageFooter = MessageHeader;
 function BubbleGroup(props) {
 	return createComponent$1(View, mergeProps(props, {
 		get ["class"]() {
-			return join("min-w-0 flex flex-col gap-2", props.class);
+			return join("min-w-0 grid gap-2", props.class);
 		},
 		get children() {
 			return props.children;

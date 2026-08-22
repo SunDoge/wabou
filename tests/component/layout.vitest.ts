@@ -7,6 +7,7 @@ import {
   parseLayoutSnapshot,
   siblingCollisionDiagnostics,
   styleDiagnostics,
+  textCollisionDiagnostics,
   visibleOverflowDiagnostics,
 } from "@wabou/test/layout";
 import {
@@ -96,10 +97,36 @@ test("lets component tests opt into overflow, collision and style contracts", ()
 
   expect(visibleOverflowDiagnostics(snapshot)).toHaveLength(2);
   expect(siblingCollisionDiagnostics(snapshot)).toHaveLength(1);
+  expect(textCollisionDiagnostics(snapshot)).toHaveLength(0);
   expect(styleDiagnostics(snapshot)).toHaveLength(1);
   expect(() =>
     assertNoLayoutDiagnostics(visibleOverflowDiagnostics(snapshot)),
   ).toThrow("[visible-overflow]");
+});
+
+test("finds text collisions across different component subtrees", () => {
+  const snapshot: LayoutSnapshot = {
+    ...fixture(),
+    nodes: [
+      node(1, "view", [0, 0, 100, 40]),
+      node(2, "view", [0, 0, 100, 10], { parentId: { lo: 1, hi: 1 } }),
+      node(3, "text", [0, 0, 60, 20], {
+        parentId: { lo: 2, hi: 1 },
+        text: "Reaction",
+      }),
+      node(4, "view", [0, 18, 100, 10], { parentId: { lo: 1, hi: 1 } }),
+      node(5, "text", [0, 18, 60, 20], {
+        parentId: { lo: 4, hi: 1 },
+        text: "Delivered",
+      }),
+    ],
+  };
+
+  expect(siblingCollisionDiagnostics(snapshot)).toEqual([]);
+  expect(textCollisionDiagnostics(snapshot)).toHaveLength(1);
+  expect(() =>
+    assertNoLayoutDiagnostics(textCollisionDiagnostics(snapshot)),
+  ).toThrow("[text-overlap]");
 });
 
 test("ignores one-pixel flex rounding but supports strict collision checks", () => {
@@ -108,9 +135,9 @@ test("ignores one-pixel flex rounding but supports strict collision checks", () 
   snapshot.nodes[2].rect = { x: 50, y: 0, width: 50, height: 20 };
 
   expect(siblingCollisionDiagnostics(snapshot)).toEqual([]);
-  expect(
-    siblingCollisionDiagnostics(snapshot, { tolerance: 0 }),
-  ).toHaveLength(1);
+  expect(siblingCollisionDiagnostics(snapshot, { tolerance: 0 })).toHaveLength(
+    1,
+  );
 });
 
 test("builds the no-GPU CLI invocation for Node or Bun tests", () => {

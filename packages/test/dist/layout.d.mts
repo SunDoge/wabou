@@ -49,7 +49,7 @@ interface LayoutQuery {
   readonly className?: string;
 }
 interface LayoutDiagnostic {
-  readonly code: "flow-sibling-overlap" | "style-diagnostic" | "visible-overflow";
+  readonly code: "flow-sibling-overlap" | "style-diagnostic" | "text-overlap" | "visible-overflow";
   readonly message: string;
   readonly node: LayoutSnapshotNode;
   readonly related?: LayoutSnapshotNode;
@@ -71,8 +71,14 @@ declare function formatLayoutTree(snapshot: LayoutSnapshot): string;
 declare function visibleOverflowDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 /** Opt-in collision check for normal-flow siblings. */
 declare function siblingCollisionDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
+/**
+ * Opt-in collision check for visible text leaves across component subtrees.
+ * This catches content collisions that a direct-sibling layout check cannot
+ * see, such as a transformed reaction inside a bubble covering its footer.
+ */
+declare function textCollisionDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
 //#endregion
-export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, visibleOverflowDiagnostics };
+export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
 //# sourceMappingURL=layout.d.mts.map

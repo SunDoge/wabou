@@ -11,7 +11,9 @@ const overrides = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
   "widgets/Carousel": { checks: ["sibling-collision"] as const },
-  "widgets/Message": { checks: ["sibling-collision"] as const },
+  "widgets/Message": {
+    checks: ["sibling-collision", "text-collision"] as const,
+  },
 };
 const fixtureCase = (id: string) => {
   const override = overrides[id as keyof typeof overrides];
@@ -29,7 +31,8 @@ const report = await renderLayoutFixtures({
 });
 
 const effect = report.cases.find(({ id }) => id === "effect/synchronous");
-if (effect) getLayoutNode(effect.snapshot, { name: "effect status", text: "ready" });
+if (effect)
+  getLayoutNode(effect.snapshot, { name: "effect status", text: "ready" });
 
 const narrow = report.cases.find(({ id }) => id === "narrow");
 const wide = report.cases.find(({ id }) => id === "wide");

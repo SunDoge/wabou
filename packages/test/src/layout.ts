@@ -58,6 +58,7 @@ export interface LayoutDiagnostic {
   readonly code:
     | "flow-sibling-overlap"
     | "style-diagnostic"
+    | "text-overlap"
     | "visible-overflow";
   readonly message: string;
   readonly node: LayoutSnapshotNode;
@@ -373,6 +374,39 @@ export function siblingCollisionDiagnostics(
           message: `${first.tag} ${key(first.id)} overlaps sibling ${second.tag} ${key(second.id)}`,
         });
       }
+    }
+  }
+  return diagnostics;
+}
+
+/**
+ * Opt-in collision check for visible text leaves across component subtrees.
+ * This catches content collisions that a direct-sibling layout check cannot
+ * see, such as a transformed reaction inside a bubble covering its footer.
+ */
+export function textCollisionDiagnostics(
+  snapshot: LayoutSnapshot,
+  options: LayoutDiagnosticOptions = {},
+): readonly LayoutDiagnostic[] {
+  const tolerance = options.tolerance ?? 1;
+  const textNodes = scopedNodes(snapshot, options.within).filter(
+    (node) => node.tag === "text" && Boolean(node.text),
+  );
+  const diagnostics: LayoutDiagnostic[] = [];
+  for (let index = 0; index < textNodes.length; index += 1) {
+    for (const second of textNodes.slice(index + 1)) {
+      const first = textNodes[index];
+      if (
+        first.computed.overlayPlane !== second.computed.overlayPlane ||
+        !overlaps(first.rect, second.rect, tolerance)
+      )
+        continue;
+      diagnostics.push({
+        code: "text-overlap",
+        node: second,
+        related: first,
+        message: `text ${key(first.id)} ${JSON.stringify(first.text)} overlaps text ${key(second.id)} ${JSON.stringify(second.text)}`,
+      });
     }
   }
   return diagnostics;

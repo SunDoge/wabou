@@ -9,8 +9,14 @@ import {
   parseLayoutSnapshot,
   siblingCollisionDiagnostics,
   styleDiagnostics,
+  textCollisionDiagnostics,
   visibleOverflowDiagnostics,
 } from "./layout";
+
+export type LayoutGeometryCheck =
+  | "visible-overflow"
+  | "sibling-collision"
+  | "text-collision";
 
 export interface RenderAppLayoutOptions {
   readonly app: string;
@@ -53,7 +59,7 @@ export interface LayoutFixtureCase {
   /** Style parser rejections fail a fixture by default. */
   readonly allowStyleDiagnostics?: boolean;
   /** Geometry checks are opt-in because overlays may intentionally overlap. */
-  readonly checks?: readonly ("visible-overflow" | "sibling-collision")[];
+  readonly checks?: readonly LayoutGeometryCheck[];
   /** Run application-specific geometry or reactive-state assertions. */
   readonly assert?: (snapshot: LayoutSnapshot) => void | Promise<void>;
 }
@@ -66,11 +72,9 @@ export interface RenderLayoutFixturesOptions {
   readonly skipBuild?: boolean;
   readonly waitMs?: number;
   /** Checks applied to every auto-discovered fixture. */
-  readonly checks?: readonly ("visible-overflow" | "sibling-collision")[];
+  readonly checks?: readonly LayoutGeometryCheck[];
   /** Per-fixture exceptions or assertions without repeating the full case list. */
-  readonly overrides?: Readonly<
-    Record<string, Omit<LayoutFixtureCase, "id">>
-  >;
+  readonly overrides?: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>>;
   /** Executable and any fixed prefix arguments. Defaults to `["wabou"]`. */
   readonly command?: readonly string[];
 }
@@ -145,7 +149,9 @@ export async function validateLayoutFixtureReport(
         assertNoLayoutDiagnostics(
           check === "visible-overflow"
             ? visibleOverflowDiagnostics(result.snapshot)
-            : siblingCollisionDiagnostics(result.snapshot),
+            : check === "sibling-collision"
+              ? siblingCollisionDiagnostics(result.snapshot)
+              : textCollisionDiagnostics(result.snapshot),
         );
       }
       await fixture.assert?.(result.snapshot);

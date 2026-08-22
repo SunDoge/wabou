@@ -186,6 +186,27 @@ function siblingCollisionDiagnostics(snapshot, options = {}) {
 	}
 	return diagnostics;
 }
+/**
+* Opt-in collision check for visible text leaves across component subtrees.
+* This catches content collisions that a direct-sibling layout check cannot
+* see, such as a transformed reaction inside a bubble covering its footer.
+*/
+function textCollisionDiagnostics(snapshot, options = {}) {
+	const tolerance = options.tolerance ?? 1;
+	const textNodes = scopedNodes(snapshot, options.within).filter((node) => node.tag === "text" && Boolean(node.text));
+	const diagnostics = [];
+	for (let index = 0; index < textNodes.length; index += 1) for (const second of textNodes.slice(index + 1)) {
+		const first = textNodes[index];
+		if (first.computed.overlayPlane !== second.computed.overlayPlane || !overlaps(first.rect, second.rect, tolerance)) continue;
+		diagnostics.push({
+			code: "text-overlap",
+			node: second,
+			related: first,
+			message: `text ${key(first.id)} ${JSON.stringify(first.text)} overlaps text ${key(second.id)} ${JSON.stringify(second.text)}`
+		});
+	}
+	return diagnostics;
+}
 function styleDiagnostics(snapshot, options = {}) {
 	return scopedNodes(snapshot, options.within).flatMap((node) => node.styleDiagnostics.map((message) => ({
 		code: "style-diagnostic",
@@ -198,6 +219,6 @@ function assertNoLayoutDiagnostics(diagnostics) {
 	throw new Error(`layout diagnostics:\n${diagnostics.map((item) => `  - [${item.code}] ${item.message}`).join("\n")}`);
 }
 //#endregion
-export { assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, visibleOverflowDiagnostics };
+export { assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
 
 //# sourceMappingURL=layout.mjs.map
