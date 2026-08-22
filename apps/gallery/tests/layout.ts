@@ -138,6 +138,21 @@ const assertAdaptiveSplitPaneLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertImageViewportLayout = (snapshot: LayoutSnapshot) => {
+  const viewport = getLayoutNode(snapshot, { name: "Fixture image viewport" });
+  const layer = getLayoutNode(snapshot, { name: "Fixture annotation layer" });
+  const region = getLayoutNode(snapshot, { name: "Fixture speech region" });
+  assertLayoutRectContains(viewport.contentRect, layer.rect, {
+    label: "annotation layer",
+  });
+  assertLayoutRectContains(viewport.contentRect, region.rect, {
+    label: "annotation region",
+  });
+  // The bordered 686×486 content box contains an 800×1200 image at 0.405 scale.
+  assertClose(region.rect.width, 97.2, "projected annotation width");
+  assertClose(region.rect.height, 72.9, "projected annotation height");
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -150,6 +165,11 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/Select": { assert: assertSelectLayout },
   "component/Dialog": { assert: assertDialogLayout },
   "component/AdaptiveSplitPane": { assert: assertAdaptiveSplitPaneLayout },
+  "component/ImageViewport": {
+    width: 720,
+    height: 520,
+    assert: assertImageViewportLayout,
+  },
 };
 const fixtureCase = (id: string) => {
   const override = overrides[id];

@@ -7,6 +7,8 @@ import {
   DialogDescription,
   DialogScrollBody,
   DialogTitle,
+  AnnotationLayer,
+  ImageViewport,
   ScrollArea,
   Select,
   Sidebar,
@@ -17,6 +19,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
+import { MangaPageMock } from "./pages/image-viewport";
 import { For } from "solid-js";
 
 export function SidebarLayoutFixture() {
@@ -157,6 +160,33 @@ export function AdaptiveSplitPaneLayoutFixture() {
           </View>
         </AdaptiveSplitPaneDetail>
       </AdaptiveSplitPane>
+    </View>
+  );
+}
+
+export function ImageViewportLayoutFixture() {
+  return (
+    <View class="w-full h-full p-4 bg-canvas">
+      <ImageViewport
+        aria-label="Fixture image viewport"
+        class="w-full h-full rounded-lg border border-subtle"
+        imageSize={{ width: 800, height: 1200 }}
+        media={<MangaPageMock />}
+      >
+        <AnnotationLayer
+          aria-label="Fixture annotation layer"
+          regions={[
+            {
+              id: "speech",
+              label: "Fixture speech region",
+              x: 80,
+              y: 120,
+              width: 240,
+              height: 180,
+            },
+          ]}
+        />
+      </ImageViewport>
     </View>
   );
 }

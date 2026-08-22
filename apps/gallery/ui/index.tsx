@@ -98,6 +98,7 @@ type ComponentId =
   | "data-table"
   | "tree-view"
   | "chart"
+  | "image-viewport"
   | "direction"
   | "typography"
   | "i18n";
@@ -159,6 +160,7 @@ const groups: Array<{
       { id: "message", name: "Message" },
       { id: "message-scroller", name: "Message scroller" },
       { id: "chart", name: "Chart experiment" },
+      { id: "image-viewport", name: "Image viewport" },
       { id: "typography", name: "Typography" },
       { id: "fps", name: "FPS" },
       { id: "progress", name: "Progress" },
@@ -307,6 +309,8 @@ const descriptions: Record<ComponentId, string> = {
     "Navigates explicit hierarchical data with roving focus and native keyboard semantics.",
   chart:
     "D3 geometry and scales rendered through Wabou's typed native path pipeline.",
+  "image-viewport":
+    "Shares one image-space transform across contained media and editable annotation regions.",
   direction:
     "Projects explicit logical direction into native row and text layout.",
   typography:
@@ -348,6 +352,7 @@ import { ChartPage } from "./pages/chart";
 import { DataTablePage } from "./pages/data-table";
 import { ColorsPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
+import { ImageViewportPage } from "./pages/image-viewport";
 import { MenubarPage } from "./pages/menubar";
 import { OverviewPage } from "./pages/overview";
 import {
@@ -713,6 +718,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "chart"}>
                     <ChartPage />
+                  </Match>
+                  <Match when={selected() === "image-viewport"}>
+                    <ImageViewportPage />
                   </Match>
                   <Match when={selected() === "direction"}>
                     <DirectionPage />

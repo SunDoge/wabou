@@ -7,6 +7,7 @@ import { type Component, createComponent } from "solid-js";
 import {
   AdaptiveSplitPaneLayoutFixture,
   DialogLayoutFixture,
+  ImageViewportLayoutFixture,
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
   SidebarLayoutFixture,
@@ -17,6 +18,7 @@ import * as chart from "./pages/chart";
 import * as dataTable from "./pages/data-table";
 import * as foundations from "./pages/foundations";
 import * as i18n from "./pages/i18n";
+import * as imageViewport from "./pages/image-viewport";
 import * as menubar from "./pages/menubar";
 import * as overlay from "./pages/overlay";
 import * as shadcn from "./pages/shadcn";
@@ -82,6 +84,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 360,
         render: AdaptiveSplitPaneLayoutFixture,
       },
+      "component/ImageViewport": {
+        width: 720,
+        height: 520,
+        render: ImageViewportLayoutFixture,
+      },
     },
     {
       wrap: (content) => (
@@ -96,6 +103,7 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
   ...pageFixtures("chart", chart),
   ...pageFixtures("data-table", dataTable),
   ...pageFixtures("i18n", i18n),
+  ...pageFixtures("image-viewport", imageViewport),
   ...pageFixtures("menubar", menubar),
   ...pageFixtures("overlay", overlay),
   ...pageFixtures("shadcn", shadcn),
