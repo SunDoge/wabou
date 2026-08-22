@@ -17,6 +17,7 @@ import minus from "lucide-static/icons/minus.svg?raw";
 import panelLeftClose from "lucide-static/icons/panel-left-close.svg?raw";
 import panelLeftOpen from "lucide-static/icons/panel-left-open.svg?raw";
 import plus from "lucide-static/icons/plus.svg?raw";
+import radioTower from "lucide-static/icons/radio-tower.svg?raw";
 import settings from "lucide-static/icons/settings.svg?raw";
 import square from "lucide-static/icons/square.svg?raw";
 import x from "lucide-static/icons/x.svg?raw";
@@ -25,6 +26,7 @@ import { For, Show } from "solid-js";
 const navigation = [
   ["/", "Dashboard", gauge],
   ["/downloads", "Downloads", download],
+  ["/trackers", "Trackers", radioTower],
 ] as const;
 
 interface ShellChromeProps {
@@ -143,7 +145,7 @@ function NavigationButton(props: {
 export function AppSidebar(props: ShellChromeProps) {
   return (
     <View
-      class="flex-none overflow-hidden px-2 py-2 flex flex-col rounded-xl bg-surface-muted"
+      class="flex-none overflow-hidden px-2 py-2 flex flex-col rounded-xl border border-subtle bg-surface-muted shadow-md"
       style={{ width: px(props.sidebarWidth) }}
     >
       <Show when={!props.sidebarOpen}>

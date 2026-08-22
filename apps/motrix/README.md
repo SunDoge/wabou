@@ -5,7 +5,7 @@ A Wabou dogfood application inspired by the MIT-licensed
 checkout. It exercises a realistic desktop-download-manager surface rather
 than serving as a component-only demo.
 
-The current implementation includes routed Dashboard, Downloads,
+The current implementation includes routed Dashboard, Downloads, Trackers,
 Notifications, and Settings surfaces; HTTP/HTTPS multi-connection downloads;
 magnet and torrent creation with metadata preview and pre-download file
 selection; clipboard paste with browser cURL interpretation; native directory
@@ -13,6 +13,11 @@ selection; search and status filters; pause, resume, retry, remove, and batch ac
 revisioned Rust-to-JavaScript task patches; animated throughput charts;
 persistent transfer activity; native and in-app completion/error notifications;
 light/dark/follow-system themes; and graceful native-host shutdown.
+
+The Trackers page reports DHT, PEX, listen-port, NAT, torrent-task, peer, and
+magnet tracker endpoint state. `gosh-dl` currently keeps per-announce tracker
+health internal, so the UI deliberately does not invent latency or health
+values that the engine cannot report yet.
 
 Desktop shortcuts follow the official Motrix conventions: `Primary+N` creates
 a URL task, `Primary+Shift+N` or `Primary+O` opens torrent creation,

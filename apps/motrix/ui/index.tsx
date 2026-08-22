@@ -12,6 +12,7 @@ import { DashboardPage } from "./pages/dashboard";
 import { DownloadsPage } from "./pages/downloads";
 import { NotificationsPage } from "./pages/notifications";
 import { SettingsPage } from "./pages/settings";
+import { TrackersPage } from "./pages/trackers";
 import { AppShell } from "./shell";
 
 const root = new BaseRootRoute({ component: AppShell });
@@ -25,6 +26,11 @@ const routes = [
     getParentRoute: () => root,
     path: "downloads",
     component: DownloadsPage,
+  }),
+  new BaseRoute({
+    getParentRoute: () => root,
+    path: "trackers",
+    component: TrackersPage,
   }),
   new BaseRoute({
     getParentRoute: () => root,
