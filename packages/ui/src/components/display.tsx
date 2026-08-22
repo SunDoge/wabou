@@ -1,6 +1,6 @@
 import { createSignal, type JSX } from "solid-js";
 import { createSweep, useReducedMotion } from "../animation";
-import { createMeasuredSize, Spin, Text, View } from "../primitives";
+import { createMeasuredSize, Spin, Svg, Text, View } from "../primitives";
 import { join } from "./class-names";
 
 export interface SkeletonProps {
@@ -8,6 +8,8 @@ export interface SkeletonProps {
   /** Disable the shimmer while preserving the stable loading placeholder. */
   animated?: boolean;
 }
+
+const SPINNER_SOURCE = `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="3" opacity="0.25"/><path d="M 12 3 A 9 9 0 0 1 21 12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>`;
 
 export function Skeleton(props: SkeletonProps): JSX.Element {
   const reducedMotion = useReducedMotion();
@@ -50,27 +52,7 @@ export function Spinner(props: {
       class={join("w-4 h-4 flex-none text-accent", props.class)}
       duration={0.9}
     >
-      <svg
-        aria-hidden="true"
-        class="w-full h-full"
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <circle
-          cx="12"
-          cy="12"
-          r="9"
-          stroke="currentColor"
-          stroke-width="3"
-          opacity="0.25"
-        />
-        <path
-          d="M 12 3 A 9 9 0 0 1 21 12"
-          stroke="currentColor"
-          stroke-width="3"
-          stroke-linecap="round"
-        />
-      </svg>
+      <Svg aria-hidden="true" class="w-full h-full" source={SPINNER_SOURCE} />
     </Spin>
   );
 }

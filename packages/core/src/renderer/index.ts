@@ -63,12 +63,7 @@ import type { JSX } from "./jsx";
  * by an explicit component or registered as a custom native element.
  */
 export interface WabouBuiltinIntrinsicElements {
-  button: WabouControlProps;
-  input: WabouInputProps;
   view: WabouElementProps;
-  svg: WabouSvgProps;
-  path: WabouSvgShapeProps;
-  circle: WabouSvgShapeProps;
   "vector-path": WabouVectorPathProps;
 }
 

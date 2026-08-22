@@ -4,7 +4,11 @@ import { type Accessor, type JSX, untrack } from "solid-js";
 import { createFocus } from "./focus";
 import { createHover } from "./hover";
 import { createPress } from "./press";
-import type { WabouClassList, WabouStyle } from "./view";
+import {
+  createInternalPrimitive,
+  type WabouClassList,
+  type WabouStyle,
+} from "./view";
 
 const ACCENTS = {
   neutral: "#475569",
@@ -90,6 +94,10 @@ export interface ButtonState {
   focusVisible: boolean;
   selected: boolean;
   disabled: boolean;
+}
+
+function InternalButton(props: ButtonProps): JSX.Element {
+  return createInternalPrimitive("button", props);
 }
 
 export function resolveButtonFocusOrder(
@@ -240,8 +248,7 @@ export function Button(props: ButtonProps): JSX.Element {
   };
 
   return (
-    // biome-ignore lint/a11y/useAriaPropsSupportedByRole: headless controls replace the default button role at runtime.
-    <button
+    <InternalButton
       {...refProps}
       disabled={disabled()}
       aria-disabled={disabled()}
@@ -308,7 +315,7 @@ export function Button(props: ButtonProps): JSX.Element {
       onWheel={props.onWheel}
     >
       {props.children}
-    </button>
+    </InternalButton>
   );
 }
 

@@ -80,8 +80,9 @@ composition. Widgets must not apply that scale to the whole scene themselves.
 
 ## State and invalidation
 
-Attribute strings are suitable for primitive HTML-like properties. Structured
-configuration uses the single `widgetConfig` object and
+Attribute strings are suitable for small scalar native-widget properties. They
+do not imply HTML element compatibility. Structured configuration uses the
+single `widgetConfig` object and
 `decode_widget_config`; a derived Serde type with `deny_unknown_fields` keeps
 the boundary typed without teaching the style system widget-specific nested
 properties.

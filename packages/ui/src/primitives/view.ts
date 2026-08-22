@@ -152,6 +152,28 @@ export interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
   onInput?: (event: { currentTarget: { value: string } }) => void;
 }
 
+type InternalPrimitiveTag =
+  | "view"
+  | "text"
+  | "svg"
+  | "img"
+  | "button"
+  | "input"
+  | "textarea"
+  | "password-input"
+  | "code-editor"
+  | "vector-path";
+
+/** @internal Host tags are renderer details, not public JSX elements. */
+export function createInternalPrimitive(
+  tag: InternalPrimitiveTag,
+  props: object,
+) {
+  const node = createElement(tag);
+  spread(node, props, false);
+  return node as unknown as JSX.Element;
+}
+
 function primitive(
   tag:
     | "view"
@@ -165,9 +187,7 @@ function primitive(
     | "vector-path",
   props: PrimitiveProps,
 ) {
-  const node = createElement(tag);
-  spread(node, props, false);
-  return node as unknown as JSX.Element;
+  return createInternalPrimitive(tag, props);
 }
 
 function editorPrimitive(

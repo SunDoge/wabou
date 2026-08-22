@@ -11,7 +11,7 @@ platform-independent implementation.
 | --- | --- |
 | JavaScript | QuickJS ES modules after bundling; standard language and Promise behavior supported by the embedded engine. |
 | Solid | `solid-js` reactive primitives and the `solid-js/universal` renderer contract. Components must not assume browser DOM nodes. |
-| Host nodes | `View`, `Text`, `Image`, native form controls, registered native widgets, and documented intrinsic tags. Handles expose Wabou operations, not `HTMLElement`. |
+| Host nodes | Typed Wabou components such as `View`, `Text`, `Image`, form controls, and registered native widgets. Handles expose Wabou operations, not `HTMLElement`. |
 | Text | `<Text>` is the stable text aggregation boundary. Adjacent JSX text nodes are not implicitly merged into one browser-style text node. |
 | Events | Documented pointer, keyboard, focus, input, wheel and host events. `Tab`/`Shift+Tab` follow the explicit `focusOrder` contract, remain inside the topmost modal, and run only when JavaScript or the focused widget does not consume the key. |
 | Text input | Native input and textarea widgets support IME preedit, commit, surrounding-text deletion, and candidate-window positioning. Registered widgets receive the same IME lifecycle and may expose their own local caret rectangle. |
@@ -27,12 +27,14 @@ platform-independent implementation.
 - CSS selectors, pseudo-classes, media queries, transitions and arbitrary
   runtime-generated class strings are not accepted. Interaction state is
   explicit Solid state; CSS does not create an implicit state machine.
-- Tag names do not imply browser user-agent styles or the complete HTML
-  accessibility model.
-- JSX exposes a finite native host-tag and property registry. Browser-only
-  elements and attributes such as anchors, `href`, `title`, and generic
-  `type="password"` inputs are type errors; use an explicit Wabou component or
-  native capability instead.
+- Web-looking host tags such as `button`, `input`, `img`, and `svg` are private
+  renderer details and are not public JSX elements. Use `Button`, `TextInput`,
+  `Image`, `Svg`, or another typed Wabou component so resource, interaction,
+  and semantic behavior remains explicit.
+- Public JSX exposes only Wabou structural intrinsics and explicitly registered
+  native-widget extensions. Browser-only elements and attributes such as
+  anchors, `href`, `title`, and generic `type="password"` inputs are type errors;
+  use an explicit Wabou component or native capability instead.
 - Layout measurement is a completed native-frame snapshot through `useHost()`;
   each requested node includes its border box, effective clip, scroll offset,
   and scrollable range. Synchronous DOM layout reads are unavailable.
