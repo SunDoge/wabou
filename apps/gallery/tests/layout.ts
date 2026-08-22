@@ -182,6 +182,7 @@ const assertInputGroupLayout = (snapshot: LayoutSnapshot) => {
   const group = getLayoutNode(snapshot, { name: "Fixture input group" });
   const addon = getLayoutNode(snapshot, { name: "Fixture scheme addon" });
   const input = getLayoutNode(snapshot, { name: "Fixture hostname input" });
+  const addonText = getLayoutNode(snapshot, { text: "https://" });
   assertClose(addon.rect.height, input.rect.height, "input group item height");
   assertLayoutRectContains(group.contentRect, addon.rect, {
     label: "input group addon",
@@ -189,6 +190,13 @@ const assertInputGroupLayout = (snapshot: LayoutSnapshot) => {
   assertLayoutRectContains(group.contentRect, input.rect, {
     label: "input group input",
   });
+  if (!addonText.textMetrics || !input.textMetrics)
+    throw new Error("InputGroup text metrics were not published");
+  assertClose(
+    addonText.textMetrics.baseline,
+    input.textMetrics.baseline,
+    "input group text baseline",
+  );
 };
 
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {

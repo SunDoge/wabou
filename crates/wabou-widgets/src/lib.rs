@@ -42,12 +42,6 @@ pub fn password_input_factory(secrets: SecretStore) -> WidgetFactory {
     Arc::new(move || Box::new(PasswordInput::new(secrets.clone())))
 }
 
-/// Vertically position the contents of a single-line native input.
-fn single_line_y_offset(container_height: f32, line_height: f32) -> f64 {
-    let available = (container_height - line_height).max(0.0);
-    f64::from(available * 0.5)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -58,12 +52,5 @@ mod tests {
         let textarea = factories["textarea"]();
         assert_eq!(textarea.intrinsic_size(), Some([240.0, 96.0]));
         assert!(textarea.accepts_focus());
-    }
-
-    #[test]
-    fn single_line_inputs_center_the_same_line_box_as_text_nodes() {
-        assert_eq!(single_line_y_offset(32.0, 24.0), 4.0);
-        assert_eq!(single_line_y_offset(32.0, 32.0), 0.0);
-        assert_eq!(single_line_y_offset(16.0, 24.0), 0.0);
     }
 }

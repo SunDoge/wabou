@@ -303,6 +303,20 @@ pub struct DebugSemanticRange {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "bindings", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
+/// Paint geometry for one single-line text layout.
+pub struct DebugTextMetrics {
+    /// `node` for ordinary text or `widget` for a native editor.
+    pub source: String,
+    /// Line box in logical window coordinates.
+    pub line_box: Rect,
+    /// Baseline in logical window coordinates.
+    #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
+    pub baseline: f32,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "bindings", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
 /// Retained node projection published by the UI thread.
 pub struct DebugNode {
     /// Solid-side node identifier.
@@ -313,6 +327,9 @@ pub struct DebugNode {
     pub tag: String,
     /// Plain text content when present.
     pub text: Option<String>,
+    /// Single-line paint geometry, including native widget text.
+    #[serde(default)]
+    pub text_metrics: Option<DebugTextMetrics>,
     /// Authored class names.
     pub classes: Vec<String>,
     /// Stylesheet selectors that contributed declarations.

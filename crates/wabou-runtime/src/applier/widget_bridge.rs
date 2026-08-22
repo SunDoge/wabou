@@ -283,11 +283,12 @@ impl Applier {
                     let border_inset = n.border_widths.into_iter().fold(0.0_f32, f32::max);
                     let inner_radius =
                         (f64::from(n.paint.border_radius) - f64::from(border_inset)).max(0.0);
-                    let mut paint = wabou_shell::PaintContext::new_clipped(
+                    let mut paint = wabou_shell::PaintContext::new_clipped_at(
                         width,
                         height,
                         inner_radius,
                         self.frame.device_scale,
+                        geometry.local_to_window,
                         tcx,
                     );
                     w.paint(&mut paint);

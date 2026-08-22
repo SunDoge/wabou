@@ -19,11 +19,17 @@ interface LayoutSemanticProjection {
   readonly role: string;
   readonly label?: string | null;
 }
+interface LayoutTextMetrics {
+  readonly source: "node" | "widget";
+  readonly lineBox: LayoutRect;
+  readonly baseline: number;
+}
 interface LayoutSnapshotNode {
   readonly id: LayoutNodeKey;
   readonly parentId?: LayoutNodeKey | null;
   readonly tag: string;
   readonly text?: string | null;
+  readonly textMetrics?: LayoutTextMetrics | null;
   readonly classes: readonly string[];
   readonly attrs: readonly (readonly [string, string])[];
   readonly rect: LayoutRect;
@@ -88,5 +94,5 @@ declare function textCollisionDiagnostics(snapshot: LayoutSnapshot, options?: La
 declare function styleDiagnostics(snapshot: LayoutSnapshot, options?: LayoutDiagnosticOptions): readonly LayoutDiagnostic[];
 declare function assertNoLayoutDiagnostics(diagnostics: readonly LayoutDiagnostic[]): void;
 //#endregion
-export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
+export { LayoutComputedStyle, LayoutDiagnostic, LayoutDiagnosticOptions, LayoutNodeKey, LayoutQuery, LayoutRect, LayoutRectAssertionOptions, LayoutSemanticProjection, LayoutSnapshot, LayoutSnapshotNode, LayoutTextMetrics, assertLayoutRectContains, assertNoLayoutDiagnostics, formatLayoutTree, getLayoutNode, layoutName, layoutRectBottom, layoutRectRight, layoutRole, parseLayoutSnapshot, queryLayoutNodes, siblingCollisionDiagnostics, styleDiagnostics, textCollisionDiagnostics, visibleOverflowDiagnostics };
 //# sourceMappingURL=layout.d.mts.map

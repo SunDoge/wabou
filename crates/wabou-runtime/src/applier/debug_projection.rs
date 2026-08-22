@@ -302,10 +302,39 @@ impl Applier {
                 .style(placed_node.node_id)
                 .ok();
             let clip = self.debug_clip_info(placed_node, id, &placed_by_id, &css_transforms);
-            let synthesis = wabou_shell::scene::layout_node_text(text_context, placed_node)
+            let text_layout = wabou_shell::scene::layout_node_text(text_context, placed_node);
+            let synthesis = text_layout
                 .as_deref()
                 .map(wabou_shell::text::text_synthesis)
                 .unwrap_or_default();
+            let text_metrics = text_layout
+                .as_deref()
+                .and_then(|layout| {
+                    (layout.lines().len() == 1)
+                        .then(|| {
+                            wabou_shell::text::single_line_text_metrics(layout, layout.height())
+                        })
+                        .flatten()
+                        .map(|metrics| ("node", metrics))
+                })
+                .or_else(|| {
+                    self.document
+                        .widget_manager
+                        .widgets
+                        .get(&placed_node.node_id)
+                        .and_then(|widget| widget.text_metrics())
+                        .map(|metrics| ("widget", metrics))
+                })
+                .map(|(source, metrics)| wabou_devtools::DebugTextMetrics {
+                    source: source.to_owned(),
+                    line_box: wabou_devtools::Rect {
+                        x: cx + metrics.line_box[0],
+                        y: cy + metrics.line_box[1],
+                        width: metrics.line_box[2],
+                        height: metrics.line_box[3],
+                    },
+                    baseline: cy + metrics.baseline,
+                });
             nodes.push(wabou_devtools::DebugNode {
                 id,
                 parent_id: placed_node.parent_node_id.and_then(|parent| {
@@ -317,6 +346,7 @@ impl Applier {
                     .text
                     .as_deref()
                     .map(|text| text.chars().take(4096).collect()),
+                text_metrics,
                 classes,
                 matched_rules,
                 style_diagnostics: self

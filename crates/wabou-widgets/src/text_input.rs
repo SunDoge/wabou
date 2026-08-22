@@ -15,12 +15,13 @@ use vello::Scene;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
-use wabou_shell::text::{TextContext, brush_for_color, layout_text_styled};
+use wabou_shell::text::{
+    SingleLineTextMetrics, TextContext, brush_for_color, layout_text_styled,
+    single_line_text_metrics,
+};
 use wabou_shell::{ImeEvent, KeyEvent, KeyPhase, PointerEvent, PointerPhase, UiEvent};
 
 use wabou_shell::{PaintContext, Widget, WidgetChanges, WidgetEventResult, WidgetStyle};
-
-use crate::single_line_y_offset;
 
 const SELECTION_COLOR: Color = Color::from_rgba8(99, 102, 241, 80);
 const PLACEHOLDER_COLOR: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
@@ -81,6 +82,7 @@ pub struct TextInput {
     scroll_y: f32,
     disabled: bool,
     read_only: bool,
+    text_metrics: Option<SingleLineTextMetrics>,
 }
 
 impl Default for TextInput {
@@ -122,6 +124,7 @@ impl TextInput {
             scroll_y: 0.0,
             disabled: false,
             read_only: false,
+            text_metrics: None,
         }
     }
 
@@ -389,17 +392,15 @@ impl TextInput {
 
     fn paint_placeholder(
         &self,
-        scene: &mut Scene,
-        tcx: &mut TextContext,
+        cx: &mut PaintContext<'_>,
         width: f32,
         height: f32,
-        device_scale: f64,
-    ) {
+    ) -> Option<SingleLineTextMetrics> {
         if !self.cached_value.is_empty() || self.placeholder.is_empty() {
-            return;
+            return None;
         }
         let layout = layout_text_styled(
-            tcx,
+            cx.text(),
             Arc::from(self.placeholder.as_str()),
             self.font_size,
             self.font_weight,
@@ -410,34 +411,30 @@ impl TextInput {
             None,
             self.multiline.then_some(width.max(0.0)),
         );
-        let y_offset = if self.multiline {
-            0.0
-        } else {
-            single_line_y_offset(height, layout.height())
-        };
-        let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
-        scene.append(
-            &glyph_scene,
-            Some(Affine::translate((0.0, y_offset)) * Affine::scale(device_scale.recip())),
-        );
+        let metrics = (!self.multiline)
+            .then(|| single_line_text_metrics(&layout, height))
+            .flatten();
+        let y_offset = metrics.map_or(0.0, |metrics| f64::from(metrics.line_box[1]));
+        cx.draw_text_layout(&layout, [0.0, y_offset]);
+        metrics
     }
 
     fn paint_editor(
         &self,
         scene: &mut Scene,
-        tcx: &mut TextContext,
         height: f32,
         device_scale: f64,
-    ) {
-        let Some(layout) = self.editor.try_layout() else {
-            return;
-        };
+    ) -> Option<SingleLineTextMetrics> {
+        let layout = self.editor.try_layout()?;
+        let metrics = (!self.multiline)
+            .then(|| single_line_text_metrics(layout, height))
+            .flatten();
         let transform = Affine::translate((
             0.0,
             if self.multiline {
                 -f64::from(self.scroll_y)
             } else {
-                single_line_y_offset(height, layout.height())
+                f64::from(metrics.map_or(0.0, |metrics| metrics.line_box[1]))
             },
         ));
         if self.focused {
@@ -476,25 +473,6 @@ impl TextInput {
                     }
                 }
             }
-        } else if !self.cached_value.is_empty() {
-            let masked = "•".repeat(self.cached_value.chars().count());
-            let masked_layout = layout_text_styled(
-                tcx,
-                Arc::from(masked),
-                self.font_size,
-                self.font_weight,
-                self.line_height,
-                TextAlign::Start,
-                brush_for_color(self.text_color),
-                Arc::from([]),
-                None,
-                None,
-            );
-            let glyph_scene = tcx.glyph_scene_scaled(&masked_layout, device_scale);
-            scene.append(
-                &glyph_scene,
-                Some(transform * Affine::scale(device_scale.recip())),
-            );
         }
         if self.focused
             && self.blink_on
@@ -508,6 +486,7 @@ impl TextInput {
                 &Rect::new(cursor.x0, cursor.y0, cursor.x1, cursor.y1),
             );
         }
+        metrics
     }
 }
 
@@ -515,7 +494,6 @@ impl Widget for TextInput {
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
         let [width, height] = cx.size();
         let device_scale = cx.device_scale();
-        let tcx = cx.text();
         if self.multiline && self.viewport_width != width {
             self.viewport_width = width;
             self.editor.set_width(Some(width.max(0.0)));
@@ -529,27 +507,15 @@ impl Widget for TextInput {
             self.next_blink = Some(Instant::now() + Duration::from_millis(500));
         }
 
-        self.refresh_editor(tcx);
+        self.refresh_editor(cx.text());
 
         // Cache value for current_value().
         self.cached_value = self.editor.text().to_string();
 
         let mut scene = Scene::new();
-        let h = height as f64;
-        if self.multiline {
-            scene.push_clip_layer(
-                Fill::NonZero,
-                Affine::IDENTITY,
-                &Rect::new(0.0, 0.0, f64::from(width.max(0.0)), h.max(0.0)),
-            );
-        }
-
-        self.paint_placeholder(&mut scene, tcx, width, height, device_scale);
-        self.paint_editor(&mut scene, tcx, height, device_scale);
-
-        if self.multiline {
-            scene.pop_layer();
-        }
+        let placeholder_metrics = self.paint_placeholder(cx, width, height);
+        let editor_metrics = self.paint_editor(&mut scene, height, device_scale);
+        self.text_metrics = placeholder_metrics.or(editor_metrics);
         cx.scene_mut().append(&scene, None);
     }
 
@@ -678,6 +644,10 @@ impl Widget for TextInput {
             disabled: Some(self.disabled),
             ..Default::default()
         }
+    }
+
+    fn text_metrics(&self) -> Option<SingleLineTextMetrics> {
+        self.text_metrics
     }
 
     fn style_changed(&mut self, style: &WidgetStyle) -> WidgetChanges {

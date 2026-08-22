@@ -22,11 +22,18 @@ export interface LayoutSemanticProjection {
   readonly label?: string | null;
 }
 
+export interface LayoutTextMetrics {
+  readonly source: "node" | "widget";
+  readonly lineBox: LayoutRect;
+  readonly baseline: number;
+}
+
 export interface LayoutSnapshotNode {
   readonly id: LayoutNodeKey;
   readonly parentId?: LayoutNodeKey | null;
   readonly tag: string;
   readonly text?: string | null;
+  readonly textMetrics?: LayoutTextMetrics | null;
   readonly classes: readonly string[];
   readonly attrs: readonly (readonly [string, string])[];
   readonly rect: LayoutRect;
@@ -176,6 +183,28 @@ export function parseLayoutSnapshot(value: unknown): LayoutSnapshot {
           ? null
           : parseKey(item.parentId, `${path}.parentId`),
       tag: item.tag,
+      textMetrics:
+        item.textMetrics == null
+          ? null
+          : (() => {
+              const metrics = record(item.textMetrics, `${path}.textMetrics`);
+              if (metrics.source !== "node" && metrics.source !== "widget") {
+                throw new Error(
+                  `invalid layout snapshot: ${path}.textMetrics.source must be node or widget`,
+                );
+              }
+              return {
+                source: metrics.source,
+                lineBox: parseRect(
+                  metrics.lineBox,
+                  `${path}.textMetrics.lineBox`,
+                ),
+                baseline: finiteNumber(
+                  metrics.baseline,
+                  `${path}.textMetrics.baseline`,
+                ),
+              };
+            })(),
       classes: item.classes,
       attrs: item.attrs as LayoutSnapshotNode["attrs"],
       rect: parseRect(item.rect, `${path}.rect`),

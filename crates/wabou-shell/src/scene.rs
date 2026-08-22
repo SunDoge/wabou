@@ -345,11 +345,40 @@ fn draw_text(
         );
     }
     let text_transform = transform * origin;
+    draw_text_layout_into(
+        scene,
+        tcx,
+        &layout,
+        Affine::IDENTITY,
+        text_transform,
+        device_scale,
+    );
+}
+
+/// Paint a shaped layout while preserving its final-device pixel alignment.
+///
+/// Retained widget fragments use a non-identity `destination_to_output`;
+/// ordinary text paints directly into output coordinates. Both therefore
+/// select the same Swash subpixel variant for the same final baseline.
+pub fn draw_text_layout_into(
+    scene: &mut Scene,
+    tcx: &mut TextContext,
+    layout: &Arc<parley::Layout<[u8; 4]>>,
+    destination_to_output: Affine,
+    text_to_output: Affine,
+    device_scale: f64,
+) {
     if !tcx.uses_swash_raster() {
-        draw_outline_fallback(scene, tcx, &layout, text_transform, device_scale);
+        draw_outline_fallback(
+            scene,
+            tcx,
+            layout,
+            destination_to_output.inverse() * text_to_output,
+            device_scale,
+        );
         return;
     }
-    let [a, b, c, d, tx, ty] = text_transform.as_coeffs();
+    let [a, b, c, d, tx, ty] = text_to_output.as_coeffs();
     let raster_eligible = b.abs() < 1e-6
         && c.abs() < 1e-6
         && (a - device_scale).abs() < 1e-6
@@ -363,16 +392,22 @@ fn draw_text(
             ((quantized_x - pixel_x) * 4.0) as u8,
             ((quantized_y - pixel_y) * 4.0) as u8,
         ];
-        if let Some(glyph_scene) = tcx.raster_scene_scaled(&layout, device_scale, variant) {
+        if let Some(glyph_scene) = tcx.raster_scene_scaled(layout, device_scale, variant) {
             append_fragment(
                 scene,
                 &glyph_scene,
-                Some(Affine::translate((pixel_x, pixel_y))),
+                Some(destination_to_output.inverse() * Affine::translate((pixel_x, pixel_y))),
             );
             return;
         }
     }
-    draw_outline_fallback(scene, tcx, &layout, text_transform, device_scale);
+    draw_outline_fallback(
+        scene,
+        tcx,
+        layout,
+        destination_to_output.inverse() * text_to_output,
+        device_scale,
+    );
 }
 
 /// Build the exact text layout used to paint one placed node.

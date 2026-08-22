@@ -7,13 +7,13 @@ use vello::Scene;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
-use wabou_shell::text::{brush_for_color, layout_text_styled};
+use wabou_shell::text::{
+    SingleLineTextMetrics, brush_for_color, layout_text_styled, single_line_text_metrics,
+};
 use wabou_shell::{ImeEvent, KeyPhase, StandardShortcut, UiEvent};
 use zeroize::{Zeroize, Zeroizing};
 
 use wabou_shell::{PaintContext, Widget, WidgetEventResult, WidgetStyle};
-
-use crate::single_line_y_offset;
 
 const PLACEHOLDER: Color = Color::from_rgb8(0x64, 0x74, 0x8b);
 const DEFAULT_SLOT: &str = "default";
@@ -75,6 +75,7 @@ pub struct PasswordInput {
     line_height: Option<(f32, bool)>,
     font_family: Option<Arc<str>>,
     color: Color,
+    text_metrics: Option<SingleLineTextMetrics>,
 }
 
 impl PasswordInput {
@@ -91,6 +92,7 @@ impl PasswordInput {
             line_height: None,
             font_family: None,
             color: Color::WHITE,
+            text_metrics: None,
         }
     }
 
@@ -136,7 +138,8 @@ impl Widget for PasswordInput {
             self.font_family.as_ref(),
             None,
         );
-        let y = single_line_y_offset(height, layout.height());
+        self.text_metrics = single_line_text_metrics(&layout, height);
+        let y = f64::from(self.text_metrics.map_or(0.0, |metrics| metrics.line_box[1]));
         let glyphs = tcx.glyph_scene_scaled(&layout, device_scale);
         let mut scene = Scene::new();
         scene.append(
@@ -233,6 +236,10 @@ impl Widget for PasswordInput {
             disabled: Some(self.disabled),
             ..Default::default()
         }
+    }
+
+    fn text_metrics(&self) -> Option<SingleLineTextMetrics> {
+        self.text_metrics
     }
 
     fn intrinsic_size(&self) -> Option<[f32; 2]> {

@@ -47,6 +47,15 @@ function parseLayoutSnapshot(value) {
 			id: parseKey(item.id, `${path}.id`),
 			parentId: item.parentId === null || item.parentId === void 0 ? null : parseKey(item.parentId, `${path}.parentId`),
 			tag: item.tag,
+			textMetrics: item.textMetrics == null ? null : (() => {
+				const metrics = record(item.textMetrics, `${path}.textMetrics`);
+				if (metrics.source !== "node" && metrics.source !== "widget") throw new Error(`invalid layout snapshot: ${path}.textMetrics.source must be node or widget`);
+				return {
+					source: metrics.source,
+					lineBox: parseRect(metrics.lineBox, `${path}.textMetrics.lineBox`),
+					baseline: finiteNumber(metrics.baseline, `${path}.textMetrics.baseline`)
+				};
+			})(),
 			classes: item.classes,
 			attrs: item.attrs,
 			rect: parseRect(item.rect, `${path}.rect`),

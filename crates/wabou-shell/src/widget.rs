@@ -17,6 +17,7 @@ use std::time::Instant;
 
 use crate::SemanticRole;
 use crate::style::{Paint, TextAlign};
+use crate::text::SingleLineTextMetrics;
 use crate::text::TextContext;
 use crate::{ClipboardRequest, HostAction, HostActionResult, UiEvent, WakeCallback};
 use vello::{
@@ -130,6 +131,7 @@ pub struct PaintContext<'a> {
     height: f32,
     device_scale: f64,
     text: &'a mut TextContext,
+    local_to_window: Affine,
     scene: Scene,
     owns_clip: bool,
 }
@@ -142,6 +144,7 @@ impl<'a> PaintContext<'a> {
             height,
             device_scale: device_scale.max(f64::EPSILON),
             text,
+            local_to_window: Affine::IDENTITY,
             scene: Scene::new(),
             owns_clip: false,
         }
@@ -165,6 +168,20 @@ impl<'a> PaintContext<'a> {
                 .to_rounded_rect(radius.max(0.0)),
         );
         context.owns_clip = true;
+        context
+    }
+
+    /// Create a clipped widget context with its logical window transform.
+    pub fn new_clipped_at(
+        width: f32,
+        height: f32,
+        radius: f64,
+        device_scale: f64,
+        local_to_window: [f64; 6],
+        text: &'a mut TextContext,
+    ) -> Self {
+        let mut context = Self::new_clipped(width, height, radius, device_scale, text);
+        context.local_to_window = Affine::new(local_to_window);
         context
     }
 
@@ -196,6 +213,24 @@ impl<'a> PaintContext<'a> {
     /// Direct access to the Vello scene while the painting API is evolving.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
+    }
+
+    /// Paint shaped text at a content-local origin with final pixel alignment.
+    pub fn draw_text_layout(
+        &mut self,
+        layout: &std::sync::Arc<parley::Layout<[u8; 4]>>,
+        origin: [f64; 2],
+    ) {
+        let destination_to_output = Affine::scale(self.device_scale) * self.local_to_window;
+        let text_to_output = destination_to_output * Affine::translate((origin[0], origin[1]));
+        crate::scene::draw_text_layout_into(
+            &mut self.scene,
+            self.text,
+            layout,
+            destination_to_output,
+            text_to_output,
+            self.device_scale,
+        );
     }
 
     /// Finish the fragment, balancing a context-owned clip if present.
@@ -525,6 +560,15 @@ pub trait Widget {
     /// Native semantics that cannot be inferred from the host element.
     fn accessibility(&self) -> WidgetAccessibility {
         WidgetAccessibility::default()
+    }
+
+    /// Most recently painted single-line text geometry for diagnostics.
+    ///
+    /// Text-backed widgets should return metrics produced by
+    /// [`crate::text::single_line_text_metrics`]. This lets headless tests
+    /// compare native and ordinary text without inspecting pixels.
+    fn text_metrics(&self) -> Option<SingleLineTextMetrics> {
+        None
     }
 
     /// Whether this widget wants focus on pointer down. Default: false.

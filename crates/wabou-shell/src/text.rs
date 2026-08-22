@@ -25,6 +25,31 @@ use vello::peniko::Fill;
 use crate::style::TextAlign;
 use vello::peniko::Color;
 
+/// Geometry shared by ordinary text nodes and text-backed native widgets.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SingleLineTextMetrics {
+    /// Local line box `[x, y, width, height]` inside the owning content box.
+    pub line_box: [f32; 4],
+    /// Local baseline offset from the content-box top.
+    pub baseline: f32,
+}
+
+/// Center a Parley single-line layout inside a content box.
+///
+/// This is the canonical vertical-positioning rule for both normal text and
+/// native editors. Components must not add tag-specific optical offsets.
+pub fn single_line_text_metrics<B: parley::Brush>(
+    layout: &Layout<B>,
+    container_height: f32,
+) -> Option<SingleLineTextMetrics> {
+    let line = layout.lines().next()?;
+    let origin_y = ((container_height - layout.height()).max(0.0)) * 0.5;
+    Some(SingleLineTextMetrics {
+        line_box: [0.0, origin_y, layout.width(), layout.height()],
+        baseline: origin_y + line.metrics().baseline,
+    })
+}
+
 /// Convert a Vello color into Parley's RGBA brush representation.
 pub fn brush_for_color(color: Color) -> [u8; 4] {
     color.to_rgba8().to_u8_array()
@@ -935,6 +960,23 @@ mod tests {
 
         assert!(!Arc::ptr_eq(&one_x, &two_x));
         assert_eq!(context.glyph_cache.len(), 2);
+    }
+
+    #[test]
+    fn single_line_metrics_center_the_line_box_without_baseline_guessing() {
+        let mut context = TextContext::new();
+        let layout = layout_text(&mut context, "example.com", 14.0);
+        let metrics = single_line_text_metrics(&layout, layout.height() + 8.0)
+            .expect("a single-line layout should expose metrics");
+        let baseline = layout
+            .lines()
+            .next()
+            .expect("the layout should contain one line")
+            .metrics()
+            .baseline;
+
+        assert_eq!(metrics.line_box[1], 4.0);
+        assert_eq!(metrics.baseline, 4.0 + baseline);
     }
 
     #[test]
