@@ -89,6 +89,20 @@
         "vite": "^6.0.0",
       },
     },
+    "apps/manga-ocr": {
+      "name": "@wabou/manga-ocr",
+      "version": "0.0.0",
+      "dependencies": {
+        "@wabou/ui": "workspace:*",
+        "lucide-static": "1.31.0",
+        "solid-js": "2.0.0-rc.1",
+      },
+      "devDependencies": {
+        "@wabou/test": "workspace:*",
+        "@wabou/vite": "workspace:*",
+        "vite": "^6.0.0",
+      },
+    },
     "apps/motrix": {
       "name": "@wabou/motrix",
       "version": "0.0.0",
@@ -700,6 +714,8 @@
     "@wabou/gallery": ["@wabou/gallery@workspace:apps/gallery"],
 
     "@wabou/hackernews": ["@wabou/hackernews@workspace:apps/hackernews"],
+
+    "@wabou/manga-ocr": ["@wabou/manga-ocr@workspace:apps/manga-ocr"],
 
     "@wabou/motrix": ["@wabou/motrix@workspace:apps/motrix"],
 

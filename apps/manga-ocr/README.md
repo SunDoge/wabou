@@ -1,0 +1,30 @@
+# Manga OCR · Wabou
+
+A native manga reader experiment built from Wabou's `ImageList`,
+`ImageViewport`, and `AnnotationLayer` components. It is based on the workflow
+of `RawMangaReader`, without a WebView or browser-owned image objects.
+
+## Run
+
+```bash
+wabou dev apps/manga-ocr
+```
+
+Open individual pages or a directory. Install the PP-OCRv6 small model from
+the right panel, recognize the current page, then optionally enter an
+OpenRouter API key and translate all recognized regions.
+
+## Resource model
+
+- Solid owns only page metadata, selection, zoom, annotations, and translated
+  strings.
+- Wabou's Rust runtime loads, decodes, caches, and paints file images.
+- The OCR capability receives the native file path and performs inference in
+  Rust. Decoded pixels never cross the JavaScript boundary.
+- OpenRouter requests run in Rust so provider credentials and HTTP response
+  parsing are outside the UI bundle's state machinery.
+
+The first version intentionally keeps OCR/translation calls on the low-frequency
+JSON capability path. A future resource-handle API can let OCR and painting
+share the exact same decoded Rust allocation without changing the component
+API.

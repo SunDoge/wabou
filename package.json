@@ -42,6 +42,7 @@
     "apps/devtools",
     "apps/gallery",
     "apps/hackernews",
+    "apps/manga-ocr",
     "apps/motrix",
     "apps/stress",
     "apps/terminal",
