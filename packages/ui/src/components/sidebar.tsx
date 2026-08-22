@@ -11,6 +11,11 @@ import {
 } from "../primitives";
 import { join } from "./class-names";
 import { SearchField, type SearchFieldProps } from "./search-field";
+import {
+  type ComponentsElevation,
+  componentsElevation,
+  useComponentsTheme,
+} from "./theme";
 
 export interface SidebarSearchGroup<Item> {
   label: string;
@@ -43,18 +48,27 @@ export function filterSidebarGroups<Item>(
 
 export interface SidebarProps extends Omit<ViewProps, "class"> {
   class?: string;
+  /** Native shadow recipe for sidebars that float inside a window frame. */
+  elevation?: ComponentsElevation;
 }
 
 /** Structural application sidebar. State, routing and width remain explicit. */
 export function Sidebar(props: SidebarProps): JSX.Element {
+  const theme = useComponentsTheme();
+  const forwarded = omit(props, "class", "elevation", "shadows");
   return (
     <View
-      {...props}
+      {...forwarded}
       role={props.role ?? "group"}
       class={join(
         "h-full min-h-0 flex-none flex flex-col overflow-hidden bg-surface-muted",
         props.class,
       )}
+      shadows={
+        props.shadows === undefined && props.elevation
+          ? componentsElevation(theme(), props.elevation)
+          : props.shadows
+      }
     />
   );
 }

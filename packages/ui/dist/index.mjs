@@ -7353,12 +7353,19 @@ function filterSidebarGroups(groups, query, searchableText) {
 }
 /** Structural application sidebar. State, routing and width remain explicit. */
 function Sidebar(props) {
-	return createComponent$1(View, mergeProps(props, {
+	const theme = useComponentsTheme();
+	const forwarded = omit(props, "class", "elevation", "shadows");
+	return createComponent$1(View, mergeProps(forwarded, {
 		get role() {
 			return props.role ?? "group";
 		},
 		get ["class"]() {
 			return join("h-full min-h-0 flex-none flex flex-col overflow-hidden bg-surface-muted", props.class);
+		},
+		get shadows() {
+			return memo(() => {
+				return !!(props.shadows === void 0 && props.elevation);
+			})() ? componentsElevation(theme(), props.elevation) : props.shadows;
 		}
 	}));
 }

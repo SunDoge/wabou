@@ -2,6 +2,9 @@ import {
   Button,
   Icon,
   px,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
   Text,
   TitleBar,
   TitleBarDragRegion,
@@ -144,12 +147,14 @@ function NavigationButton(props: {
 
 export function AppSidebar(props: ShellChromeProps) {
   return (
-    <View
-      class="flex-none overflow-hidden px-2 py-2 flex flex-col rounded-xl border border-subtle bg-surface-muted shadow-md"
+    <Sidebar
+      aria-label="Primary navigation"
+      elevation="raised"
+      class="rounded-xl border border-subtle"
       style={{ width: px(props.sidebarWidth) }}
     >
       <Show when={!props.sidebarOpen}>
-        <View class="mb-4 flex flex-col items-center gap-2">
+        <View class="flex-none px-2 pt-2 pb-3 flex flex-col items-center gap-2">
           <Button
             aria-label="New task"
             size="icon"
@@ -160,7 +165,7 @@ export function AppSidebar(props: ShellChromeProps) {
           </Button>
         </View>
       </Show>
-      <View class="flex flex-col gap-1">
+      <SidebarContent contentClass="px-2 py-0 flex flex-col gap-1">
         <For each={navigation}>
           {([path, label, icon]) => (
             <NavigationButton
@@ -171,21 +176,22 @@ export function AppSidebar(props: ShellChromeProps) {
             />
           )}
         </For>
-      </View>
-      <View class="flex-1" />
-      <NavigationButton
-        path="/notifications"
-        label="Notifications"
-        icon={bell}
-        expanded={props.sidebarOpen}
-      />
-      <View class="my-2 border-t border-subtle" />
-      <NavigationButton
-        path="/settings"
-        label="Settings"
-        icon={settings}
-        expanded={props.sidebarOpen}
-      />
-    </View>
+      </SidebarContent>
+      <SidebarFooter class="p-2 flex flex-col gap-1 bg-transparent">
+        <NavigationButton
+          path="/notifications"
+          label="Notifications"
+          icon={bell}
+          expanded={props.sidebarOpen}
+        />
+        <View class="my-1 border-t border-subtle" />
+        <NavigationButton
+          path="/settings"
+          label="Settings"
+          icon={settings}
+          expanded={props.sidebarOpen}
+        />
+      </SidebarFooter>
+    </Sidebar>
   );
 }

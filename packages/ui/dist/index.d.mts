@@ -1585,6 +1585,22 @@ interface ShortcutRecorderProps {
 }
 declare function ShortcutRecorder(props: ShortcutRecorderProps): JSX.Element;
 //#endregion
+//#region src/components/theme.d.ts
+type ComponentsTheme = "light" | "dark";
+type ComponentsElevation = "raised" | "floating" | "modal";
+/**
+ * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
+ * pass standard deviation directly to their renderer, so these values should
+ * not use CSS's doubled blur radius. Floating surfaces also carry a subtle
+ * foreground-colored ring: black in light mode, white in dark mode.
+ */
+declare function componentsElevation(theme: ComponentsTheme, elevation: ComponentsElevation): Shadow[];
+type ComponentsProviderProps = ParentProps<{
+  theme?: ComponentsTheme;
+}>;
+declare function ComponentsProvider(props: ComponentsProviderProps): JSX.Element;
+declare function useComponentsTheme(): () => ComponentsTheme;
+//#endregion
 //#region src/components/sidebar.d.ts
 interface SidebarSearchGroup<Item> {
   label: string;
@@ -1597,6 +1613,8 @@ interface SidebarSearchGroup<Item> {
 declare function filterSidebarGroups<Item>(groups: readonly SidebarSearchGroup<Item>[], query: string, searchableText: (item: Item) => string): SidebarSearchGroup<Item>[];
 interface SidebarProps extends Omit<ViewProps, "class"> {
   class?: string;
+  /** Native shadow recipe for sidebars that float inside a window frame. */
+  elevation?: ComponentsElevation;
 }
 /** Structural application sidebar. State, routing and width remain explicit. */
 declare function Sidebar(props: SidebarProps): JSX.Element;
@@ -1755,22 +1773,6 @@ declare function TabsContent(props: {
   class?: string;
   children?: JSX.Element;
 }): JSX.Element;
-//#endregion
-//#region src/components/theme.d.ts
-type ComponentsTheme = "light" | "dark";
-type ComponentsElevation = "raised" | "floating" | "modal";
-/**
- * Native elevation recipes adapted from gpui-component. Wabou and GPUI both
- * pass standard deviation directly to their renderer, so these values should
- * not use CSS's doubled blur radius. Floating surfaces also carry a subtle
- * foreground-colored ring: black in light mode, white in dark mode.
- */
-declare function componentsElevation(theme: ComponentsTheme, elevation: ComponentsElevation): Shadow[];
-type ComponentsProviderProps = ParentProps<{
-  theme?: ComponentsTheme;
-}>;
-declare function ComponentsProvider(props: ComponentsProviderProps): JSX.Element;
-declare function useComponentsTheme(): () => ComponentsTheme;
 //#endregion
 //#region src/components/timeline.d.ts
 interface TimelineItem {
