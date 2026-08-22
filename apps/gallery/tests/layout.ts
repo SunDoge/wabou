@@ -153,6 +153,15 @@ const assertImageViewportLayout = (snapshot: LayoutSnapshot) => {
   assertClose(region.rect.height, 72.9, "projected annotation height");
 };
 
+const assertImageListLayout = (snapshot: LayoutSnapshot) => {
+  const list = getLayoutNode(snapshot, { name: "Fixture image list" });
+  const first = getLayoutNode(snapshot, { name: "Fixture page 1" });
+  assertLayoutRectContains(list.contentRect, first.rect, {
+    label: "first image row",
+  });
+  assertClose(first.rect.height, 80, "virtual image row height");
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -169,6 +178,11 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     width: 720,
     height: 520,
     assert: assertImageViewportLayout,
+  },
+  "component/ImageList": {
+    width: 360,
+    height: 360,
+    assert: assertImageListLayout,
   },
 };
 const fixtureCase = (id: string) => {

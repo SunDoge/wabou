@@ -7,6 +7,7 @@ import {
   type JSX,
   onCleanup,
   Show,
+  untrack,
 } from "solid-js";
 import type { Handle, WabouSemanticRole } from "./index";
 
@@ -102,6 +103,17 @@ export function createVirtualItemIdentity<T>(
  * of relying on HTMLElement, ResizeObserver or getBoundingClientRect().
  */
 export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
+  const config = untrack(() => ({
+    items: props.items,
+    children: props.children,
+    itemHeight: props.itemHeight,
+    viewportHeight: props.viewportHeight,
+    class: props.class,
+    overscan: props.overscan,
+    getItemKey: props.getItemKey,
+    role: props.role,
+    accessibilityLabel: props.accessibilityLabel,
+  }));
   const surface = {} as Element;
   let scrollHandle: Handle | undefined;
   let publishOffset: ((offset: number, scrolling: boolean) => void) | undefined;
@@ -112,28 +124,37 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
   let scrollEndTimer: ReturnType<typeof setTimeout> | undefined;
   let lastOffset = 0;
   const [version, invalidate] = createSignal(0, { equals: false });
-  const [measuredRect, setMeasuredRect] = createSignal({
+  let currentMeasuredRect = {
     width: 0,
     height: 0,
-  });
-  const viewportHeight = () => props.viewportHeight ?? measuredRect().height;
-  const itemKeys = createMemo(() =>
-    validateVirtualItemKeys(props.items(), props.getItemKey),
+  };
+  const viewportHeight = () =>
+    config.viewportHeight ?? currentMeasuredRect.height;
+  let currentItemKeys = validateVirtualItemKeys(
+    untrack(config.items),
+    config.getItemKey,
   );
+  const itemKeys = createMemo(() => {
+    currentItemKeys = validateVirtualItemKeys(
+      config.items(),
+      config.getItemKey,
+    );
+    return currentItemKeys;
+  });
 
   const options = (): VirtualizerOptions<Element, Element> => ({
-    count: itemKeys().length,
-    getItemKey: (index) => itemKeys()[index] ?? index,
+    count: currentItemKeys.length,
+    getItemKey: (index) => currentItemKeys[index] ?? index,
     getScrollElement: () => (scrollHandle ? surface : null),
-    estimateSize: () => props.itemHeight,
-    overscan: props.overscan ?? 4,
+    estimateSize: () => config.itemHeight,
+    overscan: config.overscan ?? 4,
     initialRect: {
-      width: measuredRect().width,
+      width: currentMeasuredRect.width,
       height: viewportHeight(),
     },
     observeElementRect: (_instance, notify) => {
       publishRect = notify;
-      notify({ width: measuredRect().width, height: viewportHeight() });
+      notify({ width: currentMeasuredRect.width, height: viewportHeight() });
       return () => {
         publishRect = undefined;
       };
@@ -149,8 +170,11 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
     onChange: () => invalidate((value) => value + 1),
   });
 
-  const virtualizer = new Virtualizer(options());
-  const dispose = virtualizer._didMount();
+  // TanStack reads its initial options synchronously. Later reactive updates
+  // are supplied by `virtualItems`; this bootstrap read must not pretend to be
+  // owned by the VirtualList component body.
+  const virtualizer = new Virtualizer(untrack(options));
+  const dispose = untrack(() => virtualizer._didMount());
   onCleanup(() => {
     if (scrollEndTimer !== undefined) clearTimeout(scrollEndTimer);
     resizeObserver?.disconnect();
@@ -159,7 +183,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
 
   const virtualItems = createMemo(() => {
     version();
-    props.items();
+    itemKeys();
     virtualizer.setOptions(options());
     virtualizer._willUpdate();
     return virtualizer.getVirtualItems();
@@ -171,15 +195,15 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
 
   return (
     <view
-      class={props.class}
-      role={props.role}
-      aria-label={props.accessibilityLabel}
+      class={config.class}
+      role={config.role}
+      aria-label={config.accessibilityLabel}
       ref={(node) => {
         // Solid's published JSX types describe DOM nodes, while the universal
         // renderer supplies Wabou handles at runtime. Keep that conversion at
         // this renderer boundary instead of leaking DOM types into the core.
         scrollHandle = node as unknown as Handle;
-        if (props.viewportHeight === undefined) {
+        if (config.viewportHeight === undefined) {
           resizeObserver?.disconnect();
           resizeObserver = new ResizeObserver(([entry]) => {
             if (!entry) return;
@@ -187,19 +211,19 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
               width: entry.contentRect.width,
               height: entry.contentRect.height,
             };
-            setMeasuredRect(rect);
+            currentMeasuredRect = rect;
             publishRect?.(rect);
           });
           resizeObserver.observe(node as never);
         }
-        virtualizer._willUpdate();
+        untrack(() => virtualizer._willUpdate());
       }}
       style={{
         overflow: "scroll",
         position: "relative",
-        ...(props.viewportHeight === undefined
+        ...(config.viewportHeight === undefined
           ? {}
-          : { height: `${props.viewportHeight}px` }),
+          : { height: `${config.viewportHeight}px` }),
         width: "100%",
       }}
       onScroll={(event) => {
@@ -225,9 +249,9 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
         <For each={virtualItems()} keyed={false}>
           {(virtualItem) => {
             const index = () => virtualItem().index;
-            const item = createVirtualRow(props.items, index);
+            const item = createVirtualRow(config.items, index);
             const identity = createVirtualItemIdentity(
-              props.items,
+              config.items,
               index,
               (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex,
             );
@@ -242,7 +266,7 @@ export function VirtualList<T>(props: VirtualListProps<T>): JSX.Element {
               >
                 <Show when={identity()} keyed>
                   {(_identity) =>
-                    props.children(() => {
+                    config.children(() => {
                       const current = item();
                       if (current === undefined)
                         throw new Error(

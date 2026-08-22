@@ -364,6 +364,17 @@ function createVirtualItemIdentity(items, index, getItemKey) {
 * of relying on HTMLElement, ResizeObserver or getBoundingClientRect().
 */
 function VirtualList(props) {
+	const config = untrack(() => ({
+		items: props.items,
+		children: props.children,
+		itemHeight: props.itemHeight,
+		viewportHeight: props.viewportHeight,
+		class: props.class,
+		overscan: props.overscan,
+		getItemKey: props.getItemKey,
+		role: props.role,
+		accessibilityLabel: props.accessibilityLabel
+	}));
 	const surface = {};
 	let scrollHandle;
 	let publishOffset;
@@ -372,26 +383,30 @@ function VirtualList(props) {
 	let scrollEndTimer;
 	let lastOffset = 0;
 	const [version, invalidate] = createSignal(0, { equals: false });
-	const [measuredRect, setMeasuredRect] = createSignal({
+	let currentMeasuredRect = {
 		width: 0,
 		height: 0
+	};
+	const viewportHeight = () => config.viewportHeight ?? currentMeasuredRect.height;
+	let currentItemKeys = validateVirtualItemKeys(untrack(config.items), config.getItemKey);
+	const itemKeys = createMemo(() => {
+		currentItemKeys = validateVirtualItemKeys(config.items(), config.getItemKey);
+		return currentItemKeys;
 	});
-	const viewportHeight = () => props.viewportHeight ?? measuredRect().height;
-	const itemKeys = createMemo(() => validateVirtualItemKeys(props.items(), props.getItemKey));
 	const options = () => ({
-		count: itemKeys().length,
-		getItemKey: (index) => itemKeys()[index] ?? index,
+		count: currentItemKeys.length,
+		getItemKey: (index) => currentItemKeys[index] ?? index,
 		getScrollElement: () => scrollHandle ? surface : null,
-		estimateSize: () => props.itemHeight,
-		overscan: props.overscan ?? 4,
+		estimateSize: () => config.itemHeight,
+		overscan: config.overscan ?? 4,
 		initialRect: {
-			width: measuredRect().width,
+			width: currentMeasuredRect.width,
 			height: viewportHeight()
 		},
 		observeElementRect: (_instance, notify) => {
 			publishRect = notify;
 			notify({
-				width: measuredRect().width,
+				width: currentMeasuredRect.width,
 				height: viewportHeight()
 			});
 			return () => {
@@ -408,8 +423,8 @@ function VirtualList(props) {
 		scrollToFn: (offset) => scrollHandle?.scrollTo({ top: offset }),
 		onChange: () => invalidate((value) => value + 1)
 	});
-	const virtualizer = new Virtualizer(options());
-	const dispose = virtualizer._didMount();
+	const virtualizer = new Virtualizer(untrack(options));
+	const dispose = untrack(() => virtualizer._didMount());
 	onCleanup(() => {
 		if (scrollEndTimer !== void 0) clearTimeout(scrollEndTimer);
 		resizeObserver?.disconnect();
@@ -417,7 +432,7 @@ function VirtualList(props) {
 	});
 	const virtualItems = createMemo(() => {
 		version();
-		props.items();
+		itemKeys();
 		virtualizer.setOptions(options());
 		virtualizer._willUpdate();
 		return virtualizer.getVirtualItems();
@@ -440,7 +455,7 @@ function VirtualList(props) {
 	ref(() => {
 		return (node) => {
 			scrollHandle = node;
-			if (props.viewportHeight === void 0) {
+			if (config.viewportHeight === void 0) {
 				resizeObserver?.disconnect();
 				resizeObserver = new ResizeObserver(([entry]) => {
 					if (!entry) return;
@@ -448,12 +463,12 @@ function VirtualList(props) {
 						width: entry.contentRect.width,
 						height: entry.contentRect.height
 					};
-					setMeasuredRect(rect);
+					currentMeasuredRect = rect;
 					publishRect?.(rect);
 				});
 				resizeObserver.observe(node);
 			}
-			virtualizer._willUpdate();
+			untrack(() => virtualizer._willUpdate());
 		};
 	}, _el$);
 	insert(_el$2, createComponent$1(For, {
@@ -463,15 +478,15 @@ function VirtualList(props) {
 		keyed: false,
 		children: (virtualItem) => {
 			const index = () => virtualItem().index;
-			const item = createVirtualRow(props.items, index);
-			const identity = createVirtualItemIdentity(props.items, index, (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex);
+			const item = createVirtualRow(config.items, index);
+			const identity = createVirtualItemIdentity(config.items, index, (_item, currentIndex) => itemKeys()[currentIndex] ?? currentIndex);
 			var _el$3 = createElement("view");
 			insert(_el$3, createComponent$1(Show, {
 				get when() {
 					return identity();
 				},
 				keyed: true,
-				children: (_identity) => props.children(() => {
+				children: (_identity) => config.children(() => {
 					const current = item();
 					if (current === void 0) throw new Error("VirtualList item disappeared while its row was mounted");
 					return current;
@@ -490,13 +505,13 @@ function VirtualList(props) {
 	}));
 	effect(() => {
 		return {
-			e: props.class,
-			t: props.role,
-			a: props.accessibilityLabel,
+			e: config.class,
+			t: config.role,
+			a: config.accessibilityLabel,
 			o: {
 				overflow: "scroll",
 				position: "relative",
-				...props.viewportHeight === void 0 ? {} : { height: `${props.viewportHeight}px` },
+				...config.viewportHeight === void 0 ? {} : { height: `${config.viewportHeight}px` },
 				width: "100%"
 			},
 			i: {
@@ -1133,4 +1148,4 @@ function eventName(code) {
 //#endregion
 export { VirtualList as A, removeNode as C, setTransform2D as D, setProp as E, useHost as F, PathBuilder as I, isVectorPath as L, Portal as M, HostProvider as N, spread as O, defaultHost as P, releaseOverlayRoot as S, runSweep as T, mergeProps as _, createElement as a, ref as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, createFps as j, writer as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, render as w, registerRoot as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-ByEAKxlP.mjs.map
+//# sourceMappingURL=renderer-BVgIX60p.mjs.map

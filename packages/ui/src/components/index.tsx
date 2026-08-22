@@ -53,6 +53,7 @@ export * from "./empty";
 export * from "./forms";
 export * from "./hover-card";
 export * from "./image-viewport";
+export * from "./image-list";
 export * from "./inline-edit";
 export * from "./input";
 export * from "./input-otp";

@@ -2,12 +2,13 @@ import {
   AdaptiveSplitPane,
   AdaptiveSplitPaneDetail,
   AdaptiveSplitPaneMain,
+  AnnotationLayer,
   Button,
   Dialog,
   DialogDescription,
   DialogScrollBody,
   DialogTitle,
-  AnnotationLayer,
+  ImageList,
   ImageViewport,
   ScrollArea,
   Select,
@@ -19,8 +20,8 @@ import {
   Text,
   View,
 } from "@wabou/ui";
-import { MangaPageMock } from "./pages/image-viewport";
 import { For } from "solid-js";
+import { MangaPageMock } from "./pages/image-viewport";
 
 export function SidebarLayoutFixture() {
   return (
@@ -187,6 +188,33 @@ export function ImageViewportLayoutFixture() {
           ]}
         />
       </ImageViewport>
+    </View>
+  );
+}
+
+const imageListPages = Array.from({ length: 30 }, (_, index) => ({
+  id: index,
+  path: `/fixture/page-${index + 1}.png`,
+  title: `Fixture page ${index + 1}`,
+}));
+
+export function ImageListLayoutFixture() {
+  return (
+    <View class="w-full h-full min-h-0 p-4 bg-canvas">
+      <ImageList
+        items={() => imageListPages}
+        getItemKey={(page) => page.id}
+        getSource={(page) => ({ kind: "file", path: page.path })}
+        getLabel={(page) => page.title}
+        getDescription={(_, index) =>
+          `${index + 1} of ${imageListPages.length}`
+        }
+        itemHeight={80}
+        thumbnailWidth={48}
+        thumbnailHeight={64}
+        accessibilityLabel="Fixture image list"
+        class="w-full h-full rounded-lg border border-subtle bg-surface"
+      />
     </View>
   );
 }

@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ImageList,
   ImageViewport,
   Text,
   View,
@@ -83,10 +84,16 @@ const initialRegions: readonly AnnotationRegion[] = [
   },
 ];
 
+const demoPages = Array.from({ length: 24 }, (_, index) => ({
+  id: index,
+  title: `Page ${index + 1}`,
+}));
+
 export function ImageViewportPage() {
   const [regions, setRegions] = createSignal(initialRegions);
   const [selected, setSelected] = createSignal<string | null>(null);
   const [zoom, setZoom] = createSignal(1);
+  const [selectedPage, setSelectedPage] = createSignal(0);
   let nextRegion = 1;
   return (
     <View class="w-full min-w-0 flex flex-col gap-5">
@@ -115,6 +122,24 @@ export function ImageViewportPage() {
         </Text>
       </View>
       <View class="w-full min-w-0 flex flex-row gap-4 items-start">
+        <ImageList
+          items={() => demoPages}
+          getItemKey={(page) => page.id}
+          getSource={(page) => ({
+            kind: "file",
+            path: `/demo/page-${page.id + 1}.png`,
+          })}
+          getLabel={(page) => page.title}
+          renderThumbnail={() => <MangaPageMock />}
+          selectedKey={selectedPage()}
+          onSelectionChange={(page) => setSelectedPage(page.id)}
+          itemHeight={88}
+          thumbnailWidth={48}
+          thumbnailHeight={68}
+          accessibilityLabel="Manga pages"
+          class="w-48 flex-none rounded-xl border border-subtle bg-surface"
+          viewportHeight={620}
+        />
         <ImageViewport
           aria-label="Manga annotation viewport"
           class="flex-1 min-w-0 rounded-xl border border-subtle shadow-sm"

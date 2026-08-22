@@ -1,0 +1,58 @@
+import { renderComponent } from "@wabou/test/component";
+import { ImageList, type ImageSource } from "@wabou/ui";
+import { createSignal } from "solid-js";
+import { expect, test } from "vitest";
+
+interface Page {
+  id: number;
+  path: string;
+  title: string;
+}
+
+const pages: readonly Page[] = Array.from({ length: 100 }, (_, index) => ({
+  id: index,
+  path: `/pages/${index}.png`,
+  title: `Page ${index + 1}`,
+}));
+
+test("virtualizes image rows and exposes deterministic selection", () => {
+  const Harness = () => {
+    const [selected, setSelected] = createSignal<number>();
+    return (
+      <ImageList
+        items={() => pages}
+        getItemKey={(page) => page.id}
+        getSource={(page): ImageSource => ({ kind: "file", path: page.path })}
+        getLabel={(page) => page.title}
+        itemHeight={80}
+        viewportHeight={240}
+        selectedKey={selected()}
+        onSelectionChange={(page) => setSelected(page.id)}
+        accessibilityLabel="Manga pages"
+      />
+    );
+  };
+
+  const screen = renderComponent(Harness);
+  expect(screen.getByRole("listbox", { name: "Manga pages" })).toBeTruthy();
+  const mounted = screen.getAllByRole("option");
+  expect(mounted.length).toBeGreaterThan(0);
+  expect(mounted.length).toBeLessThan(pages.length);
+
+  const first = screen.getByRole("option", { name: "Page 1" });
+  expect(first.selected).toBe(false);
+  first.click();
+  expect(screen.getByRole("option", { name: "Page 1" }).selected).toBe(true);
+});
+
+test("rejects non-positive row and thumbnail geometry", () => {
+  expect(() =>
+    ImageList({
+      items: () => pages,
+      getItemKey: (page) => page.id,
+      getSource: (page) => ({ kind: "file", path: page.path }),
+      getLabel: (page) => page.title,
+      itemHeight: 0,
+    }),
+  ).toThrow(RangeError);
+});
