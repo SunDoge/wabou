@@ -10,7 +10,7 @@ import { flush } from "solid-js";
 const rafQueue = new Map<number, (t: number) => void>();
 let nextRafId = 1;
 
-function requestAnimationFrameImpl(cb: (t: number) => void): number {
+export function requestAnimationFrameImpl(cb: (t: number) => void): number {
   const id = nextRafId++;
   rafQueue.set(id, cb);
   return id;
@@ -20,7 +20,10 @@ function cancelAnimationFrameImpl(id: number): void {
   rafQueue.delete(id);
 }
 
-function __wabou_tick(frameTime: number): boolean {
+export function tickAnimationFrame(
+  frameTime: number,
+  deliver: (bytes: Uint8Array) => void = __wabou_flush,
+): boolean {
   const entries = Array.from(rafQueue.entries());
   rafQueue.clear();
   // A native frame is the transaction boundary for every rAF callback.
@@ -37,8 +40,12 @@ function __wabou_tick(frameTime: number): boolean {
   });
   runSweep();
   const bytes = writer.flush();
-  if (bytes) __wabou_flush(bytes);
+  if (bytes) deliver(bytes);
   return rafQueue.size > 0;
+}
+
+function __wabou_tick(frameTime: number): boolean {
+  return tickAnimationFrame(frameTime);
 }
 
 function __wabou_has_raf(): boolean {

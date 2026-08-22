@@ -243,7 +243,7 @@ function requestAnimationFrameImpl(cb) {
 function cancelAnimationFrameImpl(id) {
 	rafQueue.delete(id);
 }
-function __wabou_tick(frameTime) {
+function tickAnimationFrame(frameTime, deliver = __wabou_flush) {
 	const entries = Array.from(rafQueue.entries());
 	rafQueue.clear();
 	flush(() => {
@@ -255,8 +255,11 @@ function __wabou_tick(frameTime) {
 	});
 	runSweep();
 	const bytes = writer.flush();
-	if (bytes) __wabou_flush(bytes);
+	if (bytes) deliver(bytes);
 	return rafQueue.size > 0;
+}
+function __wabou_tick(frameTime) {
+	return tickAnimationFrame(frameTime);
 }
 function __wabou_has_raf() {
 	return rafQueue.size > 0;
