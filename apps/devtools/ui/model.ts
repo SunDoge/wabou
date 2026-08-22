@@ -51,6 +51,18 @@ export interface LatestRequestGate {
   isCurrent(token: number): boolean;
 }
 
+export interface RetainedTreeSource {
+  id: string;
+  parentId?: string | null;
+  label: string;
+}
+
+export interface RetainedTreeItem {
+  id: string;
+  label: string;
+  children?: RetainedTreeItem[];
+}
+
 export const EMPTY_OVERLAY_LAYERS: OverlayLayers = Object.freeze({
   layout: false,
   clips: false,
@@ -71,6 +83,61 @@ export function createLatestRequestGate(): LatestRequestGate {
     begin: () => ++current,
     isCurrent: (token) => token === current,
   };
+}
+
+/** Auto-discovery without a running target is an idle state, not a fault. */
+export function isExpectedDisconnectedError(cause: unknown): boolean {
+  const message = String(cause);
+  return (
+    message.includes("no live Wabou DevTools socket found") ||
+    message.includes("target runtime is not connected")
+  );
+}
+
+/**
+ * Project a flat retained snapshot into a safe inspector tree. Missing,
+ * duplicate, self-referential, and cyclic parents remain visible as roots.
+ */
+export function buildRetainedTree(
+  sources: readonly RetainedTreeSource[],
+): RetainedTreeItem[] {
+  const unique: RetainedTreeSource[] = [];
+  const sourceById = new Map<string, RetainedTreeSource>();
+  for (const source of sources) {
+    if (!sourceById.has(source.id)) {
+      sourceById.set(source.id, source);
+      unique.push(source);
+    }
+  }
+  const createsCycle = (source: RetainedTreeSource): boolean => {
+    const seen = new Set([source.id]);
+    let parentId = source.parentId;
+    while (parentId && sourceById.has(parentId)) {
+      if (seen.has(parentId)) return true;
+      seen.add(parentId);
+      parentId = sourceById.get(parentId)?.parentId;
+    }
+    return false;
+  };
+  const items = new Map(
+    unique.map((source) => [
+      source.id,
+      { id: source.id, label: source.label } as RetainedTreeItem,
+    ]),
+  );
+  const roots: RetainedTreeItem[] = [];
+  for (const source of unique) {
+    const item = items.get(source.id);
+    if (!item) continue;
+    const parent = source.parentId ? items.get(source.parentId) : undefined;
+    if (!parent || createsCycle(source)) {
+      roots.push(item);
+      continue;
+    }
+    if (!parent.children) parent.children = [];
+    parent.children.push(item);
+  }
+  return roots;
 }
 
 export function validationStatusLabel(

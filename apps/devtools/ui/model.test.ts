@@ -1,10 +1,12 @@
 // DevTools UI model tests.
 import { describe, expect, test } from "bun:test";
 import {
+  buildRetainedTree,
   containSize,
   createLatestRequestGate,
   decode,
   EMPTY_OVERLAY_LAYERS,
+  isExpectedDisconnectedError,
   overlayEvidenceLabel,
   overlayStyle,
   screenshotPoint,
@@ -120,6 +122,48 @@ describe("DevTools view model", () => {
 
     expect(gate.isCurrent(first)).toBe(false);
     expect(gate.isCurrent(second)).toBe(true);
+  });
+
+  test("distinguishes idle discovery from actionable connection failures", () => {
+    expect(
+      isExpectedDisconnectedError(
+        "no live Wabou DevTools socket found in /run/user/1000",
+      ),
+    ).toBe(true);
+    expect(isExpectedDisconnectedError("connection reset by peer")).toBe(false);
+  });
+
+  test("projects retained nodes into a stable hierarchy", () => {
+    expect(
+      buildRetainedTree([
+        { id: "root", parentId: null, label: "view" },
+        { id: "button", parentId: "root", label: "button Save" },
+        { id: "text", parentId: "button", label: "text Save" },
+      ]),
+    ).toEqual([
+      {
+        id: "root",
+        label: "view",
+        children: [
+          {
+            id: "button",
+            label: "button Save",
+            children: [{ id: "text", label: "text Save" }],
+          },
+        ],
+      },
+    ]);
+  });
+
+  test("keeps malformed retained relationships inspectable as roots", () => {
+    expect(
+      buildRetainedTree([
+        { id: "orphan", parentId: "missing", label: "orphan" },
+        { id: "a", parentId: "b", label: "a" },
+        { id: "b", parentId: "a", label: "b" },
+        { id: "a", parentId: null, label: "duplicate" },
+      ]).map((node) => node.id),
+    ).toEqual(["orphan", "a", "b"]);
   });
 
   test("summarizes valid, invalid, stale, and truncated snapshots", () => {
