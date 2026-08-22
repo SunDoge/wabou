@@ -413,7 +413,7 @@ impl TextInput {
         let y_offset = if self.multiline {
             0.0
         } else {
-            single_line_y_offset(height, layout.height(), self.font_size)
+            single_line_y_offset(height, layout.height())
         };
         let glyph_scene = tcx.glyph_scene_scaled(&layout, device_scale);
         scene.append(
@@ -437,7 +437,7 @@ impl TextInput {
             if self.multiline {
                 -f64::from(self.scroll_y)
             } else {
-                single_line_y_offset(height, layout.height(), self.font_size)
+                single_line_y_offset(height, layout.height())
             },
         ));
         if self.focused {

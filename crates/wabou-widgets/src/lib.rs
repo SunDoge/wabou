@@ -43,10 +43,9 @@ pub fn password_input_factory(secrets: SecretStore) -> WidgetFactory {
 }
 
 /// Vertically position the contents of a single-line native input.
-fn single_line_y_offset(container_height: f32, line_height: f32, font_size: f32) -> f64 {
+fn single_line_y_offset(container_height: f32, line_height: f32) -> f64 {
     let available = (container_height - line_height).max(0.0);
-    let optical_offset = font_size / 16.0;
-    f64::from((available * 0.5 + optical_offset).min(available))
+    f64::from(available * 0.5)
 }
 
 #[cfg(test)]
@@ -62,9 +61,9 @@ mod tests {
     }
 
     #[test]
-    fn single_line_inputs_share_a_scale_independent_optical_offset() {
-        assert_eq!(single_line_y_offset(32.0, 24.0, 16.0), 5.0);
-        assert_eq!(single_line_y_offset(32.0, 32.0, 16.0), 0.0);
-        assert_eq!(single_line_y_offset(16.0, 24.0, 16.0), 0.0);
+    fn single_line_inputs_center_the_same_line_box_as_text_nodes() {
+        assert_eq!(single_line_y_offset(32.0, 24.0), 4.0);
+        assert_eq!(single_line_y_offset(32.0, 32.0), 0.0);
+        assert_eq!(single_line_y_offset(16.0, 24.0), 0.0);
     }
 }

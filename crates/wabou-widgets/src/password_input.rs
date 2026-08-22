@@ -136,7 +136,7 @@ impl Widget for PasswordInput {
             self.font_family.as_ref(),
             None,
         );
-        let y = single_line_y_offset(height, layout.height(), self.font_size);
+        let y = single_line_y_offset(height, layout.height());
         let glyphs = tcx.glyph_scene_scaled(&layout, device_scale);
         let mut scene = Scene::new();
         scene.append(
