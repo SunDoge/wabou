@@ -33,8 +33,19 @@
     "dev": "bun run wabou dev apps/gallery"
   },
   "workspaces": [
-    "packages/*",
-    "apps/*"
+    "packages/core",
+    "packages/terminal",
+    "packages/test",
+    "packages/ui",
+    "packages/vite",
+    "apps/7guis",
+    "apps/devtools",
+    "apps/gallery",
+    "apps/hackernews",
+    "apps/motrix",
+    "apps/stress",
+    "apps/terminal",
+    "apps/vlist"
   ],
   "devDependencies": {
     "@biomejs/biome": "2.5.3",
