@@ -1,10 +1,10 @@
 import { expect, test } from "vitest";
-import { ocrStateLabel, prioritizePageIndices } from "./ocr-queue";
+import { ocrStateLabel, prioritizeAllPageIndices } from "./ocr-queue";
 
-test("prioritizes a bounded neighborhood around the visible page", () => {
-  expect(prioritizePageIndices(8, 3)).toEqual([3, 4, 2, 5, 1]);
-  expect(prioritizePageIndices(3, 0)).toEqual([0, 1, 2]);
-  expect(prioritizePageIndices(0, 0)).toEqual([]);
+test("prioritizes every page around the visible page", () => {
+  expect(prioritizeAllPageIndices(8, 3)).toEqual([3, 4, 2, 5, 1, 6, 0, 7]);
+  expect(prioritizeAllPageIndices(3, 0)).toEqual([0, 1, 2]);
+  expect(prioritizeAllPageIndices(0, 0)).toEqual([]);
 });
 
 test("exposes stable page status labels", () => {

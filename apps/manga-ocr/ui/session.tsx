@@ -15,7 +15,7 @@ import {
   type RecentEntry,
   useMangaReaderApi,
 } from "./api";
-import { type OcrPageState, prioritizePageIndices } from "./ocr-queue";
+import { type OcrPageState, prioritizeAllPageIndices } from "./ocr-queue";
 
 type Operation = "open" | "ocr" | "translate" | "bbox" | "model";
 
@@ -113,11 +113,14 @@ function createMangaSession() {
     }
   };
 
-  const scheduleOcrPrefetch = (centerIndex = pageIndex()) => {
+  const scheduleBackgroundOcr = (centerIndex = pageIndex()) => {
     const currentPages = pages();
     const generation = ++ocrGeneration;
     if (!modelInstalled() || currentPages.length === 0) return;
-    const candidates = prioritizePageIndices(currentPages.length, centerIndex)
+    const candidates = prioritizeAllPageIndices(
+      currentPages.length,
+      centerIndex,
+    )
       .map((index) => currentPages[index])
       .filter(
         (page): page is ImagePage =>
@@ -146,7 +149,7 @@ function createMangaSession() {
       if (generation !== ocrGeneration) return;
       setStatus(
         failures === 0
-          ? "Background OCR neighborhood is ready."
+          ? "Background OCR completed for every page."
           : `Background OCR finished with ${failures} failed page${failures === 1 ? "" : "s"}.`,
       );
     })();
@@ -167,7 +170,7 @@ function createMangaSession() {
         ? `Loaded ${next.length} pages.`
         : "No supported images found.",
     );
-    scheduleOcrPrefetch(0);
+    scheduleBackgroundOcr(0);
   };
 
   onCleanup(() => {
@@ -231,7 +234,7 @@ function createMangaSession() {
       setStatus(
         `Recognized ${regionsByPage()[page.id]?.length ?? 0} text regions on ${page.name}.`,
       );
-      scheduleOcrPrefetch(pageIndex());
+      scheduleBackgroundOcr(pageIndex());
     });
 
   const translate = () =>
@@ -287,15 +290,15 @@ function createMangaSession() {
       setModelInstalled(value.installed);
       setModelVersion(value.version);
       setStatus("OCR model installed.");
-      scheduleOcrPrefetch();
+      scheduleBackgroundOcr();
     });
 
   const selectPage = (index: number) => {
     setPageIndex(index);
-    scheduleOcrPrefetch(index);
+    scheduleBackgroundOcr(index);
   };
 
-  void refreshModelStatus().then(() => scheduleOcrPrefetch());
+  void refreshModelStatus().then(() => scheduleBackgroundOcr());
   void refreshRecent();
 
   return {
