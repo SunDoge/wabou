@@ -5,6 +5,7 @@ import { a as subscribeJson, i as subscribeAll, n as hostMessages, o as dispatch
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
+import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
 import { createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, flush, getOwner, onCleanup, untrack, useContext } from "solid-js";
 //#region src/polyfills/abort-controller.ts
 /** Install cancellation primitives when the embedding runtime lacks them. */
@@ -92,6 +93,35 @@ function installCryptoPolyfill() {
 	});
 }
 installCryptoPolyfill();
+//#endregion
+//#region src/polyfills/streams.ts
+const streamGlobals = {
+	ByteLengthQueuingStrategy,
+	CountQueuingStrategy,
+	ReadableByteStreamController,
+	ReadableStream,
+	ReadableStreamBYOBReader,
+	ReadableStreamBYOBRequest,
+	ReadableStreamDefaultController,
+	ReadableStreamDefaultReader,
+	TransformStream,
+	TransformStreamDefaultController,
+	WritableStream,
+	WritableStreamDefaultController,
+	WritableStreamDefaultWriter
+};
+/** Install the WHATWG Streams constructors missing from the current runtime. */
+function installStreamsPolyfill() {
+	for (const [name, constructor] of Object.entries(streamGlobals)) {
+		if (name in globalThis) continue;
+		Object.defineProperty(globalThis, name, {
+			configurable: true,
+			writable: true,
+			value: constructor
+		});
+	}
+}
+installStreamsPolyfill();
 //#endregion
 //#region src/polyfills/fetch.ts
 function normalizeHeaderName(name) {

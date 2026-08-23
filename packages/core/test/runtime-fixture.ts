@@ -18,6 +18,24 @@ Object.assign(globalThis, {
     host: defaultHost,
     windowState: useWindow,
   },
+  __wabou_test_streams: async () => {
+    const output = new ReadableStream<string>({
+      start(controller) {
+        controller.enqueue("quick");
+        controller.enqueue("js");
+        controller.close();
+      },
+    }).pipeThrough(
+      new TransformStream<string, string>({
+        transform(chunk, controller) {
+          controller.enqueue(chunk.toUpperCase());
+        },
+      }),
+    );
+    let text = "";
+    for await (const chunk of output) text += chunk;
+    return text;
+  },
 });
 
 mount(() => createElement("main") as never);

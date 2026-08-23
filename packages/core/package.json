@@ -74,6 +74,7 @@
     "@tanstack/virtual-core": "3.17.7",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.1",
+    "web-streams-polyfill": "4.3.0",
     "whatwg-url": "^17.1.0"
   }
 }

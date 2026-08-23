@@ -235,6 +235,36 @@ fn web_crypto_uses_native_randomness_and_off_thread_digests() {
 }
 
 #[test]
+fn whatwg_streams_run_inside_quickjs() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let mut runtime = JsRuntime::new().expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot core fixture");
+    runtime
+        .with(|ctx| {
+            ctx.eval::<(), _>(
+                "globalThis.streamResult = null; __wabou_test_streams().then(value => globalThis.streamResult = value);",
+            )
+        })
+        .expect("start stream pipeline");
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while runtime
+        .with(|ctx| ctx.eval::<bool, _>("globalThis.streamResult === null"))
+        .expect("inspect stream result")
+    {
+        runtime.poll_async_runtime();
+        assert!(
+            std::time::Instant::now() < deadline,
+            "WHATWG stream pipeline timed out"
+        );
+    }
+    let result = runtime
+        .with(|ctx| ctx.eval::<String, _>("globalThis.streamResult"))
+        .expect("read stream result");
+    assert_eq!(result, "QUICKJS");
+}
+
+#[test]
 fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     let runtime = JsRuntime::new().expect("runtime");
     runtime
