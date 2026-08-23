@@ -20,15 +20,15 @@ OpenRouter API key and translate all recognized regions.
   strings.
 - Wabou's Rust runtime loads, decodes, caches, and paints file images.
 - The OCR capability receives an image resource handle. A dedicated
-  `manga-ocr-inference` worker thread owns and reuses the OCR engine, processing
+  `manga-ocr-inference` `SerialWorker` owns and reuses the OCR engine, processing
   requests serially while QuickJS and the window event loop remain responsive.
   Decoded pixels never cross the JavaScript boundary.
 - OpenRouter requests run in Rust so provider credentials and HTTP response
   parsing are outside the UI bundle's state machinery. A dedicated
-  `manga-ocr-llm` worker serializes translation and vision requests.
+  `manga-ocr-llm` `SerialWorker` serializes translation and vision requests.
 - OCR, translation, and automatic bbox results are cached under the application
-  cache directory by source content and the relevant model/options. API keys
-  are never part of cache keys or values.
+  cache directory through `PersistentJsonCache`, keyed by source content and
+  the relevant model/options. API keys are never part of cache keys or values.
 - The viewport supports fit-relative zoom, direct panning, editable image-space
   boxes, numeric geometry controls, and independently toggled OCR/translation
   overlays.

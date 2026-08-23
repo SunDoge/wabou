@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   CardContent,
+  createAsyncAction,
   ImageList,
   ImageOverlayLayer,
   ImageViewport,
@@ -49,7 +50,6 @@ export function Reader() {
   const [showBoxes, setShowBoxes] = createSignal(true);
   const [showOcr, setShowOcr] = createSignal(false);
   const [showTranslation, setShowTranslation] = createSignal(true);
-  const [busy, setBusy] = createSignal<"open" | "ocr" | "translate" | "bbox" | "model">();
   const [status, setStatus] = createSignal("Open manga pages or a directory to begin.");
   const [modelInstalled, setModelInstalled] = createSignal(false);
   const [apiKey, setApiKey] = createSignal("");
@@ -62,6 +62,11 @@ export function Reader() {
   const selected = createMemo(() =>
     regions().find((region) => region.id === selectedRegion()),
   );
+  type Operation = "open" | "ocr" | "translate" | "bbox" | "model";
+  const operation = createAsyncAction(
+    async (_kind: Operation, action: () => Promise<void>) => action(),
+  );
+  const busy = () => operation.pendingArgs()?.[0];
 
   void api.modelStatus().then((value) => setModelInstalled(value.installed));
 
@@ -91,16 +96,10 @@ export function Reader() {
     if (directory) acceptPages(await api.listImages(directory));
   };
 
-  const run = async (kind: "open" | "ocr" | "translate" | "bbox" | "model", action: () => Promise<void>) => {
-    if (busy()) return;
-    setBusy(kind);
-    try {
-      await action();
-    } catch (error) {
-      setStatus(errorText(error));
-    } finally {
-      setBusy(undefined);
-    }
+  const run = (kind: Operation, action: () => Promise<void>) => {
+    void operation.run(kind, action).then((result) => {
+      if (!result.ok) setStatus(errorText(result.error));
+    });
   };
 
   const runOcr = () => run("ocr", async () => {
@@ -206,10 +205,10 @@ export function Reader() {
           <Icon source={info} size={15} />
           About
         </Button>
-        <Button size="sm" variant="outline" onClick={() => void run("open", openFiles)}>
+        <Button size="sm" variant="outline" disabled={operation.pending()} onClick={() => run("open", openFiles)}>
           Open pages
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => void run("open", openFolder)}>
+        <Button size="sm" variant="secondary" disabled={operation.pending()} onClick={() => run("open", openFolder)}>
           <Icon source={folderOpen} size={15} />
           Folder
         </Button>
@@ -253,7 +252,7 @@ export function Reader() {
             <Button size="sm" variant={showOcr() ? "secondary" : "ghost"} onClick={() => setShowOcr((value) => !value)}>OCR</Button>
             <Button size="sm" variant={showTranslation() ? "secondary" : "ghost"} onClick={() => setShowTranslation((value) => !value)}>Translation</Button>
             <View class="flex-1" />
-            <Button size="sm" disabled={!currentPage() || busy() !== undefined} onClick={() => void runOcr()}>
+            <Button size="sm" disabled={!currentPage() || operation.pending()} onClick={() => void runOcr()}>
               <Icon source={scanText} size={15} />
               {busy() === "ocr" ? "Recognizing…" : "Recognize page"}
             </Button>
@@ -304,17 +303,17 @@ export function Reader() {
               <Badge variant={modelInstalled() ? "success" : "secondary"}>{modelInstalled() ? "Model ready" : "Model missing"}</Badge>
             </View>
             <Show when={!modelInstalled()}>
-              <Button variant="outline" disabled={busy() !== undefined} onClick={() => void run("model", async () => { const value = await api.downloadModel(); setModelInstalled(value.installed); setStatus("OCR model installed."); })}>
+              <Button variant="outline" disabled={operation.pending()} onClick={() => run("model", async () => { const value = await api.downloadModel(); setModelInstalled(value.installed); setStatus("OCR model installed."); })}>
                 {busy() === "model" ? "Downloading model…" : "Install PP-OCRv6 small"}
               </Button>
             </Show>
             <Input aria-label="OpenRouter API key" value={apiKey()} placeholder="OpenRouter API key" onInput={(event) => setApiKey(event.currentTarget.value)} />
             <Input aria-label="Translation model" value={model()} onInput={(event) => setModel(event.currentTarget.value)} />
-            <Button variant="secondary" disabled={regions().length === 0 || busy() !== undefined} onClick={() => void translate()}>
+            <Button variant="secondary" disabled={regions().length === 0 || operation.pending()} onClick={() => void translate()}>
               <Icon source={languages} size={15} />
               {busy() === "translate" ? "Translating…" : "Translate all"}
             </Button>
-            <Button variant="outline" disabled={regions().length === 0 || busy() !== undefined} onClick={() => void adjustBboxes()}>
+            <Button variant="outline" disabled={regions().length === 0 || operation.pending()} onClick={() => void adjustBboxes()}>
               {busy() === "bbox" ? "Adjusting boxes…" : "Auto-adjust boxes"}
             </Button>
             <Show when={selected()}>

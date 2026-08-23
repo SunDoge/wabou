@@ -4,7 +4,6 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
-        mpsc,
     },
 };
 
@@ -12,12 +11,11 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use directories::ProjectDirs;
 use image::ImageEncoder as _;
 use oar_ocr::prelude::{OAROCR, OAROCRBuilder, TextRegion};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use wabou::{
     ImageResourceHandle, ImageResourceStore, JsonCapability, JsonCapabilityContract, JsonMethod,
-    rquickjs,
+    PersistentJsonCache, SerialWorker, rquickjs,
 };
 
 pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("mangaReader", 1);
@@ -71,195 +69,154 @@ struct ReaderState {
 }
 
 struct LlmWorker {
-    sender: mpsc::Sender<LlmCommand>,
+    worker: SerialWorker<LlmCommand, LlmResponse>,
 }
 
 enum LlmCommand {
-    Translate {
-        request: TranslateRequest,
-        reply: tokio::sync::oneshot::Sender<Result<Vec<String>, String>>,
-    },
-    AdjustBboxes {
-        request: AdjustBboxesRequest,
-        reply: tokio::sync::oneshot::Sender<Result<Vec<OcrRegion>, String>>,
-    },
+    Translate(TranslateRequest),
+    AdjustBboxes(AdjustBboxesRequest),
 }
 
-#[derive(Clone)]
-struct ResultCache {
-    directory: PathBuf,
+enum LlmResponse {
+    Translations(Vec<String>),
+    Regions(Vec<OcrRegion>),
 }
 
-impl ResultCache {
-    fn new(directory: PathBuf) -> Result<Self, String> {
-        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
-        prune_result_cache(&directory, 512);
-        Ok(Self { directory })
-    }
-
-    fn path(&self, namespace: &str, key: &str) -> PathBuf {
-        self.directory.join(format!("{namespace}-{key}.json"))
-    }
-
-    fn get<T: DeserializeOwned>(&self, namespace: &str, key: &str) -> Option<T> {
-        serde_json::from_slice(&fs::read(self.path(namespace, key)).ok()?).ok()
-    }
-
-    fn insert<T: Serialize>(&self, namespace: &str, key: &str, value: &T) -> Result<(), String> {
-        let target = self.path(namespace, key);
-        let partial = target.with_extension("json.part");
-        fs::write(
-            &partial,
-            serde_json::to_vec(value).map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
-        fs::rename(partial, target).map_err(|error| error.to_string())
-    }
+struct LlmState {
+    runtime: tokio::runtime::Runtime,
+    http: reqwest::Client,
+    cache: PersistentJsonCache,
+    images: ImageResourceStore,
 }
 
 impl LlmWorker {
-    fn spawn(cache: ResultCache, images: ImageResourceStore) -> Result<Self, String> {
-        let (sender, receiver) = mpsc::channel();
-        std::thread::Builder::new()
-            .name("manga-ocr-llm".to_owned())
-            .spawn(move || {
-                let runtime = match tokio::runtime::Builder::new_current_thread()
+    fn spawn(cache: PersistentJsonCache, images: ImageResourceStore) -> Result<Self, String> {
+        let worker = SerialWorker::spawn(
+            "manga-ocr-llm",
+            move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
-                {
-                    Ok(runtime) => runtime,
-                    Err(error) => {
-                        tracing::error!(%error, "failed to start Manga OCR LLM runtime");
-                        return;
-                    }
-                };
-                let http = match reqwest::Client::builder()
+                    .map_err(|error| error.to_string())?;
+                let http = reqwest::Client::builder()
                     .user_agent("MangaOcrWabou/0.1")
                     .connect_timeout(std::time::Duration::from_secs(10))
                     .timeout(std::time::Duration::from_secs(90))
                     .build()
-                {
-                    Ok(http) => http,
-                    Err(error) => {
-                        tracing::error!(%error, "failed to create Manga OCR LLM client");
-                        return;
-                    }
-                };
-                while let Ok(command) = receiver.recv() {
-                    match command {
-                        LlmCommand::Translate { request, reply } => {
-                            let result = runtime.block_on(translate(&http, &cache, request));
-                            let _ = reply.send(result);
-                        }
-                        LlmCommand::AdjustBboxes { request, reply } => {
-                            let result =
-                                runtime.block_on(adjust_bboxes(&http, &cache, &images, request));
-                            let _ = reply.send(result);
-                        }
-                    }
-                }
-            })
-            .map_err(|error| format!("failed to start LLM worker: {error}"))?;
-        Ok(Self { sender })
+                    .map_err(|error| error.to_string())?;
+                Ok(LlmState {
+                    runtime,
+                    http,
+                    cache,
+                    images,
+                })
+            },
+            |state, command| match command {
+                LlmCommand::Translate(request) => state
+                    .runtime
+                    .block_on(translate(&state.http, &state.cache, request))
+                    .map(LlmResponse::Translations),
+                LlmCommand::AdjustBboxes(request) => state
+                    .runtime
+                    .block_on(adjust_bboxes(
+                        &state.http,
+                        &state.cache,
+                        &state.images,
+                        request,
+                    ))
+                    .map(LlmResponse::Regions),
+            },
+        )?;
+        Ok(Self { worker })
     }
 
     async fn translate(&self, request: TranslateRequest) -> Result<Vec<String>, String> {
-        let (reply, result) = tokio::sync::oneshot::channel();
-        self.sender
-            .send(LlmCommand::Translate { request, reply })
-            .map_err(|_| "LLM worker has stopped".to_owned())?;
-        result
-            .await
-            .map_err(|_| "LLM worker stopped before replying".to_owned())?
+        match self.worker.request(LlmCommand::Translate(request)).await? {
+            LlmResponse::Translations(value) => Ok(value),
+            LlmResponse::Regions(_) => Err("LLM worker returned the wrong response".to_owned()),
+        }
     }
 
     async fn adjust_bboxes(&self, request: AdjustBboxesRequest) -> Result<Vec<OcrRegion>, String> {
-        let (reply, result) = tokio::sync::oneshot::channel();
-        self.sender
-            .send(LlmCommand::AdjustBboxes { request, reply })
-            .map_err(|_| "LLM worker has stopped".to_owned())?;
-        result
-            .await
-            .map_err(|_| "LLM worker stopped before replying".to_owned())?
-    }
-}
-
-fn prune_result_cache(directory: &Path, capacity: usize) {
-    let Ok(entries) = fs::read_dir(directory) else {
-        return;
-    };
-    let mut files = entries
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            let modified = entry.metadata().ok()?.modified().ok()?;
-            Some((modified, entry.path()))
-        })
-        .collect::<Vec<_>>();
-    files.sort_by_key(|(modified, _)| *modified);
-    let remove = files.len().saturating_sub(capacity);
-    for (_, path) in files.into_iter().take(remove) {
-        let _ = fs::remove_file(path);
+        match self
+            .worker
+            .request(LlmCommand::AdjustBboxes(request))
+            .await?
+        {
+            LlmResponse::Regions(value) => Ok(value),
+            LlmResponse::Translations(_) => {
+                Err("LLM worker returned the wrong response".to_owned())
+            }
+        }
     }
 }
 
 struct OcrWorker {
-    sender: mpsc::Sender<OcrCommand>,
+    worker: SerialWorker<OcrCommand, Vec<OcrRegion>>,
     ready: Arc<AtomicBool>,
 }
 
 enum OcrCommand {
-    Recognize {
-        handle: ImageResourceHandle,
-        reply: tokio::sync::oneshot::Sender<Result<Vec<OcrRegion>, String>>,
-    },
+    Recognize(ImageResourceHandle),
     Reset,
+}
+
+struct OcrState {
+    model_dir: PathBuf,
+    images: ImageResourceStore,
+    cache: PersistentJsonCache,
+    engine: Option<OAROCR>,
+    ready: Arc<AtomicBool>,
 }
 
 impl OcrWorker {
     fn spawn(
         model_dir: PathBuf,
         images: ImageResourceStore,
-        cache: ResultCache,
+        cache: PersistentJsonCache,
     ) -> Result<Self, String> {
-        let (sender, receiver) = mpsc::channel();
         let ready = Arc::new(AtomicBool::new(false));
         let worker_ready = ready.clone();
-        std::thread::Builder::new()
-            .name("manga-ocr-inference".to_owned())
-            .spawn(move || {
-                let mut engine = None;
-                while let Ok(command) = receiver.recv() {
-                    match command {
-                        OcrCommand::Recognize { handle, reply } => {
-                            let result =
-                                recognize(&images, &model_dir, &cache, &mut engine, handle);
-                            worker_ready.store(engine.is_some(), Ordering::Release);
-                            let _ = reply.send(result);
-                        }
-                        OcrCommand::Reset => {
-                            engine = None;
-                            worker_ready.store(false, Ordering::Release);
-                        }
-                    }
+        let worker = SerialWorker::spawn(
+            "manga-ocr-inference",
+            move || {
+                Ok(OcrState {
+                    model_dir,
+                    images,
+                    cache,
+                    engine: None,
+                    ready: worker_ready,
+                })
+            },
+            |state, command| match command {
+                OcrCommand::Recognize(handle) => {
+                    let result = recognize(
+                        &state.images,
+                        &state.model_dir,
+                        &state.cache,
+                        &mut state.engine,
+                        handle,
+                    );
+                    state.ready.store(state.engine.is_some(), Ordering::Release);
+                    result
                 }
-            })
-            .map_err(|error| format!("failed to start OCR worker: {error}"))?;
-        Ok(Self { sender, ready })
+                OcrCommand::Reset => {
+                    state.engine = None;
+                    state.ready.store(false, Ordering::Release);
+                    Ok(Vec::new())
+                }
+            },
+        )?;
+        Ok(Self { worker, ready })
     }
 
     async fn recognize(&self, handle: ImageResourceHandle) -> Result<Vec<OcrRegion>, String> {
-        let (reply, result) = tokio::sync::oneshot::channel();
-        self.sender
-            .send(OcrCommand::Recognize { handle, reply })
-            .map_err(|_| "OCR worker has stopped".to_owned())?;
-        result
-            .await
-            .map_err(|_| "OCR worker stopped before replying".to_owned())?
+        self.worker.request(OcrCommand::Recognize(handle)).await
     }
 
-    fn reset(&self) {
+    async fn reset(&self) -> Result<(), String> {
         self.ready.store(false, Ordering::Release);
-        let _ = self.sender.send(OcrCommand::Reset);
+        self.worker.request(OcrCommand::Reset).await.map(|_| ())
     }
 
     fn ready(&self) -> bool {
@@ -272,7 +229,7 @@ impl ReaderService {
         let project = ProjectDirs::from("dev", "Wabou", "Manga OCR")
             .ok_or_else(|| "could not resolve application directories".to_owned())?;
         let model_dir = project.data_dir().join("models").join(MODEL_VERSION);
-        let cache = ResultCache::new(project.cache_dir().join("pipeline-results-v1"))?;
+        let cache = PersistentJsonCache::new(project.cache_dir().join("pipeline-results-v1"), 512)?;
         let ocr = OcrWorker::spawn(model_dir.clone(), images.clone(), cache.clone())?;
         let llm = LlmWorker::spawn(cache, images.clone())?;
         Ok(Self(Arc::new(ReaderState {
@@ -324,7 +281,7 @@ impl ReaderService {
             }
             fs::rename(&partial, &target).map_err(|error| error.to_string())?;
         }
-        self.0.ocr.reset();
+        self.0.ocr.reset().await?;
         Ok(self.model_status())
     }
 }
@@ -507,7 +464,7 @@ fn natural_name(path: &Path) -> String {
 fn recognize(
     images: &ImageResourceStore,
     model_dir: &Path,
-    cache: &ResultCache,
+    cache: &PersistentJsonCache,
     engine: &mut Option<OAROCR>,
     handle: ImageResourceHandle,
 ) -> Result<Vec<OcrRegion>, String> {
@@ -516,7 +473,7 @@ fn recognize(
         .ok_or_else(|| "image resource is missing or stale".to_owned())?
         .to_rgb8();
     let (width, height) = image.dimensions();
-    let cache_key = binary_cache_key(&[MODEL_VERSION.as_bytes(), image.as_raw()]);
+    let cache_key = PersistentJsonCache::content_key(&[MODEL_VERSION.as_bytes(), image.as_raw()]);
     if let Some(regions) = cache.get("ocr", &cache_key) {
         return Ok(regions);
     }
@@ -569,7 +526,7 @@ fn normalized_region(region: &TextRegion, width: u32, height: u32) -> Option<Ocr
 
 async fn translate(
     http: &reqwest::Client,
-    cache: &ResultCache,
+    cache: &PersistentJsonCache,
     request: TranslateRequest,
 ) -> Result<Vec<String>, String> {
     if request.api_key.trim().is_empty() {
@@ -611,7 +568,7 @@ async fn translate(
 
 async fn adjust_bboxes(
     http: &reqwest::Client,
-    cache: &ResultCache,
+    cache: &PersistentJsonCache,
     images: &ImageResourceStore,
     request: AdjustBboxesRequest,
 ) -> Result<Vec<OcrRegion>, String> {
@@ -626,7 +583,7 @@ async fn adjust_bboxes(
         .ok_or_else(|| "image resource is missing or stale".to_owned())?
         .to_rgb8();
     let (width, height) = image.dimensions();
-    let cache_key = binary_cache_key(&[
+    let cache_key = PersistentJsonCache::content_key(&[
         request.model.as_bytes(),
         serde_json::to_vec(&request.regions)
             .map_err(|error| error.to_string())?
@@ -720,15 +677,6 @@ fn json_cache_key(value: &serde_json::Value) -> Result<String, String> {
     ))
 }
 
-fn binary_cache_key(parts: &[&[u8]]) -> String {
-    let mut digest = Sha256::new();
-    for part in parts {
-        digest.update((part.len() as u64).to_le_bytes());
-        digest.update(part);
-    }
-    format!("{:x}", digest.finalize())
-}
-
 #[derive(Deserialize)]
 struct BboxGeometry {
     id: String,
@@ -796,35 +744,5 @@ mod tests {
         assert_eq!(regions[0].id, "line-1");
         assert_eq!(regions[0].width, 30.0);
         assert!(parse_bbox_array(r#"{"regions":[{"id":"missing"}]}"#).is_err());
-    }
-
-    #[test]
-    fn binary_cache_keys_preserve_part_boundaries() {
-        assert_ne!(
-            binary_cache_key(&[b"ab", b"c"]),
-            binary_cache_key(&[b"a", b"bc"])
-        );
-        assert_eq!(
-            binary_cache_key(&[b"image", b"regions"]),
-            binary_cache_key(&[b"image", b"regions"])
-        );
-    }
-
-    #[test]
-    fn result_cache_round_trips_json_atomically() {
-        let directory = std::env::temp_dir().join(format!(
-            "wabou-manga-cache-test-{}-{:?}",
-            std::process::id(),
-            std::thread::current().id()
-        ));
-        let cache = ResultCache::new(directory.clone()).unwrap();
-        cache
-            .insert("translation", "key", &vec!["译文".to_owned()])
-            .unwrap();
-        assert_eq!(
-            cache.get::<Vec<String>>("translation", "key").unwrap(),
-            ["译文"]
-        );
-        std::fs::remove_dir_all(directory).unwrap();
     }
 }
