@@ -26,6 +26,7 @@ mod inline_context;
 mod json_capability;
 mod jsrt;
 mod native_capability;
+mod persistent_cache;
 mod protocol;
 pub mod resource;
 mod serial_worker;
@@ -59,6 +60,7 @@ pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore}
 pub use json_capability::JsonCapability;
 pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
 pub use native_capability::NativeCapability;
+pub use persistent_cache::PersistentJsonCache;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;
 pub use rquickjs;
