@@ -28,6 +28,7 @@ mod jsrt;
 mod native_capability;
 mod protocol;
 pub mod resource;
+mod serial_worker;
 mod source_map;
 mod style_ir;
 mod test_driver;
@@ -61,6 +62,7 @@ pub use native_capability::NativeCapability;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;
 pub use rquickjs;
+pub use serial_worker::SerialWorker;
 pub use vello;
 pub use wabou_shell::{
     AppDirectories, AppDirectoryConfig, ExtensionContext, FrameSource, FrameSourceFactory,
