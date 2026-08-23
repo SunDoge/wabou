@@ -59,13 +59,32 @@ test("installs interoperable Headers and Response globals", async () => {
     expect(response.status).toBe(201);
     expect(response.ok).toBe(true);
     expect(response.headers.get("content-type")).toBe("application/json");
+    const arrayBufferClone = response.clone();
+    const bytesClone = response.clone();
     expect(await response.json()).toEqual({ ok: true });
-    expect(new Uint8Array(await response.clone().arrayBuffer())).toEqual(
+    expect(response.bodyUsed).toBe(true);
+    expect(() => response.clone()).toThrow("consumed");
+    expect(new Uint8Array(await arrayBufferClone.arrayBuffer())).toEqual(
       new TextEncoder().encode('{"ok":true}'),
     );
-    expect(await (response as unknown as WabouBinaryResponse).bytes()).toEqual(
+    expect(await (bytesClone as unknown as WabouBinaryResponse).bytes()).toEqual(
       new TextEncoder().encode('{"ok":true}'),
     );
+
+    const streamed = await fetch("https://example.test/items", {
+      method: "POST",
+      headers: new Headers({ Accept: "application/json" }),
+      body: "request",
+    });
+    const reader = streamed.body?.getReader();
+    expect(reader).toBeDefined();
+    expect(await reader?.read()).toEqual({
+      done: false,
+      value: new TextEncoder().encode('{"ok":true}'),
+    });
+    expect(await reader?.read()).toEqual({ done: true, value: undefined });
+    reader?.releaseLock();
+    expect(streamed.bodyUsed).toBe(true);
   } finally {
     runtime.fetch = previous.fetch;
     runtime.Headers = previous.Headers;

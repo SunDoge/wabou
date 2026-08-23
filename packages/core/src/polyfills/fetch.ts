@@ -110,11 +110,13 @@ function encodeResponseBody(
 }
 
 class WabouResponse {
+  readonly body: ReadableStream<Uint8Array> | null;
   readonly headers: WabouHeaders;
   readonly status: number;
   readonly statusText: string;
   readonly url: string;
   private readonly bodyBytes: Uint8Array;
+  private consumed = false;
 
   constructor(
     body: string | Uint8Array | ArrayBuffer | null = null,
@@ -127,14 +129,62 @@ class WabouResponse {
     this.statusText = init.statusText ?? "";
     this.headers = new WabouHeaders(init.headers);
     this.url = url;
+    if (body === null) {
+      this.body = null;
+    } else {
+      const stream = new ReadableStream<Uint8Array>({
+        start: (controller) => {
+          controller.enqueue(this.bodyBytes);
+          controller.close();
+        },
+      });
+      const getReader = stream.getReader.bind(stream);
+      stream.getReader = ((...args: Parameters<typeof stream.getReader>) => {
+        this.consumed = true;
+        return getReader(...args);
+      }) as typeof stream.getReader;
+      this.body = stream;
+    }
   }
 
   get ok(): boolean {
     return this.status >= 200 && this.status < 300;
   }
 
-  text(): Promise<string> {
-    return Promise.resolve(new TextDecoder().decode(this.bodyBytes));
+  get bodyUsed(): boolean {
+    return this.consumed || this.body?.locked === true;
+  }
+
+  private async consumeBody(): Promise<Uint8Array> {
+    if (this.bodyUsed) throw new TypeError("Response body has already been consumed");
+    if (this.body === null) {
+      this.consumed = true;
+      return new Uint8Array();
+    }
+    const reader = this.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        length += value.length;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return bytes;
+  }
+
+  async text(): Promise<string> {
+    return new TextDecoder().decode(await this.consumeBody());
   }
 
   async json(): Promise<unknown> {
@@ -142,14 +192,15 @@ class WabouResponse {
   }
 
   bytes(): Promise<Uint8Array> {
-    return Promise.resolve(this.bodyBytes.slice());
+    return this.consumeBody();
   }
 
-  arrayBuffer(): Promise<ArrayBuffer> {
-    return Promise.resolve(this.bodyBytes.slice().buffer);
+  async arrayBuffer(): Promise<ArrayBuffer> {
+    return (await this.consumeBody()).slice().buffer as ArrayBuffer;
   }
 
   clone(): WabouResponse {
+    if (this.bodyUsed) throw new TypeError("Cannot clone a consumed Response body");
     return new WabouResponse(
       this.bodyBytes,
       {

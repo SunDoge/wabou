@@ -2950,6 +2950,116 @@
   }
   installStreamsPolyfill();
 
+  // node_modules/.bun/@stardazed+streams-text-encoding@1.0.2/node_modules/@stardazed/streams-text-encoding/dist/sd-streams-text-encoding.esm.js
+  var decDecoder = Symbol("decDecoder");
+  var decTransform = Symbol("decTransform");
+
+  class TextDecodeTransformer {
+    constructor(decoder) {
+      this.decoder_ = decoder;
+    }
+    transform(chunk, controller) {
+      if (!(chunk instanceof ArrayBuffer || ArrayBuffer.isView(chunk))) {
+        throw new TypeError("Input data must be a BufferSource");
+      }
+      const text = this.decoder_.decode(chunk, { stream: true });
+      if (text.length !== 0) {
+        controller.enqueue(text);
+      }
+    }
+    flush(controller) {
+      const text = this.decoder_.decode();
+      if (text.length !== 0) {
+        controller.enqueue(text);
+      }
+    }
+  }
+
+  class TextDecoderStream2 {
+    constructor(label, options) {
+      this[decDecoder] = new TextDecoder(label, options);
+      this[decTransform] = new TransformStream(new TextDecodeTransformer(this[decDecoder]));
+    }
+    get encoding() {
+      return this[decDecoder].encoding;
+    }
+    get fatal() {
+      return this[decDecoder].fatal;
+    }
+    get ignoreBOM() {
+      return this[decDecoder].ignoreBOM;
+    }
+    get readable() {
+      return this[decTransform].readable;
+    }
+    get writable() {
+      return this[decTransform].writable;
+    }
+  }
+  var encEncoder = Symbol("encEncoder");
+  var encTransform = Symbol("encTransform");
+
+  class TextEncodeTransformer {
+    constructor(encoder) {
+      this.encoder_ = encoder;
+      this.partial_ = undefined;
+    }
+    transform(chunk, controller) {
+      let stringChunk = String(chunk);
+      if (this.partial_ !== undefined) {
+        stringChunk = this.partial_ + stringChunk;
+        this.partial_ = undefined;
+      }
+      const lastCharIndex = stringChunk.length - 1;
+      const lastCodeUnit = stringChunk.charCodeAt(lastCharIndex);
+      if (lastCodeUnit >= 55296 && lastCodeUnit < 56320) {
+        this.partial_ = String.fromCharCode(lastCodeUnit);
+        stringChunk = stringChunk.substring(0, lastCharIndex);
+      }
+      const bytes = this.encoder_.encode(stringChunk);
+      if (bytes.length !== 0) {
+        controller.enqueue(bytes);
+      }
+    }
+    flush(controller) {
+      if (this.partial_) {
+        controller.enqueue(this.encoder_.encode(this.partial_));
+        this.partial_ = undefined;
+      }
+    }
+  }
+
+  class TextEncoderStream {
+    constructor() {
+      this[encEncoder] = new TextEncoder;
+      this[encTransform] = new TransformStream(new TextEncodeTransformer(this[encEncoder]));
+    }
+    get encoding() {
+      return this[encEncoder].encoding;
+    }
+    get readable() {
+      return this[encTransform].readable;
+    }
+    get writable() {
+      return this[encTransform].writable;
+    }
+  }
+
+  // packages/core/src/polyfills/encoding-streams.ts
+  var encodingStreamGlobals = { TextDecoderStream: TextDecoderStream2, TextEncoderStream };
+  function installEncodingStreamsPolyfill() {
+    for (const [name, constructor] of Object.entries(encodingStreamGlobals)) {
+      if (name in globalThis)
+        continue;
+      Object.defineProperty(globalThis, name, {
+        configurable: true,
+        writable: true,
+        value: constructor
+      });
+    }
+  }
+  installEncodingStreamsPolyfill();
+
   // packages/core/src/polyfills/fetch.ts
   function normalizeHeaderName(name) {
     return String(name).toLowerCase();
@@ -3018,34 +3128,86 @@
   }
 
   class WabouResponse {
+    body;
     headers;
     status;
     statusText;
     url;
     bodyBytes;
+    consumed = false;
     constructor(body = null, init = {}, url = "", copyBody = true) {
       this.bodyBytes = encodeResponseBody(body, copyBody);
       this.status = init.status ?? 200;
       this.statusText = init.statusText ?? "";
       this.headers = new WabouHeaders(init.headers);
       this.url = url;
+      if (body === null) {
+        this.body = null;
+      } else {
+        const stream = new ReadableStream({
+          start: (controller) => {
+            controller.enqueue(this.bodyBytes);
+            controller.close();
+          }
+        });
+        const getReader = stream.getReader.bind(stream);
+        stream.getReader = (...args) => {
+          this.consumed = true;
+          return getReader(...args);
+        };
+        this.body = stream;
+      }
     }
     get ok() {
       return this.status >= 200 && this.status < 300;
     }
-    text() {
-      return Promise.resolve(new TextDecoder().decode(this.bodyBytes));
+    get bodyUsed() {
+      return this.consumed || this.body?.locked === true;
+    }
+    async consumeBody() {
+      if (this.bodyUsed)
+        throw new TypeError("Response body has already been consumed");
+      if (this.body === null) {
+        this.consumed = true;
+        return new Uint8Array;
+      }
+      const reader = this.body.getReader();
+      const chunks = [];
+      let length = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done)
+            break;
+          chunks.push(value);
+          length += value.length;
+        }
+      } finally {
+        reader.releaseLock();
+      }
+      const bytes = new Uint8Array(length);
+      let offset = 0;
+      for (const chunk of chunks) {
+        bytes.set(chunk, offset);
+        offset += chunk.length;
+      }
+      return bytes;
+    }
+    async text() {
+      return new TextDecoder().decode(await this.consumeBody());
     }
     async json() {
       return JSON.parse(await this.text());
     }
     bytes() {
-      return Promise.resolve(this.bodyBytes.slice());
+      return this.consumeBody();
     }
-    arrayBuffer() {
-      return Promise.resolve(this.bodyBytes.slice().buffer);
+    async arrayBuffer() {
+      return (await this.consumeBody()).slice().buffer;
     }
     clone() {
+      if (this.bodyUsed)
+        throw new TypeError("Cannot clone a consumed Response body");
       return new WabouResponse(this.bodyBytes, {
         status: this.status,
         statusText: this.statusText,
@@ -10064,6 +10226,27 @@ ${detail}`);
       for await (const chunk of output)
         text += chunk;
       return text;
+    },
+    __wabou_test_encoding_streams: async () => {
+      const bytes = new TextEncoder().encode("漫画");
+      const output = new ReadableStream({
+        start(controller) {
+          controller.enqueue(bytes.slice(0, 2));
+          controller.enqueue(bytes.slice(2));
+          controller.close();
+        }
+      }).pipeThrough(new TextDecoderStream);
+      let text = "";
+      for await (const chunk of output)
+        text += chunk;
+      const response = new Response("buffered body");
+      const reader = response.body?.getReader();
+      const responseChunk = await reader?.read();
+      return {
+        text,
+        responseText: new TextDecoder().decode(responseChunk?.value),
+        bodyUsed: response.bodyUsed
+      };
     }
   });
   mount(() => createElement("main"));

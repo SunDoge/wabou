@@ -316,6 +316,23 @@ fn whatwg_streams_run_inside_quickjs() {
 }
 
 #[test]
+fn encoding_streams_run_inside_quickjs() {
+    const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
+    let mut runtime = JsRuntime::new().expect("runtime");
+    runtime.boot(CORE_FIXTURE).expect("boot core fixture");
+    let result = runtime
+        .eval_promise_json(
+            "__wabou_test_encoding_streams()",
+            std::time::Duration::from_secs(1),
+        )
+        .expect("decode split UTF-8 inside QuickJS");
+    assert_eq!(
+        result,
+        r#"{"text":"漫画","responseText":"buffered body","bodyUsed":true}"#
+    );
+}
+
+#[test]
 fn mounted_capabilities_are_namespaced_and_reject_duplicates() {
     let runtime = JsRuntime::new().expect("runtime");
     runtime

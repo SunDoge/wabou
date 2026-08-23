@@ -39,6 +39,8 @@ class HostTextDecoder {
   readonly encoding = "utf-8";
   readonly fatal: boolean;
   readonly ignoreBOM: boolean;
+  private pending = new Uint8Array();
+  private atStart = true;
 
   constructor(
     _label = "utf-8",
@@ -48,14 +50,44 @@ class HostTextDecoder {
     this.ignoreBOM = options.ignoreBOM ?? false;
   }
 
-  decode(value = new Uint8Array()): string {
-    const decoded = __wabou_utf8_decode(value);
+  decode(
+    value: BufferSource = new Uint8Array(),
+    options: { stream?: boolean } = {},
+  ): string {
+    const input = value instanceof ArrayBuffer
+      ? new Uint8Array(value)
+      : new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    const bytes = new Uint8Array(this.pending.length + input.length);
+    bytes.set(this.pending);
+    bytes.set(input, this.pending.length);
+    let completeLength = bytes.length;
+    if (options.stream && bytes.length > 0) {
+      let lead = bytes.length - 1;
+      while (lead > 0 && (bytes[lead] & 0xc0) === 0x80 && bytes.length - lead <= 3) {
+        lead -= 1;
+      }
+      const first = bytes[lead];
+      const expected = first >= 0xf0 && first <= 0xf4
+        ? 4
+        : first >= 0xe0 && first <= 0xef
+          ? 3
+          : first >= 0xc2 && first <= 0xdf
+            ? 2
+            : 1;
+      if (expected > bytes.length - lead) completeLength = lead;
+    }
+    const complete = bytes.slice(0, completeLength);
+    this.pending = options.stream ? bytes.slice(completeLength) : new Uint8Array();
+    let decoded = __wabou_utf8_decode(complete);
     if (this.fatal) {
       const encoded = __wabou_utf8_encode(decoded);
-      const valid =
-        encoded.length === value.length &&
-        encoded.every((byte, index) => byte === value[index]);
+      const valid = encoded.length === complete.length &&
+        encoded.every((byte, index) => byte === complete[index]);
       if (!valid) throw new TypeError("The encoded data was not valid UTF-8");
+    }
+    if (this.atStart && decoded.length > 0) {
+      this.atStart = false;
+      if (!this.ignoreBOM && decoded.startsWith("\ufeff")) decoded = decoded.slice(1);
     }
     return decoded;
   }

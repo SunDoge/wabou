@@ -71,6 +71,7 @@
   },
   "dependencies": {
     "@solidjs/universal": "2.0.0-rc.1",
+    "@stardazed/streams-text-encoding": "1.0.2",
     "@tanstack/virtual-core": "3.17.7",
     "abort-controller": "3.0.0",
     "solid-js": "2.0.0-rc.1",

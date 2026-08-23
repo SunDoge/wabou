@@ -5,7 +5,8 @@ import { a as subscribeJson, i as subscribeAll, n as hostMessages, o as dispatch
 import { n as effectOps } from "./effect-abi-BzPW8STE.mjs";
 import "./registry.mjs";
 import AbortControllerPolyfill, { AbortSignal } from "abort-controller/dist/abort-controller";
-import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
+import { ByteLengthQueuingStrategy, CountQueuingStrategy, ReadableByteStreamController, ReadableStream as ReadableStream$1, ReadableStreamBYOBReader, ReadableStreamBYOBRequest, ReadableStreamDefaultController, ReadableStreamDefaultReader, TransformStream, TransformStreamDefaultController, WritableStream, WritableStreamDefaultController, WritableStreamDefaultWriter } from "web-streams-polyfill";
+import { TextDecoderStream, TextEncoderStream } from "@stardazed/streams-text-encoding";
 import { createComponent as createComponent$1, createContext, createEffect, createMemo, createSignal, flush, getOwner, onCleanup, untrack, useContext } from "solid-js";
 //#region src/polyfills/abort-controller.ts
 /** Install cancellation primitives when the embedding runtime lacks them. */
@@ -99,7 +100,7 @@ const streamGlobals = {
 	ByteLengthQueuingStrategy,
 	CountQueuingStrategy,
 	ReadableByteStreamController,
-	ReadableStream,
+	ReadableStream: ReadableStream$1,
 	ReadableStreamBYOBReader,
 	ReadableStreamBYOBRequest,
 	ReadableStreamDefaultController,
@@ -122,6 +123,24 @@ function installStreamsPolyfill() {
 	}
 }
 installStreamsPolyfill();
+//#endregion
+//#region src/polyfills/encoding-streams.ts
+const encodingStreamGlobals = {
+	TextDecoderStream,
+	TextEncoderStream
+};
+/** Install the Encoding Standard stream transforms missing from QuickJS. */
+function installEncodingStreamsPolyfill() {
+	for (const [name, constructor] of Object.entries(encodingStreamGlobals)) {
+		if (name in globalThis) continue;
+		Object.defineProperty(globalThis, name, {
+			configurable: true,
+			writable: true,
+			value: constructor
+		});
+	}
+}
+installEncodingStreamsPolyfill();
 //#endregion
 //#region src/polyfills/fetch.ts
 function normalizeHeaderName(name) {
@@ -180,34 +199,80 @@ function encodeResponseBody(body, copy) {
 	return /* @__PURE__ */ new Uint8Array();
 }
 var WabouResponse = class WabouResponse {
+	body;
 	headers;
 	status;
 	statusText;
 	url;
 	bodyBytes;
+	consumed = false;
 	constructor(body = null, init = {}, url = "", copyBody = true) {
 		this.bodyBytes = encodeResponseBody(body, copyBody);
 		this.status = init.status ?? 200;
 		this.statusText = init.statusText ?? "";
 		this.headers = new WabouHeaders(init.headers);
 		this.url = url;
+		if (body === null) this.body = null;
+		else {
+			const stream = new ReadableStream({ start: (controller) => {
+				controller.enqueue(this.bodyBytes);
+				controller.close();
+			} });
+			const getReader = stream.getReader.bind(stream);
+			stream.getReader = ((...args) => {
+				this.consumed = true;
+				return getReader(...args);
+			});
+			this.body = stream;
+		}
 	}
 	get ok() {
 		return this.status >= 200 && this.status < 300;
 	}
-	text() {
-		return Promise.resolve(new TextDecoder().decode(this.bodyBytes));
+	get bodyUsed() {
+		return this.consumed || this.body?.locked === true;
+	}
+	async consumeBody() {
+		if (this.bodyUsed) throw new TypeError("Response body has already been consumed");
+		if (this.body === null) {
+			this.consumed = true;
+			return /* @__PURE__ */ new Uint8Array();
+		}
+		const reader = this.body.getReader();
+		const chunks = [];
+		let length = 0;
+		try {
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				chunks.push(value);
+				length += value.length;
+			}
+		} finally {
+			reader.releaseLock();
+		}
+		const bytes = new Uint8Array(length);
+		let offset = 0;
+		for (const chunk of chunks) {
+			bytes.set(chunk, offset);
+			offset += chunk.length;
+		}
+		return bytes;
+	}
+	async text() {
+		return new TextDecoder().decode(await this.consumeBody());
 	}
 	async json() {
 		return JSON.parse(await this.text());
 	}
 	bytes() {
-		return Promise.resolve(this.bodyBytes.slice());
+		return this.consumeBody();
 	}
-	arrayBuffer() {
-		return Promise.resolve(this.bodyBytes.slice().buffer);
+	async arrayBuffer() {
+		return (await this.consumeBody()).slice().buffer;
 	}
 	clone() {
+		if (this.bodyUsed) throw new TypeError("Cannot clone a consumed Response body");
 		return new WabouResponse(this.bodyBytes, {
 			status: this.status,
 			statusText: this.statusText,
