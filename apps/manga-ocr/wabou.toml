@@ -1,0 +1,8 @@
+[package]
+product-name = "Manga OCR"
+identifier = "dev.wabou.manga-ocr"
+description = "A native manga reader with OCR and translation."
+authors = ["SunDoge"]
+license-file = "../../LICENSE"
+icons = ["icons/manga-ocr.png"]
+formats = ["appimage"]

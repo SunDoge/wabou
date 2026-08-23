@@ -10,6 +10,19 @@ of `RawMangaReader`, without a WebView or browser-owned image objects.
 wabou dev apps/manga-ocr
 ```
 
+## Package for Linux
+
+Build a release binary, stage its JavaScript and application resources, and
+create an AppImage through Wabou's embedded `cargo-packager` backend:
+
+```bash
+wabou package apps/manga-ocr --format appimage
+```
+
+The result is written under `dist/manga-ocr/bundles/`. Build AppImages on the
+oldest Linux distribution that the release intends to support, because glibc
+compatibility is determined by the build environment.
+
 The starter page opens individual pages, a directory, or a persisted recent
 source. Install the PP-OCRv6 small model from Settings, recognize pages in the
 Reader, then optionally enter an OpenRouter API key and translate the detected
