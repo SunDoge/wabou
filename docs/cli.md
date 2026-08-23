@@ -198,6 +198,10 @@ Supported adapters are `app`, `dmg`, `nsis`, `wix`, `deb`, `appimage`, and
 reproduction. Package on the target operating system so platform signing and
 native packaging tools are available.
 
+For experimentally verified Cargo Zigbuild targets, glibc baselines, required
+Linux sysroots, and the current boundary between cross-compilation and Wabou
+packaging, see the [cross-compilation guide](cross-compilation.md).
+
 ## Behavior tests
 
 `wabou test` discovers `tests/**/*.behavior.ts`, bundles the scenarios, and
