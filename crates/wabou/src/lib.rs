@@ -22,11 +22,11 @@ pub use wabou_runtime::vello::peniko::Color;
 pub use wabou_runtime::{
     AppDirectories, AppDirectoryConfig, Error, ExtensionContext, HostBuilder, HostMessage,
     HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter,
-    HostService, HostServiceContext, HostServiceHandle, JsonCapability, ManagedHostService,
-    NativeCapability, Result, RevisionedHostPublication, RevisionedHostPublisher,
-    RevisionedHostSnapshot, ShellExtension, WindowInputMode, WindowLevel, WindowMetrics,
-    WindowOptions, WindowResourceKey, initial_window_resource_key, managed_host_service,
-    widget_api,
+    HostService, HostServiceContext, HostServiceHandle, ImageResource, ImageResourceHandle,
+    ImageResourceStore, JsonCapability, ManagedHostService, NativeCapability, Result,
+    RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot, ShellExtension,
+    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions, WindowResourceKey,
+    initial_window_resource_key, managed_host_service, widget_api,
 };
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayImage};

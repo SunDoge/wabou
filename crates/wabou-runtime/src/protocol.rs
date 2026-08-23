@@ -30,14 +30,10 @@ const INTERACTION_POLICY_MASK: u8 = INTERACTION_POLICY_FOCUSABLE
     | INTERACTION_POLICY_BLOCK_SUBTREE
     | INTERACTION_POLICY_CONTAIN_FOCUS;
 pub const GRAPHIC_SOURCE_SVG: u8 = 0x01;
-pub const GRAPHIC_SOURCE_NETWORK_RASTER: u8 = 0x02;
-pub const GRAPHIC_SOURCE_FILE_RASTER: u8 = 0x03;
+pub const GRAPHIC_SOURCE_RESOURCE_RASTER: u8 = 0x04;
 
 fn valid_graphic_source_kind(kind: u8) -> bool {
-    matches!(
-        kind,
-        GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_NETWORK_RASTER | GRAPHIC_SOURCE_FILE_RASTER
-    )
+    matches!(kind, GRAPHIC_SOURCE_SVG | GRAPHIC_SOURCE_RESOURCE_RASTER)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -943,35 +939,35 @@ mod tests {
         push_u32(&mut bytes, 2);
         bytes.push(op::SET_GRAPHIC_SOURCE);
         push_node(&mut bytes, 42);
-        bytes.push(GRAPHIC_SOURCE_NETWORK_RASTER);
-        let source = b"https://x.test/a.png";
+        bytes.push(GRAPHIC_SOURCE_RESOURCE_RASTER);
+        let source = b"42:3";
         bytes.extend_from_slice(&(source.len() as u16).to_le_bytes());
         bytes.extend_from_slice(source);
         bytes.push(op::CLEAR_GRAPHIC_SOURCE);
         push_node(&mut bytes, 42);
-        bytes.push(GRAPHIC_SOURCE_NETWORK_RASTER);
+        bytes.push(GRAPHIC_SOURCE_RESOURCE_RASTER);
 
         let frame = decode_frame(&bytes).unwrap();
         assert!(matches!(
             &frame.ops[0],
             Op::SetGraphicSource {
                 id: NodeKey { lo: 42, hi: 1 },
-                kind: GRAPHIC_SOURCE_NETWORK_RASTER,
-                source: "https://x.test/a.png",
+                kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
+                source: "42:3",
             }
         ));
         assert!(matches!(
             &frame.ops[1],
             Op::ClearGraphicSource {
                 id: NodeKey { lo: 42, hi: 1 },
-                kind: GRAPHIC_SOURCE_NETWORK_RASTER,
+                kind: GRAPHIC_SOURCE_RESOURCE_RASTER,
             }
         ));
 
-        bytes[17] = 4;
+        bytes[17] = 5;
         assert!(matches!(
             decode_frame(&bytes),
-            Err(DecodeError::BadGraphicSourceKind { kind: 4 })
+            Err(DecodeError::BadGraphicSourceKind { kind: 5 })
         ));
     }
 

@@ -1,4 +1,4 @@
-import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-Dkalv0Si.mjs";
+import { _ as isNodeKey, a as GRAPHIC_SOURCE, f as Writer, g as formatNodeKey, h as ROOT_NODE_KEY, i as GRAPHIC_DATA, l as INTERACTION_POLICY, m as NodeKeyTable, p as NodeKeyAllocator, t as EVENT_CODE, y as nodeKeyEquals } from "./protocol-BwvrsHe1.mjs";
 import { r as assertInlineStyleValue, s as isTypedStyleValue } from "./style-03o9fSQN.mjs";
 import { For, Show, createComponent, createContext, createMemo, createSignal, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { createRenderer } from "@solidjs/universal";
@@ -723,17 +723,17 @@ function applyProperty(writer, node, name, value, prev) {
 			else throw new TypeError("invalid native SVG source");
 			return;
 		}
+	}
+	if (name === "resource") {
+		if (node.tag !== "img") throw new TypeError("resource is only supported by Image");
 		if (value == null || value === false) {
-			writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster);
-			writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.FileRaster);
+			writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster);
 			return;
 		}
-		if (typeof value === "object" && value.kind === "file" && typeof value.path === "string") {
-			writer.setGraphicSource(node.id, GRAPHIC_SOURCE.FileRaster, value.path);
-			return;
-		}
-		if (typeof value !== "object" || value.kind !== "network" || typeof value.url !== "string" || value.format !== "raster" || value.cache !== "memory") throw new TypeError("invalid native image source");
-		writer.setGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster, value.url);
+		if (typeof value !== "object") throw new TypeError("Image requires an image resource handle");
+		const handle = value;
+		if (!Number.isInteger(handle.lo) || !Number.isInteger(handle.hi)) throw new TypeError("Image requires an image resource handle");
+		writer.setGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster, `${handle.lo}:${handle.hi}`);
 		return;
 	}
 	if (name === "transform") {
@@ -1148,4 +1148,4 @@ function eventName(code) {
 //#endregion
 export { VirtualList as A, removeNode as C, setTransform2D as D, setProp as E, useHost as F, PathBuilder as I, isVectorPath as L, Portal as M, HostProvider as N, spread as O, defaultHost as P, releaseOverlayRoot as S, runSweep as T, mergeProps as _, createElement as a, ref as b, dispatchEvent as c, getRequestEvent as d, insert as f, memo as g, isServer as h, createComponent$1 as i, createFps as j, writer as k, effect as l, isDirectEvent as m, acquireOverlayRoot as n, createTextNode as o, insertNode as p, applyRef as r, delegateEvents as s, Dynamic as t, getMountRoot as u, mount as v, render as w, registerRoot as x, observeGlobalPointerEvent as y };
 
-//# sourceMappingURL=renderer-CiLyfgWQ.mjs.map
+//# sourceMappingURL=renderer-DAJs2bD6.mjs.map

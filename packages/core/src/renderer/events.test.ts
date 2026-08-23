@@ -53,30 +53,9 @@ test("graphic sources use the typed resource protocol", () => {
   writer.clearGraphicSource = (_id, kind) => cleared.push(kind);
   try {
     setProp(svg, "source", "<svg/>", undefined);
-    setProp(
-      image,
-      "source",
-      {
-        kind: "network",
-        url: "https://x.test/icon.png",
-        format: "raster",
-        cache: "memory",
-      },
-      undefined,
-    );
-    setProp(
-      image,
-      "source",
-      { kind: "file", path: "/tmp/icon.png" },
-      undefined,
-    );
+    setProp(image, "resource", { lo: 7, hi: 3 }, undefined);
     setProp(svg, "source", undefined, "<svg/>");
-    setProp(image, "source", undefined, {
-      kind: "network",
-      url: "https://x.test/icon.png",
-      format: "raster",
-      cache: "memory",
-    });
+    setProp(image, "resource", undefined, { lo: 7, hi: 3 });
   } finally {
     writer.setGraphicSource = setGraphicSource;
     writer.clearGraphicSource = clearGraphicSource;
@@ -84,13 +63,11 @@ test("graphic sources use the typed resource protocol", () => {
 
   expect(sources).toEqual([
     [GRAPHIC_SOURCE.Svg, "<svg/>"],
-    [GRAPHIC_SOURCE.NetworkRaster, "https://x.test/icon.png"],
-    [GRAPHIC_SOURCE.FileRaster, "/tmp/icon.png"],
+    [GRAPHIC_SOURCE.ResourceRaster, "7:3"],
   ]);
   expect(cleared).toEqual([
     GRAPHIC_SOURCE.Svg,
-    GRAPHIC_SOURCE.NetworkRaster,
-    GRAPHIC_SOURCE.FileRaster,
+    GRAPHIC_SOURCE.ResourceRaster,
   ]);
 });
 

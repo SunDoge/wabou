@@ -37,6 +37,7 @@ function node(
       width: rect[2],
       height: rect[3],
     },
+    textMetrics: null,
     styleDiagnostics: [],
     computed: {
       position: "Relative",

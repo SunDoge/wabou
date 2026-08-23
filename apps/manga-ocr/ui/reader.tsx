@@ -12,13 +12,14 @@ import {
   Text,
   TextArea,
   View,
+  releaseImageResource,
   dialog,
 } from "@wabou/ui";
 import folderOpen from "lucide-static/icons/folder-open.svg?raw";
 import imagesIcon from "lucide-static/icons/images.svg?raw";
 import languages from "lucide-static/icons/languages.svg?raw";
 import scanText from "lucide-static/icons/scan-text.svg?raw";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { Icon } from "@wabou/ui";
 import { type ImagePage, type OcrRegion, useMangaReaderApi } from "./api";
 
@@ -49,11 +50,15 @@ export function Reader() {
   void api.modelStatus().then((value) => setModelInstalled(value.installed));
 
   const acceptPages = (next: readonly ImagePage[]) => {
+    for (const page of pages()) void releaseImageResource(page.handle);
     setPages(next);
     setPageIndex(0);
     setSelectedRegion(null);
     setStatus(next.length ? `Loaded ${next.length} pages.` : "No supported images found.");
   };
+  onCleanup(() => {
+    for (const page of pages()) void releaseImageResource(page.handle);
+  });
 
   const openFiles = async () => {
     const paths = await dialog.open({
@@ -88,7 +93,7 @@ export function Reader() {
       setStatus("Install the OCR model first.");
       return;
     }
-    const next = await api.recognizePage(page.path);
+    const next = await api.recognizePage(page.handle);
     setRegionsByPage((current) => ({ ...current, [page.id]: next }));
     setStatus(`Recognized ${next.length} text regions on ${page.name}.`);
   });
@@ -163,7 +168,7 @@ export function Reader() {
               <ImageList
                 items={pages}
                 getItemKey={(page) => page.id}
-                getSource={(page) => ({ kind: "file", path: page.path })}
+                getResource={(page) => page.handle}
                 getLabel={(page) => page.name}
                 getDescription={(page) => `${page.width} × ${page.height}`}
                 selectedKey={currentPage()?.id}
@@ -194,7 +199,7 @@ export function Reader() {
               <ImageViewport
                 aria-label="Manga page viewport"
                 class="flex-1 min-h-0 rounded-xl border border-subtle shadow-lg"
-                source={{ kind: "file", path: page().path }}
+                resource={page().handle}
                 imageSize={{ width: page().width, height: page().height }}
                 zoom={zoom()}
               >

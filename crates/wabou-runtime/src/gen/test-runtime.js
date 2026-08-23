@@ -1012,13 +1012,12 @@
   var INTERACTION_POLICY_MASK = INTERACTION_POLICY.Focusable | INTERACTION_POLICY.BlockSubtree | INTERACTION_POLICY.ContainFocus;
   var GRAPHIC_SOURCE = {
     Svg: 1,
-    NetworkRaster: 2,
-    FileRaster: 3
+    ResourceRaster: 4
   };
   var GRAPHIC_DATA = { VectorPath: 1 };
   var MAX_GRAPHIC_DATA_BYTES = 16 * 1024 * 1024;
   function validGraphicSourceKind(kind) {
-    return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.NetworkRaster || kind === GRAPHIC_SOURCE.FileRaster;
+    return kind === GRAPHIC_SOURCE.Svg || kind === GRAPHIC_SOURCE.ResourceRaster;
   }
   var EVENT_CODE = {
     click: 1,
@@ -6520,19 +6519,20 @@
         }
         return;
       }
+    }
+    if (name === "resource") {
+      if (node.tag !== "img")
+        throw new TypeError("resource is only supported by Image");
       if (value == null || value === false) {
-        writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster);
-        writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.FileRaster);
+        writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster);
         return;
       }
-      if (typeof value === "object" && value.kind === "file" && typeof value.path === "string") {
-        writer.setGraphicSource(node.id, GRAPHIC_SOURCE.FileRaster, value.path);
-        return;
-      }
-      if (typeof value !== "object" || value.kind !== "network" || typeof value.url !== "string" || value.format !== "raster" || value.cache !== "memory") {
-        throw new TypeError("invalid native image source");
-      }
-      writer.setGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster, value.url);
+      if (typeof value !== "object")
+        throw new TypeError("Image requires an image resource handle");
+      const handle = value;
+      if (!Number.isInteger(handle.lo) || !Number.isInteger(handle.hi))
+        throw new TypeError("Image requires an image resource handle");
+      writer.setGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster, `${handle.lo}:${handle.hi}`);
       return;
     }
     if (name === "transform") {

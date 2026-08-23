@@ -235,21 +235,21 @@ describe("Writer limits", () => {
     const writer = new Writer();
     writer.setGraphicSource(
       k(42),
-      GRAPHIC_SOURCE.NetworkRaster,
-      "https://x.test/a.png",
+      GRAPHIC_SOURCE.ResourceRaster,
+      "42:3",
     );
-    writer.clearGraphicSource(k(42), GRAPHIC_SOURCE.NetworkRaster);
+    writer.clearGraphicSource(k(42), GRAPHIC_SOURCE.ResourceRaster);
     const frame = writer.flush()!;
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
 
     expect(frame[8]).toBe(OP.SetGraphicSource);
     expect(view.getUint32(9, true)).toBe(42);
-    expect(frame[17]).toBe(GRAPHIC_SOURCE.NetworkRaster);
-    expect(frame[18]).toBe(20);
-    expect(frame[40]).toBe(OP.ClearGraphicSource);
-    expect(view.getUint32(41, true)).toBe(42);
-    expect(frame[49]).toBe(GRAPHIC_SOURCE.NetworkRaster);
-    expect(() => writer.setGraphicSource(k(1), 4, "x")).toThrow(RangeError);
+    expect(frame[17]).toBe(GRAPHIC_SOURCE.ResourceRaster);
+    expect(frame[18]).toBe(4);
+    expect(frame[24]).toBe(OP.ClearGraphicSource);
+    expect(view.getUint32(25, true)).toBe(42);
+    expect(frame[33]).toBe(GRAPHIC_SOURCE.ResourceRaster);
+    expect(() => writer.setGraphicSource(k(1), 5, "x")).toThrow(RangeError);
   });
 
   test("encodes one structured widget config without a dynamic property name", () => {

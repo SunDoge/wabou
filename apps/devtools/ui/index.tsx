@@ -6,6 +6,7 @@ import {
   Button,
   ComponentsProvider,
   createMeasuredSize,
+  createOwnedImageResource,
   Image,
   Input,
   mount,
@@ -109,6 +110,10 @@ function App() {
   const [socket, setSocket] = createSignal("");
   const [connectedSocket, setConnectedSocket] = createSignal<string>();
   const [screenshot, setScreenshot] = createSignal<string>();
+  const screenshotImage = createOwnedImageResource(() => {
+    const path = screenshot();
+    return path ? { kind: "file", path } : undefined;
+  });
   const [error, setError] = createSignal<string>();
   const [busy, setBusy] = createSignal(false);
   const [workspace, setWorkspace] = createSignal<
@@ -572,7 +577,7 @@ function App() {
                         <Image
                           ref={screenshotSize.ref}
                           class="w-full h-full"
-                          source={{ kind: "file", path: screenshot() ?? "" }}
+                          resource={screenshotImage.resource()?.handle}
                           aria-label="Captured application frame; click to inspect"
                           onClick={(event) => void inspectScreenshot(event)}
                         />

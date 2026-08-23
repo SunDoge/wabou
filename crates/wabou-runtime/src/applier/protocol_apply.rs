@@ -303,7 +303,6 @@ impl Applier {
         let Some(node) = self.document.node_store.remove(id) else {
             return;
         };
-        self.clear_image_source(node);
         self.document.runtime_transforms.remove(&node);
         self.document.overlay_planes.remove(&node);
         self.interaction.scroll.styles.remove(&node);
@@ -391,115 +390,6 @@ impl Applier {
         }
     }
 
-    fn load_image_source(&mut self, node: NodeId, value: &str, network: bool) {
-        let source: Arc<str> = Arc::from(value);
-        self.clear_image_source(node);
-        self.document
-            .resources
-            .node_image_sources
-            .insert(node, source.clone());
-        if let Some(result) = self.document.resources.cache.raster(source.as_ref()) {
-            self.dispatch_image_resource_result(node, source.as_ref(), &result);
-            return;
-        }
-        self.document
-            .resources
-            .image_subscribers
-            .entry(source.clone())
-            .or_default()
-            .insert(node);
-        if !self
-            .document
-            .resources
-            .pending_images
-            .insert(source.clone())
-        {
-            return;
-        }
-        let url = network.then(|| url::Url::parse(value)).transpose();
-        let Ok(url) = url else {
-            self.document.resources.pending_images.remove(&source);
-            let result = Err(Arc::from("network image URL must use HTTP(S)"));
-            self.document
-                .resources
-                .cache
-                .insert_raster(source.to_string(), result.clone());
-            self.finish_image_source(&source, &result);
-            return;
-        };
-        if url
-            .as_ref()
-            .is_some_and(|url| !matches!(url.scheme(), "http" | "https"))
-        {
-            self.document.resources.pending_images.remove(&source);
-            let result = Err(Arc::from("network image URL must use HTTP(S)"));
-            self.document
-                .resources
-                .cache
-                .insert_raster(source.to_string(), result.clone());
-            self.finish_image_source(&source, &result);
-            return;
-        }
-        let tx = self.document.resources.result_tx.clone();
-        let wake = self.runtime.wake_callback.clone();
-        let asset_cache = self.document.resources.cache.clone();
-        let path = (!network).then(|| value.to_owned());
-        tracing::debug!(source = %source, network, "loading raster image");
-        let load = async move {
-            let result = async {
-                let bytes = match (url, path) {
-                    (Some(url), _) => asset_cache.network_image_bytes(url).await?,
-                    (_, Some(path)) => tokio::fs::read(path)
-                        .await
-                        .map_err(|error| error.to_string())?
-                        .into(),
-                    _ => unreachable!(),
-                };
-                wabou_shell::image::RasterImage::decode(&bytes)
-                    .map(Arc::new)
-                    .map_err(|error| error.to_string())
-            }
-            .await
-            .map_err(Arc::<str>::from);
-            let _ = tx.send(ImageLoadResult { source, result });
-            if let Some(wake) = wake {
-                wake();
-            }
-        };
-        self.document.resources.cache.spawn(load);
-    }
-
-    pub(super) fn finish_image_source(
-        &mut self,
-        source: &Arc<str>,
-        result: &crate::asset_cache::RasterAsset,
-    ) {
-        let nodes = self
-            .document
-            .resources
-            .image_subscribers
-            .remove(source)
-            .unwrap_or_default();
-        for node in nodes {
-            if self.document.resources.node_image_sources.get(&node) == Some(source) {
-                self.recompute_node(node);
-                self.dispatch_image_resource_result(node, source, result);
-            }
-        }
-    }
-
-    pub(super) fn clear_image_source(&mut self, node: NodeId) {
-        let Some(source) = self.document.resources.node_image_sources.remove(&node) else {
-            return;
-        };
-        if let Some(nodes) = self.document.resources.image_subscribers.get_mut(&source) {
-            nodes.remove(&node);
-            if nodes.is_empty() {
-                self.document.resources.image_subscribers.remove(&source);
-            }
-        }
-    }
-
     fn set_graphic_source(&mut self, id: NodeKey, kind: u8, source: &str) {
         let Some(&node) = self.document.node_store.solid_to_node.get(&id) else {
             return;
@@ -510,17 +400,36 @@ impl Applier {
                     declared.svg_source = Some(Arc::from(source));
                 }
             }
-            crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
+            crate::protocol::GRAPHIC_SOURCE_RESOURCE_RASTER => {
+                let handle = source.split_once(':').and_then(|(lo, hi)| {
+                    Some(crate::ImageResourceHandle {
+                        lo: lo.parse().ok()?,
+                        hi: hi.parse().ok()?,
+                    })
+                });
+                let resource =
+                    handle.and_then(|handle| self.document.resources.image_store.get(handle));
                 if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
-                    declared.raster_image_source = Some(Arc::from(source));
+                    declared.image_resource = resource.as_ref().and(handle);
                 }
-                self.load_image_source(node, source, true);
-            }
-            crate::protocol::GRAPHIC_SOURCE_FILE_RASTER => {
-                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
-                    declared.raster_image_source = Some(Arc::from(source));
+                if let Some(resource) = resource {
+                    let (width, height) = resource.dimensions();
+                    if let Some(&target) = self.document.node_store.node_to_solid.get(&node) {
+                        self.dispatch_image_resource_ready(
+                            target,
+                            handle.expect("resolved resource has a handle"),
+                            width as f32,
+                            height as f32,
+                        );
+                    }
+                } else {
+                    tracing::warn!(source, "rejected missing or stale image resource handle");
+                    self.dispatch_image_resource_error(
+                        node,
+                        handle,
+                        "image resource is missing or stale",
+                    );
                 }
-                self.load_image_source(node, source, false);
             }
             _ => unreachable!("graphic source kind was validated by the decoder"),
         }
@@ -537,17 +446,10 @@ impl Applier {
                     declared.svg_source = None;
                 }
             }
-            crate::protocol::GRAPHIC_SOURCE_NETWORK_RASTER => {
+            crate::protocol::GRAPHIC_SOURCE_RESOURCE_RASTER => {
                 if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
-                    declared.raster_image_source = None;
+                    declared.image_resource = None;
                 }
-                self.clear_image_source(node);
-            }
-            crate::protocol::GRAPHIC_SOURCE_FILE_RASTER => {
-                if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
-                    declared.raster_image_source = None;
-                }
-                self.clear_image_source(node);
             }
             _ => unreachable!("graphic source kind was validated by the decoder"),
         }

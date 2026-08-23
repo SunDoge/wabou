@@ -602,37 +602,18 @@ function applyProperty(
       }
       return;
     }
+  }
+  if (name === "resource") {
+    if (node.tag !== "img") throw new TypeError("resource is only supported by Image");
     if (value == null || value === false) {
-      writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.NetworkRaster);
-      writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.FileRaster);
+      writer.clearGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster);
       return;
     }
-    if (
-      typeof value === "object" &&
-      (value as { kind?: unknown }).kind === "file" &&
-      typeof (value as { path?: unknown }).path === "string"
-    ) {
-      writer.setGraphicSource(
-        node.id,
-        GRAPHIC_SOURCE.FileRaster,
-        (value as { path: string }).path,
-      );
-      return;
-    }
-    if (
-      typeof value !== "object" ||
-      (value as { kind?: unknown }).kind !== "network" ||
-      typeof (value as { url?: unknown }).url !== "string" ||
-      (value as { format?: unknown }).format !== "raster" ||
-      (value as { cache?: unknown }).cache !== "memory"
-    ) {
-      throw new TypeError("invalid native image source");
-    }
-    writer.setGraphicSource(
-      node.id,
-      GRAPHIC_SOURCE.NetworkRaster,
-      (value as { url: string }).url,
-    );
+    if (typeof value !== "object") throw new TypeError("Image requires an image resource handle");
+    const handle = value as { lo?: unknown; hi?: unknown };
+    if (!Number.isInteger(handle.lo) || !Number.isInteger(handle.hi))
+      throw new TypeError("Image requires an image resource handle");
+    writer.setGraphicSource(node.id, GRAPHIC_SOURCE.ResourceRaster, `${handle.lo}:${handle.hi}`);
     return;
   }
   if (name === "transform") {

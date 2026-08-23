@@ -1,10 +1,10 @@
-import { Center, NetworkImage, Text, View } from "../primitives";
+import { Center, Image, type ImageResourceHandle, Text, View } from "../primitives";
 import type { JSX } from "solid-js";
 import { match } from "ts-pattern";
 import { join } from "./class-names";
 export type AvatarSize = "sm" | "default" | "lg";
 export interface AvatarProps {
-  src?: string;
+  image?: ImageResourceHandle;
   alt?: string;
   fallback: string;
   size?: AvatarSize;
@@ -27,12 +27,10 @@ export function Avatar(props: AvatarProps) {
         props.class,
       )}
     >
-      {props.src ? (
-        <NetworkImage
+      {props.image ? (
+        <Image
           aria-hidden="true"
-          url={props.src}
-          format="raster"
-          cache="memory"
+          resource={props.image}
           class="w-full h-full"
         />
       ) : (

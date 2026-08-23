@@ -1,5 +1,5 @@
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.mjs";
-import { PathBuilder } from "@wabou/core";
+import { PathBuilder, bindJsonCapability, useHost } from "@wabou/core";
 import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
 import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
@@ -286,6 +286,75 @@ function createPulse(options = {}) {
 	});
 }
 //#endregion
+//#region src/primitives/image-resource.ts
+function call() {
+	return bindJsonCapability(useHost().imageResources, {
+		name: "imageResources",
+		version: 1
+	});
+}
+/** Explicitly create a new resource from a host file. No identity deduplication occurs. */
+function createFileImageResource(path) {
+	return call()("createFile", { path });
+}
+/** Explicitly create a new resource from an HTTP(S) response. */
+function createNetworkImageResource(url) {
+	return call()("createNetwork", { url });
+}
+/** Deterministically release a resource. Images only borrow their handle. */
+function releaseImageResource(handle) {
+	return call()("release", handle);
+}
+/**
+* Create a resource owned by the current Solid owner. Source replacement and
+* owner cleanup clear the borrowed handle before releasing the native resource.
+*/
+function createOwnedImageResource(request) {
+	const [resource, setResource] = createSignal();
+	const [loading, setLoading] = createSignal(false);
+	const [error, setError] = createSignal();
+	let owned;
+	let revision = 0;
+	const releaseOwned = () => {
+		const previous = owned;
+		owned = void 0;
+		setResource(void 0);
+		if (previous) releaseImageResource(previous.handle);
+	};
+	createEffect(request, (source) => {
+		const currentRevision = ++revision;
+		releaseOwned();
+		setError(void 0);
+		if (!source) {
+			setLoading(false);
+			return;
+		}
+		setLoading(true);
+		(source.kind === "file" ? createFileImageResource(source.path) : createNetworkImageResource(source.url)).then((next) => {
+			if (currentRevision !== revision) {
+				releaseImageResource(next.handle);
+				return;
+			}
+			owned = next;
+			setResource(next);
+			setLoading(false);
+		}, (reason) => {
+			if (currentRevision !== revision) return;
+			setError(reason);
+			setLoading(false);
+		});
+	});
+	onCleanup(() => {
+		revision++;
+		releaseOwned();
+	});
+	return {
+		resource,
+		loading,
+		error
+	};
+}
+//#endregion
 //#region src/primitives/animation-frame.ts
 /**
 * Drive explicit paint state from the native host's animation clock.
@@ -523,26 +592,14 @@ function Icon(props) {
 }
 /** A replaced image node rendered by the native host. */
 function Image(props) {
-	const rest = omit(props, "source");
+	const rest = omit(props, "resource");
 	const node = createElement("img");
 	spread(node, { role: "img" }, false);
 	spread(node, rest, false);
-	spread(node, { get source() {
-		return props.source;
+	spread(node, { get resource() {
+		return props.resource;
 	} }, false);
 	return node;
-}
-/** An explicit network-backed image with bounded decoding and host caching. */
-function NetworkImage(props) {
-	const rest = omit(props, "url", "format", "cache");
-	return Image(mergeProps(rest, { get source() {
-		return {
-			kind: "network",
-			url: props.url,
-			format: props.format,
-			cache: props.cache
-		};
-	} }));
 }
 /** A native single-line text editor with selection and scrolling. */
 function TextInput(props) {
@@ -2374,7 +2431,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	Image: () => Image,
 	Link: () => Link,
 	Modal: () => Modal,
-	NetworkImage: () => NetworkImage,
 	NotificationRegion: () => NotificationRegion,
 	OverlayPlaneProvider: () => OverlayPlaneProvider,
 	PasswordInput: () => PasswordInput,
@@ -2399,14 +2455,17 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	createAnimationFrame: () => createAnimationFrame,
 	createButton: () => createButton,
 	createContainerMatch: () => createContainerMatch,
+	createFileImageResource: () => createFileImageResource,
 	createFocus: () => createFocus,
 	createFocusWithin: () => createFocusWithin,
 	createFormDraft: () => createFormDraft,
 	createHover: () => createHover,
 	createKeyedSelection: () => createKeyedSelection,
 	createMeasuredSize: () => createMeasuredSize,
+	createNetworkImageResource: () => createNetworkImageResource,
 	createNotifications: () => createNotifications,
 	createOverlayLayer: () => createOverlayLayer,
+	createOwnedImageResource: () => createOwnedImageResource,
 	createPresence: () => createPresence,
 	createPress: () => createPress,
 	createRetainedItems: () => createRetainedItems,
@@ -2416,6 +2475,7 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	createTransitionPresence: () => createTransitionPresence,
 	flip: () => flip,
 	offset: () => offset,
+	releaseImageResource: () => releaseImageResource,
 	rotate2d: () => rotate2d$1,
 	shift: () => shift,
 	size: () => size,
@@ -2423,6 +2483,6 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 	useOverlayPlane: () => useOverlayPlane
 });
 //#endregion
-export { rotate2d$1 as $, isSelected as A, createButton as B, OverlayPlaneProvider as C, Column as D, Center as E, createPresence as F, PasswordInput as G, Icon as H, createContainerMatch as I, Svg as J, Path as K, createMeasuredSize as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, View as Q, Button as R, createTransitionPresence as S, useOverlayPlane as T, Image as U, CodeEditor as V, NetworkImage as W, TextArea as X, Text as Y, TextInput as Z, createRetainedItems as _, MotionConfigProvider as _t, ScrollArea as a, createFocusWithin as at, Spin as b, autoPlacement as c, animateKeyframes as ct, flip as d, createLoop as dt, translate2d$1 as et, offset as f, createPulse as ft, createNotifications as g, normalizeSweepGeometry as gt, NotificationRegion as h, createTransition as ht, createScrollReset as i, createFocus as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createInterpolation as lt, size as m, createSweep as mt, createTabs as n, createPress as nt, Popover as o, createAnimationFrame as ot, shift as p, createRotation as pt, PathBuilder as q, createShortcuts as r, createHover as rt, arrow as s, animate as st, primitives_exports as t, createActive as tt, computeHostFloatingPosition as u, createKeyframeAnimation as ut, Pulse as v, useMotionConfig as vt, createOverlayLayer as w, Modal as x, Ripple as y, useReducedMotion as yt, Link as z };
+export { translate2d$1 as $, isSelected as A, createButton as B, OverlayPlaneProvider as C, Column as D, Center as E, createPresence as F, Path as G, Icon as H, createContainerMatch as I, Text as J, PathBuilder as K, createMeasuredSize as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, rotate2d$1 as Q, Button as R, createTransitionPresence as S, useReducedMotion as St, useOverlayPlane as T, Image as U, CodeEditor as V, PasswordInput as W, TextInput as X, TextArea as Y, View as Z, createRetainedItems as _, createSweep as _t, ScrollArea as a, createAnimationFrame as at, Spin as b, MotionConfigProvider as bt, autoPlacement as c, createOwnedImageResource as ct, flip as d, animateKeyframes as dt, createActive as et, offset as f, createInterpolation as ft, createNotifications as g, createRotation as gt, NotificationRegion as h, createPulse as ht, createScrollReset as i, createFocusWithin as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, releaseImageResource as lt, size as m, createLoop as mt, createTabs as n, createHover as nt, Popover as o, createFileImageResource as ot, shift as p, createKeyframeAnimation as pt, Svg as q, createShortcuts as r, createFocus as rt, arrow as s, createNetworkImageResource as st, primitives_exports as t, createPress as tt, computeHostFloatingPosition as u, animate as ut, Pulse as v, createTransition as vt, createOverlayLayer as w, Modal as x, useMotionConfig as xt, Ripple as y, normalizeSweepGeometry as yt, Link as z };
 
-//# sourceMappingURL=primitives-9A92ZpYh.mjs.map
+//# sourceMappingURL=primitives-DIx_hD2G.mjs.map

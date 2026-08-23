@@ -15,6 +15,7 @@ bon = { workspace = true }
 foyer = "0.22.3"
 futures-lite = "2"
 getrandom = { workspace = true }
+image = { workspace = true, features = ["jpeg", "png", "webp"] }
 jiff = { workspace = true }
 lasso = "0.7.3"
 open = { workspace = true }

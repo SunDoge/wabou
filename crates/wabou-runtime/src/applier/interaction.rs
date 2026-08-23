@@ -1,32 +1,33 @@
 use super::*;
 
 impl Applier {
-    pub(super) fn dispatch_image_resource_result(
+    pub(super) fn dispatch_image_resource_error(
         &mut self,
         node: taffy::NodeId,
-        source: &str,
-        result: &crate::asset_cache::RasterAsset,
+        resource: Option<crate::ImageResourceHandle>,
+        error: &str,
     ) {
         let Some(&target) = self.document.node_store.node_to_solid.get(&node) else {
             return;
         };
-        match result {
-            Ok(image) => {
-                let [width, height] = image.size();
-                let payload = serde_json::json!({
-                    "source": source,
-                    "width": width,
-                    "height": height,
-                })
-                .to_string();
-                self.dispatch_json(target, event::RESOURCEREADY, &payload);
-            }
-            Err(error) => {
-                let payload =
-                    serde_json::json!({ "source": source, "error": error.as_ref() }).to_string();
-                self.dispatch_json(target, event::RESOURCEERROR, &payload);
-            }
-        }
+        let payload = serde_json::json!({ "resource": resource, "error": error }).to_string();
+        self.dispatch_json(target, event::RESOURCEERROR, &payload);
+    }
+
+    pub(super) fn dispatch_image_resource_ready(
+        &mut self,
+        target: crate::protocol::NodeKey,
+        resource: crate::ImageResourceHandle,
+        width: f32,
+        height: f32,
+    ) {
+        let payload = serde_json::json!({
+            "resource": resource,
+            "width": width,
+            "height": height,
+        })
+        .to_string();
+        self.dispatch_json(target, event::RESOURCEREADY, &payload);
     }
 
     pub(super) fn handle_pointer_up(

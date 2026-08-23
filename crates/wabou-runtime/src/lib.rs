@@ -21,6 +21,7 @@ pub(crate) mod host_abi;
 mod host_ffi;
 mod host_frame;
 mod host_message;
+mod image_resource;
 mod inline_context;
 mod json_capability;
 mod jsrt;
@@ -53,6 +54,7 @@ pub use host_message::{
     HostMessageHandle, HostMessagePayload, HostMessageRouter, MAX_HOST_MESSAGES_PER_FRAME,
     RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
 };
+pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use json_capability::JsonCapability;
 pub use jsrt::JsRuntime;
 pub use native_capability::NativeCapability;

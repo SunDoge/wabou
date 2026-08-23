@@ -6,7 +6,7 @@ import {
   Image,
   type ImageResourceErrorEvent,
   type ImageResourceReadyEvent,
-  type ImageSource,
+  type ImageResourceHandle,
   Button as PrimitiveButton,
   Text,
   View,
@@ -16,7 +16,7 @@ export interface ImageListProps<T> {
   /** Reactive backing collection. Only visible rows mount their Image nodes. */
   items: () => readonly T[];
   getItemKey: (item: T, index: number) => string | number;
-  getSource: (item: T, index: number) => ImageSource;
+  getResource?: (item: T, index: number) => ImageResourceHandle;
   getLabel: (item: T, index: number) => string;
   getDescription?: (item: T, index: number) => string | undefined;
   itemHeight?: number;
@@ -51,13 +51,13 @@ function finitePositive(value: number, name: string): number {
 
 /**
  * A virtualized, selectable image list for page strips, albums and file pickers.
- * Resource loading remains owned by Image; this component owns list lifecycle.
+ * Resource creation remains owned by the caller; this component only borrows handles.
  */
 export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
   const config = untrack(() => ({
     items: props.items,
     getItemKey: props.getItemKey,
-    getSource: props.getSource,
+    getResource: props.getResource,
     getLabel: props.getLabel,
     getDescription: props.getDescription,
     viewportHeight: props.viewportHeight,
@@ -108,7 +108,7 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
           const [failed, setFailed] = createSignal(false);
           const key = createMemo(() => config.getItemKey(item(), index()));
           const label = createMemo(() => config.getLabel(item(), index()));
-          const source = createMemo(() => config.getSource(item(), index()));
+          const resource = createMemo(() => config.getResource?.(item(), index()));
           const description = createMemo(() =>
             config.getDescription?.(item(), index()),
           );
@@ -147,7 +147,7 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
                 {config.renderThumbnail?.(item(), index()) ?? (
                   <Show when={!failed()}>
                     <Image
-                      source={source()}
+                      resource={resource()}
                       aria-label={label()}
                       class="w-full h-full"
                       onResourceReady={(event) =>

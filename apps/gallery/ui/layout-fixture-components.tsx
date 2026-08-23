@@ -238,8 +238,8 @@ export function ImageListLayoutFixture() {
       <ImageList
         items={() => imageListPages}
         getItemKey={(page) => page.id}
-        getSource={(page) => ({ kind: "file", path: page.path })}
         getLabel={(page) => page.title}
+        renderThumbnail={() => <View class="w-full h-full bg-control" />}
         getDescription={(_, index) =>
           `${index + 1} of ${imageListPages.length}`
         }

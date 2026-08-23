@@ -255,25 +255,6 @@ impl FrameSource for Applier {
         self.runtime.js.take_async_wake();
         self.runtime.js.poll_async_runtime();
 
-        while let Ok(loaded) = self.document.resources.result_rx.try_recv() {
-            self.document
-                .resources
-                .pending_images
-                .remove(&loaded.source);
-            if let Err(error) = &loaded.result {
-                // Remote images are optional resources. The owner receives a
-                // resourceerror event and can keep its semantic fallback.
-                tracing::debug!(source = %loaded.source, %error, "failed to load image");
-            } else {
-                tracing::debug!(source = %loaded.source, "network image loaded");
-            }
-            self.document
-                .resources
-                .cache
-                .insert_raster(loaded.source.to_string(), loaded.result.clone());
-            self.finish_image_source(&loaded.source, &loaded.result);
-        }
-
         self.drain_pending_fonts(tcx);
 
         self.drain_pending_stylesheet();

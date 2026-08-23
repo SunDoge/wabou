@@ -14,7 +14,6 @@ import {
   createTabs,
   Icon,
   Image,
-  NetworkImage,
   PasswordInput,
   Svg,
   Text,
@@ -388,11 +387,7 @@ describe("host primitives", () => {
       Text({});
       Text({ maxLines: 2 });
       Svg({ source: "<svg/>" });
-      NetworkImage({
-        url: "https://example.test/avatar.png",
-        format: "raster",
-        cache: "memory",
-      });
+      Image({ resource: { lo: 2, hi: 1 } });
     } finally {
       writer.setAttribute = setAttribute;
       writer.setTextBehavior = setTextBehavior;
@@ -410,17 +405,17 @@ describe("host primitives", () => {
     ]);
   });
 
-  test("maps explicit file image sources onto the internal native widget", () => {
+  test("maps explicit image resource handles onto the native protocol", () => {
     const sources: Array<[number, string]> = [];
     const setGraphicSource = writer.setGraphicSource.bind(writer);
     writer.setGraphicSource = (_id, kind, source) =>
       sources.push([kind, source]);
     try {
-      Image({ source: { kind: "file", path: "/tmp/capture.png" } });
+      Image({ resource: { lo: 42, hi: 3 } });
     } finally {
       writer.setGraphicSource = setGraphicSource;
     }
-    expect(sources).toEqual([[GRAPHIC_SOURCE.FileRaster, "/tmp/capture.png"]]);
+    expect(sources).toEqual([[GRAPHIC_SOURCE.ResourceRaster, "42:3"]]);
   });
 
   test("rejects invalid text line limits before crossing the bridge", () => {
@@ -472,10 +467,8 @@ describe("host primitives", () => {
         tag: string;
         firstChild: { tag: string } | null;
       };
-      const image = NetworkImage({
-        url: "https://example.test/avatar.png",
-        format: "raster",
-        cache: "memory",
+      const image = Image({
+        resource: { lo: 2, hi: 1 },
       }) as unknown as {
         tag: string;
       };

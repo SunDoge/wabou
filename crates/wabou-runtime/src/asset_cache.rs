@@ -1,6 +1,5 @@
 //! Shared memory/disk cache for raw resources and their decoded forms.
 
-use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -10,19 +9,17 @@ use foyer::{
     HybridCacheBuilder, HybridCachePolicy, PsyncIoEngineConfig,
 };
 
-use wabou_shell::{image::RasterImage, svg::SvgImage};
+use wabou_shell::svg::SvgImage;
 
-const DECODED_RASTER_BYTES: usize = 64 * 1024 * 1024;
 const DECODED_SVG_ENTRIES: usize = 256;
 const RAW_MEMORY_ENTRIES: usize = 256;
 const ENCODED_MEMORY_BYTES: usize = 16 * 1024 * 1024;
 const ENCODED_DISK_BYTES: usize = 256 * 1024 * 1024;
-const MAX_NETWORK_RESOURCE_BYTES: usize = 1024 * 1024;
+const MAX_NETWORK_RESOURCE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_CONCURRENT_NETWORK_LOADS: usize = 8;
 const NETWORK_IMAGE_MAX_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const RAW_ENVELOPE_MAGIC: &[u8; 4] = b"WRC1";
 
-pub type RasterAsset = Result<Arc<RasterImage>, Arc<str>>;
 pub type SvgAsset = Result<Arc<SvgImage>, Arc<str>>;
 
 /// A stable namespace for one class of cached resources.
@@ -77,7 +74,6 @@ enum RawResourceCache {
 /// stay memory-only because renderer objects are not stable disk data.
 pub struct ResourceCache {
     raw: RawResourceCache,
-    decoded_rasters: Cache<String, RasterAsset>,
     decoded_svgs: Cache<String, SvgAsset>,
     runtime: Option<Arc<tokio::runtime::Runtime>>,
     http: reqwest::Client,
@@ -91,25 +87,12 @@ impl std::fmt::Debug for ResourceCache {
                 "disk_enabled",
                 &matches!(self.raw, RawResourceCache::Hybrid(_)),
             )
-            .field("decoded_rasters", &self.decoded_rasters.usage())
             .field("decoded_svgs", &self.decoded_svgs.usage())
             .finish()
     }
 }
 
 impl ResourceCache {
-    fn decoded_raster_cache() -> Cache<String, RasterAsset> {
-        CacheBuilder::new(DECODED_RASTER_BYTES)
-            .with_weighter(|key: &String, value: &RasterAsset| {
-                key.len()
-                    + match value {
-                        Ok(image) => image.byte_len(),
-                        Err(error) => error.len(),
-                    }
-            })
-            .build()
-    }
-
     fn http_client() -> reqwest::Client {
         reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(5))
@@ -122,7 +105,6 @@ impl ResourceCache {
     pub fn memory_only() -> Self {
         Self {
             raw: RawResourceCache::Memory(CacheBuilder::new(RAW_MEMORY_ENTRIES).build()),
-            decoded_rasters: Self::decoded_raster_cache(),
             decoded_svgs: CacheBuilder::new(DECODED_SVG_ENTRIES).build(),
             runtime: None,
             http: Self::http_client(),
@@ -162,26 +144,11 @@ impl ResourceCache {
             .map_err(|error| error.to_string())?;
         Ok(Self {
             raw: RawResourceCache::Hybrid(raw),
-            decoded_rasters: Self::decoded_raster_cache(),
             decoded_svgs: CacheBuilder::new(DECODED_SVG_ENTRIES).build(),
             runtime: Some(runtime),
             http: Self::http_client(),
             network_slots: Arc::new(tokio::sync::Semaphore::new(MAX_CONCURRENT_NETWORK_LOADS)),
         })
-    }
-
-    pub fn raster(&self, key: &str) -> Option<RasterAsset> {
-        self.decoded_rasters
-            .get(key)
-            .map(|entry| entry.value().clone())
-    }
-
-    pub fn insert_raster(&self, key: impl Into<String>, value: RasterAsset) {
-        // Transport and decode failures are often transient. Notify current
-        // subscribers, but allow a later declaration to retry the source.
-        if value.is_ok() {
-            self.decoded_rasters.insert(key.into(), value);
-        }
     }
 
     pub fn svg(&self, key: &str) -> Option<SvgAsset> {
@@ -312,7 +279,7 @@ impl ResourceCache {
             .content_length()
             .is_some_and(|size| size > MAX_NETWORK_RESOURCE_BYTES as u64)
         {
-            return Err("image response exceeds 1 MiB".to_string());
+            return Err("image response exceeds 32 MiB".to_string());
         }
         let mut encoded = Vec::with_capacity(
             response
@@ -322,7 +289,7 @@ impl ResourceCache {
         );
         while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
             if encoded.len() + chunk.len() > MAX_NETWORK_RESOURCE_BYTES {
-                return Err("image response exceeds 1 MiB".to_string());
+                return Err("image response exceeds 32 MiB".to_string());
             }
             encoded.extend_from_slice(&chunk);
         }
@@ -333,22 +300,6 @@ impl ResourceCache {
             bytes.clone(),
         );
         Ok(bytes)
-    }
-
-    pub fn spawn(&self, future: impl Future<Output = ()> + Send + 'static) {
-        if let Some(runtime) = &self.runtime {
-            runtime.spawn(future);
-        } else if let Ok(runtime) = tokio::runtime::Handle::try_current() {
-            runtime.spawn(future);
-        } else {
-            std::thread::spawn(move || {
-                tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .expect("build asset loading runtime")
-                    .block_on(future);
-            });
-        }
     }
 
     /// Close persistent storage while its dedicated runtime is still alive.

@@ -93,7 +93,7 @@ use projections::FrameProjections;
 use reload::plan_hmr_batch;
 use reload::{HmrBatch, ReloadState};
 pub use reload::{HmrDrainResult, ReloadHandle, ReloadMsg};
-use resources::{ImageLoadResult, ResourceState};
+use resources::ResourceState;
 use scroll::{ScrollState, ScrollbarDrag, ScrollbarHit};
 use style_resolution::StyleState;
 use text_selection::TextSelectionState;
@@ -235,8 +235,8 @@ struct Declared {
     focus_contained: bool,
     /// Trusted inline SVG source authored through the typed graphic contract.
     svg_source: Option<Arc<str>>,
-    /// Raster cache key authored through the typed graphic contract.
-    raster_image_source: Option<Arc<str>>,
+    /// Application-visible decoded image resource.
+    image_resource: Option<crate::ImageResourceHandle>,
     /// Decoded local-coordinate vector path.
     vector_path: Option<Arc<wabou_shell::style::VectorPath>>,
 }
@@ -665,6 +665,10 @@ impl Applier {
 
     pub(crate) fn set_asset_cache(&mut self, cache: Arc<ResourceCache>) {
         self.document.resources.set_cache(cache);
+    }
+
+    pub(crate) fn set_image_resource_store(&mut self, store: crate::ImageResourceStore) {
+        self.document.resources.set_image_store(store);
     }
 
     /// Attach the immutable snapshot store published through DevTools.

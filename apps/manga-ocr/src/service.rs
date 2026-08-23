@@ -8,7 +8,10 @@ use directories::ProjectDirs;
 use oar_ocr::prelude::{OAROCR, OAROCRBuilder, TextRegion};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use wabou::{JsonCapability, JsonCapabilityContract, JsonMethod, rquickjs};
+use wabou::{
+    ImageResourceHandle, ImageResourceStore, JsonCapability, JsonCapabilityContract, JsonMethod,
+    rquickjs,
+};
 
 pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("mangaReader", 1);
 const LIST_IMAGES: JsonMethod<ListImagesRequest, Vec<ImagePage>> = JsonMethod::new("listImages");
@@ -54,10 +57,11 @@ struct ReaderState {
     model_dir: PathBuf,
     engine: Mutex<Option<OAROCR>>,
     http: reqwest::Client,
+    images: ImageResourceStore,
 }
 
 impl ReaderService {
-    pub fn new() -> Result<Self, String> {
+    pub fn new(images: ImageResourceStore) -> Result<Self, String> {
         let project = ProjectDirs::from("dev", "Wabou", "Manga OCR")
             .ok_or_else(|| "could not resolve application directories".to_owned())?;
         let model_dir = project.data_dir().join("models").join(MODEL_VERSION);
@@ -68,6 +72,7 @@ impl ReaderService {
                 .user_agent("MangaOcrWabou/0.1")
                 .build()
                 .map_err(|error| error.to_string())?,
+            images,
         })))
     }
 
@@ -114,9 +119,12 @@ impl ReaderService {
         Ok(self.model_status())
     }
 
-    fn recognize(&self, path: &Path) -> Result<Vec<OcrRegion>, String> {
-        let image = image::open(path)
-            .map_err(|error| format!("failed to open {}: {error}", path.display()))?
+    fn recognize(&self, handle: ImageResourceHandle) -> Result<Vec<OcrRegion>, String> {
+        let image = self
+            .0
+            .images
+            .get(handle)
+            .ok_or_else(|| "image resource is missing or stale".to_owned())?
             .to_rgb8();
         let (width, height) = image.dimensions();
         let mut engine = self
@@ -192,19 +200,22 @@ impl ReaderService {
 }
 
 pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs::Result<()> {
-    capability.method(LIST_IMAGES, |request: ListImagesRequest| async move {
-        list_images(&request.directory)
+    let list = service.clone();
+    capability.method(LIST_IMAGES, move |request: ListImagesRequest| {
+        let service = list.clone();
+        async move { service.list_images(&request.directory) }
     })?;
-    capability.method(
-        DESCRIBE_IMAGES,
-        |request: DescribeImagesRequest| async move {
+    let describe = service.clone();
+    capability.method(DESCRIBE_IMAGES, move |request: DescribeImagesRequest| {
+        let service = describe.clone();
+        async move {
             request
                 .paths
                 .iter()
-                .map(|path| describe_image(Path::new(path)))
+                .map(|path| service.describe_image(Path::new(path)))
                 .collect()
-        },
-    )?;
+        }
+    })?;
     let status = service.clone();
     capability.method(MODEL_STATUS, move |(): ()| {
         let service = status.clone();
@@ -219,7 +230,7 @@ pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs
     capability.method(RECOGNIZE_PAGE, move |request: RecognizePageRequest| {
         let service = recognize.clone();
         async move {
-            tokio::task::spawn_blocking(move || service.recognize(Path::new(&request.path)))
+            tokio::task::spawn_blocking(move || service.recognize(request.handle))
                 .await
                 .map_err(|error| error.to_string())?
         }
@@ -246,7 +257,7 @@ struct DescribeImagesRequest {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RecognizePageRequest {
-    path: String,
+    handle: ImageResourceHandle,
 }
 
 #[derive(Deserialize)]
@@ -266,6 +277,7 @@ struct ImagePage {
     name: String,
     width: u32,
     height: u32,
+    handle: ImageResourceHandle,
 }
 
 #[derive(Serialize)]
@@ -311,29 +323,37 @@ fn model_file_valid(directory: &Path, file: ModelFile) -> bool {
     bytes.len() as u64 == file.size && sha256(&bytes) == file.sha256
 }
 
-fn list_images(directory: &str) -> Result<Vec<ImagePage>, String> {
-    let mut paths = fs::read_dir(directory)
-        .map_err(|error| error.to_string())?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| path.is_file() && supported_image(path))
-        .collect::<Vec<_>>();
-    paths.sort_by(|a, b| natord::compare(&natural_name(a), &natural_name(b)));
-    paths.iter().map(|path| describe_image(path)).collect()
-}
+impl ReaderService {
+    fn list_images(&self, directory: &str) -> Result<Vec<ImagePage>, String> {
+        let mut paths = fs::read_dir(directory)
+            .map_err(|error| error.to_string())?
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.is_file() && supported_image(path))
+            .collect::<Vec<_>>();
+        paths.sort_by(|a, b| natord::compare(&natural_name(a), &natural_name(b)));
+        paths.iter().map(|path| self.describe_image(path)).collect()
+    }
 
-fn describe_image(path: &Path) -> Result<ImagePage, String> {
-    let (width, height) = image::image_dimensions(path)
-        .map_err(|error| format!("failed to inspect {}: {error}", path.display()))?;
-    let canonical = path.canonicalize().map_err(|error| error.to_string())?;
-    let value = canonical.to_string_lossy().into_owned();
-    Ok(ImagePage {
-        id: value.clone(),
-        name: natural_name(&canonical),
-        path: value,
-        width,
-        height,
-    })
+    fn describe_image(&self, path: &Path) -> Result<ImagePage, String> {
+        let canonical = path.canonicalize().map_err(|error| error.to_string())?;
+        let handle = self.0.images.create_file(&canonical)?;
+        let (width, height) = self
+            .0
+            .images
+            .get(handle)
+            .ok_or_else(|| "new image resource did not resolve".to_owned())?
+            .dimensions();
+        let value = canonical.to_string_lossy().into_owned();
+        Ok(ImagePage {
+            id: value.clone(),
+            name: natural_name(&canonical),
+            path: value,
+            width,
+            height,
+            handle,
+        })
+    }
 }
 
 fn natural_name(path: &Path) -> String {

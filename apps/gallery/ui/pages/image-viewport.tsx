@@ -125,10 +125,6 @@ export function ImageViewportPage() {
         <ImageList
           items={() => demoPages}
           getItemKey={(page) => page.id}
-          getSource={(page) => ({
-            kind: "file",
-            path: `/demo/page-${page.id + 1}.png`,
-          })}
           getLabel={(page) => page.title}
           renderThumbnail={() => <MangaPageMock />}
           selectedKey={selectedPage()}

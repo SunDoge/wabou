@@ -4,6 +4,7 @@ import {
   createDataRouter,
   createMemoryHistory,
   Dynamic,
+  Input,
   mount,
   Portal,
   View,
@@ -26,7 +27,7 @@ const rootRoute = new BaseRootRoute();
 // The public JSX registry is intentionally native and finite, rather than the
 // complete browser element catalogue.
 const structuralHostNode = <view class="flex" />;
-const plainTextInput = <input type="text" />;
+const plainTextInput = <Input />;
 // @ts-expect-error links are components/capabilities, not implicit Web anchors
 const unsupportedAnchor = <a href="https://example.com">Unsupported</a>;
 // @ts-expect-error secrets require the dedicated PasswordInput + SecretStore

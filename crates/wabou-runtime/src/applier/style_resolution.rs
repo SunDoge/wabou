@@ -676,15 +676,14 @@ impl Applier {
             .tree
             .get_node_context(node)
             .cloned();
-        let image_url = self
+        let resource_image = self
             .document
             .node_store
             .declared
             .get(&node)
-            .and_then(|declared| declared.raster_image_source.clone());
-        let image = image_url
-            .and_then(|url| self.document.resources.cache.raster(url.as_ref()))
-            .and_then(Result::ok);
+            .and_then(|declared| declared.image_resource)
+            .and_then(|handle| self.document.resources.image_store.get(handle));
+        let image = resource_image.as_ref().map(|resource| resource.drawable());
         let host = HostPaint {
             text: resolved.host_text,
             text_runs: previous
@@ -1076,14 +1075,13 @@ impl Applier {
                 }
             }
             if decl.tag.and_then(|tag| atoms.resolve(tag)) == Some("img")
-                && let Some(url) = decl.raster_image_source.as_ref()
-                && let Some(size) = self
-                    .document
-                    .resources
-                    .cache
-                    .raster(url.as_ref())
-                    .and_then(Result::ok)
-                    .map(|image| image.size())
+                && let Some(size) = decl
+                    .image_resource
+                    .and_then(|handle| self.document.resources.image_store.get(handle))
+                    .map(|resource| {
+                        let (width, height) = resource.dimensions();
+                        [width as f32, height as f32]
+                    })
             {
                 host_intrinsic = Some(size);
             }

@@ -91,50 +91,29 @@ function applyIconFill(source: string, fill: string): string {
   return source.replace(/fill=(["'])none\1/, `fill="${fill}"`);
 }
 
-export interface NetworkImageSource {
-  kind: "network";
-  url: string;
-  format: "raster";
-  /** Decoded pixels are shared by URL for the lifetime of this native runtime. */
-  cache: "memory";
+export interface ImageResourceHandle {
+  lo: number;
+  hi: number;
 }
-
-export interface FileImageSource {
-  kind: "file";
-  /** Absolute or application-resolved path owned by the native host. */
-  path: string;
-}
-
-export type ImageSource = FileImageSource | NetworkImageSource;
 
 export interface ImageResourceReadyEvent {
-  source: string;
+  resource: ImageResourceHandle;
   width: number;
   height: number;
 }
 
 export interface ImageResourceErrorEvent {
-  source: string;
+  resource?: ImageResourceHandle;
   error: string;
 }
 
 export interface ImageProps extends Omit<PrimitiveProps, "children"> {
-  /** Low-level native source. Prefer a source-specific component. */
-  source?: ImageSource;
+  /** Borrowed host-owned immutable image. This component never releases it. */
+  resource?: ImageResourceHandle;
   onResourceReady?: (event: ImageResourceReadyEvent) => void;
   onResourceError?: (event: ImageResourceErrorEvent) => void;
 }
 
-export interface NetworkImageProps extends Omit<ImageProps, "source"> {
-  /** This component performs a host network request for the URL. */
-  url: string;
-  format: "raster";
-  cache: "memory";
-  /** Fired when the current URL is decoded and ready for native painting. */
-  onResourceReady?: (event: ImageResourceReadyEvent) => void;
-  /** Fired when the current URL fails to download or decode. */
-  onResourceError?: (event: ImageResourceErrorEvent) => void;
-}
 
 export interface TextInputProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
@@ -348,37 +327,20 @@ export function Icon(props: IconProps): JSX.Element {
 
 /** A replaced image node rendered by the native host. */
 export function Image(props: ImageProps): JSX.Element {
-  const rest = omit(props, "source");
+  const rest = omit(props, "resource");
   const node = createElement("img");
   spread(node, { role: "img" }, false);
   spread(node, rest, false);
   spread(
     node,
     {
-      get source(): ImageSource | undefined {
-        return props.source;
+      get resource(): ImageResourceHandle | undefined {
+        return props.resource;
       },
     },
     false,
   );
   return node as unknown as JSX.Element;
-}
-
-/** An explicit network-backed image with bounded decoding and host caching. */
-export function NetworkImage(props: NetworkImageProps): JSX.Element {
-  const rest = omit(props, "url", "format", "cache");
-  return Image(
-    mergeProps(rest, {
-      get source(): NetworkImageSource {
-        return {
-          kind: "network",
-          url: props.url,
-          format: props.format,
-          cache: props.cache,
-        };
-      },
-    }) as ImageProps,
-  );
 }
 
 /** A native single-line text editor with selection and scrolling. */

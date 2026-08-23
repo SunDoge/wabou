@@ -1,5 +1,5 @@
 import { renderComponent } from "@wabou/test/component";
-import { ImageList, type ImageSource } from "@wabou/ui";
+import { ImageList, View } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 
@@ -22,7 +22,7 @@ test("virtualizes image rows and exposes deterministic selection", () => {
       <ImageList
         items={() => pages}
         getItemKey={(page) => page.id}
-        getSource={(page): ImageSource => ({ kind: "file", path: page.path })}
+        renderThumbnail={() => <View class="w-full h-full bg-control" />}
         getLabel={(page) => page.title}
         itemHeight={80}
         viewportHeight={240}
@@ -50,7 +50,7 @@ test("rejects non-positive row and thumbnail geometry", () => {
     ImageList({
       items: () => pages,
       getItemKey: (page) => page.id,
-      getSource: (page) => ({ kind: "file", path: page.path }),
+      renderThumbnail: () => <View />,
       getLabel: (page) => page.title,
       itemHeight: 0,
     }),

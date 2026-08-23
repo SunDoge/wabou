@@ -44,6 +44,7 @@ use std::time::{Duration, Instant};
 use vello::peniko::Color;
 
 use wabou_bindgen::JsonCapabilityContract;
+use wabou_bindgen::JsonMethod;
 
 use crate::applier::Applier;
 use crate::asset_cache::ResourceCache;
@@ -59,6 +60,33 @@ use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
 type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
+
+const IMAGE_RESOURCES: JsonCapabilityContract = JsonCapabilityContract::new("imageResources", 1);
+const CREATE_FILE_IMAGE: JsonMethod<CreateFileImageRequest, ImageResourceDescriptor> =
+    JsonMethod::new("createFile");
+const CREATE_NETWORK_IMAGE: JsonMethod<CreateNetworkImageRequest, ImageResourceDescriptor> =
+    JsonMethod::new("createNetwork");
+const RELEASE_IMAGE: JsonMethod<crate::ImageResourceHandle, bool> = JsonMethod::new("release");
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateFileImageRequest {
+    path: PathBuf,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CreateNetworkImageRequest {
+    url: String,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImageResourceDescriptor {
+    handle: crate::ImageResourceHandle,
+    width: u32,
+    height: u32,
+}
 
 /// Application-owned resource that must surround every native window and JS runtime.
 pub trait HostService: Send + Sync {
@@ -528,6 +556,7 @@ struct RuntimeSourceConfig {
     effect_trace: Option<crate::effect_trace::EffectTrace>,
     app_directories: Option<wabou_shell::AppDirectories>,
     asset_cache: Arc<ResourceCache>,
+    image_resources: crate::ImageResourceStore,
 }
 
 impl RuntimeSourceConfig {
@@ -580,6 +609,7 @@ impl RuntimeSourceConfig {
         );
         install_host_message_producers(&self.host_message_producers, window_key, &applier);
         applier.set_asset_cache(self.asset_cache.clone());
+        applier.set_image_resource_store(self.image_resources.clone());
         if let Some(directories) = &self.app_directories {
             applier.set_app_directories(directories.clone());
         }
@@ -636,6 +666,7 @@ pub struct HostBuilder {
     effect_trace: Option<EffectTraceConfig>,
     app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
+    image_resources: crate::ImageResourceStore,
 }
 
 impl Default for HostBuilder {
@@ -649,7 +680,12 @@ impl HostBuilder {
     /// `Canvas`). In development the CLI supplies a Vite URL; packaged apps
     /// load `resources/bundle.js` next to the executable.
     pub fn new() -> Self {
-        Self {
+        Self::with_image_resources(crate::ImageResourceStore::default())
+    }
+
+    /// Create a builder using an image registry also owned by application Rust code.
+    pub fn with_image_resources(image_resources: crate::ImageResourceStore) -> Self {
+        let builder = Self {
             base_color: style::parse_color("#0f172a")
                 .unwrap_or_else(|| Color::from_rgb8(0x0f, 0x17, 0x2a)),
             window: WindowOptions::default(),
@@ -663,7 +699,55 @@ impl HostBuilder {
             effect_trace: None,
             app_directory_config: None,
             persisted_window_size: None,
-        }
+            image_resources: image_resources.clone(),
+        };
+        let mounted = image_resources.clone();
+        builder.json_capability(IMAGE_RESOURCES, move |capability| {
+            let files = mounted.clone();
+            capability.method(CREATE_FILE_IMAGE, move |request: CreateFileImageRequest| {
+                let resources = files.clone();
+                async move {
+                    let loader = resources.clone();
+                    let handle =
+                        tokio::task::spawn_blocking(move || loader.create_file(request.path))
+                            .await
+                            .map_err(|error| error.to_string())??;
+                    let (width, height) = resources
+                        .get(handle)
+                        .ok_or_else(|| "created image resource did not resolve".to_owned())?
+                        .dimensions();
+                    Ok::<_, String>(ImageResourceDescriptor {
+                        handle,
+                        width,
+                        height,
+                    })
+                }
+            })?;
+            let network = mounted.clone();
+            capability.method(
+                CREATE_NETWORK_IMAGE,
+                move |request: CreateNetworkImageRequest| {
+                    let resources = network.clone();
+                    async move {
+                        let handle = resources.create_network(&request.url).await?;
+                        let (width, height) = resources
+                            .get(handle)
+                            .ok_or_else(|| "created image resource did not resolve".to_owned())?
+                            .dimensions();
+                        Ok::<_, String>(ImageResourceDescriptor {
+                            handle,
+                            width,
+                            height,
+                        })
+                    }
+                },
+            )?;
+            let release = mounted.clone();
+            capability.method(RELEASE_IMAGE, move |handle: crate::ImageResourceHandle| {
+                let resources = release.clone();
+                async move { Ok::<_, String>(resources.remove(handle)) }
+            })
+        })
     }
 
     /// Register or override a widget factory for `tag`. When the SolidJS app
@@ -993,6 +1077,7 @@ impl HostBuilder {
         // Declared immediately after the cache so it runs on successful exit
         // and on every later `?` path, before the cache-owned runtime is dropped.
         let _asset_cache_shutdown = ResourceCacheShutdownGuard::new(asset_cache.clone());
+        self.image_resources.set_cache(asset_cache.clone());
 
         #[cfg(feature = "devtools")]
         let devtools_server = {
@@ -1045,6 +1130,7 @@ impl HostBuilder {
             effect_trace: effect_trace.clone(),
             app_directories: app_directories.clone(),
             asset_cache: asset_cache.clone(),
+            image_resources: self.image_resources.clone(),
         };
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();

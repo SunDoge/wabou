@@ -6,18 +6,28 @@ Applications use `@wabou/ui/primitives` for the lower-level escape hatch.
 Solid primitives for Wabou applications.
 
 ```tsx
-import { Image, Text, View } from "@wabou/ui/primitives";
+import {
+  createOwnedImageResource,
+  Image,
+  Text,
+  View,
+} from "@wabou/ui/primitives";
+
+const avatar = createOwnedImageResource(() => ({
+  kind: "network",
+  url: avatarUrl(),
+}));
 
 <View class="flex items-center gap-2">
-  <NetworkImage
-    class="w-6 h-6"
-    url={avatarUrl}
-    format="png"
-    cache="memory"
-  />
+  <Image class="w-6 h-6" resource={avatar.resource()} />
   <Text class="text-sm">{count()} stories</Text>
 </View>;
 ```
+
+Image resources are explicit identities. The Solid owner releases the current
+resource when its request changes or the component is disposed; `Image` only
+borrows the handle. See `docs/image-resources.md` for manual and Rust-owned
+lifecycle options.
 
 `View` is a layout container. `Text` is an explicit native text boundary: all
 of its static and reactive text children form one measured run and one item in

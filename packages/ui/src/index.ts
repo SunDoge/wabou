@@ -16,6 +16,13 @@ export * as primitives from "./primitives";
 // Headless controls with names shared by styled components stay available
 // from `@wabou/ui/primitives` and through the `primitives` namespace.
 export {
+  createFileImageResource,
+  createNetworkImageResource,
+  createOwnedImageResource,
+  type ImageResourceDescriptor,
+  type ImageResourceRequest,
+  type OwnedImageResource,
+  releaseImageResource,
   type ActiveResult,
   type AnimationFrameCallback,
   Button as PrimitiveButton,
@@ -59,8 +66,8 @@ export {
   Image,
   type ImageProps,
   type ImageResourceErrorEvent,
+  type ImageResourceHandle,
   type ImageResourceReadyEvent,
-  type ImageSource,
   type KeyedSelection,
   type KeyedSelectionOptions,
   type LayoutProps,
@@ -69,9 +76,6 @@ export {
   Modal,
   type ModalMotionOptions,
   type ModalProps,
-  NetworkImage,
-  type NetworkImageProps,
-  type NetworkImageSource,
   NotificationRegion,
   type NotificationMotionOptions,
   type NotificationRegionProps,

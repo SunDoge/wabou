@@ -127,6 +127,8 @@ type DebugNode = {
 	tag: string,
 	/**  Plain text content when present. */
 	text: string | null,
+	/**  Single-line paint geometry, including native widget text. */
+	textMetrics?: DebugTextMetrics | null,
 	/**  Authored class names. */
 	classes: string[],
 	/**  Stylesheet selectors that contributed declarations. */
@@ -289,6 +291,16 @@ type DebugStyleCascade = {
 	source: string,
 	/**  Lower-priority sources replaced by the winner, in cascade order. */
 	overriddenSources: string[],
+};
+
+export /**  Paint geometry for one single-line text layout. */
+type DebugTextMetrics = {
+	/**  `node` for ordinary text or `widget` for a native editor. */
+	source: string,
+	/**  Line box in logical window coordinates. */
+	lineBox: Rect,
+	/**  Baseline in logical window coordinates. */
+	baseline: number,
 };
 
 export /**  One deterministic retained-snapshot validation finding. */

@@ -132,8 +132,7 @@ declare const INTERACTION_POLICY: {
 };
 declare const GRAPHIC_SOURCE: {
   readonly Svg: 1;
-  readonly NetworkRaster: 2;
-  readonly FileRaster: 3;
+  readonly ResourceRaster: 4;
 };
 declare const GRAPHIC_DATA: {
   readonly VectorPath: 1;
@@ -286,4 +285,4 @@ declare class Writer {
 }
 //#endregion
 export { formatResourceKeyParts as A, nodeKeyEquals as C, ResourceKeyParts as D, ResourceKeyFamily as E, validateResourceKeyParts as M, ResourceKeyTable as O, nodeKey as S, ResourceKey as T, NodeKeyAllocator as _, EventType as a, formatNodeKey as b, HOST_FRAME as c, INTERACTION_POLICY as d, OP as f, NodeKey as g, Writer as h, EventDataSlot as i, isResourceKeyParts as j, createResourceKeyFamily as k, HOST_NODE_PAYLOAD as l, TEXT_BEHAVIOR as m, EVENT_DATA_LEN as n, GRAPHIC_DATA as o, OpCode as p, EVENT_DATA_SLOT as r, GRAPHIC_SOURCE as s, EVENT_CODE as t, HOST_RECORD_KIND as u, NodeKeyTable as v, nodeKeyFromSlotMapFfi as w, isNodeKey as x, ROOT_NODE_KEY as y };
-//# sourceMappingURL=protocol-0b7PSaRx.d.mts.map
+//# sourceMappingURL=protocol-DYzSggts.d.mts.map

@@ -75,7 +75,8 @@ impl RasterImage {
         }
     }
 
-    fn from_rgba(rgba: image::RgbaImage) -> Self {
+    /// Build a renderer image from already decoded RGBA pixels.
+    pub fn from_rgba(rgba: image::RgbaImage) -> Self {
         let (width, height) = rgba.dimensions();
         let byte_len = rgba.len();
         let data = ImageData {

@@ -11,6 +11,7 @@ export interface ImagePage {
   name: string;
   width: number;
   height: number;
+  handle: { lo: number; hi: number };
 }
 
 export interface OcrRegion {
@@ -57,8 +58,8 @@ export function useMangaReaderApi() {
       call<ImagePage[]>("describeImages", { paths }),
     modelStatus: () => call<OcrModelStatus>("modelStatus"),
     downloadModel: () => call<OcrModelStatus>("downloadModel"),
-    recognizePage: (path: string) =>
-      call<OcrRegion[]>("recognizePage", { path }),
+    recognizePage: (handle: ImagePage["handle"]) =>
+      call<OcrRegion[]>("recognizePage", { handle }),
     translate: (options: {
       texts: readonly string[];
       apiKey: string;
@@ -67,4 +68,3 @@ export function useMangaReaderApi() {
     }) => call<string[]>("translate", options),
   };
 }
-

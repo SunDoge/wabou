@@ -5,10 +5,11 @@ use wabou::{HostBuilder, WindowOptions};
 
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
-    let service =
-        service::ReaderService::new().whatever_context("failed to initialize manga OCR service")?;
+    let images = wabou::ImageResourceStore::default();
+    let service = service::ReaderService::new(images.clone())
+        .whatever_context("failed to initialize manga OCR service")?;
     let capability = service.clone();
-    HostBuilder::new()
+    HostBuilder::with_image_resources(images)
         .app_directories("dev", "Wabou", "Manga OCR")
         .persist_window_size("main")
         .window(

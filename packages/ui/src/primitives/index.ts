@@ -1,4 +1,13 @@
 export {
+  createFileImageResource,
+  createNetworkImageResource,
+  createOwnedImageResource,
+  type ImageResourceDescriptor,
+  type ImageResourceRequest,
+  type OwnedImageResource,
+  releaseImageResource,
+} from "./image-resource";
+export {
   type AnimationFrameCallback,
   createAnimationFrame,
 } from "./animation-frame";
@@ -164,17 +173,13 @@ export {
   type Affine2D,
   CodeEditor,
   type CodeEditorProps,
-  type FileImageSource,
   Icon,
   type IconProps,
   Image,
   type ImageProps,
   type ImageResourceErrorEvent,
+  type ImageResourceHandle,
   type ImageResourceReadyEvent,
-  type ImageSource,
-  NetworkImage,
-  type NetworkImageProps,
-  type NetworkImageSource,
   PasswordInput,
   type PasswordInputProps,
   Path,

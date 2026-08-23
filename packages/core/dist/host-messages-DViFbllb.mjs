@@ -1,4 +1,4 @@
-import { m as NodeKeyTable } from "./protocol-Dkalv0Si.mjs";
+import { m as NodeKeyTable } from "./protocol-BwvrsHe1.mjs";
 //#region src/glue/resize-observer.ts
 const registryKey = Symbol.for("@wabou/core.resize-observers");
 const realm = globalThis;
@@ -126,4 +126,4 @@ const hostMessages = {
 //#endregion
 export { subscribeJson as a, subscribeAll as i, hostMessages as n, dispatchResizeObservation as o, subscribe as r, dispatchHostMessage as t };
 
-//# sourceMappingURL=host-messages-DbGr9B8N.mjs.map
+//# sourceMappingURL=host-messages-DViFbllb.mjs.map

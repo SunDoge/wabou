@@ -13,8 +13,8 @@ import {
   createMeasuredSize,
   Image,
   type ImageResourceErrorEvent,
+  type ImageResourceHandle,
   type ImageResourceReadyEvent,
-  type ImageSource,
   View,
   type ViewProps,
 } from "../primitives";
@@ -109,7 +109,7 @@ const ImageViewportContext = createContext<ImageViewportContextValue>();
 
 export interface ImageViewportProps
   extends Omit<ViewProps, "children" | "ref" | "onWheel"> {
-  source?: ImageSource;
+  resource?: ImageResourceHandle;
   /** Intrinsic image size in image pixels. */
   imageSize?: ImageViewportSize;
   zoom?: number;
@@ -151,7 +151,7 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
   };
   const rest = omit(
     props,
-    "source",
+    "resource",
     "imageSize",
     "zoom",
     "pan",
@@ -179,7 +179,7 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
         >
           {props.media ?? (
             <Image
-              source={props.source}
+              resource={props.resource}
               aria-label={props.imageLabel ?? "Image"}
               class="w-full h-full"
               onResourceReady={(event) => {
