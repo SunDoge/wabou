@@ -118,8 +118,7 @@ impl ResultCache {
 }
 
 impl LlmWorker {
-    fn spawn(cache_dir: PathBuf, images: ImageResourceStore) -> Result<Self, String> {
-        let cache = ResultCache::new(cache_dir.join("llm-results-v1"))?;
+    fn spawn(cache: ResultCache, images: ImageResourceStore) -> Result<Self, String> {
         let (sender, receiver) = mpsc::channel();
         std::thread::Builder::new()
             .name("manga-ocr-llm".to_owned())
@@ -217,7 +216,11 @@ enum OcrCommand {
 }
 
 impl OcrWorker {
-    fn spawn(model_dir: PathBuf, images: ImageResourceStore) -> Result<Self, String> {
+    fn spawn(
+        model_dir: PathBuf,
+        images: ImageResourceStore,
+        cache: ResultCache,
+    ) -> Result<Self, String> {
         let (sender, receiver) = mpsc::channel();
         let ready = Arc::new(AtomicBool::new(false));
         let worker_ready = ready.clone();
@@ -228,7 +231,8 @@ impl OcrWorker {
                 while let Ok(command) = receiver.recv() {
                     match command {
                         OcrCommand::Recognize { handle, reply } => {
-                            let result = recognize(&images, &model_dir, &mut engine, handle);
+                            let result =
+                                recognize(&images, &model_dir, &cache, &mut engine, handle);
                             worker_ready.store(engine.is_some(), Ordering::Release);
                             let _ = reply.send(result);
                         }
@@ -268,8 +272,9 @@ impl ReaderService {
         let project = ProjectDirs::from("dev", "Wabou", "Manga OCR")
             .ok_or_else(|| "could not resolve application directories".to_owned())?;
         let model_dir = project.data_dir().join("models").join(MODEL_VERSION);
-        let ocr = OcrWorker::spawn(model_dir.clone(), images.clone())?;
-        let llm = LlmWorker::spawn(project.cache_dir().to_owned(), images.clone())?;
+        let cache = ResultCache::new(project.cache_dir().join("pipeline-results-v1"))?;
+        let ocr = OcrWorker::spawn(model_dir.clone(), images.clone(), cache.clone())?;
+        let llm = LlmWorker::spawn(cache, images.clone())?;
         Ok(Self(Arc::new(ReaderState {
             model_dir,
             ocr,
@@ -502,6 +507,7 @@ fn natural_name(path: &Path) -> String {
 fn recognize(
     images: &ImageResourceStore,
     model_dir: &Path,
+    cache: &ResultCache,
     engine: &mut Option<OAROCR>,
     handle: ImageResourceHandle,
 ) -> Result<Vec<OcrRegion>, String> {
@@ -510,6 +516,10 @@ fn recognize(
         .ok_or_else(|| "image resource is missing or stale".to_owned())?
         .to_rgb8();
     let (width, height) = image.dimensions();
+    let cache_key = binary_cache_key(&[MODEL_VERSION.as_bytes(), image.as_raw()]);
+    if let Some(regions) = cache.get("ocr", &cache_key) {
+        return Ok(regions);
+    }
     if engine.is_none() {
         *engine = Some(
             OAROCRBuilder::new(
@@ -533,6 +543,7 @@ fn recognize(
         .filter_map(|region| normalized_region(region, width, height))
         .collect::<Vec<_>>();
     regions.sort_by(|a, b| b.x.total_cmp(&a.x).then_with(|| a.y.total_cmp(&b.y)));
+    cache.insert("ocr", &cache_key, &regions)?;
     Ok(regions)
 }
 

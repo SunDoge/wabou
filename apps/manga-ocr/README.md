@@ -26,9 +26,9 @@ OpenRouter API key and translate all recognized regions.
 - OpenRouter requests run in Rust so provider credentials and HTTP response
   parsing are outside the UI bundle's state machinery. A dedicated
   `manga-ocr-llm` worker serializes translation and vision requests.
-- Translation and automatic bbox results are cached under the application
-  cache directory by content, model, and target language. API keys are never
-  part of cache keys or values.
+- OCR, translation, and automatic bbox results are cached under the application
+  cache directory by source content and the relevant model/options. API keys
+  are never part of cache keys or values.
 - The viewport supports fit-relative zoom, direct panning, editable image-space
   boxes, numeric geometry controls, and independently toggled OCR/translation
   overlays.
