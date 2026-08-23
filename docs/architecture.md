@@ -111,16 +111,30 @@ The protocol transports explicit facts. For example, JS sends focusability and
 focus order as an interaction policy. Rust validates and applies that policy;
 it does not derive focusability from a button-like role.
 
-### Future host actors
+### Application workers and caches
 
-TODO: evaluate Kameo as the runtime behind long-lived application services.
-Wabou would keep ownership of the public contract layer: explicitly exported
-ask, tell, and event messages would carry stable names and versions, feed
-Specta/TypeScript generation, and map onto JSON capabilities and host messages.
-Internal actor messages would remain ordinary Rust types and would not become
-part of the JavaScript API. The experiment must demonstrate that it removes a
-real hand-written command loop without duplicating `HostService` lifecycle,
-cancellation, or shutdown semantics before it becomes framework API.
+`SerialWorker<Request, Response>` covers the common case where one native
+thread must exclusively own an inference engine, parser, or other thread-affine
+resource. It initializes state on the named worker thread, processes a bounded
+FIFO queue, returns typed results through an async request, and joins during
+shutdown. Queue saturation is an explicit error; it never blocks the UI thread.
+This is deliberately smaller than an actor framework: public JS contracts still
+belong to capabilities and host messages, not worker-internal command enums.
+
+`PersistentJsonCache` stores low-frequency, reproducible application results
+separately from renderer assets. It provides boundary-preserving content keys,
+atomic immutable writes, malformed-entry recovery, path-safe namespaces, and a
+bounded disk directory. API keys and other credentials must not participate in
+cache keys or values.
+
+The Manga OCR app is the reference integration: separate serial workers own its
+OCR and LLM state, while OCR, translation, and vision-adjusted bbox results use
+one content-addressed persistent cache. This removed the app's hand-written
+channel, oneshot, thread, and temporary-file lifecycle code without introducing
+an actor runtime.
+
+TODO: evaluate a larger actor framework only when an application needs dynamic
+object discovery, supervision, or many independently addressable workers.
 
 ## Tooling contract
 
