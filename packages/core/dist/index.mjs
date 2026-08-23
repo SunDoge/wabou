@@ -914,6 +914,7 @@ var AsyncActionConflictError = class extends Error {
 */
 function createAsyncAction(action) {
 	const [pending, setPending] = createSignal(false);
+	const [pendingArgs, setPendingArgs] = createSignal();
 	const [error, setError] = createSignal();
 	let disposed = false;
 	let inFlight;
@@ -931,6 +932,7 @@ function createAsyncAction(action) {
 			});
 		}
 		setPending(true);
+		setPendingArgs(() => args);
 		setError(void 0);
 		inFlightArgs = args;
 		inFlight = Promise.resolve().then(() => action(...args)).then((value) => ({
@@ -945,7 +947,10 @@ function createAsyncAction(action) {
 		}).finally(() => {
 			inFlight = void 0;
 			inFlightArgs = void 0;
-			if (!disposed) setPending(false);
+			if (!disposed) {
+				setPending(false);
+				setPendingArgs(void 0);
+			}
 		});
 		return inFlight;
 	};
@@ -955,10 +960,12 @@ function createAsyncAction(action) {
 	if (getOwner()) onCleanup(() => {
 		disposed = true;
 		setPending(false);
+		setPendingArgs(void 0);
 		setError(void 0);
 	});
 	return {
 		pending,
+		pendingArgs,
 		error,
 		run,
 		reset

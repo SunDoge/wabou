@@ -283,6 +283,8 @@ declare class AsyncActionConflictError extends Error {
 }
 interface AsyncAction<Args extends unknown[], T> {
   pending: Accessor<boolean>;
+  /** Arguments owned by the current single flight, or undefined while idle. */
+  pendingArgs: Accessor<Args | undefined>;
   error: Accessor<unknown | undefined>;
   run(...args: Args): Promise<AsyncActionResult<T>>;
   reset(): void;

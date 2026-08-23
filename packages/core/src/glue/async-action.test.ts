@@ -29,11 +29,13 @@ test("concurrent calls join one async action", async () => {
   expect(first).toBe(second);
   flush();
   expect(action.pending()).toBe(true);
+  expect(action.pendingArgs()).toEqual([2]);
   request.resolve(3);
   expect(await first).toEqual({ ok: true, value: 5 });
   flush();
   expect(calls).toBe(1);
   expect(action.pending()).toBe(false);
+  expect(action.pendingArgs()).toBeUndefined();
   expect(action.error()).toBeUndefined();
 });
 

@@ -16,6 +16,8 @@ export class AsyncActionConflictError extends Error {
 
 export interface AsyncAction<Args extends unknown[], T> {
   pending: Accessor<boolean>;
+  /** Arguments owned by the current single flight, or undefined while idle. */
+  pendingArgs: Accessor<Args | undefined>;
   error: Accessor<unknown | undefined>;
   run(...args: Args): Promise<AsyncActionResult<T>>;
   reset(): void;
@@ -41,6 +43,7 @@ export function createAsyncAction<Args extends unknown[], T>(
   action: (...args: Args) => PromiseLike<T> | T,
 ): AsyncAction<Args, T> {
   const [pending, setPending] = createSignal(false);
+  const [pendingArgs, setPendingArgs] = createSignal<Args>();
   const [error, setError] = createSignal<unknown>();
   let disposed = false;
   let inFlight: Promise<AsyncActionResult<T>> | undefined;
@@ -60,6 +63,7 @@ export function createAsyncAction<Args extends unknown[], T>(
       });
     }
     setPending(true);
+    setPendingArgs(() => args);
     setError(undefined);
     inFlightArgs = args;
     inFlight = Promise.resolve()
@@ -74,7 +78,10 @@ export function createAsyncAction<Args extends unknown[], T>(
       .finally(() => {
         inFlight = undefined;
         inFlightArgs = undefined;
-        if (!disposed) setPending(false);
+        if (!disposed) {
+          setPending(false);
+          setPendingArgs(undefined);
+        }
       });
     return inFlight;
   };
@@ -86,10 +93,11 @@ export function createAsyncAction<Args extends unknown[], T>(
     onCleanup(() => {
       disposed = true;
       setPending(false);
+      setPendingArgs(undefined);
       setError(undefined);
     });
 
-  return { pending, error, run, reset };
+  return { pending, pendingArgs, error, run, reset };
 }
 
 function sameArguments<Args extends unknown[]>(
