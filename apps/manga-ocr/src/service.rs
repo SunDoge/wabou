@@ -1,7 +1,11 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
 };
 
 use directories::ProjectDirs;
@@ -55,9 +59,69 @@ pub struct ReaderService(Arc<ReaderState>);
 
 struct ReaderState {
     model_dir: PathBuf,
-    engine: Mutex<Option<OAROCR>>,
+    ocr: OcrWorker,
     http: reqwest::Client,
     images: ImageResourceStore,
+}
+
+struct OcrWorker {
+    sender: mpsc::Sender<OcrCommand>,
+    ready: Arc<AtomicBool>,
+}
+
+enum OcrCommand {
+    Recognize {
+        handle: ImageResourceHandle,
+        reply: tokio::sync::oneshot::Sender<Result<Vec<OcrRegion>, String>>,
+    },
+    Reset,
+}
+
+impl OcrWorker {
+    fn spawn(model_dir: PathBuf, images: ImageResourceStore) -> Result<Self, String> {
+        let (sender, receiver) = mpsc::channel();
+        let ready = Arc::new(AtomicBool::new(false));
+        let worker_ready = ready.clone();
+        std::thread::Builder::new()
+            .name("manga-ocr-inference".to_owned())
+            .spawn(move || {
+                let mut engine = None;
+                while let Ok(command) = receiver.recv() {
+                    match command {
+                        OcrCommand::Recognize { handle, reply } => {
+                            let result = recognize(&images, &model_dir, &mut engine, handle);
+                            worker_ready.store(engine.is_some(), Ordering::Release);
+                            let _ = reply.send(result);
+                        }
+                        OcrCommand::Reset => {
+                            engine = None;
+                            worker_ready.store(false, Ordering::Release);
+                        }
+                    }
+                }
+            })
+            .map_err(|error| format!("failed to start OCR worker: {error}"))?;
+        Ok(Self { sender, ready })
+    }
+
+    async fn recognize(&self, handle: ImageResourceHandle) -> Result<Vec<OcrRegion>, String> {
+        let (reply, result) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(OcrCommand::Recognize { handle, reply })
+            .map_err(|_| "OCR worker has stopped".to_owned())?;
+        result
+            .await
+            .map_err(|_| "OCR worker stopped before replying".to_owned())?
+    }
+
+    fn reset(&self) {
+        self.ready.store(false, Ordering::Release);
+        let _ = self.sender.send(OcrCommand::Reset);
+    }
+
+    fn ready(&self) -> bool {
+        self.ready.load(Ordering::Acquire)
+    }
 }
 
 impl ReaderService {
@@ -65,9 +129,10 @@ impl ReaderService {
         let project = ProjectDirs::from("dev", "Wabou", "Manga OCR")
             .ok_or_else(|| "could not resolve application directories".to_owned())?;
         let model_dir = project.data_dir().join("models").join(MODEL_VERSION);
+        let ocr = OcrWorker::spawn(model_dir.clone(), images.clone())?;
         Ok(Self(Arc::new(ReaderState {
             model_dir,
-            engine: Mutex::new(None),
+            ocr,
             http: reqwest::Client::builder()
                 .user_agent("MangaOcrWabou/0.1")
                 .build()
@@ -82,7 +147,7 @@ impl ReaderService {
             .all(|file| model_file_valid(&self.0.model_dir, *file));
         OcrModelStatus {
             installed,
-            ready: installed && self.0.engine.lock().is_ok_and(|engine| engine.is_some()),
+            ready: installed && self.0.ocr.ready(),
             version: MODEL_VERSION.to_owned(),
         }
     }
@@ -113,49 +178,8 @@ impl ReaderService {
             }
             fs::rename(&partial, &target).map_err(|error| error.to_string())?;
         }
-        if let Ok(mut engine) = self.0.engine.lock() {
-            *engine = None;
-        }
+        self.0.ocr.reset();
         Ok(self.model_status())
-    }
-
-    fn recognize(&self, handle: ImageResourceHandle) -> Result<Vec<OcrRegion>, String> {
-        let image = self
-            .0
-            .images
-            .get(handle)
-            .ok_or_else(|| "image resource is missing or stale".to_owned())?
-            .to_rgb8();
-        let (width, height) = image.dimensions();
-        let mut engine = self
-            .0
-            .engine
-            .lock()
-            .map_err(|_| "OCR engine lock poisoned".to_owned())?;
-        if engine.is_none() {
-            *engine = Some(
-                OAROCRBuilder::new(
-                    self.0.model_dir.join(MODEL_FILES[0].name),
-                    self.0.model_dir.join(MODEL_FILES[1].name),
-                    self.0.model_dir.join(MODEL_FILES[2].name),
-                )
-                .region_batch_size(64)
-                .build()
-                .map_err(|error| format!("failed to initialize OCR: {error}"))?,
-            );
-        }
-        let results = engine
-            .as_ref()
-            .expect("engine initialized")
-            .predict(vec![image])
-            .map_err(|error| format!("OCR inference failed: {error}"))?;
-        let mut regions = results[0]
-            .text_regions
-            .iter()
-            .filter_map(|region| normalized_region(region, width, height))
-            .collect::<Vec<_>>();
-        regions.sort_by(|a, b| b.x.total_cmp(&a.x).then_with(|| a.y.total_cmp(&b.y)));
-        Ok(regions)
     }
 
     async fn translate(&self, request: TranslateRequest) -> Result<Vec<String>, String> {
@@ -229,11 +253,7 @@ pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs
     let recognize = service.clone();
     capability.method(RECOGNIZE_PAGE, move |request: RecognizePageRequest| {
         let service = recognize.clone();
-        async move {
-            tokio::task::spawn_blocking(move || service.recognize(request.handle))
-                .await
-                .map_err(|error| error.to_string())?
-        }
+        async move { service.0.ocr.recognize(request.handle).await }
     })?;
     capability.method(TRANSLATE, move |request: TranslateRequest| {
         let service = service.clone();
@@ -361,6 +381,43 @@ fn natural_name(path: &Path) -> String {
         .and_then(|value| value.to_str())
         .unwrap_or_default()
         .to_owned()
+}
+
+fn recognize(
+    images: &ImageResourceStore,
+    model_dir: &Path,
+    engine: &mut Option<OAROCR>,
+    handle: ImageResourceHandle,
+) -> Result<Vec<OcrRegion>, String> {
+    let image = images
+        .get(handle)
+        .ok_or_else(|| "image resource is missing or stale".to_owned())?
+        .to_rgb8();
+    let (width, height) = image.dimensions();
+    if engine.is_none() {
+        *engine = Some(
+            OAROCRBuilder::new(
+                model_dir.join(MODEL_FILES[0].name),
+                model_dir.join(MODEL_FILES[1].name),
+                model_dir.join(MODEL_FILES[2].name),
+            )
+            .region_batch_size(64)
+            .build()
+            .map_err(|error| format!("failed to initialize OCR: {error}"))?,
+        );
+    }
+    let results = engine
+        .as_ref()
+        .expect("engine initialized")
+        .predict(vec![image])
+        .map_err(|error| format!("OCR inference failed: {error}"))?;
+    let mut regions = results[0]
+        .text_regions
+        .iter()
+        .filter_map(|region| normalized_region(region, width, height))
+        .collect::<Vec<_>>();
+    regions.sort_by(|a, b| b.x.total_cmp(&a.x).then_with(|| a.y.total_cmp(&b.y)));
+    Ok(regions)
 }
 
 fn normalized_region(region: &TextRegion, width: u32, height: u32) -> Option<OcrRegion> {
