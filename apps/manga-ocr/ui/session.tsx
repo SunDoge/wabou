@@ -15,6 +15,7 @@ import {
   type RecentEntry,
   useMangaReaderApi,
 } from "./api";
+import { type OcrPageState, prioritizePageIndices } from "./ocr-queue";
 
 type Operation = "open" | "ocr" | "translate" | "bbox" | "model";
 
@@ -32,6 +33,9 @@ function createMangaSession() {
   const [pageIndex, setPageIndex] = createSignal(0);
   const [regionsByPage, setRegionsByPage] = createSignal<
     Readonly<Record<string, readonly OcrRegion[]>>
+  >({});
+  const [ocrStateByPage, setOcrStateByPage] = createSignal<
+    Readonly<Record<string, OcrPageState>>
   >({});
   const [selectedRegion, setSelectedRegion] = createSignal<string | null>(null);
   const [zoom, setZoom] = createSignal(1);
@@ -65,6 +69,12 @@ function createMangaSession() {
   const selected = createMemo(() =>
     regions().find((region) => region.id === selectedRegion()),
   );
+  const ocrCompleted = createMemo(
+    () =>
+      Object.values(ocrStateByPage()).filter((state) => state === "complete")
+        .length,
+  );
+  let ocrGeneration = 0;
   const operation = createAsyncAction(
     async (_kind: Operation, action: () => Promise<void>) => action(),
   );
@@ -77,24 +87,91 @@ function createMangaSession() {
   };
   const refreshRecent = async () => setRecentEntries(await api.recentEntries());
 
-  void refreshModelStatus();
-  void refreshRecent();
+  const recognizeInBackground = async (page: ImagePage, generation: number) => {
+    setOcrStateByPage((states) => ({
+      ...states,
+      [page.id]: "recognizing",
+    }));
+    try {
+      const next = await api.recognizePage(page.handle);
+      if (generation !== ocrGeneration) return false;
+      setRegionsByPage((current) => ({ ...current, [page.id]: next }));
+      setOcrStateByPage((states) => ({
+        ...states,
+        [page.id]: "complete",
+      }));
+      return true;
+    } catch (error) {
+      if (generation === ocrGeneration) {
+        setOcrStateByPage((states) => ({
+          ...states,
+          [page.id]: "failed",
+        }));
+        setStatus(`OCR failed for ${page.name}: ${errorText(error)}`);
+      }
+      return false;
+    }
+  };
+
+  const scheduleOcrPrefetch = (centerIndex = pageIndex()) => {
+    const currentPages = pages();
+    const generation = ++ocrGeneration;
+    if (!modelInstalled() || currentPages.length === 0) return;
+    const candidates = prioritizePageIndices(currentPages.length, centerIndex)
+      .map((index) => currentPages[index])
+      .filter(
+        (page): page is ImagePage =>
+          page !== undefined && ocrStateByPage()[page.id] !== "complete",
+      );
+    setOcrStateByPage((states) => {
+      const settled = Object.fromEntries(
+        Object.entries(states).filter(
+          ([, state]) => state === "complete" || state === "failed",
+        ),
+      );
+      return {
+        ...settled,
+        ...Object.fromEntries(
+          candidates.map((page) => [page.id, "queued" as const]),
+        ),
+      };
+    });
+    if (candidates.length === 0) return;
+    void (async () => {
+      let failures = 0;
+      for (const page of candidates) {
+        if (generation !== ocrGeneration) return;
+        if (!(await recognizeInBackground(page, generation))) failures += 1;
+      }
+      if (generation !== ocrGeneration) return;
+      setStatus(
+        failures === 0
+          ? "Background OCR neighborhood is ready."
+          : `Background OCR finished with ${failures} failed page${failures === 1 ? "" : "s"}.`,
+      );
+    })();
+  };
 
   const acceptPages = (next: readonly ImagePage[]) => {
+    ocrGeneration += 1;
     for (const page of pages()) void releaseImageResource(page.handle);
     writeSignal(setPages, next);
     writeSignal(setPageIndex, 0);
     writeSignal(setPan, { x: 0, y: 0 });
     writeSignal(setSelectedRegion, null);
+    writeSignal(setRegionsByPage, {});
+    writeSignal(setOcrStateByPage, {});
     writeSignal(
       setStatus,
       next.length
         ? `Loaded ${next.length} pages.`
         : "No supported images found.",
     );
+    scheduleOcrPrefetch(0);
   };
 
   onCleanup(() => {
+    ocrGeneration += 1;
     for (const page of pages()) void releaseImageResource(page.handle);
   });
 
@@ -148,9 +225,13 @@ function createMangaSession() {
       const page = currentPage();
       if (!page) return;
       if (!modelInstalled()) throw new Error("Install the OCR model first.");
-      const next = await api.recognizePage(page.handle);
-      setRegionsByPage((current) => ({ ...current, [page.id]: next }));
-      setStatus(`Recognized ${next.length} text regions on ${page.name}.`);
+      const generation = ++ocrGeneration;
+      const completed = await recognizeInBackground(page, generation);
+      if (!completed) return;
+      setStatus(
+        `Recognized ${regionsByPage()[page.id]?.length ?? 0} text regions on ${page.name}.`,
+      );
+      scheduleOcrPrefetch(pageIndex());
     });
 
   const translate = () =>
@@ -206,15 +287,25 @@ function createMangaSession() {
       setModelInstalled(value.installed);
       setModelVersion(value.version);
       setStatus("OCR model installed.");
+      scheduleOcrPrefetch();
     });
+
+  const selectPage = (index: number) => {
+    setPageIndex(index);
+    scheduleOcrPrefetch(index);
+  };
+
+  void refreshModelStatus().then(() => scheduleOcrPrefetch());
+  void refreshRecent();
 
   return {
     pages,
-    setPages,
     pageIndex,
-    setPageIndex,
+    selectPage,
     regionsByPage,
     setRegionsByPage,
+    ocrStateByPage,
+    ocrCompleted,
     selectedRegion,
     setSelectedRegion,
     zoom,

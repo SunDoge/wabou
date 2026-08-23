@@ -10,6 +10,7 @@ import {
   ImageOverlayLayer,
   ImageViewport,
   NumberField,
+  Progress,
   ScrollArea,
   Text,
   TextArea,
@@ -22,6 +23,7 @@ import hand from "lucide-static/icons/hand.svg?raw";
 import squareDashed from "lucide-static/icons/square-dashed.svg?raw";
 import { For, Show } from "solid-js";
 import { Icon } from "@wabou/ui";
+import { ocrStateLabel } from "./ocr-queue";
 import { translatedRegions, updateRegionGeometry } from "./reader-state";
 import { useMangaSession } from "./session";
 
@@ -31,8 +33,10 @@ export function Reader() {
   const {
     pages,
     pageIndex,
-    setPageIndex,
+    selectPage,
     setRegionsByPage,
+    ocrStateByPage,
+    ocrCompleted,
     selectedRegion,
     setSelectedRegion,
     zoom,
@@ -127,10 +131,12 @@ export function Reader() {
                 getItemKey={(page) => page.id}
                 getResource={(page) => page.handle}
                 getLabel={(page) => page.name}
-                getDescription={(page) => `${page.width} × ${page.height}`}
+                getDescription={(page) =>
+                  `${ocrStateLabel(ocrStateByPage()[page.id])} · ${page.width} × ${page.height}`
+                }
                 selectedKey={currentPage()?.id}
                 onSelectionChange={(_, index) => {
-                  setPageIndex(index);
+                  selectPage(index);
                   setSelectedRegion(null);
                   setPan({ x: 0, y: 0 });
                 }}
@@ -226,13 +232,26 @@ export function Reader() {
               Translation
             </Button>
             <View class="flex-1" />
+            <Show when={pages().length > 0}>
+              <View class="w-28 flex-none flex flex-col gap-1">
+                <Text class="text-xs text-muted">
+                  OCR {ocrCompleted()}/{pages().length}
+                </Text>
+                <Progress
+                  label="Background OCR progress"
+                  value={ocrCompleted()}
+                  maxValue={Math.max(1, pages().length)}
+                  class="h-1"
+                />
+              </View>
+            </Show>
             <Button
               size="sm"
               disabled={!currentPage() || operation.pending()}
               onClick={() => void runOcr()}
             >
               <Icon source={scanText} size={15} />
-              {busy() === "ocr" ? "Recognizing…" : "Recognize page"}
+              {busy() === "ocr" ? "Recognizing…" : "Recognize again"}
             </Button>
           </View>
           <Show
