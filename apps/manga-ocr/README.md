@@ -19,10 +19,14 @@ OpenRouter API key and translate all recognized regions.
 - Solid owns only page metadata, selection, zoom, annotations, and translated
   strings.
 - Wabou's Rust runtime loads, decodes, caches, and paints file images.
-- The OCR capability receives the native file path and performs inference in
-  Rust. Decoded pixels never cross the JavaScript boundary.
+- The OCR capability receives an image resource handle. A dedicated
+  `manga-ocr-inference` worker thread owns and reuses the OCR engine, processing
+  requests serially while QuickJS and the window event loop remain responsive.
+  Decoded pixels never cross the JavaScript boundary.
 - OpenRouter requests run in Rust so provider credentials and HTTP response
   parsing are outside the UI bundle's state machinery.
+- Reader and architecture screens use Wabou's native data-router adapter, so
+  navigation does not depend on browser history or DOM APIs.
 
 The first version intentionally keeps OCR/translation calls on the low-frequency
 JSON capability path. A future resource-handle API can let OCR and painting

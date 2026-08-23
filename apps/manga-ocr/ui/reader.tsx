@@ -14,11 +14,13 @@ import {
   View,
   releaseImageResource,
   dialog,
+  useNavigate,
 } from "@wabou/ui";
 import folderOpen from "lucide-static/icons/folder-open.svg?raw";
 import imagesIcon from "lucide-static/icons/images.svg?raw";
 import languages from "lucide-static/icons/languages.svg?raw";
 import scanText from "lucide-static/icons/scan-text.svg?raw";
+import info from "lucide-static/icons/info.svg?raw";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { Icon } from "@wabou/ui";
 import { type ImagePage, type OcrRegion, useMangaReaderApi } from "./api";
@@ -28,6 +30,7 @@ function errorText(error: unknown) {
 }
 
 export function Reader() {
+  const navigate = useNavigate();
   const api = useMangaReaderApi();
   const [pages, setPages] = createSignal<readonly ImagePage[]>([]);
   const [pageIndex, setPageIndex] = createSignal(0);
@@ -152,6 +155,10 @@ export function Reader() {
           <Text class="text-xs text-muted">Rust images · editable regions · LLM translation</Text>
         </View>
         <View class="flex-1" />
+        <Button size="sm" variant="ghost" onClick={() => void navigate({ to: "/about" })}>
+          <Icon source={info} size={15} />
+          About
+        </Button>
         <Button size="sm" variant="outline" onClick={() => void run("open", openFiles)}>
           Open pages
         </Button>
