@@ -50,7 +50,7 @@ const MODEL_FILES: [ModelFile; 3] = [
     ModelFile {
         name: "ppocrv6_dict.txt",
         size: 74_947,
-        sha256: "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d08200662eb77e401c5d",
+        sha256: "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d",
     },
 ];
 

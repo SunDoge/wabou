@@ -3,6 +3,7 @@ import {
   Button,
   Card,
   CardContent,
+  Center,
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -36,7 +37,7 @@ export function Starter() {
 
   return (
     <ScrollArea class="w-full h-full">
-      <View class="w-full min-h-full p-8 items-center">
+      <View class="w-full min-h-full p-8 flex flex-col items-center">
         <View class="w-full max-w-5xl flex flex-col gap-6">
           <View class="flex flex-col gap-2">
             <Text class="text-3xl font-semibold">Start a manga workspace</Text>
@@ -52,9 +53,9 @@ export function Starter() {
               onClick={() => void openFiles()}
             >
               <CardContent class="p-6 flex flex-row items-center gap-4">
-                <View class="w-12 h-12 flex-none rounded-lg bg-selected items-center justify-center">
+                <Center class="w-12 h-12 flex-none rounded-lg bg-selected">
                   <Icon source={fileImage} size={23} class="text-accent" />
-                </View>
+                </Center>
                 <View class="min-w-0 flex flex-col gap-1">
                   <Text class="font-semibold">Open pages</Text>
                   <Text class="text-sm text-muted">
@@ -69,9 +70,9 @@ export function Starter() {
               onClick={() => void openFolder()}
             >
               <CardContent class="p-6 flex flex-row items-center gap-4">
-                <View class="w-12 h-12 flex-none rounded-lg bg-selected items-center justify-center">
+                <Center class="w-12 h-12 flex-none rounded-lg bg-selected">
                   <Icon source={folderOpen} size={23} class="text-accent" />
-                </View>
+                </Center>
                 <View class="min-w-0 flex flex-col gap-1">
                   <Text class="font-semibold">Open directory</Text>
                   <Text class="text-sm text-muted">

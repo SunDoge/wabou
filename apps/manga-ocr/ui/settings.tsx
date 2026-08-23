@@ -26,7 +26,7 @@ export function Settings() {
   const downloading = () => session.busy() === "model";
 
   return (
-    <View class="w-full h-full p-8 items-center bg-canvas">
+    <View class="w-full h-full p-8 flex flex-col items-center bg-canvas">
       <View class="w-full max-w-4xl flex flex-col gap-5">
         <View class="flex flex-col gap-1">
           <Text class="text-3xl font-semibold">Settings</Text>
@@ -69,6 +69,11 @@ export function Settings() {
                   </Text>
                 </View>
               </View>
+            </Show>
+            <Show when={session.downloadProgress().error}>
+              {(error) => (
+                <Text class="text-sm text-danger-primary">{error()}</Text>
+              )}
             </Show>
             <Button
               disabled={session.modelInstalled() || session.operation.pending()}

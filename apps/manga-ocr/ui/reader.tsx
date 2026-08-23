@@ -113,7 +113,7 @@ export function Reader() {
               <Show
                 when={pages().length > 0}
                 fallback={
-                  <View class="h-full items-center justify-center p-5">
+                  <View class="h-full flex items-center justify-center p-5">
                     <Text
                       maxLines={3}
                       class="w-full text-sm text-muted text-center"
@@ -240,7 +240,7 @@ export function Reader() {
           <Show
             when={currentPage()}
             fallback={
-              <View class="flex-1 min-h-0 rounded-xl border border-subtle bg-control items-center justify-center">
+              <View class="flex-1 min-h-0 rounded-xl border border-subtle bg-control flex items-center justify-center">
                 <Text class="text-muted">Open a manga page to start.</Text>
               </View>
             }
