@@ -39,6 +39,7 @@ interface MangaReaderCapability extends NativeJsonCapability {
   downloadModel(): string | PromiseLike<string>;
   recognizePage(request: string): string | PromiseLike<string>;
   translate(request: string): string | PromiseLike<string>;
+  adjustBboxes(request: string): string | PromiseLike<string>;
 }
 
 interface MangaReaderHost extends Host {
@@ -66,5 +67,11 @@ export function useMangaReaderApi() {
       model: string;
       targetLanguage: string;
     }) => call<string[]>("translate", options),
+    adjustBboxes: (options: {
+      handle: ImagePage["handle"];
+      regions: readonly OcrRegion[];
+      apiKey: string;
+      model: string;
+    }) => call<OcrRegion[]>("adjustBboxes", options),
   };
 }

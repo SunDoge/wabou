@@ -24,7 +24,14 @@ OpenRouter API key and translate all recognized regions.
   requests serially while QuickJS and the window event loop remain responsive.
   Decoded pixels never cross the JavaScript boundary.
 - OpenRouter requests run in Rust so provider credentials and HTTP response
-  parsing are outside the UI bundle's state machinery.
+  parsing are outside the UI bundle's state machinery. A dedicated
+  `manga-ocr-llm` worker serializes translation and vision requests.
+- Translation and automatic bbox results are cached under the application
+  cache directory by content, model, and target language. API keys are never
+  part of cache keys or values.
+- The viewport supports fit-relative zoom, direct panning, editable image-space
+  boxes, numeric geometry controls, and independently toggled OCR/translation
+  overlays.
 - Reader and architecture screens use Wabou's native data-router adapter, so
   navigation does not depend on browser history or DOM APIs.
 

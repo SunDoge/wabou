@@ -6,8 +6,10 @@ import {
   Card,
   CardContent,
   ImageList,
+  ImageOverlayLayer,
   ImageViewport,
   Input,
+  NumberField,
   ScrollArea,
   Text,
   TextArea,
@@ -21,9 +23,12 @@ import imagesIcon from "lucide-static/icons/images.svg?raw";
 import languages from "lucide-static/icons/languages.svg?raw";
 import scanText from "lucide-static/icons/scan-text.svg?raw";
 import info from "lucide-static/icons/info.svg?raw";
+import hand from "lucide-static/icons/hand.svg?raw";
+import squareDashed from "lucide-static/icons/square-dashed.svg?raw";
 import { createMemo, createSignal, For, onCleanup, Show } from "solid-js";
 import { Icon } from "@wabou/ui";
 import { type ImagePage, type OcrRegion, useMangaReaderApi } from "./api";
+import { translatedRegions, updateRegionGeometry } from "./reader-state";
 
 function errorText(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -39,16 +44,24 @@ export function Reader() {
   >({});
   const [selectedRegion, setSelectedRegion] = createSignal<string | null>(null);
   const [zoom, setZoom] = createSignal(1);
-  const [busy, setBusy] = createSignal<"open" | "ocr" | "translate" | "model">();
+  const [pan, setPan] = createSignal({ x: 0, y: 0 });
+  const [tool, setTool] = createSignal<"pan" | "regions">("pan");
+  const [showBoxes, setShowBoxes] = createSignal(true);
+  const [showOcr, setShowOcr] = createSignal(false);
+  const [showTranslation, setShowTranslation] = createSignal(true);
+  const [busy, setBusy] = createSignal<"open" | "ocr" | "translate" | "bbox" | "model">();
   const [status, setStatus] = createSignal("Open manga pages or a directory to begin.");
   const [modelInstalled, setModelInstalled] = createSignal(false);
   const [apiKey, setApiKey] = createSignal("");
-  const [model, setModel] = createSignal("google/gemini-2.5-flash-lite");
+  const [model, setModel] = createSignal("openrouter/free");
   const currentPage = createMemo(() => pages()[pageIndex()]);
   const regions = createMemo(() => {
     const page = currentPage();
     return page ? (regionsByPage()[page.id] ?? []) : [];
   });
+  const selected = createMemo(() =>
+    regions().find((region) => region.id === selectedRegion()),
+  );
 
   void api.modelStatus().then((value) => setModelInstalled(value.installed));
 
@@ -56,6 +69,7 @@ export function Reader() {
     for (const page of pages()) void releaseImageResource(page.handle);
     setPages(next);
     setPageIndex(0);
+    setPan({ x: 0, y: 0 });
     setSelectedRegion(null);
     setStatus(next.length ? `Loaded ${next.length} pages.` : "No supported images found.");
   };
@@ -77,7 +91,7 @@ export function Reader() {
     if (directory) acceptPages(await api.listImages(directory));
   };
 
-  const run = async (kind: "open" | "ocr" | "translate" | "model", action: () => Promise<void>) => {
+  const run = async (kind: "open" | "ocr" | "translate" | "bbox" | "model", action: () => Promise<void>) => {
     if (busy()) return;
     setBusy(kind);
     try {
@@ -118,6 +132,19 @@ export function Reader() {
     setStatus(`Translated ${translated.length} regions.`);
   });
 
+  const adjustBboxes = () => run("bbox", async () => {
+    const page = currentPage();
+    if (!page || regions().length === 0) return;
+    const adjusted = await api.adjustBboxes({
+      handle: page.handle,
+      regions: regions(),
+      apiKey: apiKey(),
+      model: model(),
+    });
+    setRegionsByPage((all) => ({ ...all, [page.id]: adjusted }));
+    setStatus(`Adjusted ${adjusted.length} regions with the vision model.`);
+  });
+
   const updateAnnotationGeometry = (next: readonly AnnotationRegion[]) => {
     const page = currentPage();
     if (!page) return;
@@ -140,6 +167,26 @@ export function Reader() {
       ...all,
       [page.id]: regions().map((region) =>
         region.id === id ? { ...region, text } : region,
+      ),
+    }));
+  };
+
+  const updateSelectedGeometry = (
+    property: "x" | "y" | "width" | "height",
+    value: number | null,
+  ) => {
+    const page = currentPage();
+    const region = selected();
+    if (!page || !region || value === null) return;
+    setRegionsByPage((all) => ({
+      ...all,
+      [page.id]: regions().map((item) =>
+        item.id === region.id
+          ? updateRegionGeometry(item, property, value, {
+              width: page.width,
+              height: page.height,
+            })
+          : item,
       ),
     }));
   };
@@ -179,7 +226,7 @@ export function Reader() {
                 getLabel={(page) => page.name}
                 getDescription={(page) => `${page.width} × ${page.height}`}
                 selectedKey={currentPage()?.id}
-                onSelectionChange={(_, index) => { setPageIndex(index); setSelectedRegion(null); }}
+                onSelectionChange={(_, index) => { setPageIndex(index); setSelectedRegion(null); setPan({ x: 0, y: 0 }); }}
                 itemHeight={92}
                 thumbnailWidth={48}
                 thumbnailHeight={68}
@@ -192,9 +239,19 @@ export function Reader() {
 
         <View class="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
           <View class="h-10 flex-none px-2 flex flex-row items-center gap-2 rounded-lg border border-subtle bg-surface">
+            <Button size="sm" variant={tool() === "pan" ? "secondary" : "ghost"} aria-label="Pan image" onClick={() => setTool("pan")}>
+              <Icon source={hand} size={15} />
+            </Button>
+            <Button size="sm" variant={tool() === "regions" ? "secondary" : "ghost"} aria-label="Edit regions" onClick={() => setTool("regions")}>
+              <Icon source={squareDashed} size={15} />
+            </Button>
+            <View class="h-5 w-px bg-subtle" />
             <Button size="sm" variant="ghost" onClick={() => setZoom((value) => Math.max(0.25, value - 0.25))}>−</Button>
-            <Badge variant="secondary">{Math.round(zoom() * 100)}%</Badge>
+            <Button size="sm" variant="ghost" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Fit {Math.round(zoom() * 100)}%</Button>
             <Button size="sm" variant="ghost" onClick={() => setZoom((value) => Math.min(4, value + 0.25))}>+</Button>
+            <Button size="sm" variant={showBoxes() ? "secondary" : "ghost"} onClick={() => setShowBoxes((value) => !value)}>Boxes</Button>
+            <Button size="sm" variant={showOcr() ? "secondary" : "ghost"} onClick={() => setShowOcr((value) => !value)}>OCR</Button>
+            <Button size="sm" variant={showTranslation() ? "secondary" : "ghost"} onClick={() => setShowTranslation((value) => !value)}>Translation</Button>
             <View class="flex-1" />
             <Button size="sm" disabled={!currentPage() || busy() !== undefined} onClick={() => void runOcr()}>
               <Icon source={scanText} size={15} />
@@ -209,14 +266,30 @@ export function Reader() {
                 resource={page().handle}
                 imageSize={{ width: page().width, height: page().height }}
                 zoom={zoom()}
+                pan={pan()}
+                pannable={tool() === "pan"}
+                onPanChange={setPan}
               >
-                <AnnotationLayer
-                  aria-label="OCR regions"
-                  regions={regions()}
-                  selectedId={selectedRegion()}
-                  onSelectedIdChange={setSelectedRegion}
-                  onRegionsChange={updateAnnotationGeometry}
-                />
+                <Show when={showOcr()}>
+                  <ImageOverlayLayer aria-label="OCR text overlay" items={regions()}>
+                    {(region) => <Text maxLines={3} class="w-full h-full p-1 text-xs bg-surface text-primary">{region.text}</Text>}
+                  </ImageOverlayLayer>
+                </Show>
+                <Show when={showTranslation()}>
+                  <ImageOverlayLayer aria-label="Translation overlay" items={translatedRegions(regions())}>
+                    {(region) => <Text maxLines={4} class="w-full h-full p-1 text-xs bg-selected text-primary">{region.translation}</Text>}
+                  </ImageOverlayLayer>
+                </Show>
+                <Show when={showBoxes()}>
+                  <AnnotationLayer
+                    aria-label="OCR regions"
+                    regions={regions()}
+                    selectedId={selectedRegion()}
+                    interactionMode={tool() === "regions" ? "edit" : "passthrough"}
+                    onSelectedIdChange={setSelectedRegion}
+                    onRegionsChange={updateAnnotationGeometry}
+                  />
+                </Show>
               </ImageViewport>
             )}
           </Show>
@@ -241,6 +314,19 @@ export function Reader() {
               <Icon source={languages} size={15} />
               {busy() === "translate" ? "Translating…" : "Translate all"}
             </Button>
+            <Button variant="outline" disabled={regions().length === 0 || busy() !== undefined} onClick={() => void adjustBboxes()}>
+              {busy() === "bbox" ? "Adjusting boxes…" : "Auto-adjust boxes"}
+            </Button>
+            <Show when={selected()}>
+              {(region) => (
+                <View class="grid grid-cols-2 gap-2 rounded-lg border border-subtle p-2">
+                  <NumberField aria-label="Region X" value={Math.round(region().x)} min={0} max={currentPage()?.width ?? 0} onValueChange={(value) => updateSelectedGeometry("x", value)} />
+                  <NumberField aria-label="Region Y" value={Math.round(region().y)} min={0} max={currentPage()?.height ?? 0} onValueChange={(value) => updateSelectedGeometry("y", value)} />
+                  <NumberField aria-label="Region width" value={Math.round(region().width)} min={1} max={currentPage()?.width ?? 1} onValueChange={(value) => updateSelectedGeometry("width", value)} />
+                  <NumberField aria-label="Region height" value={Math.round(region().height)} min={1} max={currentPage()?.height ?? 1} onValueChange={(value) => updateSelectedGeometry("height", value)} />
+                </View>
+              )}
+            </Show>
             <ScrollArea class="flex-1 min-h-0 pr-1">
               <View class="flex flex-col gap-2">
                 <For each={regions()}>
