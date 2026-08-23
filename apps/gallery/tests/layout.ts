@@ -178,6 +178,25 @@ const assertQrCodeLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertIconFrameLayout = (snapshot: LayoutSnapshot) => {
+  const frame = getLayoutNode(snapshot, { name: "Fixture icon frame" });
+  const icon = getLayoutNode(snapshot, { name: "Fixture framed icon" });
+  assertClose(frame.rect.width, 48, "icon frame width");
+  assertClose(frame.rect.height, 48, "icon frame height");
+  assertClose(icon.rect.width, 23, "framed icon width");
+  assertClose(icon.rect.height, 23, "framed icon height");
+  assertClose(
+    icon.rect.x + icon.rect.width / 2,
+    frame.rect.x + frame.rect.width / 2,
+    "framed icon horizontal center",
+  );
+  assertClose(
+    icon.rect.y + icon.rect.height / 2,
+    frame.rect.y + frame.rect.height / 2,
+    "framed icon vertical center",
+  );
+};
+
 const assertInputGroupLayout = (snapshot: LayoutSnapshot) => {
   const group = getLayoutNode(snapshot, { name: "Fixture input group" });
   const addon = getLayoutNode(snapshot, { name: "Fixture scheme addon" });
@@ -222,6 +241,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     assert: assertImageListLayout,
   },
   "component/QRCode": { assert: assertQrCodeLayout },
+  "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
 };
 const fixtureCase = (id: string) => {

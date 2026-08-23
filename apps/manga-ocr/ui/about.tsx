@@ -1,8 +1,7 @@
-import { Badge, Card, CardContent, Center, Text, View } from "@wabou/ui";
+import { Badge, Card, CardContent, IconFrame, Text, View } from "@wabou/ui";
 import cpu from "lucide-static/icons/cpu.svg?raw";
 import image from "lucide-static/icons/image.svg?raw";
 import route from "lucide-static/icons/route.svg?raw";
-import { Icon } from "@wabou/ui";
 
 const features = [
   {
@@ -46,9 +45,7 @@ export function About() {
             {features.map((feature) => (
               <Card class="min-w-0">
                 <CardContent class="p-5 flex flex-col gap-3">
-                  <Center class="w-10 h-10 rounded-lg bg-selected">
-                    <Icon source={feature.icon} size={20} class="text-accent" />
-                  </Center>
+                  <IconFrame source={feature.icon} variant="selected" />
                   <Text class="font-semibold">{feature.title}</Text>
                   <Text maxLines={4} class="text-sm text-muted">
                     {feature.detail}

@@ -52,6 +52,7 @@ export * from "./dropdown-menu";
 export * from "./empty";
 export * from "./forms";
 export * from "./hover-card";
+export * from "./icon-frame";
 export * from "./image-list";
 export * from "./image-viewport";
 export * from "./inline-edit";

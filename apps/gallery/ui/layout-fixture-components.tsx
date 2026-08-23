@@ -10,6 +10,7 @@ import {
   DialogTitle,
   ImageList,
   ImageViewport,
+  IconFrame,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -25,6 +26,7 @@ import {
   Text,
   View,
 } from "@wabou/ui";
+import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
 import { MangaPageMock } from "./pages/image-viewport";
 
@@ -93,6 +95,20 @@ export function QRCodeLayoutFixture() {
         aria-label="Fixture QR code"
         size={196}
         class="rounded-lg shadow-md"
+      />
+    </View>
+  );
+}
+
+export function IconFrameLayoutFixture() {
+  return (
+    <View class="w-full h-full p-6 flex items-center justify-center bg-canvas">
+      <IconFrame
+        source={imageIcon}
+        size="lg"
+        variant="selected"
+        label="Fixture framed icon"
+        aria-label="Fixture icon frame"
       />
     </View>
   );

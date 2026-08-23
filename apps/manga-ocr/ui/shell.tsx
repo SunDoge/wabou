@@ -3,6 +3,7 @@ import {
   ColorThemeProvider,
   ComponentsProvider,
   Icon,
+  IconFrame,
   Text,
   useNavigate,
   useRouteActive,
@@ -42,9 +43,12 @@ export function AppShell(props: { children?: JSX.Element }) {
       <ComponentsProvider theme={session.theme()}>
         <View class="w-full h-full min-w-0 min-h-0 flex flex-col bg-canvas text-primary">
           <View class="h-14 flex-none px-5 flex flex-row items-center gap-3 border-b border-subtle bg-surface shadow-sm">
-            <View class="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-              <Icon source={image} size={18} class="text-on-accent" />
-            </View>
+            <IconFrame
+              source={image}
+              size="sm"
+              iconSize={18}
+              variant="solid"
+            />
             <View class="flex flex-col mr-3">
               <Text class="font-semibold">Manga OCR</Text>
               <Text class="text-xs text-muted">

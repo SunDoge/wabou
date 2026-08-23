@@ -3,7 +3,6 @@ import {
   Button,
   Card,
   CardContent,
-  Center,
   Empty,
   EmptyContent,
   EmptyDescription,
@@ -11,6 +10,7 @@ import {
   EmptyMedia,
   EmptyTitle,
   Icon,
+  IconFrame,
   ScrollArea,
   Text,
   useNavigate,
@@ -53,9 +53,7 @@ export function Starter() {
               onClick={() => void openFiles()}
             >
               <CardContent class="p-6 flex flex-row items-center gap-4">
-                <Center class="w-12 h-12 flex-none rounded-lg bg-selected">
-                  <Icon source={fileImage} size={23} class="text-accent" />
-                </Center>
+                <IconFrame source={fileImage} size="lg" variant="selected" />
                 <View class="min-w-0 flex flex-col gap-1">
                   <Text class="font-semibold">Open pages</Text>
                   <Text class="text-sm text-muted">
@@ -70,9 +68,7 @@ export function Starter() {
               onClick={() => void openFolder()}
             >
               <CardContent class="p-6 flex flex-row items-center gap-4">
-                <Center class="w-12 h-12 flex-none rounded-lg bg-selected">
-                  <Icon source={folderOpen} size={23} class="text-accent" />
-                </Center>
+                <IconFrame source={folderOpen} size="lg" variant="selected" />
                 <View class="min-w-0 flex flex-col gap-1">
                   <Text class="font-semibold">Open directory</Text>
                   <Text class="text-sm text-muted">
