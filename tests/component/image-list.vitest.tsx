@@ -40,11 +40,15 @@ test("virtualizes image rows and exposes deterministic selection", () => {
   expect(mounted.length).toBeLessThan(pages.length);
 
   const first = screen.getByRole("option", { name: "Page 1" });
+  expect(first.style("background-color")).toBeNull();
   expect(first.className).not.toContain("rounded");
   expect(first.children[0]?.className).not.toContain("rounded");
   expect(first.selected).toBe(false);
   first.click();
-  expect(screen.getByRole("option", { name: "Page 1" }).selected).toBe(true);
+  const selected = screen.getByRole("option", { name: "Page 1" });
+  expect(selected.selected).toBe(true);
+  expect(selected.className).toContain("bg-selected");
+  expect(selected.style("background-color")).toBeNull();
 });
 
 test("rejects non-positive row and thumbnail geometry", () => {

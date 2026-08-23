@@ -3929,11 +3929,15 @@ function ImageList(props) {
 					const description = createMemo(() => config.getDescription?.(item(), index()));
 					const selected = createMemo(() => props.selectedKey === key());
 					return createComponent$1(Button$1, {
+						unstyled: true,
 						role: "option",
 						get ["aria-label"]() {
 							return label();
 						},
 						get ["aria-selected"]() {
+							return selected();
+						},
+						get selected() {
 							return selected();
 						},
 						class: (state) => mergeClasses("w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 text-left", match({

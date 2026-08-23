@@ -114,9 +114,11 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
           const selected = createMemo(() => props.selectedKey === key());
           return (
             <PrimitiveButton
+              unstyled
               role="option"
               aria-label={label()}
               aria-selected={selected()}
+              selected={selected()}
               class={(state) =>
                 mergeClasses(
                   "w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 text-left",
