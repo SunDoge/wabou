@@ -31,11 +31,27 @@ export interface OcrModelStatus {
   version: string;
 }
 
+export interface RecentEntry {
+  kind: "file" | "directory";
+  path: string;
+  label: string;
+}
+
+export interface ModelDownloadProgress {
+  state: "idle" | "downloading" | "verifying" | "complete" | "failed";
+  downloadedBytes: number;
+  totalBytes: number;
+  currentFile?: string;
+  error?: string;
+}
+
 interface MangaReaderCapability extends NativeJsonCapability {
   __wabouCapabilityVersion: number;
   listImages(request: string): string | PromiseLike<string>;
   describeImages(request: string): string | PromiseLike<string>;
   modelStatus(): string | PromiseLike<string>;
+  modelDownloadProgress(): string | PromiseLike<string>;
+  recentEntries(): string | PromiseLike<string>;
   downloadModel(): string | PromiseLike<string>;
   recognizePage(request: string): string | PromiseLike<string>;
   translate(request: string): string | PromiseLike<string>;
@@ -50,7 +66,7 @@ export function useMangaReaderApi() {
   const host = useHost<MangaReaderHost>();
   const call = bindJsonCapability(host.mangaReader, {
     name: "mangaReader",
-    version: 1,
+    version: 2,
   });
   return {
     listImages: (directory: string) =>
@@ -58,6 +74,9 @@ export function useMangaReaderApi() {
     describeImages: (paths: readonly string[]) =>
       call<ImagePage[]>("describeImages", { paths }),
     modelStatus: () => call<OcrModelStatus>("modelStatus"),
+    modelDownloadProgress: () =>
+      call<ModelDownloadProgress>("modelDownloadProgress"),
+    recentEntries: () => call<RecentEntry[]>("recentEntries"),
     downloadModel: () => call<OcrModelStatus>("downloadModel"),
     recognizePage: (handle: ImagePage["handle"]) =>
       call<OcrRegion[]>("recognizePage", { handle }),

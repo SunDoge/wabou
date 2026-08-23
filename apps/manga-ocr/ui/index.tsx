@@ -4,26 +4,30 @@ import {
   createDataRouter,
   mount,
   RouterProvider,
-  View,
 } from "@wabou/ui";
 import "virtual:wabou-stylesheet";
-import type { JSX } from "solid-js";
 import { About } from "./about";
 import { Reader } from "./reader";
+import { MangaSessionProvider } from "./session";
+import { Settings } from "./settings";
+import { AppShell } from "./shell";
+import { Starter } from "./starter";
 
-function App(props: { children?: JSX.Element }) {
-  return (
-    <View class="w-full h-full min-w-0 min-h-0 bg-canvas text-primary">
-      {props.children}
-    </View>
-  );
-}
-
-const root = new BaseRootRoute({ component: App });
-const reader = new BaseRoute({
+const root = new BaseRootRoute({ component: AppShell });
+const starter = new BaseRoute({
   getParentRoute: () => root,
   path: "/",
+  component: Starter,
+});
+const reader = new BaseRoute({
+  getParentRoute: () => root,
+  path: "reader",
   component: Reader,
+});
+const settings = new BaseRoute({
+  getParentRoute: () => root,
+  path: "settings",
+  component: Settings,
 });
 const about = new BaseRoute({
   getParentRoute: () => root,
@@ -31,8 +35,12 @@ const about = new BaseRoute({
   component: About,
 });
 const router = createDataRouter({
-  routeTree: root.addChildren([reader, about]),
+  routeTree: root.addChildren([starter, reader, settings, about]),
   context: {},
 });
 
-mount(() => <RouterProvider router={router} />);
+mount(() => (
+  <MangaSessionProvider>
+    <RouterProvider router={router} />
+  </MangaSessionProvider>
+));

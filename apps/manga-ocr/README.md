@@ -10,9 +10,12 @@ of `RawMangaReader`, without a WebView or browser-owned image objects.
 wabou dev apps/manga-ocr
 ```
 
-Open individual pages or a directory. Install the PP-OCRv6 small model from
-the right panel, recognize the current page, then optionally enter an
-OpenRouter API key and translate all recognized regions.
+The starter page opens individual pages, a directory, or a persisted recent
+source. Install the PP-OCRv6 small model from Settings, recognize pages in the
+Reader, then optionally enter an OpenRouter API key and translate the detected
+regions. Model downloads expose verified byte progress instead of an
+indeterminate busy state. The application defaults to the light theme; dark is
+an explicit appearance option.
 
 ## Resource model
 
@@ -32,8 +35,9 @@ OpenRouter API key and translate all recognized regions.
 - The viewport supports fit-relative zoom, direct panning, editable image-space
   boxes, numeric geometry controls, and independently toggled OCR/translation
   overlays.
-- Reader and architecture screens use Wabou's native data-router adapter, so
-  navigation does not depend on browser history or DOM APIs.
+- Starter, Reader, Settings, and About are distinct native data-router routes.
+  Their shared provider keeps image handles, OCR results, and translation
+  settings alive while navigating without browser history or DOM APIs.
 
 The first version intentionally keeps OCR/translation calls on the low-frequency
 JSON capability path. A future resource-handle API can let OCR and painting

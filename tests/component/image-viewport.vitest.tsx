@@ -101,18 +101,15 @@ test("creates and moves regions through the authored pointer path", () => {
   const screen = renderComponent(Harness);
   const viewport = screen.getByRole("group", { name: "Manga page" });
   viewport.resize({ width: 400, height: 300 });
-
   let dialogue = screen.getByRole("button", { name: "Dialogue" });
   expect(dialogue.style("left")).toBe("40px");
   expect(dialogue.style("top")).toBe("70px");
   expect(dialogue.style("width")).toBe("80px");
-
   dialogue.pointerDown({ clientX: 100, clientY: 100 });
   dialogue.pointerMove({ clientX: 140, clientY: 120 });
   dialogue.pointerUp({ clientX: 140, clientY: 120 });
   expect(dialogue.style("left")).toBe("80px");
   expect(dialogue.style("top")).toBe("90px");
-
   dialogue = screen.getByRole("button", { name: "Dialogue" });
   dialogue.pointerDown({ clientX: 140, clientY: 120 });
   dialogue.pointerMove({ clientX: 1_000, clientY: 1_000 });
@@ -120,7 +117,6 @@ test("creates and moves regions through the authored pointer path", () => {
   expect(dialogue.style("left")).toBe("320px");
   expect(dialogue.style("top")).toBe("190px");
   expect(dialogue.style("width")).toBe("80px");
-
   const layer = screen.getByRole("group", { name: "OCR regions" });
   layer.pointerDown({ offsetX: 20, offsetY: 60 });
   layer.pointerMove({ offsetX: 100, offsetY: 120 });
@@ -130,4 +126,35 @@ test("creates and moves regions through the authored pointer path", () => {
   expect(created.style("top")).toBe("60px");
   expect(created.style("width")).toBe("80px");
   expect(created.style("height")).toBe("60px");
+});
+
+test("pans through a passthrough annotation layer", () => {
+  let pan = { x: 0, y: 0 };
+  const screen = renderComponent(() => {
+    const [value, setValue] = createSignal(pan);
+    return (
+      <ImageViewport
+        aria-label="Page viewport"
+        imageSize={{ width: 800, height: 1200 }}
+        pan={value()}
+        pannable
+        onPanChange={(next) => {
+          pan = next;
+          setValue(next);
+        }}
+        media={<View />}
+      >
+        <AnnotationLayer
+          aria-label="Regions"
+          regions={[]}
+          interactionMode="passthrough"
+        />
+      </ImageViewport>
+    );
+  });
+  const viewport = screen.getByRole("group", { name: "Page viewport" });
+  viewport.pointerDown({ clientX: 20, clientY: 30 });
+  viewport.pointerMove({ clientX: 65, clientY: 80 });
+  viewport.pointerUp({ clientX: 65, clientY: 80 });
+  expect(pan).toEqual({ x: 45, y: 50 });
 });

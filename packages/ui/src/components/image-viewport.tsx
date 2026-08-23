@@ -137,7 +137,10 @@ export interface ImageViewportProps
 export function ImageViewport(props: ImageViewportProps): JSX.Element {
   const measured = createMeasuredSize();
   const [intrinsicSize, setIntrinsicSize] = createSignal<ImageViewportSize>();
-  const [localPan, setLocalPan] = createSignal<ImageViewportPoint>({ x: 0, y: 0 });
+  const [localPan, setLocalPan] = createSignal<ImageViewportPoint>({
+    x: 0,
+    y: 0,
+  });
   const [panDrag, setPanDrag] = createSignal<{
     pointer: ImageViewportPoint;
     pan: ImageViewportPoint;
@@ -204,7 +207,9 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
         }}
         onPointerMove={(event) => {
           const drag = panDrag();
-          if (!drag || event.buttons === 0) return;
+          // The drag lifecycle is authoritative. Some native backends do not
+          // preserve the web-style `buttons` bitfield on captured moves.
+          if (!drag) return;
           updatePan({
             x: drag.pan.x + event.clientX - drag.pointer.x,
             y: drag.pan.y + event.clientY - drag.pointer.y,
@@ -347,7 +352,6 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
     };
   };
   const updateDrag = (event: WabouPointerEvent) => {
-    if (event.buttons === 0) return;
     const active = interaction();
     const transform = viewport.transform();
     if (!active || !transform) return;
@@ -458,7 +462,9 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
       {...rest}
       role={props.role ?? "group"}
       class={join("absolute inset-0", props.class)}
-      classList={{ "pointer-events-none": props.interactionMode === "passthrough" }}
+      classList={{
+        "pointer-events-none": props.interactionMode === "passthrough",
+      }}
       onPointerDown={(event) => {
         if (event.button !== 0 || !viewport.transform()) return;
         const start = point(event);
@@ -542,7 +548,10 @@ export function ImageOverlayLayer<T extends ImageOverlayItem>(
   };
   const rest = omit(props, "items", "children");
   return (
-    <View {...rest} class={join("absolute inset-0 pointer-events-none", props.class)}>
+    <View
+      {...rest}
+      class={join("absolute inset-0 pointer-events-none", props.class)}
+    >
       <For each={props.items}>
         {(item, index) => (
           <View class="absolute overflow-hidden" style={styleFor(item)}>

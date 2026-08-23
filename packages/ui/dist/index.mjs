@@ -4077,7 +4077,7 @@ function ImageViewport(props) {
 				},
 				onPointerMove: (event) => {
 					const drag = panDrag();
-					if (!drag || event.buttons === 0) return;
+					if (!drag) return;
 					updatePan({
 						x: drag.pan.x + event.clientX - drag.pointer.x,
 						y: drag.pan.y + event.clientY - drag.pointer.y
@@ -4182,7 +4182,6 @@ function AnnotationLayer(props) {
 		};
 	};
 	const updateDrag = (event) => {
-		if (event.buttons === 0) return;
 		const active = interaction();
 		const transform = viewport.transform();
 		if (!active || !transform) return;

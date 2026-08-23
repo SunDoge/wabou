@@ -1,8 +1,9 @@
 use std::{
     fs,
+    io::Write as _,
     path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -18,12 +19,15 @@ use wabou::{
     PersistentJsonCache, SerialWorker, rquickjs,
 };
 
-pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("mangaReader", 1);
+pub const CAPABILITY: JsonCapabilityContract = JsonCapabilityContract::new("mangaReader", 2);
 const LIST_IMAGES: JsonMethod<ListImagesRequest, Vec<ImagePage>> = JsonMethod::new("listImages");
 const DESCRIBE_IMAGES: JsonMethod<DescribeImagesRequest, Vec<ImagePage>> =
     JsonMethod::new("describeImages");
 const MODEL_STATUS: JsonMethod<(), OcrModelStatus> = JsonMethod::no_request("modelStatus");
+const MODEL_DOWNLOAD_PROGRESS: JsonMethod<(), ModelDownloadProgress> =
+    JsonMethod::no_request("modelDownloadProgress");
 const DOWNLOAD_MODEL: JsonMethod<(), OcrModelStatus> = JsonMethod::no_request("downloadModel");
+const RECENT_ENTRIES: JsonMethod<(), Vec<RecentEntry>> = JsonMethod::no_request("recentEntries");
 const RECOGNIZE_PAGE: JsonMethod<RecognizePageRequest, Vec<OcrRegion>> =
     JsonMethod::new("recognizePage");
 const TRANSLATE: JsonMethod<TranslateRequest, Vec<String>> = JsonMethod::new("translate");
@@ -62,6 +66,9 @@ pub struct ReaderService(Arc<ReaderState>);
 
 struct ReaderState {
     model_dir: PathBuf,
+    recent_path: PathBuf,
+    recent: Mutex<Vec<RecentEntry>>,
+    download_progress: Mutex<ModelDownloadProgress>,
     ocr: OcrWorker,
     llm: LlmWorker,
     http: reqwest::Client,
@@ -229,11 +236,16 @@ impl ReaderService {
         let project = ProjectDirs::from("dev", "Wabou", "Manga OCR")
             .ok_or_else(|| "could not resolve application directories".to_owned())?;
         let model_dir = project.data_dir().join("models").join(MODEL_VERSION);
+        let recent_path = project.data_dir().join("recent.json");
+        let recent = load_recent(&recent_path);
         let cache = PersistentJsonCache::new(project.cache_dir().join("pipeline-results-v1"), 512)?;
         let ocr = OcrWorker::spawn(model_dir.clone(), images.clone(), cache.clone())?;
         let llm = LlmWorker::spawn(cache, images.clone())?;
         Ok(Self(Arc::new(ReaderState {
             model_dir,
+            recent_path,
+            recent: Mutex::new(recent),
+            download_progress: Mutex::new(ModelDownloadProgress::idle()),
             ocr,
             llm,
             http: reqwest::Client::builder()
@@ -256,33 +268,108 @@ impl ReaderService {
     }
 
     async fn download_model(&self) -> Result<OcrModelStatus, String> {
+        let total_bytes = MODEL_FILES.iter().map(|file| file.size).sum();
+        let existing_bytes = MODEL_FILES
+            .iter()
+            .filter(|file| model_file_valid(&self.0.model_dir, **file))
+            .map(|file| file.size)
+            .sum();
+        self.set_download_progress(ModelDownloadProgress {
+            state: DownloadState::Downloading,
+            downloaded_bytes: existing_bytes,
+            total_bytes,
+            current_file: None,
+            error: None,
+        });
         fs::create_dir_all(&self.0.model_dir).map_err(|error| error.to_string())?;
+        let mut downloaded_bytes = existing_bytes;
         for file in MODEL_FILES {
             let target = self.0.model_dir.join(file.name);
             if model_file_valid(&self.0.model_dir, file) {
                 continue;
             }
-            let bytes = self
+            self.update_download_progress(|progress| {
+                progress.current_file = Some(file.name.to_owned());
+            });
+            let mut response = self
                 .0
                 .http
                 .get(format!("{RELEASE_BASE}/{}", file.name))
                 .send()
                 .await
                 .and_then(reqwest::Response::error_for_status)
-                .map_err(|error| format!("failed to download {}: {error}", file.name))?
-                .bytes()
-                .await
-                .map_err(|error| error.to_string())?;
+                .map_err(|error| format!("failed to download {}: {error}", file.name))?;
             let partial = target.with_extension("part");
-            fs::write(&partial, &bytes).map_err(|error| error.to_string())?;
+            let mut output = fs::File::create(&partial).map_err(|error| error.to_string())?;
+            let mut bytes = Vec::with_capacity(file.size as usize);
+            while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
+                output
+                    .write_all(&chunk)
+                    .map_err(|error| error.to_string())?;
+                bytes.extend_from_slice(&chunk);
+                downloaded_bytes += chunk.len() as u64;
+                self.update_download_progress(|progress| {
+                    progress.downloaded_bytes = downloaded_bytes.min(progress.total_bytes);
+                });
+            }
+            output.sync_all().map_err(|error| error.to_string())?;
             if bytes.len() as u64 != file.size || sha256(&bytes) != file.sha256 {
                 let _ = fs::remove_file(&partial);
                 return Err(format!("model checksum failed: {}", file.name));
             }
             fs::rename(&partial, &target).map_err(|error| error.to_string())?;
         }
+        self.update_download_progress(|progress| {
+            progress.state = DownloadState::Verifying;
+            progress.current_file = None;
+        });
         self.0.ocr.reset().await?;
+        self.set_download_progress(ModelDownloadProgress {
+            state: DownloadState::Complete,
+            downloaded_bytes: total_bytes,
+            total_bytes,
+            current_file: None,
+            error: None,
+        });
         Ok(self.model_status())
+    }
+
+    fn download_progress(&self) -> ModelDownloadProgress {
+        self.0
+            .download_progress
+            .lock()
+            .expect("download progress lock")
+            .clone()
+    }
+
+    fn set_download_progress(&self, progress: ModelDownloadProgress) {
+        *self
+            .0
+            .download_progress
+            .lock()
+            .expect("download progress lock") = progress;
+    }
+
+    fn update_download_progress(&self, update: impl FnOnce(&mut ModelDownloadProgress)) {
+        update(
+            &mut self
+                .0
+                .download_progress
+                .lock()
+                .expect("download progress lock"),
+        );
+    }
+
+    fn recent_entries(&self) -> Vec<RecentEntry> {
+        self.0.recent.lock().expect("recent entries lock").clone()
+    }
+
+    fn record_recent(&self, entry: RecentEntry) -> Result<(), String> {
+        let mut recent = self.0.recent.lock().expect("recent entries lock");
+        recent.retain(|current| current.path != entry.path || current.kind != entry.kind);
+        recent.insert(0, entry);
+        recent.truncate(20);
+        write_json_atomic(&self.0.recent_path, &*recent)
     }
 }
 
@@ -295,23 +382,37 @@ pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs
     let describe = service.clone();
     capability.method(DESCRIBE_IMAGES, move |request: DescribeImagesRequest| {
         let service = describe.clone();
-        async move {
-            request
-                .paths
-                .iter()
-                .map(|path| service.describe_image(Path::new(path)))
-                .collect()
-        }
+        async move { service.describe_images(&request.paths) }
     })?;
     let status = service.clone();
     capability.method(MODEL_STATUS, move |(): ()| {
         let service = status.clone();
         async move { Ok::<_, String>(service.model_status()) }
     })?;
+    let progress = service.clone();
+    capability.method(MODEL_DOWNLOAD_PROGRESS, move |(): ()| {
+        let service = progress.clone();
+        async move { Ok::<_, String>(service.download_progress()) }
+    })?;
+    let recent = service.clone();
+    capability.method(RECENT_ENTRIES, move |(): ()| {
+        let service = recent.clone();
+        async move { Ok::<_, String>(service.recent_entries()) }
+    })?;
     let download = service.clone();
     capability.method(DOWNLOAD_MODEL, move |(): ()| {
         let service = download.clone();
-        async move { service.download_model().await }
+        async move {
+            let result = service.download_model().await;
+            if let Err(error) = &result {
+                service.update_download_progress(|progress| {
+                    progress.state = DownloadState::Failed;
+                    progress.current_file = None;
+                    progress.error = Some(error.clone());
+                });
+            }
+            result
+        }
     })?;
     let recognize = service.clone();
     capability.method(RECOGNIZE_PAGE, move |request: RecognizePageRequest| {
@@ -386,6 +487,53 @@ struct OcrModelStatus {
     version: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+struct RecentEntry {
+    kind: RecentKind,
+    path: String,
+    label: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum RecentKind {
+    File,
+    Directory,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelDownloadProgress {
+    state: DownloadState,
+    downloaded_bytes: u64,
+    total_bytes: u64,
+    current_file: Option<String>,
+    error: Option<String>,
+}
+
+impl ModelDownloadProgress {
+    fn idle() -> Self {
+        Self {
+            state: DownloadState::Idle,
+            downloaded_bytes: 0,
+            total_bytes: MODEL_FILES.iter().map(|file| file.size).sum(),
+            current_file: None,
+            error: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum DownloadState {
+    Idle,
+    Downloading,
+    Verifying,
+    Complete,
+    Failed,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OcrRegion {
@@ -430,7 +578,38 @@ impl ReaderService {
             .filter(|path| path.is_file() && supported_image(path))
             .collect::<Vec<_>>();
         paths.sort_by(|a, b| natord::compare(&natural_name(a), &natural_name(b)));
-        paths.iter().map(|path| self.describe_image(path)).collect()
+        let pages = paths
+            .iter()
+            .map(|path| self.describe_image(path))
+            .collect::<Result<Vec<_>, _>>()?;
+        let canonical = Path::new(directory)
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+        self.record_recent(RecentEntry {
+            kind: RecentKind::Directory,
+            label: natural_name(&canonical),
+            path: canonical.to_string_lossy().into_owned(),
+        })?;
+        Ok(pages)
+    }
+
+    fn describe_images(&self, paths: &[String]) -> Result<Vec<ImagePage>, String> {
+        let pages = paths
+            .iter()
+            .map(|path| self.describe_image(Path::new(path)))
+            .collect::<Result<Vec<_>, _>>()?;
+        if let Some(page) = pages.first() {
+            self.record_recent(RecentEntry {
+                kind: RecentKind::File,
+                label: if pages.len() == 1 {
+                    page.name.clone()
+                } else {
+                    format!("{} and {} more", page.name, pages.len() - 1)
+                },
+                path: paths.join("\n"),
+            })?;
+        }
+        Ok(pages)
     }
 
     fn describe_image(&self, path: &Path) -> Result<ImagePage, String> {
@@ -452,6 +631,26 @@ impl ReaderService {
             handle,
         })
     }
+}
+
+fn load_recent(path: &Path) -> Vec<RecentEntry> {
+    fs::read(path)
+        .ok()
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .unwrap_or_default()
+}
+
+fn write_json_atomic(path: &Path, value: &impl Serialize) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let partial = path.with_extension("tmp");
+    fs::write(
+        &partial,
+        serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    fs::rename(partial, path).map_err(|error| error.to_string())
 }
 
 fn natural_name(path: &Path) -> String {
@@ -744,5 +943,22 @@ mod tests {
         assert_eq!(regions[0].id, "line-1");
         assert_eq!(regions[0].width, 30.0);
         assert!(parse_bbox_array(r#"{"regions":[{"id":"missing"}]}"#).is_err());
+    }
+
+    #[test]
+    fn recent_entries_round_trip_through_atomic_json() {
+        let path = std::env::temp_dir().join(format!(
+            "wabou-manga-recent-{}-{}.json",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        let entries = vec![RecentEntry {
+            kind: RecentKind::Directory,
+            path: "/tmp/chapter".to_owned(),
+            label: "chapter".to_owned(),
+        }];
+        write_json_atomic(&path, &entries).unwrap();
+        assert_eq!(load_recent(&path), entries);
+        let _ = fs::remove_file(path);
     }
 }

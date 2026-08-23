@@ -5,8 +5,38 @@ export default defineWabouConfig({
   outDir: "../../dist/manga-ocr-wabou/resources",
   globalName: "MangaOcrWabouApp",
   theme: {
-    default: "dark",
+    default: "light",
     themes: {
+      light: {
+        appearance: "light",
+        colors: {
+          canvas: "#f7f8fb",
+          surface: "#ffffff",
+          "surface-muted": "#f3f4f7",
+          input: "#ffffff",
+          control: "#eef1f6",
+          "control-hover": "#e5e9f1",
+          "control-pressed": "#dce2ec",
+          selected: "#ede9fe",
+          primary: "#171923",
+          secondary: "#4b5565",
+          muted: "#788294",
+          subtle: "#dce1e9",
+          strong: "#aeb7c5",
+          accent: "#7c3aed",
+          "accent-hover": "#6d28d9",
+          "accent-pressed": "#5b21b6",
+          "on-accent": "#ffffff",
+          danger: "#dc2626",
+          "danger-hover": "#b91c1c",
+          "danger-pressed": "#991b1b",
+          "danger-surface": "#fef2f2",
+          "danger-primary": "#b91c1c",
+          "success-surface": "#ecfdf5",
+          "success-primary": "#047857",
+          focus: "#7c3aed",
+        },
+      },
       dark: {
         appearance: "dark",
         colors: {
@@ -34,10 +64,9 @@ export default defineWabouConfig({
           "danger-primary": "#fca5a5",
           "success-surface": "#102d25",
           "success-primary": "#6ee7b7",
-          focus: "#a78bfa"
-        }
-      }
-    }
-  }
+          focus: "#a78bfa",
+        },
+      },
+    },
+  },
 });
-
