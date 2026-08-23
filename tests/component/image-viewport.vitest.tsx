@@ -3,6 +3,7 @@ import {
   AnnotationLayer,
   type AnnotationRegion,
   clampAnnotationRegion,
+  ImageOverlayLayer,
   ImageViewport,
   imageViewportTransform,
   View,
@@ -23,6 +24,41 @@ test("uses one invertible contain transform for media and annotations", () => {
   const viewportPoint = transform.imageToViewport({ x: 25, y: 40 });
   expect(viewportPoint).toEqual({ x: -15, y: 115 });
   expect(transform.viewportToImage(viewportPoint)).toEqual({ x: 25, y: 40 });
+});
+
+test("pans media and read-only overlays through one controlled transform", () => {
+  const Harness = () => {
+    const [pan, setPan] = createSignal({ x: 0, y: 0 });
+    return (
+      <ImageViewport
+        aria-label="Pannable page"
+        imageSize={{ width: 200, height: 100 }}
+        media={<View class="w-full h-full bg-surface" />}
+        pannable
+        pan={pan()}
+        onPanChange={setPan}
+      >
+        <ImageOverlayLayer
+          aria-label="Translated text"
+          items={[{ id: "line", x: 20, y: 10, width: 40, height: 20 }]}
+        >
+          {() => <View role="note" aria-label="Translation" />}
+        </ImageOverlayLayer>
+      </ImageViewport>
+    );
+  };
+  const screen = renderComponent(Harness);
+  const viewport = screen.getByRole("group", { name: "Pannable page" });
+  viewport.resize({ width: 400, height: 300 });
+  const overlay = screen.getByRole("note", { name: "Translation" }).parent!;
+  expect(overlay.style("left")).toBe("40px");
+  expect(overlay.style("top")).toBe("70px");
+
+  viewport.pointerDown({ clientX: 100, clientY: 100 });
+  viewport.pointerMove({ clientX: 130, clientY: 120 });
+  viewport.pointerUp({ clientX: 130, clientY: 120 });
+  expect(overlay.style("left")).toBe("70px");
+  expect(overlay.style("top")).toBe("90px");
 });
 
 test("clamps editable regions to image space", () => {

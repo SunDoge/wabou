@@ -108,12 +108,23 @@ interface ImageViewportContextValue {
 const ImageViewportContext = createContext<ImageViewportContextValue>();
 
 export interface ImageViewportProps
-  extends Omit<ViewProps, "children" | "ref" | "onWheel"> {
+  extends Omit<
+    ViewProps,
+    | "children"
+    | "ref"
+    | "onWheel"
+    | "onPointerDown"
+    | "onPointerMove"
+    | "onPointerUp"
+    | "onPointerCancel"
+  > {
   resource?: ImageResourceHandle;
   /** Intrinsic image size in image pixels. */
   imageSize?: ImageViewportSize;
   zoom?: number;
   pan?: ImageViewportPoint;
+  pannable?: boolean;
+  onPanChange?: (pan: ImageViewportPoint) => void;
   /** Optional replacement for the native Image, useful for generated media. */
   media?: JSX.Element;
   children?: JSX.Element;
@@ -126,6 +137,16 @@ export interface ImageViewportProps
 export function ImageViewport(props: ImageViewportProps): JSX.Element {
   const measured = createMeasuredSize();
   const [intrinsicSize, setIntrinsicSize] = createSignal<ImageViewportSize>();
+  const [localPan, setLocalPan] = createSignal<ImageViewportPoint>({ x: 0, y: 0 });
+  const [panDrag, setPanDrag] = createSignal<{
+    pointer: ImageViewportPoint;
+    pan: ImageViewportPoint;
+  }>();
+  const pan = () => props.pan ?? localPan();
+  const updatePan = (next: ImageViewportPoint) => {
+    if (props.pan === undefined) setLocalPan(next);
+    props.onPanChange?.(next);
+  };
   const transform = createMemo(() => {
     const image = props.imageSize ?? intrinsicSize();
     if (!measured.measured() || measured.width() <= 0 || measured.height() <= 0)
@@ -135,7 +156,7 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
       viewport: { width: measured.width(), height: measured.height() },
       image,
       zoom: props.zoom,
-      pan: props.pan,
+      pan: pan(),
     });
   });
   const frameStyle = (): WabouStyle => {
@@ -155,6 +176,8 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
     "imageSize",
     "zoom",
     "pan",
+    "pannable",
+    "onPanChange",
     "media",
     "children",
     "imageLabel",
@@ -171,6 +194,24 @@ export function ImageViewport(props: ImageViewportProps): JSX.Element {
           "relative min-w-0 min-h-0 overflow-hidden bg-control",
           props.class,
         )}
+        onPointerDown={(event) => {
+          if (!props.pannable || event.button !== 0) return;
+          event.preventDefault();
+          setPanDrag({
+            pointer: { x: event.clientX, y: event.clientY },
+            pan: pan(),
+          });
+        }}
+        onPointerMove={(event) => {
+          const drag = panDrag();
+          if (!drag || event.buttons === 0) return;
+          updatePan({
+            x: drag.pan.x + event.clientX - drag.pointer.x,
+            y: drag.pan.y + event.clientY - drag.pointer.y,
+          });
+        }}
+        onPointerUp={() => setPanDrag()}
+        onPointerCancel={() => setPanDrag()}
       >
         <View
           aria-hidden="true"
@@ -248,6 +289,7 @@ export interface AnnotationLayerProps
   selectedId?: string | null;
   minimumSize?: number;
   createRegionId?: () => string;
+  interactionMode?: "edit" | "passthrough";
   onRegionsChange?: (regions: readonly AnnotationRegion[]) => void;
   onSelectedIdChange?: (id: string | null) => void;
 }
@@ -407,6 +449,7 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
     "selectedId",
     "minimumSize",
     "createRegionId",
+    "interactionMode",
     "onRegionsChange",
     "onSelectedIdChange",
   );
@@ -415,6 +458,7 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
       {...rest}
       role={props.role ?? "group"}
       class={join("absolute inset-0", props.class)}
+      classList={{ "pointer-events-none": props.interactionMode === "passthrough" }}
       onPointerDown={(event) => {
         if (event.button !== 0 || !viewport.transform()) return;
         const start = point(event);
@@ -464,6 +508,48 @@ export function AnnotationLayer(props: AnnotationLayerProps): JSX.Element {
           style={styleFor(draft()!)}
         />
       )}
+    </View>
+  );
+}
+
+export interface ImageOverlayItem extends ImageViewportRect {
+  id: string;
+}
+
+export interface ImageOverlayLayerProps<T extends ImageOverlayItem>
+  extends Omit<ViewProps, "children"> {
+  items: readonly T[];
+  children: (item: T, index: () => number) => JSX.Element;
+}
+
+/** Read-only image-space overlays sharing the viewport's exact zoom and pan transform. */
+export function ImageOverlayLayer<T extends ImageOverlayItem>(
+  props: ImageOverlayLayerProps<T>,
+): JSX.Element {
+  const viewport = useContext(ImageViewportContext);
+  if (!viewport)
+    throw new Error("ImageOverlayLayer must be placed inside ImageViewport");
+  const styleFor = (item: ImageOverlayItem): WabouStyle => {
+    const transform = viewport.transform();
+    if (!transform) return { width: "0px", height: "0px" };
+    const origin = transform.imageToViewport(item);
+    return {
+      left: `${origin.x}px`,
+      top: `${origin.y}px`,
+      width: `${item.width * transform.scale}px`,
+      height: `${item.height * transform.scale}px`,
+    };
+  };
+  const rest = omit(props, "items", "children");
+  return (
+    <View {...rest} class={join("absolute inset-0 pointer-events-none", props.class)}>
+      <For each={props.items}>
+        {(item, index) => (
+          <View class="absolute overflow-hidden" style={styleFor(item)}>
+            {props.children(item, index)}
+          </View>
+        )}
+      </For>
     </View>
   );
 }
