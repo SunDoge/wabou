@@ -868,7 +868,7 @@ impl FrameSource for Applier {
 
     fn poll_async(&mut self) -> bool {
         let was_woken = self.runtime.js.take_async_wake();
-        self.runtime.js.poll_async_runtime();
+        let js_progressed = self.runtime.js.poll_async_runtime();
         // Host messages are application events, not render events. Drain them
         // on the event-loop wake path as well as at the next frame boundary so
         // tray/background applications keep responding while their native
@@ -918,7 +918,12 @@ impl FrameSource for Applier {
             .is_some_and(|mut state| state.take_overlay_change());
         #[cfg(not(any(feature = "devtools", test)))]
         let overlay_changed = false;
-        widget_woken || was_woken || host_messages_pending || screenshot_pending || overlay_changed
+        widget_woken
+            || was_woken
+            || js_progressed
+            || host_messages_pending
+            || screenshot_pending
+            || overlay_changed
     }
 
     fn take_host_action(&mut self) -> Option<wabou_shell::HostAction> {

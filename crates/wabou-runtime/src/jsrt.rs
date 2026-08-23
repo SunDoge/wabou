@@ -795,21 +795,25 @@ impl JsRuntime {
     /// Poll rquickjs's scheduler once with a waker backed by winit. Pending
     /// network IO parks naturally; Tokio calls this waker when it can progress.
     /// Ready jobs are time-sliced so a burst of fetch completions cannot drain
-    /// an entire Promise/Solid update graph inside one window callback.
+    /// an entire Promise/Solid update graph inside one window callback. Returns
+    /// whether JavaScript made observable progress or another slice is pending,
+    /// so the shell can schedule a frame even when the queue became idle during
+    /// this poll.
     pub fn poll_async_runtime(&self) -> bool {
         self.runtime_wake.pending.store(false, Ordering::Release);
         let _guard = self._tokio.handle().enter();
         let waker = Waker::from(self.runtime_wake.clone());
         let mut task_context = TaskContext::from_waker(&waker);
         let deadline = std::time::Instant::now() + std::time::Duration::from_millis(1);
+        let mut progressed = false;
         for _ in 0..32 {
             let mut next = Box::pin(self.rt.execute_pending_job());
             match Pin::new(&mut next).poll(&mut task_context) {
-                Poll::Ready(Ok(true)) => {}
-                Poll::Ready(Ok(false)) | Poll::Pending => return false,
+                Poll::Ready(Ok(true)) => progressed = true,
+                Poll::Ready(Ok(false)) | Poll::Pending => return progressed,
                 Poll::Ready(Err(error)) => {
                     tracing::warn!(?error, "async JavaScript job failed");
-                    return false;
+                    return progressed;
                 }
             }
             if std::time::Instant::now() >= deadline {

@@ -395,12 +395,24 @@ fn sleep_uses_rquickjs_async_scheduler_and_wakes_host() {
                 )
             })
             .expect("start sleep");
-    assert!(!runtime.poll_async_runtime(), "sleep should park");
+    assert!(
+        runtime.poll_async_runtime(),
+        "starting the Promise must report JS progress"
+    );
+    assert!(
+        !runtime
+            .with(|ctx| ctx.eval::<bool, _>("globalThis.sleepDone"))
+            .expect("read parked sleep state"),
+        "the async sleep should still park after its initial scheduler work"
+    );
 
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
     loop {
         if runtime.take_async_wake() {
-            runtime.poll_async_runtime();
+            assert!(
+                runtime.poll_async_runtime(),
+                "settling a Promise must report JS progress so the shell schedules a frame"
+            );
         }
         let done = runtime
             .with(|ctx| ctx.eval::<bool, _>("globalThis.sleepDone"))
