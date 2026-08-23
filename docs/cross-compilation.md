@@ -1,7 +1,7 @@
 # Cross-compilation
 
-Status: experimentally verified. Cross-compilation is not yet integrated into
-`wabou build` or `wabou package`.
+Status: experimentally verified. `wabou package --target` integrates Cargo
+Zigbuild with native packaging; ordinary `wabou build` remains host-native.
 
 Wabou's Rust host can be cross-compiled with
 [`cargo-zigbuild`](https://github.com/rust-cross/cargo-zigbuild). Zig replaces
@@ -97,12 +97,22 @@ combination.
 
 ## Wabou packaging boundary
 
-`cargo zigbuild` currently builds only the Rust executable. A runnable Wabou
-application also needs the profile-matched JavaScript bundle at
-`resources/bundle.js`. `wabou build` and `wabou package` still invoke ordinary
-Cargo builds and do not accept a Zig target or glibc suffix.
+Use a versioned GNU target to combine the Zig-linked Rust executable, release
+JavaScript bundle, and a native package in one command:
 
-Until the CLI owns this workflow, use Zigbuild as a compilation experiment or
-CI link check and package official artifacts on their target operating system.
-Native installers, platform resources, runtime smoke tests, and signing remain
-target-platform responsibilities.
+```bash
+cargo install cargo-zigbuild --locked
+wabou package apps/example \
+  --target x86_64-unknown-linux-gnu.2.28 \
+  --format appimage
+```
+
+Native installers are still created on the build host. Cross-architecture
+sysroots, target-platform runtime smoke tests, and signing remain the release
+pipeline's responsibility.
+
+Prebuilt native dependencies keep their original ABI requirements. For
+example, Manga OCR currently consumes a downloaded ONNX Runtime C++ archive;
+that archive cannot be relinked to an older libstdc++/glibc ABI merely by
+adding a Zig target suffix. Such applications need a matching native artifact
+or an old-distribution build in addition to Wabou's packaging support.

@@ -192,6 +192,27 @@ Command-line formats override the file without changing it:
 bun run wabou package apps/gallery --format appimage
 ```
 
+To lower the glibc baseline of a Linux package, install Cargo Zigbuild and pass
+its versioned GNU target directly to `package`:
+
+```bash
+cargo install cargo-zigbuild --locked
+bun run wabou package apps/example \
+  --target x86_64-unknown-linux-gnu.2.28 \
+  --format appimage
+```
+
+When `--target` is present, Wabou uses `cargo zigbuild` for the Rust host and
+stages the executable from Cargo Zigbuild's normalized target directory (for
+example, `.2.28` builds live under `target/x86_64-unknown-linux-gnu/release/`).
+The frontend bundle and native package are still produced by Wabou. A missing
+Cargo Zigbuild command is reported with the installation command above.
+
+Dependencies containing prebuilt native libraries must themselves match the
+requested glibc and C++ ABI. Zigbuild cannot lower the baseline of an already
+compiled `.so` or static archive; supply a compatible build/sysroot or package
+that application on its oldest supported distribution.
+
 Supported adapters are `app`, `dmg`, `nsis`, `wix`, `deb`, `appimage`, and
 `pacman`. Final artifacts are written to `dist/<app>/bundles/`; the generated
 `packager.json` records the exact backend input for diagnostics and CI

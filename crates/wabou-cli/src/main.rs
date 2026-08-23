@@ -27,10 +27,13 @@ mod scaffold;
 
 use artifact::{
     app_binary, app_bindings_target, app_dev_features, app_framework_feature,
-    app_profiling_feature, artifact_from_metadata, cargo_metadata, optional_app_bindings_target,
+    app_profiling_feature, artifact_from_metadata_for_target, cargo_metadata,
+    optional_app_bindings_target,
 };
 #[cfg(test)]
-use artifact::{binary_target, bindings_target, dev_features, framework_feature};
+use artifact::{
+    artifact_from_metadata, binary_target, bindings_target, dev_features, framework_feature,
+};
 use behavior_test::{default_artifact_dir, prepare_artifact_dir, replay_actions};
 use config::{
     BuildProfile, PackageFormat, bundle_path, configured_source_map, load_package_config,
@@ -111,6 +114,9 @@ enum Commands {
         /// Override the formats declared in wabou.toml.
         #[arg(long, value_enum, action = clap::ArgAction::Append)]
         format: Vec<PackageFormat>,
+        /// Build the Rust host with cargo-zigbuild for this target before packaging.
+        #[arg(long, value_name = "TARGET")]
+        target: Option<String>,
     },
     /// Build the frontend bundle and run the Rust host.
     Run {
@@ -346,9 +352,13 @@ fn main() -> Result<()> {
             let (workspace, app) = resolve_app(app.as_deref())?;
             build(&workspace, &app, release, source_map)
         }
-        Commands::Package { app, format } => {
+        Commands::Package {
+            app,
+            format,
+            target,
+        } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            package(&workspace, &app, &format)
+            package(&workspace, &app, &format, target.as_deref())
         }
         Commands::Run {
             app,
@@ -584,10 +594,54 @@ fn build(
     package_executable(workspace, app, release)
 }
 
-fn package(workspace: &Path, app: &App, format_override: &[PackageFormat]) -> Result<()> {
+fn package(
+    workspace: &Path,
+    app: &App,
+    format_override: &[PackageFormat],
+    target: Option<&str>,
+) -> Result<()> {
     let config = load_package_config(app)?;
-    build(workspace, app, true, None)?;
+    if let Some(target) = target {
+        build_zig_release(workspace, app, target)?;
+    } else {
+        build(workspace, app, true, None)?;
+    }
     packaging::package_built_application(workspace, app, &config, format_override)
+}
+
+fn build_zig_release(workspace: &Path, app: &App, target: &str) -> Result<()> {
+    if target.trim().is_empty() {
+        return Err("package target cannot be empty".into());
+    }
+    let available = Command::new("cargo")
+        .args(["zigbuild", "--help"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success());
+    if !available {
+        return Err(
+            "`wabou package --target` requires cargo-zigbuild; install it with `cargo install cargo-zigbuild --locked`"
+                .into(),
+        );
+    }
+
+    let manifest = manifest(app);
+    let mut cargo = Command::new("cargo");
+    cargo.current_dir(workspace).args([
+        "zigbuild",
+        "--manifest-path",
+        &manifest,
+        "--release",
+        "--target",
+        target,
+    ]);
+    ensure(cargo.status()?, "Cargo Zigbuild")?;
+    ensure(
+        build_frontend(workspace, app, &[], BuildProfile::Release, false)?,
+        "Vite build",
+    )?;
+    package_executable_for_target(workspace, app, true, Some(target))
 }
 
 fn run(
@@ -963,9 +1017,19 @@ fn dev(
 }
 
 fn package_executable(workspace: &Path, app: &App, release: bool) -> Result<()> {
+    package_executable_for_target(workspace, app, release, None)
+}
+
+fn package_executable_for_target(
+    workspace: &Path,
+    app: &App,
+    release: bool,
+    target: Option<&str>,
+) -> Result<()> {
     let metadata = cargo_metadata(workspace, app)?;
     let manifest_path = app.root.join("Cargo.toml").canonicalize()?;
-    let (source, binary) = artifact_from_metadata(&metadata, &manifest_path, release)?;
+    let (source, binary) =
+        artifact_from_metadata_for_target(&metadata, &manifest_path, release, target)?;
     let destination_dir =
         profile_application_dir(workspace, app, BuildProfile::from_release(release))?;
     fs::create_dir_all(&destination_dir)?;
@@ -1546,7 +1610,12 @@ mod tests {
     #[test]
     fn parses_native_package_format_overrides() {
         let Cli {
-            command: Commands::Package { app, format },
+            command:
+                Commands::Package {
+                    app,
+                    format,
+                    target,
+                },
         } = Cli::try_parse_from([
             "wabou",
             "package",
@@ -1562,6 +1631,25 @@ mod tests {
         };
         assert_eq!(app.as_deref(), Some(Path::new("apps/warden-desktop")));
         assert_eq!(format, [PackageFormat::Appimage, PackageFormat::Deb]);
+        assert_eq!(target, None);
+    }
+
+    #[test]
+    fn parses_zig_package_target() {
+        let Cli {
+            command: Commands::Package { target, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "package",
+            "apps/gallery",
+            "--target",
+            "x86_64-unknown-linux-gnu.2.28",
+        ])
+        .unwrap()
+        else {
+            panic!("expected package command");
+        };
+        assert_eq!(target.as_deref(), Some("x86_64-unknown-linux-gnu.2.28"));
     }
 
     #[test]
@@ -1656,6 +1744,19 @@ out-dir = "dist/resources"
         )
         .unwrap();
         assert!(release.starts_with("/workspace/target/release"));
+
+        let (zig_release, _) = artifact_from_metadata_for_target(
+            &metadata,
+            Path::new("/workspace/apps/gallery/Cargo.toml"),
+            true,
+            Some("x86_64-unknown-linux-gnu.2.28"),
+        )
+        .unwrap();
+        assert_eq!(
+            zig_release,
+            Path::new("/workspace/target/x86_64-unknown-linux-gnu/release")
+                .join(format!("gallery-host{}", env::consts::EXE_SUFFIX))
+        );
     }
 
     #[test]

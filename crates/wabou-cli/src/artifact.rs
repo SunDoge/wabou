@@ -157,6 +157,15 @@ pub(super) fn artifact_from_metadata(
     manifest_path: &Path,
     release: bool,
 ) -> Result<(PathBuf, String)> {
+    artifact_from_metadata_for_target(metadata, manifest_path, release, None)
+}
+
+pub(super) fn artifact_from_metadata_for_target(
+    metadata: &Value,
+    manifest_path: &Path,
+    release: bool,
+    target: Option<&str>,
+) -> Result<(PathBuf, String)> {
     let binary = binary_target(metadata, manifest_path)
         .and_then(|target| target["name"].as_str())
         .ok_or("app package has no unambiguous primary binary target")?;
@@ -164,9 +173,26 @@ pub(super) fn artifact_from_metadata(
         .as_str()
         .ok_or("Cargo metadata has no target directory")?;
     let profile = if release { "release" } else { "debug" };
-    let filename = format!("{binary}{}", env::consts::EXE_SUFFIX);
-    Ok((
-        Path::new(target_dir).join(profile).join(&filename),
-        filename,
-    ))
+    let suffix = if target.is_some_and(|target| target.contains("windows")) {
+        ".exe"
+    } else {
+        env::consts::EXE_SUFFIX
+    };
+    let filename = format!("{binary}{suffix}");
+    let target_dir = target.map_or_else(
+        || Path::new(target_dir).to_path_buf(),
+        |target| Path::new(target_dir).join(cargo_target_directory_name(target)),
+    );
+    Ok((target_dir.join(profile).join(&filename), filename))
+}
+
+fn cargo_target_directory_name(target: &str) -> &str {
+    ["-gnu.", "-musl."]
+        .into_iter()
+        .find_map(|marker| {
+            target
+                .find(marker)
+                .map(|offset| &target[..offset + marker.len() - 1])
+        })
+        .unwrap_or(target)
 }
