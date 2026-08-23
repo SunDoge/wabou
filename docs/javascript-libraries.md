@@ -31,6 +31,33 @@ Build-time tools such as Vite, UnoCSS and the Wabou style compiler run under
 Bun/Node during development; their compatibility does not imply that their
 runtime APIs exist inside QuickJS.
 
+## Compatibility harness
+
+Pure JavaScript libraries do not need to mount a Solid tree or enter the
+layout renderer. Bundle the probe for a browser target, boot it directly in
+`wabou_runtime::JsRuntime`, and use `eval_promise_json` to drive QuickJS jobs
+until a JSON-serializable result or rejection is available:
+
+```rust
+use std::time::Duration;
+use wabou_runtime::{JsRuntime, JsRuntimeOptions};
+
+let mut runtime = JsRuntime::new_with_options(
+    JsRuntimeOptions::default().max_stack_size(8 * 1024 * 1024),
+)?;
+runtime.boot(&bundle)?;
+let result = runtime.eval_promise_json(
+    "runLibraryProbe()",
+    Duration::from_secs(5),
+)?;
+```
+
+This runtime installs Wabou's native host functions and core prelude without
+creating Taffy, Vello, widgets, or a native window. The JavaScript bundle should
+import `@wabou/core` when it needs Wabou's higher-level Fetch, Crypto, Streams,
+timer, or other compatibility wrappers. Use the UI headless runner only when a
+probe also needs Solid reconciliation, Style IR, layout, or paint.
+
 ## Adding a compatibility entry
 
 For a platform-independent library:

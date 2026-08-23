@@ -3,6 +3,23 @@
 Status: accepted. This document is normative for new cross-language and
 resource APIs.
 
+## QuickJS resource limits
+
+`HostBuilder` uses a 6 MiB QuickJS stack by default. Applications with unusually
+deep generated component trees or large third-party bundles can opt into a
+larger limit before starting the host:
+
+```rust
+HostBuilder::new()
+    .quickjs_stack_size(8 * 1024 * 1024)
+    .run()?;
+```
+
+Pure-library compatibility tests use the same `JsRuntimeOptions` type through
+`JsRuntime::new_with_options`, so a probe and the eventual application can run
+under identical limits. Keep the configured limit below the native thread
+stack; an arbitrarily large value does not create more native stack.
+
 Wabou keeps transport, application APIs, and resource lifetime as separate
 concerns. New features must use one of the existing mechanisms below instead
 of adding another bridge.

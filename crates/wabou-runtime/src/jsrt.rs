@@ -64,7 +64,8 @@ const CORE_PRELUDE: &str = include_str!("gen/core-prelude.js");
 // desktop page can consume more than QuickJS's previous 2 MiB C-stack budget
 // without containing a reactive cycle. Keep this below the usual 8 MiB native
 // main-thread stack so QuickJS still raises a catchable RangeError first.
-const QUICKJS_STACK_SIZE: usize = 6 * 1024 * 1024;
+/// Default maximum native stack reserved for QuickJS evaluation.
+pub const DEFAULT_QUICKJS_STACK_SIZE: usize = 6 * 1024 * 1024;
 const LAYOUT_SNAPSHOT_HEADER_LEN: usize = 8;
 const LAYOUT_SNAPSHOT_NODE_LEN: usize = 14;
 const LAYOUT_SNAPSHOT_VERSION: f64 = 1.0;
@@ -134,6 +135,38 @@ impl Wake for RuntimeWake {
     }
 }
 
+/// Construction options shared by application and compatibility-test runtimes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct JsRuntimeOptions {
+    max_stack_size: usize,
+}
+
+impl Default for JsRuntimeOptions {
+    fn default() -> Self {
+        Self {
+            max_stack_size: DEFAULT_QUICKJS_STACK_SIZE,
+        }
+    }
+}
+
+impl JsRuntimeOptions {
+    /// Set the maximum native stack available to QuickJS, in bytes.
+    ///
+    /// Larger library bundles and deeply nested Solid trees may need more than
+    /// the default. The value must be non-zero and should remain below the
+    /// native thread stack so QuickJS can raise a catchable range error first.
+    pub fn max_stack_size(mut self, bytes: usize) -> Self {
+        assert!(bytes > 0, "QuickJS stack size must be greater than zero");
+        self.max_stack_size = bytes;
+        self
+    }
+
+    /// Return the configured maximum native stack size in bytes.
+    pub const fn stack_size(&self) -> usize {
+        self.max_stack_size
+    }
+}
+
 /// Single-threaded QuickJS runtime configured with Wabou's host ABI.
 ///
 /// The runtime may be created directly for bundle compatibility tests. Normal
@@ -188,13 +221,26 @@ pub struct JsRuntime {
 impl JsRuntime {
     /// Create an empty runtime with the system monotonic clock.
     pub fn new() -> JsResult<Self> {
-        Self::new_with_clock(Arc::new(crate::clock::SystemClock::new()))
+        Self::new_with_options(JsRuntimeOptions::default())
     }
 
+    /// Create an empty runtime with explicit resource limits.
+    pub fn new_with_options(options: JsRuntimeOptions) -> JsResult<Self> {
+        Self::new_with_clock_and_options(Arc::new(crate::clock::SystemClock::new()), options)
+    }
+
+    #[cfg(test)]
     pub(crate) fn new_with_clock(clock: Arc<dyn crate::clock::Clock>) -> JsResult<Self> {
+        Self::new_with_clock_and_options(clock, JsRuntimeOptions::default())
+    }
+
+    fn new_with_clock_and_options(
+        clock: Arc<dyn crate::clock::Clock>,
+        options: JsRuntimeOptions,
+    ) -> JsResult<Self> {
         let rt = AsyncRuntime::new()?;
         futures_lite::future::block_on(async {
-            rt.set_max_stack_size(QUICKJS_STACK_SIZE).await;
+            rt.set_max_stack_size(options.stack_size()).await;
         });
         Self::build_inner(rt, clock)
     }
@@ -969,6 +1015,65 @@ impl JsRuntime {
         self.with(move |ctx| ctx.eval::<String, _>(source.as_str()))
     }
 
+    /// Evaluate a promise-producing expression and return its JSON result.
+    ///
+    /// This is the lightweight compatibility-test boundary for pure JavaScript
+    /// libraries. Call [`Self::boot`] with a browser-targeted bundle first,
+    /// then evaluate the library operation without creating an [`crate::Applier`]
+    /// or any layout/rendering state.
+    pub fn eval_promise_json(
+        &self,
+        expression: &str,
+        timeout: std::time::Duration,
+    ) -> Result<String, String> {
+        const STATE: &str = "__wabou_compat_state";
+        const VALUE: &str = "__wabou_compat_value";
+        let expression = format!(
+            r#"
+            globalThis.{STATE} = "pending";
+            globalThis.{VALUE} = null;
+            Promise.resolve(({expression})).then(
+              value => {{
+                globalThis.{VALUE} = value === undefined ? "null" : JSON.stringify(value);
+                globalThis.{STATE} = "resolved";
+              }},
+              error => {{
+                globalThis.{VALUE} = `${{String(error?.name ?? "Error")}}: ${{String(error?.message ?? error)}}\n${{String(error?.stack ?? "")}}`;
+                globalThis.{STATE} = "rejected";
+              }},
+            );
+            "#,
+        );
+        self.eval_script_diagnostic(&expression)?;
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            self.poll_async_runtime();
+            let state = self
+                .eval_string(&format!("globalThis.{STATE}"))
+                .map_err(|error| error.to_string())?;
+            match state.as_str() {
+                "resolved" => {
+                    return self
+                        .eval_string(&format!("globalThis.{VALUE}"))
+                        .map_err(|error| error.to_string());
+                }
+                "rejected" => {
+                    let error = self
+                        .eval_string(&format!("globalThis.{VALUE}"))
+                        .unwrap_or_else(|_| "JavaScript promise rejected".into());
+                    return Err(error);
+                }
+                _ if std::time::Instant::now() >= deadline => {
+                    return Err(format!(
+                        "JavaScript compatibility probe timed out after {} ms",
+                        timeout.as_millis()
+                    ));
+                }
+                _ => std::thread::yield_now(),
+            }
+        }
+    }
+
     /// Run one rAF tick: drains the JS requestAnimationFrame queue (which makes
     /// Solid reactive updates emit ops into the writer), then flushes the
     /// writer — which calls `__wabou_flush` and lands the bytes in `self.out`.
@@ -1063,13 +1168,19 @@ impl JsRuntime {
     /// `__wabou_set_stylesheet` instead of CSSOM).
     #[cfg(feature = "vite")]
     pub fn new_vite(server_url: &str) -> JsResult<Self> {
+        Self::new_vite_with_options(server_url, JsRuntimeOptions::default())
+    }
+
+    /// Create a Vite-backed runtime with explicit resource limits.
+    #[cfg(feature = "vite")]
+    pub fn new_vite_with_options(server_url: &str, options: JsRuntimeOptions) -> JsResult<Self> {
         let origin = url::Url::parse(server_url).map_err(|_| rquickjs::Error::Unknown)?;
         let rt = AsyncRuntime::new()?;
         futures_lite::future::block_on(async {
             // Vite evaluates an ESM graph instead of one bundled module, so
             // linking can require at least as much native stack as production
             // evaluation. Keep both runtime creation paths on the same limit.
-            rt.set_max_stack_size(QUICKJS_STACK_SIZE).await;
+            rt.set_max_stack_size(options.stack_size()).await;
         });
         let vite = crate::vite::ViteState::new(origin);
         vite.install_loader(&rt)?;

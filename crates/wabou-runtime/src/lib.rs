@@ -56,7 +56,7 @@ pub use host_message::{
 };
 pub use image_resource::{ImageResource, ImageResourceHandle, ImageResourceStore};
 pub use json_capability::JsonCapability;
-pub use jsrt::JsRuntime;
+pub use jsrt::{DEFAULT_QUICKJS_STACK_SIZE, JsRuntime, JsRuntimeOptions};
 pub use native_capability::NativeCapability;
 /// Generated event codes shared with native widget adapters.
 pub use protocol::event;

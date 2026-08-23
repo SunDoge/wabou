@@ -25,6 +25,57 @@ fn core_prelude_keeps_application_frames_in_deep_error_stacks() {
 }
 
 #[test]
+fn runtime_options_expose_the_quickjs_stack_limit() {
+    assert_eq!(
+        JsRuntimeOptions::default().stack_size(),
+        DEFAULT_QUICKJS_STACK_SIZE
+    );
+    assert_eq!(
+        JsRuntimeOptions::default()
+            .max_stack_size(8 * 1024 * 1024)
+            .stack_size(),
+        8 * 1024 * 1024
+    );
+}
+
+#[test]
+#[should_panic(expected = "QuickJS stack size must be greater than zero")]
+fn runtime_options_reject_a_zero_stack_limit() {
+    let _ = JsRuntimeOptions::default().max_stack_size(0);
+}
+
+#[test]
+fn pure_javascript_compatibility_probes_resolve_json() {
+    let mut runtime =
+        JsRuntime::new_with_options(JsRuntimeOptions::default().max_stack_size(4 * 1024 * 1024))
+            .expect("runtime");
+    runtime
+        .boot("globalThis.library = { double: async value => value * 2 };")
+        .expect("boot pure JavaScript bundle");
+
+    let result = runtime
+        .eval_promise_json(
+            "library.double(21).then(value => ({ value }))",
+            std::time::Duration::from_secs(1),
+        )
+        .expect("evaluate compatibility probe");
+    assert_eq!(result, r#"{"value":42}"#);
+}
+
+#[test]
+fn pure_javascript_compatibility_probes_preserve_rejections() {
+    let mut runtime = JsRuntime::new().expect("runtime");
+    runtime.boot("").expect("boot empty bundle");
+    let error = runtime
+        .eval_promise_json(
+            "Promise.reject(new Error('unsupported API'))",
+            std::time::Duration::from_secs(1),
+        )
+        .expect_err("probe must reject");
+    assert!(error.contains("unsupported API"), "{error}");
+}
+
+#[test]
 fn animation_frame_uses_the_injected_clock_timestamp() {
     const CORE_FIXTURE: &str = include_str!("../gen/test-runtime.js");
     let clock = Arc::new(TestClock::default());

@@ -547,6 +547,7 @@ enum ApplicationSource {
 #[derive(Clone)]
 struct RuntimeSourceConfig {
     source: ApplicationSource,
+    js_runtime_options: crate::JsRuntimeOptions,
     capabilities: Vec<CapabilityInstaller>,
     host_message_producers: Vec<HostMessageProducer>,
     widget_factories: HashMap<String, WidgetFactory>,
@@ -568,20 +569,25 @@ impl RuntimeSourceConfig {
         #[cfg(feature = "vite")]
         let js = match &self.source {
             ApplicationSource::Vite { url, .. } => {
-                JsRuntime::new_vite(url).context(crate::error::JavaScriptSnafu {
-                    operation: "create Vite JavaScript runtime",
-                })?
+                JsRuntime::new_vite_with_options(url, self.js_runtime_options).context(
+                    crate::error::JavaScriptSnafu {
+                        operation: "create Vite JavaScript runtime",
+                    },
+                )?
             }
-            ApplicationSource::Bundle { .. } => {
-                JsRuntime::new().context(crate::error::JavaScriptSnafu {
-                    operation: "create JavaScript runtime",
-                })?
-            }
+            ApplicationSource::Bundle { .. } => JsRuntime::new_with_options(
+                self.js_runtime_options,
+            )
+            .context(crate::error::JavaScriptSnafu {
+                operation: "create JavaScript runtime",
+            })?,
         };
         #[cfg(not(feature = "vite"))]
-        let js = JsRuntime::new().context(crate::error::JavaScriptSnafu {
-            operation: "create JavaScript runtime",
-        })?;
+        let js = JsRuntime::new_with_options(self.js_runtime_options).context(
+            crate::error::JavaScriptSnafu {
+                operation: "create JavaScript runtime",
+            },
+        )?;
 
         for capability in &self.capabilities {
             capability(&js).context(crate::error::JavaScriptSnafu {
@@ -667,6 +673,7 @@ pub struct HostBuilder {
     app_directory_config: Option<wabou_shell::AppDirectoryConfig>,
     persisted_window_size: Option<String>,
     image_resources: crate::ImageResourceStore,
+    js_runtime_options: crate::JsRuntimeOptions,
 }
 
 impl Default for HostBuilder {
@@ -700,6 +707,7 @@ impl HostBuilder {
             app_directory_config: None,
             persisted_window_size: None,
             image_resources: image_resources.clone(),
+            js_runtime_options: crate::JsRuntimeOptions::default(),
         };
         let mounted = image_resources.clone();
         builder.json_capability(IMAGE_RESOURCES, move |capability| {
@@ -875,6 +883,12 @@ impl HostBuilder {
     /// Set the viewport clear color behind the retained root.
     pub fn base_color(mut self, color: Color) -> Self {
         self.base_color = color;
+        self
+    }
+
+    /// Configure the maximum native stack available to each QuickJS runtime.
+    pub fn quickjs_stack_size(mut self, bytes: usize) -> Self {
+        self.js_runtime_options = self.js_runtime_options.max_stack_size(bytes);
         self
     }
 
@@ -1121,6 +1135,7 @@ impl HostBuilder {
         };
         let runtime_sources = RuntimeSourceConfig {
             source,
+            js_runtime_options: self.js_runtime_options,
             capabilities: self.capabilities.clone(),
             host_message_producers: self.host_message_producers.clone(),
             widget_factories: self.widget_factories.clone(),
