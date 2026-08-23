@@ -13,7 +13,7 @@ struct RequestEnvelope<Request, Response> {
 
 struct WorkerInner<Request, Response> {
     name: Arc<str>,
-    sender: Mutex<Option<mpsc::Sender<RequestEnvelope<Request, Response>>>>,
+    sender: Mutex<Option<mpsc::SyncSender<RequestEnvelope<Request, Response>>>>,
     thread: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -53,6 +53,8 @@ pub struct SerialWorker<Request, Response> {
     inner: Arc<WorkerInner<Request, Response>>,
 }
 
+const DEFAULT_QUEUE_CAPACITY: usize = 64;
+
 impl<Request, Response> Clone for SerialWorker<Request, Response> {
     fn clone(&self) -> Self {
         Self {
@@ -70,6 +72,21 @@ where
     pub fn spawn<State, Initialize, Handle>(
         name: impl Into<String>,
         initialize: Initialize,
+        handle: Handle,
+    ) -> Result<Self, String>
+    where
+        State: 'static,
+        Initialize: FnOnce() -> Result<State, String> + Send + 'static,
+        Handle: FnMut(&mut State, Request) -> Result<Response, String> + Send + 'static,
+    {
+        Self::spawn_with_capacity(name, DEFAULT_QUEUE_CAPACITY, initialize, handle)
+    }
+
+    /// Start a named worker with an explicit bounded request capacity.
+    pub fn spawn_with_capacity<State, Initialize, Handle>(
+        name: impl Into<String>,
+        capacity: usize,
+        initialize: Initialize,
         mut handle: Handle,
     ) -> Result<Self, String>
     where
@@ -77,10 +94,13 @@ where
         Initialize: FnOnce() -> Result<State, String> + Send + 'static,
         Handle: FnMut(&mut State, Request) -> Result<Response, String> + Send + 'static,
     {
+        if capacity == 0 {
+            return Err("serial worker queue capacity must be greater than zero".to_owned());
+        }
         let name = Arc::<str>::from(name.into());
         let thread_name = name.to_string();
         let diagnostic_name = name.clone();
-        let (sender, receiver) = mpsc::channel::<RequestEnvelope<Request, Response>>();
+        let (sender, receiver) = mpsc::sync_channel::<RequestEnvelope<Request, Response>>(capacity);
         let thread = std::thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
@@ -125,9 +145,15 @@ where
             .clone()
             .ok_or_else(|| format!("{} worker has stopped", self.inner.name))?;
         let (reply, result) = tokio::sync::oneshot::channel();
-        sender
-            .send(RequestEnvelope { request, reply })
-            .map_err(|_| format!("{} worker has stopped", self.inner.name))?;
+        match sender.try_send(RequestEnvelope { request, reply }) {
+            Ok(()) => {}
+            Err(mpsc::TrySendError::Full(_)) => {
+                return Err(format!("{} worker queue is full", self.inner.name));
+            }
+            Err(mpsc::TrySendError::Disconnected(_)) => {
+                return Err(format!("{} worker has stopped", self.inner.name));
+            }
+        }
         result
             .await
             .map_err(|_| format!("{} worker stopped before replying", self.inner.name))?
@@ -155,7 +181,8 @@ mod tests {
             },
         )
         .unwrap();
-        let runtime = tokio::runtime::Builder::new_current_thread()
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
             .enable_all()
             .build()
             .unwrap();
@@ -185,5 +212,18 @@ mod tests {
             .unwrap();
         assert!(runtime.block_on(failed.request(())).is_err());
         assert!(runtime.block_on(panics.request(())).is_err());
+    }
+
+    #[test]
+    fn rejects_zero_capacity() {
+        assert!(
+            SerialWorker::<(), ()>::spawn_with_capacity(
+                "zero-worker",
+                0,
+                || Ok::<_, String>(()),
+                |_, _| Ok(())
+            )
+            .is_err()
+        );
     }
 }
