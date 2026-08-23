@@ -4634,6 +4634,7 @@ dependencies = [
 name = "manga-ocr-wabou"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "directories",
  "image",
  "natord",
@@ -4644,6 +4645,7 @@ dependencies = [
  "sha2 0.10.9",
  "snafu",
  "tokio",
+ "tracing",
  "wabou",
 ]
 

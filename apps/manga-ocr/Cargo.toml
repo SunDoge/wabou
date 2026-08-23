@@ -9,6 +9,7 @@ name = "manga-ocr-wabou"
 path = "src/main.rs"
 
 [dependencies]
+base64 = "0.22"
 directories = { workspace = true }
 image = { workspace = true, features = ["jpeg", "png", "webp"] }
 natord = "1.0.9"
@@ -19,4 +20,5 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 snafu = { workspace = true }
 tokio = { workspace = true, features = ["rt", "sync"] }
+tracing = { workspace = true }
 wabou = { workspace = true }

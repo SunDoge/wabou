@@ -8,8 +8,11 @@ use std::{
     },
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use directories::ProjectDirs;
+use image::ImageEncoder as _;
 use oar_ocr::prelude::{OAROCR, OAROCRBuilder, TextRegion};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use wabou::{
@@ -26,6 +29,8 @@ const DOWNLOAD_MODEL: JsonMethod<(), OcrModelStatus> = JsonMethod::no_request("d
 const RECOGNIZE_PAGE: JsonMethod<RecognizePageRequest, Vec<OcrRegion>> =
     JsonMethod::new("recognizePage");
 const TRANSLATE: JsonMethod<TranslateRequest, Vec<String>> = JsonMethod::new("translate");
+const ADJUST_BBOXES: JsonMethod<AdjustBboxesRequest, Vec<OcrRegion>> =
+    JsonMethod::new("adjustBboxes");
 
 const MODEL_VERSION: &str = "ppocrv6-small-0.7.0";
 const RELEASE_BASE: &str = "https://github.com/GreatV/oar-ocr/releases/download/v0.7.0";
@@ -60,8 +65,142 @@ pub struct ReaderService(Arc<ReaderState>);
 struct ReaderState {
     model_dir: PathBuf,
     ocr: OcrWorker,
+    llm: LlmWorker,
     http: reqwest::Client,
     images: ImageResourceStore,
+}
+
+struct LlmWorker {
+    sender: mpsc::Sender<LlmCommand>,
+}
+
+enum LlmCommand {
+    Translate {
+        request: TranslateRequest,
+        reply: tokio::sync::oneshot::Sender<Result<Vec<String>, String>>,
+    },
+    AdjustBboxes {
+        request: AdjustBboxesRequest,
+        reply: tokio::sync::oneshot::Sender<Result<Vec<OcrRegion>, String>>,
+    },
+}
+
+#[derive(Clone)]
+struct ResultCache {
+    directory: PathBuf,
+}
+
+impl ResultCache {
+    fn new(directory: PathBuf) -> Result<Self, String> {
+        fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+        prune_result_cache(&directory, 512);
+        Ok(Self { directory })
+    }
+
+    fn path(&self, namespace: &str, key: &str) -> PathBuf {
+        self.directory.join(format!("{namespace}-{key}.json"))
+    }
+
+    fn get<T: DeserializeOwned>(&self, namespace: &str, key: &str) -> Option<T> {
+        serde_json::from_slice(&fs::read(self.path(namespace, key)).ok()?).ok()
+    }
+
+    fn insert<T: Serialize>(&self, namespace: &str, key: &str, value: &T) -> Result<(), String> {
+        let target = self.path(namespace, key);
+        let partial = target.with_extension("json.part");
+        fs::write(
+            &partial,
+            serde_json::to_vec(value).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+        fs::rename(partial, target).map_err(|error| error.to_string())
+    }
+}
+
+impl LlmWorker {
+    fn spawn(cache_dir: PathBuf, images: ImageResourceStore) -> Result<Self, String> {
+        let cache = ResultCache::new(cache_dir.join("llm-results-v1"))?;
+        let (sender, receiver) = mpsc::channel();
+        std::thread::Builder::new()
+            .name("manga-ocr-llm".to_owned())
+            .spawn(move || {
+                let runtime = match tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                {
+                    Ok(runtime) => runtime,
+                    Err(error) => {
+                        tracing::error!(%error, "failed to start Manga OCR LLM runtime");
+                        return;
+                    }
+                };
+                let http = match reqwest::Client::builder()
+                    .user_agent("MangaOcrWabou/0.1")
+                    .connect_timeout(std::time::Duration::from_secs(10))
+                    .timeout(std::time::Duration::from_secs(90))
+                    .build()
+                {
+                    Ok(http) => http,
+                    Err(error) => {
+                        tracing::error!(%error, "failed to create Manga OCR LLM client");
+                        return;
+                    }
+                };
+                while let Ok(command) = receiver.recv() {
+                    match command {
+                        LlmCommand::Translate { request, reply } => {
+                            let result = runtime.block_on(translate(&http, &cache, request));
+                            let _ = reply.send(result);
+                        }
+                        LlmCommand::AdjustBboxes { request, reply } => {
+                            let result =
+                                runtime.block_on(adjust_bboxes(&http, &cache, &images, request));
+                            let _ = reply.send(result);
+                        }
+                    }
+                }
+            })
+            .map_err(|error| format!("failed to start LLM worker: {error}"))?;
+        Ok(Self { sender })
+    }
+
+    async fn translate(&self, request: TranslateRequest) -> Result<Vec<String>, String> {
+        let (reply, result) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(LlmCommand::Translate { request, reply })
+            .map_err(|_| "LLM worker has stopped".to_owned())?;
+        result
+            .await
+            .map_err(|_| "LLM worker stopped before replying".to_owned())?
+    }
+
+    async fn adjust_bboxes(&self, request: AdjustBboxesRequest) -> Result<Vec<OcrRegion>, String> {
+        let (reply, result) = tokio::sync::oneshot::channel();
+        self.sender
+            .send(LlmCommand::AdjustBboxes { request, reply })
+            .map_err(|_| "LLM worker has stopped".to_owned())?;
+        result
+            .await
+            .map_err(|_| "LLM worker stopped before replying".to_owned())?
+    }
+}
+
+fn prune_result_cache(directory: &Path, capacity: usize) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    let mut files = entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let modified = entry.metadata().ok()?.modified().ok()?;
+            Some((modified, entry.path()))
+        })
+        .collect::<Vec<_>>();
+    files.sort_by_key(|(modified, _)| *modified);
+    let remove = files.len().saturating_sub(capacity);
+    for (_, path) in files.into_iter().take(remove) {
+        let _ = fs::remove_file(path);
+    }
 }
 
 struct OcrWorker {
@@ -130,9 +269,11 @@ impl ReaderService {
             .ok_or_else(|| "could not resolve application directories".to_owned())?;
         let model_dir = project.data_dir().join("models").join(MODEL_VERSION);
         let ocr = OcrWorker::spawn(model_dir.clone(), images.clone())?;
+        let llm = LlmWorker::spawn(project.cache_dir().to_owned(), images.clone())?;
         Ok(Self(Arc::new(ReaderState {
             model_dir,
             ocr,
+            llm,
             http: reqwest::Client::builder()
                 .user_agent("MangaOcrWabou/0.1")
                 .build()
@@ -181,46 +322,6 @@ impl ReaderService {
         self.0.ocr.reset();
         Ok(self.model_status())
     }
-
-    async fn translate(&self, request: TranslateRequest) -> Result<Vec<String>, String> {
-        if request.api_key.trim().is_empty() {
-            return Err("OpenRouter API key is required".to_owned());
-        }
-        if request.texts.is_empty() {
-            return Ok(Vec::new());
-        }
-        let numbered = request
-            .texts
-            .iter()
-            .enumerate()
-            .map(|(index, text)| format!("{}. {}", index + 1, text))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let response = self
-            .0
-            .http
-            .post("https://openrouter.ai/api/v1/chat/completions")
-            .bearer_auth(request.api_key)
-            .json(&serde_json::json!({
-                "model": request.model,
-                "messages": [
-                    {"role": "system", "content": format!("Translate Japanese manga text to {}. Return only a JSON object shaped as {{\"translations\":[\"...\"]}}, preserving the original order and count.", request.target_language)},
-                    {"role": "user", "content": numbered}
-                ],
-                "response_format": {"type": "json_object"}
-            }))
-            .send()
-            .await
-            .and_then(reqwest::Response::error_for_status)
-            .map_err(|error| format!("OpenRouter request failed: {error}"))?
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|error| error.to_string())?;
-        let content = response["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| "OpenRouter returned no message".to_owned())?;
-        parse_translation_array(content, request.texts.len())
-    }
 }
 
 pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs::Result<()> {
@@ -255,9 +356,15 @@ pub fn mount(capability: JsonCapability<'_>, service: ReaderService) -> rquickjs
         let service = recognize.clone();
         async move { service.0.ocr.recognize(request.handle).await }
     })?;
+    let translate = service.clone();
     capability.method(TRANSLATE, move |request: TranslateRequest| {
-        let service = service.clone();
-        async move { service.translate(request).await }
+        let service = translate.clone();
+        async move { service.0.llm.translate(request).await }
+    })?;
+    let adjust = service.clone();
+    capability.method(ADJUST_BBOXES, move |request: AdjustBboxesRequest| {
+        let service = adjust.clone();
+        async move { service.0.llm.adjust_bboxes(request).await }
     })?;
     Ok(())
 }
@@ -289,6 +396,15 @@ struct TranslateRequest {
     target_language: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AdjustBboxesRequest {
+    handle: ImageResourceHandle,
+    regions: Vec<OcrRegion>,
+    api_key: String,
+    model: String,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ImagePage {
@@ -308,7 +424,7 @@ struct OcrModelStatus {
     version: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OcrRegion {
     id: String,
@@ -440,6 +556,184 @@ fn normalized_region(region: &TextRegion, width: u32, height: u32) -> Option<Ocr
     })
 }
 
+async fn translate(
+    http: &reqwest::Client,
+    cache: &ResultCache,
+    request: TranslateRequest,
+) -> Result<Vec<String>, String> {
+    if request.api_key.trim().is_empty() {
+        return Err("OpenRouter API key is required".to_owned());
+    }
+    if request.texts.is_empty() {
+        return Ok(Vec::new());
+    }
+    let cache_key = json_cache_key(&serde_json::json!({
+        "version": 1,
+        "model": request.model,
+        "targetLanguage": request.target_language,
+        "texts": request.texts,
+    }))?;
+    if let Some(value) = cache.get("translation", &cache_key) {
+        return Ok(value);
+    }
+    let numbered = request
+        .texts
+        .iter()
+        .enumerate()
+        .map(|(index, text)| format!("{}. {}", index + 1, text))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let content = openrouter_content(
+        http,
+        &request.api_key,
+        &request.model,
+        serde_json::json!([
+            {"role": "system", "content": format!("Translate Japanese manga text to {}. Return only a JSON object shaped as {{\"translations\":[\"...\"]}}, preserving the original order and count.", request.target_language)},
+            {"role": "user", "content": numbered}
+        ]),
+    )
+    .await?;
+    let translations = parse_translation_array(&content, request.texts.len())?;
+    cache.insert("translation", &cache_key, &translations)?;
+    Ok(translations)
+}
+
+async fn adjust_bboxes(
+    http: &reqwest::Client,
+    cache: &ResultCache,
+    images: &ImageResourceStore,
+    request: AdjustBboxesRequest,
+) -> Result<Vec<OcrRegion>, String> {
+    if request.api_key.trim().is_empty() {
+        return Err("OpenRouter API key is required".to_owned());
+    }
+    if request.regions.is_empty() {
+        return Ok(Vec::new());
+    }
+    let image = images
+        .get(request.handle)
+        .ok_or_else(|| "image resource is missing or stale".to_owned())?
+        .to_rgb8();
+    let (width, height) = image.dimensions();
+    let cache_key = binary_cache_key(&[
+        request.model.as_bytes(),
+        serde_json::to_vec(&request.regions)
+            .map_err(|error| error.to_string())?
+            .as_slice(),
+        image.as_raw(),
+    ]);
+    if let Some(value) = cache.get("bbox", &cache_key) {
+        return Ok(value);
+    }
+
+    let preview = image::imageops::thumbnail(&image, 1600, 1600);
+    let mut jpeg = Vec::new();
+    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 82)
+        .write_image(
+            preview.as_raw(),
+            preview.width(),
+            preview.height(),
+            image::ExtendedColorType::Rgb8,
+        )
+        .map_err(|error| format!("failed to encode LLM image preview: {error}"))?;
+    let region_json = serde_json::to_string(&request.regions).map_err(|error| error.to_string())?;
+    let prompt = format!(
+        "Review these OCR bounding boxes against the manga page. Coordinates use the original {width}x{height} image. Tighten boxes around the complete visible text, preserve every id, and do not invent regions. Return only {{\"regions\":[{{\"id\":string,\"x\":number,\"y\":number,\"width\":number,\"height\":number}}]}}. Current regions: {region_json}"
+    );
+    let data_url = format!("data:image/jpeg;base64,{}", BASE64.encode(jpeg));
+    let content = openrouter_content(
+        http,
+        &request.api_key,
+        &request.model,
+        serde_json::json!([{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": data_url}}
+            ]
+        }]),
+    )
+    .await?;
+    let geometry = parse_bbox_array(&content)?;
+    let by_id = geometry
+        .into_iter()
+        .map(|region| (region.id.clone(), region))
+        .collect::<std::collections::HashMap<_, _>>();
+    let adjusted = request
+        .regions
+        .into_iter()
+        .map(|mut region| {
+            if let Some(next) = by_id.get(&region.id) {
+                region.x = next.x.clamp(0.0, width as f32);
+                region.y = next.y.clamp(0.0, height as f32);
+                region.width = next.width.clamp(1.0, width as f32 - region.x);
+                region.height = next.height.clamp(1.0, height as f32 - region.y);
+            }
+            region
+        })
+        .collect::<Vec<_>>();
+    cache.insert("bbox", &cache_key, &adjusted)?;
+    Ok(adjusted)
+}
+
+async fn openrouter_content(
+    http: &reqwest::Client,
+    api_key: &str,
+    model: &str,
+    messages: serde_json::Value,
+) -> Result<String, String> {
+    let response = http
+        .post("https://openrouter.ai/api/v1/chat/completions")
+        .bearer_auth(api_key)
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": messages,
+            "response_format": {"type": "json_object"}
+        }))
+        .send()
+        .await
+        .and_then(reqwest::Response::error_for_status)
+        .map_err(|error| format!("OpenRouter request failed: {error}"))?
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|error| error.to_string())?;
+    response["choices"][0]["message"]["content"]
+        .as_str()
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| "OpenRouter returned no message".to_owned())
+}
+
+fn json_cache_key(value: &serde_json::Value) -> Result<String, String> {
+    Ok(sha256(
+        &serde_json::to_vec(value).map_err(|error| error.to_string())?,
+    ))
+}
+
+fn binary_cache_key(parts: &[&[u8]]) -> String {
+    let mut digest = Sha256::new();
+    for part in parts {
+        digest.update((part.len() as u64).to_le_bytes());
+        digest.update(part);
+    }
+    format!("{:x}", digest.finalize())
+}
+
+#[derive(Deserialize)]
+struct BboxGeometry {
+    id: String,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+}
+
+fn parse_bbox_array(content: &str) -> Result<Vec<BboxGeometry>, String> {
+    let value: serde_json::Value = serde_json::from_str(content)
+        .map_err(|error| format!("bbox response was not JSON: {error}"))?;
+    serde_json::from_value(value.get("regions").cloned().unwrap_or(value))
+        .map_err(|error| format!("bbox response did not contain valid regions: {error}"))
+}
+
 fn parse_translation_array(content: &str, expected: usize) -> Result<Vec<String>, String> {
     let value: serde_json::Value = serde_json::from_str(content)
         .or_else(|_| {
@@ -479,5 +773,47 @@ mod tests {
             parse_translation_array(r#"{"translations":["a"]}"#, 1).unwrap(),
             ["a"]
         );
+    }
+
+    #[test]
+    fn bbox_parser_requires_typed_geometry() {
+        let regions = parse_bbox_array(
+            r#"{"regions":[{"id":"line-1","x":10,"y":20,"width":30,"height":40}]}"#,
+        )
+        .unwrap();
+        assert_eq!(regions.len(), 1);
+        assert_eq!(regions[0].id, "line-1");
+        assert_eq!(regions[0].width, 30.0);
+        assert!(parse_bbox_array(r#"{"regions":[{"id":"missing"}]}"#).is_err());
+    }
+
+    #[test]
+    fn binary_cache_keys_preserve_part_boundaries() {
+        assert_ne!(
+            binary_cache_key(&[b"ab", b"c"]),
+            binary_cache_key(&[b"a", b"bc"])
+        );
+        assert_eq!(
+            binary_cache_key(&[b"image", b"regions"]),
+            binary_cache_key(&[b"image", b"regions"])
+        );
+    }
+
+    #[test]
+    fn result_cache_round_trips_json_atomically() {
+        let directory = std::env::temp_dir().join(format!(
+            "wabou-manga-cache-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let cache = ResultCache::new(directory.clone()).unwrap();
+        cache
+            .insert("translation", "key", &vec!["译文".to_owned()])
+            .unwrap();
+        assert_eq!(
+            cache.get::<Vec<String>>("translation", "key").unwrap(),
+            ["译文"]
+        );
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }
