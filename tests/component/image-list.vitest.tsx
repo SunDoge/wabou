@@ -40,6 +40,8 @@ test("virtualizes image rows and exposes deterministic selection", () => {
   expect(mounted.length).toBeLessThan(pages.length);
 
   const first = screen.getByRole("option", { name: "Page 1" });
+  expect(first.className).not.toContain("rounded");
+  expect(first.children[0]?.className).not.toContain("rounded");
   expect(first.selected).toBe(false);
   first.click();
   expect(screen.getByRole("option", { name: "Page 1" }).selected).toBe(true);

@@ -133,7 +133,7 @@ export function ImageViewportPage() {
           thumbnailWidth={48}
           thumbnailHeight={68}
           accessibilityLabel="Manga pages"
-          class="w-48 flex-none rounded-xl border border-subtle bg-surface"
+          class="w-48 flex-none border border-subtle bg-surface"
           viewportHeight={620}
         />
         <ImageViewport

@@ -108,42 +108,40 @@ export function Reader() {
     <View class="w-full h-full min-w-0 min-h-0 flex flex-col bg-canvas text-primary">
       <View class="flex-1 min-h-0 min-w-0 p-3 flex flex-row gap-3">
         <Show when={!compact()}>
-          <Card class="w-56 flex-none min-h-0 overflow-hidden">
-            <CardContent class="h-full min-h-0 p-2">
-              <Show
-                when={pages().length > 0}
-                fallback={
-                  <View class="h-full flex items-center justify-center p-5">
-                    <Text
-                      maxLines={3}
-                      class="w-full text-sm text-muted text-center"
-                    >
-                      Choose images to build the page strip.
-                    </Text>
-                  </View>
-                }
-              >
-                <ImageList
-                  items={pages}
-                  getItemKey={(page) => page.id}
-                  getResource={(page) => page.handle}
-                  getLabel={(page) => page.name}
-                  getDescription={(page) => `${page.width} × ${page.height}`}
-                  selectedKey={currentPage()?.id}
-                  onSelectionChange={(_, index) => {
-                    setPageIndex(index);
-                    setSelectedRegion(null);
-                    setPan({ x: 0, y: 0 });
-                  }}
-                  itemHeight={92}
-                  thumbnailWidth={48}
-                  thumbnailHeight={68}
-                  accessibilityLabel="Manga pages"
-                  class="w-full h-full"
-                />
-              </Show>
-            </CardContent>
-          </Card>
+          <View class="w-56 flex-none min-h-0 overflow-hidden border border-subtle bg-surface">
+            <Show
+              when={pages().length > 0}
+              fallback={
+                <View class="h-full flex items-center justify-center p-5">
+                  <Text
+                    maxLines={3}
+                    class="w-full text-sm text-muted text-center"
+                  >
+                    Choose images to build the page strip.
+                  </Text>
+                </View>
+              }
+            >
+              <ImageList
+                items={pages}
+                getItemKey={(page) => page.id}
+                getResource={(page) => page.handle}
+                getLabel={(page) => page.name}
+                getDescription={(page) => `${page.width} × ${page.height}`}
+                selectedKey={currentPage()?.id}
+                onSelectionChange={(_, index) => {
+                  setPageIndex(index);
+                  setSelectedRegion(null);
+                  setPan({ x: 0, y: 0 });
+                }}
+                itemHeight={92}
+                thumbnailWidth={48}
+                thumbnailHeight={68}
+                accessibilityLabel="Manga pages"
+                class="w-full h-full"
+              />
+            </Show>
+          </View>
         </Show>
 
         <View class="flex-1 min-w-0 min-h-0 flex flex-col gap-2">

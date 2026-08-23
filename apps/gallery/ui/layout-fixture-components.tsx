@@ -263,7 +263,7 @@ export function ImageListLayoutFixture() {
         thumbnailWidth={48}
         thumbnailHeight={64}
         accessibilityLabel="Fixture image list"
-        class="w-full h-full rounded-lg border border-subtle bg-surface"
+        class="w-full h-full border border-subtle bg-surface"
       />
     </View>
   );

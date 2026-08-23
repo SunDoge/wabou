@@ -84,10 +84,7 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
 
   return (
     <View
-      class={mergeClasses(
-        "min-w-0 min-h-0 overflow-hidden",
-        config.class,
-      )}
+      class={mergeClasses("min-w-0 min-h-0 overflow-hidden", config.class)}
       style={
         config.viewportHeight === undefined
           ? undefined
@@ -108,7 +105,9 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
           const [failed, setFailed] = createSignal(false);
           const key = createMemo(() => config.getItemKey(item(), index()));
           const label = createMemo(() => config.getLabel(item(), index()));
-          const resource = createMemo(() => config.getResource?.(item(), index()));
+          const resource = createMemo(() =>
+            config.getResource?.(item(), index()),
+          );
           const description = createMemo(() =>
             config.getDescription?.(item(), index()),
           );
@@ -120,16 +119,10 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
               aria-selected={selected()}
               class={(state) =>
                 mergeClasses(
-                  "w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 rounded-md text-left",
+                  "w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 text-left",
                   match({ selected: selected(), hovered: state.hovered })
-                    .with(
-                      { selected: true },
-                      () => "bg-selected text-primary",
-                    )
-                    .with(
-                      { hovered: true },
-                      () => "bg-control text-primary",
-                    )
+                    .with({ selected: true }, () => "bg-selected text-primary")
+                    .with({ hovered: true }, () => "bg-control text-primary")
                     .with(P._, () => "bg-transparent text-primary")
                     .exhaustive(),
                 )
@@ -138,7 +131,7 @@ export function ImageList<T>(props: ImageListProps<T>): JSX.Element {
             >
               <View
                 aria-hidden="true"
-                class="flex-none flex items-center justify-center overflow-hidden rounded-sm bg-control"
+                class="flex-none flex items-center justify-center overflow-hidden bg-control"
                 style={{
                   width: `${thumbnailWidth}px`,
                   height: `${thumbnailHeight}px`,

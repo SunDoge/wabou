@@ -3936,7 +3936,7 @@ function ImageList(props) {
 						get ["aria-selected"]() {
 							return selected();
 						},
-						class: (state) => mergeClasses("w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 rounded-md text-left", match({
+						class: (state) => mergeClasses("w-full h-full min-w-0 flex flex-row items-center gap-3 px-3 py-2 text-left", match({
 							selected: selected(),
 							hovered: state.hovered
 						}).with({ selected: true }, () => "bg-selected text-primary").with({ hovered: true }, () => "bg-control text-primary").with(P._, () => "bg-transparent text-primary").exhaustive()),
@@ -3945,7 +3945,7 @@ function ImageList(props) {
 							return [
 								createComponent$1(View, {
 									"aria-hidden": "true",
-									class: "flex-none flex items-center justify-center overflow-hidden rounded-sm bg-control",
+									class: "flex-none flex items-center justify-center overflow-hidden bg-control",
 									style: {
 										width: `${thumbnailWidth}px`,
 										height: `${thumbnailHeight}px`
