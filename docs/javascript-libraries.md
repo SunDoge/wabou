@@ -54,7 +54,7 @@ let result = runtime.eval_promise_json(
 ```
 
 This runtime installs Wabou's native host functions and core prelude without
-creating Taffy, Vello, widgets, or a native window. The JavaScript bundle should
+creating Taffy, renderer scenes, widgets, or a native window. The JavaScript bundle should
 import `@wabou/core` when it needs Wabou's higher-level Fetch, Crypto, Streams,
 timer, or other compatibility wrappers. Use the UI headless runner only when a
 probe also needs Solid reconciliation, Style IR, layout, or paint.

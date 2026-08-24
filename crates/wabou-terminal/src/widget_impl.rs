@@ -248,9 +248,9 @@ impl TerminalWidget {
         } else {
             Affine::IDENTITY
         };
-        scene.append(
-            &glyph_scene,
-            Some(Affine::translate((x, text_y)) * italic * Affine::scale(device_scale.recip())),
+        scene.append_scene(
+            (*glyph_scene).clone(),
+            Affine::translate((x, text_y)) * italic * Affine::scale(device_scale.recip()),
         );
     }
 
@@ -331,9 +331,9 @@ impl TerminalWidget {
             Some(&self.font_family),
             Some(width),
         );
-        scene.append(
-            &text.glyph_scene_scaled(&layout, device_scale),
-            Some(Affine::translate((4.0, 4.0)) * Affine::scale(device_scale.recip())),
+        scene.append_scene(
+            (*text.glyph_scene_scaled(&layout, device_scale)).clone(),
+            Affine::translate((4.0, 4.0)) * Affine::scale(device_scale.recip()),
         );
     }
 
@@ -607,7 +607,7 @@ impl Widget for TerminalWidget {
         );
 
         self.draw_spawn_error(&mut scene, tcx, width, device_scale);
-        cx.scene_mut().append(&scene, None);
+        cx.scene_mut().append_scene(scene, Affine::IDENTITY);
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {

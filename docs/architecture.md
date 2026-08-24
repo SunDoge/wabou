@@ -15,8 +15,13 @@ Application (Solid state and explicit UI intent)
                        |
   Rust runtime (layout, input, resources, semantics)
                        |
-       renderer and platform-specific shell
+       AnyRender scene and platform-specific shell
 ```
+
+Wabou records each frame into AnyRender's backend-neutral scene contract. The
+default backend is Vello; applications may compile the optional Skia backend
+without changing component, layout, text, SVG, image, or native-widget code.
+Backend-specific surface setup remains private to `wabou-shell`.
 
 ## Ownership
 

@@ -8,6 +8,7 @@
 
 use std::sync::Arc;
 
+use anyrender::PaintScene;
 use vello::kurbo::Affine;
 use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 use wabou_shell::UiEvent;
@@ -78,7 +79,7 @@ impl Widget for ImageWidget {
             let sx = cx.width() as f64 / self.img_w as f64;
             let sy = cx.height() as f64 / self.img_h as f64;
             cx.scene_mut()
-                .draw_image(brush, Affine::scale_non_uniform(sx, sy));
+                .draw_image(brush.into(), Affine::scale_non_uniform(sx, sy));
         }
     }
 

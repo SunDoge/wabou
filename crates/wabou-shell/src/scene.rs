@@ -1,11 +1,11 @@
-//! Build a `vello::Scene` from the flattened layout list.
+//! Build a backend-neutral AnyRender scene from the flattened layout list.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use vello::Scene;
+use anyrender::{PaintScene, Scene};
 use vello::kurbo::{Affine, Rect, Stroke};
-use vello::peniko::{Color, Fill};
+use vello::peniko::{BlendMode, Color, Fill};
 
 use crate::layout::{PlacedNode, SubtreeEvent, subtree_events};
 use crate::scrollbar::{ScrollAxis, thumb as scrollbar_thumb, track as scrollbar_track};
@@ -80,7 +80,6 @@ fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform
     let [width, height] = node.content_size;
     let mut clipped = Scene::new();
     clipped.push_clip_layer(
-        Fill::NonZero,
         Affine::IDENTITY,
         &Rect::new(0.0, 0.0, width as f64, height as f64).to_rounded_rect(inner_radius),
     );
@@ -89,15 +88,9 @@ fn append_widget(scene: &mut Scene, node: &PlacedNode, widget: &Scene, transform
     append_fragment(scene, &clipped, Some(transform));
 }
 
-/// Append a retained scene fragment without leaking its encoder state into
-/// commands recorded afterwards.
-///
-/// Vello 0.9 copies the child encoding's state flags during `Scene::append`.
-/// The transform and style at the append boundary therefore cannot safely be
-/// deduplicated against the next command in the parent scene.
+/// Append one retained backend-neutral scene fragment.
 fn append_fragment(scene: &mut Scene, fragment: &Scene, transform: Option<Affine>) {
-    scene.append(fragment, transform);
-    scene.encoding_mut().force_next_transform_and_style();
+    scene.append_scene(fragment.clone(), transform.unwrap_or(Affine::IDENTITY));
 }
 
 fn shadow_geometry(rect: Rect, node_radius: f64, shadow: &Shadow) -> (Rect, f64, f64) {
@@ -170,7 +163,7 @@ fn draw_node_box(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     let radius = f64::from(node.paint.border_radius);
     for shadow in &node.paint.shadows {
         let (shadow_rect, radius, std_dev) = shadow_geometry(rect, radius, shadow);
-        scene.draw_blurred_rounded_rect(transform, shadow_rect, shadow.color, radius, std_dev);
+        scene.draw_box_shadow(transform, shadow_rect, shadow.color, radius, std_dev);
     }
     if let Some(background) = node.paint.background {
         scene.fill(
@@ -315,7 +308,7 @@ fn draw_image(scene: &mut Scene, node: &PlacedNode, transform: Affine) {
     let dx = f64::from(x0) + (f64::from(width) - f64::from(image_width) * scale) * 0.5;
     let dy = f64::from(y0) + (f64::from(height) - f64::from(image_height) * scale) * 0.5;
     scene.draw_image(
-        image.brush(),
+        image.brush().into(),
         transform * Affine::translate((dx, dy)) * Affine::scale(scale),
     );
 }
@@ -551,11 +544,12 @@ pub fn build_scene_scaled(
         // Subtree culling requires a conservative visual-subtree bound.
         if n.paint.opacity < 1.0 {
             scene.push_layer(
-                Fill::NonZero,
-                vello::peniko::Mix::Normal,
+                BlendMode::default(),
                 n.paint.opacity,
                 device,
                 &bg,
+                None,
+                None,
             );
             layers.push(Layer::Opacity { depth: n.depth });
         }
@@ -575,7 +569,6 @@ pub fn build_scene_scaled(
             };
             let clip_rect = Rect::new(finite(cx0), finite(cy0), finite(cx1), finite(cy1));
             scene.push_clip_layer(
-                Fill::NonZero,
                 node_transform,
                 &clip_rect.to_rounded_rect(n.own_clip_radius as f64),
             );
@@ -599,11 +592,7 @@ pub fn build_scene_scaled(
                     cx1.min(width as f32) as f64,
                     cy1.min(height as f32) as f64,
                 );
-                scene.push_clip_layer(
-                    Fill::NonZero,
-                    node_transform,
-                    &widget_clip.to_rounded_rect(radius),
-                );
+                scene.push_clip_layer(node_transform, &widget_clip.to_rounded_rect(radius));
             }
             append_widget(
                 scene,

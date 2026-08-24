@@ -93,7 +93,7 @@ impl RasterImage {
         }
     }
 
-    /// Borrow the retained Vello image brush.
+    /// Borrow the retained backend-neutral image brush.
     pub fn brush(&self) -> &ImageBrush {
         &self.brush
     }

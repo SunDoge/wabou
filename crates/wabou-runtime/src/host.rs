@@ -1543,7 +1543,7 @@ fn render_headless_capture(
             ),
         })?;
     }
-    let mut scene = vello::Scene::new();
+    let mut scene = anyrender::Scene::new();
     wabou_shell::scene::build_scene_scaled(
         &mut scene,
         nodes,

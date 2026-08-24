@@ -737,13 +737,11 @@ impl FrameSource for Applier {
             );
             scene.fill(Fill::NonZero, device, accent, None, &label_rect);
             let glyphs = tcx.glyph_scene_scaled(&layout, device_scale);
-            scene.append(
-                &glyphs,
-                Some(
-                    device
-                        * Affine::translate((x0 as f64 + 4.0, label_y + 2.0))
-                        * Affine::scale(device_scale.recip()),
-                ),
+            scene.append_scene(
+                (*glyphs).clone(),
+                device
+                    * Affine::translate((x0 as f64 + 4.0, label_y + 2.0))
+                    * Affine::scale(device_scale.recip()),
             );
         }
         if let Ok(mut state) = state.write() {

@@ -9,7 +9,7 @@ test("createWindow returns a handle that targets the created window", async () =
     __wabou_window_id_lo: 3,
     __wabou_window_id_hi: 1,
     __wabou_window_options_json:
-      '{"title":"Overlay","transparent":true,"windowLevel":"alwaysOnTop"}',
+      '{"title":"Overlay","transparent":true,"renderer":"skia","windowLevel":"alwaysOnTop"}',
     __wabou_effect_submit: (
       capability: number,
       method: number,
@@ -38,6 +38,7 @@ test("createWindow returns a handle that targets the created window", async () =
   expect(currentWindowOptions()).toMatchObject({
     title: "Overlay",
     transparent: true,
+    renderer: "skia",
     windowLevel: "alwaysOnTop",
   });
 
@@ -47,6 +48,7 @@ test("createWindow returns a handle that targets the created window", async () =
     height: 480,
     decorations: false,
     transparent: true,
+    renderer: "skia",
   });
   expect(child.id).toMatchObject({ lo: 42, hi: 1 });
   child.setTitle("Details");
@@ -67,6 +69,7 @@ test("createWindow returns a handle that targets the created window", async () =
         height: 480,
         decorations: false,
         transparent: true,
+        renderer: "skia",
       },
     ],
     [2, 4, { windowId: { lo: 42, hi: 1 }, title: "Details" }],

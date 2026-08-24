@@ -1,7 +1,7 @@
 //! Rust-side widget trait — the Qt-Quick / Slint pattern.
 //!
 //! Performance-sensitive widgets (TextInput, Canvas, ListView, ScrollView, …)
-//! are implemented in Rust. They paint a vello `Scene` fragment every frame;
+//! are implemented in Rust. They paint an AnyRender `Scene` fragment every frame;
 //! `build_scene` composites it at the node's border-box origin. QuickJS +
 //! SolidJS compose these widgets into apps via the binary protocol (tree
 //! structure + property values + event handlers), while the Rust widget does
@@ -20,11 +20,9 @@ use crate::style::{Paint, TextAlign};
 use crate::text::SingleLineTextMetrics;
 use crate::text::TextContext;
 use crate::{ClipboardRequest, HostAction, HostActionResult, UiEvent, WakeCallback};
-use vello::{
-    Scene,
-    kurbo::{Affine, Rect},
-    peniko::{Color, Fill},
-};
+use anyrender::{PaintScene, Scene};
+use vello::kurbo::{Affine, Rect};
+use vello::peniko::Color;
 
 /// Authoritative geometry for one native widget after layout.
 ///
@@ -122,10 +120,9 @@ impl Default for WidgetGeometry {
 
 /// Per-frame painting state passed to a native widget.
 ///
-/// This is intentionally a thin boundary around Vello rather than a second
+/// This is intentionally a thin boundary around AnyRender rather than a second
 /// drawing API. Widgets get the geometry and text resources they need while
-/// direct scene access remains available for operations Wabou has not earned
-/// an abstraction for yet.
+/// direct scene access remains available for backend-neutral painting.
 pub struct PaintContext<'a> {
     width: f32,
     height: f32,
@@ -162,7 +159,6 @@ impl<'a> PaintContext<'a> {
     ) -> Self {
         let mut context = Self::new(width, height, device_scale, text);
         context.scene.push_clip_layer(
-            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(0.0, 0.0, f64::from(width), f64::from(height))
                 .to_rounded_rect(radius.max(0.0)),
@@ -210,7 +206,7 @@ impl<'a> PaintContext<'a> {
         self.text
     }
 
-    /// Direct access to the Vello scene while the painting API is evolving.
+    /// Direct access to the backend-neutral scene while the painting API is evolving.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
     }

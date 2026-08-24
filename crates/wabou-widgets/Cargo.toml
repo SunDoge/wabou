@@ -6,6 +6,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+anyrender.workspace = true
 editor-core = "0.5.0"
 editor-core-highlight-simple = "0.5.0"
 image = {

@@ -11,15 +11,14 @@
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use anyrender::{Glyph, PaintScene, Scene};
 use lru::LruCache;
 use parley::{
     Alignment, AlignmentOptions, FontContext, Layout, LayoutContext, PositionedLayoutItem,
     StyleProperty,
 };
 use unicode_segmentation::UnicodeSegmentation;
-use vello::Glyph as VelloGlyph;
-use vello::Scene;
-use vello::kurbo::{Affine, Diagonal2};
+use vello::kurbo::{Affine, Vec2};
 use vello::peniko::Fill;
 
 use crate::style::TextAlign;
@@ -50,7 +49,7 @@ pub fn single_line_text_metrics<B: parley::Brush>(
     })
 }
 
-/// Convert a Vello color into Parley's RGBA brush representation.
+/// Convert a Peniko color into Parley's RGBA brush representation.
 pub fn brush_for_color(color: Color) -> [u8; 4] {
     color.to_rgba8().to_u8_array()
 }
@@ -159,19 +158,14 @@ fn use_swash_raster_for(backend: Option<&str>) -> bool {
     }
 }
 
-fn synthetic_embolden(
-    requested: bool,
-    allowed: bool,
-    font_size: f32,
-    device_scale: f64,
-) -> vello::FontEmbolden {
+fn synthetic_embolden(requested: bool, allowed: bool, font_size: f32, device_scale: f64) -> Vec2 {
     if requested && allowed {
         // Match the conventional FreeType synthetic-bold strength of roughly
         // one twenty-fourth of an em on raster-oriented platforms.
         let amount = f64::from(font_size) * device_scale / 24.0;
-        vello::FontEmbolden::new(Diagonal2::new(amount, amount))
+        Vec2::new(amount, amount)
     } else {
-        vello::FontEmbolden::default()
+        Vec2::ZERO
     }
 }
 
@@ -235,7 +229,7 @@ impl TextContext {
         self.raster_cache.clear();
     }
 
-    /// Encode a positioned Parley layout once and reuse the retained Vello
+    /// Encode a positioned Parley layout once and reuse the retained AnyRender
     /// fragment while only its node transform changes. Animated text commonly
     /// keeps identical shaping for thousands of frames; rebuilding every glyph
     /// run into the scene each frame is pure encoding overhead.
@@ -246,7 +240,7 @@ impl TextContext {
     /// Encode glyphs at the target device scale.
     ///
     /// Outline glyphs can be scaled after encoding without losing detail, but
-    /// bitmap emoji cannot: Vello selects an embedded bitmap strike from the
+    /// bitmap emoji cannot: the renderer selects an embedded bitmap strike from the
     /// font while `draw_glyphs` is encoded. Encoding physical font sizes and
     /// positions here lets Apple Color Emoji select a Retina-sized `sbix`
     /// strike instead of enlarging a logical-pixel bitmap later.
@@ -332,30 +326,33 @@ impl TextContext {
                         run.font_size(),
                         device_scale,
                     );
-                    let glyphs: Vec<VelloGlyph> = gr
+                    let glyphs: Vec<Glyph> = gr
                         .positioned_glyphs()
-                        .map(|g| VelloGlyph {
+                        .map(|g| Glyph {
                             id: g.id,
                             x: g.x * device_scale as f32,
                             y: g.y * device_scale as f32,
                         })
                         .collect();
                     if !glyphs.is_empty() {
-                        scene
-                            .draw_glyphs(&font_data)
-                            .font_size(run.font_size() * device_scale as f32)
-                            .normalized_coords(run.normalized_coords())
-                            .glyph_transform(glyph_transform)
-                            .font_embolden(embolden)
-                            .hint(hint)
-                            .brush(Color::from_rgba8(
+                        scene.draw_glyphs(
+                            &font_data,
+                            run.font_size() * device_scale as f32,
+                            hint,
+                            run.normalized_coords(),
+                            embolden,
+                            Fill::NonZero,
+                            Color::from_rgba8(
                                 gr.style().brush[0],
                                 gr.style().brush[1],
                                 gr.style().brush[2],
                                 gr.style().brush[3],
-                            ))
-                            .transform(transform)
-                            .draw(Fill::NonZero, glyphs.into_iter());
+                            ),
+                            1.0,
+                            transform,
+                            glyph_transform,
+                            glyphs.into_iter(),
+                        );
                     }
                 }
             }
@@ -766,8 +763,8 @@ mod tests {
         let suppressed = synthetic_embolden(true, false, 16.0, 2.0);
         let raster = synthetic_embolden(true, true, 16.0, 2.0);
 
-        assert_eq!(suppressed.amount, Diagonal2::new(0.0, 0.0));
-        assert_eq!(raster.amount, Diagonal2::new(4.0 / 3.0, 4.0 / 3.0));
+        assert_eq!(suppressed, Vec2::ZERO);
+        assert_eq!(raster, Vec2::new(4.0 / 3.0, 4.0 / 3.0));
     }
 
     #[test]

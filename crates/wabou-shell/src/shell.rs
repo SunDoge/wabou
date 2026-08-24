@@ -1,4 +1,4 @@
-//! Reusable window + GPU surface + vello renderer + scene + text context.
+//! Reusable window + AnyRender backend + scene + text context.
 //!
 //! Extracted from the app so multiple hosts (the static-JSON `wabou` bin, the
 //! SolidJS-driven `wabou-runtime` crate) share one windowing setup. A host
@@ -8,19 +8,15 @@
 #![warn(missing_docs)]
 
 use snafu::ResultExt;
-use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use anyrender::Scene;
 use vello::peniko::Color;
-use vello::wgpu;
-use vello::{AaConfig, AaSupport, RenderParams, Renderer as VelloRenderer, RendererOptions, Scene};
-use wgpu_context::{
-    SurfaceRenderer, SurfaceRendererConfiguration, TextureConfiguration, WGPUContext,
-};
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowAttributes};
 
 use crate::accessibility::AccessibilityState;
+use crate::renderer_backend::AnyWindowRenderer;
 use crate::source::{WindowInputMode, WindowLevel, WindowOptions};
 use crate::text::TextContext;
 
@@ -28,11 +24,11 @@ use crate::text::TextContext;
 pub struct Shell {
     /// Platform window handle.
     pub window: Arc<dyn Window>,
-    /// WGPU surface and device selected for the window.
-    pub surface: SurfaceRenderer<'static>,
-    /// Vello renderer bound to [`Self::surface`]'s device.
-    pub renderer: VelloRenderer,
-    /// Reused application scene for the current frame.
+    /// AnyRender renderer selected for this window.
+    renderer: AnyWindowRenderer,
+    /// Current physical render size.
+    surface_size: [u32; 2],
+    /// Reused backend-neutral application scene for the current frame.
     pub scene: Scene,
     /// Shared text shaping and retained glyph resources.
     pub tcx: TextContext,
@@ -41,7 +37,7 @@ pub struct Shell {
 }
 
 impl Shell {
-    /// Create the window + wgpu surface + vello renderer + a fresh
+    /// Create the window + selected AnyRender backend + a fresh
     /// [`TextContext`]. Returns a typed error when any window/GPU step fails.
     pub fn create(
         event_loop: &dyn ActiveEventLoop,
@@ -81,56 +77,13 @@ impl Shell {
         window.set_visible(true);
         let surface_width = physical_size.width.max(1);
         let surface_height = physical_size.height.max(1);
-
-        let mut context = WGPUContext::new();
-        let (surface, device_handle) = pollster::block_on(async {
-            let surface = context.create_surface(window.clone())?;
-            let device_id = context.find_or_create_device(Some(&surface)).await?;
-            let device_handle = context.device_pool[device_id].clone();
-            Ok::<_, wgpu_context::WgpuContextError>((surface, device_handle))
-        })
-        .context(crate::error::CreateSurfaceRendererSnafu)?;
-        let alpha_mode = select_alpha_mode(
-            options.transparent,
-            &surface.get_capabilities(&device_handle.adapter).alpha_modes,
-        );
-        let surface = SurfaceRenderer::new(
-            surface,
-            SurfaceRendererConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                formats: vec![
-                    wgpu::TextureFormat::Rgba8Unorm,
-                    wgpu::TextureFormat::Bgra8Unorm,
-                ],
-                width: surface_width,
-                height: surface_height,
-                present_mode: wgpu::PresentMode::AutoVsync,
-                desired_maximum_frame_latency: 2,
-                alpha_mode,
-                view_formats: vec![],
-            },
-            Some(TextureConfiguration {
-                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
-            }),
-            device_handle,
-        )
-        .context(crate::error::CreateSurfaceRendererSnafu)?;
-
-        let renderer = VelloRenderer::new(
-            surface.device(),
-            RendererOptions {
-                use_cpu: false,
-                antialiasing_support: AaSupport::all(),
-                num_init_threads: NonZeroUsize::new(1),
-                pipeline_cache: None,
-            },
-        )
-        .context(crate::error::CreateVelloRendererSnafu)?;
+        let mut renderer = AnyWindowRenderer::new(options.renderer, options.transparent)?;
+        renderer.resume(window.clone(), surface_width, surface_height);
 
         Ok(Shell {
             window,
-            surface,
             renderer,
+            surface_size: [surface_width, surface_height],
             scene: Scene::new(),
             tcx: TextContext::new(),
             accessibility,
@@ -139,16 +92,14 @@ impl Shell {
 
     /// Current surface size (w,h).
     pub fn size(&self) -> (u32, u32) {
-        (self.surface.config.width, self.surface.config.height)
+        (self.surface_size[0], self.surface_size[1])
     }
 
     /// Resize the physical render surface; zero-sized requests are ignored.
     pub fn resize(&mut self, width: u32, height: u32) {
         if width > 0 && height > 0 {
-            // A texture acquired for the old swapchain must not survive a
-            // configure. SurfaceRenderer::resize does not clear it itself.
-            self.surface.clear_surface_texture();
-            self.surface.resize(width, height);
+            self.surface_size = [width, height];
+            self.renderer.resize(width, height);
             self.window.request_redraw();
         }
     }
@@ -169,44 +120,15 @@ impl Shell {
         )
     }
 
-    /// Encode `self.scene` and blit+present to the surface (vsync-blocks on
-    /// `PresentMode::AutoVsync`).
     /// Render and present [`Self::scene`], returning whether presentation succeeded.
     pub fn present(&mut self, base_color: Color) -> bool {
         self.accessibility.publish_root(self.window.as_ref());
-        let (w, h) = self.size();
-        let Ok(view) = self.surface.target_texture_view() else {
-            self.surface.clear_surface_texture();
-            return false;
-        };
-        if let Err(e) = self.renderer.render_to_texture(
-            self.surface.device(),
-            self.surface.queue(),
-            &self.scene,
-            &view,
-            &RenderParams {
-                base_color,
-                width: w,
-                height: h,
-                antialiasing_method: AaConfig::Area,
-            },
-        ) {
-            eprintln!("vello render_to_texture failed: {e}");
-            self.surface.clear_surface_texture();
-            return false;
-        }
-        // Match anyrender_vello/Blitz: release the target view before the
-        // intermediate texture is blitted and the swapchain image presented.
-        drop(view);
-        // Match anyrender_vello: on a present error just skip this frame —
-        // `acquire_reconfiguring_if_stale` (inside maybe_blit_and_present)
-        // already reconfigures Outdated/Lost surfaces.
-        if self.surface.maybe_blit_and_present().is_err() {
-            return false;
-        }
-        // Presentation remains asynchronous; the surface's frame-latency
-        // setting provides backpressure without serializing CPU and GPU.
-        let _ = self.surface.device().poll(wgpu::PollType::Poll);
+        self.renderer.render(
+            &mut self.scene,
+            self.surface_size[0],
+            self.surface_size[1],
+            base_color,
+        );
         true
     }
 
@@ -218,66 +140,8 @@ impl Shell {
     pub fn tcx_mut(&mut self) -> &mut TextContext {
         &mut self.tcx
     }
-    /// Mutably borrow the frame's Vello scene.
+    /// Mutably borrow the frame's backend-neutral AnyRender scene.
     pub fn scene_mut(&mut self) -> &mut Scene {
         &mut self.scene
-    }
-}
-
-fn select_alpha_mode(
-    transparent: bool,
-    supported: &[wgpu::CompositeAlphaMode],
-) -> wgpu::CompositeAlphaMode {
-    if !transparent {
-        return wgpu::CompositeAlphaMode::Auto;
-    }
-
-    [
-        wgpu::CompositeAlphaMode::PreMultiplied,
-        wgpu::CompositeAlphaMode::PostMultiplied,
-        wgpu::CompositeAlphaMode::Inherit,
-    ]
-    .into_iter()
-    .find(|mode| supported.contains(mode))
-    .unwrap_or(wgpu::CompositeAlphaMode::Auto)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::select_alpha_mode;
-    use vello::wgpu::CompositeAlphaMode;
-
-    #[test]
-    fn opaque_windows_leave_alpha_selection_to_wgpu() {
-        assert_eq!(
-            select_alpha_mode(false, &[CompositeAlphaMode::PreMultiplied]),
-            CompositeAlphaMode::Auto
-        );
-    }
-
-    #[test]
-    fn transparent_windows_prefer_premultiplied_alpha() {
-        assert_eq!(
-            select_alpha_mode(
-                true,
-                &[
-                    CompositeAlphaMode::PostMultiplied,
-                    CompositeAlphaMode::PreMultiplied,
-                ]
-            ),
-            CompositeAlphaMode::PreMultiplied
-        );
-    }
-
-    #[test]
-    fn transparent_windows_fall_back_to_supported_compositing() {
-        assert_eq!(
-            select_alpha_mode(true, &[CompositeAlphaMode::Inherit]),
-            CompositeAlphaMode::Inherit
-        );
-        assert_eq!(
-            select_alpha_mode(true, &[CompositeAlphaMode::Opaque]),
-            CompositeAlphaMode::Auto
-        );
     }
 }

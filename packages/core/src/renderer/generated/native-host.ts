@@ -15,9 +15,9 @@ type DebugOverlayPaintStats = {
 	sequence: number,
 	/**  Whether an overlay was enabled for that pass. */
 	enabled: boolean,
-	/**  Number of layout border boxes stroked into the Vello scene. */
+	/**  Number of layout border boxes stroked into the debug scene. */
 	layout_bounds: number,
-	/**  Number of unique clip rectangles stroked into the Vello scene. */
+	/**  Number of unique clip rectangles stroked into the debug scene. */
 	clip_bounds: number,
 	/**  Number of hit-target or selected-node highlights painted. */
 	highlights: number,
@@ -29,7 +29,7 @@ type FrameStats = {
 	build_frame_ms: number,
 	/**  QuickJS animation-frame callback time in milliseconds. */
 	js_tick_ms: number,
-	/**  Vello scene construction time in milliseconds. */
+	/**  Backend-neutral AnyRender scene construction time in milliseconds. */
 	scene_ms: number,
 	/**  Surface rendering and presentation time in milliseconds. */
 	present_ms: number,

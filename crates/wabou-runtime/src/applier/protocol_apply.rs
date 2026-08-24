@@ -263,7 +263,7 @@ impl Applier {
             if let Some(declared) = self.document.node_store.declared.get_mut(&node) {
                 declared.inline.remove(&prop);
             }
-            tracing::warn!("invalid Vello shadow list");
+            tracing::warn!("invalid shadow list");
         }
     }
 

@@ -2,10 +2,11 @@
 
 use std::sync::Arc;
 
+use anyrender::{PaintScene, Scene};
 use parley::{Layout, PositionedLayoutItem};
 use swash::scale::{Render, ScaleContext, Source, StrikeWith, image::Content};
+use vello::kurbo::Affine;
 use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
-use vello::{Scene, kurbo::Affine};
 
 const SUBPIXEL_VARIANTS: f32 = 4.0;
 const MAX_RASTER_DIMENSION: u32 = 2048;
@@ -126,7 +127,7 @@ pub(super) fn rasterize_layout(
     };
     let mut scene = Scene::new();
     scene.draw_image(
-        &ImageBrush::new(data),
+        (&ImageBrush::new(data)).into(),
         Affine::translate((f64::from(bounds[0]), f64::from(bounds[1]))),
     );
     Some(scene)

@@ -24,10 +24,12 @@ pub use wabou_runtime::{
     HostMessageContext, HostMessageError, HostMessageHandle, HostMessagePayload, HostMessageRouter,
     HostService, HostServiceContext, HostServiceHandle, ImageResource, ImageResourceHandle,
     ImageResourceStore, JsonCapability, ManagedHostService, NativeCapability, PersistentJsonCache,
-    Result, RevisionedHostPublication, RevisionedHostPublisher, RevisionedHostSnapshot,
-    SerialWorker, ShellExtension, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
-    WindowResourceKey, initial_window_resource_key, managed_host_service, widget_api,
+    RendererBackend, Result, RevisionedHostPublication, RevisionedHostPublisher,
+    RevisionedHostSnapshot, SerialWorker, ShellExtension, WindowInputMode, WindowLevel,
+    WindowMetrics, WindowOptions, WindowResourceKey, initial_window_resource_key,
+    managed_host_service, widget_api,
 };
+pub use wabou_runtime::{PaintScene, anyrender};
 #[cfg(feature = "tray")]
 pub use wabou_tray::{SystemTray, TrayImage};
 

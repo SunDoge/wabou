@@ -7,9 +7,9 @@ use std::sync::atomic::AtomicBool;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use anyrender::Scene;
 use clap::ArgMatches;
 use serde::{Deserialize, Serialize};
-use vello::Scene;
 use wabou_runtime::{AppConfig, Applier, JsRuntime, PasswordInput, SecretStore};
 use wabou_shell::layout::PlacedNode;
 use wabou_shell::renderer::render_to_png;

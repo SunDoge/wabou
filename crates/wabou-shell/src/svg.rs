@@ -5,11 +5,12 @@
 use std::fmt;
 use std::sync::Arc;
 
-use vello::Scene;
-use vello_svg::usvg;
+use anyrender::Scene;
+use anyrender_svg::usvg;
+use vello::kurbo::Affine;
 
 /// A static SVG that has already been normalized by `usvg` and encoded into a
-/// Vello scene. Keeping this in the retained paint state avoids XML parsing on
+/// backend-neutral scene. Keeping this in the retained paint state avoids XML parsing on
 /// every frame.
 #[derive(Clone)]
 pub struct SvgImage {
@@ -18,17 +19,19 @@ pub struct SvgImage {
 }
 
 impl SvgImage {
-    /// Parse SVG XML and encode its normalized usvg tree into a Vello scene.
+    /// Parse SVG XML and encode its normalized usvg tree into an AnyRender scene.
     pub fn parse(source: &str) -> Result<Self, usvg::Error> {
         let tree = usvg::Tree::from_str(source, &usvg::Options::default())?;
         let size = tree.size();
+        let mut scene = Scene::new();
+        anyrender_svg::render_svg_tree(&mut scene, &tree, Affine::IDENTITY);
         Ok(Self {
-            scene: Arc::new(vello_svg::render_tree(&tree)),
+            scene: Arc::new(scene),
             size: [size.width(), size.height()],
         })
     }
 
-    /// Borrow the retained content-local Vello scene.
+    /// Borrow the retained content-local backend-neutral scene.
     pub fn scene(&self) -> &Scene {
         &self.scene
     }

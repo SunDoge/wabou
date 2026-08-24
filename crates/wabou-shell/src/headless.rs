@@ -2,7 +2,7 @@
 
 use std::time::Instant;
 
-use vello::Scene;
+use anyrender::Scene;
 use vello::peniko::Color;
 
 use crate::layout::PlacedNode;

@@ -209,7 +209,7 @@ pub struct FrameStats {
     /// QuickJS animation-frame callback time in milliseconds.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub js_tick_ms: f64,
-    /// Vello scene construction time in milliseconds.
+    /// Backend-neutral AnyRender scene construction time in milliseconds.
     #[cfg_attr(feature = "bindings", specta(type = specta_typescript::Number))]
     pub scene_ms: f64,
     /// Surface rendering and presentation time in milliseconds.
@@ -312,9 +312,9 @@ pub struct DebugOverlayPaintStats {
     pub sequence: u64,
     /// Whether an overlay was enabled for that pass.
     pub enabled: bool,
-    /// Number of layout border boxes stroked into the Vello scene.
+    /// Number of layout border boxes stroked into the debug scene.
     pub layout_bounds: u32,
-    /// Number of unique clip rectangles stroked into the Vello scene.
+    /// Number of unique clip rectangles stroked into the debug scene.
     pub clip_bounds: u32,
     /// Number of hit-target or selected-node highlights painted.
     pub highlights: u32,

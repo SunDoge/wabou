@@ -1,12 +1,14 @@
-//! wabou-shell: render a UI tree with winit + taffy + vello + parley.
+//! wabou-shell: render a UI tree with winit + Taffy + Parley + AnyRender.
 //!
 //! The shell is a reusable host: a [`source::FrameSource`] produces a flattened
-//! layout list each frame; [`shell::Shell`] owns the window + wgpu surface +
-//! vello renderer and presents at vsync. The `wabou-runtime` crate provides the
-//! SolidJS-driven (op-protocol) source.
+//! layout list each frame; [`shell::Shell`] owns the window and selected
+//! AnyRender backend. The `wabou-runtime` crate provides the SolidJS-driven
+//! (op-protocol) source.
 
 #![warn(missing_docs)]
 
+pub use anyrender;
+pub use anyrender::PaintScene;
 pub use wabou_accessibility as accessibility;
 pub mod app;
 pub mod app_dirs;
@@ -18,6 +20,7 @@ pub mod headless;
 pub mod image;
 pub mod layout;
 pub mod renderer;
+mod renderer_backend;
 pub mod scene;
 pub mod scrollbar;
 pub mod shell;
@@ -52,10 +55,10 @@ pub use shortcut::StandardShortcut;
 pub use source::{
     ClipboardRequest, ColorScheme, EventResponse, FileDropEvent, FileDropPhase, FrameSource,
     FrameStats, HostAction, HostActionResult, ImeEvent, KeyEvent, KeyLocation, KeyPhase, Modifiers,
-    Point, PointerButton, PointerEvent, PointerPhase, ScreenshotRequest, SemanticAction,
-    SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot, SemanticStates,
-    SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent, WindowCommand,
-    WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
+    Point, PointerButton, PointerEvent, PointerPhase, RendererBackend, ScreenshotRequest,
+    SemanticAction, SemanticCurrent, SemanticNode, SemanticPopup, SemanticRole, SemanticSnapshot,
+    SemanticStates, SemanticToggleState, UiEvent, WHEEL_LINE_DELTA, WakeCallback, WheelEvent,
+    WindowCommand, WindowInputMode, WindowLevel, WindowMetrics, WindowOptions,
 };
 pub use text::TextContext;
 pub use widget::{

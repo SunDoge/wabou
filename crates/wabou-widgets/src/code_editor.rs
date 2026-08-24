@@ -3,6 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyrender::{PaintScene, Scene};
 use editor_core::{
     Command, CursorCommand, EditCommand, EditorStateManager, Position, Selection, ViewCommand,
 };
@@ -11,7 +12,6 @@ use editor_core_highlight_simple::{
     SIMPLE_STYLE_STRING, SimpleJsonStyles,
 };
 use vello::{
-    Scene,
     kurbo::{Affine, Rect},
     peniko::{Color, Fill},
 };
@@ -392,14 +392,12 @@ impl CodeEditor {
             None,
         );
         let glyphs = paint.text().glyph_scene_scaled(&layout, scale);
-        scene.append(
-            &glyphs,
-            Some(
-                Affine::translate((
-                    f64::from(self.geometry.x_for_cell(line.segment_x_start_cells)),
-                    y,
-                )) * Affine::scale(scale.recip()),
-            ),
+        scene.append_scene(
+            (*glyphs).clone(),
+            Affine::translate((
+                f64::from(self.geometry.x_for_cell(line.segment_x_start_cells)),
+                y,
+            )) * Affine::scale(scale.recip()),
         );
     }
 
@@ -424,9 +422,9 @@ impl CodeEditor {
             None,
         );
         let glyphs = paint.text().glyph_scene_scaled(&layout, scale);
-        scene.append(
-            &glyphs,
-            Some(Affine::translate((10.0, y)) * Affine::scale(scale.recip())),
+        scene.append_scene(
+            (*glyphs).clone(),
+            Affine::translate((10.0, y)) * Affine::scale(scale.recip()),
         );
     }
 }
@@ -475,7 +473,6 @@ impl Widget for CodeEditor {
             .get_viewport_content_styled(self.scroll_row, rows + 1);
         let mut scene = Scene::new();
         scene.push_clip_layer(
-            Fill::NonZero,
             Affine::IDENTITY,
             &Rect::new(
                 0.0,
@@ -569,7 +566,7 @@ impl Widget for CodeEditor {
             }
         }
         scene.pop_layer();
-        paint.scene_mut().append(&scene, None);
+        paint.scene_mut().append_scene(scene, Affine::IDENTITY);
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {

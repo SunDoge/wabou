@@ -41,6 +41,21 @@ fn set_focus_contained(applier: &mut Applier, id: u32) {
     });
 }
 
+#[test]
+fn window_effect_rejects_an_unknown_renderer_instead_of_falling_back() {
+    let payload = decode_effect_payload(
+        wabou_shell::effect::builtin::WINDOW_CREATE,
+        wabou_shell::initial_window_resource_key(0),
+        r#"{"renderer":"browser"}"#.to_owned(),
+        None,
+    );
+    assert!(matches!(
+        payload,
+        wabou_shell::EffectPayload::Invalid { message, .. }
+            if message == "unknown renderer backend `browser`"
+    ));
+}
+
 fn create_element_with_attrs(applier: &mut Applier, id: u32, tag: Atom, attrs: &[(Atom, &str)]) {
     let id = nk(id);
     applier.apply_op(&Op::CreateElement { id, tag });
@@ -85,7 +100,7 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
         &mut TextContext::new(),
         1.0,
     );
-    assert_eq!(disabled_scene.encoding().n_paths, 0);
+    assert!(disabled_scene.commands.is_empty());
     let disabled_paint = debug.read().expect("debug state").overlay_paint();
     assert_eq!(disabled_paint.sequence, 1);
     assert!(!disabled_paint.enabled);
@@ -101,7 +116,7 @@ fn debug_layout_overlay_encodes_visible_scene_geometry() {
     let mut enabled_scene = Scene::new();
     applier.paint_debug_overlay(&mut enabled_scene, &[placed], &mut TextContext::new(), 1.0);
     assert!(
-        enabled_scene.encoding().n_paths > 0,
+        !enabled_scene.commands.is_empty(),
         "enabled layout diagnostics must encode a visible stroke"
     );
     let enabled_paint = debug.read().expect("debug state").overlay_paint();

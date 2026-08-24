@@ -17,6 +17,7 @@ wabou-tray = { workspace = true, optional = true }
 bindings = ["wabou-bindgen/generate"]
 devtools = ["wabou-runtime/devtools"]
 profiling = ["wabou-runtime/profiling"]
+renderer-skia = ["wabou-runtime/renderer-skia"]
 tray = ["dep:wabou-tray"]
 vite = ["wabou-runtime/vite"]
 

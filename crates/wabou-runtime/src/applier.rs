@@ -19,6 +19,9 @@ use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
+#[cfg(any(feature = "devtools", test))]
+use anyrender::PaintScene;
+use anyrender::Scene;
 use parley::{
     Affinity, Layout,
     editing::{Cursor, Selection},
@@ -26,7 +29,6 @@ use parley::{
 #[cfg(test)]
 use taffy::TraversePartialTree;
 use taffy::{NodeId, TaffyTree};
-use vello::Scene;
 use vello::kurbo::{Affine, Point};
 #[cfg(any(feature = "devtools", test))]
 use vello::kurbo::{Rect, Stroke};

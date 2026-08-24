@@ -228,7 +228,7 @@ pub enum DecodeError {
     #[snafu(display("unknown typed style value tag {tag}"))]
     BadStyleValue { tag: u8 },
 
-    #[snafu(display("invalid Vello shadow record"))]
+    #[snafu(display("invalid shadow record"))]
     BadShadow,
 
     #[snafu(display("unknown overlay plane {plane}"))]

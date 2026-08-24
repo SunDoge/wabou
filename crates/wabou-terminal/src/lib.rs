@@ -2,7 +2,7 @@
 //!
 //! `rio-vt` owns terminal semantics (VT parsing, grid, cursor, scrollback and
 //! PTY events). This crate is the frontend adapter: it translates Wabou input
-//! to PTY bytes and pulls Rio's visible grid into a retained Vello scene.
+//! to PTY bytes and pulls Rio's visible grid into a retained AnyRender scene.
 
 use std::borrow::Cow;
 use std::collections::{HashMap, VecDeque};
@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use anyrender::{PaintScene, Scene};
 use rio_vt::ansi::CursorShape;
 use rio_vt::config::colors::term::{COUNT as TERMINAL_COLOR_COUNT, TermColors};
 use rio_vt::config::colors::{AnsiColor, ColorRgb, NamedColor};
@@ -27,7 +28,6 @@ use rio_vt::performer::handler::Processor;
 use rio_vt::selection::{Selection, SelectionRange, SelectionType};
 use rustc_hash::FxHashMap;
 use teletypewriter::{WinsizeBuilder, create_pty_with_spawn};
-use vello::Scene;
 use vello::kurbo::{Affine, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 use wabou_runtime::{Widget, WidgetChanges, WidgetNodeEvent, WidgetStyle};

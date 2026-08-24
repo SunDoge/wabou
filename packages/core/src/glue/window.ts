@@ -1,8 +1,4 @@
-import {
-  dispatchEffect,
-  dispatchFireAndForget,
-  effectOps,
-} from "./effects";
+import { dispatchEffect, dispatchFireAndForget, effectOps } from "./effects";
 import {
   createResourceKeyFamily,
   type ResourceKey,
@@ -26,6 +22,8 @@ export interface CreateWindowOptions {
   decorations?: boolean;
   /** Preserve rendered alpha when the platform compositor supports it. */
   transparent?: boolean;
+  /** Select a renderer compiled into the Rust host. */
+  renderer?: "vello" | "skia";
   /** Initial native stacking request. Wayland generally ignores non-normal levels. */
   windowLevel?: "alwaysOnBottom" | "normal" | "alwaysOnTop";
   /** Allow pointer input to pass through this native window where supported. */
@@ -85,5 +83,7 @@ export function createWindow(
 
 /** An imperative handle for the native window that owns this JS runtime. */
 export function currentWindow(): WindowHandle {
-  return handle(windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi));
+  return handle(
+    windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi),
+  );
 }

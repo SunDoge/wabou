@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use anyrender::PaintScene;
+
 use wabou::widget_api::{
     PaintContext, UiEvent, Widget, WidgetChanges, WidgetEventResult,
     vello::{
@@ -74,7 +76,7 @@ impl Widget for JuliaWidget {
         if let Some(brush) = &self.image {
             let [width, height] = paint.size();
             paint.scene_mut().draw_image(
-                brush,
+                brush.into(),
                 Affine::scale_non_uniform(
                     width as f64 / RENDER_SIZE as f64,
                     height as f64 / RENDER_SIZE as f64,

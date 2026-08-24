@@ -39,8 +39,8 @@ struct Meter;
 
 impl Widget for Meter {
     fn paint(&mut self, cx: &mut PaintContext<'_>) {
-        // Paint in content-local logical pixels. `scene_mut()` exposes Vello
-        // directly while Wabou's higher-level painting API is still small.
+        // Paint in content-local logical pixels. `scene_mut()` exposes the
+        // backend-neutral AnyRender scene while the higher-level API is small.
         let _ = (cx.size(), cx.device_scale(), cx.scene_mut());
     }
 

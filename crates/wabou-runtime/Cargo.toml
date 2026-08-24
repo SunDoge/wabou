@@ -10,6 +10,7 @@ name = "wabou_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+anyrender.workspace = true
 bitflags = { workspace = true }
 bon = { workspace = true }
 foyer = "0.22.3"
@@ -67,6 +68,7 @@ ureq = { version = "3.3", optional = true }
 default = []
 devtools = ["dep:wabou-devtools"]
 profiling = ["dep:tracing-chrome", "wabou-shell/profiling"]
+renderer-skia = ["wabou-shell/renderer-skia"]
 # Live vite dev-server integration (module fetching + HMR). Step 2.
 vite = ["dep:tungstenite", "dep:ureq"]
 

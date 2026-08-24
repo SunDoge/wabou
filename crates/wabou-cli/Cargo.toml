@@ -11,6 +11,7 @@ name = "wabou"
 path = "src/main.rs"
 
 [dependencies]
+anyrender.workspace = true
 clap = { workspace = true, features = ["derive", "env"] }
 ctrlc = "3.5"
 fs4 = "0.13.1"

@@ -10,6 +10,10 @@ name = "wabou_shell"
 path = "src/lib.rs"
 
 [dependencies]
+anyrender.workspace = true
+anyrender-skia = { workspace = true, optional = true }
+anyrender-svg.workspace = true
+anyrender-vello.workspace = true
 arboard = { workspace = true }
 bitflags = { workspace = true }
 directories = { workspace = true }
@@ -18,7 +22,7 @@ lru = "0.18.1"
 notify-rust = { workspace = true }
 open = { workspace = true }
 parley = { workspace = true }
-pollster = "0.4"
+raw-window-handle = "0.6"
 rfd = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
@@ -30,14 +34,13 @@ tracing = { workspace = true }
 unicode-segmentation = "1.12"
 url = { workspace = true }
 vello = { workspace = true }
-vello_svg = { version = "0.10.0", default-features = false }
-wgpu_context = "0.7"
 winit = { workspace = true }
 wabou-accessibility = { workspace = true }
 wabou-host-api = { workspace = true }
 
 [features]
 profiling = []
+renderer-skia = ["dep:anyrender-skia"]
 
 [dev-dependencies]
 tempfile = "3"

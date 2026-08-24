@@ -3,8 +3,8 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
+use anyrender::Scene;
 use serde_json::json;
-use vello::Scene;
 use vello::peniko::Color;
 use wabou_runtime::{Applier, FrameSource};
 use wabou_shell::TextContext;

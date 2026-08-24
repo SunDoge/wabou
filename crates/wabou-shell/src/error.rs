@@ -10,39 +10,19 @@ use snafu::Snafu;
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
+    /// The selected renderer was not compiled into this Wabou build.
+    #[snafu(display("renderer backend `{backend}` is unavailable; enable {feature}"))]
+    RendererBackendUnavailable {
+        /// Requested backend name.
+        backend: &'static str,
+        /// Cargo feature which enables it.
+        feature: &'static str,
+    },
     /// Native window creation failed.
     #[snafu(display("failed to create window: {source}"))]
     CreateWindow {
         /// Winit request failure.
         source: winit::error::RequestError,
-    },
-
-    /// WGPU surface/device initialization for a window failed.
-    #[snafu(display("failed to create window GPU surface: {source}"))]
-    CreateSurfaceRenderer {
-        /// WGPU context failure.
-        source: wgpu_context::WgpuContextError,
-    },
-
-    /// WGPU initialization for an offscreen target failed.
-    #[snafu(display("failed to create offscreen GPU renderer: {source}"))]
-    CreateBufferRenderer {
-        /// WGPU context failure.
-        source: wgpu_context::WgpuContextError,
-    },
-
-    /// Vello renderer initialization failed.
-    #[snafu(display("failed to create Vello renderer: {source}"))]
-    CreateVelloRenderer {
-        /// Vello initialization failure.
-        source: vello::Error,
-    },
-
-    /// Vello failed to render the scene.
-    #[snafu(display("failed to render scene: {source}"))]
-    RenderScene {
-        /// Vello rendering failure.
-        source: vello::Error,
     },
 
     /// Renderer output length did not match its declared dimensions.

@@ -4,12 +4,13 @@
 //! Widget::paint → Scene → build_scene append. No interaction.
 //! Registered when the applier encounters `tag == "canvas"`.
 
+use anyrender::PaintScene;
 use vello::kurbo::{Affine, Circle, Line, Rect, Stroke};
 use vello::peniko::{Color, Fill};
 use wabou_shell::UiEvent;
 use wabou_shell::{PaintContext, Widget, WidgetEventResult};
 
-/// Stateless demonstration widget that paints directly into a Vello scene.
+/// Stateless demonstration widget that paints into a backend-neutral scene.
 pub struct Canvas;
 
 impl Widget for Canvas {

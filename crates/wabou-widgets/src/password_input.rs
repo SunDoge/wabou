@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use vello::Scene;
+use anyrender::{PaintScene, Scene};
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
@@ -142,9 +142,9 @@ impl Widget for PasswordInput {
         let y = f64::from(self.text_metrics.map_or(0.0, |metrics| metrics.line_box[1]));
         let glyphs = tcx.glyph_scene_scaled(&layout, device_scale);
         let mut scene = Scene::new();
-        scene.append(
-            &glyphs,
-            Some(Affine::translate((0.0, y)) * Affine::scale(device_scale.recip())),
+        scene.append_scene(
+            (*glyphs).clone(),
+            Affine::translate((0.0, y)) * Affine::scale(device_scale.recip()),
         );
         if self.focused && !self.disabled {
             let x = if count == 0 {
@@ -160,7 +160,7 @@ impl Widget for PasswordInput {
                 &Rect::new(x, y, x + 1.5, y + f64::from(layout.height())),
             );
         }
-        cx.scene_mut().append(&scene, None);
+        cx.scene_mut().append_scene(scene, Affine::IDENTITY);
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {

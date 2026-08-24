@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyrender::{PaintScene, Scene};
 use rio_graphics::{ColorType, GraphicData, GraphicOverlay, atlas_image_key, kitty_image_key};
 use rio_vt::ansi::graphics::{
     AtlasPlacement, KittyPlacement, OverlayViewport, UpdateQueues, atlas_overlay_geometry,
     clip_overlay_to_rect, kitty_overlay_geometry,
 };
-use vello::Scene;
 use vello::kurbo::{Affine, Rect};
-use vello::peniko::{Blob, Fill, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
+use vello::peniko::{Blob, ImageAlphaType, ImageBrush, ImageData, ImageFormat};
 
 #[derive(Clone)]
 struct CachedGraphic {
@@ -157,8 +157,8 @@ impl TerminalGraphics {
         else {
             return;
         };
-        scene.push_clip_layer(Fill::NonZero, Affine::IDENTITY, &destination);
-        scene.draw_image(&image.brush, transform);
+        scene.push_clip_layer(Affine::IDENTITY, &destination);
+        scene.draw_image((&image.brush).into(), transform);
         scene.pop_layer();
     }
 }

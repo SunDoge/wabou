@@ -104,7 +104,7 @@ mistakes early, but they do not claim that layout or pixels are correct.
 ## Layout contract tests
 
 `wabou layout` evaluates the application through QuickJS, Style IR, real text
-measurement, and Taffy, then stops before Vello scene construction or GPU
+measurement, and Taffy, then stops before AnyRender scene construction or GPU
 initialization:
 
 ```bash

@@ -303,7 +303,7 @@ function ShadowsPage() {
       <PropertyRow name="spread" value="signed logical pixels" />
       <PropertyRow
         name="stdDev"
-        value="Gaussian standard deviation passed directly to Vello"
+        value="Gaussian standard deviation passed directly to the renderer"
       />
       <PropertyRow name="color" value="packed sRGBA (0xRRGGBBAA)" />
       <PropertyRow

@@ -1,4 +1,4 @@
-//! Overlay scrollbar geometry shared by Vello painting and native hit testing.
+//! Overlay scrollbar geometry shared by scene painting and native hit testing.
 
 #![warn(missing_docs)]
 

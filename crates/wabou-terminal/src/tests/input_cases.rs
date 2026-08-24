@@ -142,8 +142,8 @@ fn wide_spacer_cells_keep_background_and_decorations() {
                 DEFAULT_LINE_HEIGHT * 2.0,
                 &mut tcx,
             )
-            .encoding()
-            .n_paths
+            .commands
+            .len()
     };
 
     let narrow = scene_paths(b"\x1b[41;4mA");

@@ -177,9 +177,9 @@ type DebugOverlayPaintStats = {
 	sequence: number,
 	/**  Whether an overlay was enabled for that pass. */
 	enabled: boolean,
-	/**  Number of layout border boxes stroked into the Vello scene. */
+	/**  Number of layout border boxes stroked into the debug scene. */
 	layout_bounds: number,
-	/**  Number of unique clip rectangles stroked into the Vello scene. */
+	/**  Number of unique clip rectangles stroked into the debug scene. */
 	clip_bounds: number,
 	/**  Number of hit-target or selected-node highlights painted. */
 	highlights: number,

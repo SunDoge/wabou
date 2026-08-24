@@ -10,8 +10,8 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use anyrender::{PaintScene, Scene};
 use parley::{PlainEditor, PositionedLayoutItem};
-use vello::Scene;
 use vello::kurbo::{Affine, Rect};
 use vello::peniko::{Color, Fill};
 use wabou_shell::style::TextAlign;
@@ -456,20 +456,26 @@ impl TextInput {
                     };
                     let glyphs: Vec<_> = glyph_run
                         .positioned_glyphs()
-                        .map(|glyph| vello::Glyph {
+                        .map(|glyph| anyrender::Glyph {
                             id: glyph.id,
                             x: glyph.x * device_scale as f32,
                             y: glyph.y * device_scale as f32,
                         })
                         .collect();
                     if !glyphs.is_empty() {
-                        scene
-                            .draw_glyphs(glyph_run.run().font())
-                            .font_size(glyph_run.run().font_size() * device_scale as f32)
-                            .hint(true)
-                            .brush(self.text_color)
-                            .transform(transform * Affine::scale(device_scale.recip()))
-                            .draw(Fill::NonZero, glyphs.into_iter());
+                        scene.draw_glyphs(
+                            glyph_run.run().font(),
+                            glyph_run.run().font_size() * device_scale as f32,
+                            true,
+                            glyph_run.run().normalized_coords(),
+                            vello::kurbo::Vec2::ZERO,
+                            Fill::NonZero,
+                            self.text_color,
+                            1.0,
+                            transform * Affine::scale(device_scale.recip()),
+                            None,
+                            glyphs.into_iter(),
+                        );
                     }
                 }
             }
@@ -516,7 +522,7 @@ impl Widget for TextInput {
         let placeholder_metrics = self.paint_placeholder(cx, width, height);
         let editor_metrics = self.paint_editor(&mut scene, height, device_scale);
         self.text_metrics = placeholder_metrics.or(editor_metrics);
-        cx.scene_mut().append(&scene, None);
+        cx.scene_mut().append_scene(scene, Affine::IDENTITY);
     }
 
     fn handle_event(&mut self, event: &UiEvent) -> WidgetEventResult {

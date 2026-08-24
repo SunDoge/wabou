@@ -387,7 +387,7 @@ export function OverviewPage(props: {
               />
             </View>
             <View class="flex flex-col gap-3">
-              <Capability icon={layers} text="Retained Vello scene" />
+              <Capability icon={layers} text="Retained AnyRender scene" />
               <Capability icon={cpu} text="Rust native widgets" />
               <Capability icon={boxes} text="Explicit overlay planes" />
             </View>

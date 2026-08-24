@@ -717,8 +717,8 @@ export function AccordionPage() {
             </AccordionTrigger>
             <AccordionContent role="region" aria-label="Native rendering">
               <Text class="w-full whitespace-normal text-sm text-muted">
-                No. Solid produces a native scene graph rendered by Rust and
-                Vello.
+                No. Solid produces a native scene graph rendered by Rust through
+                a selectable AnyRender backend.
               </Text>
             </AccordionContent>
           </AccordionItem>

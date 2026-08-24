@@ -178,10 +178,10 @@ These values cross the JS → Rust bridge as a compact tag and numeric payload.
 They do not create values such as `"123px"` and Rust does not parse them again.
 Plain string styles remain available as a compatibility path.
 
-## Vello-native shadows
+## Native shadows
 
 Shadows use an explicit primitive prop rather than CSS `box-shadow` syntax.
-Each layer maps to one Vello blurred rounded rectangle, and layers paint in
+Each layer maps to one AnyRender box-shadow command, and layers paint in
 array order:
 
 ```tsx
@@ -196,7 +196,7 @@ import { shadow } from "@wabou/ui";
 ```
 
 `offsetX`, `offsetY`, and signed `spread` use logical pixels. `stdDev` is the
-Gaussian standard deviation passed directly to Vello; it is not CSS blur
+Gaussian standard deviation passed directly to the renderer; it is not CSS blur
 radius. `color` is packed sRGBA in `0xRRGGBBAA` order. An optional `radius`
 overrides the node-derived rounded-rectangle radius for that layer. Shadows
 follow the node's affine transform and do not affect layout.
@@ -205,7 +205,7 @@ The `shadow-none`, `shadow-xs`, `shadow-sm`, `shadow`, `shadow-md`, `shadow-lg`,
 and `shadow-xl` utilities form Wabou's native elevation scale. Medium and larger
 presets combine an ambient layer with a tighter key layer. These are convenience
 presets, not a Tailwind compatibility contract. CSS inset and gradient shadows
-are not exposed because Vello's blurred-rounded-rectangle primitive accepts
+are not exposed because Wabou's backend-neutral box-shadow primitive accepts
 neither.
 
 The same package exports generated `WabouUtility` and `classes()` types:

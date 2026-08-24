@@ -5,7 +5,7 @@
 `rio-vt` is deliberately renderer-free: it parses PTY bytes into a terminal
 grid and emits PTY-facing events. `TerminalWidget` owns that grid, uses Rio's
 `Machine` to drive it from a real PTY, and renders the visible cells with
-Parley and Vello.
+Parley and Wabou's AnyRender scene.
 
 ```rust
 HostBuilder::new()

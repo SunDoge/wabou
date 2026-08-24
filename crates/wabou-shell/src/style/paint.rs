@@ -418,7 +418,7 @@ pub struct HostPaint {
     /// Decoded raster image retained by a replaced image node.
     pub image: Option<Arc<crate::image::RasterImage>>,
     /// Scene fragment painted by a Rust widget.
-    pub widget: Option<Arc<vello::Scene>>,
+    pub widget: Option<Arc<anyrender::Scene>>,
     /// Intrinsic content size used for automatic layout axes.
     pub intrinsic_size: Option<[f32; 2]>,
     /// Host-driven affine coefficients composed after static transforms.
@@ -508,7 +508,7 @@ pub struct Paint {
     /// Composited by `build_scene` at the node's border-box origin, on top of
     /// the standard bg+border. The host runtime calls `Widget::paint` every
     /// frame and stores the result here.
-    pub widget: Option<Arc<vello::Scene>>,
+    pub widget: Option<Arc<anyrender::Scene>>,
     /// Intrinsic content size supplied by a host widget. CSS known dimensions
     /// override either axis during Taffy measurement.
     pub intrinsic_size: Option<[f32; 2]>,

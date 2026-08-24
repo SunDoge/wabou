@@ -21,7 +21,7 @@ use std::time::Instant;
 use crate::layout::PlacedNode;
 use crate::style::CursorStyle;
 use crate::text::TextContext;
-use vello::Scene;
+use anyrender::Scene;
 
 /// Logical pixel delta emitted for one discrete mouse-wheel line.
 ///
@@ -55,6 +55,17 @@ pub enum WindowInputMode {
     Passthrough,
 }
 
+/// Renderer selected for a native window.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RendererBackend {
+    /// Vello's compute renderer through AnyRender.
+    #[default]
+    Vello,
+    /// Skia through AnyRender. Requires Wabou's `renderer-skia` Cargo feature.
+    Skia,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// Requested properties used when creating a native window.
@@ -78,6 +89,9 @@ pub struct WindowOptions {
     pub window_level: WindowLevel,
     /// Requested initial pointer hit-test behavior.
     pub input_mode: WindowInputMode,
+    /// Backend used to paint this window.
+    #[serde(default)]
+    pub renderer: RendererBackend,
 }
 
 impl Default for WindowOptions {
@@ -91,6 +105,7 @@ impl Default for WindowOptions {
             transparent: false,
             window_level: WindowLevel::Normal,
             input_mode: WindowInputMode::Interactive,
+            renderer: RendererBackend::Vello,
         }
     }
 }
@@ -141,6 +156,11 @@ impl WindowOptions {
     /// Set the initial pointer hit-test behavior.
     pub fn input_mode(mut self, input_mode: WindowInputMode) -> Self {
         self.input_mode = input_mode;
+        self
+    }
+    /// Select the window renderer.
+    pub fn renderer(mut self, renderer: RendererBackend) -> Self {
+        self.renderer = renderer;
         self
     }
 }
@@ -541,7 +561,7 @@ pub struct FrameStats {
     pub build_frame_ms: f64,
     /// Guest JavaScript frame callback time in milliseconds.
     pub js_tick_ms: f64,
-    /// Vello scene assembly time in milliseconds.
+    /// Backend-neutral scene assembly time in milliseconds.
     pub scene_ms: f64,
     /// Renderer submission and presentation time in milliseconds.
     pub present_ms: f64,
@@ -606,7 +626,7 @@ impl EventResponse {
 ///
 /// All methods run on the UI thread. Background work communicates through
 /// [`WakeCallback`] plus the polling/drain methods; it must never call into
-/// layout, widgets, or Vello directly.
+/// layout, widgets, or the renderer directly.
 pub trait FrameSource {
     /// Inform the source of the physical-pixels-per-logical-pixel ratio before
     /// it builds widget scene fragments for this frame.
@@ -725,7 +745,7 @@ pub trait FrameSource {
 
 #[cfg(test)]
 mod tests {
-    use super::{Modifiers, WindowInputMode, WindowLevel, WindowOptions};
+    use super::{Modifiers, RendererBackend, WindowInputMode, WindowLevel, WindowOptions};
 
     #[test]
     fn modifier_flags_match_host_protocol_bits() {
@@ -746,6 +766,7 @@ mod tests {
             .resizable(false)
             .decorations(false)
             .transparent(true)
+            .renderer(RendererBackend::Skia)
             .window_level(WindowLevel::AlwaysOnTop)
             .input_mode(WindowInputMode::Passthrough);
         assert_eq!(options.title, "Inspector");
@@ -754,6 +775,8 @@ mod tests {
         assert!(!options.resizable);
         assert!(!options.decorations);
         assert!(options.transparent);
+        assert_eq!(options.renderer, RendererBackend::Skia);
+        assert_eq!(serde_json::to_value(options.renderer).unwrap(), "skia");
         assert_eq!(options.window_level, WindowLevel::AlwaysOnTop);
         assert_eq!(options.input_mode, WindowInputMode::Passthrough);
     }

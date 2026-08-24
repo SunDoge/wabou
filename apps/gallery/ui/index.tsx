@@ -241,8 +241,7 @@ const descriptions: Record<ComponentId, string> = {
   platform: "Native windows and Rust-powered custom widgets.",
   system: "Native file dialogs, message dialogs and desktop notifications.",
   colors: "Every color token exported by the native Wabou utility theme.",
-  shadows:
-    "Vello-native blurred rounded rectangles with explicit Gaussian parameters.",
+  shadows: "Backend-neutral box shadows with explicit Gaussian parameters.",
   utilities: "Tailwind-style static classes parsed by the native Rust preset.",
   "scroll-area": "A native scrolling viewport with intrinsic flex content.",
   resizable:

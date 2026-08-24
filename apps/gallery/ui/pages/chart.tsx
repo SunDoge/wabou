@@ -119,7 +119,7 @@ export function ChartPage() {
           <View class="flex flex-col gap-1">
             <CardTitle>Transfer speed</CardTitle>
             <Text class="text-sm text-muted">
-              D3 scale and shape, typed native Vello paths
+              D3 scale and shape, typed native vector paths
             </Text>
           </View>
           <View class="flex items-center gap-4">
@@ -157,7 +157,7 @@ export function ChartPage() {
           <CardTitle>JS algorithms, native vector drawing</CardTitle>
           <Text class="text-sm text-muted">
             uqr encodes the data; Wabou batches its matrix into one retained
-            Vello path instead of creating hundreds of view nodes.
+            retained vector path instead of creating hundreds of view nodes.
           </Text>
         </CardHeader>
         <CardContent class="flex flex-row flex-wrap items-center gap-6">
