@@ -837,7 +837,7 @@ fn robust_median(samples: &[f32]) -> Option<f32> {
     Some(inliers[inliers.len() / 2])
 }
 
-fn should_join_regions(left: &OcrRegion, right: &OcrRegion, glyph_scale: f32) -> bool {
+fn should_join_regions(left: &OcrRegion, right: &OcrRegion, chapter_scale: f32) -> bool {
     if !is_japanese_region(left) || !is_japanese_region(right) {
         return false;
     }
@@ -847,6 +847,30 @@ fn should_join_regions(left: &OcrRegion, right: &OcrRegion, glyph_scale: f32) ->
     if left_vertical != right_vertical {
         return false;
     }
+
+    // NMS-like overlap is the strongest evidence: detectors commonly emit a
+    // paragraph box together with one or more line boxes. Use intersection over
+    // the smaller box so containment is recognized even when IoU is small.
+    if intersection_over_smaller(left, right) >= 0.35 {
+        return true;
+    }
+
+    let Some(left_scale) = region_line_width(left) else {
+        return false;
+    };
+    let Some(right_scale) = region_line_width(right) else {
+        return false;
+    };
+    let font_ratio = left_scale.max(right_scale) / left_scale.min(right_scale);
+    if font_ratio > 1.65 {
+        return false;
+    }
+
+    // A bubble owns its font size. The chapter estimate only guards against
+    // pathological detector widths; it must not force every bubble to share one
+    // spacing threshold.
+    let local_scale =
+        ((left_scale + right_scale) * 0.5).clamp(chapter_scale * 0.25, chapter_scale * 4.0);
 
     let (cross_gap, writing_gap) = if left_vertical {
         (
@@ -870,7 +894,7 @@ fn should_join_regions(left: &OcrRegion, right: &OcrRegion, glyph_scale: f32) ->
         )
     };
 
-    if cross_gap > glyph_scale * 1.6 || writing_gap > glyph_scale * 2.2 {
+    if cross_gap > local_scale * 1.35 || writing_gap > local_scale * 2.2 {
         return false;
     }
 
@@ -884,6 +908,28 @@ fn should_join_regions(left: &OcrRegion, right: &OcrRegion, glyph_scale: f32) ->
     let union_area = (union_right - union_left) * (union_bottom - union_top);
     let ink_area = left.width * left.height + right.width * right.height;
     union_area > 0.0 && ink_area / union_area >= 0.28
+}
+
+fn region_line_width(region: &OcrRegion) -> Option<f32> {
+    let width = if region.height >= region.width {
+        region.width
+    } else {
+        region.height
+    };
+    (width.is_finite() && width > 0.0).then_some(width)
+}
+
+fn intersection_over_smaller(left: &OcrRegion, right: &OcrRegion) -> f32 {
+    let intersection_width =
+        ((left.x + left.width).min(right.x + right.width) - left.x.max(right.x)).max(0.0);
+    let intersection_height =
+        ((left.y + left.height).min(right.y + right.height) - left.y.max(right.y)).max(0.0);
+    let smaller_area = (left.width * left.height).min(right.width * right.height);
+    if smaller_area <= 0.0 {
+        0.0
+    } else {
+        intersection_width * intersection_height / smaller_area
+    }
 }
 
 fn merge_region_group(group: &mut [OcrRegion]) -> OcrRegion {
@@ -1310,5 +1356,39 @@ mod tests {
         assert_eq!(merged.text, "こんにちは\n世界です");
         assert_eq!(merged.x, 75.0);
         assert_eq!(merged.width, 43.0);
+    }
+
+    #[test]
+    fn segmentation_uses_each_bubbles_local_font_width() {
+        let regions = vec![
+            ocr_region(100.0, 20.0, 12.0, 72.0, "小さい文字"),
+            ocr_region(83.0, 20.0, 12.0, 72.0, "同じ気泡"),
+            // Geometrically close, but clearly belongs to a different font scale.
+            ocr_region(50.0, 18.0, 28.0, 84.0, "大きな声"),
+        ];
+
+        let segmented = segment_manga_text(regions, Some(20.0));
+        assert_eq!(segmented.len(), 2);
+        assert!(
+            segmented
+                .iter()
+                .any(|region| region.text == "小さい文字\n同じ気泡")
+        );
+        assert!(segmented.iter().any(|region| region.text == "大きな声"));
+    }
+
+    #[test]
+    fn segmentation_merges_overlapping_paragraph_and_line_boxes() {
+        let regions = vec![
+            ocr_region(60.0, 20.0, 60.0, 110.0, "段落全体"),
+            ocr_region(95.0, 30.0, 18.0, 85.0, "内側の行"),
+            ocr_region(10.0, 250.0, 18.0, 70.0, "別の台詞"),
+        ];
+
+        let segmented = segment_manga_text(regions, Some(20.0));
+        assert_eq!(segmented.len(), 2);
+        assert!(segmented.iter().any(|region| {
+            region.text.contains("段落全体") && region.text.contains("内側の行")
+        }));
     }
 }
