@@ -100,6 +100,19 @@ export function QRCodeLayoutFixture() {
   );
 }
 
+export function OrbLayoutFixture() {
+  return (
+    <View class="w-full h-full flex items-center justify-center bg-canvas">
+      <orb
+        aria-label="Fixture procedural orb"
+        class="w-48 h-48 flex-none overflow-hidden rounded-full"
+        preset="aurora"
+        speed={0}
+      />
+    </View>
+  );
+}
+
 export function IconFrameLayoutFixture() {
   return (
     <View class="w-full h-full p-6 flex items-center justify-center bg-canvas">

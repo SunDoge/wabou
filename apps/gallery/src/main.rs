@@ -9,6 +9,7 @@ fn main() -> Result<(), Whatever> {
         .app_directories("dev", "Wabou", "Gallery")
         .persist_window_size("main")
         .widget("fractal", || Box::new(gallery::fractal::JuliaWidget::new()))
+        .widget("orb", || Box::new(gallery::orb::OrbWidget::new()))
         .window(
             WindowOptions::new()
                 .title("Wabou Components")

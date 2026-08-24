@@ -4,3 +4,5 @@
 pub mod bindings;
 /// Example custom-painted Julia set widget.
 pub mod fractal;
+/// Animated procedural orb widget used by the native rendering showcase.
+pub mod orb;
