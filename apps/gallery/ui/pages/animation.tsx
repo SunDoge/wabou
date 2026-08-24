@@ -113,29 +113,6 @@ function AnimationPage() {
 
   return (
     <View class="flex flex-col gap-5">
-      <Preview title="Procedural Vello orbs">
-        <View class="w-full flex flex-wrap items-center justify-center gap-3 p-4">
-          {(
-            [
-              ["aurora", "Aurora"],
-              ["plasma", "Plasma"],
-              ["chrome", "Liquid chrome"],
-            ] as const
-          ).map(([preset, label]) => (
-            <View class="w-56 flex flex-col items-center gap-1 rounded-2xl border border-subtle bg-surface shadow-lg overflow-hidden">
-              <orb
-                class="w-52 h-52 flex-none"
-                preset={preset}
-                speed={preset === "chrome" ? 0.65 : 1}
-              />
-              <Text class="pb-4 text-sm font-medium text-primary">
-                {label}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </Preview>
-
       <Preview title="Spring physics">
         <View class="p-4">
           <View class="w-72 flex flex-col gap-4">

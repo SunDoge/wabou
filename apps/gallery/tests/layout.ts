@@ -178,12 +178,6 @@ const assertQrCodeLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
-const assertOrbLayout = (snapshot: LayoutSnapshot) => {
-  const orb = getLayoutNode(snapshot, { name: "Fixture procedural orb" });
-  assertClose(orb.rect.width, 192, "procedural orb width");
-  assertClose(orb.rect.height, 192, "procedural orb height");
-};
-
 const assertIconFrameLayout = (snapshot: LayoutSnapshot) => {
   const frame = getLayoutNode(snapshot, { name: "Fixture icon frame" });
   const icon = getLayoutNode(snapshot, { name: "Fixture framed icon" });
@@ -247,7 +241,6 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
     assert: assertImageListLayout,
   },
   "component/QRCode": { assert: assertQrCodeLayout },
-  "component/Orb": { assert: assertOrbLayout },
   "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
 };

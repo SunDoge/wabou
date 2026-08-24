@@ -7,9 +7,5 @@ declare module "@wabou/core/registry" {
       cx?: string;
       cy?: string;
     };
-    orb: WabouElementProps & {
-      preset?: "aurora" | "plasma" | "chrome";
-      speed?: string | number;
-    };
   }
 }

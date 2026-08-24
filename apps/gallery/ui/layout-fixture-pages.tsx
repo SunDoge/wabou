@@ -11,7 +11,6 @@ import {
   ImageViewportLayoutFixture,
   IconFrameLayoutFixture,
   InputGroupLayoutFixture,
-  OrbLayoutFixture,
   QRCodeLayoutFixture,
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
@@ -98,11 +97,6 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 320,
         height: 320,
         render: QRCodeLayoutFixture,
-      },
-      "component/Orb": {
-        width: 320,
-        height: 320,
-        render: OrbLayoutFixture,
       },
       "component/IconFrame": {
         width: 160,
