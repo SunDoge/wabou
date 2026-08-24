@@ -14,6 +14,7 @@ pub mod effect;
 #[path = "generated/effect_abi.rs"]
 mod effect_abi;
 pub mod error;
+mod gpu_background;
 pub mod headless;
 pub mod image;
 pub mod layout;
@@ -47,6 +48,7 @@ pub use effect::{
     SaveDialogRequest, WindowResourceKey, initial_window_resource_key,
 };
 pub use error::{Error, Result};
+pub use gpu_background::{GpuBackground, GpuBackgroundFactory, GpuBackgroundFrame};
 pub use shell::Shell;
 pub use shortcut::StandardShortcut;
 pub use source::{

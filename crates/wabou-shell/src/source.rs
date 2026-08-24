@@ -659,6 +659,11 @@ pub trait FrameSource {
     /// Viewport background color.
     fn base_color(&self) -> Color;
 
+    /// Create an optional full-window GPU background for a newly created surface.
+    fn create_gpu_background(&self) -> Option<Box<dyn crate::GpuBackground>> {
+        None
+    }
+
     /// Whether to keep redrawing every vsync. Default `false` (static); a
     /// reactive source overrides to return true while it has pending rAF work.
     fn has_anim(&self) -> bool {

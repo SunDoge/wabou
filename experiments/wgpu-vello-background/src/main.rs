@@ -20,6 +20,10 @@ struct OrbUniforms {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let time = std::env::var("WABOU_ORB_TIME")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(2.35);
     let mut context = WGPUContext::new();
     let output = pollster::block_on(context.create_buffer_renderer(BufferRendererConfig {
         width: WIDTH,
@@ -31,7 +35,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let background = texture_view(device, "orb-background");
     let ui = texture_view(device, "vello-ui");
-    render_orb(device, queue, &background);
+    render_orb(device, queue, &background, time);
     render_vello_ui(device, queue, &ui)?;
     compose(
         device,
@@ -73,15 +77,17 @@ fn texture_view(device: &wgpu::Device, label: &str) -> wgpu::TextureView {
         .create_view(&wgpu::TextureViewDescriptor::default())
 }
 
-fn render_orb(device: &wgpu::Device, queue: &wgpu::Queue, target: &wgpu::TextureView) {
+fn render_orb(device: &wgpu::Device, queue: &wgpu::Queue, target: &wgpu::TextureView, time: f32) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("orb-shader"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("orb.wgsl").into()),
+        source: wgpu::ShaderSource::Wgsl(
+            include_str!("../../../apps/gallery/src/orb_background.wgsl").into(),
+        ),
     });
     let uniforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("orb-uniforms"),
         contents: bytemuck::bytes_of(&OrbUniforms {
-            resolution_time: [WIDTH as f32, HEIGHT as f32, 2.35, 0.0],
+            resolution_time: [WIDTH as f32, HEIGHT as f32, time, 0.0],
         }),
         usage: wgpu::BufferUsages::UNIFORM,
     });

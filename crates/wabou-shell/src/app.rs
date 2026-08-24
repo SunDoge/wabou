@@ -334,6 +334,11 @@ impl App {
             source.build_frame(&mut shell.tcx, w, h)
         };
         let t1 = Instant::now();
+        let scene_base_color = if shell.has_gpu_background() {
+            Color::TRANSPARENT
+        } else {
+            base_color
+        };
         {
             #[cfg(feature = "profiling")]
             let span = tracing::trace_span!(target: "wabou::perf", "frame.scene");
@@ -345,7 +350,7 @@ impl App {
                 &mut shell.tcx,
                 w,
                 h,
-                base_color,
+                scene_base_color,
                 scale,
             );
             source.paint_debug_overlay(&mut shell.scene, &nodes, &mut shell.tcx, scale);
@@ -988,7 +993,7 @@ impl ApplicationHandler for App {
         // Initial size: prefer the source's notion of viewport if it exposes one;
         // otherwise default. For now we read none from the source, so use a sane
         // default that the first resize will correct.
-        let shell = match Shell::create(event_loop, &self.window_options) {
+        let mut shell = match Shell::create(event_loop, &self.window_options) {
             Ok(shell) => shell,
             Err(error) => {
                 *self
@@ -999,6 +1004,9 @@ impl ApplicationHandler for App {
                 return;
             }
         };
+        if let Some(background) = self.source.create_gpu_background() {
+            shell.set_gpu_background(background);
+        }
         let window = shell.window().clone();
         self.state = Some(shell);
         self.sync_window_metrics();
@@ -1167,7 +1175,11 @@ impl ApplicationHandler for App {
         // A reactive source keeps the redraw loop spinning at vsync while it has
         // pending rAF work; a static source idles (ControlFlow::Wait) until a
         // resize/close.
-        let has_animation = self.source.has_anim();
+        let has_animation = self.source.has_anim()
+            || self
+                .state
+                .as_ref()
+                .is_some_and(Shell::gpu_background_is_animated);
         let deadline = (!has_animation)
             .then(|| self.source.animation_deadline())
             .flatten();
@@ -2064,7 +2076,11 @@ impl ApplicationHandler for MultiWindowApp {
         let now = Instant::now();
         let mut earliest = None;
         for app in self.windows.values_mut() {
-            let has_animation = app.source.has_anim();
+            let has_animation = app.source.has_anim()
+                || app
+                    .state
+                    .as_ref()
+                    .is_some_and(Shell::gpu_background_is_animated);
             let deadline = (!has_animation)
                 .then(|| app.source.animation_deadline())
                 .flatten();

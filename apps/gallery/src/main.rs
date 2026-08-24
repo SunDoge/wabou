@@ -3,11 +3,14 @@
 use snafu::{ResultExt, Whatever};
 use wabou::{HostBuilder, WindowOptions};
 
+mod orb_background;
+
 #[snafu::report]
 fn main() -> Result<(), Whatever> {
     HostBuilder::new()
         .app_directories("dev", "Wabou", "Gallery")
         .persist_window_size("main")
+        .gpu_background(|| Box::new(orb_background::OrbBackground::new()))
         .widget("fractal", || Box::new(gallery::fractal::JuliaWidget::new()))
         .window(
             WindowOptions::new()

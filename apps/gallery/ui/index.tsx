@@ -439,7 +439,7 @@ function App() {
       transition={{ duration: 0.32, easing: "ease-out", colorSpace: "oklab" }}
     >
       <ComponentsProvider theme={dark() ? "dark" : "light"}>
-        <View class="w-full h-full flex overflow-hidden bg-canvas text-primary font-sans">
+        <View class="w-full h-full flex overflow-hidden bg-transparent text-primary font-sans">
           <GallerySidebar
             groups={groups}
             descriptions={descriptions}
@@ -498,7 +498,10 @@ function App() {
             </View>
             <View
               ref={(node) => (contentViewport = node)}
-              class="flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto"
+              class={classes(
+                "flex-1 min-w-0 min-h-0 overflow-x-hidden overflow-y-auto",
+                selected() === null ? "bg-transparent" : "bg-canvas",
+              )}
             >
               <View
                 class={classes(

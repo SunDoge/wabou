@@ -558,6 +558,7 @@ struct RuntimeSourceConfig {
     app_directories: Option<wabou_shell::AppDirectories>,
     asset_cache: Arc<ResourceCache>,
     image_resources: crate::ImageResourceStore,
+    gpu_background_factory: Option<wabou_shell::GpuBackgroundFactory>,
 }
 
 impl RuntimeSourceConfig {
@@ -616,6 +617,7 @@ impl RuntimeSourceConfig {
         install_host_message_producers(&self.host_message_producers, window_key, &applier);
         applier.set_asset_cache(self.asset_cache.clone());
         applier.set_image_resource_store(self.image_resources.clone());
+        applier.set_gpu_background_factory(self.gpu_background_factory.clone());
         if let Some(directories) = &self.app_directories {
             applier.set_app_directories(directories.clone());
         }
@@ -674,6 +676,7 @@ pub struct HostBuilder {
     persisted_window_size: Option<String>,
     image_resources: crate::ImageResourceStore,
     js_runtime_options: crate::JsRuntimeOptions,
+    gpu_background_factory: Option<wabou_shell::GpuBackgroundFactory>,
 }
 
 impl Default for HostBuilder {
@@ -708,6 +711,7 @@ impl HostBuilder {
             persisted_window_size: None,
             image_resources: image_resources.clone(),
             js_runtime_options: crate::JsRuntimeOptions::default(),
+            gpu_background_factory: None,
         };
         let mounted = image_resources.clone();
         builder.json_capability(IMAGE_RESOURCES, move |capability| {
@@ -883,6 +887,15 @@ impl HostBuilder {
     /// Set the viewport clear color behind the retained root.
     pub fn base_color(mut self, color: Color) -> Self {
         self.base_color = color;
+        self
+    }
+
+    /// Paint an application-owned animated GPU background below the Vello UI.
+    pub fn gpu_background(
+        mut self,
+        factory: impl Fn() -> Box<dyn wabou_shell::GpuBackground> + Send + Sync + 'static,
+    ) -> Self {
+        self.gpu_background_factory = Some(Arc::new(factory));
         self
     }
 
@@ -1146,6 +1159,7 @@ impl HostBuilder {
             app_directories: app_directories.clone(),
             asset_cache: asset_cache.clone(),
             image_resources: self.image_resources.clone(),
+            gpu_background_factory: self.gpu_background_factory.clone(),
         };
         #[cfg(feature = "vite")]
         let mut hmr_clients = Vec::new();

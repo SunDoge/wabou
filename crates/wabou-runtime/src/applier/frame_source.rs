@@ -476,6 +476,12 @@ impl FrameSource for Applier {
         self.document.base_color
     }
 
+    fn create_gpu_background(&self) -> Option<Box<dyn wabou_shell::GpuBackground>> {
+        self.gpu_background_factory
+            .as_ref()
+            .map(|factory| factory())
+    }
+
     fn set_semantics_enabled(&mut self, enabled: bool) {
         self.frame.projections.set_semantics_enabled(enabled);
     }

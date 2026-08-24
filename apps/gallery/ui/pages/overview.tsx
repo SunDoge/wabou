@@ -178,7 +178,13 @@ export function OverviewPage(props: {
         </View>
       </View>
 
-      <Card class="relative overflow-hidden border-focus bg-surface">
+      <Card
+        class="relative overflow-hidden border-focus"
+        style={{
+          "background-color":
+            props.theme === "Light" ? "#fffffff0" : "#081127cc",
+        }}
+      >
         <CardContent class="p-0">
           <SplitPane
             class={compact() ? "min-h-64 flex-col" : "min-h-64 flex-row"}
