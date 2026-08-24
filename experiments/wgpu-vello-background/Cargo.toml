@@ -1,0 +1,14 @@
+[package]
+name = "wabou-wgpu-vello-background"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+bytemuck = { version = "1.24", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+pollster = "0.4"
+vello = "0.9.0"
+wgpu_context = "0.7"
