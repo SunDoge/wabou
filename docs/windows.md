@@ -70,6 +70,13 @@ Secondary windows can make the same explicit choice with
 `createWindow({ renderer: "skia" })`. The selected backend must be compiled
 into the Rust host; otherwise creation rejects instead of falling back.
 
+Applications that expose a `renderer-skia` Cargo feature can test the backend
+through Wabou's CLI without invoking Cargo separately:
+
+```bash
+wabou run apps/gallery --features renderer-skia
+```
+
 ## Sizing and responsive layout
 
 Treat the native size as a preferred starting point, not as a substitute for

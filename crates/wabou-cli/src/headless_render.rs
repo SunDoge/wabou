@@ -43,6 +43,7 @@ pub(super) struct RenderOptions {
     pub(super) samples: usize,
     pub(super) actions: Vec<RenderAction>,
     pub(super) layout_only: bool,
+    pub(super) cargo_features: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -421,6 +422,9 @@ pub(super) fn run(workspace: &Path, app: &App, options: &RenderOptions) -> Resul
     if *with_host {
         return run_with_host(workspace, app, options);
     }
+    if !options.cargo_features.is_empty() {
+        return Err("--features requires --with-host for `wabou render`".into());
+    }
     let window_key = u32::try_from(*window_id)
         .ok()
         .and_then(|lo| wabou_shell::WindowResourceKey::from_parts(lo, 1))
@@ -653,8 +657,11 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
         .as_ref()
         .map(|_| app_framework_feature(workspace, app, "devtools"))
         .transpose()?;
-    let executable =
-        build_behavior_host(workspace, &manifest, &binary, snapshot_feature.as_deref())?;
+    let mut cargo_features = options.cargo_features.clone();
+    if let Some(snapshot_feature) = snapshot_feature {
+        cargo_features.push(snapshot_feature);
+    }
+    let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
     let test_data = tempfile::tempdir_in(&render_dir)?;
     let output = if options.out.is_absolute() {
         options.out.clone()

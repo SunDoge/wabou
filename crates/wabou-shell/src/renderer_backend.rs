@@ -34,6 +34,12 @@ pub(crate) enum AnyWindowRenderer {
 
 impl AnyWindowRenderer {
     pub(crate) fn new(backend: RendererBackend, transparent: bool) -> crate::Result<Self> {
+        tracing::info!(
+            target: "wabou::renderer",
+            ?backend,
+            transparent,
+            "initializing AnyRender window renderer"
+        );
         let alpha = if transparent {
             anyrender::CompositeAlphaMode::Transparent
         } else {

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
+use clap::{Args, CommandFactory, FromArgMatches, Parser, Subcommand};
 use serde_json::Value;
 
 mod artifact;
@@ -59,6 +59,18 @@ struct Cli {
     command: Commands,
 }
 
+#[derive(Args, Clone, Debug, Default, Eq, PartialEq)]
+struct CargoFeatures {
+    /// Cargo features enabled for the application host. May be repeated or comma-separated.
+    #[arg(
+        long = "features",
+        value_name = "FEATURES",
+        value_delimiter = ',',
+        action = clap::ArgAction::Append
+    )]
+    values: Vec<String>,
+}
+
 #[derive(Subcommand)]
 enum Commands {
     /// Create a standalone Wabou application pinned to a Git revision.
@@ -84,6 +96,8 @@ enum Commands {
         /// Skip discovered `tests/**/*.behavior.ts` scenarios.
         #[arg(long)]
         skip_behavior: bool,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Start Vite, the Rust host, and live HMR.
     Dev {
@@ -96,6 +110,8 @@ enum Commands {
         /// Vite mode used to select an application-owned development entry.
         #[arg(long)]
         mode: Option<String>,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Build the frontend bundle and Rust host.
     Build {
@@ -106,6 +122,8 @@ enum Commands {
         /// Generate a source map even for a release build.
         #[arg(long, value_name = "BOOL", num_args = 0..=1, default_missing_value = "true")]
         source_map: Option<bool>,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Build a release application and create native installers or bundles.
     Package {
@@ -117,6 +135,8 @@ enum Commands {
         /// Build the Rust host with cargo-zigbuild for this target before packaging.
         #[arg(long, value_name = "TARGET")]
         target: Option<String>,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Build the frontend bundle and run the Rust host.
     Run {
@@ -130,6 +150,8 @@ enum Commands {
         /// Write an opt-in performance trace for Perfetto/Chrome tracing.
         #[arg(long, value_name = "JSON")]
         profile_trace: Option<PathBuf>,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Run TypeScript behavior tests against the native host.
     Test {
@@ -158,6 +180,8 @@ enum Commands {
         /// Use the real platform event loop instead of the deterministic backend.
         #[arg(long)]
         native: bool,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Generate or verify Rust-owned TypeScript capability bindings.
     Bindings {
@@ -227,6 +251,9 @@ enum Commands {
         /// Commit text before capture, in command-line action order.
         #[arg(long, requires = "click")]
         text: Option<String>,
+        /// Cargo features enabled for the application host used by `--with-host`.
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Evaluate JavaScript, Style IR and Taffy without creating a scene or GPU renderer.
     Layout {
@@ -275,11 +302,15 @@ enum BindingsCommand {
     Write {
         #[arg(value_name = "APP")]
         app: Option<PathBuf>,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
     /// Fail when the committed declarations differ from Rust types.
     Check {
         #[arg(value_name = "APP")]
         app: Option<PathBuf>,
+        #[command(flatten)]
+        cargo_features: CargoFeatures,
     },
 }
 
@@ -291,6 +322,7 @@ struct TestOptions {
     mode: Option<String>,
     failure_screenshot: bool,
     native: bool,
+    cargo_features: Vec<String>,
 }
 
 fn resolve_behavior_test_target(
@@ -331,40 +363,67 @@ fn main() -> Result<()> {
             wabou_ref,
         } => scaffold::create(&cwd.join(path), &wabou_repository, &wabou_ref),
         Commands::Doctor { app } => doctor::run(&cwd, app.as_deref()),
-        Commands::Check { app, skip_behavior } => {
+        Commands::Check {
+            app,
+            skip_behavior,
+            cargo_features,
+        } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            check(&workspace, &app, skip_behavior)
+            check(&workspace, &app, skip_behavior, &cargo_features.values)
         }
         Commands::Dev {
             app,
             port,
             devtools,
             mode,
+            cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            dev(&workspace, app, port, devtools, mode.as_deref())
+            dev(
+                &workspace,
+                app,
+                port,
+                devtools,
+                mode.as_deref(),
+                &cargo_features.values,
+            )
         }
         Commands::Build {
             app,
             release,
             source_map,
+            cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            build(&workspace, &app, release, source_map)
+            build(
+                &workspace,
+                &app,
+                release,
+                source_map,
+                &cargo_features.values,
+            )
         }
         Commands::Package {
             app,
             format,
             target,
+            cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
-            package(&workspace, &app, &format, target.as_deref())
+            package(
+                &workspace,
+                &app,
+                &format,
+                target.as_deref(),
+                &cargo_features.values,
+            )
         }
         Commands::Run {
             app,
             release,
             source_map,
             profile_trace,
+            cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
             let profile_trace = profile_trace.map(|path| cwd.join(path));
@@ -374,6 +433,7 @@ fn main() -> Result<()> {
                 release,
                 source_map,
                 profile_trace.as_deref(),
+                &cargo_features.values,
             )
         }
         Commands::Test {
@@ -385,6 +445,7 @@ fn main() -> Result<()> {
             mode,
             failure_screenshot,
             native,
+            cargo_features,
         } => {
             let target = scenario.map(|path| cwd.join(path));
             let (app_path, scenario) = resolve_behavior_test_target(app.as_deref(), target);
@@ -397,12 +458,15 @@ fn main() -> Result<()> {
                 mode,
                 failure_screenshot,
                 native,
+                cargo_features: cargo_features.values,
             };
             test_scenario(&workspace, &app, &options)
         }
         Commands::Bindings { command } => {
             let app_path = match &command {
-                BindingsCommand::Write { app } | BindingsCommand::Check { app } => app.as_deref(),
+                BindingsCommand::Write { app, .. } | BindingsCommand::Check { app, .. } => {
+                    app.as_deref()
+                }
             };
             let (workspace, app) = resolve_app(app_path)?;
             bindings(&workspace, &app, command)
@@ -426,6 +490,7 @@ fn main() -> Result<()> {
             wheel,
             key,
             text,
+            cargo_features,
         } => {
             let (workspace, app) = resolve_app(app.as_deref())?;
             render(
@@ -449,6 +514,7 @@ fn main() -> Result<()> {
                     actions: render_actions
                         .unwrap_or_else(|| legacy_render_actions(click, wheel, text, key)),
                     layout_only: false,
+                    cargo_features: cargo_features.values,
                 },
             )
         }
@@ -485,6 +551,7 @@ fn main() -> Result<()> {
                     samples: 0,
                     actions: Vec::new(),
                     layout_only: true,
+                    cargo_features: Vec::new(),
                 },
             )
         }
@@ -497,7 +564,18 @@ fn manifest(app: &App) -> String {
     app.root.join("Cargo.toml").to_string_lossy().into_owned()
 }
 
-fn check(workspace: &Path, app: &App, skip_behavior: bool) -> Result<()> {
+fn apply_cargo_features(command: &mut Command, features: &[String]) {
+    if !features.is_empty() {
+        command.arg("--features").arg(features.join(","));
+    }
+}
+
+fn check(
+    workspace: &Path,
+    app: &App,
+    skip_behavior: bool,
+    cargo_features: &[String],
+) -> Result<()> {
     ensure_workspace_package_exports(workspace)?;
 
     let tsconfig = app
@@ -538,6 +616,7 @@ fn check(workspace: &Path, app: &App, skip_behavior: bool) -> Result<()> {
     cargo
         .current_dir(workspace)
         .args(["check", "--manifest-path", &manifest, "--all-targets"]);
+    apply_cargo_features(&mut cargo, cargo_features);
     let status = cargo
         .status()
         .map_err(|error| format!("failed to start Cargo check: {error}"))?;
@@ -545,7 +624,7 @@ fn check(workspace: &Path, app: &App, skip_behavior: bool) -> Result<()> {
 
     if let Some(target) = optional_app_bindings_target(workspace, app)? {
         println!("[wabou check] generated bindings");
-        run_bindings_target(workspace, app, &target, "check")?;
+        run_bindings_target(workspace, app, &target, "check", cargo_features)?;
     }
 
     let behavior_dir = app.root.join("tests");
@@ -562,6 +641,7 @@ fn check(workspace: &Path, app: &App, skip_behavior: bool) -> Result<()> {
                 mode: None,
                 failure_screenshot: false,
                 native: false,
+                cargo_features: cargo_features.to_vec(),
             },
         )?;
     }
@@ -575,6 +655,7 @@ fn build(
     app: &App,
     release: bool,
     source_map_override: Option<bool>,
+    cargo_features: &[String],
 ) -> Result<()> {
     let profile = BuildProfile::from_release(release);
     let source_map = source_map_override.unwrap_or(configured_source_map(app, profile)?);
@@ -583,6 +664,7 @@ fn build(
     cargo
         .current_dir(workspace)
         .args(["build", "--manifest-path", &manifest]);
+    apply_cargo_features(&mut cargo, cargo_features);
     if release {
         cargo.arg("--release");
     }
@@ -599,17 +681,23 @@ fn package(
     app: &App,
     format_override: &[PackageFormat],
     target: Option<&str>,
+    cargo_features: &[String],
 ) -> Result<()> {
     let config = load_package_config(app)?;
     if let Some(target) = target {
-        build_zig_release(workspace, app, target)?;
+        build_zig_release(workspace, app, target, cargo_features)?;
     } else {
-        build(workspace, app, true, None)?;
+        build(workspace, app, true, None, cargo_features)?;
     }
     packaging::package_built_application(workspace, app, &config, format_override)
 }
 
-fn build_zig_release(workspace: &Path, app: &App, target: &str) -> Result<()> {
+fn build_zig_release(
+    workspace: &Path,
+    app: &App,
+    target: &str,
+    cargo_features: &[String],
+) -> Result<()> {
     if target.trim().is_empty() {
         return Err("package target cannot be empty".into());
     }
@@ -636,6 +724,7 @@ fn build_zig_release(workspace: &Path, app: &App, target: &str) -> Result<()> {
         "--target",
         target,
     ]);
+    apply_cargo_features(&mut cargo, cargo_features);
     ensure(cargo.status()?, "Cargo Zigbuild")?;
     ensure(
         build_frontend(workspace, app, &[], BuildProfile::Release, false)?,
@@ -650,6 +739,7 @@ fn run(
     release: bool,
     source_map_override: Option<bool>,
     profile_trace: Option<&Path>,
+    cargo_features: &[String],
 ) -> Result<()> {
     let profile = BuildProfile::from_release(release);
     let source_map = source_map_override.unwrap_or(configured_source_map(app, profile)?);
@@ -666,6 +756,7 @@ fn run(
     if release {
         cargo.arg("--release");
     }
+    apply_cargo_features(&mut cargo, cargo_features);
     if let Some(path) = profile_trace {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
@@ -748,8 +839,9 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     // Behavior scenarios may exercise the same native diagnostics that are
     // available under `wabou dev`. Compile that implementation into the host
     // instead of silently replacing it with the no-op ABI fallback.
-    let devtools_feature = app_framework_feature(workspace, app, "devtools")?;
-    let executable = build_behavior_host(workspace, &manifest, &binary, Some(&devtools_feature))?;
+    let mut cargo_features = options.cargo_features.clone();
+    cargo_features.push(app_framework_feature(workspace, app, "devtools")?);
+    let executable = build_behavior_host(workspace, &manifest, &binary, &cargo_features)?;
     let mut host = Command::new(executable);
     host.current_dir(workspace)
         .env(
@@ -878,7 +970,7 @@ fn build_behavior_host(
     workspace: &Path,
     manifest: &str,
     binary: &str,
-    features: Option<&str>,
+    features: &[String],
 ) -> Result<PathBuf> {
     let mut command = Command::new("cargo");
     command.current_dir(workspace).args([
@@ -889,9 +981,7 @@ fn build_behavior_host(
         binary,
         "--message-format=json-render-diagnostics",
     ]);
-    if let Some(features) = features {
-        command.args(["--features", features]);
-    }
+    apply_cargo_features(&mut command, features);
     let output = command
         // Cargo progress remains visible while stdout is reserved for its
         // machine-readable artifact stream.
@@ -934,14 +1024,20 @@ fn behavior_host_executable(messages: &[u8], binary: &str) -> Result<Option<Path
 
 fn bindings(workspace: &Path, app: &App, mode: BindingsCommand) -> Result<()> {
     let target = app_bindings_target(workspace, app)?;
-    let mode = match mode {
-        BindingsCommand::Write { .. } => "write",
-        BindingsCommand::Check { .. } => "check",
+    let (mode, cargo_features) = match mode {
+        BindingsCommand::Write { cargo_features, .. } => ("write", cargo_features),
+        BindingsCommand::Check { cargo_features, .. } => ("check", cargo_features),
     };
-    run_bindings_target(workspace, app, &target, mode)
+    run_bindings_target(workspace, app, &target, mode, &cargo_features.values)
 }
 
-fn run_bindings_target(workspace: &Path, app: &App, target: &str, mode: &str) -> Result<()> {
+fn run_bindings_target(
+    workspace: &Path,
+    app: &App,
+    target: &str,
+    mode: &str,
+    cargo_features: &[String],
+) -> Result<()> {
     let manifest = manifest(app);
     let mut cargo = Command::new("cargo");
     cargo.current_dir(workspace).args([
@@ -951,9 +1047,9 @@ fn run_bindings_target(workspace: &Path, app: &App, target: &str, mode: &str) ->
         &manifest,
         "--example",
         target,
-        "--",
-        mode,
     ]);
+    apply_cargo_features(&mut cargo, cargo_features);
+    cargo.args(["--", mode]);
     ensure(cargo.status()?, "Wabou bindings generator")
 }
 
@@ -963,6 +1059,7 @@ fn dev(
     port: u16,
     open_devtools: bool,
     mode: Option<&str>,
+    cargo_features: &[String],
 ) -> Result<()> {
     ensure_workspace_package_exports(workspace)?;
     let port_text = port.to_string();
@@ -1003,6 +1100,7 @@ fn dev(
         ])
         .env("WABOU_VITE_URL", &url)
         .env("WABOU_VITE_ENTRY", &app.entry);
+    apply_cargo_features(&mut host_command, cargo_features);
     let mut host = ManagedChild::spawn(host_command)?;
 
     let mut inspector = if open_devtools {
@@ -1076,13 +1174,48 @@ mod tests {
     #[test]
     fn parses_application_check_options() {
         let Cli {
-            command: Commands::Check { app, skip_behavior },
+            command: Commands::Check {
+                app, skip_behavior, ..
+            },
         } = Cli::try_parse_from(["wabou", "check", "apps/gallery", "--skip-behavior"]).unwrap()
         else {
             panic!("expected check command");
         };
         assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
         assert!(skip_behavior);
+    }
+
+    #[test]
+    fn parses_and_forwards_repeated_application_features() {
+        let Cli {
+            command: Commands::Run { cargo_features, .. },
+        } = Cli::try_parse_from([
+            "wabou",
+            "run",
+            "apps/gallery",
+            "--features",
+            "renderer-skia,diagnostics",
+            "--features",
+            "experimental",
+        ])
+        .unwrap()
+        else {
+            panic!("expected run command");
+        };
+        assert_eq!(
+            cargo_features.values,
+            ["renderer-skia", "diagnostics", "experimental"]
+        );
+
+        let mut command = Command::new("cargo");
+        apply_cargo_features(&mut command, &cargo_features.values);
+        assert_eq!(
+            command
+                .get_args()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect::<Vec<_>>(),
+            ["--features", "renderer-skia,diagnostics,experimental"]
+        );
     }
 
     #[test]
@@ -1359,10 +1492,10 @@ mod tests {
                 panic!("expected bindings command");
             };
             match command {
-                BindingsCommand::Write { app } if name == "write" => {
+                BindingsCommand::Write { app, .. } if name == "write" => {
                     assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
                 }
-                BindingsCommand::Check { app } if name == "check" => {
+                BindingsCommand::Check { app, .. } if name == "check" => {
                     assert_eq!(app.as_deref(), Some(Path::new("apps/gallery")));
                 }
                 _ => panic!("unexpected bindings command"),
@@ -1383,6 +1516,7 @@ mod tests {
                     mode,
                     failure_screenshot,
                     native,
+                    ..
                 },
         } = Cli::try_parse_from([
             "wabou",
@@ -1615,6 +1749,7 @@ mod tests {
                     app,
                     format,
                     target,
+                    ..
                 },
         } = Cli::try_parse_from([
             "wabou",
