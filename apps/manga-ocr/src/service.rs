@@ -35,6 +35,7 @@ const ADJUST_BBOXES: JsonMethod<AdjustBboxesRequest, Vec<OcrRegion>> =
     JsonMethod::new("adjustBboxes");
 
 const MODEL_VERSION: &str = "ppocrv6-small-0.7.0";
+const OCR_RAW_CACHE_VERSION: &[u8] = b"detector-regions-v1";
 const RELEASE_BASE: &str = "https://github.com/GreatV/oar-ocr/releases/download/v0.7.0";
 const MODEL_FILES: [ModelFile; 3] = [
     ModelFile {
@@ -173,6 +174,7 @@ struct OcrState {
     images: ImageResourceStore,
     cache: PersistentJsonCache,
     engine: Option<OAROCR>,
+    density: TextDensityProfile,
     ready: Arc<AtomicBool>,
 }
 
@@ -192,6 +194,7 @@ impl OcrWorker {
                     images,
                     cache,
                     engine: None,
+                    density: TextDensityProfile::default(),
                     ready: worker_ready,
                 })
             },
@@ -202,6 +205,7 @@ impl OcrWorker {
                         &state.model_dir,
                         &state.cache,
                         &mut state.engine,
+                        &mut state.density,
                         handle,
                     );
                     state.ready.store(state.engine.is_some(), Ordering::Release);
@@ -209,6 +213,7 @@ impl OcrWorker {
                 }
                 OcrCommand::Reset => {
                     state.engine = None;
+                    state.density = TextDensityProfile::default();
                     state.ready.store(false, Ordering::Release);
                     Ok(Vec::new())
                 }
@@ -665,6 +670,7 @@ fn recognize(
     model_dir: &Path,
     cache: &PersistentJsonCache,
     engine: &mut Option<OAROCR>,
+    density: &mut TextDensityProfile,
     handle: ImageResourceHandle,
 ) -> Result<Vec<OcrRegion>, String> {
     let image = images
@@ -672,8 +678,15 @@ fn recognize(
         .ok_or_else(|| "image resource is missing or stale".to_owned())?
         .to_rgb8();
     let (width, height) = image.dimensions();
-    let cache_key = PersistentJsonCache::content_key(&[MODEL_VERSION.as_bytes(), image.as_raw()]);
-    if let Some(regions) = cache.get("ocr", &cache_key) {
+    let cache_key = PersistentJsonCache::content_key(&[
+        MODEL_VERSION.as_bytes(),
+        OCR_RAW_CACHE_VERSION,
+        image.as_raw(),
+    ]);
+    if let Some(regions) = cache.get::<Vec<OcrRegion>>("ocr-detector", &cache_key) {
+        density.observe(&regions);
+        let mut regions = segment_manga_text(regions, density.glyph_scale());
+        sort_manga_regions(&mut regions);
         return Ok(regions);
     }
     if engine.is_none() {
@@ -693,14 +706,300 @@ fn recognize(
         .expect("engine initialized")
         .predict(vec![image])
         .map_err(|error| format!("OCR inference failed: {error}"))?;
-    let mut regions = results[0]
+    let regions = results[0]
         .text_regions
         .iter()
         .filter_map(|region| normalized_region(region, width, height))
         .collect::<Vec<_>>();
-    regions.sort_by(|a, b| b.x.total_cmp(&a.x).then_with(|| a.y.total_cmp(&b.y)));
-    cache.insert("ocr", &cache_key, &regions)?;
+    cache.insert("ocr-detector", &cache_key, &regions)?;
+    density.observe(&regions);
+    let mut regions = segment_manga_text(regions, density.glyph_scale());
+    sort_manga_regions(&mut regions);
     Ok(regions)
+}
+
+fn sort_manga_regions(regions: &mut [OcrRegion]) {
+    regions.sort_by(|a, b| b.x.total_cmp(&a.x).then_with(|| a.y.total_cmp(&b.y)));
+}
+
+/// Groups nearby Japanese detector lines into translation-sized manga text blocks.
+///
+/// PP-OCR normally detects each vertical column independently. Treating those
+/// columns as separate translations loses the context of a speech bubble. The
+/// detector boxes already contain enough information to estimate a robust
+/// chapter-local character scale from the pages observed by the worker, so
+/// grouping does not need image-specific magic numbers or an additional model.
+fn segment_manga_text(regions: Vec<OcrRegion>, glyph_scale: Option<f32>) -> Vec<OcrRegion> {
+    if regions.len() < 2 {
+        return regions;
+    }
+
+    let glyph_scale = glyph_scale.unwrap_or_else(|| estimated_glyph_scale(&regions));
+    if !glyph_scale.is_finite() || glyph_scale <= 0.0 {
+        return regions;
+    }
+
+    let mut parent = (0..regions.len()).collect::<Vec<_>>();
+    for left in 0..regions.len() {
+        for right in (left + 1)..regions.len() {
+            if should_join_regions(&regions[left], &regions[right], glyph_scale) {
+                union_sets(&mut parent, left, right);
+            }
+        }
+    }
+
+    let mut groups = std::collections::BTreeMap::<usize, Vec<OcrRegion>>::new();
+    for (index, region) in regions.into_iter().enumerate() {
+        let root = find_root(&mut parent, index);
+        groups.entry(root).or_default().push(region);
+    }
+
+    groups
+        .into_values()
+        .map(|mut group| merge_region_group(&mut group))
+        .collect()
+}
+
+#[derive(Default)]
+struct TextDensityProfile {
+    glyph_scales: Vec<f32>,
+}
+
+impl TextDensityProfile {
+    fn observe(&mut self, regions: &[OcrRegion]) {
+        self.glyph_scales
+            .extend(regions.iter().filter_map(region_glyph_scale));
+        // A chapter provides far more samples than the estimator needs. Keeping a
+        // bounded recent population also lets a new book gradually replace a
+        // radically different page scale without retaining unbounded state.
+        const MAX_SAMPLES: usize = 4096;
+        if self.glyph_scales.len() > MAX_SAMPLES {
+            self.glyph_scales
+                .drain(..self.glyph_scales.len() - MAX_SAMPLES);
+        }
+    }
+
+    fn glyph_scale(&self) -> Option<f32> {
+        robust_median(&self.glyph_scales)
+    }
+}
+
+fn estimated_glyph_scale(regions: &[OcrRegion]) -> f32 {
+    robust_median(
+        &regions
+            .iter()
+            .filter_map(region_glyph_scale)
+            .collect::<Vec<_>>(),
+    )
+    .unwrap_or(0.0)
+}
+
+fn region_glyph_scale(region: &OcrRegion) -> Option<f32> {
+    let characters = japanese_character_count(&region.text);
+    (characters > 0 && region.width > 0.0 && region.height > 0.0)
+        .then(|| (region.width * region.height / characters as f32).sqrt())
+        .filter(|scale| scale.is_finite())
+}
+
+/// Median with median-absolute-deviation rejection. Large sound effects,
+/// furigana and detector mistakes are common in manga and must not determine
+/// the spacing threshold used for ordinary dialogue.
+fn robust_median(samples: &[f32]) -> Option<f32> {
+    let mut sorted = samples
+        .iter()
+        .copied()
+        .filter(|sample| sample.is_finite() && *sample > 0.0)
+        .collect::<Vec<_>>();
+    if sorted.is_empty() {
+        return None;
+    }
+    sorted.sort_by(f32::total_cmp);
+    let median = sorted[sorted.len() / 2];
+    if sorted.len() < 5 {
+        return Some(median);
+    }
+
+    let mut deviations = sorted
+        .iter()
+        .map(|sample| (sample - median).abs())
+        .collect::<Vec<_>>();
+    deviations.sort_by(f32::total_cmp);
+    let mad = deviations[deviations.len() / 2];
+    if mad <= f32::EPSILON {
+        return Some(median);
+    }
+
+    let limit = mad * 3.5;
+    let inliers = sorted
+        .into_iter()
+        .filter(|sample| (sample - median).abs() <= limit)
+        .collect::<Vec<_>>();
+    Some(inliers[inliers.len() / 2])
+}
+
+fn should_join_regions(left: &OcrRegion, right: &OcrRegion, glyph_scale: f32) -> bool {
+    if !is_japanese_region(left) || !is_japanese_region(right) {
+        return false;
+    }
+
+    let left_vertical = left.height >= left.width;
+    let right_vertical = right.height >= right.width;
+    if left_vertical != right_vertical {
+        return false;
+    }
+
+    let (cross_gap, writing_gap) = if left_vertical {
+        (
+            interval_gap(left.x, left.x + left.width, right.x, right.x + right.width),
+            interval_gap(
+                left.y,
+                left.y + left.height,
+                right.y,
+                right.y + right.height,
+            ),
+        )
+    } else {
+        (
+            interval_gap(
+                left.y,
+                left.y + left.height,
+                right.y,
+                right.y + right.height,
+            ),
+            interval_gap(left.x, left.x + left.width, right.x, right.x + right.width),
+        )
+    };
+
+    if cross_gap > glyph_scale * 1.6 || writing_gap > glyph_scale * 2.2 {
+        return false;
+    }
+
+    // Reject pairs whose union is mostly empty space. This is what prevents two
+    // neighboring speech bubbles from being joined even when their nearest lines
+    // happen to be close.
+    let union_left = left.x.min(right.x);
+    let union_top = left.y.min(right.y);
+    let union_right = (left.x + left.width).max(right.x + right.width);
+    let union_bottom = (left.y + left.height).max(right.y + right.height);
+    let union_area = (union_right - union_left) * (union_bottom - union_top);
+    let ink_area = left.width * left.height + right.width * right.height;
+    union_area > 0.0 && ink_area / union_area >= 0.28
+}
+
+fn merge_region_group(group: &mut [OcrRegion]) -> OcrRegion {
+    let vertical = group
+        .iter()
+        .filter(|region| region.height >= region.width)
+        .count()
+        * 2
+        >= group.len();
+    if vertical {
+        group.sort_by(|left, right| {
+            right
+                .x
+                .total_cmp(&left.x)
+                .then_with(|| left.y.total_cmp(&right.y))
+        });
+    } else {
+        group.sort_by(|left, right| {
+            left.y
+                .total_cmp(&right.y)
+                .then_with(|| left.x.total_cmp(&right.x))
+        });
+    }
+
+    let x = group
+        .iter()
+        .map(|region| region.x)
+        .reduce(f32::min)
+        .unwrap_or(0.0);
+    let y = group
+        .iter()
+        .map(|region| region.y)
+        .reduce(f32::min)
+        .unwrap_or(0.0);
+    let right = group
+        .iter()
+        .map(|region| region.x + region.width)
+        .reduce(f32::max)
+        .unwrap_or(x);
+    let bottom = group
+        .iter()
+        .map(|region| region.y + region.height)
+        .reduce(f32::max)
+        .unwrap_or(y);
+    let character_count = group
+        .iter()
+        .map(|region| japanese_character_count(&region.text).max(1))
+        .sum::<usize>();
+    let confidence = group
+        .iter()
+        .map(|region| region.confidence * japanese_character_count(&region.text).max(1) as f32)
+        .sum::<f32>()
+        / character_count as f32;
+    let text = group
+        .iter()
+        .map(|region| region.text.trim())
+        .filter(|text| !text.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    OcrRegion {
+        id: format!("ocr-{x:.0}-{y:.0}"),
+        x,
+        y,
+        width: right - x,
+        height: bottom - y,
+        text,
+        confidence,
+    }
+}
+
+fn japanese_character_count(text: &str) -> usize {
+    text.chars()
+        .filter(|character| !character.is_whitespace())
+        .count()
+}
+
+fn is_japanese_region(region: &OcrRegion) -> bool {
+    let mut significant = 0;
+    let mut japanese = 0;
+    for character in region
+        .text
+        .chars()
+        .filter(|character| !character.is_whitespace())
+    {
+        significant += 1;
+        let codepoint = character as u32;
+        if matches!(
+            codepoint,
+            0x3000..=0x30ff | 0x3400..=0x4dbf | 0x4e00..=0x9fff | 0xff00..=0xffef
+        ) {
+            japanese += 1;
+        }
+    }
+    significant > 0 && japanese * 2 >= significant
+}
+
+fn interval_gap(left_start: f32, left_end: f32, right_start: f32, right_end: f32) -> f32 {
+    (right_start - left_end)
+        .max(left_start - right_end)
+        .max(0.0)
+}
+
+fn find_root(parent: &mut [usize], index: usize) -> usize {
+    if parent[index] != index {
+        parent[index] = find_root(parent, parent[index]);
+    }
+    parent[index]
+}
+
+fn union_sets(parent: &mut [usize], left: usize, right: usize) {
+    let left_root = find_root(parent, left);
+    let right_root = find_root(parent, right);
+    if left_root != right_root {
+        parent[right_root] = left_root;
+    }
 }
 
 fn normalized_region(region: &TextRegion, width: u32, height: u32) -> Option<OcrRegion> {
@@ -921,6 +1220,18 @@ fn parse_translation_array(content: &str, expected: usize) -> Result<Vec<String>
 mod tests {
     use super::*;
 
+    fn ocr_region(x: f32, y: f32, width: f32, height: f32, text: &str) -> OcrRegion {
+        OcrRegion {
+            id: format!("ocr-{x}-{y}"),
+            x,
+            y,
+            width,
+            height,
+            text: text.to_owned(),
+            confidence: 0.9,
+        }
+    }
+
     #[test]
     fn translation_parser_accepts_array_and_object_forms() {
         assert_eq!(
@@ -960,5 +1271,44 @@ mod tests {
         write_json_atomic(&path, &entries).unwrap();
         assert_eq!(load_recent(&path), entries);
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn density_profile_rejects_manga_size_outliers_across_pages() {
+        let mut profile = TextDensityProfile::default();
+        profile.observe(&[
+            ocr_region(0.0, 0.0, 20.0, 100.0, "こんにちは"),
+            ocr_region(30.0, 0.0, 20.0, 100.0, "世界です。"),
+            ocr_region(60.0, 0.0, 18.0, 90.0, "そうです"),
+        ]);
+        profile.observe(&[
+            ocr_region(0.0, 0.0, 19.0, 95.0, "ありがとう"),
+            ocr_region(30.0, 0.0, 22.0, 110.0, "ございます"),
+            // A large sound effect and tiny furigana must not set the chapter scale.
+            ocr_region(0.0, 0.0, 400.0, 400.0, "ドン"),
+            ocr_region(0.0, 0.0, 3.0, 12.0, "よみ"),
+        ]);
+
+        let scale = profile.glyph_scale().unwrap();
+        assert!((17.0..=23.0).contains(&scale), "unexpected scale {scale}");
+    }
+
+    #[test]
+    fn density_segmentation_merges_vertical_lines_but_not_separate_bubbles() {
+        let regions = vec![
+            ocr_region(100.0, 20.0, 18.0, 90.0, "こんにちは"),
+            ocr_region(75.0, 22.0, 18.0, 88.0, "世界です"),
+            ocr_region(10.0, 250.0, 18.0, 72.0, "別の台詞"),
+        ];
+
+        let segmented = segment_manga_text(regions, Some(19.0));
+        assert_eq!(segmented.len(), 2);
+        let merged = segmented
+            .iter()
+            .find(|region| region.text.contains("こんにちは"))
+            .unwrap();
+        assert_eq!(merged.text, "こんにちは\n世界です");
+        assert_eq!(merged.x, 75.0);
+        assert_eq!(merged.width, 43.0);
     }
 }
