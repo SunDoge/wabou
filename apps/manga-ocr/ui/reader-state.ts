@@ -3,6 +3,19 @@ import type { OcrRegion } from "./api";
 
 export type RegionGeometryProperty = "x" | "y" | "width" | "height";
 
+export interface RegionRevealTarget {
+  focus(): void;
+}
+
+export function selectRegionAndReveal(
+  id: string | null,
+  select: (id: string | null) => void,
+  targets: ReadonlyMap<string, RegionRevealTarget>,
+): void {
+  select(id);
+  if (id !== null) targets.get(id)?.focus();
+}
+
 export function updateRegionGeometry(
   region: OcrRegion,
   property: RegionGeometryProperty,

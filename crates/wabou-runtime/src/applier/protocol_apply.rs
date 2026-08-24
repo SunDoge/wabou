@@ -767,6 +767,7 @@ impl Applier {
             Op::FocusNode { id } => {
                 if self.document.node_store.solid_to_node.contains_key(id) {
                     self.set_focused_target(Some(*id));
+                    self.scroll_into_view(*id);
                 }
             }
             Op::ScrollTo { id, x, y } => {

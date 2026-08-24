@@ -185,7 +185,8 @@ fn overflow_container_supports_wheel_and_selection_autoscroll() {
         &applier.interaction.scroll.offsets,
     );
     applier.rebuild_hit_geometry(&placed);
-    assert!(applier.scroll_into_view(nk(3)));
+    applier.apply_op(&Op::FocusNode { id: nk(3) });
+    assert_eq!(applier.interaction.input.focused_target, Some(nk(3)));
     assert_eq!(applier.interaction.scroll.offsets[&container], [0.0, 100.0]);
     applier
         .interaction

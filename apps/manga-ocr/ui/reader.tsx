@@ -16,6 +16,7 @@ import {
   TextArea,
   View,
 } from "@wabou/ui";
+import type { Handle } from "@wabou/core/renderer";
 import imagesIcon from "lucide-static/icons/images.svg?raw";
 import languages from "lucide-static/icons/languages.svg?raw";
 import scanText from "lucide-static/icons/scan-text.svg?raw";
@@ -24,7 +25,11 @@ import squareDashed from "lucide-static/icons/square-dashed.svg?raw";
 import { For, Show } from "solid-js";
 import { Icon } from "@wabou/ui";
 import { ocrStateLabel } from "./ocr-queue";
-import { translatedRegions, updateRegionGeometry } from "./reader-state";
+import {
+  selectRegionAndReveal,
+  translatedRegions,
+  updateRegionGeometry,
+} from "./reader-state";
 import { useMangaSession } from "./session";
 
 export function Reader() {
@@ -61,6 +66,7 @@ export function Reader() {
     translate,
     adjustBboxes,
   } = session;
+  const regionItems = new Map<string, Handle>();
 
   const updateAnnotationGeometry = (next: readonly AnnotationRegion[]) => {
     const page = currentPage();
@@ -311,7 +317,9 @@ export function Reader() {
                     interactionMode={
                       tool() === "regions" ? "edit" : "passthrough"
                     }
-                    onSelectedIdChange={setSelectedRegion}
+                    onSelectedIdChange={(id) =>
+                      selectRegionAndReveal(id, setSelectedRegion, regionItems)
+                    }
                     onRegionsChange={updateAnnotationGeometry}
                   />
                 </Show>
@@ -388,8 +396,11 @@ export function Reader() {
                 <For each={regions()}>
                   {(region, index) => (
                     <View
+                      ref={(node: Handle) => regionItems.set(region.id, node)}
                       role="button"
                       aria-label={`OCR region ${index() + 1}`}
+                      aria-selected={selectedRegion() === region.id}
+                      focusOrder={selectedRegion() === region.id ? 0 : -1}
                       class={
                         selectedRegion() === region.id
                           ? "p-3 gap-2 rounded-lg border border-accent bg-selected"
