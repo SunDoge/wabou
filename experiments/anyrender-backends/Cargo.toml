@@ -1,0 +1,17 @@
+[package]
+name = "wabou-anyrender-backends"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+anyrender = "0.13.0"
+anyrender-skia = { package = "anyrender_skia", version = "0.11.0" }
+anyrender-vello = { package = "anyrender_vello", version = "0.14.0" }
+anyrender-vello-cpu = { package = "anyrender_vello_cpu", version = "0.16.0", features = ["multithreading"] }
+image = { version = "0.25.9", default-features = false, features = ["png"] }
+kurbo = "0.13.0"
+peniko = "0.6.0"
+

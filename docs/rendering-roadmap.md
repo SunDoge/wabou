@@ -5,6 +5,11 @@ The supported surface is text, paths, gradients, images, clipping, transforms,
 shadows, and native widgets. Examples should demonstrate capabilities that are
 stable in the active renderer rather than approximate browser or shader effects.
 
+Backend behavior is evaluated with the isolated
+[`experiments/anyrender-backends`](../experiments/anyrender-backends/README.md)
+harness. It records one AnyRender scene and renders it through every backend
+that exposes a deterministic image renderer.
+
 ## Deferred work
 
 ### Vello Hybrid migration
