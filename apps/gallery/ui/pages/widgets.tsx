@@ -892,7 +892,7 @@ export function MessagePage() {
       <Preview title="Conversation">
         <MessageGroup
           aria-label="Conversation preview"
-          class="w-[640px] rounded-lg border border-subtle bg-surface p-5 shadow-xs"
+          class="w-full max-w-[640px] rounded-lg border border-subtle bg-surface p-5 shadow-xs"
         >
           <Marker variant="separator">
             <MarkerContent>Today</MarkerContent>

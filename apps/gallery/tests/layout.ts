@@ -218,6 +218,24 @@ const assertInputGroupLayout = (snapshot: LayoutSnapshot) => {
   );
 };
 
+const assertMessageLayout = (snapshot: LayoutSnapshot) => {
+  const group = getLayoutNode(snapshot, { name: "Fixture message group" });
+  const bubble = getLayoutNode(snapshot, {
+    name: "Fixture failed message bubble",
+  });
+  const text = getLayoutNode(snapshot, {
+    text: "Delivery failed. Retry from the action menu.",
+  });
+  assertLayoutRectContains(group.contentRect, bubble.rect, {
+    label: "message bubble",
+  });
+  assertLayoutRectContains(bubble.contentRect, text.rect, {
+    label: "message text",
+  });
+  if (text.rect.width < 180)
+    throw new Error(`message text was compressed to ${text.rect.width}px`);
+};
+
 const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   // Carousel tracks and message reactions deliberately extend past their
   // logical content box; their component-specific clipping is tested lower.
@@ -243,6 +261,7 @@ const overrides: Readonly<Record<string, Omit<LayoutFixtureCase, "id">>> = {
   "component/QRCode": { assert: assertQrCodeLayout },
   "component/IconFrame": { assert: assertIconFrameLayout },
   "component/InputGroup": { assert: assertInputGroupLayout },
+  "component/Message": { assert: assertMessageLayout },
 };
 const fixtureCase = (id: string) => {
   const override = overrides[id];

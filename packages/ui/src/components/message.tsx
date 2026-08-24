@@ -102,7 +102,7 @@ export function MessageContent(props: ViewProps): JSX.Element {
     <View
       {...props}
       class={join(
-        "w-full min-w-0 flex flex-col gap-2",
+        "flex-1 min-w-0 flex flex-col gap-2",
         context.align() === "end" ? "items-end" : "items-start",
         props.class,
       )}
@@ -132,10 +132,7 @@ export const MessageFooter = MessageHeader;
 
 export function BubbleGroup(props: ViewProps): JSX.Element {
   return (
-    <View
-      {...props}
-      class={join("min-w-0 grid gap-2", props.class)}
-    >
+    <View {...props} class={join("w-full min-w-0 grid gap-2", props.class)}>
       {props.children}
     </View>
   );

@@ -3,18 +3,23 @@ import {
   AdaptiveSplitPaneDetail,
   AdaptiveSplitPaneMain,
   AnnotationLayer,
+  Bubble,
+  BubbleContent,
   Button,
   Dialog,
   DialogDescription,
   DialogScrollBody,
   DialogTitle,
+  IconFrame,
   ImageList,
   ImageViewport,
-  IconFrame,
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
   InputGroupText,
+  Message,
+  MessageContent,
+  MessageGroup,
   QRCode,
   ScrollArea,
   Select,
@@ -126,6 +131,27 @@ export function InputGroupLayoutFixture() {
           placeholder="example.com"
         />
       </InputGroup>
+    </View>
+  );
+}
+
+export function MessageLayoutFixture() {
+  return (
+    <View class="w-full p-4">
+      <MessageGroup aria-label="Fixture message group">
+        <Message>
+          <View class="w-8 h-8 flex-none rounded-full bg-control" />
+          <MessageContent>
+            <Bubble variant="destructive">
+              <BubbleContent aria-label="Fixture failed message bubble">
+                <Text class="whitespace-normal text-sm">
+                  Delivery failed. Retry from the action menu.
+                </Text>
+              </BubbleContent>
+            </Bubble>
+          </MessageContent>
+        </Message>
+      </MessageGroup>
     </View>
   );
 }

@@ -7,10 +7,11 @@ import { type Component, createComponent } from "solid-js";
 import {
   AdaptiveSplitPaneLayoutFixture,
   DialogLayoutFixture,
+  IconFrameLayoutFixture,
   ImageListLayoutFixture,
   ImageViewportLayoutFixture,
-  IconFrameLayoutFixture,
   InputGroupLayoutFixture,
+  MessageLayoutFixture,
   QRCodeLayoutFixture,
   ScrollAreaLayoutFixture,
   SelectLayoutFixture,
@@ -107,6 +108,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         width: 440,
         height: 160,
         render: InputGroupLayoutFixture,
+      },
+      "component/Message": {
+        width: 360,
+        height: 180,
+        render: MessageLayoutFixture,
       },
       "component/ImageList": {
         width: 360,
