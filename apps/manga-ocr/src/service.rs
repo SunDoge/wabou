@@ -894,7 +894,22 @@ fn should_join_regions(left: &OcrRegion, right: &OcrRegion, chapter_scale: f32) 
         )
     };
 
-    if cross_gap > local_scale * 1.35 || writing_gap > local_scale * 2.2 {
+    if left_vertical {
+        let vertical_overlap = interval_overlap_ratio(
+            left.y,
+            left.y + left.height,
+            right.y,
+            right.y + right.height,
+        );
+        let horizontal_overlap =
+            interval_overlap_ratio(left.x, left.x + left.width, right.x, right.x + right.width);
+        let neighboring_columns = cross_gap <= local_scale * 1.6
+            && (vertical_overlap >= 0.2 || writing_gap <= local_scale * 0.35);
+        let split_same_column = horizontal_overlap >= 0.65 && writing_gap <= local_scale * 0.55;
+        if !neighboring_columns && !split_same_column {
+            return false;
+        }
+    } else if cross_gap > local_scale * 1.35 || writing_gap > local_scale * 2.2 {
         return false;
     }
 
@@ -1031,6 +1046,16 @@ fn interval_gap(left_start: f32, left_end: f32, right_start: f32, right_end: f32
     (right_start - left_end)
         .max(left_start - right_end)
         .max(0.0)
+}
+
+fn interval_overlap_ratio(left_start: f32, left_end: f32, right_start: f32, right_end: f32) -> f32 {
+    let overlap = left_end.min(right_end) - left_start.max(right_start);
+    let smaller = (left_end - left_start).min(right_end - right_start);
+    if smaller <= 0.0 {
+        0.0
+    } else {
+        overlap.max(0.0) / smaller
+    }
 }
 
 fn find_root(parent: &mut [usize], index: usize) -> usize {
@@ -1390,5 +1415,25 @@ mod tests {
         assert!(segmented.iter().any(|region| {
             region.text.contains("段落全体") && region.text.contains("内側の行")
         }));
+    }
+
+    #[test]
+    fn vertical_manga_text_prefers_horizontal_columns_over_stacked_bubbles() {
+        let regions = vec![
+            ocr_region(100.0, 20.0, 18.0, 80.0, "右の列"),
+            ocr_region(76.0, 24.0, 18.0, 76.0, "左の列"),
+            // Same x coordinate and close enough for the old isotropic threshold,
+            // but this is a separate bubble below rather than another column.
+            ocr_region(100.0, 120.0, 18.0, 70.0, "下の気泡"),
+        ];
+
+        let segmented = segment_manga_text(regions, Some(18.0));
+        assert_eq!(segmented.len(), 2);
+        assert!(
+            segmented
+                .iter()
+                .any(|region| region.text == "右の列\n左の列")
+        );
+        assert!(segmented.iter().any(|region| region.text == "下の気泡"));
     }
 }
