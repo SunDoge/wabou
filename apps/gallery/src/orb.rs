@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 use wabou::widget_api::{
     PaintContext, UiEvent, Widget, WidgetChanges, WidgetEventResult,
     vello::{
-        kurbo::{Affine, BezPath, Circle, Point, Stroke},
+        kurbo::{Affine, Circle, Point, Stroke},
         peniko::{Color, Fill, Gradient},
     },
 };
@@ -69,7 +69,7 @@ impl Widget for OrbWidget {
         let time = self.elapsed();
 
         paint_glow(cx, center, radius, self.preset);
-        let silhouette = blob_path(center, radius, time * 0.38, 7, 0.075);
+        let silhouette = Circle::new(center, radius);
         cx.scene_mut()
             .push_clip_layer(Fill::NonZero, Affine::IDENTITY, &silhouette);
         match self.preset {
@@ -274,51 +274,14 @@ fn paint_glass(cx: &mut PaintContext<'_>, center: Point, radius: f64, time: f64)
     );
 }
 
-fn blob_path(center: Point, radius: f64, phase: f64, points: usize, wobble: f64) -> BezPath {
-    let samples = (0..points)
-        .map(|index| {
-            let angle = index as f64 / points as f64 * TAU;
-            let modulation = 1.0
-                + wobble * (angle * 3.0 + phase).sin()
-                + wobble * 0.55 * (angle * 5.0 - phase * 1.3).cos();
-            Point::new(
-                center.x + angle.cos() * radius * modulation,
-                center.y + angle.sin() * radius * modulation,
-            )
-        })
-        .collect::<Vec<_>>();
-    let mut path = BezPath::new();
-    let first_mid = midpoint(samples[points - 1], samples[0]);
-    path.move_to(first_mid);
-    for index in 0..points {
-        let current = samples[index];
-        let next = samples[(index + 1) % points];
-        path.quad_to(current, midpoint(current, next));
-    }
-    path.close_path();
-    path
-}
-
-fn midpoint(a: Point, b: Point) -> Point {
-    Point::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou::widget_api::vello::kurbo::Shape;
 
     #[test]
     fn presets_are_explicit_and_unknown_values_fall_back() {
         assert_eq!(OrbPreset::parse("plasma"), OrbPreset::Plasma);
         assert_eq!(OrbPreset::parse("chrome"), OrbPreset::Chrome);
         assert_eq!(OrbPreset::parse("unknown"), OrbPreset::Aurora);
-    }
-
-    #[test]
-    fn generated_blob_is_closed_and_contains_the_center() {
-        let path = blob_path(Point::new(100.0, 100.0), 60.0, 0.5, 7, 0.075);
-        assert!(path.contains(Point::new(100.0, 100.0)));
-        assert!(path.bounding_box().width() > 100.0);
     }
 }
