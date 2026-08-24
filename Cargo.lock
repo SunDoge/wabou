@@ -2875,13 +2875,11 @@ dependencies = [
 name = "gallery"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
  "serde",
  "serde_json",
  "snafu",
  "tracing",
  "tracing-subscriber",
- "vello",
  "wabou",
 ]
 

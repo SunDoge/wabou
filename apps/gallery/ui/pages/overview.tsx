@@ -9,10 +9,13 @@ import {
   Kbd,
   Path,
   PathBuilder,
+  Pulse,
   Slider,
   SplitPane,
   SplitPaneAside,
   SplitPaneMain,
+  Spin,
+  Svg,
   Switch,
   Text,
   useHost,
@@ -40,6 +43,56 @@ const treeNodes = [
   { id: "hero", name: "HeroSurface", detail: "rounded paint surface" },
   { id: "chart", name: "FrameTimeline", detail: "retained vector scene" },
 ] as const;
+
+const ORB_SPHERE = `<svg viewBox="0 0 240 240" fill="none">
+  <defs>
+    <radialGradient id="body" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(78 62) rotate(48) scale(190)">
+      <stop stop-color="#E9FCFF"/><stop offset="0.18" stop-color="#55E6FF"/><stop offset="0.52" stop-color="#4763FF"/><stop offset="0.82" stop-color="#7C2FE8"/><stop offset="1" stop-color="#250B68"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="38" y1="30" x2="195" y2="208" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.72"/><stop offset="0.38" stop-color="#B9F7FF" stop-opacity="0.04"/><stop offset="1" stop-color="#13072E" stop-opacity="0.38"/>
+    </linearGradient>
+    <clipPath id="sphere"><circle cx="120" cy="120" r="92"/></clipPath>
+  </defs>
+  <circle cx="120" cy="120" r="96" fill="#35CBFF" fill-opacity="0.14"/>
+  <circle cx="120" cy="120" r="92" fill="url(#body)"/>
+  <g clip-path="url(#sphere)">
+    <path d="M19 147C63 103 91 177 139 142C177 114 189 75 239 91" stroke="#2DE6FF" stroke-width="30" stroke-linecap="round" opacity="0.48"/>
+    <path d="M5 186C67 139 99 213 151 169C184 142 206 115 247 123" stroke="#D946EF" stroke-width="35" stroke-linecap="round" opacity="0.42"/>
+    <ellipse cx="78" cy="58" rx="61" ry="30" transform="rotate(-27 78 58)" fill="#FFFFFF" opacity="0.22"/>
+    <circle cx="120" cy="120" r="91" fill="url(#glass)"/>
+  </g>
+  <circle cx="120" cy="120" r="91" stroke="#A9F4FF" stroke-opacity="0.7" stroke-width="2"/>
+  <ellipse cx="82" cy="67" rx="31" ry="13" transform="rotate(-28 82 67)" fill="#FFFFFF" opacity="0.72"/>
+</svg>`;
+
+const ORB_FLOW = `<svg viewBox="0 0 240 240" fill="none">
+  <circle cx="120" cy="120" r="72" stroke="#FFFFFF" stroke-opacity="0.15" stroke-width="2"/>
+  <path d="M48 124C69 82 105 70 146 83C176 93 193 119 191 151" stroke="#9EF6FF" stroke-opacity="0.7" stroke-width="5" stroke-linecap="round"/>
+  <path d="M70 177C101 193 148 184 170 153" stroke="#FFB4F0" stroke-opacity="0.58" stroke-width="4" stroke-linecap="round"/>
+</svg>`;
+
+function AnimatedOrb() {
+  return (
+    <View
+      aria-label="Animated native orb"
+      class="relative w-64 h-64 flex-none items-center justify-center overflow-hidden rounded-full border border-focus shadow-xl"
+      style={{ "background-color": "#080d26" }}
+    >
+      <Svg aria-hidden="true" class="absolute inset-2" source={ORB_SPHERE} />
+      <Spin aria-hidden="true" class="absolute inset-2" duration={11}>
+        <Svg class="w-full h-full" source={ORB_FLOW} />
+      </Spin>
+      <Pulse
+        aria-hidden="true"
+        class="absolute inset-12 rounded-full border-2 border-white"
+        from={0.18}
+        to={0.68}
+        duration={2.8}
+      />
+    </View>
+  );
+}
 
 function LiveFrameChart(props: { samples: readonly number[] }) {
   const source = createMemo(() => {
@@ -178,13 +231,32 @@ export function OverviewPage(props: {
         </View>
       </View>
 
-      <Card
-        class="relative overflow-hidden border-focus"
-        style={{
-          "background-color":
-            props.theme === "Light" ? "#fffffff0" : "#081127cc",
-        }}
-      >
+      <Card class="overflow-hidden border-focus shadow-lg">
+        <CardContent
+          class={
+            compact()
+              ? "p-7 flex flex-col items-center gap-7"
+              : "p-8 flex flex-row items-center justify-between gap-10"
+          }
+        >
+          <View class="min-w-0 max-w-xl flex flex-col gap-3">
+            <View class="flex flex-row">
+              <Badge variant="outline">Motion primitives</Badge>
+            </View>
+            <Text class="text-2xl font-bold text-primary">
+              Animation belongs in the component tree.
+            </Text>
+            <Text class="whitespace-normal text-sm text-secondary">
+              This orb is composed from retained Views, clipping, shadows,
+              transforms and reusable Spin, Pulse and Ripple primitives. It
+              does not alter how the rest of the window is composited.
+            </Text>
+          </View>
+          <AnimatedOrb />
+        </CardContent>
+      </Card>
+
+      <Card class="relative overflow-hidden border-focus bg-surface">
         <CardContent class="p-0">
           <SplitPane
             class={compact() ? "min-h-64 flex-col" : "min-h-64 flex-row"}
