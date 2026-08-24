@@ -6,6 +6,7 @@ import {
   Card,
   CardContent,
   createWindowMatch,
+  type Handle,
   ImageList,
   ImageOverlayLayer,
   ImageViewport,
@@ -16,7 +17,6 @@ import {
   TextArea,
   View,
 } from "@wabou/ui";
-import type { Handle } from "@wabou/core/renderer";
 import imagesIcon from "lucide-static/icons/images.svg?raw";
 import languages from "lucide-static/icons/languages.svg?raw";
 import scanText from "lucide-static/icons/scan-text.svg?raw";

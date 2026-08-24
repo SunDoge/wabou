@@ -80,9 +80,7 @@ fn texture_view(device: &wgpu::Device, label: &str) -> wgpu::TextureView {
 fn render_orb(device: &wgpu::Device, queue: &wgpu::Queue, target: &wgpu::TextureView, time: f32) {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("orb-shader"),
-        source: wgpu::ShaderSource::Wgsl(
-            include_str!("../../../apps/gallery/src/orb_background.wgsl").into(),
-        ),
+        source: wgpu::ShaderSource::Wgsl(include_str!("orb.wgsl").into()),
     });
     let uniforms = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("orb-uniforms"),

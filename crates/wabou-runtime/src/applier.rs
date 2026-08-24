@@ -560,7 +560,6 @@ pub struct Applier {
     document: DocumentState,
     interaction: InteractionState,
     frame: FrameState,
-    gpu_background_factory: Option<wabou_shell::GpuBackgroundFactory>,
 }
 
 impl Applier {
@@ -615,15 +614,7 @@ impl Applier {
             document: DocumentState::new(atoms, widget_factories, base_color),
             interaction: InteractionState::new(),
             frame: FrameState::new(FrameProjections::new(layout_metrics), resize_targets),
-            gpu_background_factory: None,
         }
-    }
-
-    pub(crate) fn set_gpu_background_factory(
-        &mut self,
-        factory: Option<wabou_shell::GpuBackgroundFactory>,
-    ) {
-        self.gpu_background_factory = factory;
     }
 
     /// Boot the application after all Applier-owned host bridges have been

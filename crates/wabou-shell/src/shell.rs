@@ -20,9 +20,7 @@ use wgpu_context::{
 use winit::event_loop::ActiveEventLoop;
 use winit::window::{Window, WindowAttributes};
 
-use crate::GpuBackground;
 use crate::accessibility::AccessibilityState;
-use crate::gpu_background::GpuBackgroundRenderer;
 use crate::source::{WindowInputMode, WindowLevel, WindowOptions};
 use crate::text::TextContext;
 
@@ -40,7 +38,6 @@ pub struct Shell {
     pub tcx: TextContext,
     /// Platform accessibility adapter for the window.
     pub accessibility: AccessibilityState,
-    gpu_background: Option<GpuBackgroundRenderer>,
 }
 
 impl Shell {
@@ -113,9 +110,7 @@ impl Shell {
                 view_formats: vec![],
             },
             Some(TextureConfiguration {
-                usage: wgpu::TextureUsages::STORAGE_BINDING
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
             }),
             device_handle,
         )
@@ -139,7 +134,6 @@ impl Shell {
             scene: Scene::new(),
             tcx: TextContext::new(),
             accessibility,
-            gpu_background: None,
         })
     }
 
@@ -155,9 +149,6 @@ impl Shell {
             // configure. SurfaceRenderer::resize does not clear it itself.
             self.surface.clear_surface_texture();
             self.surface.resize(width, height);
-            if let Some(background) = self.gpu_background.as_mut() {
-                background.resize(self.surface.device(), width, height);
-            }
             self.window.request_redraw();
         }
     }
@@ -188,45 +179,19 @@ impl Shell {
             self.surface.clear_surface_texture();
             return false;
         };
-        let render_result = if let Some(background) = self.gpu_background.as_mut() {
-            background.resize(self.surface.device(), w, h);
-            background
-                .render_effect(self.surface.device(), self.surface.queue())
-                .and_then(|()| {
-                    self.renderer
-                        .render_to_texture(
-                            self.surface.device(),
-                            self.surface.queue(),
-                            &self.scene,
-                            background.ui_target(),
-                            &RenderParams {
-                                base_color: Color::TRANSPARENT,
-                                width: w,
-                                height: h,
-                                antialiasing_method: AaConfig::Area,
-                            },
-                        )
-                        .map_err(|error| error.to_string())
-                })
-                .map(|()| background.compose(self.surface.device(), self.surface.queue(), &view))
-        } else {
-            self.renderer
-                .render_to_texture(
-                    self.surface.device(),
-                    self.surface.queue(),
-                    &self.scene,
-                    &view,
-                    &RenderParams {
-                        base_color,
-                        width: w,
-                        height: h,
-                        antialiasing_method: AaConfig::Area,
-                    },
-                )
-                .map_err(|error| error.to_string())
-        };
-        if let Err(e) = render_result {
-            eprintln!("frame rendering failed: {e}");
+        if let Err(e) = self.renderer.render_to_texture(
+            self.surface.device(),
+            self.surface.queue(),
+            &self.scene,
+            &view,
+            &RenderParams {
+                base_color,
+                width: w,
+                height: h,
+                antialiasing_method: AaConfig::Area,
+            },
+        ) {
+            eprintln!("vello render_to_texture failed: {e}");
             self.surface.clear_surface_texture();
             return false;
         }
@@ -243,30 +208,6 @@ impl Shell {
         // setting provides backpressure without serializing CPU and GPU.
         let _ = self.surface.device().poll(wgpu::PollType::Poll);
         true
-    }
-
-    /// Install an application-defined GPU background below the Vello scene.
-    pub fn set_gpu_background(&mut self, background: Box<dyn GpuBackground>) {
-        let (width, height) = self.size();
-        self.gpu_background = Some(GpuBackgroundRenderer::new(
-            self.surface.device(),
-            background,
-            width,
-            height,
-            self.surface.config.format,
-        ));
-    }
-
-    /// Whether this surface has an application-defined GPU background.
-    pub fn has_gpu_background(&self) -> bool {
-        self.gpu_background.is_some()
-    }
-
-    /// Whether the GPU background currently requests continuous frames.
-    pub fn gpu_background_is_animated(&self) -> bool {
-        self.gpu_background
-            .as_ref()
-            .is_some_and(GpuBackgroundRenderer::is_animated)
     }
 
     /// Borrow the platform window.
