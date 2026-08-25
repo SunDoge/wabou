@@ -68,6 +68,9 @@ vello = "0.10.0"
 winit = "=0.31.0-beta.2"
 zeroize = "1.9.0"
 
+[profile.dev]
+opt-level = 1
+
 [profile.dev.package."*"]
 opt-level = 2
 

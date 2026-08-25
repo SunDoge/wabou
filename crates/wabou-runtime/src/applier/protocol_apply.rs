@@ -674,14 +674,8 @@ impl Applier {
                             .get(&n)
                             .is_some_and(|children| !children.is_empty());
                     self.document.runtime_transforms.insert(n, *matrix);
-                    if let Some(paint) = self.document.node_store.tree.get_node_context(n) {
-                        let mut paint = paint.clone();
+                    if let Some(paint) = self.document.node_store.tree.get_node_context_mut(n) {
                         paint.runtime_transform = Some(*matrix);
-                        let _ = self
-                            .document
-                            .node_store
-                            .tree
-                            .set_node_context(n, Some(paint));
                     }
                     if affects_hit_geometry {
                         self.document

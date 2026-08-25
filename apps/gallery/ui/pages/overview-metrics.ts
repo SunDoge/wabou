@@ -1,16 +1,17 @@
 import type { FrameStats } from "@wabou/ui";
 
 export interface FrameStage {
-  label: "JS" | "Build" | "Scene" | "Present";
+  label: "JS" | "Host" | "Scene" | "Present";
   value: number;
   width: number;
 }
 
 /** Total time represented by the native frame diagnostics. */
 export function frameDuration(stats: FrameStats): number {
-  return (
-    stats.js_tick_ms + stats.build_frame_ms + stats.scene_ms + stats.present_ms
-  );
+  // build_frame_ms spans the complete FrameSource::build_frame call, including
+  // the separately sampled JavaScript tick. Do not count that nested sample
+  // twice when presenting the end-to-end frame duration.
+  return stats.build_frame_ms + stats.scene_ms + stats.present_ms;
 }
 
 /**
@@ -18,9 +19,10 @@ export function frameDuration(stats: FrameStats): number {
  * their relative cost remains visible while a fast frame still has headroom.
  */
 export function frameStages(stats: FrameStats): FrameStage[] {
+  const hostBuild = Math.max(0, stats.build_frame_ms - stats.js_tick_ms);
   const values = [
     ["JS", stats.js_tick_ms],
-    ["Build", stats.build_frame_ms],
+    ["Host", hostBuild],
     ["Scene", stats.scene_ms],
     ["Present", stats.present_ms],
   ] as const;
