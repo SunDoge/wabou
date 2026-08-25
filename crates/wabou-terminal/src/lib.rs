@@ -40,6 +40,7 @@ use wabou_shell::{
     UiEvent, WHEEL_LINE_DELTA, WakeCallback,
 };
 
+mod box_drawing;
 mod graphics;
 mod input_encoding;
 mod kitty_keyboard;

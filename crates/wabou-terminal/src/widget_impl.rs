@@ -221,6 +221,21 @@ impl TerminalWidget {
             return;
         }
 
+        if box_drawing::draw_box_drawing(
+            scene,
+            character,
+            box_drawing::BoxCell {
+                column,
+                row,
+                width: self.cell_width,
+                height: self.line_height,
+                device_scale,
+            },
+            foreground,
+        ) {
+            return;
+        }
+
         let cell_text = cell_text(
             square,
             square
