@@ -328,19 +328,35 @@ function installFetchPolyfill() {
 installFetchPolyfill();
 //#endregion
 //#region src/glue/animation-frame.ts
-const rafQueue = /* @__PURE__ */ new Map();
-let nextRafId = 1;
+var AnimationFrameQueue = class {
+	#callbacks = /* @__PURE__ */ new Map();
+	#nextId = 1;
+	request(callback) {
+		const id = this.#nextId++;
+		this.#callbacks.set(id, callback);
+		return id;
+	}
+	cancel(id) {
+		this.#callbacks.delete(id);
+	}
+	drain() {
+		const entries = Array.from(this.#callbacks.entries());
+		this.#callbacks.clear();
+		return entries;
+	}
+	hasPending() {
+		return this.#callbacks.size > 0;
+	}
+};
+const animationFrames = new AnimationFrameQueue();
 function requestAnimationFrameImpl(cb) {
-	const id = nextRafId++;
-	rafQueue.set(id, cb);
-	return id;
+	return animationFrames.request(cb);
 }
 function cancelAnimationFrameImpl(id) {
-	rafQueue.delete(id);
+	animationFrames.cancel(id);
 }
-function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush(), commit = flush) {
-	const entries = Array.from(rafQueue.entries());
-	rafQueue.clear();
+function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush(), commit = flush, queue = animationFrames) {
+	const entries = queue.drain();
 	commit(() => {
 		for (const [_, cb] of entries) try {
 			cb(frameTime);
@@ -351,13 +367,13 @@ function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = ()
 	runSweep();
 	const bytes = flushWriter();
 	if (bytes) deliver(bytes);
-	return rafQueue.size > 0;
+	return queue.hasPending();
 }
 function __wabou_tick(frameTime) {
 	return tickAnimationFrame(frameTime);
 }
 function __wabou_has_raf() {
-	return rafQueue.size > 0;
+	return animationFrames.hasPending();
 }
 globalThis.requestAnimationFrame = requestAnimationFrameImpl;
 globalThis.cancelAnimationFrame = cancelAnimationFrameImpl;

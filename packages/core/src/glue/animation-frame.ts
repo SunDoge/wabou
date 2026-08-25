@@ -7,17 +7,39 @@
 import { flush } from "solid-js";
 import { runSweep, writer } from "../renderer";
 
-const rafQueue = new Map<number, (t: number) => void>();
-let nextRafId = 1;
+export class AnimationFrameQueue {
+  readonly #callbacks = new Map<number, (time: number) => void>();
+  #nextId = 1;
+
+  request(callback: (time: number) => void): number {
+    const id = this.#nextId++;
+    this.#callbacks.set(id, callback);
+    return id;
+  }
+
+  cancel(id: number): void {
+    this.#callbacks.delete(id);
+  }
+
+  drain(): Array<[number, (time: number) => void]> {
+    const entries = Array.from(this.#callbacks.entries());
+    this.#callbacks.clear();
+    return entries;
+  }
+
+  hasPending(): boolean {
+    return this.#callbacks.size > 0;
+  }
+}
+
+const animationFrames = new AnimationFrameQueue();
 
 export function requestAnimationFrameImpl(cb: (t: number) => void): number {
-  const id = nextRafId++;
-  rafQueue.set(id, cb);
-  return id;
+  return animationFrames.request(cb);
 }
 
 function cancelAnimationFrameImpl(id: number): void {
-  rafQueue.delete(id);
+  animationFrames.cancel(id);
 }
 
 export function tickAnimationFrame(
@@ -25,9 +47,9 @@ export function tickAnimationFrame(
   deliver: (bytes: Uint8Array) => void = __wabou_flush,
   flushWriter: () => Uint8Array | null | undefined = () => writer.flush(),
   commit: <T>(callback: () => T) => T = flush,
+  queue: AnimationFrameQueue = animationFrames,
 ): boolean {
-  const entries = Array.from(rafQueue.entries());
-  rafQueue.clear();
+  const entries = queue.drain();
   // A native frame is the transaction boundary for every rAF callback.
   // Commit Solid's queued render effects before serializing the writer, so
   // rAF-driven changes cannot sit in the writer until an unrelated next frame.
@@ -46,7 +68,7 @@ export function tickAnimationFrame(
   runSweep();
   const bytes = flushWriter();
   if (bytes) deliver(bytes);
-  return rafQueue.size > 0;
+  return queue.hasPending();
 }
 
 function __wabou_tick(frameTime: number): boolean {
@@ -54,7 +76,7 @@ function __wabou_tick(frameTime: number): boolean {
 }
 
 function __wabou_has_raf(): boolean {
-  return rafQueue.size > 0;
+  return animationFrames.hasPending();
 }
 
 (globalThis as unknown as Record<string, unknown>).requestAnimationFrame =

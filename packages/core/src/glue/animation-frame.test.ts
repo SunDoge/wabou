@@ -1,15 +1,13 @@
 import { expect, test } from "bun:test";
-import {
-  requestAnimationFrameImpl,
-  tickAnimationFrame,
-} from "./animation-frame";
+import { AnimationFrameQueue, tickAnimationFrame } from "./animation-frame";
 
 test("requestAnimationFrame commits its transaction before writer delivery", () => {
   let pending = "before";
   let applied = "before";
   let delivered: Uint8Array | undefined;
   let serialized = "";
-  requestAnimationFrameImpl(() => {
+  const queue = new AnimationFrameQueue();
+  queue.request(() => {
     pending = "after";
   });
   tickAnimationFrame(
@@ -26,6 +24,7 @@ test("requestAnimationFrame commits its transaction before writer delivery", () 
       applied = pending;
       return result;
     },
+    queue,
   );
 
   expect(serialized).toBe("after");
