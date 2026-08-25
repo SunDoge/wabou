@@ -8,8 +8,8 @@ import {
   createDataRouter,
   createMemoryHistory,
   createScrollReset,
-  currentWindow,
   createWindowMatch,
+  currentWindow,
   Fps,
   type Handle,
   mount,
@@ -55,6 +55,7 @@ type ComponentId =
   | "system"
   | "colors"
   | "shadows"
+  | "layout-styles"
   | "utilities"
   | "scroll-area"
   | "resizable"
@@ -243,6 +244,8 @@ const descriptions: Record<ComponentId, string> = {
   system: "Native file dialogs, message dialogs and desktop notifications.",
   colors: "Every color token exported by the native Wabou utility theme.",
   shadows: "Backend-neutral box shadows with explicit Gaussian parameters.",
+  "layout-styles":
+    "Exercises explicit sizing, overflow and text layout contracts across common component compositions.",
   utilities: "Tailwind-style static classes parsed by the native Rust preset.",
   "scroll-area": "A native scrolling viewport with intrinsic flex content.",
   resizable:
@@ -350,11 +353,7 @@ import {
 } from "./pages/basics";
 import { ChartPage } from "./pages/chart";
 import { DataTablePage } from "./pages/data-table";
-import {
-  ColorsPage,
-  LayoutStylesPage,
-  ShadowsPage,
-} from "./pages/foundations";
+import { ColorsPage, LayoutStylesPage, ShadowsPage } from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { ImageViewportPage } from "./pages/image-viewport";
 import { MenubarPage } from "./pages/menubar";
