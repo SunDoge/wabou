@@ -10295,10 +10295,10 @@ ${detail}`);
   function cancelAnimationFrameImpl(id) {
     rafQueue.delete(id);
   }
-  function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush()) {
+  function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush(), commit = flush) {
     const entries = Array.from(rafQueue.entries());
     rafQueue.clear();
-    flush(() => {
+    commit(() => {
       for (const [_2, cb] of entries) {
         try {
           cb(frameTime);

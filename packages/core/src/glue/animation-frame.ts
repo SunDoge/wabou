@@ -24,13 +24,14 @@ export function tickAnimationFrame(
   frameTime: number,
   deliver: (bytes: Uint8Array) => void = __wabou_flush,
   flushWriter: () => Uint8Array | null | undefined = () => writer.flush(),
+  commit: <T>(callback: () => T) => T = flush,
 ): boolean {
   const entries = Array.from(rafQueue.entries());
   rafQueue.clear();
   // A native frame is the transaction boundary for every rAF callback.
   // Commit Solid's queued render effects before serializing the writer, so
   // rAF-driven changes cannot sit in the writer until an unrelated next frame.
-  flush(() => {
+  commit(() => {
     for (const [_, cb] of entries) {
       try {
         cb(frameTime);
