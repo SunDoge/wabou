@@ -45,13 +45,21 @@ pub fn resolve_local_transforms(node: &PlacedNode) -> (Affine, Affine) {
 pub fn resolve_node_transform(node: &PlacedNode, parent_transform: Affine) -> Affine {
     let [x0, y0, x1, y1] = node.rect;
     let rect = Rect::new(x0 as f64, y0 as f64, x1 as f64, y1 as f64);
+    let resolve = |length: &IrLength, size: f32| match length {
+        IrLength::Px { value } => f64::from(*value),
+        IrLength::Percent { value } => f64::from(*value * size),
+        IrLength::Auto => 0.0,
+    };
     let (static_transform, runtime_transform) = resolve_local_transforms(node);
-    let center = rect.center().to_vec2();
+    let origin = vello::kurbo::Vec2::new(
+        rect.x0 + resolve(&node.paint.transform_origin[0], x1 - x0),
+        rect.y0 + resolve(&node.paint.transform_origin[1], y1 - y0),
+    );
     parent_transform
-        * Affine::translate(center)
+        * Affine::translate(origin)
         * static_transform
         * runtime_transform
-        * Affine::translate(-center)
+        * Affine::translate(-origin)
 }
 
 fn widget_clip(node: &PlacedNode) -> Option<([f32; 4], f64)> {
@@ -676,6 +684,23 @@ mod tests {
         let transformed = transform * center;
         assert!((transformed.x - center.x).abs() < 1e-9);
         assert!((transformed.y - center.y).abs() < 1e-9);
+    }
+
+    #[test]
+    fn transform_origin_changes_the_static_and_runtime_pivot() {
+        let node = placed_node(Paint {
+            transform: vec![PaintTransform::Rotate(std::f32::consts::FRAC_PI_2)],
+            transform_origin: [
+                IrLength::Percent { value: 0.0 },
+                IrLength::Percent { value: 0.0 },
+            ],
+            ..Paint::default()
+        });
+        let transform = resolve_node_transform(&node, Affine::IDENTITY);
+        let origin = vello::kurbo::Point::new(10.0, 20.0);
+        let transformed = transform * origin;
+        assert!((transformed.x - origin.x).abs() < 1e-9);
+        assert!((transformed.y - origin.y).abs() < 1e-9);
     }
 
     #[test]

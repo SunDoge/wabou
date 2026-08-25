@@ -7514,6 +7514,16 @@
       number: true,
       typed: [1, 2, 3, 6]
     },
+    "transform-origin-x": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
+    "transform-origin-y": {
+      string: true,
+      number: true,
+      typed: [1]
+    },
     "user-select": {
       string: true,
       number: false,
@@ -7992,6 +8002,11 @@
       "max-w-sm": ["max-width"],
       "max-w-xl": ["max-width"],
       "max-w-xs": ["max-width"],
+      "origin-bottom-left": ["transform-origin-x", "transform-origin-y"],
+      "origin-bottom-right": ["transform-origin-x", "transform-origin-y"],
+      "origin-center": ["transform-origin-x", "transform-origin-y"],
+      "origin-top-left": ["transform-origin-x", "transform-origin-y"],
+      "origin-top-right": ["transform-origin-x", "transform-origin-y"],
       outline: ["outline-width", "outline-style"],
       "outline-0": ["outline-width"],
       "outline-2": ["outline-width", "outline-style"],

@@ -314,4 +314,42 @@ function ShadowsPage() {
   );
 }
 
-export { ColorsPage, ShadowsPage };
+function LayoutStylesPage() {
+  return (
+    <View class="flex flex-col gap-5">
+      <Preview title="Explicit grid placement">
+        <View class="w-full grid grid-cols-4 grid-rows-2 gap-3">
+          <View class="col-span-2 row-span-2 min-h-32 rounded-xl bg-violet-100 p-4 justify-self-stretch">
+            <Text class="font-semibold tracking-tight text-violet-950">
+              col-span-2 · row-span-2
+            </Text>
+          </View>
+          <View class="col-start-3 col-end-5 rounded-lg bg-sky-100 p-4">
+            <Text class="tracking-wide text-sky-950">columns 3 → 5</Text>
+          </View>
+          <View class="col-start-3 rounded-lg bg-emerald-100 p-4" />
+          <View class="col-start-4 rounded-lg bg-amber-100 p-4" />
+        </View>
+      </Preview>
+
+      <Preview title="Transform origin and tracking">
+        <View class="w-full flex items-center gap-10 p-6">
+          <View class="origin-top-left rotate-6 size-24 rounded-xl bg-violet-500 shadow-md" />
+          <View class="flex flex-col gap-3">
+            <Text class="text-lg font-semibold tracking-tighter">
+              Tighter interface heading
+            </Text>
+            <Text class="text-sm tracking-normal text-slate-600">
+              Normal body tracking
+            </Text>
+            <Text class="text-xs tracking-widest text-slate-500">
+              WIDEST LABEL
+            </Text>
+          </View>
+        </View>
+      </Preview>
+    </View>
+  );
+}
+
+export { ColorsPage, LayoutStylesPage, ShadowsPage };

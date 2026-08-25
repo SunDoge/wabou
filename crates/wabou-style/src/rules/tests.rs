@@ -86,6 +86,20 @@ fn tracking_utilities_emit_typed_letter_spacing() {
 }
 
 #[test]
+fn transform_origin_utilities_emit_both_axes() {
+    let parsed = parse_utility("origin-bottom-right").unwrap();
+    assert_eq!(parsed.declarations.len(), 2);
+    assert_eq!(parsed.declarations[0].property, "transform-origin-x");
+    assert_eq!(parsed.declarations[1].property, "transform-origin-y");
+    assert!(parsed.declarations.iter().all(|declaration| {
+        declaration.value
+            == Value::Length {
+                value: Length::Percent { value: 1.0 },
+            }
+    }));
+}
+
+#[test]
 fn grid_placement_and_new_taffy_layout_utilities_are_explicit() {
     for (candidate, property) in [
         ("col-span-3", "grid-column-start"),

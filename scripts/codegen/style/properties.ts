@@ -111,6 +111,8 @@ add(
     "font-size",
     "outline-width",
     "outline-offset",
+    "transform-origin-x",
+    "transform-origin-y",
   ],
   { string: true, number: true, typed: [PX] },
 );

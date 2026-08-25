@@ -2425,6 +2425,116 @@
         }
       }
     ],
+    "origin-bottom-left": [
+      {
+        "property": "transform-origin-x",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 0.0
+          }
+        }
+      },
+      {
+        "property": "transform-origin-y",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 1.0
+          }
+        }
+      }
+    ],
+    "origin-bottom-right": [
+      {
+        "property": "transform-origin-x",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 1.0
+          }
+        }
+      },
+      {
+        "property": "transform-origin-y",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 1.0
+          }
+        }
+      }
+    ],
+    "origin-center": [
+      {
+        "property": "transform-origin-x",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 0.5
+          }
+        }
+      },
+      {
+        "property": "transform-origin-y",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 0.5
+          }
+        }
+      }
+    ],
+    "origin-top-left": [
+      {
+        "property": "transform-origin-x",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 0.0
+          }
+        }
+      },
+      {
+        "property": "transform-origin-y",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 0.0
+          }
+        }
+      }
+    ],
+    "origin-top-right": [
+      {
+        "property": "transform-origin-x",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 1.0
+          }
+        }
+      },
+      {
+        "property": "transform-origin-y",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "percent",
+            "value": 0.0
+          }
+        }
+      }
+    ],
     "outline": [
       {
         "property": "outline-width",

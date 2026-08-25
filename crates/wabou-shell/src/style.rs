@@ -501,6 +501,12 @@ fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) ->
                 paint.border_radius = *value;
             }
         }
+        "transform-origin-x" | "transform-origin-y" => {
+            if let Some(length) = value.length() {
+                let index = usize::from(property.ends_with('y'));
+                paint.transform_origin[index] = length.clone();
+            }
+        }
         "background-color" | "background" => {
             paint.background = ir_color(value).or(paint.background)
         }

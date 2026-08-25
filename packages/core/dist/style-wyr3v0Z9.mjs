@@ -477,6 +477,16 @@ const INLINE_STYLE_CONTRACT = {
 			6
 		]
 	},
+	"transform-origin-x": {
+		string: true,
+		number: true,
+		typed: [1]
+	},
+	"transform-origin-y": {
+		string: true,
+		number: true,
+		typed: [1]
+	},
 	"user-select": {
 		string: true,
 		number: false,
@@ -969,6 +979,11 @@ const UTILITY_CONFLICT_DATA = {
 		"max-w-sm": ["max-width"],
 		"max-w-xl": ["max-width"],
 		"max-w-xs": ["max-width"],
+		"origin-bottom-left": ["transform-origin-x", "transform-origin-y"],
+		"origin-bottom-right": ["transform-origin-x", "transform-origin-y"],
+		"origin-center": ["transform-origin-x", "transform-origin-y"],
+		"origin-top-left": ["transform-origin-x", "transform-origin-y"],
+		"origin-top-right": ["transform-origin-x", "transform-origin-y"],
 		outline: ["outline-width", "outline-style"],
 		"outline-0": ["outline-width"],
 		"outline-2": ["outline-width", "outline-style"],
@@ -1615,4 +1630,4 @@ function mergeClasses(...values) {
 //#endregion
 export { utilityConflictProperties as _, bool as a, mergeClasses as c, px as d, rgba as f, translate2d as g, shadow as h, auto as i, number as l, scale2d as m, StyleValueKind as n, classes as o, rotate2d as p, assertInlineStyleValue as r, isTypedStyleValue as s, STYLE_VALUE as t, percent as u, INLINE_STYLE_CONTRACT as v };
 
-//# sourceMappingURL=style-C5KlhzFs.mjs.map
+//# sourceMappingURL=style-wyr3v0Z9.mjs.map

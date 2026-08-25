@@ -676,6 +676,41 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
             "rounded-full",
             vec![length("border-radius", Length::Px { value: 9999.0 })],
         ),
+        (
+            "origin-center",
+            vec![
+                length("transform-origin-x", Length::Percent { value: 0.5 }),
+                length("transform-origin-y", Length::Percent { value: 0.5 }),
+            ],
+        ),
+        (
+            "origin-top-left",
+            vec![
+                length("transform-origin-x", Length::Percent { value: 0.0 }),
+                length("transform-origin-y", Length::Percent { value: 0.0 }),
+            ],
+        ),
+        (
+            "origin-top-right",
+            vec![
+                length("transform-origin-x", Length::Percent { value: 1.0 }),
+                length("transform-origin-y", Length::Percent { value: 0.0 }),
+            ],
+        ),
+        (
+            "origin-bottom-left",
+            vec![
+                length("transform-origin-x", Length::Percent { value: 0.0 }),
+                length("transform-origin-y", Length::Percent { value: 1.0 }),
+            ],
+        ),
+        (
+            "origin-bottom-right",
+            vec![
+                length("transform-origin-x", Length::Percent { value: 1.0 }),
+                length("transform-origin-y", Length::Percent { value: 1.0 }),
+            ],
+        ),
         ("font-sans", vec![keyword("font-family", "sans-serif")]),
         ("font-mono", vec![keyword("font-family", "monospace")]),
         ("font-normal", vec![number("font-weight", 400.0)]),

@@ -194,6 +194,8 @@ pub struct DeclaredPaint {
     pub opacity: f32,
     /// Static transform list in authored order.
     pub transform: Vec<PaintTransform>,
+    /// Transform pivot relative to the border box.
+    pub transform_origin: [IrLength; 2],
     /// Outer shadows rendered behind the border box.
     pub shadows: Vec<Shadow>,
     /// Uniform corner radius in px.
@@ -242,6 +244,10 @@ impl Default for DeclaredPaint {
             background: None,
             opacity: 1.0,
             transform: Vec::new(),
+            transform_origin: [
+                IrLength::Percent { value: 0.5 },
+                IrLength::Percent { value: 0.5 },
+            ],
             shadows: Vec::new(),
             border_radius: 0.0,
             border: None,
@@ -298,6 +304,7 @@ impl DeclaredPaint {
             background: self.background,
             opacity: self.opacity,
             transform: self.transform.clone(),
+            transform_origin: self.transform_origin.clone(),
             runtime_transform: host.runtime_transform,
             overlay_plane: host.overlay_plane,
             scrollbar: host.scrollbar,
@@ -450,6 +457,8 @@ pub struct Paint {
     pub opacity: f32,
     /// Resolved static transform list.
     pub transform: Vec<PaintTransform>,
+    /// Resolved transform pivot relative to the border box.
+    pub transform_origin: [IrLength; 2],
     /// Host-driven state, composed after the static CSS transform.
     pub runtime_transform: Option<[f32; 6]>,
     /// Explicit host stacking plane, ordered before sibling `z-index`.

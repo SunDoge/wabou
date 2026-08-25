@@ -178,6 +178,7 @@ const groups: Array<{
     items: [
       { id: "colors", name: "Colors" },
       { id: "shadows", name: "Shadows" },
+      { id: "layout-styles", name: "Layout styles" },
       { id: "overlay", name: "Overlay" },
       { id: "i18n", name: "Internationalization" },
       { id: "direction", name: "Direction" },
@@ -349,7 +350,11 @@ import {
 } from "./pages/basics";
 import { ChartPage } from "./pages/chart";
 import { DataTablePage } from "./pages/data-table";
-import { ColorsPage, ShadowsPage } from "./pages/foundations";
+import {
+  ColorsPage,
+  LayoutStylesPage,
+  ShadowsPage,
+} from "./pages/foundations";
 import { I18nPage } from "./pages/i18n";
 import { ImageViewportPage } from "./pages/image-viewport";
 import { MenubarPage } from "./pages/menubar";
@@ -588,6 +593,9 @@ function App() {
                   </Match>
                   <Match when={selected() === "shadows"}>
                     <ShadowsPage />
+                  </Match>
+                  <Match when={selected() === "layout-styles"}>
+                    <LayoutStylesPage />
                   </Match>
                   <Match when={selected() === "alert"}>
                     <AlertPage />

@@ -2102,6 +2102,101 @@ var manifest_default = {
 				}
 			}
 		}],
+		"origin-bottom-left": [{
+			"property": "transform-origin-x",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 0
+				}
+			}
+		}, {
+			"property": "transform-origin-y",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 1
+				}
+			}
+		}],
+		"origin-bottom-right": [{
+			"property": "transform-origin-x",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 1
+				}
+			}
+		}, {
+			"property": "transform-origin-y",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 1
+				}
+			}
+		}],
+		"origin-center": [{
+			"property": "transform-origin-x",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": .5
+				}
+			}
+		}, {
+			"property": "transform-origin-y",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": .5
+				}
+			}
+		}],
+		"origin-top-left": [{
+			"property": "transform-origin-x",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 0
+				}
+			}
+		}, {
+			"property": "transform-origin-y",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 0
+				}
+			}
+		}],
+		"origin-top-right": [{
+			"property": "transform-origin-x",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 1
+				}
+			}
+		}, {
+			"property": "transform-origin-y",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "percent",
+					"value": 0
+				}
+			}
+		}],
 		"outline": [{
 			"property": "outline-width",
 			"value": {
@@ -5062,4 +5157,4 @@ var manifest_default = {
 //#endregion
 export { manifest_default as t };
 
-//# sourceMappingURL=manifest-B7d-5Vxl.mjs.map
+//# sourceMappingURL=manifest-DrDTvnbn.mjs.map

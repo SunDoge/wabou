@@ -361,6 +361,16 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1, 2, 3, 6],
   },
+  "transform-origin-x": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
+  "transform-origin-y": {
+    string: true,
+    number: true,
+    typed: [1],
+  },
   "user-select": {
     string: true,
     number: false,
