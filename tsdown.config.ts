@@ -1,7 +1,17 @@
+import { readFile } from "node:fs/promises";
 import { defineConfig, type UserConfig } from "tsdown";
 import solid from "vite-plugin-solid";
 
 const stageName = process.env.WABOU_PACKAGE_STAGE_NAME;
+
+const rawTextPlugin = {
+  name: "wabou-raw-text",
+  async load(id: string) {
+    if (!id.endsWith("?raw")) return undefined;
+    const source = await readFile(id.slice(0, -"?raw".length), "utf8");
+    return `export default ${JSON.stringify(source)};`;
+  },
+};
 
 const packages: Record<string, UserConfig["entry"]> = {
   core: {
@@ -51,8 +61,16 @@ export default defineConfig(
     outExtensions: () => ({ js: ".mjs", dts: ".d.mts" }),
     sourcemap: true,
     clean: true,
-    deps: { neverBundle: true },
+    deps: {
+      neverBundle: true,
+      // `?raw` is a build-time contract, not a module specifier that package
+      // consumers can execute. Inline UI icon sources while keeping ordinary
+      // package dependencies external and tree-shakeable.
+      alwaysBundle: name === "ui" ? [/^lucide-static\/icons\//] : undefined,
+      onlyBundle: name === "ui" ? ["lucide-static"] : undefined,
+    },
     plugins: [
+      rawTextPlugin,
       ...solid({
         solid: {
           generate: "universal",
