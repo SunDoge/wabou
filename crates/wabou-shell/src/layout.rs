@@ -11,6 +11,27 @@ use taffy::{AvailableSpace, NodeId, TaffyTree, TraversePartialTree};
 use crate::style::Paint;
 use crate::text::TextContext;
 
+fn text_measurement_width(
+    known_width: Option<f32>,
+    available_width: AvailableSpace,
+    wraps: bool,
+    intrinsic: [f32; 2],
+) -> (f32, Option<f32>) {
+    if let Some(width) = known_width {
+        return (width, wraps.then_some(width));
+    }
+    let [min_content, max_content] = intrinsic;
+    let selected = match available_width {
+        AvailableSpace::MinContent => min_content,
+        AvailableSpace::MaxContent => max_content,
+        AvailableSpace::Definite(limit) if wraps => limit.min(max_content).max(min_content),
+        AvailableSpace::Definite(_) => max_content,
+    }
+    .ceil();
+    let constraint = (wraps && selected < max_content).then_some(selected);
+    (selected, constraint)
+}
+
 /// A node after layout: its absolute border-box rect + resolved paint.
 #[derive(Clone)]
 pub struct PlacedNode {
@@ -190,9 +211,7 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                     if let Some(paint) = ctx {
                         if let Some(text) = &paint.text {
                             let wraps = paint.wrap_text || paint.text_max_lines > 0;
-                            let measured_width = if let Some(width) = known.width {
-                                width
-                            } else {
+                            let intrinsic = if known.width.is_none() {
                                 let [min_content, max_content] =
                                     crate::text::measure_text_intrinsic_widths(
                                         measure.text(),
@@ -207,16 +226,12 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                                         paint.font_family.as_ref(),
                                         wraps,
                                     );
-                                match avail.width {
-                                    AvailableSpace::MinContent => min_content,
-                                    AvailableSpace::MaxContent => max_content,
-                                    AvailableSpace::Definite(limit) if wraps => {
-                                        limit.min(max_content).max(min_content)
-                                    }
-                                    AvailableSpace::Definite(_) => max_content,
-                                }
-                                .ceil()
+                                [min_content, max_content]
+                            } else {
+                                [0.0, 0.0]
                             };
+                            let (measured_width, layout_width) =
+                                text_measurement_width(known.width, avail.width, wraps, intrinsic);
                             let l = crate::text::layout_text_styled_clamped(
                                 measure.text(),
                                 text.clone(),
@@ -228,7 +243,7 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                                 crate::text::brush_for_color(paint.text_color),
                                 paint.text_runs.clone(),
                                 paint.font_family.as_ref(),
-                                wraps.then_some(measured_width),
+                                layout_width,
                                 paint.text_max_lines,
                             );
                             return Size {
@@ -478,6 +493,27 @@ fn walk(
 mod tests {
     use super::*;
     use std::sync::Arc;
+
+    #[test]
+    fn ample_intrinsic_space_reuses_the_unconstrained_layout() {
+        let intrinsic = [80.25, 140.25];
+        assert_eq!(
+            text_measurement_width(None, AvailableSpace::Definite(500.0), true, intrinsic,),
+            (141.0, None)
+        );
+        assert_eq!(
+            text_measurement_width(None, AvailableSpace::MaxContent, true, intrinsic),
+            (141.0, None)
+        );
+        assert_eq!(
+            text_measurement_width(None, AvailableSpace::Definite(100.0), true, intrinsic),
+            (100.0, Some(100.0))
+        );
+        assert_eq!(
+            text_measurement_width(Some(96.0), AvailableSpace::MaxContent, true, intrinsic),
+            (96.0, Some(96.0))
+        );
+    }
 
     #[test]
     fn taffy_receives_distinct_min_and_max_content_text_widths() {

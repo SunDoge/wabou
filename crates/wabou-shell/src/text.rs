@@ -1122,6 +1122,7 @@ mod tests {
         assert!(wrapped[0] < wrapped[1]);
         assert_eq!(unbroken, [wrapped[1], wrapped[1]]);
         assert_eq!(cached, wrapped);
+        assert_eq!(context.cache.len(), 1);
         assert_eq!(context.intrinsic_width_cache.len(), 2);
     }
 
