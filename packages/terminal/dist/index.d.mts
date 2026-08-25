@@ -38,6 +38,10 @@ interface TerminalProps {
   style?: TerminalStyle;
   /** Native host node, useful for focus and future imperative terminal APIs. */
   ref?: (node: Handle) => void;
+  /** Native focus order. Defaults to zero so the terminal accepts keyboard input. */
+  focusOrder?: number;
+  /** Accessible name used by native semantics and behavior-test locators. */
+  "aria-label"?: string;
   /** Initial process executable. Changing it after launch does not restart the PTY. */
   command?: string;
   /** Initial process arguments. Serialized across the native widget boundary. */

@@ -119,7 +119,7 @@ function App() {
                     ref={(node) => tabs.register(tab.id, node)}
                     role="tab"
                     aria-selected={selected()}
-                    class="h-8 min-w-24 max-w-56 flex-1 items-center gap-2 px-3 rounded-t-md border border-transparent text-sm"
+                    class="h-8 min-w-24 max-w-56 flex-1 items-center gap-2 px-3 rounded-md border border-transparent text-sm"
                     classList={{
                       "bg-surface border-subtle text-primary": selected(),
                       "bg-control-hover text-secondary":
@@ -174,7 +174,11 @@ function App() {
             <For each={tabs.tabs()}>
               {(tab) => (
                 <Terminal
-                  ref={(node) => terminals.set(tab.id, node)}
+                  ref={(node) => {
+                    terminals.set(tab.id, node);
+                    if (tabs.activeKey() === tab.id) focusTerminal(tab.id);
+                  }}
+                  aria-label={`${tab.title()} terminal`}
                   class="w-full h-full overflow-hidden rounded-lg border border-subtle bg-slate-950 text-slate-200 shadow-sm"
                   style={{
                     display: tabs.activeKey() === tab.id ? "flex" : "none",
