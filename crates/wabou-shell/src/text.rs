@@ -108,6 +108,7 @@ struct TextLayoutKey {
     text: Arc<str>,
     font_size: u32,
     font_weight: u32,
+    letter_spacing: u32,
     line_height: Option<(u32, bool)>,
     max_width: Option<u32>,
     alignment: TextAlign,
@@ -422,6 +423,7 @@ fn text_layout_key(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
     color: [u8; 4],
@@ -433,6 +435,7 @@ fn text_layout_key(
         text,
         font_size: font_size.to_bits(),
         font_weight: font_weight.to_bits(),
+        letter_spacing: letter_spacing.to_bits(),
         line_height: line_height.map(|(value, relative)| (value.to_bits(), relative)),
         max_width: max_width.map(f32::to_bits),
         alignment,
@@ -457,11 +460,12 @@ fn text_layout_key(
 
 #[allow(clippy::too_many_arguments)]
 /// Shape and cache styled text with an optional logical width constraint.
-pub fn layout_text_styled(
+pub fn layout_text_styled_with_spacing(
     tcx: &mut TextContext,
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
     color: [u8; 4],
@@ -473,6 +477,7 @@ pub fn layout_text_styled(
         text.clone(),
         font_size,
         font_weight,
+        letter_spacing,
         line_height,
         alignment,
         color,
@@ -501,6 +506,7 @@ pub fn layout_text_styled(
     builder.push_default(StyleProperty::FontWeight(parley::FontWeight::new(
         font_weight,
     )));
+    builder.push_default(StyleProperty::LetterSpacing(letter_spacing));
     if let Some(family) = font_family {
         builder.push_default(StyleProperty::FontFamily(parley::FontFamily::from(
             family.as_ref(),
@@ -547,6 +553,35 @@ pub fn layout_text_styled(
     layout
 }
 
+#[allow(clippy::too_many_arguments)]
+/// Shape and cache styled text using the default letter spacing.
+pub fn layout_text_styled(
+    tcx: &mut TextContext,
+    text: Arc<str>,
+    font_size: f32,
+    font_weight: f32,
+    line_height: Option<(f32, bool)>,
+    alignment: TextAlign,
+    color: [u8; 4],
+    runs: Arc<[TextRun]>,
+    font_family: Option<&Arc<str>>,
+    max_width: Option<f32>,
+) -> Arc<Layout<[u8; 4]>> {
+    layout_text_styled_with_spacing(
+        tcx,
+        text,
+        font_size,
+        font_weight,
+        0.0,
+        line_height,
+        alignment,
+        color,
+        runs,
+        font_family,
+        max_width,
+    )
+}
+
 /// Shape text and limit the visible result to `max_lines` using an ellipsis.
 ///
 /// `max_lines == 0` means unlimited. The truncation point follows grapheme
@@ -558,6 +593,7 @@ pub fn layout_text_styled_clamped(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
     color: [u8; 4],
@@ -566,11 +602,12 @@ pub fn layout_text_styled_clamped(
     max_width: Option<f32>,
     max_lines: u32,
 ) -> Arc<Layout<[u8; 4]>> {
-    let base = layout_text_styled(
+    let base = layout_text_styled_with_spacing(
         tcx,
         text.clone(),
         font_size,
         font_weight,
+        letter_spacing,
         line_height,
         alignment,
         color,
@@ -589,6 +626,7 @@ pub fn layout_text_styled_clamped(
         text.clone(),
         font_size,
         font_weight,
+        letter_spacing,
         line_height,
         alignment,
         color,
@@ -613,11 +651,12 @@ pub fn layout_text_styled_clamped(
         .collect::<Vec<_>>();
     let mut low = 0;
     let mut high = boundaries.len();
-    let mut best = layout_text_styled(
+    let mut best = layout_text_styled_with_spacing(
         tcx,
         Arc::from("…"),
         font_size,
         font_weight,
+        letter_spacing,
         line_height,
         alignment,
         color,
@@ -638,11 +677,12 @@ pub fn layout_text_styled_clamped(
             })
             .collect::<Vec<_>>()
             .into();
-        let candidate_layout = layout_text_styled(
+        let candidate_layout = layout_text_styled_with_spacing(
             tcx,
             candidate,
             font_size,
             font_weight,
+            letter_spacing,
             line_height,
             alignment,
             color,
@@ -670,6 +710,7 @@ pub fn layout_text_styled_overflow(
     text: Arc<str>,
     font_size: f32,
     font_weight: f32,
+    letter_spacing: f32,
     line_height: Option<(f32, bool)>,
     alignment: TextAlign,
     color: [u8; 4],
@@ -680,11 +721,12 @@ pub fn layout_text_styled_overflow(
 ) -> Arc<Layout<[u8; 4]>> {
     let layout =
         |tcx: &mut TextContext, text: Arc<str>, runs: Arc<[TextRun]>, max_width: Option<f32>| {
-            layout_text_styled(
+            layout_text_styled_with_spacing(
                 tcx,
                 text,
                 font_size,
                 font_weight,
+                letter_spacing,
                 line_height,
                 alignment,
                 color,
@@ -704,6 +746,7 @@ pub fn layout_text_styled_overflow(
         text.clone(),
         font_size,
         font_weight,
+        letter_spacing,
         line_height,
         alignment,
         color,
@@ -845,6 +888,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            0.0,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -858,6 +902,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            0.0,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -871,6 +916,7 @@ mod tests {
             Arc::from("Family 👨‍👩‍👧‍👦 credentials and recovery material"),
             16.0,
             400.0,
+            0.0,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -909,6 +955,7 @@ mod tests {
             text.clone(),
             16.0,
             400.0,
+            0.0,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -922,6 +969,7 @@ mod tests {
             text,
             16.0,
             400.0,
+            0.0,
             None,
             TextAlign::Start,
             [0, 0, 0, 255],
@@ -935,6 +983,55 @@ mod tests {
         assert_eq!(clamped.len(), 2);
         assert!(clamped.height() < full.height());
         assert!(Arc::ptr_eq(&clamped, &cached));
+    }
+
+    #[test]
+    fn letter_spacing_changes_measurement_and_cache_identity() {
+        let mut context = TextContext::new();
+        let text: Arc<str> = Arc::from("Tracking");
+        let normal = layout_text_styled_with_spacing(
+            &mut context,
+            text.clone(),
+            16.0,
+            400.0,
+            0.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            None,
+        );
+        let wide = layout_text_styled_with_spacing(
+            &mut context,
+            text.clone(),
+            16.0,
+            400.0,
+            2.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            None,
+        );
+        let cached = layout_text_styled_with_spacing(
+            &mut context,
+            text,
+            16.0,
+            400.0,
+            2.0,
+            None,
+            TextAlign::Start,
+            [0, 0, 0, 255],
+            Arc::from([]),
+            None,
+            None,
+        );
+
+        assert!(wide.width() > normal.width());
+        assert!(!Arc::ptr_eq(&normal, &wide));
+        assert!(Arc::ptr_eq(&wide, &cached));
     }
 
     #[test]

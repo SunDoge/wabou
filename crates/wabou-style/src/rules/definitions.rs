@@ -360,9 +360,27 @@ fn grid_repeat(property: &str, count: u8) -> Declaration {
     }
 }
 
+fn grid_placement(property: &str, kind: &str, value: u16) -> Declaration {
+    Declaration {
+        property: property.into(),
+        value: Value::Record {
+            fields: BTreeMap::from([
+                ("kind".into(), Value::Keyword { value: kind.into() }),
+                (
+                    "value".into(),
+                    Value::Number {
+                        value: value.into(),
+                    },
+                ),
+            ]),
+        },
+    }
+}
+
 pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
-    BTreeMap::from([
+    let mut utilities = BTreeMap::from([
         ("block", vec![keyword("display", "block")]),
+        ("flow-root", vec![keyword("display", "flow-root")]),
         ("flex", vec![keyword("display", "flex")]),
         ("inline-flex", vec![keyword("display", "flex")]),
         ("grid", vec![keyword("display", "grid")]),
@@ -482,11 +500,49 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
             "content-around",
             vec![keyword("align-content", "space-around")],
         ),
+        (
+            "content-evenly",
+            vec![keyword("align-content", "space-evenly")],
+        ),
         ("self-auto", vec![keyword("align-self", "auto")]),
         ("self-start", vec![keyword("align-self", "flex-start")]),
         ("self-center", vec![keyword("align-self", "center")]),
         ("self-end", vec![keyword("align-self", "flex-end")]),
         ("self-stretch", vec![keyword("align-self", "stretch")]),
+        ("self-baseline", vec![keyword("align-self", "baseline")]),
+        (
+            "justify-items-start",
+            vec![keyword("justify-items", "flex-start")],
+        ),
+        (
+            "justify-items-center",
+            vec![keyword("justify-items", "center")],
+        ),
+        (
+            "justify-items-end",
+            vec![keyword("justify-items", "flex-end")],
+        ),
+        (
+            "justify-items-stretch",
+            vec![keyword("justify-items", "stretch")],
+        ),
+        ("justify-self-auto", vec![keyword("justify-self", "auto")]),
+        (
+            "justify-self-start",
+            vec![keyword("justify-self", "flex-start")],
+        ),
+        (
+            "justify-self-center",
+            vec![keyword("justify-self", "center")],
+        ),
+        (
+            "justify-self-end",
+            vec![keyword("justify-self", "flex-end")],
+        ),
+        (
+            "justify-self-stretch",
+            vec![keyword("justify-self", "stretch")],
+        ),
         (
             "justify-start",
             vec![keyword("justify-content", "flex-start")],
@@ -516,16 +572,38 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("z-40", vec![number("z-index", 40.0)]),
         ("z-50", vec![number("z-index", 50.0)]),
         ("overflow-hidden", vec![keyword("overflow", "hidden")]),
+        ("overflow-clip", vec![keyword("overflow", "clip")]),
         ("overflow-visible", vec![keyword("overflow", "visible")]),
         ("overflow-auto", vec![keyword("overflow", "auto")]),
         ("overflow-scroll", vec![keyword("overflow", "scroll")]),
         ("overflow-x-hidden", vec![keyword("overflow-x", "hidden")]),
         ("overflow-y-hidden", vec![keyword("overflow-y", "hidden")]),
+        ("overflow-x-clip", vec![keyword("overflow-x", "clip")]),
+        ("overflow-y-clip", vec![keyword("overflow-y", "clip")]),
         ("overflow-x-auto", vec![keyword("overflow-x", "auto")]),
         ("overflow-y-auto", vec![keyword("overflow-y", "auto")]),
         ("overflow-x-scroll", vec![keyword("overflow-x", "scroll")]),
         ("overflow-y-scroll", vec![keyword("overflow-y", "scroll")]),
         ("box-border", vec![keyword("box-sizing", "border-box")]),
+        ("box-content", vec![keyword("box-sizing", "content-box")]),
+        ("contain-none", vec![keyword("contain", "none")]),
+        ("contain-layout", vec![keyword("contain", "layout")]),
+        ("contain-paint", vec![keyword("contain", "paint")]),
+        ("contain-content", vec![keyword("contain", "content")]),
+        ("grid-flow-row", vec![keyword("grid-auto-flow", "row")]),
+        ("grid-flow-col", vec![keyword("grid-auto-flow", "column")]),
+        (
+            "grid-flow-dense",
+            vec![keyword("grid-auto-flow", "row-dense")],
+        ),
+        (
+            "grid-flow-row-dense",
+            vec![keyword("grid-auto-flow", "row-dense")],
+        ),
+        (
+            "grid-flow-col-dense",
+            vec![keyword("grid-auto-flow", "column-dense")],
+        ),
         (
             "border",
             vec![length("border-width", Length::Px { value: 1.0 })],
@@ -699,6 +777,30 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
         ("leading-tight", vec![number("line-height", 1.25)]),
         ("leading-normal", vec![number("line-height", 1.5)]),
         ("leading-relaxed", vec![number("line-height", 1.625)]),
+        (
+            "tracking-tighter",
+            vec![length("letter-spacing", Length::Px { value: -0.8 })],
+        ),
+        (
+            "tracking-tight",
+            vec![length("letter-spacing", Length::Px { value: -0.4 })],
+        ),
+        (
+            "tracking-normal",
+            vec![length("letter-spacing", Length::Px { value: 0.0 })],
+        ),
+        (
+            "tracking-wide",
+            vec![length("letter-spacing", Length::Px { value: 0.4 })],
+        ),
+        (
+            "tracking-wider",
+            vec![length("letter-spacing", Length::Px { value: 0.8 })],
+        ),
+        (
+            "tracking-widest",
+            vec![length("letter-spacing", Length::Px { value: 1.6 })],
+        ),
         ("text-left", vec![keyword("text-align", "left")]),
         ("text-center", vec![keyword("text-align", "center")]),
         ("text-right", vec![keyword("text-align", "right")]),
@@ -850,5 +952,124 @@ pub(crate) fn static_utilities() -> BTreeMap<&'static str, Vec<Declaration>> {
             "max-w-7xl",
             vec![length("max-width", Length::Px { value: 1280.0 })],
         ),
-    ])
+    ]);
+    const COL_START: [&str; 13] = [
+        "col-start-1",
+        "col-start-2",
+        "col-start-3",
+        "col-start-4",
+        "col-start-5",
+        "col-start-6",
+        "col-start-7",
+        "col-start-8",
+        "col-start-9",
+        "col-start-10",
+        "col-start-11",
+        "col-start-12",
+        "col-start-13",
+    ];
+    const COL_END: [&str; 13] = [
+        "col-end-1",
+        "col-end-2",
+        "col-end-3",
+        "col-end-4",
+        "col-end-5",
+        "col-end-6",
+        "col-end-7",
+        "col-end-8",
+        "col-end-9",
+        "col-end-10",
+        "col-end-11",
+        "col-end-12",
+        "col-end-13",
+    ];
+    const ROW_START: [&str; 13] = [
+        "row-start-1",
+        "row-start-2",
+        "row-start-3",
+        "row-start-4",
+        "row-start-5",
+        "row-start-6",
+        "row-start-7",
+        "row-start-8",
+        "row-start-9",
+        "row-start-10",
+        "row-start-11",
+        "row-start-12",
+        "row-start-13",
+    ];
+    const ROW_END: [&str; 13] = [
+        "row-end-1",
+        "row-end-2",
+        "row-end-3",
+        "row-end-4",
+        "row-end-5",
+        "row-end-6",
+        "row-end-7",
+        "row-end-8",
+        "row-end-9",
+        "row-end-10",
+        "row-end-11",
+        "row-end-12",
+        "row-end-13",
+    ];
+    const COL_SPAN: [&str; 12] = [
+        "col-span-1",
+        "col-span-2",
+        "col-span-3",
+        "col-span-4",
+        "col-span-5",
+        "col-span-6",
+        "col-span-7",
+        "col-span-8",
+        "col-span-9",
+        "col-span-10",
+        "col-span-11",
+        "col-span-12",
+    ];
+    const ROW_SPAN: [&str; 12] = [
+        "row-span-1",
+        "row-span-2",
+        "row-span-3",
+        "row-span-4",
+        "row-span-5",
+        "row-span-6",
+        "row-span-7",
+        "row-span-8",
+        "row-span-9",
+        "row-span-10",
+        "row-span-11",
+        "row-span-12",
+    ];
+    for index in 0..13 {
+        let value = (index + 1) as u16;
+        let col_start = COL_START[index];
+        let col_end = COL_END[index];
+        let row_start = ROW_START[index];
+        let row_end = ROW_END[index];
+        utilities.insert(
+            col_start,
+            vec![grid_placement("grid-column-start", "line", value)],
+        );
+        utilities.insert(
+            col_end,
+            vec![grid_placement("grid-column-end", "line", value)],
+        );
+        utilities.insert(
+            row_start,
+            vec![grid_placement("grid-row-start", "line", value)],
+        );
+        utilities.insert(row_end, vec![grid_placement("grid-row-end", "line", value)]);
+        if index < 12 {
+            utilities.insert(
+                COL_SPAN[index],
+                vec![grid_placement("grid-column-start", "span", value)],
+            );
+            utilities.insert(
+                ROW_SPAN[index],
+                vec![grid_placement("grid-row-start", "span", value)],
+            );
+        }
+    }
+    utilities
 }

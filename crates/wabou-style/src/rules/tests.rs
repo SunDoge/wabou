@@ -58,6 +58,59 @@ fn parses_fractional_dimensions_without_extending_spacing_or_length_rules() {
 }
 
 #[test]
+fn size_and_basis_share_the_typed_dimension_resolver() {
+    let size = parse_utility("size-2/3").unwrap();
+    assert_eq!(
+        size.declarations
+            .iter()
+            .map(|declaration| declaration.property.as_str())
+            .collect::<Vec<_>>(),
+        ["width", "height"]
+    );
+    assert_eq!(
+        parse_utility("basis-24").unwrap().declarations[0].property,
+        "flex-basis"
+    );
+}
+
+#[test]
+fn tracking_utilities_emit_typed_letter_spacing() {
+    let declaration = &parse_utility("tracking-wide").unwrap().declarations[0];
+    assert_eq!(declaration.property, "letter-spacing");
+    assert_eq!(
+        declaration.value,
+        Value::Length {
+            value: Length::Px { value: 0.4 }
+        }
+    );
+}
+
+#[test]
+fn grid_placement_and_new_taffy_layout_utilities_are_explicit() {
+    for (candidate, property) in [
+        ("col-span-3", "grid-column-start"),
+        ("row-span-2", "grid-row-start"),
+        ("col-start-4", "grid-column-start"),
+        ("col-end-7", "grid-column-end"),
+        ("row-start-2", "grid-row-start"),
+        ("row-end-5", "grid-row-end"),
+        ("grid-flow-col-dense", "grid-auto-flow"),
+        ("justify-items-center", "justify-items"),
+        ("justify-self-end", "justify-self"),
+        ("overflow-clip", "overflow"),
+        ("contain-layout", "contain"),
+        ("flow-root", "display"),
+        ("box-content", "box-sizing"),
+    ] {
+        assert_eq!(
+            parse_utility(candidate).unwrap().declarations[0].property,
+            property,
+            "{candidate}"
+        );
+    }
+}
+
+#[test]
 fn named_container_widths_are_scoped_to_max_width() {
     for (candidate, value) in [
         ("max-w-xs", 320.0),

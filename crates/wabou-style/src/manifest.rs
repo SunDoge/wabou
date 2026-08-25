@@ -68,6 +68,8 @@ fn dynamic_rules() -> Vec<DynamicRule> {
                 prefix("min-h", &["min-height"]),
                 prefix("max-w", &["max-width"]),
                 prefix("max-h", &["max-height"]),
+                prefix("basis", &["flex-basis"]),
+                prefix("size", &["width", "height"]),
                 prefix("top", &["top"]),
                 prefix("right", &["right"]),
                 prefix("bottom", &["bottom"]),

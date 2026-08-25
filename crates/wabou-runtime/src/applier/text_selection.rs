@@ -76,6 +76,7 @@ impl Applier {
                 text.clone(),
                 node.paint.font_size,
                 node.paint.font_weight,
+                node.paint.letter_spacing,
                 node.paint.line_height,
                 node.paint.text_align,
                 wabou_shell::text::brush_for_color(node.paint.text_color),

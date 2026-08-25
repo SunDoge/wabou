@@ -204,6 +204,7 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                                 text.clone(),
                                 paint.font_size,
                                 paint.font_weight,
+                                paint.letter_spacing,
                                 paint.line_height,
                                 paint.text_align,
                                 crate::text::brush_for_color(paint.text_color),

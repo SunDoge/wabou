@@ -1132,6 +1132,7 @@ fn inherited_paint(paint: &Paint) -> InheritedPaint {
         text_color: paint.text_color,
         font_size: paint.font_size,
         font_weight: paint.font_weight,
+        letter_spacing: paint.letter_spacing,
         line_height: paint.line_height,
         wrap_text: paint.wrap_text,
         text_selectable: paint.text_selectable,

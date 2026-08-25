@@ -209,12 +209,18 @@ fn dimension_rule<'a>(input: &mut &'a str) -> ModalResult<(&'static str, &'a str
             "min-h-".value("min-h"),
             "max-w-".value("max-w"),
             "max-h-".value("max-h"),
+            "basis-".value("basis"),
+            "size-".value("size"),
+        )),
+        alt((
             "inset-".value("inset"),
             "right-".value("right"),
             "bottom-".value("bottom"),
             "left-".value("left"),
+            "top-".value("top"),
+            "w-".value("w"),
+            "h-".value("h"),
         )),
-        alt(("top-".value("top"), "w-".value("w"), "h-".value("h"))),
     ))
     .parse_next(input)?;
     Ok((prefix, rest.parse_next(input)?))
@@ -378,6 +384,7 @@ fn parse_dimension_utility(utility: &str, class_name: &str, theme: &Theme) -> Op
             "min-h" => "min-height",
             "max-w" => "max-width",
             "max-h" => "max-height",
+            "basis" => "flex-basis",
             other => other,
         };
         Ok(if prefix == "inset" {
@@ -385,6 +392,8 @@ fn parse_dimension_utility(utility: &str, class_name: &str, theme: &Theme) -> Op
                 .iter()
                 .map(|property| length(property, value.clone()))
                 .collect()
+        } else if prefix == "size" {
+            vec![length("width", value.clone()), length("height", value)]
         } else {
             vec![length(property, value)]
         })

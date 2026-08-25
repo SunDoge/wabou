@@ -412,6 +412,649 @@ var manifest_default = {
 				"value": "border-box"
 			}
 		}],
+		"box-content": [{
+			"property": "box-sizing",
+			"value": {
+				"type": "keyword",
+				"value": "content-box"
+			}
+		}],
+		"col-end-1": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 1
+					}
+				}
+			}
+		}],
+		"col-end-10": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 10
+					}
+				}
+			}
+		}],
+		"col-end-11": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 11
+					}
+				}
+			}
+		}],
+		"col-end-12": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 12
+					}
+				}
+			}
+		}],
+		"col-end-13": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 13
+					}
+				}
+			}
+		}],
+		"col-end-2": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 2
+					}
+				}
+			}
+		}],
+		"col-end-3": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 3
+					}
+				}
+			}
+		}],
+		"col-end-4": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 4
+					}
+				}
+			}
+		}],
+		"col-end-5": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 5
+					}
+				}
+			}
+		}],
+		"col-end-6": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 6
+					}
+				}
+			}
+		}],
+		"col-end-7": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 7
+					}
+				}
+			}
+		}],
+		"col-end-8": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 8
+					}
+				}
+			}
+		}],
+		"col-end-9": [{
+			"property": "grid-column-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 9
+					}
+				}
+			}
+		}],
+		"col-span-1": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 1
+					}
+				}
+			}
+		}],
+		"col-span-10": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 10
+					}
+				}
+			}
+		}],
+		"col-span-11": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 11
+					}
+				}
+			}
+		}],
+		"col-span-12": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 12
+					}
+				}
+			}
+		}],
+		"col-span-2": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 2
+					}
+				}
+			}
+		}],
+		"col-span-3": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 3
+					}
+				}
+			}
+		}],
+		"col-span-4": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 4
+					}
+				}
+			}
+		}],
+		"col-span-5": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 5
+					}
+				}
+			}
+		}],
+		"col-span-6": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 6
+					}
+				}
+			}
+		}],
+		"col-span-7": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 7
+					}
+				}
+			}
+		}],
+		"col-span-8": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 8
+					}
+				}
+			}
+		}],
+		"col-span-9": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 9
+					}
+				}
+			}
+		}],
+		"col-start-1": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 1
+					}
+				}
+			}
+		}],
+		"col-start-10": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 10
+					}
+				}
+			}
+		}],
+		"col-start-11": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 11
+					}
+				}
+			}
+		}],
+		"col-start-12": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 12
+					}
+				}
+			}
+		}],
+		"col-start-13": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 13
+					}
+				}
+			}
+		}],
+		"col-start-2": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 2
+					}
+				}
+			}
+		}],
+		"col-start-3": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 3
+					}
+				}
+			}
+		}],
+		"col-start-4": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 4
+					}
+				}
+			}
+		}],
+		"col-start-5": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 5
+					}
+				}
+			}
+		}],
+		"col-start-6": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 6
+					}
+				}
+			}
+		}],
+		"col-start-7": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 7
+					}
+				}
+			}
+		}],
+		"col-start-8": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 8
+					}
+				}
+			}
+		}],
+		"col-start-9": [{
+			"property": "grid-column-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 9
+					}
+				}
+			}
+		}],
+		"contain-content": [{
+			"property": "contain",
+			"value": {
+				"type": "keyword",
+				"value": "content"
+			}
+		}],
+		"contain-layout": [{
+			"property": "contain",
+			"value": {
+				"type": "keyword",
+				"value": "layout"
+			}
+		}],
+		"contain-none": [{
+			"property": "contain",
+			"value": {
+				"type": "keyword",
+				"value": "none"
+			}
+		}],
+		"contain-paint": [{
+			"property": "contain",
+			"value": {
+				"type": "keyword",
+				"value": "paint"
+			}
+		}],
 		"content-around": [{
 			"property": "align-content",
 			"value": {
@@ -438,6 +1081,13 @@ var manifest_default = {
 			"value": {
 				"type": "keyword",
 				"value": "flex-end"
+			}
+		}],
+		"content-evenly": [{
+			"property": "align-content",
+			"value": {
+				"type": "keyword",
+				"value": "space-evenly"
 			}
 		}],
 		"content-start": [{
@@ -613,6 +1263,13 @@ var manifest_default = {
 			"value": {
 				"type": "keyword",
 				"value": "wrap"
+			}
+		}],
+		"flow-root": [{
+			"property": "display",
+			"value": {
+				"type": "keyword",
+				"value": "flow-root"
 			}
 		}],
 		"font-bold": [{
@@ -935,6 +1592,41 @@ var manifest_default = {
 				}]
 			}
 		}],
+		"grid-flow-col": [{
+			"property": "grid-auto-flow",
+			"value": {
+				"type": "keyword",
+				"value": "column"
+			}
+		}],
+		"grid-flow-col-dense": [{
+			"property": "grid-auto-flow",
+			"value": {
+				"type": "keyword",
+				"value": "column-dense"
+			}
+		}],
+		"grid-flow-dense": [{
+			"property": "grid-auto-flow",
+			"value": {
+				"type": "keyword",
+				"value": "row-dense"
+			}
+		}],
+		"grid-flow-row": [{
+			"property": "grid-auto-flow",
+			"value": {
+				"type": "keyword",
+				"value": "row"
+			}
+		}],
+		"grid-flow-row-dense": [{
+			"property": "grid-auto-flow",
+			"value": {
+				"type": "keyword",
+				"value": "row-dense"
+			}
+		}],
 		"grid-rows-1": [{
 			"property": "grid-template-rows",
 			"value": {
@@ -1209,6 +1901,69 @@ var manifest_default = {
 				"value": "space-evenly"
 			}
 		}],
+		"justify-items-center": [{
+			"property": "justify-items",
+			"value": {
+				"type": "keyword",
+				"value": "center"
+			}
+		}],
+		"justify-items-end": [{
+			"property": "justify-items",
+			"value": {
+				"type": "keyword",
+				"value": "flex-end"
+			}
+		}],
+		"justify-items-start": [{
+			"property": "justify-items",
+			"value": {
+				"type": "keyword",
+				"value": "flex-start"
+			}
+		}],
+		"justify-items-stretch": [{
+			"property": "justify-items",
+			"value": {
+				"type": "keyword",
+				"value": "stretch"
+			}
+		}],
+		"justify-self-auto": [{
+			"property": "justify-self",
+			"value": {
+				"type": "keyword",
+				"value": "auto"
+			}
+		}],
+		"justify-self-center": [{
+			"property": "justify-self",
+			"value": {
+				"type": "keyword",
+				"value": "center"
+			}
+		}],
+		"justify-self-end": [{
+			"property": "justify-self",
+			"value": {
+				"type": "keyword",
+				"value": "flex-end"
+			}
+		}],
+		"justify-self-start": [{
+			"property": "justify-self",
+			"value": {
+				"type": "keyword",
+				"value": "flex-start"
+			}
+		}],
+		"justify-self-stretch": [{
+			"property": "justify-self",
+			"value": {
+				"type": "keyword",
+				"value": "stretch"
+			}
+		}],
 		"justify-start": [{
 			"property": "justify-content",
 			"value": {
@@ -1452,6 +2207,13 @@ var manifest_default = {
 				"value": "auto"
 			}
 		}],
+		"overflow-clip": [{
+			"property": "overflow",
+			"value": {
+				"type": "keyword",
+				"value": "clip"
+			}
+		}],
 		"overflow-hidden": [{
 			"property": "overflow",
 			"value": {
@@ -1480,6 +2242,13 @@ var manifest_default = {
 				"value": "auto"
 			}
 		}],
+		"overflow-x-clip": [{
+			"property": "overflow-x",
+			"value": {
+				"type": "keyword",
+				"value": "clip"
+			}
+		}],
 		"overflow-x-hidden": [{
 			"property": "overflow-x",
 			"value": {
@@ -1499,6 +2268,13 @@ var manifest_default = {
 			"value": {
 				"type": "keyword",
 				"value": "auto"
+			}
+		}],
+		"overflow-y-clip": [{
+			"property": "overflow-y",
+			"value": {
+				"type": "keyword",
+				"value": "clip"
 			}
 		}],
 		"overflow-y-hidden": [{
@@ -1645,6 +2421,614 @@ var manifest_default = {
 				}
 			}
 		}],
+		"row-end-1": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 1
+					}
+				}
+			}
+		}],
+		"row-end-10": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 10
+					}
+				}
+			}
+		}],
+		"row-end-11": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 11
+					}
+				}
+			}
+		}],
+		"row-end-12": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 12
+					}
+				}
+			}
+		}],
+		"row-end-13": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 13
+					}
+				}
+			}
+		}],
+		"row-end-2": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 2
+					}
+				}
+			}
+		}],
+		"row-end-3": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 3
+					}
+				}
+			}
+		}],
+		"row-end-4": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 4
+					}
+				}
+			}
+		}],
+		"row-end-5": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 5
+					}
+				}
+			}
+		}],
+		"row-end-6": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 6
+					}
+				}
+			}
+		}],
+		"row-end-7": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 7
+					}
+				}
+			}
+		}],
+		"row-end-8": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 8
+					}
+				}
+			}
+		}],
+		"row-end-9": [{
+			"property": "grid-row-end",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 9
+					}
+				}
+			}
+		}],
+		"row-span-1": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 1
+					}
+				}
+			}
+		}],
+		"row-span-10": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 10
+					}
+				}
+			}
+		}],
+		"row-span-11": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 11
+					}
+				}
+			}
+		}],
+		"row-span-12": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 12
+					}
+				}
+			}
+		}],
+		"row-span-2": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 2
+					}
+				}
+			}
+		}],
+		"row-span-3": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 3
+					}
+				}
+			}
+		}],
+		"row-span-4": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 4
+					}
+				}
+			}
+		}],
+		"row-span-5": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 5
+					}
+				}
+			}
+		}],
+		"row-span-6": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 6
+					}
+				}
+			}
+		}],
+		"row-span-7": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 7
+					}
+				}
+			}
+		}],
+		"row-span-8": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 8
+					}
+				}
+			}
+		}],
+		"row-span-9": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "span"
+					},
+					"value": {
+						"type": "number",
+						"value": 9
+					}
+				}
+			}
+		}],
+		"row-start-1": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 1
+					}
+				}
+			}
+		}],
+		"row-start-10": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 10
+					}
+				}
+			}
+		}],
+		"row-start-11": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 11
+					}
+				}
+			}
+		}],
+		"row-start-12": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 12
+					}
+				}
+			}
+		}],
+		"row-start-13": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 13
+					}
+				}
+			}
+		}],
+		"row-start-2": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 2
+					}
+				}
+			}
+		}],
+		"row-start-3": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 3
+					}
+				}
+			}
+		}],
+		"row-start-4": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 4
+					}
+				}
+			}
+		}],
+		"row-start-5": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 5
+					}
+				}
+			}
+		}],
+		"row-start-6": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 6
+					}
+				}
+			}
+		}],
+		"row-start-7": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 7
+					}
+				}
+			}
+		}],
+		"row-start-8": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 8
+					}
+				}
+			}
+		}],
+		"row-start-9": [{
+			"property": "grid-row-start",
+			"value": {
+				"type": "record",
+				"fields": {
+					"kind": {
+						"type": "keyword",
+						"value": "line"
+					},
+					"value": {
+						"type": "number",
+						"value": 9
+					}
+				}
+			}
+		}],
 		"scale-150": [{
 			"property": "transform-scale",
 			"value": {
@@ -1721,6 +3105,13 @@ var manifest_default = {
 			"value": {
 				"type": "keyword",
 				"value": "auto"
+			}
+		}],
+		"self-baseline": [{
+			"property": "align-self",
+			"value": {
+				"type": "keyword",
+				"value": "baseline"
 			}
 		}],
 		"self-center": [{
@@ -2479,6 +3870,66 @@ var manifest_default = {
 				}
 			}
 		}],
+		"tracking-normal": [{
+			"property": "letter-spacing",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 0
+				}
+			}
+		}],
+		"tracking-tight": [{
+			"property": "letter-spacing",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": -.4
+				}
+			}
+		}],
+		"tracking-tighter": [{
+			"property": "letter-spacing",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": -.8
+				}
+			}
+		}],
+		"tracking-wide": [{
+			"property": "letter-spacing",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": .4
+				}
+			}
+		}],
+		"tracking-wider": [{
+			"property": "letter-spacing",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": .8
+				}
+			}
+		}],
+		"tracking-widest": [{
+			"property": "letter-spacing",
+			"value": {
+				"type": "length",
+				"value": {
+					"unit": "px",
+					"value": 1.6
+				}
+			}
+		}],
 		"translate-x-4": [{
 			"property": "transform-translate-x",
 			"value": {
@@ -2721,6 +4172,14 @@ var manifest_default = {
 				{
 					"name": "max-h",
 					"properties": ["max-height"]
+				},
+				{
+					"name": "basis",
+					"properties": ["flex-basis"]
+				},
+				{
+					"name": "size",
+					"properties": ["width", "height"]
 				},
 				{
 					"name": "top",
@@ -3603,4 +5062,4 @@ var manifest_default = {
 //#endregion
 export { manifest_default as t };
 
-//# sourceMappingURL=manifest-zkSpFanH.mjs.map
+//# sourceMappingURL=manifest-B7d-5Vxl.mjs.map

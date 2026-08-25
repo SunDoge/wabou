@@ -172,6 +172,43 @@ fn maps_repeated_minmax_grid_tracks() {
 }
 
 #[test]
+fn maps_grid_placement_flow_and_containment() {
+    let mut layout = taffy::Style::default();
+    let mut paint = DeclaredPaint::default();
+    let placement = |kind, value| record([("kind", keyword(kind)), ("value", number(value))]);
+
+    assert!(apply_ir(
+        &mut layout,
+        &mut paint,
+        "grid-column-start",
+        &placement("span", 3.0)
+    ));
+    assert!(apply_ir(
+        &mut layout,
+        &mut paint,
+        "grid-row-end",
+        &placement("line", 4.0)
+    ));
+    assert!(apply_ir(
+        &mut layout,
+        &mut paint,
+        "grid-auto-flow",
+        &keyword("column-dense")
+    ));
+    assert!(apply_ir(
+        &mut layout,
+        &mut paint,
+        "contain",
+        &keyword("content")
+    ));
+
+    assert_eq!(layout.grid_column.start, taffy::GridPlacement::Span(3));
+    assert_eq!(layout.grid_row.end, taffy::style_helpers::line(4));
+    assert_eq!(layout.grid_auto_flow, taffy::GridAutoFlow::ColumnDense);
+    assert_eq!(layout.contain, taffy::Contain::CONTENT);
+}
+
+#[test]
 fn maps_vello_paint_properties() {
     let mut layout = taffy::Style::default();
     let mut paint = DeclaredPaint::default();

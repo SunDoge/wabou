@@ -523,6 +523,13 @@ fn apply_paint_ir(paint: &mut DeclaredPaint, property: &str, value: &IrValue) ->
             };
             paint.font_weight = weight.or(paint.font_weight);
         }
+        "letter-spacing" => match value {
+            IrValue::Length {
+                value: IrLength::Px { value },
+            } if value.is_finite() => paint.letter_spacing = Some(*value),
+            IrValue::Keyword { value } if value == "normal" => paint.letter_spacing = Some(0.0),
+            _ => {}
+        },
         "line-height" => match value {
             IrValue::Number { value } => paint.line_height = Some((*value, true)),
             IrValue::Length {
@@ -861,6 +868,29 @@ fn apply_overflow_border_ir(
     Some(true)
 }
 
+fn ir_grid_placement(value: &IrValue) -> Option<taffy::GridPlacement> {
+    if value.keyword() == Some("auto") {
+        return Some(taffy::GridPlacement::Auto);
+    }
+    let IrValue::Record { fields } = value else {
+        return None;
+    };
+    let kind = fields.get("kind")?.keyword()?;
+    let value = fields.get("value")?.number()?;
+    if !value.is_finite() || value.fract() != 0.0 {
+        return None;
+    }
+    match kind {
+        "line" if (i16::MIN as f32..=i16::MAX as f32).contains(&value) && value != 0.0 => {
+            Some(taffy::style_helpers::line(value as i16))
+        }
+        "span" if (1.0..=u16::MAX as f32).contains(&value) => {
+            Some(taffy::GridPlacement::Span(value as u16))
+        }
+        _ => None,
+    }
+}
+
 /// Apply an already parsed Style IR declaration into cascaded layout +
 /// [`DeclaredPaint`]. This path performs no CSS parsing or unit normalization
 /// at runtime, and never writes computed/inherited values — those are produced
@@ -922,6 +952,13 @@ pub fn apply_ir(
         "align-items" => style.align_items = value.keyword().and_then(|v| v.parse().ok()),
         "align-content" => style.align_content = value.keyword().and_then(|v| v.parse().ok()),
         "align-self" => style.align_self = value.keyword().and_then(|v| v.parse().ok()),
+        "justify-items" => style.justify_items = value.keyword().and_then(|v| v.parse().ok()),
+        "justify-self" => {
+            style.justify_self = match value.keyword() {
+                Some("auto") => None,
+                value => value.and_then(|value| value.parse().ok()),
+            }
+        }
         "flex-grow" => style.flex_grow = value.number().unwrap_or(style.flex_grow),
         "flex-shrink" => style.flex_shrink = value.number().unwrap_or(style.flex_shrink),
         "flex-basis" => style.flex_basis = ir_dim(value).unwrap_or(style.flex_basis),
@@ -964,6 +1001,42 @@ pub fn apply_ir(
                 if let Some(v) = fields.get("areas").and_then(grid_template_areas) {
                     style.grid_template_areas = Some(v);
                 }
+            }
+        }
+        "grid-auto-flow" => {
+            style.grid_auto_flow = match value.keyword() {
+                Some("column") => taffy::GridAutoFlow::Column,
+                Some("row-dense") => taffy::GridAutoFlow::RowDense,
+                Some("column-dense") => taffy::GridAutoFlow::ColumnDense,
+                _ => taffy::GridAutoFlow::Row,
+            }
+        }
+        "grid-column-start" => {
+            if let Some(placement) = ir_grid_placement(value) {
+                style.grid_column.start = placement;
+            }
+        }
+        "grid-column-end" => {
+            if let Some(placement) = ir_grid_placement(value) {
+                style.grid_column.end = placement;
+            }
+        }
+        "grid-row-start" => {
+            if let Some(placement) = ir_grid_placement(value) {
+                style.grid_row.start = placement;
+            }
+        }
+        "grid-row-end" => {
+            if let Some(placement) = ir_grid_placement(value) {
+                style.grid_row.end = placement;
+            }
+        }
+        "contain" => {
+            style.contain = match value.keyword() {
+                Some("layout") => taffy::Contain::LAYOUT,
+                Some("paint") => taffy::Contain::PAINT,
+                Some("content") => taffy::Contain::CONTENT,
+                _ => taffy::Contain::NONE,
             }
         }
         "flex-wrap" => {

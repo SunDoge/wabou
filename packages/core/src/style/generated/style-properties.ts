@@ -86,6 +86,11 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1, 2, 3],
   },
+  contain: {
+    string: true,
+    number: false,
+    typed: [],
+  },
   cursor: {
     string: true,
     number: false,
@@ -141,6 +146,31 @@ export const INLINE_STYLE_CONTRACT = {
     number: true,
     typed: [1, 2, 3],
   },
+  "grid-auto-flow": {
+    string: true,
+    number: false,
+    typed: [],
+  },
+  "grid-column-end": {
+    string: true,
+    number: true,
+    typed: [3],
+  },
+  "grid-column-start": {
+    string: true,
+    number: true,
+    typed: [3],
+  },
+  "grid-row-end": {
+    string: true,
+    number: true,
+    typed: [3],
+  },
+  "grid-row-start": {
+    string: true,
+    number: true,
+    typed: [3],
+  },
   height: {
     string: true,
     number: true,
@@ -151,10 +181,25 @@ export const INLINE_STYLE_CONTRACT = {
     number: false,
     typed: [],
   },
+  "justify-items": {
+    string: true,
+    number: false,
+    typed: [],
+  },
+  "justify-self": {
+    string: true,
+    number: false,
+    typed: [],
+  },
   left: {
     string: true,
     number: true,
     typed: [1, 2, 3, 6],
+  },
+  "letter-spacing": {
+    string: true,
+    number: true,
+    typed: [1],
   },
   "line-height": {
     string: true,

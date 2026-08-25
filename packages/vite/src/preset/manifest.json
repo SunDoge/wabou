@@ -439,6 +439,735 @@
         }
       }
     ],
+    "box-content": [
+      {
+        "property": "box-sizing",
+        "value": {
+          "type": "keyword",
+          "value": "content-box"
+        }
+      }
+    ],
+    "col-end-1": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 1.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-10": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 10.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-11": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 11.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-12": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 12.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-13": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 13.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-2": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 2.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-3": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 3.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-4": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 4.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-5": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 5.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-6": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 6.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-7": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 7.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-8": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 8.0
+            }
+          }
+        }
+      }
+    ],
+    "col-end-9": [
+      {
+        "property": "grid-column-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 9.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-1": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 1.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-10": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 10.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-11": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 11.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-12": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 12.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-2": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 2.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-3": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 3.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-4": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 4.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-5": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 5.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-6": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 6.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-7": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 7.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-8": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 8.0
+            }
+          }
+        }
+      }
+    ],
+    "col-span-9": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 9.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-1": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 1.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-10": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 10.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-11": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 11.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-12": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 12.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-13": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 13.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-2": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 2.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-3": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 3.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-4": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 4.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-5": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 5.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-6": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 6.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-7": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 7.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-8": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 8.0
+            }
+          }
+        }
+      }
+    ],
+    "col-start-9": [
+      {
+        "property": "grid-column-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 9.0
+            }
+          }
+        }
+      }
+    ],
+    "contain-content": [
+      {
+        "property": "contain",
+        "value": {
+          "type": "keyword",
+          "value": "content"
+        }
+      }
+    ],
+    "contain-layout": [
+      {
+        "property": "contain",
+        "value": {
+          "type": "keyword",
+          "value": "layout"
+        }
+      }
+    ],
+    "contain-none": [
+      {
+        "property": "contain",
+        "value": {
+          "type": "keyword",
+          "value": "none"
+        }
+      }
+    ],
+    "contain-paint": [
+      {
+        "property": "contain",
+        "value": {
+          "type": "keyword",
+          "value": "paint"
+        }
+      }
+    ],
     "content-around": [
       {
         "property": "align-content",
@@ -472,6 +1201,15 @@
         "value": {
           "type": "keyword",
           "value": "flex-end"
+        }
+      }
+    ],
+    "content-evenly": [
+      {
+        "property": "align-content",
+        "value": {
+          "type": "keyword",
+          "value": "space-evenly"
         }
       }
     ],
@@ -683,6 +1421,15 @@
         "value": {
           "type": "keyword",
           "value": "wrap"
+        }
+      }
+    ],
+    "flow-root": [
+      {
+        "property": "display",
+        "value": {
+          "type": "keyword",
+          "value": "flow-root"
         }
       }
     ],
@@ -1058,6 +1805,51 @@
         }
       }
     ],
+    "grid-flow-col": [
+      {
+        "property": "grid-auto-flow",
+        "value": {
+          "type": "keyword",
+          "value": "column"
+        }
+      }
+    ],
+    "grid-flow-col-dense": [
+      {
+        "property": "grid-auto-flow",
+        "value": {
+          "type": "keyword",
+          "value": "column-dense"
+        }
+      }
+    ],
+    "grid-flow-dense": [
+      {
+        "property": "grid-auto-flow",
+        "value": {
+          "type": "keyword",
+          "value": "row-dense"
+        }
+      }
+    ],
+    "grid-flow-row": [
+      {
+        "property": "grid-auto-flow",
+        "value": {
+          "type": "keyword",
+          "value": "row"
+        }
+      }
+    ],
+    "grid-flow-row-dense": [
+      {
+        "property": "grid-auto-flow",
+        "value": {
+          "type": "keyword",
+          "value": "row-dense"
+        }
+      }
+    ],
     "grid-rows-1": [
       {
         "property": "grid-template-rows",
@@ -1384,6 +2176,87 @@
         }
       }
     ],
+    "justify-items-center": [
+      {
+        "property": "justify-items",
+        "value": {
+          "type": "keyword",
+          "value": "center"
+        }
+      }
+    ],
+    "justify-items-end": [
+      {
+        "property": "justify-items",
+        "value": {
+          "type": "keyword",
+          "value": "flex-end"
+        }
+      }
+    ],
+    "justify-items-start": [
+      {
+        "property": "justify-items",
+        "value": {
+          "type": "keyword",
+          "value": "flex-start"
+        }
+      }
+    ],
+    "justify-items-stretch": [
+      {
+        "property": "justify-items",
+        "value": {
+          "type": "keyword",
+          "value": "stretch"
+        }
+      }
+    ],
+    "justify-self-auto": [
+      {
+        "property": "justify-self",
+        "value": {
+          "type": "keyword",
+          "value": "auto"
+        }
+      }
+    ],
+    "justify-self-center": [
+      {
+        "property": "justify-self",
+        "value": {
+          "type": "keyword",
+          "value": "center"
+        }
+      }
+    ],
+    "justify-self-end": [
+      {
+        "property": "justify-self",
+        "value": {
+          "type": "keyword",
+          "value": "flex-end"
+        }
+      }
+    ],
+    "justify-self-start": [
+      {
+        "property": "justify-self",
+        "value": {
+          "type": "keyword",
+          "value": "flex-start"
+        }
+      }
+    ],
+    "justify-self-stretch": [
+      {
+        "property": "justify-self",
+        "value": {
+          "type": "keyword",
+          "value": "stretch"
+        }
+      }
+    ],
     "justify-start": [
       {
         "property": "justify-content",
@@ -1678,6 +2551,15 @@
         }
       }
     ],
+    "overflow-clip": [
+      {
+        "property": "overflow",
+        "value": {
+          "type": "keyword",
+          "value": "clip"
+        }
+      }
+    ],
     "overflow-hidden": [
       {
         "property": "overflow",
@@ -1714,6 +2596,15 @@
         }
       }
     ],
+    "overflow-x-clip": [
+      {
+        "property": "overflow-x",
+        "value": {
+          "type": "keyword",
+          "value": "clip"
+        }
+      }
+    ],
     "overflow-x-hidden": [
       {
         "property": "overflow-x",
@@ -1738,6 +2629,15 @@
         "value": {
           "type": "keyword",
           "value": "auto"
+        }
+      }
+    ],
+    "overflow-y-clip": [
+      {
+        "property": "overflow-y",
+        "value": {
+          "type": "keyword",
+          "value": "clip"
         }
       }
     ],
@@ -1917,6 +2817,690 @@
         }
       }
     ],
+    "row-end-1": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 1.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-10": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 10.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-11": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 11.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-12": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 12.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-13": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 13.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-2": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 2.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-3": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 3.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-4": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 4.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-5": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 5.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-6": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 6.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-7": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 7.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-8": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 8.0
+            }
+          }
+        }
+      }
+    ],
+    "row-end-9": [
+      {
+        "property": "grid-row-end",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 9.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-1": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 1.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-10": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 10.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-11": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 11.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-12": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 12.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-2": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 2.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-3": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 3.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-4": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 4.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-5": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 5.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-6": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 6.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-7": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 7.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-8": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 8.0
+            }
+          }
+        }
+      }
+    ],
+    "row-span-9": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "span"
+            },
+            "value": {
+              "type": "number",
+              "value": 9.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-1": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 1.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-10": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 10.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-11": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 11.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-12": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 12.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-13": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 13.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-2": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 2.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-3": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 3.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-4": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 4.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-5": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 5.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-6": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 6.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-7": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 7.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-8": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 8.0
+            }
+          }
+        }
+      }
+    ],
+    "row-start-9": [
+      {
+        "property": "grid-row-start",
+        "value": {
+          "type": "record",
+          "fields": {
+            "kind": {
+              "type": "keyword",
+              "value": "line"
+            },
+            "value": {
+              "type": "number",
+              "value": 9.0
+            }
+          }
+        }
+      }
+    ],
     "scale-150": [
       {
         "property": "transform-scale",
@@ -2014,6 +3598,15 @@
         "value": {
           "type": "keyword",
           "value": "auto"
+        }
+      }
+    ],
+    "self-baseline": [
+      {
+        "property": "align-self",
+        "value": {
+          "type": "keyword",
+          "value": "baseline"
         }
       }
     ],
@@ -2862,6 +4455,78 @@
         }
       }
     ],
+    "tracking-normal": [
+      {
+        "property": "letter-spacing",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.0
+          }
+        }
+      }
+    ],
+    "tracking-tight": [
+      {
+        "property": "letter-spacing",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": -0.4
+          }
+        }
+      }
+    ],
+    "tracking-tighter": [
+      {
+        "property": "letter-spacing",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": -0.8
+          }
+        }
+      }
+    ],
+    "tracking-wide": [
+      {
+        "property": "letter-spacing",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.4
+          }
+        }
+      }
+    ],
+    "tracking-wider": [
+      {
+        "property": "letter-spacing",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 0.8
+          }
+        }
+      }
+    ],
+    "tracking-widest": [
+      {
+        "property": "letter-spacing",
+        "value": {
+          "type": "length",
+          "value": {
+            "unit": "px",
+            "value": 1.6
+          }
+        }
+      }
+    ],
     "translate-x-4": [
       {
         "property": "transform-translate-x",
@@ -3178,6 +4843,19 @@
           "name": "max-h",
           "properties": [
             "max-height"
+          ]
+        },
+        {
+          "name": "basis",
+          "properties": [
+            "flex-basis"
+          ]
+        },
+        {
+          "name": "size",
+          "properties": [
+            "width",
+            "height"
           ]
         },
         {

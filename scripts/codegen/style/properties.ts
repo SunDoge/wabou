@@ -40,6 +40,8 @@ add(
     "display",
     "flex-direction",
     "justify-content",
+    "justify-items",
+    "justify-self",
     "align-items",
     "align-content",
     "align-self",
@@ -57,6 +59,8 @@ add(
     "font-family",
     "cursor",
     "outline-style",
+    "grid-auto-flow",
+    "contain",
   ],
   { string: true, number: false },
 );
@@ -120,10 +124,24 @@ add(["flex-grow", "flex-shrink", "aspect-ratio", "opacity", "z-index"], {
   number: true,
   typed: [NUMBER],
 });
+add(
+  [
+    "grid-column-start",
+    "grid-column-end",
+    "grid-row-start",
+    "grid-row-end",
+  ],
+  { string: true, number: true, typed: [NUMBER] },
+);
 add(["font-weight"], {
   string: true,
   number: true,
   typed: [NUMBER],
+});
+add(["letter-spacing"], {
+  string: true,
+  number: true,
+  typed: [PX],
 });
 add(["background", "background-color", "color", "border-color", "outline-color"], {
   string: true,
