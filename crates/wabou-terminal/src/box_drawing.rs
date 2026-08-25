@@ -38,7 +38,8 @@ pub(super) fn draw_box_drawing(
     cell: BoxCell,
     color: Color,
 ) -> bool {
-    let Some(geometry) = box_geometry(character, cell) else {
+    let Some(geometry) = box_geometry(character, cell).or_else(|| block_geometry(character, cell))
+    else {
         return false;
     };
 
@@ -46,6 +47,65 @@ pub(super) fn draw_box_drawing(
         scene.fill(Fill::NonZero, Affine::IDENTITY, color, None, &rect);
     }
     true
+}
+
+fn block_geometry(character: char, cell: BoxCell) -> Option<BoxGeometry> {
+    let scale = cell.device_scale.max(f64::EPSILON);
+    let x0 = snap(cell.column as f64 * f64::from(cell.width), scale);
+    let y0 = snap(cell.row as f64 * f64::from(cell.height), scale);
+    let x1 = snap((cell.column + 1) as f64 * f64::from(cell.width), scale);
+    let y1 = snap((cell.row + 1) as f64 * f64::from(cell.height), scale);
+    let x_at = |eighths: u8| snap(x0 + (x1 - x0) * f64::from(eighths) / 8.0, scale);
+    let y_at = |eighths: u8| snap(y0 + (y1 - y0) * f64::from(eighths) / 8.0, scale);
+    let mut rects = [None; 4];
+
+    rects[0] = match character {
+        '█' => Some(Rect::new(x0, y0, x1, y1)),
+        '▀' => Some(Rect::new(x0, y0, x1, y_at(4))),
+        '▁'..='▇' => {
+            let eighths = character as u32 - '▁' as u32 + 1;
+            Some(Rect::new(x0, y_at(8 - eighths as u8), x1, y1))
+        }
+        '▔' => Some(Rect::new(x0, y0, x1, y_at(1))),
+        '▉'..='▏' => {
+            let eighths = 8 - (character as u32 - '▉' as u32 + 1) as u8;
+            Some(Rect::new(x0, y0, x_at(eighths), y1))
+        }
+        '▐' => Some(Rect::new(x_at(4), y0, x1, y1)),
+        '▕' => Some(Rect::new(x_at(7), y0, x1, y1)),
+        _ => None,
+    };
+    if rects[0].is_some() {
+        return Some(BoxGeometry { rects });
+    }
+
+    let cx = x_at(4);
+    let cy = y_at(4);
+    let quadrants = match character {
+        '▖' => 0b0100,
+        '▗' => 0b1000,
+        '▘' => 0b0001,
+        '▙' => 0b1101,
+        '▚' => 0b1001,
+        '▛' => 0b0111,
+        '▜' => 0b1011,
+        '▝' => 0b0010,
+        '▞' => 0b0110,
+        '▟' => 0b1110,
+        _ => return None,
+    };
+    let quadrant_rects = [
+        Rect::new(x0, y0, cx, cy),
+        Rect::new(cx, y0, x1, cy),
+        Rect::new(x0, cy, cx, y1),
+        Rect::new(cx, cy, x1, y1),
+    ];
+    for (index, rect) in quadrant_rects.into_iter().enumerate() {
+        if quadrants & (1 << index) != 0 {
+            rects[index] = Some(rect);
+        }
+    }
+    Some(BoxGeometry { rects })
 }
 
 fn box_geometry(character: char, cell: BoxCell) -> Option<BoxGeometry> {
@@ -218,5 +278,21 @@ mod tests {
             (second_left.y0, second_left.y1)
         );
         assert_eq!(first_right.x1 * 1.5, (first_right.x1 * 1.5).round());
+    }
+
+    #[test]
+    fn adjacent_full_blocks_share_the_exact_cell_edge() {
+        let cell = |column| BoxCell {
+            column,
+            row: 0,
+            width: 8.4,
+            height: 20.0,
+            device_scale: 1.5,
+        };
+        let first = block_geometry('█', cell(0)).unwrap().rects[0].unwrap();
+        let second = block_geometry('█', cell(1)).unwrap().rects[0].unwrap();
+
+        assert_eq!(first.x1, second.x0);
+        assert_eq!((first.y0, first.y1), (second.y0, second.y1));
     }
 }

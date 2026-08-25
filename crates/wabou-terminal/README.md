@@ -104,8 +104,8 @@ Implemented paths:
   HTTP(S)-only external URL boundary;
 - OSC palette/foreground/background/cursor color queries and terminal bell;
 - application-controlled steady and blinking cursor modes;
-- cell-aligned built-in light/heavy box drawing for contiguous terminal borders,
-  with font fallback for box-drawing variants not yet covered;
+- cell-aligned built-in light/heavy box drawing and block elements for contiguous
+  terminal borders and fills, with font fallback for variants not yet covered;
 - HiDPI-aware glyph and bitmap emoji rendering;
 - Kitty, Sixel and iTerm2 inline graphics with scrollback-aware placement,
   source cropping, z-ordering and panel clipping;
