@@ -189,16 +189,34 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                     }
                     if let Some(paint) = ctx {
                         if let Some(text) = &paint.text {
-                            let max_width = (paint.wrap_text || paint.text_max_lines > 0)
-                                .then(|| {
-                                    known.width.or(match avail.width {
-                                        AvailableSpace::Definite(width) => Some(width),
-                                        AvailableSpace::MinContent | AvailableSpace::MaxContent => {
-                                            None
-                                        }
-                                    })
-                                })
-                                .flatten();
+                            let wraps = paint.wrap_text || paint.text_max_lines > 0;
+                            let measured_width = if let Some(width) = known.width {
+                                width
+                            } else {
+                                let [min_content, max_content] =
+                                    crate::text::measure_text_intrinsic_widths(
+                                        measure.text(),
+                                        text.clone(),
+                                        paint.font_size,
+                                        paint.font_weight,
+                                        paint.letter_spacing,
+                                        paint.line_height,
+                                        paint.text_align,
+                                        crate::text::brush_for_color(paint.text_color),
+                                        paint.text_runs.clone(),
+                                        paint.font_family.as_ref(),
+                                        wraps,
+                                    );
+                                match avail.width {
+                                    AvailableSpace::MinContent => min_content,
+                                    AvailableSpace::MaxContent => max_content,
+                                    AvailableSpace::Definite(limit) if wraps => {
+                                        limit.min(max_content).max(min_content)
+                                    }
+                                    AvailableSpace::Definite(_) => max_content,
+                                }
+                                .ceil()
+                            };
                             let l = crate::text::layout_text_styled_clamped(
                                 measure.text(),
                                 text.clone(),
@@ -210,12 +228,12 @@ pub fn compute_and_walk_with_scroll_and_widgets(
                                 crate::text::brush_for_color(paint.text_color),
                                 paint.text_runs.clone(),
                                 paint.font_family.as_ref(),
-                                max_width,
+                                wraps.then_some(measured_width),
                                 paint.text_max_lines,
                             );
                             return Size {
-                                width: known.width.unwrap_or(l.width()),
-                                height: l.height(),
+                                width: measured_width,
+                                height: known.height.unwrap_or_else(|| l.height()),
                             };
                         }
                         if let Some([width, height]) = paint.intrinsic_size {
@@ -459,6 +477,89 @@ fn walk(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn taffy_receives_distinct_min_and_max_content_text_widths() {
+        let mut tree = TaffyTree::<Paint>::new();
+        let min_text = tree.new_leaf(taffy::Style::default()).unwrap();
+        let max_text = tree.new_leaf(taffy::Style::default()).unwrap();
+        let root = tree
+            .new_with_children(
+                taffy::Style {
+                    display: taffy::Display::Grid,
+                    grid_template_columns: vec![
+                        taffy::style_helpers::min_content(),
+                        taffy::style_helpers::max_content(),
+                    ],
+                    size: Size {
+                        width: taffy::Dimension::length(500.0),
+                        height: taffy::Dimension::auto(),
+                    },
+                    ..Default::default()
+                },
+                &[min_text, max_text],
+            )
+            .unwrap();
+        tree.set_node_context(root, Some(Paint::default())).unwrap();
+        for node in [min_text, max_text] {
+            tree.set_node_context(
+                node,
+                Some(Paint {
+                    text: Some(Arc::from("short words with one extraordinarilylongtoken")),
+                    wrap_text: true,
+                    ..Paint::default()
+                }),
+            )
+            .unwrap();
+        }
+        let mut text = TextContext::new();
+        let placed =
+            compute_and_walk_with_scroll(&mut tree, root, 500.0, 200.0, &mut text, &HashMap::new());
+        let width = |id| {
+            placed
+                .iter()
+                .find(|node| node.node_id == id)
+                .unwrap()
+                .content_size[0]
+        };
+        let min = width(min_text);
+        let max = width(max_text);
+
+        assert!(min > 0.0);
+        assert!(
+            min < max,
+            "min-content {min} should be below max-content {max}"
+        );
+    }
+
+    #[test]
+    fn known_text_height_wins_over_shaped_height() {
+        let mut tree = TaffyTree::<Paint>::new();
+        let root = tree
+            .new_leaf(taffy::Style {
+                size: Size {
+                    width: taffy::Dimension::length(200.0),
+                    height: taffy::Dimension::length(40.0),
+                },
+                ..Default::default()
+            })
+            .unwrap();
+        tree.set_node_context(
+            root,
+            Some(Paint {
+                text: Some(Arc::from("short words with one extraordinarilylongtoken")),
+                wrap_text: true,
+                ..Paint::default()
+            }),
+        )
+        .unwrap();
+        let mut text = TextContext::new();
+        let placed =
+            compute_and_walk_with_scroll(&mut tree, root, 500.0, 200.0, &mut text, &HashMap::new());
+        let node = placed.iter().find(|node| node.node_id == root).unwrap();
+        assert_eq!(node.content_size, [200.0, 40.0]);
+    }
 
     #[test]
     fn widget_measurement_runs_inside_taffys_constrained_layout_pass() {

@@ -124,6 +124,7 @@ pub struct TextContext {
     /// Scratch state used by Parley while constructing layouts.
     pub layout_cx: LayoutContext,
     cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
+    intrinsic_width_cache: LruCache<(TextLayoutKey, bool), [f32; 2]>,
     ellipsis_cache: LruCache<TextLayoutKey, Arc<Layout<[u8; 4]>>>,
     clamp_cache: LruCache<(TextLayoutKey, u32), Arc<Layout<[u8; 4]>>>,
     glyph_cache: LruCache<(usize, u64), GlyphSceneEntry>,
@@ -183,6 +184,7 @@ impl TextContext {
             font_cx: FontContext::new(),
             layout_cx: LayoutContext::new(),
             cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
+            intrinsic_width_cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
             ellipsis_cache: LruCache::new(NonZeroUsize::new(1024).unwrap()),
             clamp_cache: LruCache::new(NonZeroUsize::new(1024).unwrap()),
             glyph_cache: LruCache::new(NonZeroUsize::new(2048).unwrap()),
@@ -224,6 +226,7 @@ impl TextContext {
         let blob = parley::fontique::Blob::from(bytes);
         self.font_cx.collection.register_fonts(blob, None);
         self.cache.clear();
+        self.intrinsic_width_cache.clear();
         self.ellipsis_cache.clear();
         self.clamp_cache.clear();
         self.glyph_cache.clear();
@@ -580,6 +583,64 @@ pub fn layout_text_styled(
         font_family,
         max_width,
     )
+}
+
+/// Measure the intrinsic inline widths of styled text.
+///
+/// The returned pair is `[min_content, max_content]`. When wrapping is
+/// disabled both values equal the natural unbroken width. Results share the
+/// same style key as shaped layouts and are invalidated when fonts change.
+#[allow(clippy::too_many_arguments)]
+pub fn measure_text_intrinsic_widths(
+    tcx: &mut TextContext,
+    text: Arc<str>,
+    font_size: f32,
+    font_weight: f32,
+    letter_spacing: f32,
+    line_height: Option<(f32, bool)>,
+    alignment: TextAlign,
+    color: [u8; 4],
+    runs: Arc<[TextRun]>,
+    font_family: Option<&Arc<str>>,
+    wrap: bool,
+) -> [f32; 2] {
+    let key = text_layout_key(
+        text.clone(),
+        font_size,
+        font_weight,
+        letter_spacing,
+        line_height,
+        alignment,
+        color,
+        &runs,
+        font_family,
+        None,
+    );
+    if let Some(widths) = tcx.intrinsic_width_cache.get(&(key.clone(), wrap)) {
+        return *widths;
+    }
+    let layout = layout_text_styled_with_spacing(
+        tcx,
+        text,
+        font_size,
+        font_weight,
+        letter_spacing,
+        line_height,
+        alignment,
+        color,
+        runs,
+        font_family,
+        None,
+    );
+    let widths = layout.calculate_content_widths();
+    let max = widths.max.max(0.0);
+    let measured = if wrap {
+        [widths.min.max(0.0).min(max), max]
+    } else {
+        [max, max]
+    };
+    tcx.intrinsic_width_cache.put((key, wrap), measured);
+    measured
 }
 
 /// Shape text and limit the visible result to `max_lines` using an ellipsis.
@@ -1032,6 +1093,36 @@ mod tests {
         assert!(wide.width() > normal.width());
         assert!(!Arc::ptr_eq(&normal, &wide));
         assert!(Arc::ptr_eq(&wide, &cached));
+    }
+
+    #[test]
+    fn intrinsic_widths_distinguish_wrapped_and_unbroken_text() {
+        let mut context = TextContext::new();
+        let text: Arc<str> = Arc::from("short words with one extraordinarilylongtoken");
+        let measure = |context: &mut TextContext, wrap| {
+            measure_text_intrinsic_widths(
+                context,
+                text.clone(),
+                16.0,
+                400.0,
+                0.0,
+                None,
+                TextAlign::Start,
+                [0, 0, 0, 255],
+                Arc::from([]),
+                None,
+                wrap,
+            )
+        };
+
+        let wrapped = measure(&mut context, true);
+        let unbroken = measure(&mut context, false);
+        let cached = measure(&mut context, true);
+
+        assert!(wrapped[0] < wrapped[1]);
+        assert_eq!(unbroken, [wrapped[1], wrapped[1]]);
+        assert_eq!(cached, wrapped);
+        assert_eq!(context.intrinsic_width_cache.len(), 2);
     }
 
     #[test]
