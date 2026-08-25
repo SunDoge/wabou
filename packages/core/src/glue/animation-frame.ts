@@ -4,8 +4,8 @@
 // protocol frame back to Rust. `__wabou_has_raf` tells the host whether to keep
 // redrawing.
 
-import { runSweep, writer } from "../renderer";
 import { flush } from "solid-js";
+import { runSweep, writer } from "../renderer";
 
 const rafQueue = new Map<number, (t: number) => void>();
 let nextRafId = 1;
@@ -23,6 +23,7 @@ function cancelAnimationFrameImpl(id: number): void {
 export function tickAnimationFrame(
   frameTime: number,
   deliver: (bytes: Uint8Array) => void = __wabou_flush,
+  flushWriter: () => Uint8Array | null | undefined = () => writer.flush(),
 ): boolean {
   const entries = Array.from(rafQueue.entries());
   rafQueue.clear();
@@ -33,13 +34,16 @@ export function tickAnimationFrame(
     for (const [_, cb] of entries) {
       try {
         cb(frameTime);
-      } catch (e: any) {
-        __wabou_log("error", e.stack ? String(e.stack) : String(e));
+      } catch (error: unknown) {
+        __wabou_log(
+          "error",
+          error instanceof Error && error.stack ? error.stack : String(error),
+        );
       }
     }
   });
   runSweep();
-  const bytes = writer.flush();
+  const bytes = flushWriter();
   if (bytes) deliver(bytes);
   return rafQueue.size > 0;
 }
