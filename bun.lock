@@ -137,6 +137,7 @@
       "dependencies": {
         "@wabou/terminal": "workspace:*",
         "@wabou/ui": "workspace:*",
+        "lucide-static": "1.31.0",
         "solid-js": "2.0.0-rc.1",
       },
       "devDependencies": {
