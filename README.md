@@ -58,6 +58,77 @@ initialize it with `git submodule update --init` before installing packages.
 This temporary source-based layout will be replaced by crates.io and npm
 dependencies once the public packages stabilize.
 
+### Use Wabou as a submodule
+
+Wabou currently evolves quickly, and its Rust crates and JavaScript packages
+must stay on the same revision. For preview applications, the recommended
+integration is therefore a Git submodule rather than mixing Git crate
+dependencies with separately published npm packages. `wabou new` creates this
+layout automatically. To add Wabou to an existing repository:
+
+```bash
+git submodule add https://github.com/SunDoge/wabou.git vendor/wabou
+git -C vendor/wabou checkout <wabou-tag-or-commit>
+git add .gitmodules vendor/wabou
+```
+
+Point the Rust facade dependency at the submodule:
+
+```toml
+[dependencies]
+wabou = { path = "vendor/wabou/crates/wabou", features = ["vite"] }
+```
+
+Expose the packages in the root `package.json` as a Bun workspace and depend on
+the public JavaScript facades through `workspace:*`:
+
+```json
+{
+  "workspaces": ["vendor/wabou/packages/*"],
+  "dependencies": {
+    "@wabou/ui": "workspace:*",
+    "solid-js": "2.0.0-rc.1"
+  },
+  "devDependencies": {
+    "@wabou/test": "workspace:*",
+    "@wabou/vite": "workspace:*",
+    "vite": "^6.0.0"
+  }
+}
+```
+
+Install the CLI from the same checkout, then install JavaScript dependencies:
+
+```bash
+cargo install --path vendor/wabou/crates/wabou-cli --locked --force
+bun install
+```
+
+Clone an application together with Wabou using `--recurse-submodules`, or
+initialize it afterwards:
+
+```bash
+git clone --recurse-submodules <application-repository>
+# Existing checkout:
+git submodule update --init
+```
+
+To update Wabou, explicitly select a tested tag or commit and record the new
+submodule pointer in the application repository. Running `bun install` again
+refreshes the workspace links and lockfile:
+
+```bash
+git -C vendor/wabou fetch --tags
+git -C vendor/wabou checkout <wabou-tag-or-commit>
+git add vendor/wabou
+bun install
+git add bun.lock
+```
+
+Do not edit files under `vendor/wabou` as if they belonged to the application;
+changes there are commits in the Wabou repository. Use a Wabou fork as the
+submodule remote when framework changes must be developed alongside the app.
+
 ## Why SolidJS?
 
 Solid fits an embedded runtime particularly well because its reactivity is
