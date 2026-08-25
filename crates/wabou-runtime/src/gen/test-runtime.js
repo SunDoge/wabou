@@ -3266,6 +3266,3967 @@
   }
   installFetchPolyfill();
 
+  // node_modules/.bun/@solidjs+signals@2.0.0-rc.2/node_modules/@solidjs/signals/dist/dev.js
+  class NotReadyError extends Error {
+    source;
+    constructor(source) {
+      super();
+      this.source = source;
+    }
+  }
+
+  class StatusError extends Error {
+    source;
+    constructor(source, original) {
+      super(original instanceof Error ? original.message : String(original), {
+        cause: original
+      });
+      this.source = source;
+    }
+  }
+  function unwrapStatusError(error) {
+    return error instanceof StatusError ? error.cause : error;
+  }
+
+  class NoOwnerError extends Error {
+    constructor() {
+      super("Context can only be accessed under a reactive root.");
+    }
+  }
+
+  class ContextNotFoundError extends Error {
+    constructor() {
+      super("Context must either be created with a default value or a value must be provided before accessing it.");
+    }
+  }
+  var REACTIVE_NONE = 0;
+  var REACTIVE_CHECK = 1 << 0;
+  var REACTIVE_DIRTY = 1 << 1;
+  var REACTIVE_RECOMPUTING_DEPS = 1 << 2;
+  var REACTIVE_IN_HEAP = 1 << 3;
+  var REACTIVE_IN_HEAP_HEIGHT = 1 << 4;
+  var REACTIVE_ZOMBIE = 1 << 5;
+  var REACTIVE_DISPOSED = 1 << 6;
+  var REACTIVE_OPTIMISTIC_DIRTY = 1 << 7;
+  var REACTIVE_SNAPSHOT_STALE = 1 << 8;
+  var REACTIVE_LAZY = 1 << 9;
+  var REACTIVE_MANUAL_WRITE = 1 << 10;
+  var REACTIVE_REASK = 1 << 11;
+  var REACTIVE_MISSED_WAKE = 1 << 12;
+  var CONFIG_OWNED_WRITE = 1 << 0;
+  var CONFIG_NO_SNAPSHOT = 1 << 1;
+  var CONFIG_TRANSPARENT = 1 << 2;
+  var CONFIG_IN_SNAPSHOT_SCOPE = 1 << 3;
+  var CONFIG_CHILDREN_FORBIDDEN = 1 << 4;
+  var CONFIG_AUTO_DISPOSE = 1 << 5;
+  var CONFIG_SYNC = 1 << 6;
+  var CONFIG_OPTIMISTIC = 1 << 7;
+  var CONFIG_HAS_COMPANIONS = 1 << 8;
+  var CONFIG_HAS_SNAPSHOT = 1 << 9;
+  var CONFIG_HAS_LANE = 1 << 10;
+  var CONFIG_CHILD_COMPANIONS = 1 << 11;
+  var CONFIG_FW_CHILDREN = 1 << 12;
+  var STATUS_PENDING = 1 << 0;
+  var STATUS_ERROR = 1 << 1;
+  var STATUS_UNINITIALIZED = 1 << 2;
+  var EFFECT_RENDER = 1;
+  var EFFECT_USER = 2;
+  var EFFECT_TRACKED = 3;
+  var NOT_PENDING = {};
+  var NO_SNAPSHOT = {};
+  var OVERRIDE_UNDEFINED = {};
+  function unwrapOverride(v2) {
+    return v2 === OVERRIDE_UNDEFINED ? undefined : v2;
+  }
+  var SUPPORTS_PROXY = typeof Proxy === "function";
+  var defaultContext = {};
+  var $REFRESH = Symbol("refresh");
+  var attrHooks = null;
+  function setAttributionHooks(hooks) {
+    attrHooks = hooks;
+  }
+  var changeSeq = 0;
+  var runSeq = 0;
+  var defaultOptions = {
+    log: true,
+    stacks: false,
+    historyLimit: 200,
+    hotRuns: { count: 120, windowMs: 1000 },
+    wideDeps: 30,
+    hotTime: { budgetMs: 8, windowMs: 1000 },
+    unstableMemos: 4,
+    wideWrites: 250
+  };
+  var options = { ...defaultOptions };
+  var listeners = new Set;
+  var history = [];
+  var now = typeof performance !== "undefined" ? () => performance.now() : () => Date.now();
+  var frames = [];
+  var scopeCosts = new Map;
+  var writeCosts = new Map;
+  function rootsOf(causes, out) {
+    for (const c2 of causes) {
+      if (c2.kind === "derived" && c2.causes && c2.causes.length > 0)
+        rootsOf(c2.causes, out);
+      else
+        out.add(c2.name);
+    }
+  }
+  function recordCosts(event) {
+    let scope = scopeCosts.get(event.node);
+    if (scope === undefined) {
+      scope = {
+        name: event.nodeName,
+        kind: event.nodeKind,
+        runs: 0,
+        selfMs: 0,
+        wastedMs: 0,
+        overlayMs: 0
+      };
+      scopeCosts.set(event.node, scope);
+    }
+    scope.runs++;
+    scope.selfMs += event.selfMs;
+    if (event.phase !== "plain")
+      scope.overlayMs += event.selfMs;
+    else if (!event.changed && !event.held)
+      scope.wastedMs += event.selfMs;
+    const roots = new Set;
+    rootsOf(event.causes, roots);
+    for (const name of roots) {
+      let write = writeCosts.get(name);
+      if (write === undefined)
+        writeCosts.set(name, write = { name, runs: 0, downstreamMs: 0 });
+      write.runs++;
+      write.downstreamMs += event.selfMs;
+    }
+  }
+  function nodeName(node) {
+    return node._name ?? "anonymous";
+  }
+  function preview(v2) {
+    if (v2 === null)
+      return "null";
+    switch (typeof v2) {
+      case "undefined":
+        return "undefined";
+      case "string":
+        return JSON.stringify(v2.length > 40 ? v2.slice(0, 40) + "…" : v2);
+      case "number":
+      case "boolean":
+      case "bigint":
+        return String(v2);
+      case "function":
+        return "[function]";
+      case "symbol":
+        return v2.toString();
+      default:
+        return Array.isArray(v2) ? `Array(${v2.length})` : `[${v2.constructor?.name ?? "object"}]`;
+    }
+  }
+  function captureStack() {
+    if (!options.stacks)
+      return;
+    const raw = new Error().stack?.split(`
+`) ?? [];
+    return raw.slice(1).filter((line) => !/solid-signals[/\\](src|dist)[/\\]/.test(line)).slice(0, 3).map((line) => line.trim());
+  }
+  var NO_VALUES = Symbol("no-values");
+  function checkWideWrite(node, kind) {
+    const limit = options.wideWrites;
+    if (typeof limit !== "number")
+      return;
+    const subs = node._subCount ?? 0;
+    const attributed = node;
+    if (subs < limit || subs < (attributed._devWideWriteWarnedAt ?? 0) * 2)
+      return;
+    attributed._devWideWriteWarnedAt = subs;
+    const verb = kind === "refresh" ? "refresh of" : kind === "async" ? "async landing on" : "write to";
+    const message = `[WIDE_WRITE] ${verb} "${nodeName(node)}" reached ${subs} subscribers — every one ` + `re-runs this flush. If consumers ask keyed questions of this value (for example every ` + `row comparing against one selected id), invert with createSelector or createProjection ` + `so only the keys whose answer flipped update.`;
+    emitDiagnostic({
+      code: "WIDE_WRITE",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: nodeName(node),
+      data: { subscribers: subs, write: kind }
+    });
+    console.warn(message);
+  }
+  function stampWrite(node, kind, prev = NO_VALUES, value = NO_VALUES) {
+    const record = { seq: ++changeSeq, kind, name: nodeName(node) };
+    if (value !== NO_VALUES) {
+      record.prev = prev === NO_VALUES ? undefined : preview(prev);
+      record.value = preview(value);
+    }
+    record.stack = captureStack();
+    node._devChange = record;
+    checkWideWrite(node, kind);
+  }
+  function stampDerived(node, causes) {
+    node._devChange = {
+      seq: ++changeSeq,
+      kind: "derived",
+      name: nodeName(node),
+      causes
+    };
+  }
+  function collectCauses(el) {
+    const seen = el._devSeenSeq ?? 0;
+    const causes = [];
+    const self2 = el._devChange;
+    if (self2 !== undefined && self2.seq > seen && self2.kind === "refresh")
+      causes.push(self2);
+    for (let l2 = el._deps;l2 !== null; l2 = l2._nextDep) {
+      const change = l2._dep._devChange;
+      if (change !== undefined && change.seq > seen)
+        causes.push(change);
+    }
+    return causes;
+  }
+  function markSeen(el) {
+    el._devSeenSeq = changeSeq;
+  }
+  function captureDeps(el) {
+    const deps = [];
+    for (let l2 = el._deps;l2 !== null; l2 = l2._nextDep)
+      deps.push(l2._dep);
+    return deps;
+  }
+  function checkDepWidth(el) {
+    const limit = options.wideDeps;
+    if (limit === false)
+      return;
+    let count = 0;
+    const names = [];
+    for (let l2 = el._deps;l2 !== null; l2 = l2._nextDep) {
+      count++;
+      if (names.length < 12)
+        names.push(nodeName(l2._dep));
+    }
+    const node = el;
+    if (count < limit || count < (node._devWideWarnedAt ?? 0) * 1.5)
+      return;
+    node._devWideWarnedAt = count;
+    const kind = el._type ? "effect" : "memo";
+    const message = `[WIDE_SCOPE_DEPS] ${kind} "${nodeName(el)}" is subscribed to ${count} sources — ` + `it re-runs when any of them change. Narrow its reads or split it into smaller memos. ` + `Sources: ${names.join(", ")}${count > names.length ? ", …" : ""}`;
+    emitDiagnostic({
+      code: "WIDE_SCOPE_DEPS",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: nodeName(el),
+      data: { depCount: count, deps: names }
+    });
+    console.warn(message);
+  }
+  function checkHotRuns(el, event) {
+    const cfg = options.hotRuns;
+    if (cfg === false)
+      return;
+    const node = el;
+    const now2 = Date.now();
+    if (node._devWinStart === undefined || now2 - node._devWinStart > cfg.windowMs) {
+      node._devWinStart = now2;
+      node._devWinCount = 0;
+      node._devHotWarned = false;
+    }
+    node._devWinCount = (node._devWinCount ?? 0) + 1;
+    if (node._devHotWarned || node._devWinCount < cfg.count)
+      return;
+    node._devHotWarned = true;
+    const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
+    const message = `[HOT_SCOPE_RERUNS] ${event.nodeKind} "${event.nodeName}" re-ran ${node._devWinCount} times ` + `in ${Math.max(1, now2 - node._devWinStart)}ms — a hot signal is likely leaking into this ` + `scope. Latest cause: ${rootCause || "(untracked pull)"}`;
+    emitDiagnostic({
+      code: "HOT_SCOPE_RERUNS",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: event.nodeName,
+      data: {
+        runs: node._devWinCount,
+        windowMs: cfg.windowMs,
+        causes: event.causes.map((c2) => c2.name)
+      }
+    });
+    console.warn(message);
+  }
+  function checkHotTime(el, event) {
+    const cfg = options.hotTime;
+    if (cfg === false)
+      return;
+    const node = el;
+    const at2 = now();
+    if (node._devTimeWinStart === undefined || at2 - node._devTimeWinStart > cfg.windowMs) {
+      node._devTimeWinStart = at2;
+      node._devTimeWinMs = 0;
+      node._devTimeWarned = false;
+    }
+    node._devTimeWinMs = (node._devTimeWinMs ?? 0) + event.selfMs;
+    if (node._devTimeWarned || node._devTimeWinMs < cfg.budgetMs)
+      return;
+    node._devTimeWarned = true;
+    const rootCause = event.causes.map((c2) => `"${c2.name}" (${c2.kind})`).join(", ");
+    const message = `[HOT_SCOPE_TIME] ${event.nodeKind} "${event.nodeName}" spent ` + `${node._devTimeWinMs.toFixed(1)}ms of compute inside one ${cfg.windowMs}ms window ` + `(budget ${cfg.budgetMs}ms). Latest cause: ${rootCause || "(untracked pull)"}`;
+    emitDiagnostic({
+      code: "HOT_SCOPE_TIME",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: event.nodeName,
+      data: {
+        spentMs: node._devTimeWinMs,
+        budgetMs: cfg.budgetMs,
+        windowMs: cfg.windowMs,
+        causes: event.causes.map((c2) => c2.name)
+      }
+    });
+    console.warn(message);
+  }
+  function recordRerun(el, causes, prevDeps, timing, changed, phase, held) {
+    const node = el;
+    const newDeps = captureDeps(el);
+    const prevSet = new Set(prevDeps);
+    const newSet = new Set(newDeps);
+    const depsAdded = [];
+    const depsRemoved = [];
+    for (const d2 of newDeps)
+      if (!prevSet.has(d2))
+        depsAdded.push(nodeName(d2));
+    for (const d2 of prevDeps)
+      if (!newSet.has(d2))
+        depsRemoved.push(nodeName(d2));
+    const event = {
+      run: ++runSeq,
+      nodeRuns: node._devRunCount = (node._devRunCount ?? 0) + 1,
+      nodeKind: el._type ? "effect" : "memo",
+      nodeName: nodeName(el),
+      node: el,
+      causes,
+      depCount: newDeps.length,
+      depsAdded,
+      depsRemoved,
+      selfMs: timing.selfMs,
+      totalMs: timing.totalMs,
+      changed,
+      phase,
+      held
+    };
+    history.push(event);
+    if (history.length > options.historyLimit)
+      history.shift();
+    recordCosts(event);
+    checkHotRuns(el, event);
+    checkHotTime(el, event);
+    checkDepWidth(el);
+    for (const listener of listeners)
+      listener(event);
+    if (options.log)
+      console.log(formatRerun(event));
+  }
+  function formatCause(cause, depth, out) {
+    const pad = "  ".repeat(depth + 1);
+    let line = `${pad}← ${cause.kind === "derived" ? "memo" : "signal"} "${cause.name}" ${cause.kind === "derived" ? "changed" : cause.kind} (#${cause.seq})`;
+    if (cause.prev !== undefined)
+      line += ` ${cause.prev} → ${cause.value}`;
+    out.push(line);
+    if (cause.stack)
+      for (const frame of cause.stack)
+        out.push(`${pad}    ${frame}`);
+    if (cause.causes && depth < 10) {
+      for (const upstream of cause.causes)
+        formatCause(upstream, depth + 1, out);
+    }
+  }
+  function formatRerun(event) {
+    const out = [
+      `[why-run] ${event.nodeKind} "${event.nodeName}" ran (run ${event.nodeRuns}, ` + `${event.selfMs.toFixed(2)}ms${event.changed ? "" : ", unchanged"}` + `${event.phase === "plain" ? "" : `, ${event.phase}`}${event.held ? ", held" : ""})` + (event.causes.length === 0 ? " — no tracked cause (pull or retry)" : "")
+    ];
+    for (const cause of event.causes)
+      formatCause(cause, 0, out);
+    if (event.depsAdded.length > 0 || event.depsRemoved.length > 0) {
+      const delta = [
+        ...event.depsAdded.map((n2) => `+"${n2}"`),
+        ...event.depsRemoved.map((n2) => `-"${n2}"`)
+      ].join(" ");
+      out.push(`  deps changed: ${delta} (${event.depCount} total)`);
+    }
+    return out.join(`
+`);
+  }
+  function isPlainShape(v2) {
+    if (v2 === null || typeof v2 !== "object")
+      return false;
+    if (Array.isArray(v2))
+      return true;
+    const proto = Object.getPrototypeOf(v2);
+    return proto === Object.prototype || proto === null;
+  }
+  var UNSTABLE_KEY_CAP = 64;
+  function shallowEquivalent(a2, b2) {
+    const aArr = Array.isArray(a2);
+    if (aArr !== Array.isArray(b2))
+      return false;
+    if (aArr) {
+      const arrA = a2;
+      const arrB = b2;
+      if (arrA.length !== arrB.length || arrA.length > UNSTABLE_KEY_CAP)
+        return false;
+      for (let i2 = 0;i2 < arrA.length; i2++)
+        if (arrA[i2] !== arrB[i2])
+          return false;
+      return true;
+    }
+    const keys = Object.keys(a2);
+    if (keys.length > UNSTABLE_KEY_CAP || keys.length !== Object.keys(b2).length)
+      return false;
+    for (const key of keys) {
+      if (!(key in b2) || a2[key] !== b2[key])
+        return false;
+    }
+    return true;
+  }
+  function checkUnstableOutput(el, prevValue, newValue) {
+    const limit = options.unstableMemos;
+    if (typeof limit !== "number")
+      return;
+    const node = el;
+    if (prevValue === newValue || !isPlainShape(prevValue) || !isPlainShape(newValue) || !shallowEquivalent(prevValue, newValue)) {
+      node._devUnstableRuns = 0;
+      node._devUnstableWarned = false;
+      return;
+    }
+    node._devUnstableRuns = (node._devUnstableRuns ?? 0) + 1;
+    if (node._devUnstableWarned || node._devUnstableRuns < limit)
+      return;
+    node._devUnstableWarned = true;
+    const shape = Array.isArray(newValue) ? "array" : "object";
+    const message = `[UNSTABLE_MEMO_OUTPUT] memo "${nodeName(el)}" produced a new-but-equivalent ${shape} on ` + `${node._devUnstableRuns} consecutive runs — its equality gate never closes, so every ` + `subscriber re-runs on every upstream change. Return stable references or pass an ` + `\`equals\` option.`;
+    emitDiagnostic({
+      code: "UNSTABLE_MEMO_OUTPUT",
+      kind: "perf",
+      severity: "warn",
+      message,
+      nodeName: nodeName(el),
+      data: { runs: node._devUnstableRuns, shape }
+    });
+    console.warn(message);
+  }
+  var asyncStartSeq = 0;
+  var asyncStartTime = 0;
+  var asyncStartValue;
+  var engineHooks = {
+    recomputeStart(el, create) {
+      frames.push({
+        start: now(),
+        childMs: 0,
+        causes: create ? null : collectCauses(el),
+        prevDeps: create ? null : captureDeps(el),
+        prevValue: el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value
+      });
+    },
+    derivedChanged(el) {
+      const frame = frames[frames.length - 1];
+      stampDerived(el, frame !== undefined && frame.causes !== null ? frame.causes : []);
+    },
+    recomputeEnd(el, _create, changed, optimistic, transition, held) {
+      const frame = frames.pop();
+      if (frame === undefined)
+        return;
+      const totalMs = now() - frame.start;
+      if (frames.length > 0)
+        frames[frames.length - 1].childMs += totalMs;
+      const selfMs = Math.max(0, totalMs - frame.childMs);
+      if (frame.causes !== null && changed && !optimistic && !transition && !el._type)
+        checkUnstableOutput(el, frame.prevValue, el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value);
+      if (frame.causes !== null)
+        recordRerun(el, frame.causes, frame.prevDeps, { selfMs, totalMs }, changed, optimistic ? "optimistic" : transition ? "transition" : "plain", held);
+      else
+        checkDepWidth(el);
+      markSeen(el);
+    },
+    write(el, prev, value) {
+      stampWrite(el, "write", prev, value);
+    },
+    refreshed(el) {
+      stampWrite(el, "refresh");
+    },
+    asyncStart(el) {
+      asyncStartSeq = el._devChange?.seq ?? 0;
+      asyncStartTime = el._time;
+      asyncStartValue = el._value;
+    },
+    asyncEnd(el, prev, value, direct) {
+      if (direct) {
+        const committed = el._value !== asyncStartValue || el._time !== asyncStartTime || el._pendingValue === value;
+        if (committed)
+          stampWrite(el, "async", prev === undefined ? NO_VALUES : prev, value);
+        return;
+      }
+      const change = el._devChange;
+      if (change !== undefined && change.seq > asyncStartSeq && change.kind === "write")
+        stampWrite(el, "async", NO_VALUES, value);
+    }
+  };
+  var attribution = {
+    enable(opts) {
+      options = { ...defaultOptions, ...opts };
+      frames.length = 0;
+      scopeCosts.clear();
+      writeCosts.clear();
+      setAttributionHooks(engineHooks);
+    },
+    disable() {
+      listeners.clear();
+      history = [];
+      frames.length = 0;
+      scopeCosts.clear();
+      writeCosts.clear();
+      setAttributionHooks(null);
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    history() {
+      return history;
+    },
+    why(target) {
+      const node = target?.[$REFRESH] ?? target;
+      return history.filter((event) => event.node === node);
+    },
+    subscriptions(target) {
+      const node = target?.[$REFRESH] ?? target;
+      const names = [];
+      for (let l2 = node?._deps ?? null;l2 !== null; l2 = l2._nextDep)
+        names.push(nodeName(l2._dep));
+      return names;
+    },
+    costs() {
+      return {
+        scopes: [...scopeCosts.values()].sort((a2, b2) => b2.selfMs - a2.selfMs),
+        writes: [...writeCosts.values()].sort((a2, b2) => b2.downstreamMs - a2.downstreamMs)
+      };
+    },
+    format: formatRerun
+  };
+  var GRAPH_SIZE_WARN_AT = 2000;
+  var GRAPH_SIZE_WARN_EVERY = 500;
+  var hooks = {};
+  var diagnosticListeners = new Set;
+  var diagnosticCaptures = new Set;
+  var diagnosticSequence = 0;
+  var diagnostics = {
+    subscribe(listener) {
+      diagnosticListeners.add(listener);
+      return () => diagnosticListeners.delete(listener);
+    },
+    capture() {
+      const events = [];
+      diagnosticCaptures.add(events);
+      return {
+        get events() {
+          return events;
+        },
+        clear() {
+          events.length = 0;
+        },
+        stop() {
+          diagnosticCaptures.delete(events);
+          return [...events];
+        }
+      };
+    }
+  };
+  var DEV$1 = {
+    hooks,
+    diagnostics,
+    get attribution() {
+      return attribution;
+    },
+    getChildren,
+    getSignals,
+    getParent,
+    getSources,
+    getObservers
+  };
+  function emitDiagnostic(event) {
+    const entry = {
+      sequence: ++diagnosticSequence,
+      ...event
+    };
+    for (const listener of diagnosticListeners)
+      listener(entry);
+    for (const capture of diagnosticCaptures)
+      capture.push(entry);
+    return entry;
+  }
+  function throwPendingUntrackedRead(strictReadLabel, fields) {
+    const message = `[PENDING_ASYNC_UNTRACKED_READ] Reading a pending async value directly in ${strictReadLabel}. ` + `Async values must be read within a tracking scope (JSX, a memo, or an effect's compute function).`;
+    emitDiagnostic({
+      code: "PENDING_ASYNC_UNTRACKED_READ",
+      kind: "async",
+      severity: "error",
+      message,
+      ...fields,
+      data: { strictRead: strictReadLabel }
+    });
+    throw new Error(message);
+  }
+  function warnStrictReadUntracked(strictReadLabel, fields) {
+    const message = `[STRICT_READ_UNTRACKED] Reactive value read directly in ${strictReadLabel} will not update. ` + `Move it into a tracking scope (JSX, a memo, or an effect's compute function).`;
+    emitDiagnostic({
+      code: "STRICT_READ_UNTRACKED",
+      kind: "strict-read",
+      severity: "warn",
+      message,
+      data: { strictRead: strictReadLabel },
+      ...fields
+    });
+    console.warn(message);
+  }
+  function registerGraph(value, owner) {
+    value._owner = owner;
+    if (owner) {
+      if (!owner._signals)
+        owner._signals = [];
+      owner._signals.push(value);
+    }
+    DEV$1.hooks.onGraph?.(value, owner);
+  }
+  function clearSignals(node) {
+    node._signals = undefined;
+  }
+  function getChildren(owner) {
+    const children = [];
+    let child = owner._firstChild;
+    while (child) {
+      children.push(child);
+      child = child._nextSibling;
+    }
+    return children;
+  }
+  function getSignals(owner) {
+    return owner._signals ? [...owner._signals] : [];
+  }
+  function getParent(owner) {
+    return owner._parent;
+  }
+  function getSources(computation) {
+    const sources = [];
+    let link = computation._deps;
+    while (link) {
+      sources.push(link._dep);
+      link = link._nextDep;
+    }
+    return sources;
+  }
+  function getObservers(node) {
+    const observers = [];
+    let link = node._subs;
+    while (link) {
+      observers.push(link._sub);
+      link = link._nextSub;
+    }
+    return observers;
+  }
+  function shouldWarnGraphSize(count) {
+    return count >= GRAPH_SIZE_WARN_AT && (count - GRAPH_SIZE_WARN_AT) % GRAPH_SIZE_WARN_EVERY === 0;
+  }
+  function noteGraphLink(dep, sub) {
+    const fanOut = dep._subCount = (dep._subCount || 0) + 1;
+    const fanIn = sub._depCount = (sub._depCount || 0) + 1;
+    if (shouldWarnGraphSize(fanOut)) {
+      const name = dep._name;
+      const message = `[HUGE_FAN_OUT] ${name ? `Signal "${name}"` : "A signal"} has ${fanOut} subscribers. ` + `Each will re-run when it changes. If many independent computations read the same value ` + `(for example every row of a list comparing against one selected id), prefer a per-key ` + `store or projection so only the items whose result flipped update.`;
+      emitDiagnostic({
+        code: "HUGE_FAN_OUT",
+        kind: "graph",
+        severity: "warn",
+        message,
+        nodeName: name,
+        ownerId: dep.id,
+        ownerName: name,
+        data: { count: fanOut }
+      });
+      console.warn(message);
+    }
+    if (shouldWarnGraphSize(fanIn)) {
+      const name = sub._name;
+      const message = `[HUGE_FAN_IN] ${name ? `Computation "${name}"` : "A computation"} has ${fanIn} sources. ` + `It will re-run when any of them change. Narrow the read or split the derivation so each ` + `computation tracks only what it needs.`;
+      emitDiagnostic({
+        code: "HUGE_FAN_IN",
+        kind: "graph",
+        severity: "warn",
+        message,
+        nodeName: name,
+        ownerId: sub.id,
+        ownerName: name,
+        data: { count: fanIn }
+      });
+      console.warn(message);
+    }
+  }
+  function unnoteGraphLink(link) {
+    const dep = link._dep;
+    const sub = link._sub;
+    if (dep._subCount)
+      dep._subCount--;
+    if (sub._depCount)
+      sub._depCount--;
+  }
+  function createAsyncReporters() {
+    return new Map;
+  }
+  function devCheckActiveOverrides(isRegisteredForRevert) {
+    return;
+  }
+  function devCheckFlushStart() {
+    return;
+  }
+  typeof globalThis !== "undefined" && globalThis.process?.env?.COMPANION_CENSUS;
+  function devCensusCompanions(isQueuedForCommit) {
+    return;
+  }
+  function devCheckQuiescent(isQueuedForCommit) {
+    return;
+  }
+  var signalLanes = new WeakMap;
+  var activeLanes = new Set;
+  function getOrCreateLane(signal) {
+    let lane = signalLanes.get(signal);
+    if (lane) {
+      return findLane(lane);
+    }
+    const parentSource = signal._x?._parentSource;
+    const parentOptLane = parentSource?._x?._optimisticLane;
+    const parentLane = parentOptLane ? findLane(parentOptLane) : null;
+    lane = {
+      _source: signal,
+      _pendingAsync: new Set,
+      _effectQueues: [[], []],
+      _mergedInto: null,
+      _transition: activeTransition,
+      _parentLane: parentLane
+    };
+    signalLanes.set(signal, lane);
+    activeLanes.add(lane);
+    adoptCompanionLane(signal._x?._pendingSignal, lane);
+    adoptCompanionLane(signal._x?._latestValueComputed, lane);
+    return lane;
+  }
+  function adoptCompanionLane(companion, parent) {
+    if (!companion)
+      return;
+    const companionLane = signalLanes.get(companion);
+    if (!companionLane)
+      return;
+    const root = findLane(companionLane);
+    if (root !== parent && root._source === companion && !root._parentLane)
+      root._parentLane = parent;
+  }
+  function findLane(lane) {
+    while (lane._mergedInto)
+      lane = lane._mergedInto;
+    return lane;
+  }
+  function mergeLanes(lane1, lane2) {
+    lane1 = findLane(lane1);
+    lane2 = findLane(lane2);
+    if (lane1 === lane2)
+      return lane1;
+    lane2._mergedInto = lane1;
+    for (const node of lane2._pendingAsync)
+      lane1._pendingAsync.add(node);
+    lane2._pendingAsync.clear();
+    lane1._effectQueues[0].push(...lane2._effectQueues[0]);
+    lane1._effectQueues[1].push(...lane2._effectQueues[1]);
+    lane2._effectQueues[0].length = 0;
+    lane2._effectQueues[1].length = 0;
+    return lane1;
+  }
+  function resolveLane(el) {
+    const lane = el._x?._optimisticLane;
+    if (!lane)
+      return;
+    const root = findLane(lane);
+    if (activeLanes.has(root))
+      return root;
+    if (el._x !== null)
+      el._x._optimisticLane = undefined;
+    return;
+  }
+  function resolveTransition(el) {
+    if (hasActiveOverride$1(el) && el._x?._overrideOwner) {
+      const owner = ext(el)._overrideOwner = currentTransition(el._x?._overrideOwner);
+      if (owner._done !== true)
+        return owner;
+      if (el._x !== null)
+        el._x._overrideOwner = null;
+    }
+    return resolveLane(el)?._transition ?? el._transition;
+  }
+  function hasActiveOverride$1(el) {
+    const x2 = el._x;
+    return x2 !== null && x2._overrideValue !== undefined && x2._overrideValue !== NOT_PENDING;
+  }
+  function assignOrMergeLane(el, sourceLane) {
+    const sourceRoot = findLane(sourceLane);
+    const existing = el._x?._optimisticLane;
+    if (existing) {
+      if (existing._mergedInto) {
+        ext(el)._optimisticLane = sourceLane;
+        el._config |= CONFIG_HAS_LANE;
+        return;
+      }
+      const existingRoot = findLane(existing);
+      if (activeLanes.has(existingRoot)) {
+        if (existingRoot !== sourceRoot && !hasActiveOverride$1(el)) {
+          if (sourceRoot._parentLane && findLane(sourceRoot._parentLane) === existingRoot) {
+            ext(el)._optimisticLane = sourceLane;
+            el._config |= CONFIG_HAS_LANE;
+          } else if (existingRoot._parentLane && findLane(existingRoot._parentLane) === sourceRoot)
+            ;
+          else
+            mergeLanes(sourceRoot, existingRoot);
+        }
+        return;
+      }
+    }
+    ext(el)._optimisticLane = sourceLane;
+    el._config |= CONFIG_HAS_LANE;
+  }
+  var transitions = new Set;
+  var dirtyQueue = {
+    _heap: new Array(2000).fill(undefined),
+    _marked: false,
+    _min: 0,
+    _max: 0
+  };
+  var zombieQueue = {
+    _heap: new Array(2000).fill(undefined),
+    _marked: false,
+    _min: 0,
+    _max: 0
+  };
+  function cancelZombieRecompute(el) {
+    if (el._flags & REACTIVE_IN_HEAP_HEIGHT)
+      el._flags &= -12;
+    else {
+      deleteFromHeap(el, zombieQueue);
+      el._flags &= -4;
+    }
+  }
+  var clock = 0;
+  var activeTransition = null;
+  var scheduled = false;
+  var halted = false;
+  var haltNotified = false;
+  var syncDepth = 0;
+  var projectionWriteActive = false;
+  var inTrackedQueueCallback = false;
+  var _enforceLoadingBoundary = false;
+  var _hitUnhandledAsync = false;
+  var transientStoreNodes = new Set;
+  function canUseSimpleSyncFlush(queue) {
+    const batch = queue._batch;
+    return transitions.size === 0 && activeLanes.size === 0 && queue._children.length === 0 && batch._optimisticNodes.length === 0 && batch._affectsNodes.length === 0 && batch._optimisticStores.size === 0 && transientStoreNodes.size === 0;
+  }
+  function sweepTransientStoreNodes() {
+    if (transientStoreNodes.size === 0)
+      return;
+    for (const node of transientStoreNodes) {
+      if (node._subs !== null) {
+        transientStoreNodes.delete(node);
+        continue;
+      }
+      if (node._pendingValue !== NOT_PENDING)
+        continue;
+      if (node._x?._overrideValue !== undefined && node._x?._overrideValue !== NOT_PENDING)
+        continue;
+      if (node._x?._affectsCount)
+        continue;
+      transientStoreNodes.delete(node);
+      node._x?._unobserved?.();
+    }
+  }
+  function resetUnhandledAsync() {
+    _hitUnhandledAsync = false;
+  }
+  var inEffectCallback = false;
+  function setEffectCallback(value) {
+    inEffectCallback = value;
+  }
+  function createBatch() {
+    return {
+      _time: clock,
+      _pendingNodes: [],
+      _asyncReporters: createAsyncReporters(),
+      _optimisticNodes: [],
+      _affectsNodes: [],
+      _optimisticStores: new Set,
+      _actions: [],
+      _queueStash: { _queues: [[], []], _children: [] },
+      _done: false,
+      _gatedSubs: new Set
+    };
+  }
+  function mergeTransitionState(target, outgoing) {
+    outgoing._done = target;
+    target._actions.push(...outgoing._actions);
+    for (const lane of activeLanes)
+      if (lane._transition === outgoing)
+        lane._transition = target;
+    if (outgoing._optimisticNodes.length) {
+      target._optimisticNodes.push(...outgoing._optimisticNodes);
+      outgoing._optimisticNodes.length = 0;
+    }
+    if (outgoing._affectsNodes.length) {
+      target._affectsNodes.push(...outgoing._affectsNodes);
+      outgoing._affectsNodes.length = 0;
+    }
+    for (const store of outgoing._optimisticStores)
+      target._optimisticStores.add(store);
+    for (const [source, reporters] of outgoing._asyncReporters) {
+      let targetReporters = target._asyncReporters.get(source);
+      if (!targetReporters)
+        target._asyncReporters.set(source, targetReporters = new Set);
+      for (const reporter of reporters)
+        targetReporters.add(reporter);
+    }
+    for (const sub of outgoing._gatedSubs)
+      target._gatedSubs.add(sub);
+  }
+  function schedule() {
+    if (halted) {
+      notifyHalted();
+      return;
+    }
+    if (scheduled)
+      return;
+    scheduled = true;
+    if (!syncDepth && !globalQueue._running && !projectionWriteActive)
+      queueMicrotask(flush);
+  }
+  function haltReactivity(cause) {
+    if (halted)
+      return;
+    halted = true;
+    let message = "[REACTIVITY_HALTED]";
+    {
+      message += " An uncaught error halted the reactive system. No further updates will be processed. Handle errors with createErrorBoundary/<Errored> or treat this as a crash.";
+      emitDiagnostic({
+        code: "REACTIVITY_HALTED",
+        kind: "error",
+        severity: "error",
+        message
+      });
+    }
+    cause === undefined ? console.error(message) : console.error(message, cause);
+  }
+  function notifyHalted() {
+    if (haltNotified)
+      return;
+    haltNotified = true;
+    console.error("[REACTIVITY_HALTED] Update ignored: the reactive system was halted by an earlier uncaught error.");
+  }
+  var queueRunToken = 0;
+
+  class Queue {
+    _parent = null;
+    _queues = [[], []];
+    _children = [];
+    _ranAt = 0;
+    created = clock;
+    addChild(child) {
+      this._children.push(child);
+      child._parent = this;
+    }
+    removeChild(child) {
+      const index = this._children.indexOf(child);
+      if (index >= 0) {
+        this._children.splice(index, 1);
+        child._parent = null;
+      }
+    }
+    notify(node, mask, flags, error) {
+      if (this._parent)
+        return this._parent.notify(node, mask, flags, error);
+      return false;
+    }
+    run(type) {
+      if (this._queues[type - 1].length) {
+        const effects = this._queues[type - 1];
+        this._queues[type - 1] = [];
+        runQueue$1(effects, type);
+      }
+      const children = this._children;
+      const token = ++queueRunToken;
+      for (let i2 = 0;i2 < children.length; ) {
+        const child = children[i2];
+        if (child._ranAt !== token) {
+          child._ranAt = token;
+          child.run?.(type);
+          if (children[i2] !== child) {
+            i2 = 0;
+            continue;
+          }
+        }
+        i2++;
+      }
+    }
+    enqueue(type, fn) {
+      if (type) {
+        if (currentOptimisticLane) {
+          const lane = findLane(currentOptimisticLane);
+          lane._effectQueues[type - 1].push(fn);
+        } else {
+          this._queues[type - 1].push(fn);
+        }
+      }
+      schedule();
+    }
+    stashQueues(stub) {
+      stub._queues[0].push(...this._queues[0]);
+      stub._queues[1].push(...this._queues[1]);
+      this._queues = [[], []];
+      for (let i2 = 0;i2 < this._children.length; i2++) {
+        let child = this._children[i2];
+        let childStub = stub._children[i2];
+        if (!childStub) {
+          childStub = { _queues: [[], []], _children: [] };
+          stub._children[i2] = childStub;
+        }
+        child.stashQueues(childStub);
+      }
+    }
+    restoreQueues(stub) {
+      this._queues[0].push(...stub._queues[0]);
+      this._queues[1].push(...stub._queues[1]);
+      for (let i2 = 0;i2 < stub._children.length; i2++) {
+        const childStub = stub._children[i2];
+        let child = this._children[i2];
+        if (child)
+          child.restoreQueues(childStub);
+      }
+    }
+  }
+
+  class GlobalQueue extends Queue {
+    _running = false;
+    _batch = createBatch();
+    static _update;
+    static _dispose;
+    static _runEffect;
+    static _clearOptimisticStores = null;
+    static _releaseAffectsScope = null;
+    static _releaseAffectsMarks = null;
+    static _markAffects = null;
+    static _releaseAffectsMark = null;
+    static _wireExternalSource = null;
+    static _externalUntrack = null;
+    static _syncCompanions = null;
+    static _updatePendingSignal = null;
+    static _updateChildCompanions = null;
+    static _snapCompanions = null;
+    static _latestRead = null;
+    static _pendingCheck = null;
+    static _recordFresh = null;
+    static _applyReask = null;
+    static _repollVerdicts = null;
+    static _witnessAffects = null;
+    static _wakeSuppressedProbes = null;
+    static _optimisticWrite = null;
+    static _resolveOptimistic = null;
+    static _transitionBlocked = null;
+    static _cleanupLanes = null;
+    static _runLaneEffects = null;
+    static _gatedRead = null;
+    static _laneSuspends = null;
+    static _laneReadsCommitted = null;
+    static _recomputeLane = null;
+    static _laneAsyncPending = null;
+    static _laneAsyncSettled = null;
+    static _trackOptimisticStore = null;
+    flush() {
+      if (this._running)
+        return;
+      this._running = true;
+      try {
+        if (true)
+          devCheckFlushStart();
+        runHeap(dirtyQueue, GlobalQueue._update);
+        if (activeTransition) {
+          const isComplete = transitionComplete(activeTransition);
+          if (!isComplete) {
+            const stashedTransition = activeTransition;
+            runHeap(zombieQueue, this._batch === stashedTransition ? cancelZombieRecompute : GlobalQueue._update);
+            if (this._batch === stashedTransition)
+              currentBatch = this._batch = createBatch();
+            if (activeLanes.size) {
+              GlobalQueue._runLaneEffects(EFFECT_RENDER);
+              GlobalQueue._runLaneEffects(EFFECT_USER);
+            }
+            this.stashQueues(stashedTransition._queueStash);
+            clock++;
+            scheduled = dirtyQueue._max >= dirtyQueue._min || this._batch._pendingNodes.length > 0;
+            reassignPendingTransition(stashedTransition._pendingNodes);
+            activeTransition = null;
+            finalizePureQueue(null, true);
+            return;
+          }
+          const completingTransition = activeTransition;
+          const batch = this._batch;
+          batch !== completingTransition && batch._pendingNodes.push(...completingTransition._pendingNodes);
+          this.restoreQueues(completingTransition._queueStash);
+          transitions.delete(completingTransition);
+          activeTransition = null;
+          reassignPendingTransition(batch._pendingNodes);
+          finalizePureQueue(completingTransition);
+          if (batch === completingTransition) {
+            const fresh = createBatch();
+            fresh._pendingNodes = batch._pendingNodes;
+            fresh._optimisticNodes = batch._optimisticNodes;
+            fresh._affectsNodes = batch._affectsNodes;
+            fresh._optimisticStores = batch._optimisticStores;
+            currentBatch = this._batch = fresh;
+          }
+        } else {
+          if (canUseSimpleSyncFlush(this)) {
+            commitPendingNodes();
+            if (dirtyQueue._max >= dirtyQueue._min) {
+              runHeap(dirtyQueue, GlobalQueue._update);
+              commitPendingNodes();
+            }
+          } else {
+            if (transitions.size)
+              runHeap(zombieQueue, GlobalQueue._update);
+            finalizePureQueue();
+          }
+        }
+        clock++;
+        scheduled = dirtyQueue._max >= dirtyQueue._min;
+        activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_RENDER);
+        this.run(EFFECT_RENDER);
+        activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_USER);
+        this.run(EFFECT_USER);
+        if (true) {
+          devCheckActiveOverrides((n2) => {
+            if (this._batch._optimisticNodes.includes(n2))
+              return true;
+            if (activeTransition?._optimisticNodes.includes(n2))
+              return true;
+            for (const t2 of transitions)
+              if (t2._optimisticNodes.includes(n2))
+                return true;
+            return false;
+          });
+          devCensusCompanions((n2) => this._batch._pendingNodes.includes(n2));
+        }
+        if (!scheduled && !activeTransition && transitions.size === 0 && activeLanes.size === 0) {
+          devCheckQuiescent((n2) => this._batch._pendingNodes.includes(n2));
+        }
+        if (true)
+          DEV$1.hooks.onUpdate?.();
+      } finally {
+        this._running = false;
+      }
+    }
+    notify(node, mask, flags, error) {
+      if (mask & STATUS_PENDING) {
+        if (flags & STATUS_PENDING) {
+          const actualError = error !== undefined ? error : node._x?._error;
+          if (actualError?._markVisual)
+            return true;
+          if (activeTransition && actualError) {
+            const source = actualError.source;
+            let reporters = activeTransition._asyncReporters.get(source);
+            if (!reporters)
+              activeTransition._asyncReporters.set(source, reporters = new Set);
+            const prevSize = reporters.size;
+            reporters.add(node);
+            if (reporters.size !== prevSize) {
+              schedule();
+              GlobalQueue._wakeSuppressedProbes?.(activeTransition);
+            }
+          }
+          if (_enforceLoadingBoundary)
+            _hitUnhandledAsync = true;
+        }
+        return true;
+      }
+      return false;
+    }
+    initTransition(transition) {
+      if (transition)
+        transition = currentTransition(transition);
+      if (transition && transition === activeTransition)
+        return;
+      if (!transition && activeTransition && activeTransition._time === clock)
+        return;
+      if (!activeTransition) {
+        activeTransition = transition ?? createBatch();
+      } else if (transition) {
+        const outgoing = activeTransition;
+        mergeTransitionState(transition, outgoing);
+        transitions.delete(outgoing);
+        activeTransition = transition;
+      }
+      transitions.add(activeTransition);
+      activeTransition._time = clock;
+      const batch = this._batch;
+      if (batch !== activeTransition) {
+        for (let i2 = 0;i2 < batch._pendingNodes.length; i2++) {
+          const node = batch._pendingNodes[i2];
+          node._transition = activeTransition;
+          activeTransition._pendingNodes.push(node);
+        }
+        for (let i2 = 0;i2 < batch._optimisticNodes.length; i2++) {
+          const node = batch._optimisticNodes[i2];
+          node._transition = activeTransition;
+          activeTransition._optimisticNodes.push(node);
+        }
+        if (batch._affectsNodes.length)
+          activeTransition._affectsNodes.push(...batch._affectsNodes);
+        for (const store of batch._optimisticStores)
+          activeTransition._optimisticStores.add(store);
+        if (batch._gatedSubs.size) {
+          for (const sub of batch._gatedSubs)
+            activeTransition._gatedSubs.add(sub);
+          batch._gatedSubs.clear();
+        }
+        currentBatch = this._batch = activeTransition;
+      }
+      for (const lane of activeLanes) {
+        if (!lane._transition)
+          lane._transition = activeTransition;
+      }
+    }
+  }
+  function queuePendingNode(node) {
+    currentBatch._pendingNodes.push(node);
+  }
+  var reaskArmed = false;
+  var notifyEpoch = 0;
+  function bumpNotifyEpoch() {
+    notifyEpoch++;
+  }
+  function insertSubs(node, optimistic = false) {
+    node._notifiedAt = notifyEpoch;
+    const cfg = node._config;
+    const sourceLane = (cfg & CONFIG_HAS_LANE ? node._x?._optimisticLane : undefined) || currentOptimisticLane;
+    const hasSnapshot = (cfg & CONFIG_HAS_SNAPSHOT) !== 0 && node._x?._snapshotValue !== undefined;
+    const clearReask = reaskArmed;
+    for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub) {
+      const sub = s2._sub;
+      if (clearReask)
+        sub._flags &= ~REACTIVE_REASK;
+      if (sub._flags & REACTIVE_RECOMPUTING_DEPS && s2._gen === sub._depGen && s2 !== sub._depsTail)
+        sub._flags |= REACTIVE_MISSED_WAKE;
+      if (hasSnapshot && sub._config & CONFIG_IN_SNAPSHOT_SCOPE) {
+        sub._flags |= REACTIVE_SNAPSHOT_STALE;
+        continue;
+      }
+      if (optimistic && sourceLane) {
+        sub._flags |= REACTIVE_OPTIMISTIC_DIRTY;
+        assignOrMergeLane(sub, sourceLane);
+      } else if (optimistic) {
+        sub._flags |= REACTIVE_OPTIMISTIC_DIRTY;
+        if (sub._x)
+          sub._x._optimisticLane = undefined;
+      }
+      enqueueSub(sub);
+    }
+  }
+  function commitPendingNode(n2) {
+    const c2 = n2;
+    if (!c2._fn) {
+      if (n2._pendingValue !== NOT_PENDING) {
+        n2._value = n2._pendingValue;
+        n2._pendingValue = NOT_PENDING;
+      }
+      if (n2._config & CONFIG_HAS_COMPANIONS)
+        GlobalQueue._snapCompanions(n2);
+      return;
+    }
+    if (n2._pendingValue !== NOT_PENDING) {
+      n2._value = n2._pendingValue;
+      n2._pendingValue = NOT_PENDING;
+      if (n2._type && n2._type !== EFFECT_TRACKED)
+        n2._modified = true;
+    }
+    c2._loading = false;
+    c2._flags &= ~REACTIVE_MANUAL_WRITE;
+    if (!(c2._statusFlags & STATUS_PENDING))
+      c2._statusFlags &= ~STATUS_UNINITIALIZED;
+    if (c2._x != null && (c2._x._pendingFirstChild !== null || c2._x._pendingDisposal !== null))
+      GlobalQueue._dispose(c2, false, true);
+    if (n2._config & CONFIG_HAS_COMPANIONS)
+      GlobalQueue._snapCompanions(n2);
+  }
+  var storeCommitHook = null;
+  function commitPendingNodes() {
+    const pendingNodes = currentBatch._pendingNodes;
+    for (let i2 = 0;i2 < pendingNodes.length; i2++) {
+      commitPendingNode(pendingNodes[i2]);
+    }
+    pendingNodes.length = 0;
+    storeCommitHook?.();
+  }
+  function finalizePureQueue(completingTransition = null, incomplete = false) {
+    const resolvePending = !incomplete;
+    if (resolvePending)
+      commitPendingNodes();
+    if (!incomplete && globalQueue._children.length)
+      checkBoundaryChildren(globalQueue);
+    const ranHeap = dirtyQueue._max >= dirtyQueue._min;
+    if (ranHeap)
+      runHeap(dirtyQueue, GlobalQueue._update);
+    if (resolvePending) {
+      if (ranHeap)
+        commitPendingNodes();
+      const batch = completingTransition ?? globalQueue._batch;
+      if (batch._optimisticNodes.length)
+        GlobalQueue._resolveOptimistic(batch._optimisticNodes);
+      if (batch._gatedSubs.size) {
+        for (const sub of batch._gatedSubs) {
+          if (sub._flags & REACTIVE_DISPOSED)
+            continue;
+          enqueueSub(sub);
+        }
+        batch._gatedSubs.clear();
+        schedule();
+      }
+      if (batch._affectsNodes.length) {
+        GlobalQueue._releaseAffectsMarks(batch._affectsNodes);
+        if (globalQueue._children.length)
+          checkBoundaryChildren(globalQueue);
+      }
+      if (batch._optimisticStores.size)
+        GlobalQueue._clearOptimisticStores(batch._optimisticStores, completingTransition);
+      sweepTransientStoreNodes();
+      if (activeLanes.size)
+        GlobalQueue._cleanupLanes(completingTransition);
+    }
+  }
+  function checkBoundaryChildren(queue) {
+    for (const child of queue._children) {
+      child._checkSources?.();
+      checkBoundaryChildren(child);
+    }
+  }
+  var activeAffectsMarks = 0;
+  function shiftAffectsMarks(delta) {
+    activeAffectsMarks += delta;
+  }
+  function reassignPendingTransition(pendingNodes) {
+    for (let i2 = 0;i2 < pendingNodes.length; i2++) {
+      pendingNodes[i2]._transition = activeTransition;
+    }
+  }
+  var globalQueue = new GlobalQueue;
+  var currentBatch = globalQueue._batch;
+  function flush(fn) {
+    if (fn) {
+      syncDepth++;
+      try {
+        return fn();
+      } finally {
+        try {
+          flush();
+        } finally {
+          syncDepth--;
+        }
+      }
+    }
+    if (globalQueue._running) {
+      if (inTrackedQueueCallback) {
+        throw new Error("Cannot call flush() from inside onSettled or createTrackedEffect. flush() is not reentrant there. " + "Writes made here are processed in the same flush's continuation; to force a drain afterwards, defer it: queueMicrotask(() => flush()).");
+      }
+      if (inEffectCallback) {
+        const message = "[FLUSH_IN_EFFECT_CALLBACK] flush() called from inside an effect callback is a no-op: the flush that runs effects is already in progress. " + "Writes made here are processed in the same flush's continuation; to force a drain afterwards, defer it: queueMicrotask(() => flush()).";
+        emitDiagnostic({
+          code: "FLUSH_IN_EFFECT_CALLBACK",
+          kind: "lifecycle",
+          severity: "warn",
+          message
+        });
+        console.warn(message);
+      }
+      return;
+    }
+    if (halted)
+      return;
+    let count = 0;
+    while (scheduled || activeTransition) {
+      if (++count === 1e5)
+        throw new Error("Potential Infinite Loop Detected.");
+      globalQueue.flush();
+    }
+  }
+  function runQueue$1(queue, type) {
+    for (let i2 = 0;i2 < queue.length; i2++)
+      queue[i2](type);
+  }
+  function reporterBlocksSource(reporter, source) {
+    if (reporter._flags & (REACTIVE_ZOMBIE | REACTIVE_DISPOSED))
+      return false;
+    if (reporter._x?._pendingSources?.has(source))
+      return true;
+    for (let dep = reporter._deps;dep; dep = dep._nextDep) {
+      let current = dep._dep;
+      while (current) {
+        if (current === source || current._firewall === source)
+          return true;
+        current = current._x?._parentSource;
+      }
+    }
+    return !!(reporter._statusFlags & STATUS_PENDING && reporter._x?._error instanceof NotReadyError && reporter._x?._error.source === source);
+  }
+  function transitionComplete(transition) {
+    if (transition._done)
+      return true;
+    if (transition._actions.length)
+      return false;
+    let done = true;
+    for (const [source, reporters] of transition._asyncReporters) {
+      let hasLive = false;
+      for (const reporter of reporters) {
+        if (reporterBlocksSource(reporter, source)) {
+          hasLive = true;
+          break;
+        }
+        reporters.delete(reporter);
+      }
+      if (!hasLive)
+        transition._asyncReporters.delete(source);
+      else if (source._statusFlags & STATUS_PENDING && source._x?._error?.source === source) {
+        done = false;
+        break;
+      }
+    }
+    if (done && GlobalQueue._transitionBlocked?.(transition))
+      done = false;
+    done && (transition._done = true);
+    return done;
+  }
+  function currentTransition(transition) {
+    while (transition._done && typeof transition._done === "object")
+      transition = transition._done;
+    return transition;
+  }
+  function runInTransition(transition, fn) {
+    const prevTransition = activeTransition;
+    try {
+      activeTransition = currentTransition(transition);
+      return fn();
+    } finally {
+      activeTransition = prevTransition;
+    }
+  }
+  function queueFor(n2) {
+    return n2._flags & REACTIVE_ZOMBIE ? zombieQueue : dirtyQueue;
+  }
+  function enqueueSub(node) {
+    if (node._type === EFFECT_TRACKED) {
+      const tracked = node;
+      if (!tracked._modified) {
+        tracked._modified = true;
+        tracked._queue.enqueue(EFFECT_USER, tracked._run);
+      }
+      return;
+    }
+    const queue = queueFor(node);
+    if (queue._min > node._height)
+      queue._min = node._height;
+    insertIntoHeap(node, queue);
+  }
+  function actualInsertIntoHeap(n2, heap) {
+    const parentHeight = (n2._parent?._root ? n2._parent._parentComputed?._height : n2._parent?._height) ?? -1;
+    if (parentHeight >= n2._height)
+      n2._height = parentHeight + 1;
+    const height = n2._height;
+    const heapAtHeight = heap._heap[height];
+    if (heapAtHeight === undefined)
+      heap._heap[height] = n2;
+    else {
+      const tail = heapAtHeight._prevHeap;
+      tail._nextHeap = n2;
+      n2._prevHeap = tail;
+      heapAtHeight._prevHeap = n2;
+    }
+    if (height > heap._max)
+      heap._max = height;
+  }
+  function insertIntoHeap(n2, heap) {
+    let flags = n2._flags;
+    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS | REACTIVE_MANUAL_WRITE))
+      return;
+    if (flags & REACTIVE_CHECK) {
+      n2._flags = flags & -4 | REACTIVE_DIRTY | REACTIVE_IN_HEAP;
+    } else {
+      n2._flags = flags | REACTIVE_IN_HEAP;
+      if (heap._marked && !(flags & REACTIVE_DIRTY))
+        heap._marked = false;
+    }
+    if (!(flags & REACTIVE_IN_HEAP_HEIGHT))
+      actualInsertIntoHeap(n2, heap);
+  }
+  function insertIntoHeapHeight(n2, heap) {
+    let flags = n2._flags;
+    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS | REACTIVE_IN_HEAP_HEIGHT | REACTIVE_MANUAL_WRITE))
+      return;
+    n2._flags = flags | REACTIVE_IN_HEAP_HEIGHT;
+    actualInsertIntoHeap(n2, heap);
+  }
+  function deleteFromHeap(n2, heap) {
+    const flags = n2._flags;
+    if (!(flags & (REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT)))
+      return;
+    n2._flags = flags & -25;
+    const height = n2._height;
+    if (n2._prevHeap === n2)
+      heap._heap[height] = undefined;
+    else {
+      const next = n2._nextHeap;
+      const dhh = heap._heap[height];
+      const end = next ?? dhh;
+      if (n2 === dhh)
+        heap._heap[height] = next;
+      else
+        n2._prevHeap._nextHeap = next;
+      end._prevHeap = n2._prevHeap;
+    }
+    n2._prevHeap = n2;
+    n2._nextHeap = undefined;
+  }
+  function markHeap(heap) {
+    if (heap._marked)
+      return;
+    heap._marked = true;
+    for (let i2 = 0;i2 <= heap._max; i2++) {
+      for (let el = heap._heap[i2];el !== undefined; el = el._nextHeap) {
+        if (el._flags & REACTIVE_IN_HEAP)
+          markNode(el);
+      }
+    }
+  }
+  function markNode(el, newState = REACTIVE_DIRTY) {
+    const flags = el._flags;
+    if ((flags & (REACTIVE_CHECK | REACTIVE_DIRTY)) >= newState)
+      return;
+    el._flags = flags & -4 | newState;
+    for (let link = el._subs;link !== null; link = link._nextSub) {
+      markNode(link._sub, REACTIVE_CHECK);
+    }
+    if (el._config & CONFIG_FW_CHILDREN) {
+      for (let child = el._x._child;child !== null; child = child._nextChild) {
+        for (let link = child._subs;link !== null; link = link._nextSub) {
+          markNode(link._sub, REACTIVE_CHECK);
+        }
+      }
+    }
+  }
+  function runHeap(heap, recompute) {
+    heap._marked = false;
+    for (heap._min = 0;heap._min <= heap._max; heap._min++) {
+      let el = heap._heap[heap._min];
+      while (el !== undefined) {
+        if (el._flags & REACTIVE_IN_HEAP)
+          recompute(el);
+        else
+          adjustHeight(el, heap);
+        el = heap._heap[heap._min];
+      }
+    }
+    heap._max = 0;
+  }
+  function adjustHeight(el, heap) {
+    deleteFromHeap(el, heap);
+    let newHeight = el._height;
+    for (let d2 = el._deps;d2; d2 = d2._nextDep) {
+      const dep1 = d2._dep;
+      const dep = dep1._firewall || dep1;
+      if (dep._fn && dep._height >= newHeight)
+        newHeight = dep._height + 1;
+    }
+    if (el._height !== newHeight) {
+      el._height = newHeight;
+      for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub) {
+        insertIntoHeapHeight(s2._sub, queueFor(s2._sub));
+      }
+    }
+  }
+  function markDisposal(el) {
+    let child = el._firstChild;
+    while (child) {
+      const flags = child._flags;
+      child._flags = flags | REACTIVE_ZOMBIE;
+      if (flags & (REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT)) {
+        deleteFromHeap(child, flags & REACTIVE_ZOMBIE ? zombieQueue : dirtyQueue);
+        if (flags & REACTIVE_IN_HEAP)
+          insertIntoHeap(child, zombieQueue);
+        else
+          insertIntoHeapHeight(child, zombieQueue);
+      }
+      markDisposal(child);
+      child = child._nextSibling;
+    }
+  }
+  function disposeChildren(node, self2 = false, zombie) {
+    const flags = node._flags;
+    if (flags & REACTIVE_DISPOSED)
+      return;
+    if (self2) {
+      node._flags = flags | REACTIVE_DISPOSED;
+      const n2 = node;
+      if (n2._x?._pendingSignal || n2._x?._latestValueComputed)
+        GlobalQueue._snapCompanions(n2);
+    }
+    if (self2 && true)
+      clearSignals(node);
+    if (self2 && node._fn && node._x !== null)
+      node._x._inFlight = null;
+    let child = zombie ? node._x?._pendingFirstChild ?? null : node._firstChild;
+    while (child) {
+      const nextChild = child._nextSibling;
+      const n2 = child;
+      n2._config &= ~CONFIG_AUTO_DISPOSE;
+      deleteFromHeap(n2, queueFor(n2));
+      clearDeps(n2);
+      disposeChildren(child, true);
+      child = nextChild;
+    }
+    if (zombie) {
+      if (node._x !== null)
+        node._x._pendingFirstChild = null;
+    } else {
+      node._firstChild = null;
+      node._childCount = 0;
+    }
+    if (self2 && !zombie && !(flags & REACTIVE_ZOMBIE) && node._parent !== null && !(node._parent._flags & REACTIVE_DISPOSED)) {
+      const prev = node._prevSibling;
+      const next = node._nextSibling;
+      if (prev !== null)
+        prev._nextSibling = next;
+      else
+        node._parent._firstChild = next;
+      if (next !== null)
+        next._prevSibling = prev;
+      node._prevSibling = null;
+    }
+    runDisposal(node, zombie);
+    if (self2 && node._cleanup) {
+      const effectCleanup = node._cleanup;
+      node._cleanup = undefined;
+      effectCleanup();
+    }
+  }
+  function runDisposal(node, zombie) {
+    let disposal = zombie ? node._x?._pendingDisposal : node._disposal;
+    if (!disposal)
+      return;
+    if (Array.isArray(disposal)) {
+      for (let i2 = 0;i2 < disposal.length; i2++) {
+        const callable = disposal[i2];
+        callable.call(callable);
+      }
+    } else {
+      disposal.call(disposal);
+    }
+    if (zombie) {
+      if (node._x !== null)
+        node._x._pendingDisposal = null;
+    } else
+      node._disposal = null;
+  }
+  function childId(owner, consume) {
+    let counter = owner;
+    while (counter._config & CONFIG_TRANSPARENT && counter._parent)
+      counter = counter._parent;
+    if (counter.id != null)
+      return formatId(counter.id, consume ? counter._childCount++ : counter._childCount);
+    throw new Error("Cannot get child id from owner without an id");
+  }
+  function getNextChildId(owner) {
+    return childId(owner, true);
+  }
+  function inheritId(options2, transparent, parent) {
+    return options2?.id ?? (transparent ? parent?.id : parent?.id != null ? getNextChildId(parent) : undefined);
+  }
+  function formatId(prefix, id) {
+    const num = id.toString(36), len = num.length - 1;
+    return prefix + (len ? String.fromCharCode(64 + len) : "") + num;
+  }
+  function getOwner() {
+    return context;
+  }
+  function cleanup(fn) {
+    if (!context)
+      return fn;
+    if (!context._disposal)
+      context._disposal = fn;
+    else if (Array.isArray(context._disposal))
+      context._disposal.push(fn);
+    else
+      context._disposal = [context._disposal, fn];
+    return fn;
+  }
+  function disposeRootSelf(self2 = true) {
+    disposeChildren(this, self2);
+  }
+  function createOwner(options2) {
+    const parent = context;
+    const transparent = options2?.transparent ?? false;
+    const owner = {
+      id: inheritId(options2, transparent, parent),
+      _config: transparent ? CONFIG_TRANSPARENT : 0,
+      _root: true,
+      _parentComputed: parent?._root ? parent._parentComputed : parent,
+      _firstChild: null,
+      _nextSibling: null,
+      _prevSibling: null,
+      _disposal: null,
+      _queue: parent?._queue ?? globalQueue,
+      _context: parent?._context || defaultContext,
+      _childCount: 0,
+      _x: null,
+      _parent: parent,
+      dispose: disposeRootSelf
+    };
+    if (parent && parent._config & CONFIG_CHILDREN_FORBIDDEN) {
+      emitDiagnostic({
+        code: "PRIMITIVE_IN_FORBIDDEN_SCOPE",
+        kind: "lifecycle",
+        severity: "error",
+        message: PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE,
+        ownerId: parent.id,
+        ownerName: parent._name
+      });
+      throw new Error(PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE);
+    }
+    if (parent) {
+      const lastChild = parent._firstChild;
+      if (lastChild === null) {
+        parent._firstChild = owner;
+      } else {
+        owner._nextSibling = lastChild;
+        lastChild._prevSibling = owner;
+        parent._firstChild = owner;
+      }
+    }
+    DEV$1.hooks.onOwner?.(owner);
+    return owner;
+  }
+  function createRoot(init, options2) {
+    const owner = createOwner(options2);
+    return runWithOwner(owner, () => init(() => owner.dispose()));
+  }
+  function unlinkSubs(link) {
+    unnoteGraphLink(link);
+    const dep = link._dep;
+    const nextDep = link._nextDep;
+    const nextSub = link._nextSub;
+    const prevSub = link._prevSub;
+    if (nextSub !== null)
+      nextSub._prevSub = prevSub;
+    else
+      dep._subsTail = prevSub;
+    if (prevSub !== null)
+      prevSub._nextSub = nextSub;
+    else {
+      dep._subs = nextSub;
+      if (nextSub === null) {
+        dep._x?._unobserved?.();
+        const c2 = dep;
+        c2._fn && c2._config & CONFIG_AUTO_DISPOSE && !(c2._flags & REACTIVE_ZOMBIE) && !(c2._statusFlags & STATUS_PENDING) && unobserved(c2);
+      }
+    }
+    return nextDep;
+  }
+  function trimStaleDeps(el) {
+    const depsTail = el._depsTail;
+    let toRemove = depsTail !== null ? depsTail._nextDep : el._deps;
+    if (toRemove !== null) {
+      do {
+        toRemove = unlinkSubs(toRemove);
+      } while (toRemove !== null);
+      if (depsTail !== null)
+        depsTail._nextDep = null;
+      else
+        el._deps = null;
+    }
+  }
+  function clearDeps(el) {
+    let dep = el._deps;
+    if (!dep)
+      return;
+    do {
+      dep = unlinkSubs(dep);
+    } while (dep !== null);
+    el._deps = null;
+    el._depsTail = null;
+  }
+  function unobserved(el) {
+    deleteFromHeap(el, queueFor(el));
+    clearDeps(el);
+    disposeChildren(el, true);
+  }
+  function link(dep, sub, pendingObserver = false) {
+    const prevDep = sub._depsTail;
+    if (prevDep !== null && prevDep._dep === dep) {
+      prevDep._pendingObserver &&= pendingObserver;
+      return;
+    }
+    let nextDep = null;
+    const isRecomputing = sub._flags & REACTIVE_RECOMPUTING_DEPS;
+    if (isRecomputing) {
+      nextDep = prevDep !== null ? prevDep._nextDep : sub._deps;
+      if (nextDep !== null && nextDep._dep === dep) {
+        nextDep._gen = sub._depGen;
+        sub._depsTail = nextDep;
+        nextDep._pendingObserver = pendingObserver;
+        return;
+      }
+    }
+    const prevSub = dep._subsTail;
+    if (prevSub !== null && prevSub._sub === sub && (!isRecomputing || prevSub._gen === sub._depGen)) {
+      if (isRecomputing)
+        prevSub._pendingObserver &&= pendingObserver;
+      else
+        prevSub._pendingObserver = pendingObserver;
+      return;
+    }
+    const newLink = sub._depsTail = dep._subsTail = {
+      _dep: dep,
+      _sub: sub,
+      _nextDep: nextDep,
+      _prevSub: prevSub,
+      _nextSub: null,
+      _gen: sub._depGen,
+      _pendingObserver: pendingObserver
+    };
+    if (prevDep !== null)
+      prevDep._nextDep = newLink;
+    else
+      sub._deps = newLink;
+    if (prevSub !== null)
+      prevSub._nextSub = newLink;
+    else
+      dep._subs = newLink;
+    bumpNotifyEpoch();
+    noteGraphLink(dep, sub);
+  }
+  function addPendingSource(el, source) {
+    if (el._x?._pendingSources?.has(source))
+      return false;
+    (ext(el)._pendingSources ??= new Set).add(source);
+    return true;
+  }
+  function removePendingSource(el, source) {
+    if (!el._x?._pendingSources?.delete(source))
+      return false;
+    if (el._x?._pendingSources.size === 0) {
+      if (el._x !== null)
+        el._x._pendingSources = undefined;
+    }
+    return true;
+  }
+  function clearPendingSources(el) {
+    el._x?._pendingSources?.clear();
+    if (el._x !== null)
+      el._x._pendingSources = undefined;
+  }
+  function retryReaches(el, source) {
+    for (let d2 = el._deps;d2; d2 = d2._nextDep) {
+      const dep = d2._dep._firewall || d2._dep;
+      if (dep === source || dep._x?._pendingSources?.has(source))
+        return true;
+    }
+    return false;
+  }
+  function parkLoadingWindow(el, e2) {
+    ext(el)._blocked = true;
+    if (e2.source)
+      addPendingSource(el, e2.source);
+    if (!(el._statusFlags & STATUS_ERROR))
+      setPendingError(el, e2.source, e2);
+  }
+  function setPendingError(el, source, error) {
+    if (!source) {
+      if (el._x !== null)
+        el._x._error = null;
+      return;
+    }
+    if (error instanceof NotReadyError && error.source === source) {
+      ext(el)._error = error;
+      return;
+    }
+    const current = el._x?._error;
+    if (!(current instanceof NotReadyError) || current.source !== source) {
+      ext(el)._error = new NotReadyError(source);
+    }
+  }
+  function forEachDependent(el, fn) {
+    for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub)
+      fn(s2._sub, s2);
+    for (let child = el._x?._child ?? null;child !== null; child = child._nextChild) {
+      for (let s2 = child._subs;s2 !== null; s2 = s2._nextSub)
+        fn(s2._sub, s2);
+    }
+  }
+  function releaseIfSettledUnobserved(node) {
+    node._fn && node._config & CONFIG_AUTO_DISPOSE && !node._subs && !(node._flags & REACTIVE_ZOMBIE) && !(node._statusFlags & STATUS_PENDING) && unobserved(node);
+  }
+  function releaseSettledDependents(el) {
+    let candidates;
+    const visited = new Set;
+    const visit = (node) => {
+      if (visited.has(node))
+        return;
+      visited.add(node);
+      if (!node._subs && node._config & CONFIG_AUTO_DISPOSE)
+        (candidates ??= []).push(node);
+      forEachDependent(node, visit);
+    };
+    forEachDependent(el, visit);
+    if (candidates)
+      for (const node of candidates)
+        releaseIfSettledUnobserved(node);
+  }
+  function settleErroredDependents(el, error) {
+    let scheduled2 = false;
+    const visited = new Set;
+    const visit = (node) => {
+      if (visited.has(node))
+        return;
+      visited.add(node);
+      if (node._x?._error === error) {
+        enqueueSub(node);
+        scheduled2 = true;
+      }
+      forEachDependent(node, visit);
+    };
+    forEachDependent(el, visit);
+    if (scheduled2)
+      schedule();
+  }
+  function settlePendingSource(el) {
+    let scheduled2 = false;
+    let released;
+    const visited = new Set;
+    const updateCompanions = GlobalQueue._updatePendingSignal;
+    const settle = (node) => {
+      if (visited.has(node) || !removePendingSource(node, el))
+        return;
+      visited.add(node);
+      node._time = clock;
+      const remaining = node._x?._pendingSources?.values().next().value;
+      const errored = node._statusFlags & STATUS_ERROR;
+      if (remaining) {
+        if (!errored)
+          setPendingError(node, remaining);
+        updateCompanions !== null && updateCompanions(node);
+      } else {
+        node._statusFlags &= ~STATUS_PENDING;
+        if (!errored)
+          setPendingError(node);
+        updateCompanions !== null && updateCompanions(node);
+        if (node._x?._blocked) {
+          enqueueSub(node);
+          scheduled2 = true;
+        }
+        if (node._x !== null)
+          node._x._blocked = false;
+        if (!node._subs && node._config & CONFIG_AUTO_DISPOSE)
+          (released ??= []).push(node);
+      }
+      forEachDependent(node, settle);
+    };
+    forEachDependent(el, settle);
+    if (released)
+      for (const node of released)
+        releaseIfSettledUnobserved(node);
+    if (scheduled2)
+      schedule();
+  }
+  function isThenable(value) {
+    return value != null && typeof value === "object" && typeof value.then === "function";
+  }
+  function handleAsync(el, result, setter) {
+    let iterator = false;
+    let thenable = false;
+    if (typeof result === "object" && result !== null) {
+      untrack(() => {
+        iterator = result[Symbol.asyncIterator];
+        thenable = !iterator && isThenable(result);
+      });
+    }
+    if (!thenable && !iterator) {
+      if (el._x !== null)
+        el._x._inFlight = null;
+      el._loading = false;
+      return result;
+    }
+    if (el._config & CONFIG_SYNC) {
+      const message = `[SYNC_NODE_RECEIVED_ASYNC] A computed/effect created with \`sync: true\` returned ` + `${thenable ? "a Promise" : "an AsyncIterable"}. The value would be stored as-is and ` + `never awaited in production; remove \`sync: true\` to use async-aware behavior, or ` + `unwrap the value before returning.`;
+      emitDiagnostic({
+        code: "SYNC_NODE_RECEIVED_ASYNC",
+        kind: "lifecycle",
+        severity: "error",
+        message,
+        ownerId: el.id,
+        ownerName: el._name
+      });
+      throw new Error(message);
+    }
+    ext(el)._inFlight = result;
+    let syncValue;
+    const settleTransition = () => {
+      const transition = resolveTransition(el);
+      if (transition && el._statusFlags & STATUS_UNINITIALIZED && !currentTransition(transition)._asyncReporters.has(el)) {
+        el._transition = null;
+        return;
+      }
+      globalQueue.initTransition(transition);
+    };
+    const handleError = (error) => {
+      if (el._x?._inFlight !== result)
+        return;
+      let stillPending = error instanceof NotReadyError;
+      if (stillPending && !retryReaches(el, error.source)) {
+        stillPending = false;
+        error = new Error("Read of an unresolved async source after an `await`. Reads inside async " + "computations only register as dependencies before the first `await`; a source " + "first read after it cannot retry when it settles. Read it before the first " + "`await` (or restructure so the value is an input).");
+      }
+      if (stillPending && el._loading) {
+        if (el._x !== null)
+          el._x._inFlight = null;
+        parkLoadingWindow(el, error);
+        el._time = clock;
+        return;
+      }
+      settleTransition();
+      notifyStatus(el, stillPending ? STATUS_PENDING : STATUS_ERROR, error);
+      el._time = clock;
+      if (!stillPending)
+        releaseSettledDependents(el);
+    };
+    const asyncWrite = (value, then) => {
+      if (el._x?._inFlight !== result)
+        return;
+      if (el._flags & (REACTIVE_DIRTY | REACTIVE_OPTIMISTIC_DIRTY))
+        return;
+      settleTransition();
+      const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
+      trimStaleDeps(el);
+      clearStatus(el);
+      const lane = resolveLane(el);
+      if (lane)
+        lane._pendingAsync.delete(el);
+      if (attrHooks !== null)
+        attrHooks.asyncStart(el);
+      if (setter) {
+        setter(value);
+        if (wasUninitialized)
+          clearStatus(el, true);
+      } else if (el._x?._overrideValue !== undefined) {
+        if (el._pendingValue === NOT_PENDING)
+          queuePendingNode(el);
+        el._pendingValue = value;
+        GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, value);
+        if (!hasActiveOverride$1(el)) {
+          if (attrHooks !== null)
+            attrHooks.asyncEnd(el, undefined, value, true);
+          insertSubs(el);
+        }
+        el._time = clock;
+      } else if (lane) {
+        const isEffect = el._type;
+        const prevValue = el._value;
+        const equals = el._equals;
+        try {
+          if (!isEffect && wasUninitialized || !equals || !equals(value, prevValue)) {
+            el._value = value;
+            el._time = clock;
+            GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, value);
+            insertSubs(el, true);
+          }
+        } catch (e2) {
+          notifyStatus(el, STATUS_ERROR, e2);
+        }
+        if (attrHooks !== null)
+          attrHooks.asyncEnd(el, prevValue, value, true);
+      } else {
+        try {
+          setSignal(el, () => value);
+        } catch (e2) {
+          notifyStatus(el, STATUS_ERROR, e2);
+        }
+        if (attrHooks !== null)
+          attrHooks.asyncEnd(el, undefined, value, false);
+      }
+      if (el._pendingValue === NOT_PENDING)
+        el._loading = false;
+      settlePendingSource(el);
+      schedule();
+      flush();
+      then?.();
+    };
+    const settleAutodispose = () => {
+      if (el._config & CONFIG_AUTO_DISPOSE && !el._subs && !(el._statusFlags & STATUS_PENDING)) {
+        unobserved(el);
+        return true;
+      }
+      return false;
+    };
+    const consumeIterator = (source, registerClose) => {
+      const it2 = source[Symbol.asyncIterator]();
+      let hadValue = false;
+      let completed = false;
+      let initialRead = !registerClose;
+      const close = () => {
+        if (completed)
+          return;
+        completed = true;
+        try {
+          const returned = it2.return?.();
+          if (isThenable(returned))
+            returned.then(undefined, () => {});
+        } catch {}
+      };
+      registerClose ? registerClose(close) : cleanup(close);
+      const iterateOrRelease = () => {
+        if (!settleAutodispose())
+          iterate();
+      };
+      const iterate = () => {
+        let syncResult, syncError, resolved = false, rejected = false, isSync = true;
+        const step = it2.next();
+        const settled = isThenable(step) ? step : { then: (onSettle) => void onSettle(step) };
+        settled.then((r2) => {
+          if (isSync && initialRead) {
+            syncResult = r2;
+            resolved = true;
+            if (r2.done)
+              completed = true;
+          } else if (el._x?._inFlight !== result) {
+            return;
+          } else if (!r2.done) {
+            hadValue = true;
+            asyncWrite(r2.value, iterateOrRelease);
+          } else {
+            completed = true;
+            if (hadValue) {
+              schedule();
+              flush();
+            } else {
+              asyncWrite(undefined);
+            }
+            settleAutodispose();
+          }
+        }, (e2) => {
+          if (isSync && initialRead) {
+            syncError = e2;
+            rejected = true;
+          } else if (el._x?._inFlight === result) {
+            completed = true;
+            handleError(e2);
+            settleAutodispose();
+          }
+        });
+        isSync = false;
+        if (rejected) {
+          completed = true;
+          handleError(syncError);
+          if (initialRead)
+            throw syncError;
+          return true;
+        }
+        if (resolved && !syncResult.done) {
+          syncValue = syncResult.value;
+          hadValue = true;
+          return iterate();
+        }
+        return resolved && syncResult.done;
+      };
+      const immediatelyDone = iterate();
+      initialRead = false;
+      return hadValue || immediatelyDone;
+    };
+    let liveLanded = null;
+    const flattenIfIterable = (value, registerClose) => {
+      let innerIterator = false;
+      if (typeof value === "object" && value !== null) {
+        untrack(() => {
+          innerIterator = value[Symbol.asyncIterator];
+        });
+      }
+      if (!innerIterator)
+        return false;
+      const landed = consumeIterator(value, registerClose);
+      if (!registerClose)
+        liveLanded = landed;
+      return true;
+    };
+    if (thenable) {
+      let resolved = false, rejected = false, syncError, isSync = true;
+      const registerDeferredClose = (fn) => {
+        if (!el._disposal)
+          el._disposal = fn;
+        else if (Array.isArray(el._disposal))
+          el._disposal.push(fn);
+        else
+          el._disposal = [el._disposal, fn];
+      };
+      result.then((v2) => {
+        if (isSync) {
+          syncValue = v2;
+          resolved = true;
+        } else if (el._x?._inFlight === result && !(el._flags & REACTIVE_DISPOSED) && flattenIfIterable(v2, registerDeferredClose))
+          ;
+        else {
+          asyncWrite(v2);
+          settleAutodispose();
+        }
+      }, (e2) => {
+        if (isSync) {
+          syncError = e2;
+          rejected = true;
+        } else {
+          handleError(e2);
+          settleAutodispose();
+        }
+      });
+      isSync = false;
+      if (rejected) {
+        handleError(syncError);
+        throw syncError;
+      } else if (!resolved) {
+        if (el._loading)
+          return el._value;
+        globalQueue.initTransition(resolveTransition(el));
+        throw new NotReadyError(context);
+      } else if (!flattenIfIterable(syncValue)) {
+        el._loading = false;
+      }
+    }
+    if (iterator)
+      flattenIfIterable(result);
+    if (liveLanded !== null) {
+      if (!liveLanded) {
+        if (el._loading)
+          return el._value;
+        globalQueue.initTransition(resolveTransition(el));
+        throw new NotReadyError(context);
+      }
+      el._loading = false;
+    }
+    return syncValue;
+  }
+  function clearStatus(el, clearUninitialized = false) {
+    if (el._x?._pendingSources)
+      clearPendingSources(el);
+    if (el._x?._blocked) {
+      if (el._x !== null)
+        el._x._blocked = false;
+    }
+    if (el._x !== null)
+      el._x._reask = false;
+    el._statusFlags = clearUninitialized ? 0 : el._statusFlags & STATUS_UNINITIALIZED;
+    if (el._x?._error)
+      setPendingError(el);
+    if (el._x?._pendingSignal || el._x?._latestValueComputed)
+      GlobalQueue._updatePendingSignal(el);
+    if (el._x?._child && el._config & CONFIG_CHILD_COMPANIONS && GlobalQueue._updateChildCompanions !== null)
+      GlobalQueue._updateChildCompanions(el);
+    if (el._x?._notifyStatus)
+      el._x._notifyStatus.call(el);
+  }
+  function notifyStatus(el, status, error, blockStatus, lane) {
+    if (status === STATUS_ERROR && !(error instanceof StatusError) && !(error instanceof NotReadyError))
+      error = new StatusError(el, error);
+    const pendingSource = status === STATUS_PENDING && error instanceof NotReadyError ? error.source : undefined;
+    const isSource = pendingSource === el;
+    const isOptimisticBoundary = status === STATUS_PENDING && el._x?._overrideValue !== undefined && !isSource;
+    const startsBlocking = isOptimisticBoundary && hasActiveOverride$1(el);
+    if (!blockStatus) {
+      if (status === STATUS_PENDING && pendingSource) {
+        addPendingSource(el, pendingSource);
+        el._statusFlags = STATUS_PENDING | el._statusFlags & STATUS_UNINITIALIZED;
+        setPendingError(el, pendingSource, error);
+      } else {
+        clearPendingSources(el);
+        el._statusFlags = status | (status !== STATUS_ERROR ? el._statusFlags & STATUS_UNINITIALIZED : 0);
+        ext(el)._error = error;
+      }
+      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(el);
+      if (el._x?._child && el._config & CONFIG_CHILD_COMPANIONS && GlobalQueue._updateChildCompanions !== null)
+        GlobalQueue._updateChildCompanions(el);
+    }
+    if (lane && !blockStatus) {
+      assignOrMergeLane(el, lane);
+    }
+    const downstreamBlockStatus = blockStatus || startsBlocking;
+    const downstreamLane = blockStatus || isOptimisticBoundary ? undefined : lane;
+    if (el._x?._notifyStatus) {
+      if (blockStatus && status === STATUS_PENDING) {
+        return;
+      }
+      if (downstreamBlockStatus) {
+        el._x._notifyStatus.call(el, status, error);
+      } else {
+        el._x._notifyStatus.call(el);
+      }
+      return;
+    }
+    forEachDependent(el, (sub, link2) => {
+      sub._time = clock;
+      if (status === STATUS_PENDING && pendingSource && !sub._x?._pendingSources?.has(pendingSource) || status !== STATUS_PENDING && (sub._x?._error !== error || sub._x?._pendingSources)) {
+        if (link2._pendingObserver && status !== STATUS_PENDING && !(error instanceof NotReadyError)) {
+          enqueueSub(sub);
+          schedule();
+          return;
+        }
+        if (!downstreamBlockStatus && !sub._transition)
+          queuePendingNode(sub);
+        notifyStatus(sub, status, error, downstreamBlockStatus, downstreamLane);
+      }
+    });
+  }
+  GlobalQueue._update = recompute;
+  GlobalQueue._dispose = disposeChildren;
+  var PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE = "[PRIMITIVE_IN_FORBIDDEN_SCOPE] Cannot create reactive primitives inside createTrackedEffect or owner-backed onSettled";
+  var REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE = "[REACTIVE_WRITE_IN_OWNED_SCOPE] Writing to reactive state inside an owned scope (component, computation) is not allowed. " + "Move the write outside or set the `ownedWrite` option if this is intentional.";
+  var REACTIVE_WRITE_IN_OWNED_SCOPE_REFRESH_MESSAGE = "[REACTIVE_WRITE_IN_OWNED_SCOPE] Calling refresh() inside an owned scope (component, computation) is not allowed. " + "Move the invalidation outside pure computation.";
+  var tracking = false;
+  function setPendingCheckActive(v2) {
+    pendingCheckActive = v2;
+  }
+  function setLatestReadActive(v2) {
+    latestReadActive = v2;
+  }
+  function setContextInternal(v2) {
+    context = v2;
+  }
+  var stale = false;
+  var pendingCheckActive = false;
+  var latestReadActive = false;
+  var context = null;
+  var currentOptimisticLane = null;
+  var snapshotCaptureActive = false;
+  var snapshotSources = null;
+  function ownerInSnapshotScope(owner) {
+    while (owner) {
+      if (owner._snapshotScope)
+        return true;
+      owner = owner._parent;
+    }
+    return false;
+  }
+  function recompute(el, create = false) {
+    bumpNotifyEpoch();
+    const isEffect = el._type;
+    let devChanged = false;
+    if (attrHooks !== null)
+      attrHooks.recomputeStart(el, create);
+    if (!create) {
+      if (el._transition && (!isEffect || activeTransition) && activeTransition !== el._transition)
+        globalQueue.initTransition(el._transition);
+      deleteFromHeap(el, queueFor(el));
+      if (el._x !== null)
+        el._x._inFlight = null;
+      if (el._transition || isEffect === EFFECT_TRACKED)
+        disposeChildren(el);
+      else if (el._firstChild !== null || el._disposal !== null) {
+        markDisposal(el);
+        const x2 = ext(el);
+        x2._pendingDisposal = el._disposal;
+        x2._pendingFirstChild = el._firstChild;
+        el._disposal = null;
+        el._firstChild = null;
+        el._childCount = 0;
+        clearSignals(el);
+      } else
+        clearSignals(el);
+    }
+    let isOptimisticDirty = !!(el._flags & REACTIVE_OPTIMISTIC_DIRTY);
+    const hasOverride = (el._config & CONFIG_OPTIMISTIC) !== 0 && el._x?._overrideValue !== NOT_PENDING && el._x?._overrideValue !== undefined;
+    const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
+    const outgoingError = el._statusFlags & STATUS_ERROR ? el._x?._error : undefined;
+    const hadReask = (el._flags & REACTIVE_REASK) !== 0;
+    const wasLoading = el._loading;
+    const oldcontext = context;
+    context = el;
+    el._depsTail = null;
+    el._depGen++;
+    el._flags = REACTIVE_RECOMPUTING_DEPS;
+    el._time = clock;
+    let value = el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
+    let oldHeight = el._height;
+    let missedWake = false;
+    let prevTracking = tracking;
+    let prevLane = currentOptimisticLane;
+    let prevStrictRead = false;
+    {
+      prevStrictRead = strictRead;
+      strictRead = false;
+    }
+    tracking = true;
+    const prevLatestRead = latestReadActive;
+    latestReadActive = false;
+    if (isOptimisticDirty) {
+      const lane = GlobalQueue._recomputeLane(el, true);
+      if (lane)
+        currentOptimisticLane = lane;
+      else if (lane === false)
+        isOptimisticDirty = false;
+    } else if (activeTransition && !create && activeTransition._optimisticNodes.length) {
+      const lane = GlobalQueue._recomputeLane(el, false);
+      if (lane) {
+        isOptimisticDirty = true;
+        currentOptimisticLane = lane;
+      }
+    }
+    const isStaleEffect = isEffect && isEffect !== EFFECT_USER;
+    const prevStale = stale;
+    if (isStaleEffect)
+      stale = true;
+    try {
+      if (false)
+        ;
+      else {
+        const prevInFlight = el._x?._inFlight;
+        const fnResult = el._fn(value);
+        const isAsyncResult = typeof fnResult === "object" && fnResult !== null;
+        const inFlightChanged = el._x?._inFlight !== prevInFlight;
+        value = inFlightChanged || !isAsyncResult ? fnResult : handleAsync(el, fnResult);
+        if (!inFlightChanged && !isAsyncResult) {
+          if (el._x !== null)
+            el._x._inFlight = null;
+          el._loading = false;
+        }
+      }
+      if (el._statusFlags !== 0 || el._x !== null)
+        clearStatus(el, create);
+      if (el._config & CONFIG_HAS_LANE && el._x?._optimisticLane)
+        GlobalQueue._laneAsyncSettled(el);
+    } catch (e2) {
+      const notReady = e2 instanceof NotReadyError;
+      if (notReady && el._loading) {
+        parkLoadingWindow(el, e2);
+      } else {
+        if (notReady && currentOptimisticLane)
+          GlobalQueue._laneAsyncPending(el);
+        let reaskChanged = false;
+        if (notReady) {
+          ext(el)._blocked = true;
+          if (GlobalQueue._applyReask !== null)
+            reaskChanged = GlobalQueue._applyReask(el, hadReask);
+        }
+        notifyStatus(el, notReady ? STATUS_PENDING : STATUS_ERROR, e2, undefined, notReady ? el._x?._optimisticLane : undefined);
+        if (reaskChanged)
+          GlobalQueue._repollVerdicts(el);
+      }
+    } finally {
+      tracking = prevTracking;
+      latestReadActive = prevLatestRead;
+      strictRead = prevStrictRead;
+      if (isStaleEffect)
+        stale = prevStale;
+      missedWake = (el._flags & REACTIVE_MISSED_WAKE) !== 0;
+      el._flags = REACTIVE_NONE | (create ? el._flags & REACTIVE_SNAPSHOT_STALE : 0);
+      context = oldcontext;
+    }
+    if (!el._x?._error) {
+      trimStaleDeps(el);
+      const compareValue = hasOverride ? unwrapOverride(el._x?._overrideValue) : el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
+      let valueChanged = false;
+      try {
+        valueChanged = !isEffect && wasUninitialized || !el._equals || !el._equals(compareValue, value);
+      } catch (e2) {
+        notifyStatus(el, STATUS_ERROR, e2);
+      }
+      if (attrHooks !== null) {
+        devChanged = valueChanged && !el._x?._error;
+        if (devChanged && !isEffect && !create)
+          attrHooks.derivedChanged(el);
+      }
+      if (isEffect && valueChanged) {
+        el._modified = !el._x?._error;
+        if (!create)
+          el._queue.enqueue(isEffect, el._boundRunEffect ??= GlobalQueue._runEffect.bind(null, el));
+      }
+      if (el._x?._error)
+        ;
+      else if (valueChanged) {
+        const prevVisible = hasOverride ? el._x?._overrideValue : undefined;
+        if (create || isEffect && (activeTransition !== el._transition || activeTransition === null) || isOptimisticDirty) {
+          el._value = value;
+          if (hasOverride && isOptimisticDirty) {
+            ext(el)._overrideValue = value === undefined ? OVERRIDE_UNDEFINED : value;
+            el._pendingValue = NOT_PENDING;
+          }
+        } else {
+          el._pendingValue = value;
+          if (wasLoading)
+            el._loading = true;
+          if ((activeTransition || el._transition) && GlobalQueue._syncCompanions !== null)
+            GlobalQueue._syncCompanions(el, value);
+        }
+        if (el._subs !== null && (!hasOverride || isOptimisticDirty || el._x?._overrideValue !== prevVisible))
+          insertSubs(el, isOptimisticDirty || hasOverride);
+      } else if (hasOverride) {
+        if (el._pendingValue === NOT_PENDING)
+          queuePendingNode(el);
+        el._pendingValue = value;
+        if (wasLoading)
+          el._loading = true;
+      } else if (el._height != oldHeight) {
+        for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub) {
+          insertIntoHeapHeight(s2._sub, queueFor(s2._sub));
+        }
+      }
+      if (outgoingError !== undefined && !valueChanged && !el._x?._error)
+        settleErroredDependents(el, outgoingError);
+    }
+    if (attrHooks !== null)
+      attrHooks.recomputeEnd(el, create, devChanged, isOptimisticDirty || currentOptimisticLane !== null, activeTransition !== null || el._transition !== null, el._pendingValue !== NOT_PENDING);
+    currentOptimisticLane = prevLane;
+    const needsPendingCommit = el._pendingValue !== NOT_PENDING || el._x !== null && (el._x._pendingFirstChild !== null || el._x._pendingDisposal !== null) || (el._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)) !== 0;
+    needsPendingCommit && (!create || el._statusFlags & STATUS_PENDING) && (!el._transition || hasOverride) && queuePendingNode(el);
+    el._transition && isEffect && activeTransition !== el._transition && runInTransition(el._transition, () => recompute(el));
+    if (missedWake) {
+      enqueueSub(el);
+      schedule();
+    }
+  }
+  function updateIfNecessary(el) {
+    if (el._flags & REACTIVE_RECOMPUTING_DEPS)
+      return;
+    if (el._flags & REACTIVE_CHECK) {
+      for (let d2 = el._deps;d2; d2 = d2._nextDep) {
+        const dep1 = d2._dep;
+        const dep = dep1._firewall || dep1;
+        if (dep._fn) {
+          updateIfNecessary(dep);
+        }
+        if (el._flags & REACTIVE_DIRTY) {
+          break;
+        }
+      }
+    }
+    if (el._flags & (REACTIVE_DIRTY | REACTIVE_OPTIMISTIC_DIRTY) || el._x?._error && el._time < clock && !el._x?._inFlight) {
+      recompute(el);
+    }
+    el._flags = el._flags & (REACTIVE_SNAPSHOT_STALE | REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT);
+  }
+  function computed(fn, options2) {
+    const transparent = options2?.transparent ?? false;
+    const loading = options2 !== null && typeof options2 === "object" && "loadingValue" in options2;
+    const self2 = {
+      id: inheritId(options2, transparent, context),
+      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (!context || options2?.lazy ? CONFIG_AUTO_DISPOSE : 0) | (options2?.sync ? CONFIG_SYNC : 0) | (options2?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
+      _equals: options2?.equals != null ? options2.equals : isEqual,
+      _disposal: null,
+      _queue: context?._queue ?? globalQueue,
+      _context: context?._context ?? defaultContext,
+      _childCount: 0,
+      _fn: fn,
+      _value: loading ? options2.loadingValue : undefined,
+      _height: 0,
+      _nextHeap: undefined,
+      _prevHeap: null,
+      _deps: null,
+      _depsTail: null,
+      _depGen: 0,
+      _subs: null,
+      _subsTail: null,
+      _parent: context,
+      _nextSibling: null,
+      _prevSibling: null,
+      _firstChild: null,
+      _flags: options2?.lazy ? REACTIVE_LAZY : REACTIVE_NONE,
+      _statusFlags: loading ? 0 : STATUS_UNINITIALIZED,
+      _time: clock,
+      _pendingValue: NOT_PENDING,
+      _transition: null,
+      _notifiedAt: -1,
+      _loading: loading,
+      _x: null
+    };
+    self2._name = options2?.name ?? "computed";
+    if (options2?.unobserved)
+      ext(self2)._unobserved = options2.unobserved;
+    setupComputedNode(self2, options2);
+    return self2;
+  }
+  function ext(el) {
+    return el._x ??= {
+      _overrideValue: undefined,
+      _overrideOwner: undefined,
+      _optimisticLane: undefined,
+      _pendingSignal: undefined,
+      _latestValueComputed: undefined,
+      _parentSource: undefined,
+      _affectsCount: 0,
+      _inFlight: null,
+      _error: undefined,
+      _blocked: undefined,
+      _pendingSources: undefined,
+      _notifyStatus: undefined,
+      _reask: false,
+      _child: null,
+      _unobserved: undefined,
+      _snapshotValue: undefined,
+      _pendingDisposal: null,
+      _pendingFirstChild: null,
+      _companionChildren: undefined
+    };
+  }
+  function createEffectNode(fn, effectFn, errorFn, type, notifyStatus2, options2) {
+    const transparent = options2?.transparent ?? false;
+    const self2 = {
+      id: inheritId(options2, transparent, context),
+      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options2?.sync ? CONFIG_SYNC : 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
+      _equals: false,
+      _disposal: null,
+      _queue: context?._queue ?? globalQueue,
+      _context: context?._context ?? defaultContext,
+      _childCount: 0,
+      _fn: fn,
+      _value: undefined,
+      _height: 0,
+      _nextHeap: undefined,
+      _prevHeap: null,
+      _deps: null,
+      _depsTail: null,
+      _depGen: 0,
+      _subs: null,
+      _subsTail: null,
+      _parent: context,
+      _nextSibling: null,
+      _prevSibling: null,
+      _firstChild: null,
+      _flags: REACTIVE_LAZY,
+      _statusFlags: STATUS_UNINITIALIZED,
+      _time: clock,
+      _pendingValue: NOT_PENDING,
+      _transition: null,
+      _notifiedAt: -1,
+      _loading: false,
+      _modified: false,
+      _prevValue: undefined,
+      _effectFn: effectFn,
+      _errorFn: errorFn,
+      _cleanup: undefined,
+      _type: type,
+      _x: null
+    };
+    self2._name = options2?.name ?? "effect";
+    if (notifyStatus2 !== undefined)
+      ext(self2)._notifyStatus = notifyStatus2;
+    if (options2?.unobserved)
+      ext(self2)._unobserved = options2.unobserved;
+    setupComputedNode(self2, lazyOptions);
+    return self2;
+  }
+  var lazyOptions = { lazy: true };
+  function setupComputedNode(self2, options2) {
+    self2._prevHeap = self2;
+    const parent = context?._root ? context._parentComputed : context;
+    if (context && context._config & CONFIG_CHILDREN_FORBIDDEN) {
+      emitDiagnostic({
+        code: "PRIMITIVE_IN_FORBIDDEN_SCOPE",
+        kind: "lifecycle",
+        severity: "error",
+        message: PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE,
+        ownerId: context.id,
+        ownerName: context._name
+      });
+      throw new Error(PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE);
+    }
+    if (context) {
+      const lastChild = context._firstChild;
+      if (lastChild === null) {
+        context._firstChild = self2;
+      } else {
+        self2._nextSibling = lastChild;
+        lastChild._prevSibling = self2;
+        context._firstChild = self2;
+      }
+    }
+    DEV$1.hooks.onOwner?.(self2);
+    if (parent)
+      self2._height = parent._height + 1;
+    if (GlobalQueue._wireExternalSource !== null)
+      GlobalQueue._wireExternalSource(self2);
+    !options2?.lazy && recompute(self2, true);
+    if (snapshotCaptureActive && !options2?.lazy) {
+      if (!(self2._statusFlags & STATUS_PENDING) && !(self2._config & CONFIG_NO_SNAPSHOT)) {
+        ext(self2)._snapshotValue = self2._value === undefined ? NO_SNAPSHOT : self2._value;
+        self2._config |= CONFIG_HAS_SNAPSHOT;
+        snapshotSources.add(self2);
+      }
+    }
+  }
+  function signal(v2, options2, firewall = null) {
+    const s2 = {
+      _equals: options2?.equals != null ? options2.equals : isEqual,
+      _config: (options2?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options2?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0),
+      _value: v2,
+      _subs: null,
+      _subsTail: null,
+      _time: clock,
+      _firewall: firewall,
+      _nextChild: firewall?._x?._child || null,
+      _pendingValue: NOT_PENDING,
+      _transition: null,
+      _notifiedAt: -1,
+      _x: null
+    };
+    {
+      s2._name = options2?.name ?? "signal";
+      s2._internal = !!firewall;
+    }
+    if (options2?.unobserved)
+      ext(s2)._unobserved = options2.unobserved;
+    if (firewall) {
+      ext(firewall)._child = s2;
+      firewall._config |= CONFIG_FW_CHILDREN;
+    }
+    if (snapshotCaptureActive && !(s2._config & CONFIG_NO_SNAPSHOT) && !((firewall?._statusFlags ?? 0) & STATUS_PENDING)) {
+      ext(s2)._snapshotValue = v2 === undefined ? NO_SNAPSHOT : v2;
+      s2._config |= CONFIG_HAS_SNAPSHOT;
+      snapshotSources.add(s2);
+    }
+    return s2;
+  }
+  function optimisticComputed(fn, options2) {
+    const c2 = computed(fn, options2);
+    ext(c2)._overrideValue = NOT_PENDING;
+    c2._config |= CONFIG_OPTIMISTIC;
+    return c2;
+  }
+  function isEqual(a2, b2) {
+    return a2 === b2;
+  }
+  var strictRead = false;
+  function setStrictRead(v2) {
+    const prev = strictRead;
+    strictRead = v2;
+    return prev;
+  }
+  function untrack(fn, strictReadLabel) {
+    if (GlobalQueue._externalUntrack === null && !tracking && !strictRead && !strictReadLabel)
+      return fn();
+    const prevTracking = tracking;
+    const prevStrictRead = strictRead;
+    tracking = false;
+    strictRead = strictReadLabel || false;
+    try {
+      if (GlobalQueue._externalUntrack !== null)
+        return GlobalQueue._externalUntrack(fn);
+      return fn();
+    } finally {
+      tracking = prevTracking;
+      strictRead = prevStrictRead;
+    }
+  }
+  function prepareComputed(comp, refresh) {
+    if (comp._flags & REACTIVE_LAZY) {
+      comp._flags &= ~REACTIVE_LAZY;
+      recompute(comp, true);
+    } else if (comp._flags & REACTIVE_DISPOSED) {
+      if (comp._config & CONFIG_AUTO_DISPOSE)
+        recompute(comp, true);
+    } else if (refresh) {
+      updateIfNecessary(comp);
+    }
+  }
+  var READ_SLOW = Symbol("read-slow");
+  function read(el) {
+    if (latestReadActive)
+      return GlobalQueue._latestRead(el);
+    let c2 = context;
+    if (c2?._root)
+      c2 = c2._parentComputed;
+    const computed2 = el;
+    const firewall = el._firewall;
+    const owner = firewall || el;
+    if (pendingCheckActive) {
+      GlobalQueue._pendingCheck(el, c2, owner, firewall);
+    } else if (typeof computed2._fn === "function") {
+      prepareComputed(el, false);
+    }
+    if (!computed2._fn && owner === el && el._x?._overrideValue === undefined && el._x?._snapshotValue === undefined && activeTransition === null && currentOptimisticLane === null && !snapshotCaptureActive && !strictRead) {
+      if (c2 && tracking)
+        link(el, c2);
+      return !c2 || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN ? el._value : el._pendingValue;
+    }
+    if (strictRead && !pendingCheckActive && owner._statusFlags & STATUS_PENDING)
+      throwPendingUntrackedRead(strictRead, {
+        ownerId: c2?.id,
+        ownerName: c2?._name,
+        nodeName: owner?._name
+      });
+    if (c2 && tracking) {
+      link(el, c2, pendingCheckActive);
+      if (owner._fn) {
+        const elQueue = queueFor(el);
+        if (owner._height >= elQueue._min) {
+          markNode(c2);
+          markHeap(elQueue);
+          updateIfNecessary(owner);
+        }
+        const height = owner._height;
+        if (height >= c2._height && el._parent !== c2) {
+          c2._height = height + 1;
+        }
+      }
+    }
+    if (owner._statusFlags & STATUS_PENDING) {
+      if (c2 && !(stale && owner._transition && activeTransition !== owner._transition)) {
+        if (c2 && c2._config & CONFIG_CHILDREN_FORBIDDEN) {
+          const message = "[PENDING_ASYNC_FORBIDDEN_SCOPE] Reading a pending async value inside createTrackedEffect or onSettled will throw. " + "Use createEffect instead which supports async-aware reactivity.";
+          emitDiagnostic({
+            code: "PENDING_ASYNC_FORBIDDEN_SCOPE",
+            kind: "async",
+            severity: "warn",
+            message,
+            ownerId: c2.id,
+            ownerName: c2._name,
+            nodeName: owner?._name
+          });
+          console.warn(message);
+        }
+        if (currentOptimisticLane === null || GlobalQueue._laneSuspends(owner)) {
+          if (!tracking && el !== c2)
+            link(el, c2);
+          throw owner._x?._error;
+        }
+      } else if (c2 && owner._statusFlags & STATUS_UNINITIALIZED) {
+        if (!tracking && el !== c2)
+          link(el, c2);
+        throw owner._x?._error;
+      } else if (!c2 && owner._statusFlags & STATUS_UNINITIALIZED) {
+        throw owner._x?._error;
+      }
+    }
+    if (owner._fn && owner._statusFlags & STATUS_ERROR) {
+      if (tracking && !pendingCheckActive && owner._time < clock) {
+        recompute(owner);
+        return read(el);
+      } else
+        throw owner._x?._error;
+    }
+    if (snapshotCaptureActive && c2 && c2._config & CONFIG_IN_SNAPSHOT_SCOPE) {
+      const sv = el._x?._snapshotValue;
+      if (sv !== undefined) {
+        const snapshot = sv === NO_SNAPSHOT ? undefined : sv;
+        const current = el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value;
+        if (current !== snapshot)
+          c2._flags |= REACTIVE_SNAPSHOT_STALE;
+        return snapshot;
+      }
+    }
+    if (strictRead)
+      warnStrictReadUntracked(strictRead, {
+        ownerId: c2?.id,
+        ownerName: c2?._name,
+        nodeName: owner?._name
+      });
+    if (el._x?._overrideValue !== undefined && el._x?._overrideValue !== NOT_PENDING) {
+      return unwrapOverride(el._x?._overrideValue);
+    }
+    if (currentOptimisticLane !== null && activeTransition !== null && c2 !== null && GlobalQueue._gatedRead(el, owner, c2)) {
+      return el._value;
+    }
+    const value = !c2 || currentOptimisticLane !== null && GlobalQueue._laneReadsCommitted(el, owner, c2) || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN || stale && el._transition && activeTransition !== el._transition ? el._value : el._pendingValue;
+    if (pendingCheckActive)
+      GlobalQueue._recordFresh(el, value);
+    if (!c2 && owner === el && typeof computed2._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
+      unobserved(el);
+    }
+    return value;
+  }
+  function setSignal(el, v2) {
+    if (!(el._config & CONFIG_OWNED_WRITE) && !(context && context._config & CONFIG_CHILDREN_FORBIDDEN) && context && el._firewall !== context) {
+      emitDiagnostic({
+        code: "REACTIVE_WRITE_IN_OWNED_SCOPE",
+        kind: "write",
+        severity: "error",
+        message: REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE,
+        ownerId: context.id,
+        ownerName: context._name,
+        nodeName: el._name,
+        data: { operation: "setSignal" }
+      });
+      throw new Error(REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE);
+    }
+    if (el._transition && activeTransition !== el._transition)
+      globalQueue.initTransition(el._transition);
+    if (el._config & CONFIG_OPTIMISTIC && !projectionWriteActive)
+      return GlobalQueue._optimisticWrite(el, v2);
+    const currentValue = el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
+    if (typeof v2 === "function")
+      v2 = v2(currentValue);
+    const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !el._equals || !el._equals(currentValue, v2);
+    if (!valueChanged)
+      return v2;
+    if (attrHooks !== null)
+      attrHooks.write(el, currentValue, v2);
+    const wasStaged = el._pendingValue !== NOT_PENDING;
+    if (!wasStaged)
+      queuePendingNode(el);
+    el._pendingValue = v2;
+    el._config & CONFIG_HAS_COMPANIONS && GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, v2);
+    if (el._fn !== undefined)
+      el._time = clock;
+    if (wasStaged && el._notifiedAt === notifyEpoch && currentOptimisticLane === null && !reaskArmed)
+      return v2;
+    insertSubs(el);
+    schedule();
+    return v2;
+  }
+  function suppressComputedRecompute(el) {
+    deleteFromHeap(el, queueFor(el));
+    if (!(el._flags & REACTIVE_MANUAL_WRITE) && el._pendingValue === NOT_PENDING) {
+      queuePendingNode(el);
+      schedule();
+    }
+    el._flags = el._flags & -4 | REACTIVE_MANUAL_WRITE;
+    el._manualWriteTime = clock;
+  }
+  function setMemo(el, v2) {
+    const result = setSignal(el, v2);
+    suppressComputedRecompute(el);
+    return result;
+  }
+  function runWithOwner(owner, fn) {
+    if (owner && owner._flags & REACTIVE_DISPOSED) {
+      const message = "[RUN_WITH_DISPOSED_OWNER] runWithOwner called with a disposed owner. Children created inside will never be disposed.";
+      emitDiagnostic({
+        code: "RUN_WITH_DISPOSED_OWNER",
+        kind: "owner",
+        severity: "warn",
+        message,
+        ownerId: owner.id,
+        ownerName: owner._name
+      });
+      console.warn(message);
+    }
+    const oldContext = context;
+    const prevTracking = tracking;
+    context = owner;
+    tracking = false;
+    try {
+      return fn();
+    } finally {
+      context = oldContext;
+      tracking = prevTracking;
+    }
+  }
+  function getContext(context2, owner = getOwner()) {
+    if (!owner) {
+      throw new NoOwnerError;
+    }
+    const value = hasContext(context2, owner) ? owner._context[context2.id] : context2.defaultValue;
+    if (isUndefined(value)) {
+      throw new ContextNotFoundError;
+    }
+    return value;
+  }
+  function setContext(context2, value, owner = getOwner()) {
+    if (!owner) {
+      throw new NoOwnerError;
+    }
+    owner._context = {
+      ...owner._context,
+      [context2.id]: isUndefined(value) ? context2.defaultValue : value
+    };
+  }
+  function hasContext(context2, owner) {
+    return !isUndefined(owner?._context[context2.id]);
+  }
+  function isUndefined(value) {
+    return typeof value === "undefined";
+  }
+  function optimisticWrite(el, v2) {
+    const hasOverride = el._x?._overrideValue !== NOT_PENDING;
+    const currentValue = hasOverride ? unwrapOverride(el._x?._overrideValue) : el._value;
+    if (typeof v2 === "function")
+      v2 = v2(currentValue);
+    const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !el._equals || !el._equals(currentValue, v2);
+    if (!valueChanged) {
+      if (hasOverride) {
+        const transition = resolveTransition(el);
+        if (transition && activeTransition !== transition)
+          globalQueue.initTransition(transition);
+      }
+      return v2;
+    }
+    if (hasOverride)
+      globalQueue.initTransition(resolveTransition(el));
+    else
+      globalQueue._batch._optimisticNodes.push(el);
+    ext(el)._overrideOwner = activeTransition;
+    const lane = getOrCreateLane(el);
+    ext(el)._optimisticLane = lane;
+    el._config |= CONFIG_HAS_LANE;
+    ext(el)._overrideValue = v2 === undefined ? OVERRIDE_UNDEFINED : v2;
+    (el._x?._pendingSignal !== undefined || el._x?._latestValueComputed !== undefined) && GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, v2);
+    if (el._fn !== undefined)
+      el._time = clock;
+    insertSubs(el, true);
+    schedule();
+    return v2;
+  }
+  function transitionBlocked(transition) {
+    for (let i2 = 0;i2 < transition._optimisticNodes.length; i2++) {
+      const node = transition._optimisticNodes[i2];
+      if (hasActiveOverride$1(node) && "_statusFlags" in node && node._statusFlags & STATUS_PENDING && node._x?._error instanceof NotReadyError) {
+        return true;
+      }
+    }
+    return false;
+  }
+  function resolveOptimisticNodes(nodes) {
+    const len = nodes.length;
+    for (let i2 = 0;i2 < len; i2++) {
+      const node = nodes[i2];
+      if (node._x !== null)
+        node._x._optimisticLane = undefined;
+      if (!(node._statusFlags & STATUS_PENDING))
+        node._statusFlags &= ~STATUS_UNINITIALIZED;
+      const prevOverride = node._x?._overrideValue;
+      ext(node)._overrideValue = NOT_PENDING;
+      if (prevOverride !== NOT_PENDING && node._value !== unwrapOverride(prevOverride))
+        insertSubs(node, true);
+      node._transition = null;
+      if (node._x !== null)
+        node._x._overrideOwner = null;
+    }
+    for (let i2 = 0;i2 < len; i2++) {
+      const node = nodes[i2];
+      if (node._x?._pendingSignal || node._x?._latestValueComputed)
+        GlobalQueue._snapCompanions(node);
+      const owner = node._x?._parentSource;
+      if (owner && (owner._x?._pendingSignal === node || owner._x?._latestValueComputed === node))
+        GlobalQueue._snapCompanions(owner);
+    }
+    nodes.splice(0, len);
+  }
+  function runQueue(queue, type) {
+    for (let i2 = 0;i2 < queue.length; i2++)
+      queue[i2](type);
+  }
+  function runLaneEffects(type) {
+    for (const lane of activeLanes) {
+      if (lane._mergedInto || lane._pendingAsync.size > 0)
+        continue;
+      const effects = lane._effectQueues[type - 1];
+      if (effects.length) {
+        lane._effectQueues[type - 1] = [];
+        runQueue(effects, type);
+      }
+    }
+  }
+  function cleanupCompletedLanes(completingTransition) {
+    for (const lane of activeLanes) {
+      const owned = completingTransition ? lane._transition === completingTransition : !lane._transition;
+      if (!owned)
+        continue;
+      if (!lane._mergedInto) {
+        if (lane._effectQueues[0].length)
+          runQueue(lane._effectQueues[0], EFFECT_RENDER);
+        if (lane._effectQueues[1].length)
+          runQueue(lane._effectQueues[1], EFFECT_USER);
+      }
+      if (lane._source._x?._optimisticLane === lane) {
+        if (lane._source._x !== null)
+          lane._source._x._optimisticLane = undefined;
+      }
+      lane._pendingAsync.clear();
+      lane._effectQueues[0].length = 0;
+      lane._effectQueues[1].length = 0;
+      activeLanes.delete(lane);
+      signalLanes.delete(lane._source);
+    }
+  }
+  function laneSuspends(owner) {
+    const pendingLane = owner._x?._optimisticLane;
+    if (!pendingLane)
+      return false;
+    return findLane(pendingLane) === findLane(currentOptimisticLane) && !hasActiveOverride$1(owner);
+  }
+  function gatedRead(el, owner, c2) {
+    if (latestReadActive || el._pendingValue === NOT_PENDING || el._fn || owner !== el && !(owner._flags & REACTIVE_MANUAL_WRITE)) {
+      return false;
+    }
+    activeTransition._gatedSubs.add(c2);
+    return true;
+  }
+  function laneReadsCommitted(el, owner, c2) {
+    if (el._x?._overrideValue !== undefined || !!el._x?._optimisticLane || !!(owner._statusFlags & STATUS_PENDING))
+      return true;
+    if (owner === el && stale && c2._x?._parentSource !== el) {
+      if (el._pendingValue !== NOT_PENDING && activeTransition === null)
+        globalQueue._batch._gatedSubs.add(c2);
+      return true;
+    }
+    return false;
+  }
+  function recomputeLane(el, own) {
+    if (own) {
+      const lane = resolveLane(el);
+      if (!lane)
+        return null;
+      if (!globalQueue._running && !activeTransition && !lane._transition && lane._source._x?._parentSource !== undefined && el._x?._overrideValue === undefined) {
+        if (el._x !== null)
+          el._x._optimisticLane = undefined;
+        return false;
+      }
+      return lane;
+    }
+    for (let d2 = el._deps;d2; d2 = d2._nextDep) {
+      const dep = d2._dep;
+      if (dep._flags & REACTIVE_OPTIMISTIC_DIRTY) {
+        const depLane = resolveLane(dep);
+        if (depLane) {
+          el._flags |= REACTIVE_OPTIMISTIC_DIRTY;
+          assignOrMergeLane(el, depLane);
+          return depLane;
+        }
+      }
+    }
+    return null;
+  }
+  function laneAsyncPending(el) {
+    const lane = findLane(currentOptimisticLane);
+    if (lane._source !== el) {
+      lane._pendingAsync.add(el);
+      ext(el)._optimisticLane = lane;
+      el._config |= CONFIG_HAS_LANE;
+      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(lane._source);
+    }
+  }
+  function laneAsyncSettled(el) {
+    const resolvedLane = resolveLane(el);
+    if (resolvedLane) {
+      resolvedLane._pendingAsync.delete(el);
+      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(resolvedLane._source);
+    }
+  }
+  function trackOptimisticStore(store) {
+    globalQueue._batch._optimisticStores.add(store);
+    schedule();
+  }
+  function installOptimisticEngine() {
+    if (GlobalQueue._optimisticWrite !== null)
+      return;
+    GlobalQueue._optimisticWrite = optimisticWrite;
+    GlobalQueue._resolveOptimistic = resolveOptimisticNodes;
+    GlobalQueue._transitionBlocked = transitionBlocked;
+    GlobalQueue._cleanupLanes = cleanupCompletedLanes;
+    GlobalQueue._runLaneEffects = runLaneEffects;
+    GlobalQueue._gatedRead = gatedRead;
+    GlobalQueue._laneSuspends = laneSuspends;
+    GlobalQueue._laneReadsCommitted = laneReadsCommitted;
+    GlobalQueue._recomputeLane = recomputeLane;
+    GlobalQueue._laneAsyncPending = laneAsyncPending;
+    GlobalQueue._laneAsyncSettled = laneAsyncSettled;
+    GlobalQueue._trackOptimisticStore = trackOptimisticStore;
+  }
+  installOptimisticEngine();
+  var pendingProbe = null;
+  var suppressedProbes = new Map;
+  function markFirewallChildCompanions(el) {
+    const fw = el._firewall;
+    if (!fw)
+      return;
+    fw._config |= CONFIG_CHILD_COMPANIONS;
+    (ext(fw)._companionChildren ??= new Set).add(el);
+  }
+  function collectPendingSources(el) {
+    if (!pendingProbe)
+      return;
+    pendingProbe.sources.add(el);
+    const owner = el._firewall || el;
+    if (owner !== el)
+      pendingProbe.sources.add(owner);
+  }
+  function witnessAffects(node) {
+    pendingProbe?.sources.add(node);
+  }
+  function markWalk(el, seen) {
+    if (el._x?._affectsCount)
+      return true;
+    if (el._statusFlags & STATUS_ERROR)
+      return false;
+    if (seen.has(el))
+      return false;
+    seen.add(el);
+    const firewall = el._firewall;
+    if (firewall && markWalk(firewall, seen))
+      return true;
+    const comp = el;
+    const tail = comp._flags & REACTIVE_RECOMPUTING_DEPS ? comp._depsTail : undefined;
+    if (tail !== null) {
+      for (let d2 = comp._deps ?? null;d2 !== null; d2 = d2._nextDep) {
+        if (!d2._pendingObserver && markWalk(d2._dep, seen))
+          return true;
+        if (d2 === tail)
+          break;
+      }
+    }
+    return false;
+  }
+  function markCovered(el) {
+    return activeAffectsMarks !== 0 && markWalk(el, new Set);
+  }
+  function quietPending(el) {
+    if (el._x?._pendingSources) {
+      for (const source of el._x._pendingSources)
+        if (!source._x?._reask)
+          return false;
+      return true;
+    }
+    return el._x?._reask ?? false;
+  }
+  function newQuestionInFlight(comp) {
+    return !!(comp._statusFlags & STATUS_PENDING) && !(comp._statusFlags & STATUS_UNINITIALIZED) && !quietPending(comp);
+  }
+  function computePendingState(el) {
+    const comp = el;
+    if (comp._flags & REACTIVE_DISPOSED)
+      return false;
+    if (markCovered(el))
+      return true;
+    const firewall = el._firewall;
+    if (el._x?._parentSource) {
+      const parentNode = el._x?._parentSource;
+      const parent = parentNode._firewall || parentNode;
+      return newQuestionInFlight(parent);
+    }
+    if (firewall && el._pendingValue !== NOT_PENDING && !hasActiveOverride$1(el)) {
+      return !!(firewall._flags & REACTIVE_MANUAL_WRITE) || !firewall._x?._inFlight && !(firewall._statusFlags & STATUS_PENDING) || !!(firewall._statusFlags & STATUS_PENDING) && quietPending(firewall);
+    }
+    if (el._pendingValue !== NOT_PENDING && !(comp._statusFlags & STATUS_UNINITIALIZED) && !comp._loading) {
+      if (hasActiveOverride$1(el))
+        return !el._equals || !el._equals(el._pendingValue, unwrapOverride(el._x?._overrideValue));
+      return true;
+    }
+    return newQuestionInFlight(comp);
+  }
+  function syncCompanions(el, value) {
+    if (el._x?._pendingSignal)
+      updatePendingSignal(el);
+    if (el._x?._latestValueComputed)
+      setSignal(el._x?._latestValueComputed, value);
+  }
+  function updatePendingSignal(el) {
+    if (el._x?._pendingSignal) {
+      setSignal(el._x?._pendingSignal, computePendingState(el));
+    }
+    if (el._x?._latestValueComputed)
+      updatePendingSignal(el._x?._latestValueComputed);
+  }
+  function updateChildCompanions(el) {
+    const companions = el._x?._companionChildren;
+    if (companions === undefined)
+      return;
+    for (const child of companions)
+      updatePendingSignal(child);
+  }
+  function repollDownstreamVerdicts(el, snap = false) {
+    const update = snap ? snapCompanionsToState : updatePendingSignal;
+    const visited = new Set;
+    const visit = (node) => {
+      if (visited.has(node))
+        return;
+      visited.add(node);
+      if (node._x?._pendingSignal || node._x?._latestValueComputed)
+        update(node);
+      for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub)
+        visit(s2._sub);
+      for (let child = node._x?._child ?? null;child !== null; child = child._nextChild) {
+        visit(child);
+      }
+    };
+    visit(el);
+  }
+  function wakeSuppressedProbes(transition) {
+    if (suppressedProbes.size === 0)
+      return;
+    let woke = false;
+    for (const [node, probes] of suppressedProbes) {
+      const nt2 = node._transition;
+      const t2 = nt2 ? currentTransition(nt2) : null;
+      if (!t2) {
+        suppressedProbes.delete(node);
+        continue;
+      }
+      if (t2 !== transition)
+        continue;
+      suppressedProbes.delete(node);
+      const lane = node._x?._pendingSignal?._x?._optimisticLane;
+      for (const p2 of probes) {
+        if (p2._flags & REACTIVE_DISPOSED)
+          continue;
+        p2._flags |= REACTIVE_OPTIMISTIC_DIRTY;
+        if (lane)
+          assignOrMergeLane(p2, lane);
+        else if (p2._x !== null)
+          p2._x._optimisticLane = undefined;
+        enqueueSub(p2);
+        woke = true;
+      }
+    }
+    if (woke)
+      schedule();
+  }
+  function snapCompanionsToState(owner) {
+    suppressedProbes.size !== 0 && suppressedProbes.delete(owner);
+    const sig = owner._x?._pendingSignal;
+    if (sig && (sig._x?._overrideValue === undefined || sig._x?._overrideValue === NOT_PENDING)) {
+      const pending = computePendingState(owner);
+      if (sig._value !== pending || sig._pendingValue !== NOT_PENDING) {
+        sig._value = pending;
+        sig._pendingValue = NOT_PENDING;
+        insertSubs(sig);
+        schedule();
+      }
+    }
+    const shadow = owner._x?._latestValueComputed;
+    if (shadow && !(shadow._flags & REACTIVE_DISPOSED)) {
+      if ((shadow._x?._overrideValue === undefined || shadow._x?._overrideValue === NOT_PENDING) && shadow._pendingValue === NOT_PENDING && !Object.is(shadow._value, owner._value) && !(shadow._flags & (REACTIVE_DIRTY | REACTIVE_CHECK))) {
+        shadow._flags |= REACTIVE_DIRTY;
+        insertIntoHeap(shadow, queueFor(shadow));
+        insertSubs(shadow);
+        schedule();
+      }
+      snapCompanionsToState(shadow);
+    }
+  }
+  function getLatestValueComputed(el) {
+    let lvc = el._x?._latestValueComputed;
+    if (!lvc) {
+      const prevPending = latestReadActive;
+      setLatestReadActive(false);
+      const prevCheck = pendingCheckActive;
+      setPendingCheckActive(false);
+      const prevContext = context;
+      setContextInternal(null);
+      lvc = optimisticComputed(() => read(el));
+      ext(el)._latestValueComputed = lvc;
+      el._config |= CONFIG_HAS_COMPANIONS;
+      markFirewallChildCompanions(el);
+      ext(lvc)._parentSource = el;
+      if (el._pendingValue !== NOT_PENDING && !hasActiveOverride$1(el))
+        setSignal(lvc, el._pendingValue);
+      setContextInternal(prevContext);
+      setPendingCheckActive(prevCheck);
+      setLatestReadActive(prevPending);
+    }
+    return lvc;
+  }
+  function latestRead(el) {
+    const pendingComputed = getLatestValueComputed(el);
+    const prevPending = latestReadActive;
+    setLatestReadActive(false);
+    const visibleValue = el._x?._overrideValue !== undefined && el._x?._overrideValue !== NOT_PENDING ? unwrapOverride(el._x?._overrideValue) : el._value;
+    let value;
+    try {
+      const queue = queueFor(pendingComputed);
+      if (pendingComputed._height >= queue._min && !(pendingComputed._flags & (REACTIVE_DISPOSED | REACTIVE_ZOMBIE))) {
+        markHeap(queue);
+        prepareComputed(pendingComputed, true);
+      }
+      value = read(pendingComputed);
+    } catch (e2) {
+      if (e2 instanceof NotReadyError && (!context || !(el._statusFlags & STATUS_UNINITIALIZED)))
+        return visibleValue;
+      throw e2;
+    } finally {
+      setLatestReadActive(prevPending);
+    }
+    if (pendingComputed._statusFlags & STATUS_PENDING)
+      return visibleValue;
+    if (stale && currentOptimisticLane && pendingComputed._x?._optimisticLane) {
+      const pcLane = findLane(pendingComputed._x?._optimisticLane);
+      const curLane = findLane(currentOptimisticLane);
+      if (pcLane !== curLane && pcLane._pendingAsync.size > 0) {
+        return visibleValue;
+      }
+    }
+    if (pendingComputed._pendingValue !== NOT_PENDING && !hasActiveOverride$1(pendingComputed) && !(stale && pendingComputed._transition && activeTransition !== pendingComputed._transition))
+      return pendingComputed._pendingValue;
+    return value;
+  }
+  function pendingCheckRead(el, c2, owner, firewall) {
+    setPendingCheckActive(false);
+    if (typeof el._fn === "function")
+      prepareComputed(el, true);
+    const ownerStatus = owner._statusFlags;
+    if (c2 && ownerStatus & STATUS_PENDING && ownerStatus & STATUS_UNINITIALIZED) {
+      if (tracking && el !== c2)
+        link(el, c2);
+      setPendingCheckActive(true);
+      throw owner._x?._error;
+    }
+    collectPendingSources(el);
+    if (firewall)
+      collectPendingSources(firewall);
+    setPendingCheckActive(true);
+  }
+  function heldAwaitingAsync(el) {
+    const et2 = el._transition;
+    const t2 = et2 ? currentTransition(et2) : null;
+    if (!t2 || t2._done)
+      return false;
+    for (const [source, reporters] of t2._asyncReporters) {
+      if (reporters.size && source._statusFlags & STATUS_PENDING && source._x?._error?.source === source)
+        return true;
+    }
+    return false;
+  }
+  function recordFreshRead(el, value) {
+    if (pendingProbe !== null && el._pendingValue !== NOT_PENDING && value === el._pendingValue) {
+      if (heldAwaitingAsync(el))
+        return;
+      pendingProbe.freshReads.add(el);
+    }
+  }
+  function applyReask(el, hadReask) {
+    const wasPending = !!(el._statusFlags & STATUS_PENDING);
+    const isReask = hadReask && !(wasPending && !el._x?._reask);
+    const changed = wasPending && (el._x?._reask ?? false) !== isReask;
+    if (isReask)
+      ext(el)._reask = true;
+    else if (el._x !== null)
+      el._x._reask = false;
+    return changed;
+  }
+  GlobalQueue._syncCompanions = syncCompanions;
+  GlobalQueue._updatePendingSignal = updatePendingSignal;
+  GlobalQueue._updateChildCompanions = updateChildCompanions;
+  GlobalQueue._snapCompanions = snapCompanionsToState;
+  GlobalQueue._latestRead = latestRead;
+  GlobalQueue._pendingCheck = pendingCheckRead;
+  GlobalQueue._recordFresh = recordFreshRead;
+  GlobalQueue._applyReask = applyReask;
+  GlobalQueue._repollVerdicts = repollDownstreamVerdicts;
+  GlobalQueue._witnessAffects = witnessAffects;
+  GlobalQueue._wakeSuppressedProbes = wakeSuppressedProbes;
+  function effect(compute, effect2, error, options2) {
+    const isUser = !!options2?.user;
+    const node = createEffectNode(compute, effect2, error, isUser ? EFFECT_USER : EFFECT_RENDER, notifyEffectStatus, options2);
+    recompute(node, true);
+    !options2?.defer && (node._type === EFFECT_USER || options2?.schedule ? node._queue.enqueue(node._type, runEffect.bind(null, node)) : runEffect(node));
+    if (!node._parent) {
+      const message = "[NO_OWNER_EFFECT] Effects created outside a reactive context will never be disposed";
+      emitDiagnostic({
+        code: "NO_OWNER_EFFECT",
+        kind: "lifecycle",
+        severity: "warn",
+        message,
+        ownerId: node.id,
+        ownerName: node._name,
+        data: { effectType: "effect" }
+      });
+      console.warn(message);
+    }
+  }
+  function notifyEffectStatus(status, error) {
+    const actualStatus = status !== undefined ? status : this._statusFlags;
+    const actualError = error !== undefined ? error : this._x?._error;
+    if (actualStatus & STATUS_ERROR) {
+      this._queue.notify(this, STATUS_PENDING, 0);
+      if (this._type === EFFECT_USER) {
+        if (this._statusFlags & STATUS_ERROR) {
+          this._modified = true;
+          this._queue.enqueue(this._type, this._boundRunEffect ??= runEffect.bind(null, this));
+        }
+        return;
+      }
+      if (!this._queue.notify(this, STATUS_ERROR, STATUS_ERROR)) {
+        haltReactivity(unwrapStatusError(actualError));
+        throw actualError;
+      }
+    } else if (this._type === EFFECT_RENDER) {
+      this._queue.notify(this, STATUS_PENDING | STATUS_ERROR, actualStatus, actualError);
+      if (_hitUnhandledAsync) {
+        resetUnhandledAsync();
+        const message = "[ASYNC_OUTSIDE_LOADING_BOUNDARY] An async value was read outside a Loading boundary. The root mount will be deferred until all pending async settles.";
+        emitDiagnostic({
+          code: "ASYNC_OUTSIDE_LOADING_BOUNDARY",
+          kind: "async",
+          severity: "warn",
+          message,
+          ownerId: this.id,
+          ownerName: this._name
+        });
+        console.warn(message);
+      }
+    }
+  }
+  function runEffect(node) {
+    if (!node._modified || node._flags & REACTIVE_DISPOSED)
+      return;
+    if (node._statusFlags & STATUS_ERROR && node._type === EFFECT_USER) {
+      const err = unwrapStatusError(node._x?._error);
+      node._prevValue = node._value;
+      node._modified = false;
+      try {
+        node._errorFn ? node._errorFn(err, () => {
+          const prevCleanup2 = node._cleanup;
+          node._cleanup = undefined;
+          prevCleanup2?.();
+        }) : console.error(err);
+      } catch (error) {
+        if (!node._queue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
+          haltReactivity(error);
+          throw error;
+        }
+      }
+      return;
+    }
+    let prevStrictRead = false;
+    {
+      prevStrictRead = setStrictRead("an effect callback");
+      setEffectCallback(true);
+    }
+    const prevCleanup = node._cleanup;
+    node._cleanup = undefined;
+    try {
+      prevCleanup?.();
+      const nextCleanup = node._effectFn(node._value, node._prevValue);
+      if (nextCleanup !== undefined && typeof nextCleanup !== "function") {
+        throw new Error(`${node._name || "effect"} callback returned an invalid cleanup value. Return a cleanup function or undefined.`);
+      }
+      node._cleanup = nextCleanup;
+    } catch (error) {
+      ext(node)._error = new StatusError(node, error);
+      node._statusFlags |= STATUS_ERROR;
+      if (!node._queue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
+        haltReactivity(error);
+        throw error;
+      }
+    } finally {
+      {
+        setStrictRead(prevStrictRead);
+        setEffectCallback(false);
+      }
+      node._prevValue = node._value;
+      node._modified = false;
+    }
+  }
+  GlobalQueue._runEffect = runEffect;
+  var ACTION_CALLED_IN_OWNED_SCOPE_MESSAGE = "[ACTION_CALLED_IN_OWNED_SCOPE] Calling an action inside an owned scope (component, computation) is not allowed. " + "Call it from an event handler or another imperative scope.";
+  function accessor(node) {
+    const fn = read.bind(null, node);
+    fn[$REFRESH] = node;
+    return fn;
+  }
+  function createSignal(first, second) {
+    if (typeof first === "function") {
+      const node2 = computed(first, second);
+      node2._config &= ~CONFIG_AUTO_DISPOSE;
+      return [accessor(node2), setMemo.bind(null, node2)];
+    }
+    const node = signal(first, second);
+    registerGraph(node, getOwner());
+    return [accessor(node), setSignal.bind(null, node)];
+  }
+  function createMemo(compute, options2) {
+    return accessor(computed(compute, options2));
+  }
+  function createRenderEffect(compute, effectFn, options2) {
+    effect(compute, effectFn, undefined, { ...options2, name: options2?.name ?? "effect" });
+  }
+  var ownedRaw = new WeakSet;
+  var storeNextLookup = new WeakMap;
+  var $TRACK = Symbol("STORE_TRACK");
+  var $TARGET = Symbol("STORE_TARGET");
+  var $PROXY = Symbol("STORE_PROXY");
+  var $AFFECTS = Symbol("STORE_AFFECTS");
+  var rawValues = new WeakSet;
+  var OBJECT_PROTO = Object.prototype;
+  var wrappableProtos = new WeakMap;
+  function ownEnumerableKeys(o2) {
+    return Reflect.ownKeys(o2).filter((k2) => Object.prototype.propertyIsEnumerable.call(o2, k2));
+  }
+  function inheritAffectsMarks(node, raw, property) {
+    for (const [carrier, entry] of affectsScopes) {
+      if (carrier._x?._affectsCount && entry.scope.has(raw) && (entry.key === undefined || entry.key === property)) {
+        GlobalQueue._markAffects(node);
+        entry.inherited.push(node);
+      }
+    }
+  }
+  var affectsScopes = new Map;
+  var nextAffectsNodeResolver = null;
+  function setNextAffectsNodeResolver(fn) {
+    nextAffectsNodeResolver = fn;
+  }
+  function affectsScopesLive() {
+    return affectsScopes.size > 0;
+  }
+  function markAffects(node) {
+    ext(node)._affectsCount = (node._x?._affectsCount || 0) + 1;
+    shiftAffectsMarks(1);
+  }
+  function releaseAffectsMark(node) {
+    shiftAffectsMarks(-1);
+    node._x._affectsCount--;
+    if (!node._x._affectsCount) {
+      GlobalQueue._repollVerdicts !== null && GlobalQueue._repollVerdicts(node, true);
+      GlobalQueue._releaseAffectsScope?.(node);
+    }
+  }
+  function releaseAffectsMarks(nodes) {
+    for (let i2 = 0;i2 < nodes.length; i2++)
+      releaseAffectsMark(nodes[i2]);
+    nodes.length = 0;
+  }
+  GlobalQueue._releaseAffectsMarks = releaseAffectsMarks;
+  GlobalQueue._markAffects = markAffects;
+  GlobalQueue._releaseAffectsMark = releaseAffectsMark;
+  function TargetShape() {
+    this.v = undefined;
+    this.ch = undefined;
+    this.pb = undefined;
+    this.n = undefined;
+    this.h = undefined;
+    this.k = undefined;
+    this.dk = undefined;
+    this.u = undefined;
+    this.pk = undefined;
+    this.px = undefined;
+    this.d = undefined;
+    this.a = undefined;
+    this.sc = undefined;
+    this.nc = undefined;
+    this.adopted = undefined;
+    this.fam = undefined;
+    this.s = undefined;
+    this.ovl = undefined;
+    this.del = undefined;
+    this.wk = undefined;
+  }
+  TargetShape.prototype = Object.prototype;
+  function getNode(target, key, current) {
+    const nodes = target.n ??= Object.create(null);
+    let node = nodes[key];
+    if (node === undefined) {
+      const created = node = signal(current, {
+        name: attrHooks !== null ? "store." + String(key) : undefined,
+        equals: (a2, b2) => isEqual(a2, b2) || sameLogicalSlot(target, a2, b2),
+        unobserved() {
+          if (created._x?._affectsCount)
+            return;
+          if (target.n && target.n[key] === created) {
+            delete target.n[key];
+            target.nc--;
+          }
+        }
+      }, target.fam?.node ?? undefined);
+      created._config |= CONFIG_OWNED_WRITE;
+      created.acc = isOwnAccessor(target.pb ?? target.v, key);
+      created.px = undefined;
+      created.pxv = undefined;
+      if (target.fam?.opt) {
+        ext(created)._overrideValue = NOT_PENDING;
+        created._config |= CONFIG_OPTIMISTIC;
+      }
+      if (key !== $AFFECTS && affectsScopesLive())
+        inheritAffectsMarks(created, target.v, key);
+      nodes[key] = node;
+      target.nc++;
+      markDescendants(target);
+    }
+    return node;
+  }
+  function sameLogicalSlot(target, a2, b2) {
+    if (a2 === null || typeof a2 !== "object" || b2 === null || typeof b2 !== "object")
+      return false;
+    const map = target.fam?.map ?? storeNextLookup;
+    const at2 = map.get(a2);
+    return at2 !== undefined && at2 === map.get(b2);
+  }
+  function markDescendants(target) {
+    let t2 = target;
+    while (t2 && !t2.d) {
+      t2.d = true;
+      t2 = t2.u;
+    }
+  }
+  var foldOlds = new Map;
+  var WK_ALL = new Set;
+  var FORCE = Symbol();
+  var pendingNotify = new Set;
+  var UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+  var hasOwn = Object.prototype.hasOwnProperty;
+  var lookupGetter = Object.prototype.__lookupGetter__;
+  var lookupSetter = Object.prototype.__lookupSetter__;
+  function isOwnAccessor(src, key) {
+    return hasOwn.call(src, key) && (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined);
+  }
+  setNextAffectsNodeResolver((t2, key) => key === $AFFECTS ? getNode(t2, $AFFECTS, undefined) : getNode(t2, key, (t2.pb ?? t2.v)[key]));
+  var DELETE = Symbol("STORE_PATH_DELETE");
+  function trueFn() {
+    return true;
+  }
+  var propTraps = {
+    get(_2, property, receiver) {
+      if (property === $PROXY)
+        return receiver;
+      return _2.get(property);
+    },
+    has(_2, property) {
+      if (property === $PROXY)
+        return true;
+      return _2.has(property);
+    },
+    set: trueFn,
+    deleteProperty: trueFn,
+    getOwnPropertyDescriptor(_2, property) {
+      return {
+        configurable: true,
+        enumerable: true,
+        get() {
+          return _2.get(property);
+        },
+        set: trueFn,
+        deleteProperty: trueFn
+      };
+    },
+    ownKeys(_2) {
+      return _2.keys();
+    }
+  };
+  function resolveSource(s2) {
+    return !(s2 = typeof s2 === "function" ? s2() : s2) ? {} : s2;
+  }
+  var $SOURCES = Symbol("MERGE_SOURCE");
+  function merge(...sources) {
+    if (sources.length === 1 && typeof sources[0] !== "function")
+      return sources[0];
+    let proxy = false;
+    const flattened = [];
+    for (let i2 = 0;i2 < sources.length; i2++) {
+      const s2 = sources[i2];
+      proxy = proxy || !!s2 && $PROXY in s2;
+      const childSources = !!s2 && s2[$SOURCES];
+      if (childSources) {
+        for (let i3 = 0;i3 < childSources.length; i3++)
+          flattened.push(childSources[i3]);
+      } else
+        flattened.push(typeof s2 === "function" ? (proxy = true, createMemo(s2)) : s2);
+    }
+    if (SUPPORTS_PROXY && proxy) {
+      return new Proxy({
+        get(property) {
+          if (property === $SOURCES)
+            return flattened;
+          for (let i2 = flattened.length - 1;i2 >= 0; i2--) {
+            const s2 = resolveSource(flattened[i2]);
+            if (property in s2)
+              return s2[property];
+          }
+        },
+        has(property) {
+          for (let i2 = flattened.length - 1;i2 >= 0; i2--) {
+            if (property in resolveSource(flattened[i2]))
+              return true;
+          }
+          return false;
+        },
+        keys() {
+          const keys = new Set;
+          for (let i2 = 0;i2 < flattened.length; i2++) {
+            const sourceKeys = ownEnumerableKeys(resolveSource(flattened[i2]));
+            for (let j2 = 0;j2 < sourceKeys.length; j2++)
+              keys.add(sourceKeys[j2]);
+          }
+          return [...keys];
+        }
+      }, propTraps);
+    }
+    const defined = Object.create(null);
+    let nonTargetKey = false;
+    let lastIndex = flattened.length - 1;
+    for (let i2 = lastIndex;i2 >= 0; i2--) {
+      const source = flattened[i2];
+      if (!source) {
+        i2 === lastIndex && lastIndex--;
+        continue;
+      }
+      const sourceKeys = Object.getOwnPropertyNames(source);
+      for (let j2 = sourceKeys.length - 1;j2 >= 0; j2--) {
+        const key = sourceKeys[j2];
+        if (key === "__proto__" || key === "constructor")
+          continue;
+        if (!defined[key]) {
+          nonTargetKey = nonTargetKey || i2 !== lastIndex;
+          const desc = Object.getOwnPropertyDescriptor(source, key);
+          defined[key] = desc.get ? {
+            enumerable: true,
+            configurable: true,
+            get: desc.get.bind(source)
+          } : desc;
+        }
+      }
+    }
+    if (!nonTargetKey)
+      return flattened[lastIndex];
+    const target = {};
+    const definedKeys = Object.keys(defined);
+    for (let i2 = definedKeys.length - 1;i2 >= 0; i2--) {
+      const key = definedKeys[i2], desc = defined[key];
+      if (desc.get)
+        Object.defineProperty(target, key, desc);
+      else
+        target[key] = desc.value;
+    }
+    target[$SOURCES] = flattened;
+    return target;
+  }
+  var ON_INIT = Symbol();
+  function flatten(children, options2) {
+    if (typeof children === "function" && !children.length) {
+      if (options2?.doNotUnwrap)
+        return children;
+      do {
+        children = children();
+      } while (typeof children === "function" && !children.length);
+    }
+    if (options2?.skipNonRendered && (children == null || children === true || children === false || children === ""))
+      return;
+    if (Array.isArray(children)) {
+      let results = [];
+      if (flattenArray(children, results, options2)) {
+        return () => {
+          let nested = [];
+          flattenArray(results, nested, { ...options2, doNotUnwrap: false });
+          return nested;
+        };
+      }
+      return results;
+    }
+    return children;
+  }
+  function flattenArray(children, results = [], options2) {
+    let notReady = null;
+    let needsUnwrap = false;
+    for (let i2 = 0;i2 < children.length; i2++) {
+      try {
+        let child = children[i2];
+        if (typeof child === "function" && !child.length) {
+          if (options2?.doNotUnwrap) {
+            results.push(child);
+            needsUnwrap = true;
+            continue;
+          }
+          do {
+            child = child();
+          } while (typeof child === "function" && !child.length);
+        }
+        if (Array.isArray(child)) {
+          needsUnwrap = flattenArray(child, results, options2);
+        } else if (options2?.skipNonRendered && (child == null || child === true || child === false || child === "")) {} else
+          results.push(child);
+      } catch (e2) {
+        if (!(e2 instanceof NotReadyError))
+          throw e2;
+        notReady = e2;
+      }
+    }
+    if (notReady)
+      throw notReady;
+    return needsUnwrap;
+  }
+
+  // node_modules/.bun/solid-js@2.0.0-rc.2/node_modules/solid-js/dist/dev.js
+  var $DEVCOMP = Symbol("COMPONENT_DEV");
+  function createContext(defaultValue, options2) {
+    const id = Symbol(options2 && options2.name || "");
+    function provider(props) {
+      return createRoot(() => {
+        setContext(provider, props.value);
+        return children(() => props.children);
+      });
+    }
+    provider.id = id;
+    provider.defaultValue = defaultValue;
+    return provider;
+  }
+  function useContext(context2) {
+    return getContext(context2);
+  }
+  function children(fn) {
+    const c2 = createMemo(fn, {
+      lazy: true
+    });
+    const memo = createMemo(() => flatten(c2()), {
+      name: "children",
+      lazy: true,
+      sync: true
+    });
+    memo.toArray = () => {
+      const v2 = memo();
+      return Array.isArray(v2) ? v2 : v2 != null ? [v2] : [];
+    };
+    return memo;
+  }
+  function devComponent(Comp, props) {
+    if (typeof Comp !== "function") {
+      throw new Error(`createComponent: expected a component function but got ${Comp === null ? "null" : typeof Comp}. A JSX tag resolved to a non-function value — check the import: a missing or misnamed export resolves to undefined.`);
+    }
+    return createRoot(() => {
+      const owner = getOwner();
+      owner._component = {
+        fn: Comp,
+        props,
+        name: Comp.name
+      };
+      Object.assign(Comp, {
+        [$DEVCOMP]: true
+      });
+      return untrack(() => Comp(props), `<${Comp.name || "Anonymous"}>`);
+    }, {
+      transparent: true
+    });
+  }
+  var NoHydrateContext = {
+    id: Symbol("NoHydrateContext"),
+    defaultValue: false
+  };
+  var _createMemo;
+  var _createSignal;
+  var _createRenderEffect;
+  var LIVE_SOURCE = Symbol.for("solid.LiveSource");
+  var createMemo2 = (...args) => {
+    return (_createMemo || createMemo)(...args);
+  };
+  var createSignal2 = (...args) => {
+    return (_createSignal || createSignal)(...args);
+  };
+  var createRenderEffect2 = (...args) => (_createRenderEffect || createRenderEffect)(...args);
+  var _fragments = new Map;
+  var _truncated = new Set;
+  var _revealSubs = new Set;
+  var _truncationRejectors = new Map;
+  function createComponent(Comp, props) {
+    return devComponent(Comp, props || {});
+  }
+  if (globalThis) {
+    if (!globalThis.Solid$$)
+      globalThis.Solid$$ = true;
+    else
+      console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
+  }
+
   // packages/core/src/protocol/resource-key.ts
   var U32_MAX = 4294967295;
   var resourceKeyFamily = Symbol("wabou.resource-key-family");
@@ -3328,9 +7289,9 @@
       this.#entries.length = 0;
     }
   }
-  function createResourceKeyFamily(name, options = {}) {
+  function createResourceKeyFamily(name, options2 = {}) {
     const token = Symbol(`wabou.resource-key.${name}`);
-    const runtimeBrand = options.runtimeBrand ?? true;
+    const runtimeBrand = options2.runtimeBrand ?? true;
     const fromParts = (lo2, hi) => {
       const parts = validateResourceKeyParts({ lo: lo2, hi }, `${name} key`);
       if (runtimeBrand) {
@@ -3922,3236 +7883,6 @@
       return out;
     }
   }
-  // node_modules/.bun/@solidjs+signals@2.0.0-rc.1/node_modules/@solidjs/signals/dist/dev.js
-  class NotReadyError extends Error {
-    source;
-    constructor(source) {
-      super();
-      this.source = source;
-    }
-  }
-
-  class StatusError extends Error {
-    source;
-    constructor(source, original) {
-      super(original instanceof Error ? original.message : String(original), {
-        cause: original
-      });
-      this.source = source;
-    }
-  }
-  function unwrapStatusError(error) {
-    return error instanceof StatusError ? error.cause : error;
-  }
-
-  class NoOwnerError extends Error {
-    constructor() {
-      super("Context can only be accessed under a reactive root.");
-    }
-  }
-
-  class ContextNotFoundError extends Error {
-    constructor() {
-      super("Context must either be created with a default value or a value must be provided before accessing it.");
-    }
-  }
-  var REACTIVE_NONE = 0;
-  var REACTIVE_CHECK = 1 << 0;
-  var REACTIVE_DIRTY = 1 << 1;
-  var REACTIVE_RECOMPUTING_DEPS = 1 << 2;
-  var REACTIVE_IN_HEAP = 1 << 3;
-  var REACTIVE_IN_HEAP_HEIGHT = 1 << 4;
-  var REACTIVE_ZOMBIE = 1 << 5;
-  var REACTIVE_DISPOSED = 1 << 6;
-  var REACTIVE_OPTIMISTIC_DIRTY = 1 << 7;
-  var REACTIVE_SNAPSHOT_STALE = 1 << 8;
-  var REACTIVE_LAZY = 1 << 9;
-  var REACTIVE_MANUAL_WRITE = 1 << 10;
-  var REACTIVE_REASK = 1 << 11;
-  var CONFIG_OWNED_WRITE = 1 << 0;
-  var CONFIG_NO_SNAPSHOT = 1 << 1;
-  var CONFIG_TRANSPARENT = 1 << 2;
-  var CONFIG_IN_SNAPSHOT_SCOPE = 1 << 3;
-  var CONFIG_CHILDREN_FORBIDDEN = 1 << 4;
-  var CONFIG_AUTO_DISPOSE = 1 << 5;
-  var CONFIG_SYNC = 1 << 6;
-  var STATUS_PENDING = 1 << 0;
-  var STATUS_ERROR = 1 << 1;
-  var STATUS_UNINITIALIZED = 1 << 2;
-  var EFFECT_RENDER = 1;
-  var EFFECT_USER = 2;
-  var EFFECT_TRACKED = 3;
-  var NOT_PENDING = {};
-  var NO_SNAPSHOT = {};
-  var OVERRIDE_UNDEFINED = {};
-  function unwrapOverride(v2) {
-    return v2 === OVERRIDE_UNDEFINED ? undefined : v2;
-  }
-  var SUPPORTS_PROXY = typeof Proxy === "function";
-  var defaultContext = {};
-  var $REFRESH = Symbol("refresh");
-  var hooks = {};
-  var diagnosticListeners = new Set;
-  var diagnosticCaptures = new Set;
-  var diagnosticSequence = 0;
-  var diagnostics = {
-    subscribe(listener) {
-      diagnosticListeners.add(listener);
-      return () => diagnosticListeners.delete(listener);
-    },
-    capture() {
-      const events = [];
-      diagnosticCaptures.add(events);
-      return {
-        get events() {
-          return events;
-        },
-        clear() {
-          events.length = 0;
-        },
-        stop() {
-          diagnosticCaptures.delete(events);
-          return [...events];
-        }
-      };
-    }
-  };
-  var DEV$1 = {
-    hooks,
-    diagnostics,
-    getChildren,
-    getSignals,
-    getParent,
-    getSources,
-    getObservers
-  };
-  function emitDiagnostic(event) {
-    const entry = {
-      sequence: ++diagnosticSequence,
-      ...event
-    };
-    for (const listener of diagnosticListeners)
-      listener(entry);
-    for (const capture of diagnosticCaptures)
-      capture.push(entry);
-    return entry;
-  }
-  function throwPendingUntrackedRead(strictReadLabel, fields) {
-    const message = `[PENDING_ASYNC_UNTRACKED_READ] Reading a pending async value directly in ${strictReadLabel}. ` + `Async values must be read within a tracking scope (JSX, a memo, or an effect's compute function).`;
-    emitDiagnostic({
-      code: "PENDING_ASYNC_UNTRACKED_READ",
-      kind: "async",
-      severity: "error",
-      message,
-      ...fields,
-      data: { strictRead: strictReadLabel }
-    });
-    throw new Error(message);
-  }
-  function warnStrictReadUntracked(strictReadLabel, fields) {
-    const message = `[STRICT_READ_UNTRACKED] Reactive value read directly in ${strictReadLabel} will not update. ` + `Move it into a tracking scope (JSX, a memo, or an effect's compute function).`;
-    emitDiagnostic({
-      code: "STRICT_READ_UNTRACKED",
-      kind: "strict-read",
-      severity: "warn",
-      message,
-      data: { strictRead: strictReadLabel },
-      ...fields
-    });
-    console.warn(message);
-  }
-  function registerGraph(value, owner) {
-    value._owner = owner;
-    if (owner) {
-      if (!owner._signals)
-        owner._signals = [];
-      owner._signals.push(value);
-    }
-    DEV$1.hooks.onGraph?.(value, owner);
-  }
-  function clearSignals(node) {
-    node._signals = undefined;
-  }
-  function getChildren(owner) {
-    const children = [];
-    let child = owner._firstChild;
-    while (child) {
-      children.push(child);
-      child = child._nextSibling;
-    }
-    return children;
-  }
-  function getSignals(owner) {
-    return owner._signals ? [...owner._signals] : [];
-  }
-  function getParent(owner) {
-    return owner._parent;
-  }
-  function getSources(computation) {
-    const sources = [];
-    let link = computation._deps;
-    while (link) {
-      sources.push(link._dep);
-      link = link._nextDep;
-    }
-    return sources;
-  }
-  function getObservers(node) {
-    const observers = [];
-    let link = node._subs;
-    while (link) {
-      observers.push(link._sub);
-      link = link._nextSub;
-    }
-    return observers;
-  }
-  function createAsyncReporters() {
-    return new Map;
-  }
-  function devCheckActiveOverrides(isRegisteredForRevert) {
-    return;
-  }
-  function devCheckFlushStart() {
-    return;
-  }
-  typeof globalThis !== "undefined" && globalThis.process?.env?.COMPANION_CENSUS;
-  function devCensusCompanions(isQueuedForCommit) {
-    return;
-  }
-  function devCheckQuiescent(isQueuedForCommit) {
-    return;
-  }
-  var signalLanes = new WeakMap;
-  var activeLanes = new Set;
-  function getOrCreateLane(signal) {
-    let lane = signalLanes.get(signal);
-    if (lane) {
-      return findLane(lane);
-    }
-    const parentSource = signal._parentSource;
-    const parentLane = parentSource?._optimisticLane ? findLane(parentSource._optimisticLane) : null;
-    lane = {
-      _source: signal,
-      _pendingAsync: new Set,
-      _effectQueues: [[], []],
-      _mergedInto: null,
-      _transition: activeTransition,
-      _parentLane: parentLane
-    };
-    signalLanes.set(signal, lane);
-    activeLanes.add(lane);
-    adoptCompanionLane(signal._pendingSignal, lane);
-    adoptCompanionLane(signal._latestValueComputed, lane);
-    return lane;
-  }
-  function adoptCompanionLane(companion, parent) {
-    if (!companion)
-      return;
-    const companionLane = signalLanes.get(companion);
-    if (!companionLane)
-      return;
-    const root = findLane(companionLane);
-    if (root !== parent && root._source === companion && !root._parentLane)
-      root._parentLane = parent;
-  }
-  function findLane(lane) {
-    while (lane._mergedInto)
-      lane = lane._mergedInto;
-    return lane;
-  }
-  function mergeLanes(lane1, lane2) {
-    lane1 = findLane(lane1);
-    lane2 = findLane(lane2);
-    if (lane1 === lane2)
-      return lane1;
-    lane2._mergedInto = lane1;
-    for (const node of lane2._pendingAsync)
-      lane1._pendingAsync.add(node);
-    lane2._pendingAsync.clear();
-    lane1._effectQueues[0].push(...lane2._effectQueues[0]);
-    lane1._effectQueues[1].push(...lane2._effectQueues[1]);
-    lane2._effectQueues[0].length = 0;
-    lane2._effectQueues[1].length = 0;
-    return lane1;
-  }
-  function resolveLane(el) {
-    const lane = el._optimisticLane;
-    if (!lane)
-      return;
-    const root = findLane(lane);
-    if (activeLanes.has(root))
-      return root;
-    el._optimisticLane = undefined;
-    return;
-  }
-  function resolveTransition(el) {
-    if (hasActiveOverride$1(el) && el._overrideOwner) {
-      const owner = el._overrideOwner = currentTransition(el._overrideOwner);
-      if (owner._done !== true)
-        return owner;
-      el._overrideOwner = null;
-    }
-    return resolveLane(el)?._transition ?? el._transition;
-  }
-  function hasActiveOverride$1(el) {
-    return !!(el._overrideValue !== undefined && el._overrideValue !== NOT_PENDING);
-  }
-  function assignOrMergeLane(el, sourceLane) {
-    const sourceRoot = findLane(sourceLane);
-    const existing = el._optimisticLane;
-    if (existing) {
-      if (existing._mergedInto) {
-        el._optimisticLane = sourceLane;
-        return;
-      }
-      const existingRoot = findLane(existing);
-      if (activeLanes.has(existingRoot)) {
-        if (existingRoot !== sourceRoot && !hasActiveOverride$1(el)) {
-          if (sourceRoot._parentLane && findLane(sourceRoot._parentLane) === existingRoot) {
-            el._optimisticLane = sourceLane;
-          } else if (existingRoot._parentLane && findLane(existingRoot._parentLane) === sourceRoot)
-            ;
-          else
-            mergeLanes(sourceRoot, existingRoot);
-        }
-        return;
-      }
-    }
-    el._optimisticLane = sourceLane;
-  }
-  var transitions = new Set;
-  var dirtyQueue = {
-    _heap: new Array(2000).fill(undefined),
-    _marked: false,
-    _min: 0,
-    _max: 0
-  };
-  var zombieQueue = {
-    _heap: new Array(2000).fill(undefined),
-    _marked: false,
-    _min: 0,
-    _max: 0
-  };
-  function cancelZombieRecompute(el) {
-    if (el._flags & REACTIVE_IN_HEAP_HEIGHT)
-      el._flags &= -12;
-    else {
-      deleteFromHeap(el, zombieQueue);
-      el._flags &= -4;
-    }
-  }
-  var clock = 0;
-  var activeTransition = null;
-  var scheduled = false;
-  var halted = false;
-  var haltNotified = false;
-  var syncDepth = 0;
-  var projectionWriteActive = false;
-  var inTrackedQueueCallback = false;
-  var _enforceLoadingBoundary = false;
-  var _hitUnhandledAsync = false;
-  var transientStoreNodes = new Set;
-  function canUseSimpleSyncFlush(queue) {
-    const batch = queue._batch;
-    return transitions.size === 0 && activeLanes.size === 0 && queue._children.length === 0 && batch._optimisticNodes.length === 0 && batch._affectsNodes.length === 0 && batch._optimisticStores.size === 0 && transientStoreNodes.size === 0;
-  }
-  function sweepTransientStoreNodes() {
-    if (transientStoreNodes.size === 0)
-      return;
-    for (const node of transientStoreNodes) {
-      if (node._subs !== null) {
-        transientStoreNodes.delete(node);
-        continue;
-      }
-      if (node._pendingValue !== NOT_PENDING)
-        continue;
-      if (node._overrideValue !== undefined && node._overrideValue !== NOT_PENDING)
-        continue;
-      if (node._affectsCount)
-        continue;
-      transientStoreNodes.delete(node);
-      node._unobserved?.();
-    }
-  }
-  function resetUnhandledAsync() {
-    _hitUnhandledAsync = false;
-  }
-  var inEffectCallback = false;
-  function setEffectCallback(value) {
-    inEffectCallback = value;
-  }
-  function createBatch() {
-    return {
-      _time: clock,
-      _pendingNodes: [],
-      _asyncReporters: createAsyncReporters(),
-      _optimisticNodes: [],
-      _affectsNodes: [],
-      _optimisticStores: new Set,
-      _actions: [],
-      _queueStash: { _queues: [[], []], _children: [] },
-      _done: false,
-      _gatedSubs: new Set
-    };
-  }
-  function mergeTransitionState(target, outgoing) {
-    outgoing._done = target;
-    target._actions.push(...outgoing._actions);
-    for (const lane of activeLanes)
-      if (lane._transition === outgoing)
-        lane._transition = target;
-    if (outgoing._optimisticNodes.length) {
-      target._optimisticNodes.push(...outgoing._optimisticNodes);
-      outgoing._optimisticNodes.length = 0;
-    }
-    if (outgoing._affectsNodes.length) {
-      target._affectsNodes.push(...outgoing._affectsNodes);
-      outgoing._affectsNodes.length = 0;
-    }
-    for (const store of outgoing._optimisticStores)
-      target._optimisticStores.add(store);
-    for (const [source, reporters] of outgoing._asyncReporters) {
-      let targetReporters = target._asyncReporters.get(source);
-      if (!targetReporters)
-        target._asyncReporters.set(source, targetReporters = new Set);
-      for (const reporter of reporters)
-        targetReporters.add(reporter);
-    }
-    for (const sub of outgoing._gatedSubs)
-      target._gatedSubs.add(sub);
-  }
-  function schedule() {
-    if (halted) {
-      notifyHalted();
-      return;
-    }
-    if (scheduled)
-      return;
-    scheduled = true;
-    if (!syncDepth && !globalQueue._running && !projectionWriteActive)
-      queueMicrotask(flush);
-  }
-  function haltReactivity(cause) {
-    if (halted)
-      return;
-    halted = true;
-    let message = "[REACTIVITY_HALTED]";
-    {
-      message += " An uncaught error halted the reactive system. No further updates will be processed. Handle errors with createErrorBoundary/<Errored> or treat this as a crash.";
-      emitDiagnostic({
-        code: "REACTIVITY_HALTED",
-        kind: "error",
-        severity: "error",
-        message
-      });
-    }
-    cause === undefined ? console.error(message) : console.error(message, cause);
-  }
-  function notifyHalted() {
-    if (haltNotified)
-      return;
-    haltNotified = true;
-    console.error("[REACTIVITY_HALTED] Update ignored: the reactive system was halted by an earlier uncaught error.");
-  }
-  var queueRunToken = 0;
-
-  class Queue {
-    _parent = null;
-    _queues = [[], []];
-    _children = [];
-    _ranAt = 0;
-    created = clock;
-    addChild(child) {
-      this._children.push(child);
-      child._parent = this;
-    }
-    removeChild(child) {
-      const index = this._children.indexOf(child);
-      if (index >= 0) {
-        this._children.splice(index, 1);
-        child._parent = null;
-      }
-    }
-    notify(node, mask, flags, error) {
-      if (this._parent)
-        return this._parent.notify(node, mask, flags, error);
-      return false;
-    }
-    run(type) {
-      if (this._queues[type - 1].length) {
-        const effects = this._queues[type - 1];
-        this._queues[type - 1] = [];
-        runQueue$1(effects, type);
-      }
-      const children = this._children;
-      const token = ++queueRunToken;
-      for (let i2 = 0;i2 < children.length; ) {
-        const child = children[i2];
-        if (child._ranAt !== token) {
-          child._ranAt = token;
-          child.run?.(type);
-          if (children[i2] !== child) {
-            i2 = 0;
-            continue;
-          }
-        }
-        i2++;
-      }
-    }
-    enqueue(type, fn) {
-      if (type) {
-        if (currentOptimisticLane) {
-          const lane = findLane(currentOptimisticLane);
-          lane._effectQueues[type - 1].push(fn);
-        } else {
-          this._queues[type - 1].push(fn);
-        }
-      }
-      schedule();
-    }
-    stashQueues(stub) {
-      stub._queues[0].push(...this._queues[0]);
-      stub._queues[1].push(...this._queues[1]);
-      this._queues = [[], []];
-      for (let i2 = 0;i2 < this._children.length; i2++) {
-        let child = this._children[i2];
-        let childStub = stub._children[i2];
-        if (!childStub) {
-          childStub = { _queues: [[], []], _children: [] };
-          stub._children[i2] = childStub;
-        }
-        child.stashQueues(childStub);
-      }
-    }
-    restoreQueues(stub) {
-      this._queues[0].push(...stub._queues[0]);
-      this._queues[1].push(...stub._queues[1]);
-      for (let i2 = 0;i2 < stub._children.length; i2++) {
-        const childStub = stub._children[i2];
-        let child = this._children[i2];
-        if (child)
-          child.restoreQueues(childStub);
-      }
-    }
-  }
-
-  class GlobalQueue extends Queue {
-    _running = false;
-    _batch = createBatch();
-    static _update;
-    static _dispose;
-    static _runEffect;
-    static _clearOptimisticStores = null;
-    static _releaseAffectsScope = null;
-    static _releaseAffectsMarks = null;
-    static _markAffects = null;
-    static _releaseAffectsMark = null;
-    static _wireExternalSource = null;
-    static _externalUntrack = null;
-    static _syncCompanions = null;
-    static _updatePendingSignal = null;
-    static _updateChildCompanions = null;
-    static _snapCompanions = null;
-    static _latestRead = null;
-    static _pendingCheck = null;
-    static _recordFresh = null;
-    static _applyReask = null;
-    static _repollVerdicts = null;
-    static _witnessAffects = null;
-    static _optimisticWrite = null;
-    static _resolveOptimistic = null;
-    static _transitionBlocked = null;
-    static _cleanupLanes = null;
-    static _runLaneEffects = null;
-    static _gatedRead = null;
-    static _laneSuspends = null;
-    static _laneReadsCommitted = null;
-    static _recomputeLane = null;
-    static _laneAsyncPending = null;
-    static _laneAsyncSettled = null;
-    static _trackOptimisticStore = null;
-    flush() {
-      if (this._running)
-        return;
-      this._running = true;
-      try {
-        if (true)
-          devCheckFlushStart();
-        runHeap(dirtyQueue, GlobalQueue._update);
-        if (activeTransition) {
-          const isComplete = transitionComplete(activeTransition);
-          if (!isComplete) {
-            const stashedTransition = activeTransition;
-            runHeap(zombieQueue, this._batch === stashedTransition ? cancelZombieRecompute : GlobalQueue._update);
-            if (this._batch === stashedTransition)
-              currentBatch = this._batch = createBatch();
-            if (activeLanes.size) {
-              GlobalQueue._runLaneEffects(EFFECT_RENDER);
-              GlobalQueue._runLaneEffects(EFFECT_USER);
-            }
-            this.stashQueues(stashedTransition._queueStash);
-            clock++;
-            scheduled = dirtyQueue._max >= dirtyQueue._min || this._batch._pendingNodes.length > 0;
-            reassignPendingTransition(stashedTransition._pendingNodes);
-            activeTransition = null;
-            finalizePureQueue(null, true);
-            return;
-          }
-          const completingTransition = activeTransition;
-          const batch = this._batch;
-          batch !== completingTransition && batch._pendingNodes.push(...completingTransition._pendingNodes);
-          this.restoreQueues(completingTransition._queueStash);
-          transitions.delete(completingTransition);
-          activeTransition = null;
-          reassignPendingTransition(batch._pendingNodes);
-          finalizePureQueue(completingTransition);
-          if (batch === completingTransition) {
-            const fresh = createBatch();
-            fresh._pendingNodes = batch._pendingNodes;
-            fresh._optimisticNodes = batch._optimisticNodes;
-            fresh._affectsNodes = batch._affectsNodes;
-            fresh._optimisticStores = batch._optimisticStores;
-            currentBatch = this._batch = fresh;
-          }
-        } else {
-          if (canUseSimpleSyncFlush(this)) {
-            commitPendingNodes();
-            if (dirtyQueue._max >= dirtyQueue._min) {
-              runHeap(dirtyQueue, GlobalQueue._update);
-              commitPendingNodes();
-            }
-          } else {
-            if (transitions.size)
-              runHeap(zombieQueue, GlobalQueue._update);
-            finalizePureQueue();
-          }
-        }
-        clock++;
-        scheduled = dirtyQueue._max >= dirtyQueue._min;
-        activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_RENDER);
-        this.run(EFFECT_RENDER);
-        activeLanes.size && GlobalQueue._runLaneEffects(EFFECT_USER);
-        this.run(EFFECT_USER);
-        if (true) {
-          devCheckActiveOverrides((n2) => {
-            if (this._batch._optimisticNodes.includes(n2))
-              return true;
-            if (activeTransition?._optimisticNodes.includes(n2))
-              return true;
-            for (const t2 of transitions)
-              if (t2._optimisticNodes.includes(n2))
-                return true;
-            return false;
-          });
-          devCensusCompanions((n2) => this._batch._pendingNodes.includes(n2));
-        }
-        if (!scheduled && !activeTransition && transitions.size === 0 && activeLanes.size === 0) {
-          devCheckQuiescent((n2) => this._batch._pendingNodes.includes(n2));
-        }
-        if (true)
-          DEV$1.hooks.onUpdate?.();
-      } finally {
-        this._running = false;
-      }
-    }
-    notify(node, mask, flags, error) {
-      if (mask & STATUS_PENDING) {
-        if (flags & STATUS_PENDING) {
-          const actualError = error !== undefined ? error : node._error;
-          if (actualError?._markVisual)
-            return true;
-          if (activeTransition && actualError) {
-            const source = actualError.source;
-            let reporters = activeTransition._asyncReporters.get(source);
-            if (!reporters)
-              activeTransition._asyncReporters.set(source, reporters = new Set);
-            const prevSize = reporters.size;
-            reporters.add(node);
-            if (reporters.size !== prevSize)
-              schedule();
-          }
-          if (_enforceLoadingBoundary)
-            _hitUnhandledAsync = true;
-        }
-        return true;
-      }
-      return false;
-    }
-    initTransition(transition) {
-      if (transition)
-        transition = currentTransition(transition);
-      if (transition && transition === activeTransition)
-        return;
-      if (!transition && activeTransition && activeTransition._time === clock)
-        return;
-      if (!activeTransition) {
-        activeTransition = transition ?? createBatch();
-      } else if (transition) {
-        const outgoing = activeTransition;
-        mergeTransitionState(transition, outgoing);
-        transitions.delete(outgoing);
-        activeTransition = transition;
-      }
-      transitions.add(activeTransition);
-      activeTransition._time = clock;
-      const batch = this._batch;
-      if (batch !== activeTransition) {
-        for (let i2 = 0;i2 < batch._pendingNodes.length; i2++) {
-          const node = batch._pendingNodes[i2];
-          node._transition = activeTransition;
-          activeTransition._pendingNodes.push(node);
-        }
-        for (let i2 = 0;i2 < batch._optimisticNodes.length; i2++) {
-          const node = batch._optimisticNodes[i2];
-          node._transition = activeTransition;
-          activeTransition._optimisticNodes.push(node);
-        }
-        if (batch._affectsNodes.length)
-          activeTransition._affectsNodes.push(...batch._affectsNodes);
-        for (const store of batch._optimisticStores)
-          activeTransition._optimisticStores.add(store);
-        if (batch._gatedSubs.size) {
-          for (const sub of batch._gatedSubs)
-            activeTransition._gatedSubs.add(sub);
-          batch._gatedSubs.clear();
-        }
-        currentBatch = this._batch = activeTransition;
-      }
-      for (const lane of activeLanes) {
-        if (!lane._transition)
-          lane._transition = activeTransition;
-      }
-    }
-  }
-  function queuePendingNode(node) {
-    currentBatch._pendingNodes.push(node);
-  }
-  var reaskArmed = false;
-  function insertSubs(node, optimistic = false) {
-    const sourceLane = node._optimisticLane || currentOptimisticLane;
-    const hasSnapshot = node._snapshotValue !== undefined;
-    const clearReask = reaskArmed;
-    for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub) {
-      if (clearReask)
-        s2._sub._flags &= ~REACTIVE_REASK;
-      if (hasSnapshot && s2._sub._config & CONFIG_IN_SNAPSHOT_SCOPE) {
-        s2._sub._flags |= REACTIVE_SNAPSHOT_STALE;
-        continue;
-      }
-      if (optimistic && sourceLane) {
-        s2._sub._flags |= REACTIVE_OPTIMISTIC_DIRTY;
-        assignOrMergeLane(s2._sub, sourceLane);
-      } else if (optimistic) {
-        s2._sub._flags |= REACTIVE_OPTIMISTIC_DIRTY;
-        s2._sub._optimisticLane = undefined;
-      }
-      enqueueSub(s2._sub);
-    }
-  }
-  function commitPendingNode(n2) {
-    const c2 = n2;
-    if (!c2._fn) {
-      if (n2._pendingValue !== NOT_PENDING) {
-        n2._value = n2._pendingValue;
-        n2._pendingValue = NOT_PENDING;
-      }
-      if (n2._pendingSignal || n2._latestValueComputed)
-        GlobalQueue._snapCompanions(n2);
-      return;
-    }
-    if (n2._pendingValue !== NOT_PENDING) {
-      n2._value = n2._pendingValue;
-      n2._pendingValue = NOT_PENDING;
-      if (n2._type && n2._type !== EFFECT_TRACKED)
-        n2._modified = true;
-    }
-    c2._loading = false;
-    c2._flags &= ~REACTIVE_MANUAL_WRITE;
-    if (!(c2._statusFlags & STATUS_PENDING))
-      c2._statusFlags &= ~STATUS_UNINITIALIZED;
-    if (c2._pendingFirstChild !== null || c2._pendingDisposal !== null)
-      GlobalQueue._dispose(c2, false, true);
-    if (n2._pendingSignal || n2._latestValueComputed)
-      GlobalQueue._snapCompanions(n2);
-  }
-  var storeCommitHook = null;
-  function commitPendingNodes() {
-    const pendingNodes = currentBatch._pendingNodes;
-    for (let i2 = 0;i2 < pendingNodes.length; i2++) {
-      commitPendingNode(pendingNodes[i2]);
-    }
-    pendingNodes.length = 0;
-    storeCommitHook?.();
-  }
-  function finalizePureQueue(completingTransition = null, incomplete = false) {
-    const resolvePending = !incomplete;
-    if (resolvePending)
-      commitPendingNodes();
-    if (!incomplete && globalQueue._children.length)
-      checkBoundaryChildren(globalQueue);
-    const ranHeap = dirtyQueue._max >= dirtyQueue._min;
-    if (ranHeap)
-      runHeap(dirtyQueue, GlobalQueue._update);
-    if (resolvePending) {
-      if (ranHeap)
-        commitPendingNodes();
-      const batch = completingTransition ?? globalQueue._batch;
-      if (batch._optimisticNodes.length)
-        GlobalQueue._resolveOptimistic(batch._optimisticNodes);
-      if (batch._gatedSubs.size) {
-        for (const sub of batch._gatedSubs) {
-          if (sub._flags & REACTIVE_DISPOSED)
-            continue;
-          enqueueSub(sub);
-        }
-        batch._gatedSubs.clear();
-        schedule();
-      }
-      if (batch._affectsNodes.length) {
-        GlobalQueue._releaseAffectsMarks(batch._affectsNodes);
-        if (globalQueue._children.length)
-          checkBoundaryChildren(globalQueue);
-      }
-      if (batch._optimisticStores.size)
-        GlobalQueue._clearOptimisticStores(batch._optimisticStores, completingTransition);
-      sweepTransientStoreNodes();
-      if (activeLanes.size)
-        GlobalQueue._cleanupLanes(completingTransition);
-    }
-  }
-  function checkBoundaryChildren(queue) {
-    for (const child of queue._children) {
-      child._checkSources?.();
-      checkBoundaryChildren(child);
-    }
-  }
-  var activeAffectsMarks = 0;
-  function shiftAffectsMarks(delta) {
-    activeAffectsMarks += delta;
-  }
-  function reassignPendingTransition(pendingNodes) {
-    for (let i2 = 0;i2 < pendingNodes.length; i2++) {
-      pendingNodes[i2]._transition = activeTransition;
-    }
-  }
-  var globalQueue = new GlobalQueue;
-  var currentBatch = globalQueue._batch;
-  function flush(fn) {
-    if (fn) {
-      syncDepth++;
-      try {
-        return fn();
-      } finally {
-        try {
-          flush();
-        } finally {
-          syncDepth--;
-        }
-      }
-    }
-    if (globalQueue._running) {
-      if (inTrackedQueueCallback) {
-        throw new Error("Cannot call flush() from inside onSettled or createTrackedEffect. flush() is not reentrant there. " + "Writes made here are processed in the same flush's continuation; to force a drain afterwards, defer it: queueMicrotask(() => flush()).");
-      }
-      if (inEffectCallback) {
-        const message = "[FLUSH_IN_EFFECT_CALLBACK] flush() called from inside an effect callback is a no-op: the flush that runs effects is already in progress. " + "Writes made here are processed in the same flush's continuation; to force a drain afterwards, defer it: queueMicrotask(() => flush()).";
-        emitDiagnostic({
-          code: "FLUSH_IN_EFFECT_CALLBACK",
-          kind: "lifecycle",
-          severity: "warn",
-          message
-        });
-        console.warn(message);
-      }
-      return;
-    }
-    if (halted)
-      return;
-    let count = 0;
-    while (scheduled || activeTransition) {
-      if (++count === 1e5)
-        throw new Error("Potential Infinite Loop Detected.");
-      globalQueue.flush();
-    }
-  }
-  function runQueue$1(queue, type) {
-    for (let i2 = 0;i2 < queue.length; i2++)
-      queue[i2](type);
-  }
-  function reporterBlocksSource(reporter, source) {
-    if (reporter._flags & (REACTIVE_ZOMBIE | REACTIVE_DISPOSED))
-      return false;
-    if (reporter._pendingSources?.has(source))
-      return true;
-    for (let dep = reporter._deps;dep; dep = dep._nextDep) {
-      let current = dep._dep;
-      while (current) {
-        if (current === source || current._firewall === source)
-          return true;
-        current = current._parentSource;
-      }
-    }
-    return !!(reporter._statusFlags & STATUS_PENDING && reporter._error instanceof NotReadyError && reporter._error.source === source);
-  }
-  function transitionComplete(transition) {
-    if (transition._done)
-      return true;
-    if (transition._actions.length)
-      return false;
-    let done = true;
-    for (const [source, reporters] of transition._asyncReporters) {
-      let hasLive = false;
-      for (const reporter of reporters) {
-        if (reporterBlocksSource(reporter, source)) {
-          hasLive = true;
-          break;
-        }
-        reporters.delete(reporter);
-      }
-      if (!hasLive)
-        transition._asyncReporters.delete(source);
-      else if (source._statusFlags & STATUS_PENDING && source._error?.source === source) {
-        done = false;
-        break;
-      }
-    }
-    if (done && GlobalQueue._transitionBlocked?.(transition))
-      done = false;
-    done && (transition._done = true);
-    return done;
-  }
-  function currentTransition(transition) {
-    while (transition._done && typeof transition._done === "object")
-      transition = transition._done;
-    return transition;
-  }
-  function runInTransition(transition, fn) {
-    const prevTransition = activeTransition;
-    try {
-      activeTransition = currentTransition(transition);
-      return fn();
-    } finally {
-      activeTransition = prevTransition;
-    }
-  }
-  function queueFor(n2) {
-    return n2._flags & REACTIVE_ZOMBIE ? zombieQueue : dirtyQueue;
-  }
-  function enqueueSub(node) {
-    if (node._type === EFFECT_TRACKED) {
-      const tracked = node;
-      if (!tracked._modified) {
-        tracked._modified = true;
-        tracked._queue.enqueue(EFFECT_USER, tracked._run);
-      }
-      return;
-    }
-    const queue = queueFor(node);
-    if (queue._min > node._height)
-      queue._min = node._height;
-    insertIntoHeap(node, queue);
-  }
-  function actualInsertIntoHeap(n2, heap) {
-    const parentHeight = (n2._parent?._root ? n2._parent._parentComputed?._height : n2._parent?._height) ?? -1;
-    if (parentHeight >= n2._height)
-      n2._height = parentHeight + 1;
-    const height = n2._height;
-    const heapAtHeight = heap._heap[height];
-    if (heapAtHeight === undefined)
-      heap._heap[height] = n2;
-    else {
-      const tail = heapAtHeight._prevHeap;
-      tail._nextHeap = n2;
-      n2._prevHeap = tail;
-      heapAtHeight._prevHeap = n2;
-    }
-    if (height > heap._max)
-      heap._max = height;
-  }
-  function insertIntoHeap(n2, heap) {
-    let flags = n2._flags;
-    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS | REACTIVE_MANUAL_WRITE))
-      return;
-    if (flags & REACTIVE_CHECK) {
-      n2._flags = flags & -4 | REACTIVE_DIRTY | REACTIVE_IN_HEAP;
-    } else {
-      n2._flags = flags | REACTIVE_IN_HEAP;
-      if (heap._marked && !(flags & REACTIVE_DIRTY))
-        heap._marked = false;
-    }
-    if (!(flags & REACTIVE_IN_HEAP_HEIGHT))
-      actualInsertIntoHeap(n2, heap);
-  }
-  function insertIntoHeapHeight(n2, heap) {
-    let flags = n2._flags;
-    if (flags & (REACTIVE_IN_HEAP | REACTIVE_RECOMPUTING_DEPS | REACTIVE_IN_HEAP_HEIGHT | REACTIVE_MANUAL_WRITE))
-      return;
-    n2._flags = flags | REACTIVE_IN_HEAP_HEIGHT;
-    actualInsertIntoHeap(n2, heap);
-  }
-  function deleteFromHeap(n2, heap) {
-    const flags = n2._flags;
-    if (!(flags & (REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT)))
-      return;
-    n2._flags = flags & -25;
-    const height = n2._height;
-    if (n2._prevHeap === n2)
-      heap._heap[height] = undefined;
-    else {
-      const next = n2._nextHeap;
-      const dhh = heap._heap[height];
-      const end = next ?? dhh;
-      if (n2 === dhh)
-        heap._heap[height] = next;
-      else
-        n2._prevHeap._nextHeap = next;
-      end._prevHeap = n2._prevHeap;
-    }
-    n2._prevHeap = n2;
-    n2._nextHeap = undefined;
-  }
-  function markHeap(heap) {
-    if (heap._marked)
-      return;
-    heap._marked = true;
-    for (let i2 = 0;i2 <= heap._max; i2++) {
-      for (let el = heap._heap[i2];el !== undefined; el = el._nextHeap) {
-        if (el._flags & REACTIVE_IN_HEAP)
-          markNode(el);
-      }
-    }
-  }
-  function markNode(el, newState = REACTIVE_DIRTY) {
-    const flags = el._flags;
-    if ((flags & (REACTIVE_CHECK | REACTIVE_DIRTY)) >= newState)
-      return;
-    el._flags = flags & -4 | newState;
-    for (let link = el._subs;link !== null; link = link._nextSub) {
-      markNode(link._sub, REACTIVE_CHECK);
-    }
-    if (el._child !== null) {
-      for (let child = el._child;child !== null; child = child._nextChild) {
-        for (let link = child._subs;link !== null; link = link._nextSub) {
-          markNode(link._sub, REACTIVE_CHECK);
-        }
-      }
-    }
-  }
-  function runHeap(heap, recompute) {
-    heap._marked = false;
-    for (heap._min = 0;heap._min <= heap._max; heap._min++) {
-      let el = heap._heap[heap._min];
-      while (el !== undefined) {
-        if (el._flags & REACTIVE_IN_HEAP)
-          recompute(el);
-        else
-          adjustHeight(el, heap);
-        el = heap._heap[heap._min];
-      }
-    }
-    heap._max = 0;
-  }
-  function adjustHeight(el, heap) {
-    deleteFromHeap(el, heap);
-    let newHeight = el._height;
-    for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-      const dep1 = d2._dep;
-      const dep = dep1._firewall || dep1;
-      if (dep._fn && dep._height >= newHeight)
-        newHeight = dep._height + 1;
-    }
-    if (el._height !== newHeight) {
-      el._height = newHeight;
-      for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub) {
-        insertIntoHeapHeight(s2._sub, queueFor(s2._sub));
-      }
-    }
-  }
-  function markDisposal(el) {
-    let child = el._firstChild;
-    while (child) {
-      const flags = child._flags;
-      child._flags = flags | REACTIVE_ZOMBIE;
-      if (flags & (REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT)) {
-        deleteFromHeap(child, flags & REACTIVE_ZOMBIE ? zombieQueue : dirtyQueue);
-        if (flags & REACTIVE_IN_HEAP)
-          insertIntoHeap(child, zombieQueue);
-        else
-          insertIntoHeapHeight(child, zombieQueue);
-      }
-      markDisposal(child);
-      child = child._nextSibling;
-    }
-  }
-  function disposeChildren(node, self2 = false, zombie) {
-    const flags = node._flags;
-    if (flags & REACTIVE_DISPOSED)
-      return;
-    if (self2) {
-      node._flags = flags | REACTIVE_DISPOSED;
-      const n2 = node;
-      if (n2._pendingSignal || n2._latestValueComputed)
-        GlobalQueue._snapCompanions(n2);
-    }
-    if (self2 && true)
-      clearSignals(node);
-    if (self2 && node._fn)
-      node._inFlight = null;
-    let child = zombie ? node._pendingFirstChild : node._firstChild;
-    while (child) {
-      const nextChild = child._nextSibling;
-      const n2 = child;
-      if (n2._flags & (REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT))
-        deleteFromHeap(n2, queueFor(n2));
-      if (n2._deps) {
-        let toRemove = n2._deps;
-        do {
-          toRemove = unlinkSubs(toRemove);
-        } while (toRemove !== null);
-        n2._deps = null;
-        n2._depsTail = null;
-      }
-      disposeChildren(child, true);
-      child = nextChild;
-    }
-    if (zombie) {
-      node._pendingFirstChild = null;
-    } else {
-      node._firstChild = null;
-      node._childCount = 0;
-    }
-    if (self2 && !zombie && !(flags & REACTIVE_ZOMBIE) && node._parent !== null && !(node._parent._flags & REACTIVE_DISPOSED)) {
-      const prev = node._prevSibling;
-      const next = node._nextSibling;
-      if (prev !== null)
-        prev._nextSibling = next;
-      else
-        node._parent._firstChild = next;
-      if (next !== null)
-        next._prevSibling = prev;
-      node._prevSibling = null;
-    }
-    runDisposal(node, zombie);
-    if (self2 && node._cleanup) {
-      const effectCleanup = node._cleanup;
-      node._cleanup = undefined;
-      effectCleanup();
-    }
-  }
-  function runDisposal(node, zombie) {
-    let disposal = zombie ? node._pendingDisposal : node._disposal;
-    if (!disposal)
-      return;
-    if (Array.isArray(disposal)) {
-      for (let i2 = 0;i2 < disposal.length; i2++) {
-        const callable = disposal[i2];
-        callable.call(callable);
-      }
-    } else {
-      disposal.call(disposal);
-    }
-    zombie ? node._pendingDisposal = null : node._disposal = null;
-  }
-  function childId(owner, consume) {
-    let counter = owner;
-    while (counter._config & CONFIG_TRANSPARENT && counter._parent)
-      counter = counter._parent;
-    if (counter.id != null)
-      return formatId(counter.id, consume ? counter._childCount++ : counter._childCount);
-    throw new Error("Cannot get child id from owner without an id");
-  }
-  function getNextChildId(owner) {
-    return childId(owner, true);
-  }
-  function inheritId(options, transparent, parent) {
-    return options?.id ?? (transparent ? parent?.id : parent?.id != null ? getNextChildId(parent) : undefined);
-  }
-  function formatId(prefix, id) {
-    const num = id.toString(36), len = num.length - 1;
-    return prefix + (len ? String.fromCharCode(64 + len) : "") + num;
-  }
-  function getOwner() {
-    return context;
-  }
-  function cleanup(fn) {
-    if (!context)
-      return fn;
-    if (!context._disposal)
-      context._disposal = fn;
-    else if (Array.isArray(context._disposal))
-      context._disposal.push(fn);
-    else
-      context._disposal = [context._disposal, fn];
-    return fn;
-  }
-  function disposeRootSelf(self2 = true) {
-    disposeChildren(this, self2);
-  }
-  function createOwner(options) {
-    const parent = context;
-    const transparent = options?.transparent ?? false;
-    const owner = {
-      id: inheritId(options, transparent, parent),
-      _config: transparent ? CONFIG_TRANSPARENT : 0,
-      _root: true,
-      _parentComputed: parent?._root ? parent._parentComputed : parent,
-      _firstChild: null,
-      _nextSibling: null,
-      _prevSibling: null,
-      _disposal: null,
-      _queue: parent?._queue ?? globalQueue,
-      _context: parent?._context || defaultContext,
-      _childCount: 0,
-      _pendingDisposal: null,
-      _pendingFirstChild: null,
-      _parent: parent,
-      dispose: disposeRootSelf
-    };
-    if (parent && parent._config & CONFIG_CHILDREN_FORBIDDEN) {
-      emitDiagnostic({
-        code: "PRIMITIVE_IN_FORBIDDEN_SCOPE",
-        kind: "lifecycle",
-        severity: "error",
-        message: PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE,
-        ownerId: parent.id,
-        ownerName: parent._name
-      });
-      throw new Error(PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE);
-    }
-    if (parent) {
-      const lastChild = parent._firstChild;
-      if (lastChild === null) {
-        parent._firstChild = owner;
-      } else {
-        owner._nextSibling = lastChild;
-        lastChild._prevSibling = owner;
-        parent._firstChild = owner;
-      }
-    }
-    DEV$1.hooks.onOwner?.(owner);
-    return owner;
-  }
-  function createRoot(init, options) {
-    const owner = createOwner(options);
-    return runWithOwner(owner, () => init(() => owner.dispose()));
-  }
-  function unlinkSubs(link) {
-    const dep = link._dep;
-    const nextDep = link._nextDep;
-    const nextSub = link._nextSub;
-    const prevSub = link._prevSub;
-    if (nextSub !== null)
-      nextSub._prevSub = prevSub;
-    else
-      dep._subsTail = prevSub;
-    if (prevSub !== null)
-      prevSub._nextSub = nextSub;
-    else {
-      dep._subs = nextSub;
-      if (nextSub === null) {
-        dep._unobserved?.();
-        const c2 = dep;
-        c2._fn && c2._config & CONFIG_AUTO_DISPOSE && !(c2._flags & REACTIVE_ZOMBIE) && !(c2._statusFlags & STATUS_PENDING) && unobserved(c2);
-      }
-    }
-    return nextDep;
-  }
-  function trimStaleDeps(el) {
-    const depsTail = el._depsTail;
-    let toRemove = depsTail !== null ? depsTail._nextDep : el._deps;
-    if (toRemove !== null) {
-      do {
-        toRemove = unlinkSubs(toRemove);
-      } while (toRemove !== null);
-      if (depsTail !== null)
-        depsTail._nextDep = null;
-      else
-        el._deps = null;
-    }
-  }
-  function unobserved(el) {
-    deleteFromHeap(el, queueFor(el));
-    let dep = el._deps;
-    while (dep !== null) {
-      dep = unlinkSubs(dep);
-    }
-    el._deps = null;
-    el._depsTail = null;
-    disposeChildren(el, true);
-  }
-  function link(dep, sub, pendingObserver = false) {
-    const prevDep = sub._depsTail;
-    if (prevDep !== null && prevDep._dep === dep) {
-      prevDep._pendingObserver &&= pendingObserver;
-      return;
-    }
-    let nextDep = null;
-    const isRecomputing = sub._flags & REACTIVE_RECOMPUTING_DEPS;
-    if (isRecomputing) {
-      nextDep = prevDep !== null ? prevDep._nextDep : sub._deps;
-      if (nextDep !== null && nextDep._dep === dep) {
-        nextDep._gen = sub._depGen;
-        sub._depsTail = nextDep;
-        nextDep._pendingObserver = pendingObserver;
-        return;
-      }
-    }
-    const prevSub = dep._subsTail;
-    if (prevSub !== null && prevSub._sub === sub && (!isRecomputing || prevSub._gen === sub._depGen)) {
-      if (isRecomputing)
-        prevSub._pendingObserver &&= pendingObserver;
-      else
-        prevSub._pendingObserver = pendingObserver;
-      return;
-    }
-    const newLink = sub._depsTail = dep._subsTail = {
-      _dep: dep,
-      _sub: sub,
-      _nextDep: nextDep,
-      _prevSub: prevSub,
-      _nextSub: null,
-      _gen: sub._depGen,
-      _pendingObserver: pendingObserver
-    };
-    if (prevDep !== null)
-      prevDep._nextDep = newLink;
-    else
-      sub._deps = newLink;
-    if (prevSub !== null)
-      prevSub._nextSub = newLink;
-    else
-      dep._subs = newLink;
-  }
-  function addPendingSource(el, source) {
-    if (el._pendingSources?.has(source))
-      return false;
-    (el._pendingSources ??= new Set).add(source);
-    return true;
-  }
-  function removePendingSource(el, source) {
-    if (!el._pendingSources?.delete(source))
-      return false;
-    if (el._pendingSources.size === 0)
-      el._pendingSources = undefined;
-    return true;
-  }
-  function clearPendingSources(el) {
-    el._pendingSources?.clear();
-    el._pendingSources = undefined;
-  }
-  function retryReaches(el, source) {
-    for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-      const dep = d2._dep._firewall || d2._dep;
-      if (dep === source || dep._pendingSources?.has(source))
-        return true;
-    }
-    return false;
-  }
-  function parkLoadingWindow(el, e2) {
-    el._blocked = true;
-    if (e2.source)
-      addPendingSource(el, e2.source);
-    if (!(el._statusFlags & STATUS_ERROR))
-      setPendingError(el, e2.source, e2);
-  }
-  function setPendingError(el, source, error) {
-    if (!source) {
-      el._error = null;
-      return;
-    }
-    if (error instanceof NotReadyError && error.source === source) {
-      el._error = error;
-      return;
-    }
-    const current = el._error;
-    if (!(current instanceof NotReadyError) || current.source !== source) {
-      el._error = new NotReadyError(source);
-    }
-  }
-  function forEachDependent(el, fn) {
-    for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub)
-      fn(s2._sub, s2);
-    for (let child = el._child ?? null;child !== null; child = child._nextChild) {
-      for (let s2 = child._subs;s2 !== null; s2 = s2._nextSub)
-        fn(s2._sub, s2);
-    }
-  }
-  function releaseIfSettledUnobserved(node) {
-    node._fn && node._config & CONFIG_AUTO_DISPOSE && !node._subs && !(node._flags & REACTIVE_ZOMBIE) && !(node._statusFlags & STATUS_PENDING) && unobserved(node);
-  }
-  function releaseSettledDependents(el) {
-    let candidates;
-    const visited = new Set;
-    const visit = (node) => {
-      if (visited.has(node))
-        return;
-      visited.add(node);
-      if (!node._subs && node._config & CONFIG_AUTO_DISPOSE)
-        (candidates ??= []).push(node);
-      forEachDependent(node, visit);
-    };
-    forEachDependent(el, visit);
-    if (candidates)
-      for (const node of candidates)
-        releaseIfSettledUnobserved(node);
-  }
-  function settleErroredDependents(el, error) {
-    let scheduled2 = false;
-    const visited = new Set;
-    const visit = (node) => {
-      if (visited.has(node))
-        return;
-      visited.add(node);
-      if (node._error === error) {
-        enqueueSub(node);
-        scheduled2 = true;
-      }
-      forEachDependent(node, visit);
-    };
-    forEachDependent(el, visit);
-    if (scheduled2)
-      schedule();
-  }
-  function settlePendingSource(el) {
-    let scheduled2 = false;
-    let released;
-    const visited = new Set;
-    const updateCompanions = GlobalQueue._updatePendingSignal;
-    const settle = (node) => {
-      if (visited.has(node) || !removePendingSource(node, el))
-        return;
-      visited.add(node);
-      node._time = clock;
-      const remaining = node._pendingSources?.values().next().value;
-      const errored = node._statusFlags & STATUS_ERROR;
-      if (remaining) {
-        if (!errored)
-          setPendingError(node, remaining);
-        updateCompanions !== null && updateCompanions(node);
-      } else {
-        node._statusFlags &= ~STATUS_PENDING;
-        if (!errored)
-          setPendingError(node);
-        updateCompanions !== null && updateCompanions(node);
-        if (node._blocked) {
-          enqueueSub(node);
-          scheduled2 = true;
-        }
-        node._blocked = false;
-        if (!node._subs && node._config & CONFIG_AUTO_DISPOSE)
-          (released ??= []).push(node);
-      }
-      forEachDependent(node, settle);
-    };
-    forEachDependent(el, settle);
-    if (released)
-      for (const node of released)
-        releaseIfSettledUnobserved(node);
-    if (scheduled2)
-      schedule();
-  }
-  function isThenable(value) {
-    return value != null && typeof value === "object" && typeof value.then === "function";
-  }
-  function handleAsync(el, result, setter) {
-    let iterator = false;
-    let thenable = false;
-    if (typeof result === "object" && result !== null) {
-      untrack(() => {
-        iterator = result[Symbol.asyncIterator];
-        thenable = !iterator && isThenable(result);
-      });
-    }
-    if (!thenable && !iterator) {
-      el._inFlight = null;
-      el._loading = false;
-      return result;
-    }
-    if (el._config & CONFIG_SYNC) {
-      const message = `[SYNC_NODE_RECEIVED_ASYNC] A computed/effect created with \`sync: true\` returned ` + `${thenable ? "a Promise" : "an AsyncIterable"}. The value would be stored as-is and ` + `never awaited in production; remove \`sync: true\` to use async-aware behavior, or ` + `unwrap the value before returning.`;
-      emitDiagnostic({
-        code: "SYNC_NODE_RECEIVED_ASYNC",
-        kind: "lifecycle",
-        severity: "error",
-        message,
-        ownerId: el.id,
-        ownerName: el._name
-      });
-      throw new Error(message);
-    }
-    el._inFlight = result;
-    let syncValue;
-    const settleTransition = () => {
-      const transition = resolveTransition(el);
-      if (transition && el._statusFlags & STATUS_UNINITIALIZED && !currentTransition(transition)._asyncReporters.has(el)) {
-        el._transition = null;
-        return;
-      }
-      globalQueue.initTransition(transition);
-    };
-    const handleError = (error) => {
-      if (el._inFlight !== result)
-        return;
-      let stillPending = error instanceof NotReadyError;
-      if (stillPending && !retryReaches(el, error.source)) {
-        stillPending = false;
-        error = new Error("Read of an unresolved async source after an `await`. Reads inside async " + "computations only register as dependencies before the first `await`; a source " + "first read after it cannot retry when it settles. Read it before the first " + "`await` (or restructure so the value is an input).");
-      }
-      if (stillPending && el._loading) {
-        el._inFlight = null;
-        parkLoadingWindow(el, error);
-        el._time = clock;
-        return;
-      }
-      settleTransition();
-      notifyStatus(el, stillPending ? STATUS_PENDING : STATUS_ERROR, error);
-      el._time = clock;
-      if (!stillPending)
-        releaseSettledDependents(el);
-    };
-    const asyncWrite = (value, then) => {
-      if (el._inFlight !== result)
-        return;
-      if (el._flags & (REACTIVE_DIRTY | REACTIVE_OPTIMISTIC_DIRTY))
-        return;
-      settleTransition();
-      const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
-      trimStaleDeps(el);
-      clearStatus(el);
-      const lane = resolveLane(el);
-      if (lane)
-        lane._pendingAsync.delete(el);
-      if (setter) {
-        setter(value);
-        if (wasUninitialized)
-          clearStatus(el, true);
-      } else if (el._overrideValue !== undefined) {
-        if (el._pendingValue === NOT_PENDING)
-          queuePendingNode(el);
-        el._pendingValue = value;
-        GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, value);
-        if (!hasActiveOverride$1(el))
-          insertSubs(el);
-        el._time = clock;
-      } else if (lane) {
-        const isEffect = el._type;
-        const prevValue = el._value;
-        const equals = el._equals;
-        try {
-          if (!isEffect && wasUninitialized || !equals || !equals(value, prevValue)) {
-            el._value = value;
-            el._time = clock;
-            GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, value);
-            insertSubs(el, true);
-          }
-        } catch (e2) {
-          notifyStatus(el, STATUS_ERROR, e2);
-        }
-      } else {
-        try {
-          setSignal(el, () => value);
-        } catch (e2) {
-          notifyStatus(el, STATUS_ERROR, e2);
-        }
-      }
-      if (el._pendingValue === NOT_PENDING)
-        el._loading = false;
-      settlePendingSource(el);
-      schedule();
-      flush();
-      then?.();
-    };
-    const settleAutodispose = () => {
-      if (el._config & CONFIG_AUTO_DISPOSE && !el._subs && !(el._statusFlags & STATUS_PENDING)) {
-        unobserved(el);
-        return true;
-      }
-      return false;
-    };
-    const consumeIterator = (source, registerClose) => {
-      const it2 = source[Symbol.asyncIterator]();
-      let hadValue = false;
-      let completed = false;
-      let initialRead = !registerClose;
-      const close = () => {
-        if (completed)
-          return;
-        completed = true;
-        try {
-          const returned = it2.return?.();
-          if (isThenable(returned))
-            returned.then(undefined, () => {});
-        } catch {}
-      };
-      registerClose ? registerClose(close) : cleanup(close);
-      const iterateOrRelease = () => {
-        if (!settleAutodispose())
-          iterate();
-      };
-      const iterate = () => {
-        let syncResult, syncError, resolved = false, rejected = false, isSync = true;
-        const step = it2.next();
-        const settled = isThenable(step) ? step : { then: (onSettle) => void onSettle(step) };
-        settled.then((r2) => {
-          if (isSync && initialRead) {
-            syncResult = r2;
-            resolved = true;
-            if (r2.done)
-              completed = true;
-          } else if (el._inFlight !== result) {
-            return;
-          } else if (!r2.done) {
-            hadValue = true;
-            asyncWrite(r2.value, iterateOrRelease);
-          } else {
-            completed = true;
-            if (hadValue) {
-              schedule();
-              flush();
-            } else {
-              asyncWrite(undefined);
-            }
-            settleAutodispose();
-          }
-        }, (e2) => {
-          if (isSync && initialRead) {
-            syncError = e2;
-            rejected = true;
-          } else if (el._inFlight === result) {
-            completed = true;
-            handleError(e2);
-            settleAutodispose();
-          }
-        });
-        isSync = false;
-        if (rejected) {
-          completed = true;
-          handleError(syncError);
-          if (initialRead)
-            throw syncError;
-          return true;
-        }
-        if (resolved && !syncResult.done) {
-          syncValue = syncResult.value;
-          hadValue = true;
-          return iterate();
-        }
-        return resolved && syncResult.done;
-      };
-      const immediatelyDone = iterate();
-      initialRead = false;
-      return hadValue || immediatelyDone;
-    };
-    let liveLanded = null;
-    const flattenIfIterable = (value, registerClose) => {
-      let innerIterator = false;
-      if (typeof value === "object" && value !== null) {
-        untrack(() => {
-          innerIterator = value[Symbol.asyncIterator];
-        });
-      }
-      if (!innerIterator)
-        return false;
-      const landed = consumeIterator(value, registerClose);
-      if (!registerClose)
-        liveLanded = landed;
-      return true;
-    };
-    if (thenable) {
-      let resolved = false, rejected = false, syncError, isSync = true;
-      const registerDeferredClose = (fn) => {
-        if (!el._disposal)
-          el._disposal = fn;
-        else if (Array.isArray(el._disposal))
-          el._disposal.push(fn);
-        else
-          el._disposal = [el._disposal, fn];
-      };
-      result.then((v2) => {
-        if (isSync) {
-          syncValue = v2;
-          resolved = true;
-        } else if (el._inFlight === result && !(el._flags & REACTIVE_DISPOSED) && flattenIfIterable(v2, registerDeferredClose))
-          ;
-        else {
-          asyncWrite(v2);
-          settleAutodispose();
-        }
-      }, (e2) => {
-        if (isSync) {
-          syncError = e2;
-          rejected = true;
-        } else {
-          handleError(e2);
-          settleAutodispose();
-        }
-      });
-      isSync = false;
-      if (rejected) {
-        handleError(syncError);
-        throw syncError;
-      } else if (!resolved) {
-        if (el._loading)
-          return el._value;
-        globalQueue.initTransition(resolveTransition(el));
-        throw new NotReadyError(context);
-      } else if (!flattenIfIterable(syncValue)) {
-        el._loading = false;
-      }
-    }
-    if (iterator)
-      flattenIfIterable(result);
-    if (liveLanded !== null) {
-      if (!liveLanded) {
-        if (el._loading)
-          return el._value;
-        globalQueue.initTransition(resolveTransition(el));
-        throw new NotReadyError(context);
-      }
-      el._loading = false;
-    }
-    return syncValue;
-  }
-  function clearStatus(el, clearUninitialized = false) {
-    if (el._pendingSources)
-      clearPendingSources(el);
-    if (el._blocked)
-      el._blocked = false;
-    el._reask = false;
-    el._statusFlags = clearUninitialized ? 0 : el._statusFlags & STATUS_UNINITIALIZED;
-    if (el._error)
-      setPendingError(el);
-    if (el._pendingSignal || el._latestValueComputed)
-      GlobalQueue._updatePendingSignal(el);
-    if (el._child && GlobalQueue._updateChildCompanions !== null)
-      GlobalQueue._updateChildCompanions(el);
-    if (el._notifyStatus)
-      el._notifyStatus();
-  }
-  function notifyStatus(el, status, error, blockStatus, lane) {
-    if (status === STATUS_ERROR && !(error instanceof StatusError) && !(error instanceof NotReadyError))
-      error = new StatusError(el, error);
-    const pendingSource = status === STATUS_PENDING && error instanceof NotReadyError ? error.source : undefined;
-    const isSource = pendingSource === el;
-    const isOptimisticBoundary = status === STATUS_PENDING && el._overrideValue !== undefined && !isSource;
-    const startsBlocking = isOptimisticBoundary && hasActiveOverride$1(el);
-    if (!blockStatus) {
-      if (status === STATUS_PENDING && pendingSource) {
-        addPendingSource(el, pendingSource);
-        el._statusFlags = STATUS_PENDING | el._statusFlags & STATUS_UNINITIALIZED;
-        setPendingError(el, pendingSource, error);
-      } else {
-        clearPendingSources(el);
-        el._statusFlags = status | (status !== STATUS_ERROR ? el._statusFlags & STATUS_UNINITIALIZED : 0);
-        el._error = error;
-      }
-      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(el);
-      if (el._child && GlobalQueue._updateChildCompanions !== null)
-        GlobalQueue._updateChildCompanions(el);
-    }
-    if (lane && !blockStatus) {
-      assignOrMergeLane(el, lane);
-    }
-    const downstreamBlockStatus = blockStatus || startsBlocking;
-    const downstreamLane = blockStatus || isOptimisticBoundary ? undefined : lane;
-    if (el._notifyStatus) {
-      if (blockStatus && status === STATUS_PENDING) {
-        return;
-      }
-      if (downstreamBlockStatus) {
-        el._notifyStatus(status, error);
-      } else {
-        el._notifyStatus();
-      }
-      return;
-    }
-    forEachDependent(el, (sub, link2) => {
-      sub._time = clock;
-      if (status === STATUS_PENDING && pendingSource && !sub._pendingSources?.has(pendingSource) || status !== STATUS_PENDING && (sub._error !== error || sub._pendingSources)) {
-        if (link2._pendingObserver && status !== STATUS_PENDING && !(error instanceof NotReadyError)) {
-          enqueueSub(sub);
-          schedule();
-          return;
-        }
-        if (!downstreamBlockStatus && !sub._transition)
-          queuePendingNode(sub);
-        notifyStatus(sub, status, error, downstreamBlockStatus, downstreamLane);
-      }
-    });
-  }
-  GlobalQueue._update = recompute;
-  GlobalQueue._dispose = disposeChildren;
-  var PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE = "[PRIMITIVE_IN_FORBIDDEN_SCOPE] Cannot create reactive primitives inside createTrackedEffect or owner-backed onSettled";
-  var REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE = "[REACTIVE_WRITE_IN_OWNED_SCOPE] Writing to reactive state inside an owned scope (component, computation) is not allowed. " + "Move the write outside or set the `ownedWrite` option if this is intentional.";
-  var REACTIVE_WRITE_IN_OWNED_SCOPE_REFRESH_MESSAGE = "[REACTIVE_WRITE_IN_OWNED_SCOPE] Calling refresh() inside an owned scope (component, computation) is not allowed. " + "Move the invalidation outside pure computation.";
-  var tracking = false;
-  function setPendingCheckActive(v2) {
-    pendingCheckActive = v2;
-  }
-  function setLatestReadActive(v2) {
-    latestReadActive = v2;
-  }
-  function setContextInternal(v2) {
-    context = v2;
-  }
-  var stale = false;
-  var pendingCheckActive = false;
-  var latestReadActive = false;
-  var context = null;
-  var currentOptimisticLane = null;
-  var snapshotCaptureActive = false;
-  var snapshotSources = null;
-  function ownerInSnapshotScope(owner) {
-    while (owner) {
-      if (owner._snapshotScope)
-        return true;
-      owner = owner._parent;
-    }
-    return false;
-  }
-  function recompute(el, create = false) {
-    const isEffect = el._type;
-    if (!create) {
-      if (el._transition && (!isEffect || activeTransition) && activeTransition !== el._transition)
-        globalQueue.initTransition(el._transition);
-      deleteFromHeap(el, queueFor(el));
-      el._inFlight = null;
-      if (el._transition || isEffect === EFFECT_TRACKED)
-        disposeChildren(el);
-      else if (el._firstChild !== null || el._disposal !== null) {
-        markDisposal(el);
-        el._pendingDisposal = el._disposal;
-        el._pendingFirstChild = el._firstChild;
-        el._disposal = null;
-        el._firstChild = null;
-        el._childCount = 0;
-        clearSignals(el);
-      } else
-        clearSignals(el);
-    }
-    let isOptimisticDirty = !!(el._flags & REACTIVE_OPTIMISTIC_DIRTY);
-    const hasOverride = el._overrideValue !== undefined && el._overrideValue !== NOT_PENDING;
-    const wasUninitialized = !!(el._statusFlags & STATUS_UNINITIALIZED);
-    const outgoingError = el._statusFlags & STATUS_ERROR ? el._error : undefined;
-    const hadReask = (el._flags & REACTIVE_REASK) !== 0;
-    const wasLoading = el._loading;
-    const oldcontext = context;
-    context = el;
-    el._depsTail = null;
-    el._depGen++;
-    el._flags = REACTIVE_RECOMPUTING_DEPS;
-    el._time = clock;
-    let value = el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
-    let oldHeight = el._height;
-    let prevTracking = tracking;
-    let prevLane = currentOptimisticLane;
-    let prevStrictRead = false;
-    {
-      prevStrictRead = strictRead;
-      strictRead = false;
-    }
-    tracking = true;
-    const prevLatestRead = latestReadActive;
-    latestReadActive = false;
-    if (isOptimisticDirty) {
-      const lane = GlobalQueue._recomputeLane(el, true);
-      if (lane)
-        currentOptimisticLane = lane;
-      else if (lane === false)
-        isOptimisticDirty = false;
-    } else if (activeTransition && !create && activeTransition._optimisticNodes.length) {
-      const lane = GlobalQueue._recomputeLane(el, false);
-      if (lane) {
-        isOptimisticDirty = true;
-        currentOptimisticLane = lane;
-      }
-    }
-    const isStaleEffect = isEffect && isEffect !== EFFECT_USER;
-    const prevStale = stale;
-    if (isStaleEffect)
-      stale = true;
-    try {
-      if (false)
-        ;
-      else {
-        const prevInFlight = el._inFlight;
-        const fnResult = el._fn(value);
-        const isAsyncResult = typeof fnResult === "object" && fnResult !== null;
-        const inFlightChanged = el._inFlight !== prevInFlight;
-        value = inFlightChanged || !isAsyncResult ? fnResult : handleAsync(el, fnResult);
-        if (!inFlightChanged && !isAsyncResult) {
-          el._inFlight = null;
-          el._loading = false;
-        }
-      }
-      if (el._statusFlags !== 0 || el._notifyStatus !== undefined || el._error || el._reask || el._blocked || el._pendingSources !== undefined || el._pendingSignal !== undefined || el._latestValueComputed !== undefined || el._child !== null)
-        clearStatus(el, create);
-      if (el._optimisticLane)
-        GlobalQueue._laneAsyncSettled(el);
-    } catch (e2) {
-      const notReady = e2 instanceof NotReadyError;
-      if (notReady && el._loading) {
-        parkLoadingWindow(el, e2);
-      } else {
-        if (notReady && currentOptimisticLane)
-          GlobalQueue._laneAsyncPending(el);
-        let reaskChanged = false;
-        if (notReady) {
-          el._blocked = true;
-          if (GlobalQueue._applyReask !== null)
-            reaskChanged = GlobalQueue._applyReask(el, hadReask);
-        }
-        notifyStatus(el, notReady ? STATUS_PENDING : STATUS_ERROR, e2, undefined, notReady ? el._optimisticLane : undefined);
-        if (reaskChanged)
-          GlobalQueue._repollVerdicts(el);
-      }
-    } finally {
-      tracking = prevTracking;
-      latestReadActive = prevLatestRead;
-      strictRead = prevStrictRead;
-      if (isStaleEffect)
-        stale = prevStale;
-      el._flags = REACTIVE_NONE | (create ? el._flags & REACTIVE_SNAPSHOT_STALE : 0);
-      context = oldcontext;
-    }
-    if (!el._error) {
-      trimStaleDeps(el);
-      const compareValue = hasOverride ? unwrapOverride(el._overrideValue) : el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
-      let valueChanged = false;
-      try {
-        valueChanged = !isEffect && wasUninitialized || !el._equals || !el._equals(compareValue, value);
-      } catch (e2) {
-        notifyStatus(el, STATUS_ERROR, e2);
-      }
-      if (isEffect && valueChanged) {
-        el._modified = !el._error;
-        if (!create)
-          el._queue.enqueue(isEffect, el._boundRunEffect ??= GlobalQueue._runEffect.bind(null, el));
-      }
-      if (el._error)
-        ;
-      else if (valueChanged) {
-        const prevVisible = hasOverride ? el._overrideValue : undefined;
-        if (create || isEffect && (activeTransition !== el._transition || activeTransition === null) || isOptimisticDirty) {
-          el._value = value;
-          if (hasOverride && isOptimisticDirty) {
-            el._overrideValue = value === undefined ? OVERRIDE_UNDEFINED : value;
-            el._pendingValue = NOT_PENDING;
-          }
-        } else {
-          el._pendingValue = value;
-          if (wasLoading)
-            el._loading = true;
-          if ((activeTransition || el._transition) && GlobalQueue._syncCompanions !== null)
-            GlobalQueue._syncCompanions(el, value);
-        }
-        if (el._subs !== null && (!hasOverride || isOptimisticDirty || el._overrideValue !== prevVisible))
-          insertSubs(el, isOptimisticDirty || hasOverride);
-      } else if (hasOverride) {
-        if (el._pendingValue === NOT_PENDING)
-          queuePendingNode(el);
-        el._pendingValue = value;
-        if (wasLoading)
-          el._loading = true;
-      } else if (el._height != oldHeight) {
-        for (let s2 = el._subs;s2 !== null; s2 = s2._nextSub) {
-          insertIntoHeapHeight(s2._sub, queueFor(s2._sub));
-        }
-      }
-      if (outgoingError !== undefined && !valueChanged && !el._error)
-        settleErroredDependents(el, outgoingError);
-    }
-    currentOptimisticLane = prevLane;
-    const needsPendingCommit = el._pendingValue !== NOT_PENDING || el._pendingFirstChild !== null || el._pendingDisposal !== null || (el._statusFlags & (STATUS_PENDING | STATUS_UNINITIALIZED)) !== 0;
-    needsPendingCommit && (!create || el._statusFlags & STATUS_PENDING) && (!el._transition || hasOverride) && queuePendingNode(el);
-    el._transition && isEffect && activeTransition !== el._transition && runInTransition(el._transition, () => recompute(el));
-  }
-  function updateIfNecessary(el) {
-    if (el._flags & REACTIVE_CHECK) {
-      for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-        const dep1 = d2._dep;
-        const dep = dep1._firewall || dep1;
-        if (dep._fn) {
-          updateIfNecessary(dep);
-        }
-        if (el._flags & REACTIVE_DIRTY) {
-          break;
-        }
-      }
-    }
-    if (el._flags & (REACTIVE_DIRTY | REACTIVE_OPTIMISTIC_DIRTY) || el._error && el._time < clock && !el._inFlight) {
-      recompute(el);
-    }
-    el._flags = el._flags & (REACTIVE_SNAPSHOT_STALE | REACTIVE_IN_HEAP | REACTIVE_IN_HEAP_HEIGHT);
-  }
-  function computed(fn, options) {
-    const transparent = options?.transparent ?? false;
-    const loading = options !== null && typeof options === "object" && "loadingValue" in options;
-    const self2 = {
-      id: inheritId(options, transparent, context),
-      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (!context || options?.lazy ? CONFIG_AUTO_DISPOSE : 0) | (options?.sync ? CONFIG_SYNC : 0) | (options?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
-      _equals: options?.equals != null ? options.equals : isEqual,
-      _unobserved: options?.unobserved,
-      _disposal: null,
-      _queue: context?._queue ?? globalQueue,
-      _context: context?._context ?? defaultContext,
-      _childCount: 0,
-      _fn: fn,
-      _value: loading ? options.loadingValue : undefined,
-      _height: 0,
-      _child: null,
-      _nextHeap: undefined,
-      _prevHeap: null,
-      _deps: null,
-      _depsTail: null,
-      _depGen: 0,
-      _subs: null,
-      _subsTail: null,
-      _parent: context,
-      _nextSibling: null,
-      _prevSibling: null,
-      _firstChild: null,
-      _flags: options?.lazy ? REACTIVE_LAZY : REACTIVE_NONE,
-      _statusFlags: loading ? 0 : STATUS_UNINITIALIZED,
-      _time: clock,
-      _pendingValue: NOT_PENDING,
-      _pendingDisposal: null,
-      _pendingFirstChild: null,
-      _inFlight: null,
-      _transition: null,
-      _reask: false,
-      _loading: loading
-    };
-    self2._name = options?.name ?? "computed";
-    setupComputedNode(self2, options);
-    return self2;
-  }
-  function createEffectNode(fn, effectFn, errorFn, type, notifyStatus2, options) {
-    const transparent = options?.transparent ?? false;
-    const self2 = {
-      id: inheritId(options, transparent, context),
-      _config: (transparent ? CONFIG_TRANSPARENT : 0) | (options?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options?.sync ? CONFIG_SYNC : 0) | (snapshotCaptureActive && ownerInSnapshotScope(context) ? CONFIG_IN_SNAPSHOT_SCOPE : 0),
-      _equals: false,
-      _unobserved: options?.unobserved,
-      _disposal: null,
-      _queue: context?._queue ?? globalQueue,
-      _context: context?._context ?? defaultContext,
-      _childCount: 0,
-      _fn: fn,
-      _value: undefined,
-      _height: 0,
-      _child: null,
-      _nextHeap: undefined,
-      _prevHeap: null,
-      _deps: null,
-      _depsTail: null,
-      _depGen: 0,
-      _subs: null,
-      _subsTail: null,
-      _parent: context,
-      _nextSibling: null,
-      _prevSibling: null,
-      _firstChild: null,
-      _flags: REACTIVE_LAZY,
-      _statusFlags: STATUS_UNINITIALIZED,
-      _time: clock,
-      _pendingValue: NOT_PENDING,
-      _pendingDisposal: null,
-      _pendingFirstChild: null,
-      _inFlight: null,
-      _transition: null,
-      _reask: false,
-      _loading: false,
-      _modified: false,
-      _prevValue: undefined,
-      _effectFn: effectFn,
-      _errorFn: errorFn,
-      _cleanup: undefined,
-      _type: type,
-      _notifyStatus: notifyStatus2
-    };
-    self2._name = options?.name ?? "effect";
-    setupComputedNode(self2, lazyOptions);
-    return self2;
-  }
-  var lazyOptions = { lazy: true };
-  function setupComputedNode(self2, options) {
-    self2._prevHeap = self2;
-    const parent = context?._root ? context._parentComputed : context;
-    if (context && context._config & CONFIG_CHILDREN_FORBIDDEN) {
-      emitDiagnostic({
-        code: "PRIMITIVE_IN_FORBIDDEN_SCOPE",
-        kind: "lifecycle",
-        severity: "error",
-        message: PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE,
-        ownerId: context.id,
-        ownerName: context._name
-      });
-      throw new Error(PRIMITIVE_IN_FORBIDDEN_SCOPE_MESSAGE);
-    }
-    if (context) {
-      const lastChild = context._firstChild;
-      if (lastChild === null) {
-        context._firstChild = self2;
-      } else {
-        self2._nextSibling = lastChild;
-        lastChild._prevSibling = self2;
-        context._firstChild = self2;
-      }
-    }
-    DEV$1.hooks.onOwner?.(self2);
-    if (parent)
-      self2._height = parent._height + 1;
-    if (GlobalQueue._wireExternalSource !== null)
-      GlobalQueue._wireExternalSource(self2);
-    !options?.lazy && recompute(self2, true);
-    if (snapshotCaptureActive && !options?.lazy) {
-      if (!(self2._statusFlags & STATUS_PENDING) && !(self2._config & CONFIG_NO_SNAPSHOT)) {
-        self2._snapshotValue = self2._value === undefined ? NO_SNAPSHOT : self2._value;
-        snapshotSources.add(self2);
-      }
-    }
-  }
-  function signal(v2, options, firewall = null) {
-    const s2 = {
-      _equals: options?.equals != null ? options.equals : isEqual,
-      _config: (options?.ownedWrite ? CONFIG_OWNED_WRITE : 0) | (options?._noSnapshot ? CONFIG_NO_SNAPSHOT : 0),
-      _unobserved: options?.unobserved,
-      _value: v2,
-      _subs: null,
-      _subsTail: null,
-      _time: clock,
-      _firewall: firewall,
-      _nextChild: firewall?._child || null,
-      _pendingValue: NOT_PENDING
-    };
-    {
-      s2._name = options?.name ?? "signal";
-      s2._internal = !!firewall;
-    }
-    firewall && (firewall._child = s2);
-    if (snapshotCaptureActive && !(s2._config & CONFIG_NO_SNAPSHOT) && !((firewall?._statusFlags ?? 0) & STATUS_PENDING)) {
-      s2._snapshotValue = v2 === undefined ? NO_SNAPSHOT : v2;
-      snapshotSources.add(s2);
-    }
-    return s2;
-  }
-  function optimisticComputed(fn, options) {
-    const c2 = computed(fn, options);
-    c2._overrideValue = NOT_PENDING;
-    return c2;
-  }
-  function isEqual(a2, b2) {
-    return a2 === b2;
-  }
-  var strictRead = false;
-  function setStrictRead(v2) {
-    const prev = strictRead;
-    strictRead = v2;
-    return prev;
-  }
-  function untrack(fn, strictReadLabel) {
-    if (GlobalQueue._externalUntrack === null && !tracking && !strictRead && !strictReadLabel)
-      return fn();
-    const prevTracking = tracking;
-    const prevStrictRead = strictRead;
-    tracking = false;
-    strictRead = strictReadLabel || false;
-    try {
-      if (GlobalQueue._externalUntrack !== null)
-        return GlobalQueue._externalUntrack(fn);
-      return fn();
-    } finally {
-      tracking = prevTracking;
-      strictRead = prevStrictRead;
-    }
-  }
-  function prepareComputed(comp, refresh) {
-    if (comp._flags & REACTIVE_LAZY) {
-      comp._flags &= ~REACTIVE_LAZY;
-      recompute(comp, true);
-    } else if (comp._flags & REACTIVE_DISPOSED) {
-      recompute(comp, true);
-    } else if (refresh) {
-      updateIfNecessary(comp);
-    }
-  }
-  var READ_SLOW = Symbol("read-slow");
-  function read(el) {
-    if (latestReadActive)
-      return GlobalQueue._latestRead(el);
-    let c2 = context;
-    if (c2?._root)
-      c2 = c2._parentComputed;
-    const computed2 = el;
-    const firewall = el._firewall;
-    const owner = firewall || el;
-    if (pendingCheckActive) {
-      GlobalQueue._pendingCheck(el, c2, owner, firewall);
-    } else if (typeof computed2._fn === "function") {
-      prepareComputed(el, false);
-    }
-    if (!computed2._fn && owner === el && el._overrideValue === undefined && el._snapshotValue === undefined && activeTransition === null && currentOptimisticLane === null && !snapshotCaptureActive && !strictRead) {
-      if (c2 && tracking)
-        link(el, c2);
-      return !c2 || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN ? el._value : el._pendingValue;
-    }
-    if (strictRead && !pendingCheckActive && owner._statusFlags & STATUS_PENDING)
-      throwPendingUntrackedRead(strictRead, {
-        ownerId: c2?.id,
-        ownerName: c2?._name,
-        nodeName: owner?._name
-      });
-    if (c2 && tracking) {
-      link(el, c2, pendingCheckActive);
-      if (owner._fn) {
-        const elQueue = queueFor(el);
-        if (owner._height >= elQueue._min) {
-          markNode(c2);
-          markHeap(elQueue);
-          updateIfNecessary(owner);
-        }
-        const height = owner._height;
-        if (height >= c2._height && el._parent !== c2) {
-          c2._height = height + 1;
-        }
-      }
-    }
-    if (owner._statusFlags & STATUS_PENDING) {
-      if (c2 && !(stale && owner._transition && activeTransition !== owner._transition)) {
-        if (c2 && c2._config & CONFIG_CHILDREN_FORBIDDEN) {
-          const message = "[PENDING_ASYNC_FORBIDDEN_SCOPE] Reading a pending async value inside createTrackedEffect or onSettled will throw. " + "Use createEffect instead which supports async-aware reactivity.";
-          emitDiagnostic({
-            code: "PENDING_ASYNC_FORBIDDEN_SCOPE",
-            kind: "async",
-            severity: "warn",
-            message,
-            ownerId: c2.id,
-            ownerName: c2._name,
-            nodeName: owner?._name
-          });
-          console.warn(message);
-        }
-        if (currentOptimisticLane === null || GlobalQueue._laneSuspends(owner)) {
-          if (!tracking && el !== c2)
-            link(el, c2);
-          throw owner._error;
-        }
-      } else if (c2 && owner !== el && owner._statusFlags & STATUS_UNINITIALIZED) {
-        if (!tracking && el !== c2)
-          link(el, c2);
-        throw owner._error;
-      } else if (!c2 && owner._statusFlags & STATUS_UNINITIALIZED) {
-        throw owner._error;
-      }
-    }
-    if (owner._fn && owner._statusFlags & STATUS_ERROR) {
-      if (tracking && !pendingCheckActive && owner._time < clock) {
-        recompute(owner);
-        return read(el);
-      } else
-        throw owner._error;
-    }
-    if (snapshotCaptureActive && c2 && c2._config & CONFIG_IN_SNAPSHOT_SCOPE) {
-      const sv = el._snapshotValue;
-      if (sv !== undefined) {
-        const snapshot = sv === NO_SNAPSHOT ? undefined : sv;
-        const current = el._pendingValue !== NOT_PENDING ? el._pendingValue : el._value;
-        if (current !== snapshot)
-          c2._flags |= REACTIVE_SNAPSHOT_STALE;
-        return snapshot;
-      }
-    }
-    if (strictRead)
-      warnStrictReadUntracked(strictRead, {
-        ownerId: c2?.id,
-        ownerName: c2?._name,
-        nodeName: owner?._name
-      });
-    if (el._overrideValue !== undefined && el._overrideValue !== NOT_PENDING) {
-      return unwrapOverride(el._overrideValue);
-    }
-    if (currentOptimisticLane !== null && activeTransition !== null && c2 !== null && GlobalQueue._gatedRead(el, owner, c2)) {
-      return el._value;
-    }
-    const value = !c2 || currentOptimisticLane !== null && GlobalQueue._laneReadsCommitted(el, owner, c2) || el._pendingValue === NOT_PENDING || c2._config & CONFIG_CHILDREN_FORBIDDEN || stale && el._transition && activeTransition !== el._transition ? el._value : el._pendingValue;
-    if (pendingCheckActive)
-      GlobalQueue._recordFresh(el, value);
-    if (!c2 && owner === el && typeof computed2._fn === "function" && el._config & CONFIG_AUTO_DISPOSE && !(owner._statusFlags & STATUS_PENDING) && !el._subs) {
-      unobserved(el);
-    }
-    return value;
-  }
-  function setSignal(el, v2) {
-    if (!(el._config & CONFIG_OWNED_WRITE) && !(context && context._config & CONFIG_CHILDREN_FORBIDDEN) && context && el._firewall !== context) {
-      emitDiagnostic({
-        code: "REACTIVE_WRITE_IN_OWNED_SCOPE",
-        kind: "write",
-        severity: "error",
-        message: REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE,
-        ownerId: context.id,
-        ownerName: context._name,
-        nodeName: el._name,
-        data: { operation: "setSignal" }
-      });
-      throw new Error(REACTIVE_WRITE_IN_OWNED_SCOPE_SIGNAL_MESSAGE);
-    }
-    if (el._transition && activeTransition !== el._transition)
-      globalQueue.initTransition(el._transition);
-    if (el._overrideValue !== undefined && !projectionWriteActive)
-      return GlobalQueue._optimisticWrite(el, v2);
-    const currentValue = el._pendingValue === NOT_PENDING ? el._value : el._pendingValue;
-    if (typeof v2 === "function")
-      v2 = v2(currentValue);
-    const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !el._equals || !el._equals(currentValue, v2);
-    if (!valueChanged)
-      return v2;
-    if (el._pendingValue === NOT_PENDING)
-      queuePendingNode(el);
-    el._pendingValue = v2;
-    (el._pendingSignal !== undefined || el._latestValueComputed !== undefined) && GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, v2);
-    el._time = clock;
-    insertSubs(el);
-    schedule();
-    return v2;
-  }
-  function suppressComputedRecompute(el) {
-    deleteFromHeap(el, queueFor(el));
-    if (!(el._flags & REACTIVE_MANUAL_WRITE) && el._pendingValue === NOT_PENDING) {
-      queuePendingNode(el);
-      schedule();
-    }
-    el._flags = el._flags & -4 | REACTIVE_MANUAL_WRITE;
-  }
-  function setMemo(el, v2) {
-    const result = setSignal(el, v2);
-    suppressComputedRecompute(el);
-    return result;
-  }
-  function runWithOwner(owner, fn) {
-    if (owner && owner._flags & REACTIVE_DISPOSED) {
-      const message = "[RUN_WITH_DISPOSED_OWNER] runWithOwner called with a disposed owner. Children created inside will never be disposed.";
-      emitDiagnostic({
-        code: "RUN_WITH_DISPOSED_OWNER",
-        kind: "owner",
-        severity: "warn",
-        message,
-        ownerId: owner.id,
-        ownerName: owner._name
-      });
-      console.warn(message);
-    }
-    const oldContext = context;
-    const prevTracking = tracking;
-    context = owner;
-    tracking = false;
-    try {
-      return fn();
-    } finally {
-      context = oldContext;
-      tracking = prevTracking;
-    }
-  }
-  function getContext(context2, owner = getOwner()) {
-    if (!owner) {
-      throw new NoOwnerError;
-    }
-    const value = hasContext(context2, owner) ? owner._context[context2.id] : context2.defaultValue;
-    if (isUndefined(value)) {
-      throw new ContextNotFoundError;
-    }
-    return value;
-  }
-  function setContext(context2, value, owner = getOwner()) {
-    if (!owner) {
-      throw new NoOwnerError;
-    }
-    owner._context = {
-      ...owner._context,
-      [context2.id]: isUndefined(value) ? context2.defaultValue : value
-    };
-  }
-  function hasContext(context2, owner) {
-    return !isUndefined(owner?._context[context2.id]);
-  }
-  function isUndefined(value) {
-    return typeof value === "undefined";
-  }
-  function optimisticWrite(el, v2) {
-    const hasOverride = el._overrideValue !== NOT_PENDING;
-    const currentValue = hasOverride ? unwrapOverride(el._overrideValue) : el._value;
-    if (typeof v2 === "function")
-      v2 = v2(currentValue);
-    const valueChanged = !!(el._statusFlags & STATUS_UNINITIALIZED) || !el._equals || !el._equals(currentValue, v2);
-    if (!valueChanged) {
-      if (hasOverride) {
-        const transition = resolveTransition(el);
-        if (transition && activeTransition !== transition)
-          globalQueue.initTransition(transition);
-      }
-      return v2;
-    }
-    if (hasOverride)
-      globalQueue.initTransition(resolveTransition(el));
-    else
-      globalQueue._batch._optimisticNodes.push(el);
-    el._overrideOwner = activeTransition;
-    const lane = getOrCreateLane(el);
-    el._optimisticLane = lane;
-    el._overrideValue = v2 === undefined ? OVERRIDE_UNDEFINED : v2;
-    (el._pendingSignal !== undefined || el._latestValueComputed !== undefined) && GlobalQueue._syncCompanions !== null && GlobalQueue._syncCompanions(el, v2);
-    el._time = clock;
-    insertSubs(el, true);
-    schedule();
-    return v2;
-  }
-  function transitionBlocked(transition) {
-    for (let i2 = 0;i2 < transition._optimisticNodes.length; i2++) {
-      const node = transition._optimisticNodes[i2];
-      if (hasActiveOverride$1(node) && "_statusFlags" in node && node._statusFlags & STATUS_PENDING && node._error instanceof NotReadyError) {
-        return true;
-      }
-    }
-    return false;
-  }
-  function resolveOptimisticNodes(nodes) {
-    const len = nodes.length;
-    for (let i2 = 0;i2 < len; i2++) {
-      const node = nodes[i2];
-      node._optimisticLane = undefined;
-      if (!(node._statusFlags & STATUS_PENDING))
-        node._statusFlags &= ~STATUS_UNINITIALIZED;
-      const prevOverride = node._overrideValue;
-      node._overrideValue = NOT_PENDING;
-      if (prevOverride !== NOT_PENDING && node._value !== unwrapOverride(prevOverride))
-        insertSubs(node, true);
-      node._transition = null;
-      node._overrideOwner = null;
-    }
-    for (let i2 = 0;i2 < len; i2++) {
-      const node = nodes[i2];
-      if (node._pendingSignal || node._latestValueComputed)
-        GlobalQueue._snapCompanions(node);
-      const owner = node._parentSource;
-      if (owner && (owner._pendingSignal === node || owner._latestValueComputed === node))
-        GlobalQueue._snapCompanions(owner);
-    }
-    nodes.splice(0, len);
-  }
-  function runQueue(queue, type) {
-    for (let i2 = 0;i2 < queue.length; i2++)
-      queue[i2](type);
-  }
-  function runLaneEffects(type) {
-    for (const lane of activeLanes) {
-      if (lane._mergedInto || lane._pendingAsync.size > 0)
-        continue;
-      const effects = lane._effectQueues[type - 1];
-      if (effects.length) {
-        lane._effectQueues[type - 1] = [];
-        runQueue(effects, type);
-      }
-    }
-  }
-  function cleanupCompletedLanes(completingTransition) {
-    for (const lane of activeLanes) {
-      const owned = completingTransition ? lane._transition === completingTransition : !lane._transition;
-      if (!owned)
-        continue;
-      if (!lane._mergedInto) {
-        if (lane._effectQueues[0].length)
-          runQueue(lane._effectQueues[0], EFFECT_RENDER);
-        if (lane._effectQueues[1].length)
-          runQueue(lane._effectQueues[1], EFFECT_USER);
-      }
-      if (lane._source._optimisticLane === lane)
-        lane._source._optimisticLane = undefined;
-      lane._pendingAsync.clear();
-      lane._effectQueues[0].length = 0;
-      lane._effectQueues[1].length = 0;
-      activeLanes.delete(lane);
-      signalLanes.delete(lane._source);
-    }
-  }
-  function laneSuspends(owner) {
-    const pendingLane = owner._optimisticLane;
-    if (!pendingLane)
-      return false;
-    return findLane(pendingLane) === findLane(currentOptimisticLane) && !hasActiveOverride$1(owner);
-  }
-  function gatedRead(el, owner, c2) {
-    if (latestReadActive || el._pendingValue === NOT_PENDING || el._fn || owner !== el && !(owner._flags & REACTIVE_MANUAL_WRITE)) {
-      return false;
-    }
-    activeTransition._gatedSubs.add(c2);
-    return true;
-  }
-  function laneReadsCommitted(el, owner, c2) {
-    if (el._overrideValue !== undefined || !!el._optimisticLane || !!(owner._statusFlags & STATUS_PENDING))
-      return true;
-    if (owner === el && stale && c2._parentSource !== el) {
-      if (el._pendingValue !== NOT_PENDING && activeTransition === null)
-        globalQueue._batch._gatedSubs.add(c2);
-      return true;
-    }
-    return false;
-  }
-  function recomputeLane(el, own) {
-    if (own) {
-      const lane = resolveLane(el);
-      if (!lane)
-        return null;
-      if (!globalQueue._running && !activeTransition && !lane._transition && lane._source._parentSource !== undefined && el._overrideValue === undefined) {
-        el._optimisticLane = undefined;
-        return false;
-      }
-      return lane;
-    }
-    for (let d2 = el._deps;d2; d2 = d2._nextDep) {
-      const dep = d2._dep;
-      if (dep._flags & REACTIVE_OPTIMISTIC_DIRTY) {
-        const depLane = resolveLane(dep);
-        if (depLane) {
-          el._flags |= REACTIVE_OPTIMISTIC_DIRTY;
-          assignOrMergeLane(el, depLane);
-          return depLane;
-        }
-      }
-    }
-    return null;
-  }
-  function laneAsyncPending(el) {
-    const lane = findLane(currentOptimisticLane);
-    if (lane._source !== el) {
-      lane._pendingAsync.add(el);
-      el._optimisticLane = lane;
-      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(lane._source);
-    }
-  }
-  function laneAsyncSettled(el) {
-    const resolvedLane = resolveLane(el);
-    if (resolvedLane) {
-      resolvedLane._pendingAsync.delete(el);
-      GlobalQueue._updatePendingSignal !== null && GlobalQueue._updatePendingSignal(resolvedLane._source);
-    }
-  }
-  function trackOptimisticStore(store) {
-    globalQueue._batch._optimisticStores.add(store);
-    schedule();
-  }
-  function installOptimisticEngine() {
-    if (GlobalQueue._optimisticWrite !== null)
-      return;
-    GlobalQueue._optimisticWrite = optimisticWrite;
-    GlobalQueue._resolveOptimistic = resolveOptimisticNodes;
-    GlobalQueue._transitionBlocked = transitionBlocked;
-    GlobalQueue._cleanupLanes = cleanupCompletedLanes;
-    GlobalQueue._runLaneEffects = runLaneEffects;
-    GlobalQueue._gatedRead = gatedRead;
-    GlobalQueue._laneSuspends = laneSuspends;
-    GlobalQueue._laneReadsCommitted = laneReadsCommitted;
-    GlobalQueue._recomputeLane = recomputeLane;
-    GlobalQueue._laneAsyncPending = laneAsyncPending;
-    GlobalQueue._laneAsyncSettled = laneAsyncSettled;
-    GlobalQueue._trackOptimisticStore = trackOptimisticStore;
-  }
-  installOptimisticEngine();
-  var pendingProbe = null;
-  function collectPendingSources(el) {
-    if (!pendingProbe)
-      return;
-    pendingProbe.sources.add(el);
-    const owner = el._firewall || el;
-    if (owner !== el)
-      pendingProbe.sources.add(owner);
-  }
-  function witnessAffects(node) {
-    pendingProbe?.sources.add(node);
-  }
-  function markWalk(el, seen) {
-    if (el._affectsCount)
-      return true;
-    if (el._statusFlags & STATUS_ERROR)
-      return false;
-    if (seen.has(el))
-      return false;
-    seen.add(el);
-    const firewall = el._firewall;
-    if (firewall && markWalk(firewall, seen))
-      return true;
-    const comp = el;
-    const tail = comp._flags & REACTIVE_RECOMPUTING_DEPS ? comp._depsTail : undefined;
-    if (tail !== null) {
-      for (let d2 = comp._deps ?? null;d2 !== null; d2 = d2._nextDep) {
-        if (!d2._pendingObserver && markWalk(d2._dep, seen))
-          return true;
-        if (d2 === tail)
-          break;
-      }
-    }
-    return false;
-  }
-  function markCovered(el) {
-    return activeAffectsMarks !== 0 && markWalk(el, new Set);
-  }
-  function quietPending(el) {
-    if (el._pendingSources) {
-      for (const source of el._pendingSources)
-        if (!source._reask)
-          return false;
-      return true;
-    }
-    return el._reask;
-  }
-  function newQuestionInFlight(comp) {
-    return !!(comp._statusFlags & STATUS_PENDING) && !(comp._statusFlags & STATUS_UNINITIALIZED) && !quietPending(comp);
-  }
-  function computePendingState(el) {
-    const comp = el;
-    if (comp._flags & REACTIVE_DISPOSED)
-      return false;
-    if (markCovered(el))
-      return true;
-    const firewall = el._firewall;
-    if (el._parentSource) {
-      const parentNode = el._parentSource;
-      const parent = parentNode._firewall || parentNode;
-      return newQuestionInFlight(parent);
-    }
-    if (firewall && el._pendingValue !== NOT_PENDING && !hasActiveOverride$1(el)) {
-      return !!(firewall._flags & REACTIVE_MANUAL_WRITE) || !firewall._inFlight && !(firewall._statusFlags & STATUS_PENDING) || !!(firewall._statusFlags & STATUS_PENDING) && quietPending(firewall);
-    }
-    if (el._pendingValue !== NOT_PENDING && !(comp._statusFlags & STATUS_UNINITIALIZED) && !comp._loading) {
-      if (hasActiveOverride$1(el))
-        return !el._equals || !el._equals(el._pendingValue, unwrapOverride(el._overrideValue));
-      return true;
-    }
-    return newQuestionInFlight(comp);
-  }
-  function syncCompanions(el, value) {
-    if (el._pendingSignal)
-      updatePendingSignal(el);
-    if (el._latestValueComputed)
-      setSignal(el._latestValueComputed, value);
-  }
-  function updatePendingSignal(el) {
-    if (el._pendingSignal) {
-      setSignal(el._pendingSignal, computePendingState(el));
-    }
-    if (el._latestValueComputed)
-      updatePendingSignal(el._latestValueComputed);
-  }
-  function updateChildCompanions(el) {
-    for (let child = el._child;child !== null; child = child._nextChild) {
-      if (child._pendingSignal || child._latestValueComputed)
-        updatePendingSignal(child);
-    }
-  }
-  function repollDownstreamVerdicts(el, snap = false) {
-    const update = snap ? snapCompanionsToState : updatePendingSignal;
-    const visited = new Set;
-    const visit = (node) => {
-      if (visited.has(node))
-        return;
-      visited.add(node);
-      if (node._pendingSignal || node._latestValueComputed)
-        update(node);
-      for (let s2 = node._subs;s2 !== null; s2 = s2._nextSub)
-        visit(s2._sub);
-      for (let child = node._child ?? null;child !== null; child = child._nextChild) {
-        visit(child);
-      }
-    };
-    visit(el);
-  }
-  function snapCompanionsToState(owner) {
-    const sig = owner._pendingSignal;
-    if (sig && (sig._overrideValue === undefined || sig._overrideValue === NOT_PENDING)) {
-      const pending = computePendingState(owner);
-      if (sig._value !== pending || sig._pendingValue !== NOT_PENDING) {
-        sig._value = pending;
-        sig._pendingValue = NOT_PENDING;
-        sig._time = clock;
-        insertSubs(sig);
-        schedule();
-      }
-    }
-    const shadow = owner._latestValueComputed;
-    if (shadow && !(shadow._flags & REACTIVE_DISPOSED)) {
-      if ((shadow._overrideValue === undefined || shadow._overrideValue === NOT_PENDING) && shadow._pendingValue === NOT_PENDING && !Object.is(shadow._value, owner._value) && !(shadow._flags & (REACTIVE_DIRTY | REACTIVE_CHECK))) {
-        shadow._flags |= REACTIVE_DIRTY;
-        insertIntoHeap(shadow, queueFor(shadow));
-        insertSubs(shadow);
-        schedule();
-      }
-      snapCompanionsToState(shadow);
-    }
-  }
-  function getLatestValueComputed(el) {
-    if (!el._latestValueComputed) {
-      const prevPending = latestReadActive;
-      setLatestReadActive(false);
-      const prevCheck = pendingCheckActive;
-      setPendingCheckActive(false);
-      const prevContext = context;
-      setContextInternal(null);
-      el._latestValueComputed = optimisticComputed(() => read(el));
-      el._latestValueComputed._parentSource = el;
-      setContextInternal(prevContext);
-      setPendingCheckActive(prevCheck);
-      setLatestReadActive(prevPending);
-    }
-    return el._latestValueComputed;
-  }
-  function latestRead(el) {
-    const pendingComputed = getLatestValueComputed(el);
-    const prevPending = latestReadActive;
-    setLatestReadActive(false);
-    const visibleValue = el._overrideValue !== undefined && el._overrideValue !== NOT_PENDING ? unwrapOverride(el._overrideValue) : el._value;
-    let value;
-    try {
-      const queue = queueFor(pendingComputed);
-      if (pendingComputed._height >= queue._min && !(pendingComputed._flags & (REACTIVE_DISPOSED | REACTIVE_ZOMBIE))) {
-        markHeap(queue);
-        prepareComputed(pendingComputed, true);
-      }
-      value = read(pendingComputed);
-    } catch (e2) {
-      if (e2 instanceof NotReadyError && (!context || !(el._statusFlags & STATUS_UNINITIALIZED)))
-        return visibleValue;
-      throw e2;
-    } finally {
-      setLatestReadActive(prevPending);
-    }
-    if (pendingComputed._statusFlags & STATUS_PENDING)
-      return visibleValue;
-    if (stale && currentOptimisticLane && pendingComputed._optimisticLane) {
-      const pcLane = findLane(pendingComputed._optimisticLane);
-      const curLane = findLane(currentOptimisticLane);
-      if (pcLane !== curLane && pcLane._pendingAsync.size > 0) {
-        return visibleValue;
-      }
-    }
-    if (pendingComputed._pendingValue !== NOT_PENDING && !hasActiveOverride$1(pendingComputed) && !(stale && pendingComputed._transition && activeTransition !== pendingComputed._transition))
-      return pendingComputed._pendingValue;
-    return value;
-  }
-  function pendingCheckRead(el, c2, owner, firewall) {
-    setPendingCheckActive(false);
-    if (typeof el._fn === "function")
-      prepareComputed(el, true);
-    const ownerStatus = owner._statusFlags;
-    if (c2 && ownerStatus & STATUS_PENDING && ownerStatus & STATUS_UNINITIALIZED) {
-      if (tracking && el !== c2)
-        link(el, c2);
-      setPendingCheckActive(true);
-      throw owner._error;
-    }
-    collectPendingSources(el);
-    if (firewall)
-      collectPendingSources(firewall);
-    setPendingCheckActive(true);
-  }
-  function recordFreshRead(el, value) {
-    if (pendingProbe !== null && el._pendingValue !== NOT_PENDING && value === el._pendingValue)
-      pendingProbe.freshReads.add(el);
-  }
-  function applyReask(el, hadReask) {
-    const wasPending = !!(el._statusFlags & STATUS_PENDING);
-    const isReask = hadReask && !(wasPending && !el._reask);
-    const changed = wasPending && el._reask !== isReask;
-    el._reask = isReask;
-    return changed;
-  }
-  GlobalQueue._syncCompanions = syncCompanions;
-  GlobalQueue._updatePendingSignal = updatePendingSignal;
-  GlobalQueue._updateChildCompanions = updateChildCompanions;
-  GlobalQueue._snapCompanions = snapCompanionsToState;
-  GlobalQueue._latestRead = latestRead;
-  GlobalQueue._pendingCheck = pendingCheckRead;
-  GlobalQueue._recordFresh = recordFreshRead;
-  GlobalQueue._applyReask = applyReask;
-  GlobalQueue._repollVerdicts = repollDownstreamVerdicts;
-  GlobalQueue._witnessAffects = witnessAffects;
-  function effect(compute, effect2, error, options) {
-    const isUser = !!options?.user;
-    const node = createEffectNode(compute, effect2, error, isUser ? EFFECT_USER : EFFECT_RENDER, notifyEffectStatus, options);
-    recompute(node, true);
-    !options?.defer && (node._type === EFFECT_USER || options?.schedule ? node._queue.enqueue(node._type, runEffect.bind(null, node)) : runEffect(node));
-    if (!node._parent) {
-      const message = "[NO_OWNER_EFFECT] Effects created outside a reactive context will never be disposed";
-      emitDiagnostic({
-        code: "NO_OWNER_EFFECT",
-        kind: "lifecycle",
-        severity: "warn",
-        message,
-        ownerId: node.id,
-        ownerName: node._name,
-        data: { effectType: "effect" }
-      });
-      console.warn(message);
-    }
-  }
-  function notifyEffectStatus(status, error) {
-    const actualStatus = status !== undefined ? status : this._statusFlags;
-    const actualError = error !== undefined ? error : this._error;
-    if (actualStatus & STATUS_ERROR) {
-      this._queue.notify(this, STATUS_PENDING, 0);
-      if (this._type === EFFECT_USER) {
-        if (this._statusFlags & STATUS_ERROR) {
-          this._modified = true;
-          this._queue.enqueue(this._type, this._boundRunEffect ??= runEffect.bind(null, this));
-        }
-        return;
-      }
-      if (!this._queue.notify(this, STATUS_ERROR, STATUS_ERROR)) {
-        haltReactivity(unwrapStatusError(actualError));
-        throw actualError;
-      }
-    } else if (this._type === EFFECT_RENDER) {
-      this._queue.notify(this, STATUS_PENDING | STATUS_ERROR, actualStatus, actualError);
-      if (_hitUnhandledAsync) {
-        resetUnhandledAsync();
-        const message = "[ASYNC_OUTSIDE_LOADING_BOUNDARY] An async value was read outside a Loading boundary. The root mount will be deferred until all pending async settles.";
-        emitDiagnostic({
-          code: "ASYNC_OUTSIDE_LOADING_BOUNDARY",
-          kind: "async",
-          severity: "warn",
-          message,
-          ownerId: this.id,
-          ownerName: this._name
-        });
-        console.warn(message);
-      }
-    }
-  }
-  function runEffect(node) {
-    if (!node._modified || node._flags & REACTIVE_DISPOSED)
-      return;
-    if (node._statusFlags & STATUS_ERROR && node._type === EFFECT_USER) {
-      const err = unwrapStatusError(node._error);
-      node._prevValue = node._value;
-      node._modified = false;
-      try {
-        node._errorFn ? node._errorFn(err, () => {
-          const prevCleanup2 = node._cleanup;
-          node._cleanup = undefined;
-          prevCleanup2?.();
-        }) : console.error(err);
-      } catch (error) {
-        if (!node._queue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
-          haltReactivity(error);
-          throw error;
-        }
-      }
-      return;
-    }
-    let prevStrictRead = false;
-    {
-      prevStrictRead = setStrictRead("an effect callback");
-      setEffectCallback(true);
-    }
-    const prevCleanup = node._cleanup;
-    node._cleanup = undefined;
-    try {
-      prevCleanup?.();
-      const nextCleanup = node._effectFn(node._value, node._prevValue);
-      if (nextCleanup !== undefined && typeof nextCleanup !== "function") {
-        throw new Error(`${node._name || "effect"} callback returned an invalid cleanup value. Return a cleanup function or undefined.`);
-      }
-      node._cleanup = nextCleanup;
-    } catch (error) {
-      node._error = new StatusError(node, error);
-      node._statusFlags |= STATUS_ERROR;
-      if (!node._queue.notify(node, STATUS_ERROR, STATUS_ERROR)) {
-        haltReactivity(error);
-        throw error;
-      }
-    } finally {
-      {
-        setStrictRead(prevStrictRead);
-        setEffectCallback(false);
-      }
-      node._prevValue = node._value;
-      node._modified = false;
-    }
-  }
-  GlobalQueue._runEffect = runEffect;
-  var ACTION_CALLED_IN_OWNED_SCOPE_MESSAGE = "[ACTION_CALLED_IN_OWNED_SCOPE] Calling an action inside an owned scope (component, computation) is not allowed. " + "Call it from an event handler or another imperative scope.";
-  function accessor(node) {
-    const fn = read.bind(null, node);
-    fn[$REFRESH] = node;
-    return fn;
-  }
-  function createSignal(first, second) {
-    if (typeof first === "function") {
-      const node2 = computed(first, second);
-      node2._config &= ~CONFIG_AUTO_DISPOSE;
-      return [accessor(node2), setMemo.bind(null, node2)];
-    }
-    const node = signal(first, second);
-    registerGraph(node, getOwner());
-    return [accessor(node), setSignal.bind(null, node)];
-  }
-  function createMemo(compute, options) {
-    return accessor(computed(compute, options));
-  }
-  function createRenderEffect(compute, effectFn, options) {
-    effect(compute, effectFn, undefined, { ...options, name: options?.name ?? "effect" });
-  }
-  var ownedRaw = new WeakSet;
-  var storeNextLookup = new WeakMap;
-  var $TRACK = Symbol("STORE_TRACK");
-  var $TARGET = Symbol("STORE_TARGET");
-  var $PROXY = Symbol("STORE_PROXY");
-  var $AFFECTS = Symbol("STORE_AFFECTS");
-  var rawValues = new WeakSet;
-  var OBJECT_PROTO = Object.prototype;
-  var wrappableProtos = new WeakMap;
-  function ownEnumerableKeys(o2) {
-    return Reflect.ownKeys(o2).filter((k2) => Object.prototype.propertyIsEnumerable.call(o2, k2));
-  }
-  function inheritAffectsMarks(node, raw, property) {
-    for (const [carrier, entry] of affectsScopes) {
-      if (carrier._affectsCount && entry.scope.has(raw) && (entry.key === undefined || entry.key === property)) {
-        GlobalQueue._markAffects(node);
-        entry.inherited.push(node);
-      }
-    }
-  }
-  var affectsScopes = new Map;
-  var nextAffectsNodeResolver = null;
-  function setNextAffectsNodeResolver(fn) {
-    nextAffectsNodeResolver = fn;
-  }
-  function affectsScopesLive() {
-    return affectsScopes.size > 0;
-  }
-  function markAffects(node) {
-    node._affectsCount = (node._affectsCount || 0) + 1;
-    shiftAffectsMarks(1);
-  }
-  function releaseAffectsMark(node) {
-    shiftAffectsMarks(-1);
-    node._affectsCount--;
-    if (!node._affectsCount) {
-      GlobalQueue._repollVerdicts !== null && GlobalQueue._repollVerdicts(node, true);
-      GlobalQueue._releaseAffectsScope?.(node);
-    }
-  }
-  function releaseAffectsMarks(nodes) {
-    for (let i2 = 0;i2 < nodes.length; i2++)
-      releaseAffectsMark(nodes[i2]);
-    nodes.length = 0;
-  }
-  GlobalQueue._releaseAffectsMarks = releaseAffectsMarks;
-  GlobalQueue._markAffects = markAffects;
-  GlobalQueue._releaseAffectsMark = releaseAffectsMark;
-  function getNode(target, key, current) {
-    const nodes = target.n ??= Object.create(null);
-    let node = nodes[key];
-    if (node === undefined) {
-      const created = node = signal(current, {
-        equals: (a2, b2) => isEqual(a2, b2) || sameLogicalSlot(target, a2, b2),
-        unobserved() {
-          if (created._affectsCount)
-            return;
-          if (target.n && target.n[key] === created) {
-            delete target.n[key];
-            target.nc--;
-          }
-        }
-      }, target.fam?.node ?? undefined);
-      created._config |= CONFIG_OWNED_WRITE;
-      created.acc = isOwnAccessor(target.pb ?? target.v, key);
-      created.px = undefined;
-      created.pxv = undefined;
-      if (target.fam?.opt)
-        created._overrideValue = NOT_PENDING;
-      if (key !== $AFFECTS && affectsScopesLive())
-        inheritAffectsMarks(created, target.v, key);
-      nodes[key] = node;
-      target.nc++;
-      markDescendants(target);
-    }
-    return node;
-  }
-  function sameLogicalSlot(target, a2, b2) {
-    if (a2 === null || typeof a2 !== "object" || b2 === null || typeof b2 !== "object")
-      return false;
-    const map = target.fam?.map ?? storeNextLookup;
-    const at2 = map.get(a2);
-    return at2 !== undefined && at2 === map.get(b2);
-  }
-  function markDescendants(target) {
-    let t2 = target;
-    while (t2 && !t2.d) {
-      t2.d = true;
-      t2 = t2.u;
-    }
-  }
-  var foldOlds = new Map;
-  var FORCE = Symbol();
-  var pendingNotify = new Set;
-  var UNSAFE_KEYS = new Set(["__proto__", "prototype", "constructor"]);
-  var hasOwn = Object.prototype.hasOwnProperty;
-  var lookupGetter = Object.prototype.__lookupGetter__;
-  var lookupSetter = Object.prototype.__lookupSetter__;
-  function isOwnAccessor(src, key) {
-    return hasOwn.call(src, key) && (lookupGetter.call(src, key) !== undefined || lookupSetter.call(src, key) !== undefined);
-  }
-  setNextAffectsNodeResolver((t2, key) => key === $AFFECTS ? getNode(t2, $AFFECTS, undefined) : getNode(t2, key, (t2.pb ?? t2.v)[key]));
-  var DELETE = Symbol("STORE_PATH_DELETE");
-  function trueFn() {
-    return true;
-  }
-  var propTraps = {
-    get(_2, property, receiver) {
-      if (property === $PROXY)
-        return receiver;
-      return _2.get(property);
-    },
-    has(_2, property) {
-      if (property === $PROXY)
-        return true;
-      return _2.has(property);
-    },
-    set: trueFn,
-    deleteProperty: trueFn,
-    getOwnPropertyDescriptor(_2, property) {
-      return {
-        configurable: true,
-        enumerable: true,
-        get() {
-          return _2.get(property);
-        },
-        set: trueFn,
-        deleteProperty: trueFn
-      };
-    },
-    ownKeys(_2) {
-      return _2.keys();
-    }
-  };
-  function resolveSource(s2) {
-    return !(s2 = typeof s2 === "function" ? s2() : s2) ? {} : s2;
-  }
-  var $SOURCES = Symbol("MERGE_SOURCE");
-  function merge(...sources) {
-    if (sources.length === 1 && typeof sources[0] !== "function")
-      return sources[0];
-    let proxy = false;
-    const flattened = [];
-    for (let i2 = 0;i2 < sources.length; i2++) {
-      const s2 = sources[i2];
-      proxy = proxy || !!s2 && $PROXY in s2;
-      const childSources = !!s2 && s2[$SOURCES];
-      if (childSources) {
-        for (let i3 = 0;i3 < childSources.length; i3++)
-          flattened.push(childSources[i3]);
-      } else
-        flattened.push(typeof s2 === "function" ? (proxy = true, createMemo(s2)) : s2);
-    }
-    if (SUPPORTS_PROXY && proxy) {
-      return new Proxy({
-        get(property) {
-          if (property === $SOURCES)
-            return flattened;
-          for (let i2 = flattened.length - 1;i2 >= 0; i2--) {
-            const s2 = resolveSource(flattened[i2]);
-            if (property in s2)
-              return s2[property];
-          }
-        },
-        has(property) {
-          for (let i2 = flattened.length - 1;i2 >= 0; i2--) {
-            if (property in resolveSource(flattened[i2]))
-              return true;
-          }
-          return false;
-        },
-        keys() {
-          const keys = new Set;
-          for (let i2 = 0;i2 < flattened.length; i2++) {
-            const sourceKeys = ownEnumerableKeys(resolveSource(flattened[i2]));
-            for (let j2 = 0;j2 < sourceKeys.length; j2++)
-              keys.add(sourceKeys[j2]);
-          }
-          return [...keys];
-        }
-      }, propTraps);
-    }
-    const defined = Object.create(null);
-    let nonTargetKey = false;
-    let lastIndex = flattened.length - 1;
-    for (let i2 = lastIndex;i2 >= 0; i2--) {
-      const source = flattened[i2];
-      if (!source) {
-        i2 === lastIndex && lastIndex--;
-        continue;
-      }
-      const sourceKeys = Object.getOwnPropertyNames(source);
-      for (let j2 = sourceKeys.length - 1;j2 >= 0; j2--) {
-        const key = sourceKeys[j2];
-        if (key === "__proto__" || key === "constructor")
-          continue;
-        if (!defined[key]) {
-          nonTargetKey = nonTargetKey || i2 !== lastIndex;
-          const desc = Object.getOwnPropertyDescriptor(source, key);
-          defined[key] = desc.get ? {
-            enumerable: true,
-            configurable: true,
-            get: desc.get.bind(source)
-          } : desc;
-        }
-      }
-    }
-    if (!nonTargetKey)
-      return flattened[lastIndex];
-    const target = {};
-    const definedKeys = Object.keys(defined);
-    for (let i2 = definedKeys.length - 1;i2 >= 0; i2--) {
-      const key = definedKeys[i2], desc = defined[key];
-      if (desc.get)
-        Object.defineProperty(target, key, desc);
-      else
-        target[key] = desc.value;
-    }
-    target[$SOURCES] = flattened;
-    return target;
-  }
-  var ON_INIT = Symbol();
-  function flatten(children, options) {
-    if (typeof children === "function" && !children.length) {
-      if (options?.doNotUnwrap)
-        return children;
-      do {
-        children = children();
-      } while (typeof children === "function" && !children.length);
-    }
-    if (options?.skipNonRendered && (children == null || children === true || children === false || children === ""))
-      return;
-    if (Array.isArray(children)) {
-      let results = [];
-      if (flattenArray(children, results, options)) {
-        return () => {
-          let nested = [];
-          flattenArray(results, nested, { ...options, doNotUnwrap: false });
-          return nested;
-        };
-      }
-      return results;
-    }
-    return children;
-  }
-  function flattenArray(children, results = [], options) {
-    let notReady = null;
-    let needsUnwrap = false;
-    for (let i2 = 0;i2 < children.length; i2++) {
-      try {
-        let child = children[i2];
-        if (typeof child === "function" && !child.length) {
-          if (options?.doNotUnwrap) {
-            results.push(child);
-            needsUnwrap = true;
-            continue;
-          }
-          do {
-            child = child();
-          } while (typeof child === "function" && !child.length);
-        }
-        if (Array.isArray(child)) {
-          needsUnwrap = flattenArray(child, results, options);
-        } else if (options?.skipNonRendered && (child == null || child === true || child === false || child === "")) {} else
-          results.push(child);
-      } catch (e2) {
-        if (!(e2 instanceof NotReadyError))
-          throw e2;
-        notReady = e2;
-      }
-    }
-    if (notReady)
-      throw notReady;
-    return needsUnwrap;
-  }
-
-  // node_modules/.bun/solid-js@2.0.0-rc.1/node_modules/solid-js/dist/dev.js
-  var $DEVCOMP = Symbol("COMPONENT_DEV");
-  function createContext(defaultValue, options) {
-    const id = Symbol(options && options.name || "");
-    function provider(props) {
-      return createRoot(() => {
-        setContext(provider, props.value);
-        return children(() => props.children);
-      });
-    }
-    provider.id = id;
-    provider.defaultValue = defaultValue;
-    return provider;
-  }
-  function useContext(context2) {
-    return getContext(context2);
-  }
-  function children(fn) {
-    const c2 = createMemo(fn, {
-      lazy: true
-    });
-    const memo = createMemo(() => flatten(c2()), {
-      name: "children",
-      lazy: true,
-      sync: true
-    });
-    memo.toArray = () => {
-      const v2 = memo();
-      return Array.isArray(v2) ? v2 : v2 != null ? [v2] : [];
-    };
-    return memo;
-  }
-  function devComponent(Comp, props) {
-    return createRoot(() => {
-      const owner = getOwner();
-      owner._component = {
-        fn: Comp,
-        props,
-        name: Comp.name
-      };
-      Object.assign(Comp, {
-        [$DEVCOMP]: true
-      });
-      return untrack(() => Comp(props), `<${Comp.name || "Anonymous"}>`);
-    }, {
-      transparent: true
-    });
-  }
-  var NoHydrateContext = {
-    id: Symbol("NoHydrateContext"),
-    defaultValue: false
-  };
-  var _createMemo;
-  var _createSignal;
-  var _createRenderEffect;
-  var LIVE_SOURCE = Symbol.for("solid.LiveSource");
-  var createMemo2 = (...args) => {
-    return (_createMemo || createMemo)(...args);
-  };
-  var createSignal2 = (...args) => {
-    return (_createSignal || createSignal)(...args);
-  };
-  var createRenderEffect2 = (...args) => (_createRenderEffect || createRenderEffect)(...args);
-  var _fragments = new Map;
-  var _truncated = new Set;
-  var _revealSubs = new Set;
-  var _truncationRejectors = new Map;
-  function createComponent(Comp, props) {
-    return devComponent(Comp, props || {});
-  }
-  if (globalThis) {
-    if (!globalThis.Solid$$)
-      globalThis.Solid$$ = true;
-    else
-      console.warn("You appear to have multiple instances of Solid. This can lead to unexpected behavior.");
-  }
-
   // packages/core/src/style/generated/style-properties.ts
   var INLINE_STYLE_CONTRACT = {
     "align-content": {
@@ -8510,7 +9241,7 @@
     return typeof value === "object" && value !== null && value.kind === "wabou-vector-path" && typeof value.drawable === "boolean" && value.data instanceof Uint8Array;
   }
 
-  // node_modules/.bun/@solidjs+universal@2.0.0-rc.1+8dd5f48cc8d92621/node_modules/@solidjs/universal/dist/dev.js
+  // node_modules/.bun/@solidjs+universal@2.0.0-rc.2+fb26118518832c67/node_modules/@solidjs/universal/dist/dev.js
   var transparentOptions = {
     transparent: true,
     sync: true
@@ -8518,10 +9249,10 @@
   var syncOptions = {
     sync: true
   };
-  var effect2 = (fn, effectFn, options) => createRenderEffect2(fn, effectFn, options ? {
+  var effect2 = (fn, effectFn, options2) => createRenderEffect2(fn, effectFn, options2 ? {
     sync: true,
-    ...options,
-    transparent: !options.scope
+    ...options2,
+    transparent: !options2.scope
   } : transparentOptions);
   var memo = (fn) => createMemo2(() => fn(), syncOptions);
   var INNER_OWNED = {};
@@ -8539,14 +9270,14 @@
     getFirstChild,
     getNextSibling
   }) {
-    function insert(parent, accessor2, marker, initial, options) {
-      const onUpdate = options && options.onUpdate;
-      let effectOptions = options;
+    function insert(parent, accessor2, marker, initial, options2) {
+      const onUpdate = options2 && options2.onUpdate;
+      let effectOptions = options2;
       if (onUpdate) {
         const {
           onUpdate: onUpdate2,
           ...rest
-        } = options;
+        } = options2;
         effectOptions = rest;
       }
       const multi = marker !== undefined;
@@ -8574,7 +9305,7 @@
           insertExpression(parent, inner, current, marker);
           current = inner;
           onUpdate && onUpdate(current);
-        }, prev !== undefined && !(options && options.schedule) ? {
+        }, prev !== undefined && !(options2 && options2.schedule) ? {
           ...effectOptions,
           schedule: true
         } : effectOptions);
@@ -8644,13 +9375,14 @@
     }
     function reconcileArrays(parentNode, a2, b2) {
       let bLength = b2.length, aEnd = a2.length, bEnd = bLength, aStart = 0, bStart = 0, after = getNextSibling(a2[aEnd - 1]), map = null;
+      const isLive = (n2) => n2 && getParentNode(n2) === parentNode;
       while (aStart < aEnd || bStart < bEnd) {
-        if (a2[aStart] === b2[bStart]) {
+        if (a2[aStart] === b2[bStart] && isLive(a2[aStart])) {
           aStart++;
           bStart++;
           continue;
         }
-        while (a2[aEnd - 1] === b2[bEnd - 1]) {
+        while (a2[aEnd - 1] === b2[bEnd - 1] && isLive(a2[aEnd - 1])) {
           aEnd--;
           bEnd--;
         }
@@ -8841,11 +9573,14 @@
       memo,
       createComponent,
       applyRef,
-      ref
+      ref,
+      patchDriver(subject, body) {
+        effect2(() => body(subject, subject, false), () => body(subject, undefined, true));
+      }
     };
   }
-  function createRenderer(options) {
-    const base = createRenderer$1(options);
+  function createRenderer(options2) {
+    const base = createRenderer$1(options2);
     const baseInsert = base.insert;
     return {
       ...base,
@@ -8934,7 +9669,7 @@
     diagnostics: {
       frameStats: nativeHost.frameStats,
       overlayPaintStats: nativeHost.debugOverlayPaintStats,
-      setOverlay: (options) => nativeHost.setDebugOverlay(options.layout ?? false, options.clips ?? false, options.hitTarget ?? false)
+      setOverlay: (options2) => nativeHost.setDebugOverlay(options2.layout ?? false, options2.clips ?? false, options2.hitTarget ?? false)
     },
     intl: {
       locale: nativeHost.systemLocale,
@@ -9560,20 +10295,20 @@ ${detail}`);
   function cancelAnimationFrameImpl(id) {
     rafQueue.delete(id);
   }
-  function tickAnimationFrame(frameTime, deliver = __wabou_flush) {
+  function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush()) {
     const entries = Array.from(rafQueue.entries());
     rafQueue.clear();
     flush(() => {
       for (const [_2, cb] of entries) {
         try {
           cb(frameTime);
-        } catch (e2) {
-          __wabou_log("error", e2.stack ? String(e2.stack) : String(e2));
+        } catch (error) {
+          __wabou_log("error", error instanceof Error && error.stack ? error.stack : String(error));
         }
       }
     });
     runSweep();
-    const bytes = writer.flush();
+    const bytes = flushWriter();
     if (bytes)
       deliver(bytes);
     return rafQueue.size > 0;
@@ -9704,40 +10439,40 @@ ${detail}`);
   globalThis.ResizeObserver = WabouResizeObserver;
 
   // packages/core/src/glue/host-messages.ts
-  var listeners = new Map;
+  var listeners2 = new Map;
   var allListeners = new Set;
   var utf8 = new TextDecoder;
   function subscribe(topic, handler) {
-    let set = listeners.get(topic);
+    let set = listeners2.get(topic);
     if (!set) {
       set = new Set;
-      listeners.set(topic, set);
+      listeners2.set(topic, set);
     }
     set.add(handler);
     return () => {
       set.delete(handler);
       if (set.size === 0)
-        listeners.delete(topic);
+        listeners2.delete(topic);
     };
   }
-  function subscribeJson(topic, handler, options = {}) {
+  function subscribeJson(topic, handler, options2 = {}) {
     return subscribe(topic, (payload) => {
       try {
         const source = typeof payload === "string" ? payload : payload instanceof Uint8Array ? utf8.decode(payload) : undefined;
         if (source === undefined)
           throw new TypeError(`host message "${topic}" does not contain JSON text`);
         const parsed = JSON.parse(source);
-        handler(options.decode ? options.decode(parsed) : parsed);
+        handler(options2.decode ? options2.decode(parsed) : parsed);
       } catch (error) {
-        if (options.onError)
-          options.onError(error, payload);
+        if (options2.onError)
+          options2.onError(error, payload);
         else
           console.error(`[wabou-host] invalid JSON message for "${topic}"`, error);
       }
     });
   }
   function dispatchHostMessage(topic, payload) {
-    const set = listeners.get(topic);
+    const set = listeners2.get(topic);
     if (set) {
       for (const handler of set) {
         try {
@@ -10035,8 +10770,8 @@ ${detail}`);
       show: () => dispatchFireAndForget(effectOps.windowShow, { windowId: id })
     });
   }
-  function createWindow(options = {}) {
-    return dispatchEffect(effectOps.windowCreate, options).then((key) => handle(windowKeyFromJSON(key)));
+  function createWindow(options2 = {}) {
+    return dispatchEffect(effectOps.windowCreate, options2).then((key) => handle(windowKeyFromJSON(key)));
   }
   function currentWindow() {
     return handle(windowKeys.fromParts(__wabou_window_id_lo, __wabou_window_id_hi));
@@ -10160,39 +10895,39 @@ ${detail}`);
     }));
   }
   var dialog = Object.freeze({
-    open(options = {}) {
+    open(options2 = {}) {
       return dispatchEffect(effectOps.dialogOpen, {
-        ...options,
-        filters: normalizeFilters(options.filters),
-        multiple: options.multiple ?? false
+        ...options2,
+        filters: normalizeFilters(options2.filters),
+        multiple: options2.multiple ?? false
       });
     },
-    save(options = {}) {
+    save(options2 = {}) {
       return dispatchEffect(effectOps.dialogSave, {
-        ...options,
-        filters: normalizeFilters(options.filters)
+        ...options2,
+        filters: normalizeFilters(options2.filters)
       }).then((paths) => paths?.[0] ?? null);
     },
-    pickDirectory(options = {}) {
-      return dispatchEffect(effectOps.dialogPickDirectory, options).then((paths) => paths?.[0] ?? null);
+    pickDirectory(options2 = {}) {
+      return dispatchEffect(effectOps.dialogPickDirectory, options2).then((paths) => paths?.[0] ?? null);
     },
-    message(options) {
+    message(options2) {
       return dispatchEffect(effectOps.dialogMessage, {
-        ...options,
-        message: String(options.message),
-        level: options.level ?? "info",
-        buttons: options.buttons ?? "ok"
+        ...options2,
+        message: String(options2.message),
+        level: options2.level ?? "info",
+        buttons: options2.buttons ?? "ok"
       });
     }
   });
 
   // packages/core/src/glue/notification.ts
   var notification = Object.freeze({
-    show(options) {
+    show(options2) {
       return dispatchEffect(effectOps.notificationShow, {
-        ...options,
-        title: String(options.title),
-        silent: options.silent ?? false
+        ...options2,
+        title: String(options2.title),
+        silent: options2.silent ?? false
       }).then(() => {
         return;
       });
@@ -10322,18 +11057,18 @@ ${detail}`);
         throw new TypeError("Wabou color palette must be a Uint32Array");
       submitPalette(colors.slice());
     },
-    animateTo(name, options = {}) {
+    animateTo(name, options2 = {}) {
       const target = paletteFor(name);
       const source = currentPalette?.slice();
-      if (!source || options.duration === 0) {
+      if (!source || options2.duration === 0) {
         this.set(name);
         return { finished: Promise.resolve(), cancel() {} };
       }
       if (source.length !== target.length)
         throw new Error("Wabou color theme palettes have inconsistent lengths");
       activeAnimation?.cancel();
-      const durationMs = Math.max(0, options.duration ?? 0.28) * 1000;
-      const ease = easingFunction(options.easing);
+      const durationMs = Math.max(0, options2.duration ?? 0.28) * 1000;
+      const ease = easingFunction(options2.easing);
       const frame = new Uint32Array(source.length);
       let raf = 0;
       let start;
@@ -10360,7 +11095,7 @@ ${detail}`);
         const linear = durationMs === 0 ? 1 : Math.min(1, (timestamp - start) / durationMs);
         const progress = Math.min(1, Math.max(0, ease(linear)));
         for (let index = 0;index < frame.length; index++) {
-          frame[index] = mixColor(source[index], target[index], progress, options.colorSpace !== "srgb");
+          frame[index] = mixColor(source[index], target[index], progress, options2.colorSpace !== "srgb");
         }
         submitPalette(frame.slice());
         if (linear < 1) {

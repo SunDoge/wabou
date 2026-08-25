@@ -87,7 +87,7 @@ the public JavaScript facades through `workspace:*`:
   "workspaces": ["vendor/wabou/packages/*"],
   "dependencies": {
     "@wabou/ui": "workspace:*",
-    "solid-js": "2.0.0-rc.1"
+    "solid-js": "2.0.0-rc.2"
   },
   "devDependencies": {
     "@wabou/test": "workspace:*",

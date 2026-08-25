@@ -338,18 +338,18 @@ function requestAnimationFrameImpl(cb) {
 function cancelAnimationFrameImpl(id) {
 	rafQueue.delete(id);
 }
-function tickAnimationFrame(frameTime, deliver = __wabou_flush) {
+function tickAnimationFrame(frameTime, deliver = __wabou_flush, flushWriter = () => writer.flush()) {
 	const entries = Array.from(rafQueue.entries());
 	rafQueue.clear();
 	flush(() => {
 		for (const [_, cb] of entries) try {
 			cb(frameTime);
-		} catch (e) {
-			__wabou_log("error", e.stack ? String(e.stack) : String(e));
+		} catch (error) {
+			__wabou_log("error", error instanceof Error && error.stack ? error.stack : String(error));
 		}
 	});
 	runSweep();
-	const bytes = writer.flush();
+	const bytes = flushWriter();
 	if (bytes) deliver(bytes);
 	return rafQueue.size > 0;
 }

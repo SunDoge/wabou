@@ -54,7 +54,7 @@
     "@wabou/core": "workspace:*",
     "lucide-static": "1.31.0",
     "motion-dom": "13.1.1",
-    "solid-js": "2.0.0-rc.1",
+    "solid-js": "2.0.0-rc.2",
     "ts-pattern": "^5.9.0",
     "uqr": "^0.1.3"
   }

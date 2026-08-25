@@ -15,9 +15,9 @@
     "test:behavior": "wabou test ."
   },
   "dependencies": {
-    "@solidjs/web": "2.0.0-rc.1",
+    "@solidjs/web": "2.0.0-rc.2",
     "@wabou/ui": "workspace:*",
-    "solid-js": "2.0.0-rc.1"
+    "solid-js": "2.0.0-rc.2"
   },
   "devDependencies": {
     "@types/bun": "^1.4.0",

@@ -48,7 +48,7 @@
     "@wabou/core": "workspace:*"
   },
   "peerDependencies": {
-    "solid-js": ">=2.0.0-rc.1",
+    "solid-js": ">=2.0.0-rc.2",
     "vitest": ">=2.1.0"
   }
 }
