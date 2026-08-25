@@ -275,12 +275,8 @@ impl Applier {
                 let Ok(layout) = self.document.node_store.tree.layout(node) else {
                     return false;
                 };
-                let viewport_width =
-                    (layout.size.width - layout.border.left - layout.border.right).max(0.0);
-                let viewport_height =
-                    (layout.size.height - layout.border.top - layout.border.bottom).max(0.0);
-                let max_x = (layout.content_size.width - viewport_width).max(0.0);
-                let max_y = (layout.content_size.height - viewport_height).max(0.0);
+                let max_x = layout.scroll_width();
+                let max_y = layout.scroll_height();
                 let style = self
                     .document
                     .node_store
@@ -332,12 +328,8 @@ impl Applier {
         let Ok(layout) = self.document.node_store.tree.layout(node) else {
             return false;
         };
-        let viewport_width =
-            (layout.size.width - layout.border.left - layout.border.right).max(0.0);
-        let viewport_height =
-            (layout.size.height - layout.border.top - layout.border.bottom).max(0.0);
-        let max_x = (layout.content_size.width - viewport_width).max(0.0);
-        let max_y = (layout.content_size.height - viewport_height).max(0.0);
+        let max_x = layout.scroll_width();
+        let max_y = layout.scroll_height();
         let offset = self
             .interaction
             .scroll

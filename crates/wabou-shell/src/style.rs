@@ -610,10 +610,10 @@ fn apply_sizing_ir(style: &mut taffy::Style, property: &str, value: &IrValue) ->
     match property {
         "width" => style.size.width = ir_dim(value).unwrap_or(style.size.width),
         "height" => style.size.height = ir_dim(value).unwrap_or(style.size.height),
-        "min-width" => style.min_size.width = ir_dim(value).unwrap_or(style.min_size.width),
-        "min-height" => style.min_size.height = ir_dim(value).unwrap_or(style.min_size.height),
-        "max-width" => style.max_size.width = ir_dim(value).unwrap_or(style.max_size.width),
-        "max-height" => style.max_size.height = ir_dim(value).unwrap_or(style.max_size.height),
+        "min-width" => style.min_size.width = ir_lpa(value).unwrap_or(style.min_size.width),
+        "min-height" => style.min_size.height = ir_lpa(value).unwrap_or(style.min_size.height),
+        "max-width" => style.max_size.width = ir_lpa(value).unwrap_or(style.max_size.width),
+        "max-height" => style.max_size.height = ir_lpa(value).unwrap_or(style.max_size.height),
         "aspect-ratio" => style.aspect_ratio = value.number().or(style.aspect_ratio),
         "position" => {
             // Taffy has no distinct static/fixed/sticky positioning model.

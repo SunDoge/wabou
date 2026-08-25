@@ -57,7 +57,7 @@ specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-serde = "0.0.12"
 specta-typescript = "0.0.12"
 sys-locale = "0.3.2"
-taffy = "0.13.0"
+taffy = "0.14.0"
 tokio = "1"
 trash = "5.2.6"
 tracing = "0.1"

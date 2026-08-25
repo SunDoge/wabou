@@ -1031,8 +1031,10 @@ impl Applier {
             // remaining width, so its contents must not silently impose CSS's
             // automatic min-content floor. Intrinsic/fixed controls keep the
             // Taffy default, while an authored min-width still wins.
-            if layout.flex_grow > 0.0 && layout.min_size.width == taffy::Dimension::auto() {
-                layout.min_size.width = taffy::Dimension::length(0.0);
+            if layout.flex_grow > 0.0
+                && layout.min_size.width == taffy::LengthPercentageAuto::auto()
+            {
+                layout.min_size.width = taffy::LengthPercentageAuto::length(0.0);
             }
             let mut host_intrinsic = None;
             if decl.tag.and_then(|tag| atoms.resolve(tag)) == Some("svg") {

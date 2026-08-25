@@ -326,9 +326,8 @@ fn overflow_scroll_preserves_fixed_chrome_sizes() {
             .tree
             .layout(scroller_node)
             .unwrap()
-            .content_size
-            .height
-            > height(scroller_r),
+            .scroll_height()
+            > 0.0,
         "intrinsic scroll content must produce a scroll range"
     );
     // Content area is the remainder — not expanded by the 2000px tall child.

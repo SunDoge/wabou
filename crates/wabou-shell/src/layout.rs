@@ -161,59 +161,72 @@ pub fn compute_and_walk_with_scroll_and_widgets(
     let _ = tree.compute_layout_with_measure(
         root,
         available,
-        move |known, avail, id, ctx: Option<&mut Paint>, _style| {
-            let available_axis = |space| match space {
-                AvailableSpace::Definite(value) => {
-                    crate::widget::WidgetAvailableSpace::Definite(value)
-                }
-                AvailableSpace::MinContent => crate::widget::WidgetAvailableSpace::MinContent,
-                AvailableSpace::MaxContent => crate::widget::WidgetAvailableSpace::MaxContent,
-            };
-            let mut measure = crate::widget::MeasureContext::new(
-                [known.width, known.height],
-                [available_axis(avail.width), available_axis(avail.height)],
-                device_scale,
-                tcx,
-            );
-            if let Some([width, height]) = measure_widget(id, &mut measure) {
-                return Size { width, height };
-            }
-            if let Some(paint) = ctx {
-                if let Some(text) = &paint.text {
-                    let max_width = (paint.wrap_text || paint.text_max_lines > 0)
-                        .then(|| {
-                            known.width.or(match avail.width {
-                                AvailableSpace::Definite(width) => Some(width),
-                                AvailableSpace::MinContent | AvailableSpace::MaxContent => None,
-                            })
-                        })
-                        .flatten();
-                    let l = crate::text::layout_text_styled_clamped(
-                        measure.text(),
-                        text.clone(),
-                        paint.font_size,
-                        paint.font_weight,
-                        paint.line_height,
-                        paint.text_align,
-                        crate::text::brush_for_color(paint.text_color),
-                        paint.text_runs.clone(),
-                        paint.font_family.as_ref(),
-                        max_width,
-                        paint.text_max_lines,
+        move |input, id, ctx: Option<&mut Paint>, style| {
+            taffy::compute_leaf_layout(
+                input,
+                style,
+                |_, _| 0.0,
+                |known, avail| {
+                    let available_axis = |space| match space {
+                        AvailableSpace::Definite(value) => {
+                            crate::widget::WidgetAvailableSpace::Definite(value)
+                        }
+                        AvailableSpace::MinContent => {
+                            crate::widget::WidgetAvailableSpace::MinContent
+                        }
+                        AvailableSpace::MaxContent => {
+                            crate::widget::WidgetAvailableSpace::MaxContent
+                        }
+                    };
+                    let mut measure = crate::widget::MeasureContext::new(
+                        [known.width, known.height],
+                        [available_axis(avail.width), available_axis(avail.height)],
+                        device_scale,
+                        tcx,
                     );
-                    return Size {
-                        width: known.width.unwrap_or(l.width()),
-                        height: l.height(),
-                    };
-                }
-                if let Some([width, height]) = paint.intrinsic_size {
-                    return Size {
-                        width: known.width.unwrap_or(width),
-                        height: known.height.unwrap_or(height),
-                    };
-                }
-            }
-            Size::ZERO
+                    if let Some([width, height]) = measure_widget(id, &mut measure) {
+                        return Size { width, height };
+                    }
+                    if let Some(paint) = ctx {
+                        if let Some(text) = &paint.text {
+                            let max_width = (paint.wrap_text || paint.text_max_lines > 0)
+                                .then(|| {
+                                    known.width.or(match avail.width {
+                                        AvailableSpace::Definite(width) => Some(width),
+                                        AvailableSpace::MinContent | AvailableSpace::MaxContent => {
+                                            None
+                                        }
+                                    })
+                                })
+                                .flatten();
+                            let l = crate::text::layout_text_styled_clamped(
+                                measure.text(),
+                                text.clone(),
+                                paint.font_size,
+                                paint.font_weight,
+                                paint.line_height,
+                                paint.text_align,
+                                crate::text::brush_for_color(paint.text_color),
+                                paint.text_runs.clone(),
+                                paint.font_family.as_ref(),
+                                max_width,
+                                paint.text_max_lines,
+                            );
+                            return Size {
+                                width: known.width.unwrap_or(l.width()),
+                                height: l.height(),
+                            };
+                        }
+                        if let Some([width, height]) = paint.intrinsic_size {
+                            return Size {
+                                width: known.width.unwrap_or(width),
+                                height: known.height.unwrap_or(height),
+                            };
+                        }
+                    }
+                    Size::ZERO
+                },
+            )
         },
     );
 
@@ -366,10 +379,7 @@ fn walk(
             style.overflow.y == taffy::Overflow::Scroll,
         ]
     });
-    let scroll_range = [
-        (layout.content_size.width - (w - layout.border.left - layout.border.right)).max(0.0),
-        (layout.content_size.height - (h - layout.border.top - layout.border.bottom)).max(0.0),
-    ];
+    let scroll_range = [layout.scroll_width(), layout.scroll_height()];
 
     if let Some(paint) = tree.get_node_context(node)
         && w > 0.0

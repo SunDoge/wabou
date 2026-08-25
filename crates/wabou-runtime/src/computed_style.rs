@@ -102,7 +102,7 @@ fn growing_regions_shrink_by_default_without_changing_intrinsic_controls() {
             .layout
             .min_size
             .width,
-        taffy::Dimension::length(0.0)
+        taffy::LengthPercentageAuto::length(0.0)
     );
     assert_eq!(
         applier
@@ -111,7 +111,7 @@ fn growing_regions_shrink_by_default_without_changing_intrinsic_controls() {
             .layout
             .min_size
             .width,
-        taffy::Dimension::auto()
+        taffy::LengthPercentageAuto::auto()
     );
     assert_eq!(
         applier
@@ -120,7 +120,7 @@ fn growing_regions_shrink_by_default_without_changing_intrinsic_controls() {
             .layout
             .min_size
             .width,
-        taffy::Dimension::length(48.0)
+        taffy::LengthPercentageAuto::length(48.0)
     );
 }
 
