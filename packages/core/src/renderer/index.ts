@@ -1156,6 +1156,7 @@ function eventName(code: number): string {
 
 export {
   type BuiltinHost,
+  type DebugOverlayPaintStats,
   type DebugOverlayOptions,
   defaultHost,
   type FrameStats,
