@@ -244,6 +244,7 @@ JavaScript package work. These are the primary workspace entry points:
 | `bun run check` | Generate required derived sources and run TypeScript checks. |
 | `bun run test` | Run Bun unit tests, Vitest component tests, and the HMR test. |
 | `bun run verify` | Run the complete JavaScript, Rust, behavior, and capture verification used before release. |
+| `bun run verify:ci:rust` | Run the bounded Rust merge gate used by GitHub Actions. Local release validation should use `verify`. |
 
 Most contributors should not need to invoke the internal `gen:*` or
 `packages:*` tasks directly. Turbo follows workspace dependencies, builds

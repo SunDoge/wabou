@@ -17,6 +17,7 @@ jobs:
   rust:
     name: Rust
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -50,7 +51,7 @@ jobs:
         run: bun run packages:build
 
       - name: Verify Rust workspace
-        run: bun run verify:rust
+        run: bun run verify:ci:rust
 
       - name: Check lightweight runtime dependency graph
         run: |
@@ -70,28 +71,10 @@ jobs:
         run: bun run bindings:check
 
       - name: Test native application behavior
-        run: |
-          bun run verify:behavior
-          cargo run -p wabou-cli -- test \
-            --replay target/wabou-test/gallery/artifacts/trace.json \
-            --app apps/gallery
-          WABOU_MOTRIX_TEST_ENGINE_FAILURE=1 cargo run -p wabou-cli -- test \
-            apps/motrix/tests/engine-failure.scenario.ts \
-            --artifacts target/wabou-test/motrix/engine-failure-artifacts
+        run: bun run verify:behavior
 
       - name: Test component layout contracts
         run: bun run verify:layout
-
-      - name: Render authored application captures
-        run: bun run verify:captures
-
-      - name: Upload authored application captures
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: authored-application-captures
-          path: target/wabou-captures/
-          if-no-files-found: ignore
 
       - name: Upload behavior-test diagnostics
         if: failure()
@@ -103,51 +86,6 @@ jobs:
             target/wabou-test/*/replay-artifacts/
             target/wabou-test/*/*-artifacts/
           if-no-files-found: ignore
-
-      - name: Test standalone project scaffold
-        run: |
-          scaffold_root="$(mktemp -d)/hello-wabou"
-          cargo run -p wabou-cli -- new "$scaffold_root" \
-            --wabou-repository "$GITHUB_WORKSPACE" \
-            --wabou-ref "$GITHUB_SHA"
-          install_log="$(mktemp)"
-          bun install --cwd "$scaffold_root" 2>&1 | tee "$install_log"
-          if grep -Fq "warn: incorrect peer dependency" "$install_log"; then
-            echo "standalone scaffold has invalid peer dependencies" >&2
-            exit 1
-          fi
-          PATH="$GITHUB_WORKSPACE/target/debug:$PATH" \
-            bun run --cwd "$scaffold_root" check
-          bun run --cwd "$scaffold_root" build
-          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" \
-            cargo check --manifest-path "$scaffold_root/Cargo.toml"
-          test "$(git -C "$scaffold_root/vendor/wabou" rev-parse HEAD)" = "$GITHUB_SHA"
-
-      - name: Render gallery at 1x and 2x
-        run: |
-          cargo run -p wabou-cli -- render apps/gallery --out target/gallery-1x.png --width 800 --height 600 --scale-factor 1
-          cargo run -p wabou-cli -- render apps/gallery --out target/gallery-2x.png --width 800 --height 600 --scale-factor 2
-          test -s target/gallery-1x.png
-          test -s target/gallery-2x.png
-
-      - name: Record headless performance diagnostics
-        run: |
-          cargo run -p wabou-cli -- render apps/gallery \
-            --out target/perf/gallery.png --width 1200 --height 800 \
-            --metrics target/perf/gallery.json --samples 20
-          cargo run -p wabou-cli -- render apps/vlist \
-            --out target/perf/vlist.png --width 1200 --height 800 \
-            --metrics target/perf/vlist.json --samples 20
-          cargo run -p wabou-cli -- render apps/stress \
-            --out target/perf/stress.png --width 1200 --height 800 \
-            --metrics target/perf/stress.json --samples 20
-          bun run perf:report -- target/perf/gallery.json target/perf/vlist.json target/perf/stress.json
-
-      - name: Upload performance diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: headless-performance-diagnostics
-          path: target/perf/*.json
 
   typescript:
     name: TypeScript

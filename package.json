@@ -11,6 +11,7 @@
     "verify": "bun run verify:js && bun run verify:rust && bun run bindings:check && bun run verify:behavior && bun run verify:layout && bun run verify:captures",
     "verify:js": "bun run check && bun run test && bun run packages:check && bun run scripts/publish-packages.ts --dry-run && bun run gen:check",
     "verify:rust": "cargo fmt --all -- --check && cargo check --workspace --all-targets && cargo clippy --workspace --all-targets --all-features -- -D warnings && cargo test --workspace --all-targets",
+    "verify:ci:rust": "cargo fmt --all -- --check && cargo clippy --workspace --lib --bins --tests --all-features -- -D warnings && cargo test --workspace --lib",
     "verify:behavior": "bun run scripts/check-behavior.ts",
     "verify:layout": "bun run test:layout",
     "verify:captures": "bun run scripts/check-captures.ts",

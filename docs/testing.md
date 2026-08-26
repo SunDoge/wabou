@@ -1,5 +1,18 @@
 # Testing
 
+## Verification tiers
+
+`bun run verify` is the complete local and pre-release suite. It checks every
+Rust target and feature combination, JavaScript packages, generated bindings,
+native behavior, layout contracts, and authored captures.
+
+GitHub Actions intentionally uses the bounded `bun run verify:ci:rust` merge
+gate instead. It runs formatting, Clippy for libraries, binaries, and tests,
+then workspace library tests. Bindings, native behavior, and layout contracts
+remain separate CI steps. Expensive all-target checks, replay variants,
+standalone scaffold builds, captures, HiDPI renders, and performance sampling
+belong to local pre-release verification rather than every pushed commit.
+
 ## Component unit tests
 
 Component anatomy is governed by the
