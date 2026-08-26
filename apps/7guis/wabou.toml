@@ -1,0 +1,8 @@
+[package]
+product-name = "7GUIs"
+identifier = "dev.wabou.7guis"
+description = "The 7GUIs benchmark implemented with Wabou."
+authors = ["SunDoge"]
+license-file = "../../LICENSE"
+icons = ["icons/7guis.png"]
+formats = ["appimage"]
