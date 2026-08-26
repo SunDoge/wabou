@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { attachmentClass, attachmentMediaClass } from "./attachment";
+import {
+  attachmentClass,
+  attachmentGroupClass,
+  attachmentMediaClass,
+} from "./attachment";
 
 const context = (
   state: "done" | "error",
@@ -31,5 +35,12 @@ describe("Attachment", () => {
     expect(
       attachmentMediaClass("image", context("error", "xs", "horizontal")),
     ).toContain("opacity-60");
+  });
+
+  test("makes the scroll container own the attachment row", () => {
+    const classes = attachmentGroupClass();
+    expect(classes).toContain("overflow-x-auto");
+    expect(classes).toContain("flex-row");
+    expect(classes).toContain("gap-3");
   });
 });

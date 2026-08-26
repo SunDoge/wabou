@@ -203,19 +203,21 @@ export function AttachmentAction(props: ButtonProps): JSX.Element {
   );
 }
 
+export function attachmentGroupClass(className?: string): string {
+  return join(
+    "w-full min-w-0 overflow-x-auto overflow-y-hidden py-1 flex flex-row items-start gap-3",
+    className,
+  );
+}
+
 export function AttachmentGroup(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(
-        "w-full min-w-0 overflow-x-auto overflow-y-hidden py-1",
-        props.class,
-      )}
+      class={attachmentGroupClass(props.class)}
       scrollbar={props.scrollbar ?? { visibility: "hidden" }}
     >
-      <View class="min-w-full flex-none flex flex-row items-start gap-3">
-        {props.children}
-      </View>
+      {props.children}
     </View>
   );
 }
