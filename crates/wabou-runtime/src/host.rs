@@ -2217,7 +2217,10 @@ mod tests {
                 )
             })
             .expect("invoke JSON capability");
-        runtime.poll_async_runtime();
+        // JSON handlers in this fixture are immediately ready, but resolving
+        // both async functions and the surrounding Promise.all can cross the
+        // runtime's intentional 1 ms/32-job scheduling slice under load.
+        while runtime.poll_async_runtime() {}
         let result = runtime
             .with(|ctx| ctx.eval::<Option<String>, _>("globalThis.capabilityResult"))
             .expect("read JSON capability result")
