@@ -3,6 +3,7 @@ import {
   endOfMonth,
   isSameDay,
   startOfMonth,
+  startOfWeek,
 } from "@internationalized/date";
 import { useHost } from "@wabou/core";
 import type { Handle } from "@wabou/core/renderer";
@@ -78,16 +79,9 @@ export function Calendar(props: CalendarProps): JSX.Element {
 
   const monthInfo = createMemo(() => {
     const currentLocale = locale();
-    const week = (
-      new Intl.Locale(currentLocale) as Intl.Locale & {
-        getWeekInfo(): {
-          firstDay: number;
-          weekend: number[];
-          minimalDays: number;
-        };
-      }
-    ).getWeekInfo();
-    const firstWeekday = week.firstDay % 7;
+    // @internationalized/date uses Intl.Locale week info when available and
+    // falls back to its CLDR-derived region data on older Node and QuickJS.
+    const firstWeekday = dayOfWeek(startOfWeek(visibleMonth(), currentLocale));
     const weekday = new Intl.DateTimeFormat(currentLocale, {
       weekday: "short",
       timeZone: "UTC",

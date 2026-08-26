@@ -105,3 +105,25 @@ test("uses the host calendar date for Today", () => {
   );
   expect(fixture.callsTo("intl.today").length).toBeGreaterThan(0);
 });
+
+test("derives the week start from locale data", () => {
+  const fixture = hostFixture();
+  const screen = renderComponent(
+    () => (
+      <DatePicker
+        aria-label="British date"
+        locale="en-GB"
+        defaultValue={new CalendarDate(2026, 8, 17)}
+      />
+    ),
+    { host: fixture.host },
+  );
+
+  screen.getByRole("button", { name: "British date" }).click();
+  expect(
+    screen.getByRole("button", { name: "Monday, 27 July 2026" }),
+  ).not.toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Sunday, 26 July 2026" }),
+  ).toBeNull();
+});

@@ -4,7 +4,7 @@ import { mergeClasses, rgba as rgba$1, scale2d, shadow } from "@wabou/core/style
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
-import { CalendarDate, endOfMonth, isSameDay, startOfMonth } from "@internationalized/date";
+import { CalendarDate, endOfMonth, isSameDay, startOfMonth, startOfWeek } from "@internationalized/date";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
 import { encode } from "uqr";
 import { createTable, functionalUpdate, getCoreRowModel, getFilteredRowModel, getSortedRowModel } from "@tanstack/table-core";
@@ -2236,7 +2236,7 @@ function Calendar(props) {
 	const dayRefs = /* @__PURE__ */ new Map();
 	const monthInfo = createMemo(() => {
 		const currentLocale = locale();
-		const firstWeekday = new Intl.Locale(currentLocale).getWeekInfo().firstDay % 7;
+		const firstWeekday = dayOfWeek(startOfWeek(visibleMonth(), currentLocale));
 		const weekday = new Intl.DateTimeFormat(currentLocale, {
 			weekday: "short",
 			timeZone: "UTC"
