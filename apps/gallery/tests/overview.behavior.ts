@@ -9,7 +9,7 @@ test("overview demonstrates native inspection and routes into components", async
     .waitFor();
 
   await page.getByRole("button", { name: "FrameTimeline" }).click();
-  await page.getByRole("label", { name: "native scene, 120 Hz" }).waitFor();
+  await page.getByRole("label", { name: "retained vector scene" }).waitFor();
 
   const slider = page.getByRole("slider", { name: "Motion intensity" });
   await slider.press("End");

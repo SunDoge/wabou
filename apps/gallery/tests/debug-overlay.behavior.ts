@@ -1,7 +1,7 @@
 import { expect, test } from "@wabou/test";
-import { defaultHost } from "@wabou/ui";
 
 test("gallery layout control paints native diagnostic bounds", async ({
+  diagnostics,
   page,
 }) => {
   await page.getByRole("button", { name: "Overview" }).click();
@@ -11,7 +11,7 @@ test("gallery layout control paints native diagnostic bounds", async ({
   await expect(overlay).toBeChecked();
   await page.waitForIdle();
 
-  const paint = defaultHost.diagnostics.overlayPaintStats();
+  const paint = diagnostics.overlayPaintStats();
   if (!paint) throw new Error("native overlay paint stats are unavailable");
   if (!paint.enabled || paint.layout_bounds === 0) {
     throw new Error(
@@ -20,7 +20,7 @@ test("gallery layout control paints native diagnostic bounds", async ({
   }
   expect(paint.sequence > 0).toBe(true);
 
-  const frame = defaultHost.diagnostics.frameStats();
+  const frame = diagnostics.frameStats();
   if (!frame || frame.node_count === 0) {
     throw new Error(
       `headless host did not publish native frame diagnostics: ${JSON.stringify(frame)}`,

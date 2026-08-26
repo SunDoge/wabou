@@ -592,6 +592,10 @@ const context = {
 		}
 	},
 	effects,
+	diagnostics: {
+		frameStats: () => defaultHost.diagnostics.frameStats(),
+		overlayPaintStats: () => defaultHost.diagnostics.overlayPaintStats()
+	},
 	files: { writeText(relativePath, contents) {
 		const result = JSON.parse(capability().writeTextFile(relativePath, contents));
 		if (result.error) throw new Error(result.error);

@@ -40,7 +40,7 @@ use config::{
     profile_application_dir,
 };
 use devtools::InspectCommand;
-use frontend::build as build_frontend;
+use frontend::{build as build_frontend, build_test_script};
 use headless_render::{
     RenderOptions, actions_from_matches as render_actions_from_matches,
     legacy_actions as legacy_render_actions, run as render,
@@ -816,22 +816,10 @@ fn test_scenario(workspace: &Path, app: &App, options: &TestOptions) -> Result<(
     )?;
 
     let scenario_bundle = test_dir.join("scenario.js");
-    let mut bun = Command::new("bun");
-    bun.current_dir(workspace).args([
-        "build",
-        &scenario.to_string_lossy(),
-        "--target=browser",
-        "--format=iife",
-        &format!("--outfile={}", scenario_bundle.display()),
-    ]);
-    if workspace.join("packages/test/src/index.ts").is_file() {
-        // Repository scenarios must observe the source being edited. Importing
-        // stale package artifacts makes framework tests fail for the wrong
-        // reason; installed packages do not ship this source path and continue
-        // to resolve their normal `import` export.
-        bun.arg("--conditions=wabou-source");
-    }
-    ensure(bun.status()?, "test scenario build")?;
+    ensure(
+        build_test_script(workspace, app, &scenario, &scenario_bundle)?,
+        "Vite test scenario build",
+    )?;
 
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;

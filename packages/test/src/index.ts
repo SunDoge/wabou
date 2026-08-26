@@ -1,7 +1,9 @@
 import type { WindowKey } from "@wabou/core";
 import { effectOps } from "@wabou/core/effects";
 import {
+  type DebugOverlayPaintStats,
   defaultHost,
+  type FrameStats,
   type WabouExposedSemanticRole,
 } from "@wabou/core/renderer";
 import {
@@ -115,6 +117,12 @@ export interface TestContext {
   readonly window: TestWindow;
   readonly effects: TestEffects;
   readonly files: TestFiles;
+  readonly diagnostics: TestDiagnostics;
+}
+
+export interface TestDiagnostics {
+  frameStats(): FrameStats | null;
+  overlayPaintStats(): DebugOverlayPaintStats | null;
 }
 
 export interface TestFiles {
@@ -926,6 +934,10 @@ const context: TestContext = {
     },
   },
   effects,
+  diagnostics: {
+    frameStats: () => defaultHost.diagnostics.frameStats(),
+    overlayPaintStats: () => defaultHost.diagnostics.overlayPaintStats(),
+  },
   files: {
     writeText(relativePath, contents) {
       const result = JSON.parse(

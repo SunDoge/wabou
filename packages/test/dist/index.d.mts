@@ -1,4 +1,4 @@
-import { WabouExposedSemanticRole } from "@wabou/core/renderer";
+import { DebugOverlayPaintStats, FrameStats, WabouExposedSemanticRole } from "@wabou/core/renderer";
 import { WindowKey } from "@wabou/core";
 //#region src/poll.d.ts
 interface PollOptions {
@@ -44,6 +44,11 @@ interface TestContext {
   readonly window: TestWindow;
   readonly effects: TestEffects;
   readonly files: TestFiles;
+  readonly diagnostics: TestDiagnostics;
+}
+interface TestDiagnostics {
+  frameStats(): FrameStats | null;
+  overlayPaintStats(): DebugOverlayPaintStats | null;
 }
 interface TestFiles {
   /** Write exact UTF-8 contents beneath this run's isolated temporary root. */
@@ -373,5 +378,5 @@ declare namespace expect {
   };
 }
 //#endregion
-export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorBoundsField, LocatorCurrent, LocatorNumericRange, LocatorReference, LocatorSelector, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFileDropPhase, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
+export { BoundsAssertionOptions, Locator, LocatorAssertion, LocatorAssertionOptions, LocatorBounds, LocatorBoundsField, LocatorCurrent, LocatorNumericRange, LocatorReference, LocatorSelector, LocatorSnapshot, LocatorWaitOptions, NativeWindowState, NumericRangeAssertionOptions, SemanticRole, TEST_ARTIFACT_VERSION, TestAction, TestContext, TestDiagnostics, TestEffectOperation, TestEffectResponseMap, TestEffects, TestEnvironment, TestFileDropPhase, TestFiles, TestInput, TestOptions, TestPage, TestReport, TestResult, TestWindow, expect, replay, test };
 //# sourceMappingURL=index.d.mts.map

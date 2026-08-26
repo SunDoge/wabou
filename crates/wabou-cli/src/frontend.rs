@@ -81,6 +81,57 @@ pub(super) fn lock(workspace: &Path, app: &App) -> Result<fs::File> {
     build_lock(workspace, app)
 }
 
+pub(super) fn build_test_script(
+    workspace: &Path,
+    app: &App,
+    entry: &Path,
+    output: &Path,
+) -> Result<ExitStatus> {
+    ensure_workspace_package_exports(workspace)?;
+    let output_dir = output
+        .parent()
+        .ok_or_else(|| format!("test script output has no parent: {}", output.display()))?;
+    fs::create_dir_all(output_dir)?;
+    let file_name = output
+        .file_name()
+        .ok_or_else(|| format!("test script output has no file name: {}", output.display()))?;
+    let config_path = output_dir.join("test-script.vite.config.mjs");
+    let conditions = if workspace.join("packages/test/src/index.ts").is_file() {
+        r#"["browser", "wabou-source"]"#
+    } else {
+        r#"["browser"]"#
+    };
+    fs::write(
+        &config_path,
+        format!(
+            r#"export default {{
+  resolve: {{ conditions: {conditions} }},
+  build: {{
+    emptyOutDir: false,
+    minify: false,
+    sourcemap: true,
+    outDir: {},
+    lib: {{ entry: {}, formats: ["iife"], name: "WabouTest", fileName: () => {} }},
+    rollupOptions: {{ output: {{ inlineDynamicImports: true }} }},
+  }},
+}};
+"#,
+            serde_json::to_string(output_dir)?,
+            serde_json::to_string(entry)?,
+            serde_json::to_string(&file_name.to_string_lossy())?,
+        ),
+    )?;
+    let mut command =
+        vite_build_command(app, &["--config", config_path.to_string_lossy().as_ref()]);
+    command.status().map_err(|error| {
+        format!(
+            "failed to build test script with Vite in {}: {error}",
+            app.frontend.display()
+        )
+        .into()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::OpenOptions;

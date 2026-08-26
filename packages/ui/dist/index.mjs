@@ -4,9 +4,31 @@ import { mergeClasses, rgba as rgba$1, scale2d, shadow } from "@wabou/core/style
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, getOwner, omit, onCleanup, untrack, useContext } from "solid-js";
 import { VirtualList, applyRef, createComponent as createComponent$1, createFps, memo, mergeProps } from "@wabou/core/renderer";
 import { P, match } from "ts-pattern";
+import arrowDown from "lucide-static/icons/arrow-down.svg?raw";
+import arrowLeft from "lucide-static/icons/arrow-left.svg?raw";
+import arrowRight from "lucide-static/icons/arrow-right.svg?raw";
+import arrowUp from "lucide-static/icons/arrow-up.svg?raw";
+import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import { CalendarDate, endOfMonth, isSameDay, startOfMonth, startOfWeek } from "@internationalized/date";
+import calendarIcon from "lucide-static/icons/calendar.svg?raw";
+import chevronLeft from "lucide-static/icons/chevron-left.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import folder from "lucide-static/icons/folder.svg?raw";
+import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
+import fileUp from "lucide-static/icons/file-up.svg?raw";
+import pencil from "lucide-static/icons/pencil.svg?raw";
+import minus from "lucide-static/icons/minus.svg?raw";
+import check from "lucide-static/icons/check.svg?raw";
+import ellipsis from "lucide-static/icons/ellipsis.svg?raw";
 import { NumberFormatter, NumberParser } from "@internationalized/number";
+import plus from "lucide-static/icons/plus.svg?raw";
 import { encode } from "uqr";
+import star from "lucide-static/icons/star.svg?raw";
+import search from "lucide-static/icons/search.svg?raw";
+import x from "lucide-static/icons/x.svg?raw";
+import checkCircle from "lucide-static/icons/circle-check.svg?raw";
+import info from "lucide-static/icons/info.svg?raw";
+import triangleAlert from "lucide-static/icons/triangle-alert.svg?raw";
 import { createTable, functionalUpdate, getCoreRowModel, getFilteredRowModel, getSortedRowModel } from "@tanstack/table-core";
 import { createMemoryHistory, createMemoryHistory as createMemoryHistory$1 } from "@tanstack/history";
 import { BaseRootRoute, BaseRoute, RouterCore, notFound, redirect } from "@tanstack/router-core";
@@ -1232,10 +1254,10 @@ function CarouselNavigationButton(props) {
 					}).with({
 						orientation: "vertical",
 						previous: true
-					}, () => "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-arrow-up\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m5 12 7-7 7 7\" />\n  <path d=\"M12 19V5\" />\n</svg>\n").with({
+					}, () => arrowUp).with({
 						orientation: "vertical",
 						previous: false
-					}, () => "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-arrow-down\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M12 5v14\" />\n  <path d=\"m19 12-7 7-7-7\" />\n</svg>\n").with({ previous: true }, () => "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-arrow-left\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m12 19-7-7 7-7\" />\n  <path d=\"M19 12H5\" />\n</svg>\n").otherwise(() => "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-arrow-right\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M5 12h14\" />\n  <path d=\"m12 5 7 7-7 7\" />\n</svg>\n");
+					}, () => arrowDown).with({ previous: true }, () => arrowLeft).otherwise(() => arrowRight);
 				},
 				size: 16
 			});
@@ -1392,9 +1414,6 @@ function CodeBlock(props) {
 		}
 	});
 }
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/chevrons-up-down.svg?raw
-var chevrons_up_down_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-chevrons-up-down\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m7 15 5 5 5-5\" />\n  <path d=\"m7 9 5-5 5 5\" />\n</svg>\n";
 //#endregion
 //#region src/components/menu-state.ts
 /** Resolve one keyboard move without coupling menu state to rendering. */
@@ -1646,7 +1665,7 @@ function Combobox(props) {
 						return selected()?.label ?? props.placeholder ?? "Select an option";
 					}
 				}), createComponent$1(Icon, {
-					source: chevrons_up_down_default,
+					source: chevronsUpDown,
 					class: "flex-none text-muted",
 					size: 16
 				})];
@@ -2194,15 +2213,6 @@ function DataTable(props) {
 	});
 }
 //#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/calendar.svg?raw
-var calendar_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-calendar\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M8 2v3\" />\n  <path d=\"M16 2v3\" />\n  <rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\" />\n  <path d=\"M3 9h18\" />\n</svg>\n";
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/chevron-left.svg?raw
-var chevron_left_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-chevron-left\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m15 18-6-6 6-6\" />\n</svg>\n";
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/chevron-right.svg?raw
-var chevron_right_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-chevron-right\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m9 18 6-6-6-6\" />\n</svg>\n";
-//#endregion
 //#region src/components/date-picker.tsx
 function dayOfWeek(value) {
 	return new Date(Date.UTC(value.year, value.month - 1, value.day)).getUTCDay();
@@ -2352,7 +2362,7 @@ function Calendar(props) {
 								onClick: () => setVisibleMonth((month) => month.subtract({ months: 1 })),
 								get children() {
 									return createComponent$1(Icon, {
-										source: chevron_left_default,
+										source: chevronLeft,
 										size: 16
 									});
 								}
@@ -2375,7 +2385,7 @@ function Calendar(props) {
 								onClick: () => setVisibleMonth((month) => month.add({ months: 1 })),
 								get children() {
 									return createComponent$1(Icon, {
-										source: chevron_right_default,
+										source: chevronRight,
 										size: 16
 									});
 								}
@@ -2515,7 +2525,7 @@ function DatePicker(props) {
 			},
 			get children() {
 				return [createComponent$1(Icon, {
-					source: calendar_default,
+					source: calendarIcon,
 					class: "flex-none text-muted",
 					size: 16
 				}), createComponent$1(Text, {
@@ -2570,9 +2580,6 @@ function DirectionalText(props) {
 		return join(direction() === "rtl" ? "text-right" : "text-left", props.class);
 	} }));
 }
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/folder.svg?raw
-var folder_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-folder\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\" />\n</svg>\n";
 //#endregion
 //#region src/components/directory-picker-state.ts
 function directoryPickerOptions(value, options) {
@@ -2629,7 +2636,7 @@ function DirectoryPicker(props) {
 				onClick: () => void browse(),
 				get children() {
 					return [createComponent$1(Icon, {
-						source: folder_default,
+						source: folder,
 						size: 14
 					}), memo(() => {
 						return memo(() => {
@@ -2641,9 +2648,6 @@ function DirectoryPicker(props) {
 		}
 	});
 }
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/chevron-down.svg?raw
-var chevron_down_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-chevron-down\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m6 9 6 6 6-6\" />\n</svg>\n";
 //#endregion
 //#region src/components/disclosure.tsx
 function DisclosureIndicator(props) {
@@ -2660,7 +2664,7 @@ function DisclosureIndicator(props) {
 		"aria-hidden": "true",
 		get children() {
 			return createComponent$1(Icon, {
-				source: chevron_down_default,
+				source: chevronDown,
 				class: "text-muted",
 				size: 16
 			});
@@ -3223,9 +3227,6 @@ function DrawerClose(props) {
 	} }));
 }
 //#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/file-up.svg?raw
-var file_up_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-file-up\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" />\n  <path d=\"M14 2v5a1 1 0 0 0 1 1h5\" />\n  <path d=\"M12 12v6\" />\n  <path d=\"m15 15-3-3-3 3\" />\n</svg>\n";
-//#endregion
 //#region src/components/drop-zone.tsx
 /** Inclusive hit test in the logical coordinate space shared with native DnD. */
 function pointInLayoutRect(point, rect) {
@@ -3294,7 +3295,7 @@ function DropZone(props) {
 					},
 					get children() {
 						return createComponent$1(Icon, {
-							source: file_up_default,
+							source: fileUp,
 							size: 20
 						});
 					}
@@ -4408,9 +4409,6 @@ function ImageOverlayLayer(props) {
 	}));
 }
 //#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/pencil.svg?raw
-var pencil_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-pencil\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" />\n  <path d=\"m15 5 4 4\" />\n</svg>\n";
-//#endregion
 //#region src/components/inline-edit.tsx
 /** Compact rename interaction with explicit Enter, Escape, and blur behavior. */
 function InlineEdit(props) {
@@ -4494,7 +4492,7 @@ function InlineEdit(props) {
 					}), createComponent$1(Icon, {
 						"aria-hidden": "true",
 						class: "flex-none text-muted",
-						source: pencil_default,
+						source: pencil,
 						size: 14
 					})];
 				}
@@ -4502,9 +4500,6 @@ function InlineEdit(props) {
 		}
 	});
 }
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/minus.svg?raw
-var minus_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-minus\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M5 12h14\" />\n</svg>\n";
 //#endregion
 //#region src/components/input-otp.tsx
 function normalizeOtpValue(value, maxLength, allowed = /^[0-9]$/) {
@@ -4632,7 +4627,7 @@ function InputOTPSeparator(props) {
 		},
 		get children() {
 			return createComponent$1(Icon, {
-				source: minus_default,
+				source: minus,
 				size: 14,
 				class: "text-muted"
 			});
@@ -5564,7 +5559,7 @@ function MessageScrollerButton(props) {
 				get children() {
 					return props.children ?? createComponent$1(Icon, {
 						"aria-hidden": "true",
-						source: "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-arrow-down\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M12 5v14\" />\n  <path d=\"m19 12-7 7-7-7\" />\n</svg>\n",
+						source: arrowDown,
 						size: 16,
 						get transform() {
 							return memo(() => {
@@ -5577,9 +5572,6 @@ function MessageScrollerButton(props) {
 		}
 	});
 }
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/check.svg?raw
-var check_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-check\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M20 6 9 17l-5-5\" />\n</svg>\n";
 //#endregion
 //#region src/components/select-semantics.ts
 /** Keep semantic ID references live for the same lifetime as the popup node. */
@@ -5697,7 +5689,7 @@ function Select(props) {
 						return selected()?.label ?? props.placeholder ?? "Select an option";
 					}
 				}), createComponent$1(Icon, {
-					source: chevron_down_default,
+					source: chevronDown,
 					class: "flex-none text-muted",
 					size: 16
 				})];
@@ -5780,7 +5772,7 @@ function Select(props) {
 													return memo(() => {
 														return !!selected();
 													})() ? createComponent$1(Icon, {
-														source: check_default,
+														source: check,
 														class: "text-accent",
 														size: 16
 													}) : selected();
@@ -5812,9 +5804,6 @@ function NativeSelect(props) {
 		contentShadows: null
 	}));
 }
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/ellipsis.svg?raw
-var ellipsis_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-ellipsis\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <circle cx=\"12\" cy=\"12\" r=\"1\" />\n  <circle cx=\"19\" cy=\"12\" r=\"1\" />\n  <circle cx=\"5\" cy=\"12\" r=\"1\" />\n</svg>\n";
 //#endregion
 //#region src/components/pagination-state.ts
 function integerAtLeast(value, minimum) {
@@ -5923,7 +5912,7 @@ function BreadcrumbSeparator(props) {
 		},
 		get children() {
 			return props.children ?? createComponent$1(Icon, {
-				source: "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-chevron-right\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m9 18 6-6-6-6\" />\n</svg>\n",
+				source: chevronRight,
 				size: 14
 			});
 		}
@@ -5939,7 +5928,7 @@ function BreadcrumbEllipsis(props) {
 		},
 		get children() {
 			return createComponent$1(Icon, {
-				source: ellipsis_default,
+				source: ellipsis,
 				size: 16
 			});
 		}
@@ -6333,7 +6322,7 @@ function NavigationMenuTrigger(props) {
 				return props.children;
 			}), createComponent$1(Icon, {
 				"aria-hidden": "true",
-				source: chevron_down_default,
+				source: chevronDown,
 				size: 14,
 				class: "text-muted",
 				get transform() {
@@ -6394,9 +6383,6 @@ function NavigationMenuIndicator(props) {
 }
 /** The shared Popover content already is the native viewport. */
 function NavigationMenuViewport() {}
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/plus.svg?raw
-var plus_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-plus\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M5 12h14\" />\n  <path d=\"M12 5v14\" />\n</svg>\n";
 //#endregion
 //#region src/components/range.ts
 function finiteOr(value, fallback) {
@@ -6521,7 +6507,7 @@ function NumberField(props) {
 					onClick: () => changeBy(-1, range().step),
 					get children() {
 						return createComponent$1(Icon, {
-							source: minus_default,
+							source: minus,
 							"aria-hidden": "true",
 							size: 14
 						});
@@ -6599,7 +6585,7 @@ function NumberField(props) {
 					onClick: () => changeBy(1, range().step),
 					get children() {
 						return createComponent$1(Icon, {
-							source: plus_default,
+							source: plus,
 							"aria-hidden": "true",
 							size: 14
 						});
@@ -7003,9 +6989,6 @@ function QRCode(props) {
 	}));
 }
 //#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/star.svg?raw
-var star_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-star\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\" />\n</svg>\n";
-//#endregion
 //#region src/components/rating-state.ts
 function normalizeRatingMax(max) {
 	if (max === void 0 || !Number.isFinite(max)) return 5;
@@ -7029,7 +7012,7 @@ function RatingIcon(props) {
 	});
 	return createComponent$1(Icon, {
 		"aria-hidden": "true",
-		source: star_default,
+		source: star,
 		get size() {
 			return props.size;
 		},
@@ -7380,12 +7363,6 @@ function ResizableHandle(props) {
 	});
 }
 //#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/search.svg?raw
-var search_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-search\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m21 21-4.34-4.34\" />\n  <circle cx=\"11\" cy=\"11\" r=\"8\" />\n</svg>\n";
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/x.svg?raw
-var x_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-x\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"M18 6 6 18\" />\n  <path d=\"m6 6 12 12\" />\n</svg>\n";
-//#endregion
 //#region src/components/search-field.tsx
 /** A native search input with consistent clear, Escape, and submit behavior. */
 function SearchField(props) {
@@ -7417,7 +7394,7 @@ function SearchField(props) {
 					class: "flex-none pl-2.5 flex items-center text-muted",
 					get children() {
 						return createComponent$1(Icon, {
-							source: search_default,
+							source: search,
 							size: 15
 						});
 					}
@@ -7455,7 +7432,7 @@ function SearchField(props) {
 							onClick: clear,
 							get children() {
 								return createComponent$1(Icon, {
-									source: x_default,
+									source: x,
 									"aria-hidden": "true",
 									size: 15
 								});
@@ -7492,7 +7469,7 @@ function Checkbox(props) {
 	const indicator = () => match({
 		checked: checked(),
 		indeterminate: !!props.indeterminate
-	}).with({ indeterminate: true }, () => minus_default).with({ checked: true }, () => check_default).otherwise(() => void 0);
+	}).with({ indeterminate: true }, () => minus).with({ checked: true }, () => check).otherwise(() => void 0);
 	return createComponent$1(Button$1, {
 		unstyled: true,
 		role: "checkbox",
@@ -8312,7 +8289,7 @@ function SplitButton(props) {
 						},
 						get children() {
 							return createComponent$1(Icon, {
-								source: chevron_down_default,
+								source: chevronDown,
 								size: 14
 							});
 						}
@@ -8822,27 +8799,18 @@ function TitleBarDragRegion(props) {
 	}));
 }
 //#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/circle-check.svg?raw
-var circle_check_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-circle-check\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <path d=\"m9 12 2 2 4-4\" />\n</svg>\n";
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/info.svg?raw
-var info_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-info\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <circle cx=\"12\" cy=\"12\" r=\"10\" />\n  <path d=\"M12 16v-4\" />\n  <path d=\"M12 8h.01\" />\n</svg>\n";
-//#endregion
-//#region ../../node_modules/.bun/lucide-static@1.31.0/node_modules/lucide-static/icons/triangle-alert.svg?raw
-var triangle_alert_default = "<!-- @license lucide-static v1.31.0 - ISC -->\n<svg\n  class=\"lucide lucide-triangle-alert\"\n  xmlns=\"http://www.w3.org/2000/svg\"\n  width=\"24\"\n  height=\"24\"\n  viewBox=\"0 0 24 24\"\n  fill=\"none\"\n  stroke=\"currentColor\"\n  stroke-width=\"2\"\n  stroke-linecap=\"round\"\n  stroke-linejoin=\"round\"\n>\n  <path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" />\n  <path d=\"M12 9v4\" />\n  <path d=\"M12 17h.01\" />\n</svg>\n";
-//#endregion
 //#region src/components/toast.tsx
 const treatment = (variant) => match(variant).with("default", () => ({
-	icon: info_default,
+	icon: info,
 	color: "text-accent"
 })).with("success", () => ({
-	icon: circle_check_default,
+	icon: checkCircle,
 	color: "text-success-primary"
 })).with("warning", () => ({
-	icon: triangle_alert_default,
+	icon: triangleAlert,
 	color: "text-accent"
 })).with("destructive", () => ({
-	icon: triangle_alert_default,
+	icon: triangleAlert,
 	color: "text-danger-primary"
 })).exhaustive();
 function ToastContent(props) {
@@ -8915,7 +8883,7 @@ function ToastContent(props) {
 					},
 					get children() {
 						return createComponent$1(Icon, {
-							source: x_default,
+							source: x,
 							size: 14
 						});
 					}
@@ -9224,7 +9192,7 @@ function TreeView(props) {
 								})() ? createComponent$1(Icon, {
 									"aria-hidden": "true",
 									get source() {
-										return isExpanded(item.node.id) ? chevron_down_default : chevron_right_default;
+										return isExpanded(item.node.id) ? chevronDown : chevronRight;
 									},
 									size: 14,
 									class: "flex-none text-muted"

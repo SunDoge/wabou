@@ -637,18 +637,10 @@ fn run_with_host(workspace: &Path, app: &App, options: &RenderOptions) -> Result
         host_capture_scenario_source(&test_runtime, authored_scenario.as_deref(), options.wait_ms)?,
     )?;
     let scenario_bundle = render_dir.join("scenario.js");
-    let mut bun = Command::new("bun");
-    bun.current_dir(workspace).args([
-        "build",
-        &scenario.to_string_lossy(),
-        "--target=browser",
-        "--format=iife",
-        &format!("--outfile={}", scenario_bundle.display()),
-    ]);
-    if workspace.join("packages/test/src/index.ts").is_file() {
-        bun.arg("--conditions=wabou-source");
-    }
-    ensure(bun.status()?, "render scenario build")?;
+    ensure(
+        frontend::build_test_script(workspace, app, &scenario, &scenario_bundle)?,
+        "Vite render scenario build",
+    )?;
 
     let manifest = manifest(app);
     let binary = app_binary(workspace, app)?;

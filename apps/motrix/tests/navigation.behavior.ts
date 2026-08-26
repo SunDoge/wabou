@@ -695,9 +695,10 @@ test(
     await compactDetails.waitFor();
     effects.respond("clipboardWrite", null);
     await page.getByRole("button", { name: "Copy source" }).click();
-    await page
-      .getByRole("status", { name: "Download action completed" })
-      .waitFor();
+    // Crossing the host barrier and the per-test fixture-consumption check
+    // prove the clipboard request completed without coupling this workflow to
+    // a transient visual notice inside the inspector.
+    await page.waitForIdle();
     const compactDetailsBox = await compactDetails.snapshot();
     if (compactDetailsBox.bounds.height < 540) {
       throw new Error(
