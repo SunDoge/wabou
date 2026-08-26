@@ -1,7 +1,7 @@
 import { createSignal, For, type JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
 import { Button } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface StepperStep {
   id: string;
@@ -33,7 +33,7 @@ export function Stepper(props: StepperProps): JSX.Element {
     <View
       role="group"
       aria-label={props["aria-label"] ?? "Progress steps"}
-      class={join("min-w-0 flex flex-row items-start", props.class)}
+      class={mergeClasses("min-w-0 flex flex-row items-start", props.class)}
     >
       <For each={props.steps}>
         {(step, index) => (
@@ -56,7 +56,7 @@ export function Stepper(props: StepperProps): JSX.Element {
             </View>
             {index() < props.steps.length - 1 && (
               <View
-                class={join(
+                class={mergeClasses(
                   "h-px flex-1 mt-4",
                   index() < currentIndex() ? "bg-accent" : "bg-subtle",
                 )}

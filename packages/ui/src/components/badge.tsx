@@ -1,7 +1,7 @@
 import { type JSX, omit } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type BadgeVariant =
   | "default"
@@ -39,7 +39,7 @@ export function badgeClass(
       () => "bg-danger-surface border-danger text-danger-primary",
     )
     .exhaustive();
-  return join(
+  return mergeClasses(
     "flex-none overflow-hidden whitespace-nowrap rounded-full border px-2 py-0.5 text-xs",
     weight === "normal" ? "font-normal" : "font-medium",
     colors,

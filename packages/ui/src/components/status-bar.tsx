@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface StatusBarProps extends Omit<ViewProps, "class"> {
   class?: string;
@@ -12,7 +12,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
     <View
       {...props}
       role="status"
-      class={join(
+      class={mergeClasses(
         "h-7 w-full min-w-0 flex-none flex flex-row items-center gap-1 px-2 border-t border-subtle bg-control",
         props.class,
       )}
@@ -31,7 +31,7 @@ export function StatusBarItem(props: StatusBarItemProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join(
+      class={mergeClasses(
         "h-full min-w-0 px-1.5 flex items-center text-xs text-muted whitespace-nowrap",
         props.grow ? "flex-1" : "flex-none",
         props.class,
@@ -47,7 +47,7 @@ export function StatusBarSeparator(props: { class?: string }): JSX.Element {
     <View
       role="separator"
       aria-orientation="vertical"
-      class={join("w-px h-4 flex-none bg-subtle", props.class)}
+      class={mergeClasses("w-px h-4 flex-none bg-subtle", props.class)}
     />
   );
 }

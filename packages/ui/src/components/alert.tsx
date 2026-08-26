@@ -7,7 +7,7 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type AlertVariant = "default" | "destructive";
 
@@ -77,7 +77,7 @@ export function Alert(props: AlertProps): JSX.Element {
           {...forwarded}
           role="alert"
           aria-label={props["aria-label"] ?? props.title}
-          class={join(
+          class={mergeClasses(
             "w-full min-w-0 flex flex-row items-start gap-3 rounded-lg border p-4 shadow-xs",
             colors().container,
             props.class,
@@ -98,7 +98,7 @@ export function AlertTitle(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 text-sm font-semibold",
         alertColors(context.variant()).title,
         props.class,
@@ -112,7 +112,7 @@ export function AlertDescription(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 whitespace-normal text-sm",
         alertColors(context.variant()).description,
         props.class,

@@ -3,7 +3,7 @@ import chevronDown from "lucide-static/icons/chevron-down.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import { createMemo, createSignal, For, type JSX } from "solid-js";
 import { Button as HeadlessButton, Icon, Text, View } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { createControllableState } from "./state";
 
 export interface TreeNode {
@@ -220,7 +220,7 @@ export function TreeView(props: TreeViewProps): JSX.Element {
     <View
       role="tree"
       aria-label={props["aria-label"]}
-      class={join("min-w-0 flex flex-col gap-0.5", props.class)}
+      class={mergeClasses("min-w-0 flex flex-col gap-0.5", props.class)}
     >
       <For each={visible()}>
         {(item) => {
@@ -237,7 +237,7 @@ export function TreeView(props: TreeViewProps): JSX.Element {
               disabled={item.node.disabled}
               focusOrder={tabStop() === item.node.id ? 0 : -1}
               class={(state) =>
-                join(
+                mergeClasses(
                   "w-full h-8 min-w-0 pr-2 items-center gap-2 rounded-md text-sm",
                   state.selected
                     ? "bg-selected text-primary"

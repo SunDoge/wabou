@@ -3,7 +3,7 @@ import type { Shadow } from "@wabou/core/style";
 import { type JSX, onCleanup } from "solid-js";
 import type { Placement } from "../primitives";
 import { Popover as HeadlessPopover } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
 import { createDelayedOpenController } from "./delayed-open";
 import { createControllableState } from "./state";
@@ -68,7 +68,7 @@ export function HoverCard(props: HoverCardProps): JSX.Element {
       offset={props.offset ?? 8}
       closeOnEscape
       restoreFocus={false}
-      contentClass={join(
+      contentClass={mergeClasses(
         "min-w-56 max-w-sm min-h-0 p-4 flex flex-col gap-3 rounded-lg border border-subtle bg-surface",
         props.contentClass,
       )}

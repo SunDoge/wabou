@@ -7,13 +7,13 @@ import {
   Text,
   View,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export const pageViewportClass = (className?: string) =>
-  join("min-w-0 min-h-0 flex-1", className);
+  mergeClasses("min-w-0 min-h-0 flex-1", className);
 
 export const pageViewportContentClass = (className?: string) =>
-  join("w-full h-full", className);
+  mergeClasses("w-full h-full", className);
 
 export interface PageViewportProps
   extends Omit<ScrollAreaProps, "class" | "contentClass" | "ref"> {
@@ -58,7 +58,7 @@ export function PageViewport(props: PageViewportProps): JSX.Element {
 }
 
 export const pageHeaderClass = (className?: string, stacked = false) =>
-  join(
+  mergeClasses(
     "min-w-0 min-h-14 flex-none flex justify-between gap-4",
     stacked ? "flex-col items-stretch" : "flex-row items-center",
     className,

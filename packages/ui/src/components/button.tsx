@@ -6,7 +6,7 @@ import {
   type ButtonProps as HeadlessButtonProps,
   type WabouStyle,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { useButtonGroupOrientation } from "./button-group-context";
 
 export type ButtonVariant =
@@ -38,40 +38,58 @@ function buttonColors(variant: ButtonVariant, state: ButtonState): string {
 
   return match({ variant, pressed: state.pressed, hovered: state.hovered })
     .with({ variant: "default", pressed: true }, () =>
-      join("bg-accent-pressed border-transparent text-on-accent", focus),
+      mergeClasses(
+        "bg-accent-pressed border-transparent text-on-accent",
+        focus,
+      ),
     )
     .with({ variant: "default", hovered: true }, () =>
-      join("bg-accent-hover border-transparent text-on-accent", focus),
+      mergeClasses("bg-accent-hover border-transparent text-on-accent", focus),
     )
     .with({ variant: "default" }, () =>
-      join("bg-accent border-transparent text-on-accent", focus),
+      mergeClasses("bg-accent border-transparent text-on-accent", focus),
     )
     .with({ variant: "destructive", pressed: true }, () =>
-      join("bg-danger-pressed border-transparent text-on-accent", focus),
+      mergeClasses(
+        "bg-danger-pressed border-transparent text-on-accent",
+        focus,
+      ),
     )
     .with({ variant: "destructive", hovered: true }, () =>
-      join("bg-danger-hover border-transparent text-on-accent", focus),
+      mergeClasses("bg-danger-hover border-transparent text-on-accent", focus),
     )
     .with({ variant: "destructive" }, () =>
-      join("bg-danger border-transparent text-on-accent", focus),
+      mergeClasses("bg-danger border-transparent text-on-accent", focus),
     )
     .with({ variant: "secondary", pressed: true }, () =>
-      join("bg-control-pressed border-transparent text-primary", focus),
+      mergeClasses("bg-control-pressed border-transparent text-primary", focus),
     )
     .with({ variant: "secondary", hovered: true }, () =>
-      join("bg-control-hover border-transparent text-primary", focus),
+      mergeClasses("bg-control-hover border-transparent text-primary", focus),
     )
     .with({ variant: "secondary" }, () =>
-      join("bg-control border-transparent text-primary", focus),
+      mergeClasses("bg-control border-transparent text-primary", focus),
     )
     .with({ pressed: true }, ({ variant: value }) =>
-      join("bg-control-pressed text-secondary", passiveBorder(value), focus),
+      mergeClasses(
+        "bg-control-pressed text-secondary",
+        passiveBorder(value),
+        focus,
+      ),
     )
     .with({ hovered: true }, ({ variant: value }) =>
-      join("bg-control-hover text-secondary", passiveBorder(value), focus),
+      mergeClasses(
+        "bg-control-hover text-secondary",
+        passiveBorder(value),
+        focus,
+      ),
     )
     .with({ variant: P.union("outline", "ghost") }, ({ variant: value }) =>
-      join("bg-transparent text-secondary", passiveBorder(value), focus),
+      mergeClasses(
+        "bg-transparent text-secondary",
+        passiveBorder(value),
+        focus,
+      ),
     )
     .exhaustive();
 }
@@ -96,7 +114,7 @@ export function Button(props: ButtonProps): JSX.Element {
       {...forwarded}
       unstyled
       class={(state) =>
-        join(
+        mergeClasses(
           "inline-flex flex-none whitespace-nowrap items-center justify-center gap-2 rounded-md border font-medium",
           buttonColors(variant(), state),
           buttonSize(size()),

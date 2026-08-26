@@ -3,7 +3,7 @@ import type { Shadow } from "@wabou/core/style";
 import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import { createSignal, type JSX } from "solid-js";
 import { Button as HeadlessButton, Icon, Popover, Text } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import type { PopupMotionProps } from "./popover";
 import { Command, type CommandItem } from "./command";
 import { componentsElevation, useComponentsTheme } from "./theme";
@@ -70,7 +70,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
       open={open()}
       onOpenChange={setOpen}
       placement="bottom-start"
-      contentClass={join(
+      contentClass={mergeClasses(
         "w-72 p-2 rounded-lg border border-subtle bg-surface",
         props.contentClass,
       )}
@@ -93,7 +93,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
             popover.ref(node);
           }}
           class={(state) =>
-            join(
+            mergeClasses(
               "w-72 h-8 px-3 justify-between gap-3 rounded-md border bg-input text-sm shadow-xs",
               state.focused ? "border-focus" : "border-subtle",
               props.class,
@@ -104,7 +104,7 @@ export function Combobox(props: ComboboxProps): JSX.Element {
           onKeyDown={popover.onKeyDown}
         >
           <Text
-            class={join(
+            class={mergeClasses(
               "min-w-0 flex-1 text-left truncate",
               selected() ? "text-primary" : "text-muted",
             )}

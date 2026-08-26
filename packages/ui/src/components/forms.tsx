@@ -10,7 +10,7 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { Input, type InputProps } from "./input";
 import { Label, type LabelProps } from "./label";
 export type FieldOrientation = "vertical" | "horizontal";
@@ -23,7 +23,7 @@ export function fieldClass(
     .with("vertical", () => "flex-col gap-2")
     .with("horizontal", () => "flex-row items-start gap-4")
     .exhaustive();
-  return join(
+  return mergeClasses(
     "w-full min-w-0 flex",
     layout,
     invalid && "text-danger-primary",
@@ -51,7 +51,7 @@ export function FieldSet(props: { children?: JSX.Element; class?: string }) {
   return (
     <View
       role="group"
-      class={join("w-full min-w-0 flex flex-col gap-6", props.class)}
+      class={mergeClasses("w-full min-w-0 flex flex-col gap-6", props.class)}
     >
       {props.children}
     </View>
@@ -66,7 +66,7 @@ export function FieldLegend(props: {
   return (
     <Text
       role="heading"
-      class={join(
+      class={mergeClasses(
         "mb-1 font-medium text-primary",
         props.variant === "label" ? "text-sm" : "text-base",
         props.class,
@@ -78,7 +78,7 @@ export function FieldLegend(props: {
 }
 export function FieldGroup(props: { children?: JSX.Element; class?: string }) {
   return (
-    <View class={join("flex flex-col gap-5", props.class)}>
+    <View class={mergeClasses("flex flex-col gap-5", props.class)}>
       {props.children}
     </View>
   );
@@ -91,7 +91,7 @@ export function FieldLabel(props: FieldLabelProps) {
 
 export function FieldTitle(props: { children?: JSX.Element; class?: string }) {
   return (
-    <Text class={join("text-sm font-medium text-primary", props.class)}>
+    <Text class={mergeClasses("text-sm font-medium text-primary", props.class)}>
       {props.children}
     </Text>
   );
@@ -101,7 +101,9 @@ export function FieldContent(props: {
   class?: string;
 }) {
   return (
-    <View class={join("min-w-0 flex-1 flex flex-col gap-1", props.class)}>
+    <View
+      class={mergeClasses("min-w-0 flex-1 flex flex-col gap-1", props.class)}
+    >
       {props.children}
     </View>
   );
@@ -112,7 +114,7 @@ export function FieldDescription(props: {
 }) {
   return (
     <Text
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 whitespace-normal text-xs text-muted",
         props.class,
       )}
@@ -160,7 +162,7 @@ export function FieldError(props: {
     <View
       role="alert"
       aria-label={label()}
-      class={join("w-full min-w-0 flex flex-col gap-1", props.class)}
+      class={mergeClasses("w-full min-w-0 flex flex-col gap-1", props.class)}
     >
       <Show
         when={props.children !== undefined && props.children !== null}
@@ -188,7 +190,10 @@ export function FieldSeparator(props: {
 }) {
   return (
     <View
-      class={join("w-full min-w-0 h-5 flex items-center gap-2", props.class)}
+      class={mergeClasses(
+        "w-full min-w-0 h-5 flex items-center gap-2",
+        props.class,
+      )}
     >
       <View aria-hidden="true" class="flex-1 min-w-0 h-px bg-subtle" />
       <Show when={props.children !== undefined && props.children !== null}>
@@ -221,7 +226,7 @@ export function inputGroupClass(
   focused: boolean,
   invalid: boolean,
 ): string {
-  return join(
+  return mergeClasses(
     "relative w-full min-w-0 flex rounded-md border shadow-xs",
     orientation === "horizontal"
       ? "h-8 flex-row items-center"
@@ -268,7 +273,7 @@ export function InputGroup(props: InputGroupProps) {
         aria-invalid={props.invalid}
         aria-disabled={props.disabled}
         data-wabou-owns="surface focus-ring"
-        class={join(
+        class={mergeClasses(
           inputGroupClass(
             props.orientation ?? "horizontal",
             focus.focusWithin(),
@@ -294,7 +299,7 @@ export function InputGroupInput(props: InputProps) {
         props.ref?.(node);
       }}
       chrome="none"
-      class={join("h-full flex-1 min-w-0", props.class)}
+      class={mergeClasses("h-full flex-1 min-w-0", props.class)}
     />
   );
 }
@@ -328,7 +333,7 @@ export function InputGroupAddon(props: InputGroupAddonProps) {
     <View
       {...forwarded}
       role={props.role ?? "group"}
-      class={join(
+      class={mergeClasses(
         inputGroupAddonClass(props.align ?? "inline-start"),
         props.class,
       )}
@@ -345,7 +350,7 @@ export function InputGroupText(props: {
   class?: string;
 }) {
   return (
-    <Text class={join("flex-none text-sm text-muted", props.class)}>
+    <Text class={mergeClasses("flex-none text-sm text-muted", props.class)}>
       {props.children}
     </Text>
   );
@@ -356,7 +361,7 @@ export function InputGroupButton(props: ButtonProps) {
       {...props}
       size={props.size ?? "sm"}
       variant={props.variant ?? "ghost"}
-      class={join("mx-1", props.class)}
+      class={mergeClasses("mx-1", props.class)}
     />
   );
 }
@@ -371,7 +376,7 @@ export function InputGroupTextArea(
         group?.registerControl(node);
         props.ref?.(node);
       }}
-      class={join(
+      class={mergeClasses(
         "w-full h-24 px-3 py-2 border-transparent bg-transparent text-sm",
         props.class,
       )}

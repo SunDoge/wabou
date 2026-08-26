@@ -7,7 +7,7 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type MessageAlign = "start" | "end";
 export type BubbleVariant =
@@ -41,7 +41,7 @@ export function MessageGroup(props: ViewProps): JSX.Element {
     <View
       {...props}
       role={props.role ?? "group"}
-      class={join("w-full min-w-0 flex flex-col gap-3", props.class)}
+      class={mergeClasses("w-full min-w-0 flex flex-col gap-3", props.class)}
     >
       {props.children}
     </View>
@@ -57,7 +57,7 @@ export function messageClass(
   align: MessageAlign = "start",
   className?: string,
 ): string {
-  return join(
+  return mergeClasses(
     "relative w-full min-w-0 flex gap-2 text-sm",
     align === "end" ? "flex-row-reverse" : "flex-row",
     className,
@@ -86,7 +86,7 @@ export function MessageAvatar(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(
+      class={mergeClasses(
         "w-8 h-8 flex-none self-end overflow-hidden rounded-full bg-control flex items-center justify-center",
         props.class,
       )}
@@ -101,7 +101,7 @@ export function MessageContent(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(
+      class={mergeClasses(
         "flex-1 min-w-0 flex flex-col gap-2",
         context.align() === "end" ? "items-end" : "items-start",
         props.class,
@@ -117,7 +117,7 @@ export function MessageHeader(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join(
+      class={mergeClasses(
         "max-w-full min-w-0 px-3 text-xs font-medium text-muted",
         context.align() === "end" && "text-right",
         props.class,
@@ -132,7 +132,10 @@ export const MessageFooter = MessageHeader;
 
 export function BubbleGroup(props: ViewProps): JSX.Element {
   return (
-    <View {...props} class={join("w-full min-w-0 grid gap-2", props.class)}>
+    <View
+      {...props}
+      class={mergeClasses("w-full min-w-0 grid gap-2", props.class)}
+    >
       {props.children}
     </View>
   );
@@ -149,7 +152,7 @@ export function bubbleClass(
   align: MessageAlign = "start",
   className?: string,
 ): string {
-  return join(
+  return mergeClasses(
     "relative min-w-0 flex flex-col gap-1",
     variant === "ghost" ? "max-w-full" : "max-w-4/5",
     align === "end" ? "self-end items-end" : "self-start items-start",
@@ -192,7 +195,7 @@ export function bubbleContentClass(
       () => "border-danger bg-danger-surface text-danger-primary",
     )
     .exhaustive();
-  return join(
+  return mergeClasses(
     "max-w-full min-w-0 overflow-hidden rounded-xl border",
     variant === "ghost" ? "p-0" : "px-3 py-2",
     colors,
@@ -220,7 +223,7 @@ export function BubbleReactions(props: {
   const align = () => props.align ?? bubble.align();
   return (
     <View
-      class={join(
+      class={mergeClasses(
         "relative z-10 flex-none flex items-center justify-center gap-1 rounded-full bg-control px-1.5 py-0.5 text-sm",
         align() === "end" ? "self-end" : "self-start",
         props.class,
@@ -242,7 +245,7 @@ export function Marker(props: {
   const variant = () => props.variant ?? "default";
   return (
     <View
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 min-h-4 flex items-center gap-2 text-sm text-muted",
         variant() === "border" && "border-b border-subtle pb-2",
         props.class,
@@ -264,7 +267,7 @@ export function MarkerIcon(props: ViewProps): JSX.Element {
     <View
       {...props}
       aria-hidden="true"
-      class={join("w-4 h-4 flex-none", props.class)}
+      class={mergeClasses("w-4 h-4 flex-none", props.class)}
     >
       {props.children}
     </View>
@@ -275,7 +278,10 @@ export function MarkerContent(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join("min-w-0 whitespace-nowrap text-sm text-muted", props.class)}
+      class={mergeClasses(
+        "min-w-0 whitespace-nowrap text-sm text-muted",
+        props.class,
+      )}
     >
       {props.children}
     </Text>

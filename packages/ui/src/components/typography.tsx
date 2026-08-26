@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 type TypographyTextProps = Omit<TextProps, "class"> & { class?: string };
 
@@ -8,7 +8,7 @@ function styledText(
   props: TypographyTextProps,
   className: string,
 ): JSX.Element {
-  return <Text {...props} class={join(className, props.class)} />;
+  return <Text {...props} class={mergeClasses(className, props.class)} />;
 }
 
 export const TypographyH1 = (props: TypographyTextProps) =>
@@ -51,7 +51,9 @@ export function TypographyBlockquote(props: TypographyTextProps): JSX.Element {
 }
 
 export function TypographyList(props: ViewProps): JSX.Element {
-  return <View {...props} class={join("flex flex-col gap-2", props.class)} />;
+  return (
+    <View {...props} class={mergeClasses("flex flex-col gap-2", props.class)} />
+  );
 }
 
 export function TypographyListItem(props: TypographyTextProps): JSX.Element {

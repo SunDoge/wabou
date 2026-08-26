@@ -18,7 +18,7 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 const orientationClass = (
   orientation: "horizontal" | "vertical",
@@ -79,7 +79,7 @@ export function Tabs(props: TabsProps): JSX.Element {
     get children() {
       return (
         <View
-          class={join(
+          class={mergeClasses(
             "flex gap-3",
             orientationClass(context.orientation(), "flex-col", "flex-row"),
             props.class,
@@ -110,7 +110,7 @@ export function TabsList(props: {
       class={
         props.unstyled
           ? props.class
-          : join(
+          : mergeClasses(
               "flex-none flex items-center gap-1",
               orientationClass(context.orientation(), "flex-row", "flex-col"),
               match(props.variant ?? "default")
@@ -163,7 +163,7 @@ export function TabsTrigger(props: TabsTriggerProps): JSX.Element {
           ? typeof props.class === "function"
             ? props.class(state)
             : (props.class ?? "")
-          : join(
+          : mergeClasses(
               "h-7 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
               match({ selected: selected(), hovered: state.hovered })
                 .with(
@@ -198,7 +198,7 @@ export function TabsContent(props: {
   if (!context) throw new Error("TabsContent must be used inside Tabs");
   return (
     <Show when={context.value() === props.value}>
-      <View role="tabpanel" class={join("flex-1", props.class)}>
+      <View role="tabpanel" class={mergeClasses("flex-1", props.class)}>
         {props.children}
       </View>
     </Show>

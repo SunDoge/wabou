@@ -1,7 +1,7 @@
 import type { WabouStyle } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import { View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export interface AspectRatioProps extends Omit<ViewProps, "style"> {
   /** Width divided by height. Defaults to a square. */
@@ -27,7 +27,7 @@ export function AspectRatio(props: AspectRatioProps): JSX.Element {
     <View
       {...rest}
       data-wabou-owns="clip"
-      class={join("w-full min-w-0 overflow-hidden", props.class)}
+      class={mergeClasses("w-full min-w-0 overflow-hidden", props.class)}
       style={aspectRatioStyle(props.ratio, props.style)}
     >
       {props.children}

@@ -2,7 +2,7 @@ import { rgba, type WabouStyle } from "@wabou/core/style";
 import { createMemo, type JSX, omit } from "solid-js";
 import { encode, type QrCodeGenerateData } from "uqr";
 import { Path, PathBuilder, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type QrCodeErrorCorrection = "L" | "M" | "Q" | "H";
 
@@ -133,7 +133,7 @@ export function QRCode(props: QRCodeProps): JSX.Element {
       {...rest}
       role="img"
       aria-label={props["aria-label"] ?? "QR code"}
-      class={join("relative flex-none overflow-hidden", props.class)}
+      class={mergeClasses("relative flex-none overflow-hidden", props.class)}
       style={{
         ...props.style,
         width: renderedSize(),

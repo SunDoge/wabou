@@ -1,6 +1,6 @@
 import { t as __exportAll } from "./rolldown-runtime-D7D4PA-g.mjs";
 import { PathBuilder, bindJsonCapability, useHost } from "@wabou/core";
-import { number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
+import { mergeClasses, number, px, rotate2d, rotate2d as rotate2d$1, scale2d, translate2d, translate2d as translate2d$1 } from "@wabou/core/style";
 import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
@@ -1187,28 +1187,23 @@ function setsEqual(left, right) {
 	return true;
 }
 //#endregion
-//#region src/primitives/class-names.ts
-function join(...values) {
-	return values.filter(Boolean).join(" ");
-}
-//#endregion
 //#region src/primitives/layout.tsx
 /** Horizontal flex container. No wrapper node is added beyond the host View. */
 function Row(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex flex-row", props.class);
+		return mergeClasses("flex flex-row", props.class);
 	} }));
 }
 /** Vertical flex container. No wrapper node is added beyond the host View. */
 function Column(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex flex-col", props.class);
+		return mergeClasses("flex flex-col", props.class);
 	} }));
 }
 /** Flex container that centers children on both axes. */
 function Center(props) {
 	return createComponent$1(View, mergeProps(props, { get ["class"]() {
-		return join("flex items-center justify-center", props.class);
+		return mergeClasses("flex items-center justify-center", props.class);
 	} }));
 }
 //#endregion
@@ -2163,7 +2158,7 @@ function Popover(props) {
 }
 //#endregion
 //#region src/primitives/scroll-area.tsx
-const scrollAreaViewportClass = (className) => join("min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", className);
+const scrollAreaViewportClass = (className) => mergeClasses("min-w-0 min-h-0 overflow-x-hidden overflow-y-auto", className);
 /**
 * Vertical native scroll viewport with explicit sizing.
 *
@@ -2199,7 +2194,7 @@ function ScrollArea(props) {
 		get children() {
 			return createComponent$1(View, {
 				get ["class"]() {
-					return join("flex-none flex flex-col min-h-full", props.contentClass);
+					return mergeClasses("flex-none flex flex-col min-h-full", props.contentClass);
 				},
 				get children() {
 					return props.children;
@@ -2485,4 +2480,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { translate2d$1 as $, isSelected as A, createButton as B, OverlayPlaneProvider as C, Column as D, Center as E, createPresence as F, Path as G, Icon as H, createContainerMatch as I, Text as J, PathBuilder as K, createMeasuredSize as L, FORM_ERROR as M, createFormDraft as N, Row as O, CollapsiblePresence as P, rotate2d$1 as Q, Button as R, createTransitionPresence as S, useReducedMotion as St, useOverlayPlane as T, Image as U, CodeEditor as V, PasswordInput as W, TextInput as X, TextArea as Y, View as Z, createRetainedItems as _, createSweep as _t, ScrollArea as a, createAnimationFrame as at, Spin as b, MotionConfigProvider as bt, autoPlacement as c, createOwnedImageResource as ct, flip as d, animateKeyframes as dt, createActive as et, offset as f, createInterpolation as ft, createNotifications as g, createRotation as gt, NotificationRegion as h, createPulse as ht, createScrollReset as i, createFocusWithin as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, releaseImageResource as lt, size as m, createLoop as mt, createTabs as n, createHover as nt, Popover as o, createFileImageResource as ot, shift as p, createKeyframeAnimation as pt, Svg as q, createShortcuts as r, createFocus as rt, arrow as s, createNetworkImageResource as st, primitives_exports as t, createPress as tt, computeHostFloatingPosition as u, animate as ut, Pulse as v, createTransition as vt, createOverlayLayer as w, Modal as x, useMotionConfig as xt, Ripple as y, normalizeSweepGeometry as yt, Link as z };
 
-//# sourceMappingURL=primitives-DIx_hD2G.mjs.map
+//# sourceMappingURL=primitives-BKHAJTR2.mjs.map

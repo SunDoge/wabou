@@ -22,7 +22,7 @@ import {
   createControllableState,
   createRovingFocus,
 } from "../primitives/interactions";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 const SELECTION_INDICATOR_CLASS = "w-5 h-5 flex-none border";
 
@@ -75,7 +75,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
       aria-checked={ariaChecked()}
       selected={checked()}
       class={(buttonState) =>
-        join(
+        mergeClasses(
           "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
           buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
@@ -89,7 +89,7 @@ export function Checkbox(props: CheckboxProps): JSX.Element {
     >
       <Center
         aria-hidden="true"
-        class={join(
+        class={mergeClasses(
           SELECTION_INDICATOR_CLASS,
           "rounded text-xs font-bold",
           boxColors(),
@@ -157,7 +157,7 @@ export function RadioGroup(props: RadioGroupProps): JSX.Element {
         <View
           role="radiogroup"
           aria-label={props["aria-label"]}
-          class={join("flex flex-col gap-3", props.class)}
+          class={mergeClasses("flex flex-col gap-3", props.class)}
         >
           {props.children}
         </View>
@@ -193,7 +193,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
         unregister = group.register(props.value, node, disabled);
       }}
       class={(buttonState) =>
-        join(
+        mergeClasses(
           "min-h-7 px-1 items-center gap-2 rounded-md border border-transparent",
           buttonState.hovered && "bg-control-hover",
           buttonState.focusVisible && "border-focus",
@@ -210,7 +210,7 @@ export function RadioGroupItem(props: RadioGroupItemProps): JSX.Element {
     >
       <Center
         aria-hidden="true"
-        class={join(
+        class={mergeClasses(
           SELECTION_INDICATOR_CLASS,
           "rounded-full bg-input",
           match(checked())
@@ -268,7 +268,7 @@ export function Toggle(props: ToggleProps): JSX.Element {
       aria-label={props["aria-label"]}
       aria-pressed={pressed()}
       class={(state) =>
-        join(
+        mergeClasses(
           "items-center justify-center rounded-md border font-medium",
           size(),
           colors(state),
@@ -421,7 +421,7 @@ export function ToggleGroup(props: ToggleGroupProps): JSX.Element {
         <View
           role="group"
           aria-label={props["aria-label"]}
-          class={join(
+          class={mergeClasses(
             "flex flex-row items-center rounded-md bg-transparent",
             match(props.spacing ?? 0)
               .with(0, () => "gap-0")
@@ -467,7 +467,7 @@ export function ToggleGroupItem(props: ToggleGroupItemProps): JSX.Element {
         unregister = group.register(props.value, node, disabled);
       }}
       class={(state) =>
-        join(
+        mergeClasses(
           "h-7 flex-1 px-3 items-center justify-center rounded-sm border border-transparent text-sm font-medium",
           match(props.size ?? group.size())
             .with("sm", () => "h-6 px-2 text-xs")

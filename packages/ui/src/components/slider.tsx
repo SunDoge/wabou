@@ -1,6 +1,6 @@
 import { createMeasuredSize, View } from "../primitives";
 import { createSignal, type JSX } from "solid-js";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { decimalPlaces, finiteOr, normalizeRange } from "./range";
 
 interface SliderPointerEvent {
@@ -90,7 +90,7 @@ export function Slider(props: SliderProps): JSX.Element {
       aria-valuetext={props.valueText?.(value()) ?? String(value())}
       aria-disabled={props.disabled}
       focusOrder={props.disabled ? -1 : 0}
-      class={join(
+      class={mergeClasses(
         "h-7 relative flex items-center",
         props.disabled ? "cursor-not-allowed" : "cursor-pointer",
         props.class,
@@ -126,7 +126,7 @@ export function Slider(props: SliderProps): JSX.Element {
       </View>
       <View
         aria-hidden="true"
-        class={join(
+        class={mergeClasses(
           "w-4 h-4 absolute rounded-full border bg-surface shadow-xs",
           focused() || dragging() ? "border-focus" : "border-strong",
         )}

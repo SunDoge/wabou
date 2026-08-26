@@ -15,7 +15,7 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { finiteOr } from "./range";
 
 export interface ProgressValueDetails {
@@ -119,7 +119,7 @@ export function ProgressRoot(props: ProgressRootProps): JSX.Element {
         aria-valuemax={context.max()}
         aria-valuenow={indeterminate() ? undefined : context.value()}
         aria-valuetext={context.valueLabel()}
-        class={join("w-full min-w-0 flex flex-col gap-2", props.class)}
+        class={mergeClasses("w-full min-w-0 flex flex-col gap-2", props.class)}
       >
         {props.children}
       </View>
@@ -140,7 +140,7 @@ export function ProgressTrack(props: ViewProps): JSX.Element {
         props.ref?.(node);
       }}
       aria-hidden="true"
-      class={join(
+      class={mergeClasses(
         "w-full h-2 flex-none overflow-hidden rounded-full bg-control",
         props.class,
       )}
@@ -163,7 +163,7 @@ function IndeterminateProgressFill(props: ViewProps): JSX.Element {
     <View
       {...props}
       aria-hidden="true"
-      class={join("w-2/5 h-full rounded-full bg-accent", props.class)}
+      class={mergeClasses("w-2/5 h-full rounded-full bg-accent", props.class)}
       transform={sweep.transform()}
     />
   );
@@ -179,7 +179,7 @@ export function ProgressFill(props: ViewProps): JSX.Element {
       <View
         {...props}
         aria-hidden="true"
-        class={join("h-full rounded-full bg-accent", props.class)}
+        class={mergeClasses("h-full rounded-full bg-accent", props.class)}
         style={{ width: `${context.percent()}%`, ...props.style }}
       />
     </Show>
@@ -191,7 +191,7 @@ export function ProgressLabel(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join("min-w-0 text-sm text-secondary", props.class)}
+      class={mergeClasses("min-w-0 text-sm text-secondary", props.class)}
     >
       {props.children ?? context.label()}
     </Text>
@@ -203,7 +203,10 @@ export function ProgressValueLabel(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join("flex-none text-sm font-mono text-muted", props.class)}
+      class={mergeClasses(
+        "flex-none text-sm font-mono text-muted",
+        props.class,
+      )}
     >
       {props.children ?? context.valueLabel() ?? "In progress"}
     </Text>

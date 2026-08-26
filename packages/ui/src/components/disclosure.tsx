@@ -19,7 +19,7 @@ import {
   isSelected,
   toggleSelection,
 } from "../primitives/interactions";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 function DisclosureIndicator(props: {
   open: () => boolean;
@@ -90,7 +90,7 @@ export function Collapsible(props: CollapsibleProps) {
   );
   return (
     <CollapsibleContext value={context}>
-      <View {...rest} class={join("flex flex-col", props.class)}>
+      <View {...rest} class={mergeClasses("flex flex-col", props.class)}>
         {props.children}
       </View>
     </CollapsibleContext>
@@ -117,7 +117,7 @@ export function CollapsibleTrigger(props: CollapsibleTriggerProps) {
       }}
     >
       <View
-        class={join(
+        class={mergeClasses(
           "w-full flex items-center justify-between gap-3",
           props.class,
         )}
@@ -230,7 +230,7 @@ export function Accordion(props: AccordionProps) {
   );
   return (
     <AccordionContext value={context}>
-      <View {...rest} class={join("flex flex-col", props.class)}>
+      <View {...rest} class={mergeClasses("flex flex-col", props.class)}>
         {props.children}
       </View>
     </AccordionContext>
@@ -251,7 +251,10 @@ export function AccordionItem(props: AccordionItemProps) {
     >
       <View
         {...rest}
-        class={join("flex flex-col border-b border-subtle", props.class)}
+        class={mergeClasses(
+          "flex flex-col border-b border-subtle",
+          props.class,
+        )}
       >
         {props.children}
       </View>
@@ -298,7 +301,7 @@ export function AccordionTrigger(props: AccordionTriggerProps) {
       }}
     >
       <View
-        class={join(
+        class={mergeClasses(
           "w-full py-4 flex items-center justify-between gap-4",
           props.class,
         )}
@@ -320,7 +323,7 @@ export function AccordionContent(props: AccordionContentProps) {
     <CollapsiblePresence
       open={root.active(item.value)}
       reducedMotion={root.reducedMotion()}
-      contentClass={join("pb-4", props.class)}
+      contentClass={mergeClasses("pb-4", props.class)}
       contentProps={contentProps}
       contentStyle={props.style}
     >

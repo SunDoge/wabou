@@ -7,7 +7,7 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type EmptyVariant = "surface" | "plain";
 export type EmptyMediaVariant = "default" | "icon";
@@ -22,7 +22,7 @@ export function emptyClass(
   variant: EmptyVariant = "surface",
   className?: string,
 ): string {
-  return join(
+  return mergeClasses(
     "w-full min-w-0 flex-1 p-8 items-center justify-center gap-6 text-center",
     variant === "surface"
       ? "min-h-64 rounded-lg border border-subtle bg-surface shadow-xs"
@@ -45,7 +45,10 @@ export function EmptyHeader(props: ViewProps): JSX.Element {
   return (
     <Column
       {...props}
-      class={join("w-full max-w-sm min-w-0 items-center gap-2", props.class)}
+      class={mergeClasses(
+        "w-full max-w-sm min-w-0 items-center gap-2",
+        props.class,
+      )}
     >
       {props.children}
     </Column>
@@ -61,12 +64,12 @@ export function emptyMediaClass(
   variant: EmptyMediaVariant = "default",
   className?: string,
 ): string {
-  return join(
+  return mergeClasses(
     "mb-2 flex-none flex items-center justify-center",
     match(variant)
       .with("default", () => "bg-transparent")
       .with("icon", () =>
-        join("w-10 h-10 rounded-lg", "bg-control text-primary"),
+        mergeClasses("w-10 h-10 rounded-lg", "bg-control text-primary"),
       )
       .exhaustive(),
     className,
@@ -87,7 +90,7 @@ export function EmptyTitle(props: TextProps): JSX.Element {
     <Text
       {...props}
       role={props.role ?? "heading"}
-      class={join("text-lg font-medium text-primary", props.class)}
+      class={mergeClasses("text-lg font-medium text-primary", props.class)}
     >
       {props.children}
     </Text>
@@ -98,7 +101,7 @@ export function EmptyDescription(props: TextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 whitespace-normal text-center text-sm text-muted",
         props.class,
       )}
@@ -112,7 +115,7 @@ export function EmptyContent(props: ViewProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(
+      class={mergeClasses(
         "w-full max-w-sm min-w-0 flex flex-col items-center gap-4 text-sm",
         props.class,
       )}

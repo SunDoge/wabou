@@ -10,7 +10,7 @@ import {
 } from "solid-js";
 import { match } from "ts-pattern";
 import { createMeasuredSize, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { Dialog } from "./dialog";
 
 export type ResponsiveGridColumnCount = 1 | 2 | 3 | 4;
@@ -127,7 +127,7 @@ export function ResponsiveGrid(props: ResponsiveGridProps): JSX.Element {
           props.ref?.(node);
         }}
         style={{ gap: props.gap ?? 16, ...props.style }}
-        class={join(
+        class={mergeClasses(
           "w-full min-w-0 grid",
           responsiveGridColumnClass(columns()),
           props.class,
@@ -152,7 +152,7 @@ export function ResponsiveGridRemainder(props: {
   );
   return (
     <For each={cells()}>
-      {() => <View aria-hidden class={join("min-w-0", props.class)} />}
+      {() => <View aria-hidden class={mergeClasses("min-w-0", props.class)} />}
     </For>
   );
 }
@@ -166,7 +166,10 @@ export function ResponsiveGridRemainder(props: {
 export function SplitPane(props: { children?: JSX.Element; class?: string }) {
   return (
     <View
-      class={join("w-full min-w-0 flex flex-row overflow-hidden", props.class)}
+      class={mergeClasses(
+        "w-full min-w-0 flex flex-row overflow-hidden",
+        props.class,
+      )}
     >
       {props.children}
     </View>
@@ -178,7 +181,7 @@ export function SplitPaneMain(props: {
   class?: string;
 }) {
   return (
-    <View class={join("flex-1 min-w-0 overflow-hidden", props.class)}>
+    <View class={mergeClasses("flex-1 min-w-0 overflow-hidden", props.class)}>
       {props.children}
     </View>
   );
@@ -189,7 +192,9 @@ export function SplitPaneAside(props: {
   class?: string;
 }) {
   return (
-    <View class={join("flex-none min-w-0 overflow-hidden", props.class)}>
+    <View
+      class={mergeClasses("flex-none min-w-0 overflow-hidden", props.class)}
+    >
       {props.children}
     </View>
   );
@@ -247,7 +252,10 @@ export function AdaptiveSplitPaneDetail(props: {
         open={props.open}
         onOpenChange={(open) => props.onOpenChange(open)}
         aria-label={props["aria-label"]}
-        contentClass={join("h-11/12 p-0 overflow-hidden", props.modalClass)}
+        contentClass={mergeClasses(
+          "h-11/12 p-0 overflow-hidden",
+          props.modalClass,
+        )}
       >
         {props.children}
       </Dialog>

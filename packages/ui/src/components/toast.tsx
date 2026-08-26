@@ -16,7 +16,7 @@ import {
   View,
 } from "../primitives";
 import { Button } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type ToastVariant = "default" | "success" | "warning" | "destructive";
 
@@ -78,7 +78,7 @@ function ToastContent(props: {
     <View class="w-full min-w-0 flex items-start gap-3 rounded-lg border border-subtle bg-surface p-3 shadow-md">
       <Icon
         source={style().icon}
-        class={join("flex-none mt-0.5", style().color)}
+        class={mergeClasses("flex-none mt-0.5", style().color)}
         size={18}
       />
       <View class="min-w-0 flex-1 flex flex-col gap-1">
@@ -160,7 +160,7 @@ export function Toaster(props: ToasterProps): JSX.Element {
       notifications={props.toasts.notifications}
       placement={props.placement ?? "bottom-end"}
       class={props.class}
-      itemClass={join("w-96 max-w-full", props.itemClass)}
+      itemClass={mergeClasses("w-96 max-w-full", props.itemClass)}
       motion={
         props.motion === undefined
           ? {

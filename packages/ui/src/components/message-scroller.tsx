@@ -18,7 +18,7 @@ import {
   type ViewProps,
 } from "../primitives";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type MessageScrollDirection = "start" | "end";
 
@@ -150,7 +150,7 @@ export function MessageScroller(props: MessageScrollerProps): JSX.Element {
     <MessageScrollerContext value={context}>
       <View
         {...forwarded}
-        class={join(
+        class={mergeClasses(
           "relative w-full h-full min-w-0 min-h-0 flex flex-col overflow-hidden",
           props.class,
         )}
@@ -176,7 +176,7 @@ export function MessageScrollerViewport(
         context.setViewport(node);
         props.ref?.(node);
       }}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto",
         props.class,
       )}
@@ -201,7 +201,7 @@ export function MessageScrollerContent(props: ViewProps): JSX.Element {
         context.setContent(node);
         props.ref?.(node);
       }}
-      class={join(
+      class={mergeClasses(
         "w-full min-w-0 min-h-full flex-none flex flex-col gap-4",
         props.class,
       )}
@@ -213,7 +213,10 @@ export function MessageScrollerContent(props: ViewProps): JSX.Element {
 
 export function MessageScrollerItem(props: ViewProps): JSX.Element {
   return (
-    <View {...props} class={join("w-full min-w-0 flex-none", props.class)}>
+    <View
+      {...props}
+      class={mergeClasses("w-full min-w-0 flex-none", props.class)}
+    >
       {props.children}
     </View>
   );
@@ -242,7 +245,7 @@ export function MessageScrollerButton(
         aria-label={props["aria-label"] ?? label()}
         variant={props.variant ?? "secondary"}
         size={props.size ?? "icon"}
-        class={join(
+        class={mergeClasses(
           "absolute z-10 left-1/2 flex-none rounded-full shadow-sm",
           direction() === "end" ? "bottom-3" : "top-3",
           props.class,

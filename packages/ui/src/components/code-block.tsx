@@ -1,6 +1,6 @@
 import type { JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { CopyButton } from "./copy-button";
 
 export interface CodeBlockProps extends Omit<ViewProps, "children"> {
@@ -14,7 +14,7 @@ export function CodeBlock(props: CodeBlockProps): JSX.Element {
     <View
       role="group"
       aria-label={props["aria-label"] ?? "Code block"}
-      class={join(
+      class={mergeClasses(
         "min-w-0 overflow-hidden rounded-lg border border-subtle bg-control",
         props.class,
       )}

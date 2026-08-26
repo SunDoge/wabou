@@ -2,7 +2,7 @@ import pencil from "lucide-static/icons/pencil.svg?raw";
 import { createSignal, type JSX, untrack } from "solid-js";
 import { Icon, Text, View } from "../primitives";
 import { Button } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 import { Input } from "./input";
 
 export interface InlineEditProps {
@@ -49,14 +49,14 @@ export function InlineEdit(props: InlineEditProps): JSX.Element {
   };
 
   return (
-    <View class={join("min-w-0", props.class)}>
+    <View class={mergeClasses("min-w-0", props.class)}>
       {editing() ? (
         <Input
           ref={(node) => {
             node.focus();
           }}
           aria-label={props["aria-label"]}
-          class={join("min-w-0", props.inputClass)}
+          class={mergeClasses("min-w-0", props.inputClass)}
           value={draft()}
           placeholder={props.placeholder}
           onInput={(event) => setDraft(event.currentTarget.value)}
@@ -76,7 +76,7 @@ export function InlineEdit(props: InlineEditProps): JSX.Element {
           variant="ghost"
           disabled={props.disabled}
           aria-label={`Edit ${props["aria-label"]}`}
-          class={join(
+          class={mergeClasses(
             "h-8 max-w-full min-w-0 px-2 justify-start gap-2",
             props.displayClass,
           )}

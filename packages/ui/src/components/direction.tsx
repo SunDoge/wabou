@@ -1,6 +1,6 @@
 import { createComponent, createContext, type JSX, useContext } from "solid-js";
 import { Text, type TextProps, View, type ViewProps } from "../primitives";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type Direction = "ltr" | "rtl";
 
@@ -36,7 +36,7 @@ export function DirectionalRow(props: DirectionalRowProps): JSX.Element {
   return (
     <View
       {...props}
-      class={join(
+      class={mergeClasses(
         "flex",
         direction() === "rtl" ? "flex-row-reverse" : "flex-row",
         props.class,
@@ -54,7 +54,7 @@ export function DirectionalText(props: DirectionalTextProps): JSX.Element {
   return (
     <Text
       {...props}
-      class={join(
+      class={mergeClasses(
         direction() === "rtl" ? "text-right" : "text-left",
         props.class,
       )}

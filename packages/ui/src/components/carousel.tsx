@@ -29,7 +29,7 @@ import {
 } from "../primitives";
 import { createControllableState } from "../primitives/interactions";
 import { Button, type ButtonProps } from "./button";
-import { join } from "./class-names";
+import { mergeClasses } from "@wabou/core/style";
 
 export type CarouselOrientation = "horizontal" | "vertical";
 
@@ -126,7 +126,7 @@ export function Carousel(props: CarouselProps): JSX.Element {
         <View
           role="group"
           aria-label={props["aria-label"]}
-          class={join("relative min-w-0 min-h-0", props.class)}
+          class={mergeClasses("relative min-w-0 min-h-0", props.class)}
           onKeyDown={(event) => {
             const handled = match({
               orientation: context.orientation(),
@@ -232,7 +232,7 @@ export function CarouselContent(props: CarouselContentProps): JSX.Element {
         measured.ref(node);
         props.ref?.(node);
       }}
-      class={join("min-w-0 min-h-0 overflow-hidden", props.class)}
+      class={mergeClasses("min-w-0 min-h-0 overflow-hidden", props.class)}
       onPointerDown={(event) => {
         if (event.button !== 0 || axisSize() <= 0) return;
         controls?.cancel();
@@ -257,7 +257,7 @@ export function CarouselContent(props: CarouselContentProps): JSX.Element {
       }}
     >
       <View
-        class={join(
+        class={mergeClasses(
           "flex w-full h-full flex-none",
           carousel.orientation() === "horizontal" ? "flex-row" : "flex-col",
           props.trackClass,
@@ -288,7 +288,7 @@ export function CarouselItem(props: CarouselItemProps): JSX.Element {
       {...props}
       role="group"
       aria-label={props["aria-label"]}
-      class={join(
+      class={mergeClasses(
         "min-w-0 min-h-0 flex-none",
         carousel.orientation() === "horizontal" ? "w-full" : "h-full",
         props.class,
