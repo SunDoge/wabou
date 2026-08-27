@@ -37,11 +37,12 @@ import { i18n, m } from "./i18n";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import {
-  agentProfile,
   type AgentWorkspace,
+  agentProfile,
   createAgentWorkspace,
   restoreAgentWorkspace,
 } from "./workspace";
+import { WorkspaceSetup } from "./workspace-setup";
 
 export function App() {
   const api = usePiApi();
@@ -139,12 +140,14 @@ export function App() {
         )
       ) {
         void api.getMessages(id);
-        void api.listSessions(id).then((next) =>
-          setSessions((current) => [
-            ...current.filter((session) => session.agentId !== id),
-            ...next,
-          ]),
-        );
+        void api
+          .listSessions(id)
+          .then((next) =>
+            setSessions((current) => [
+              ...current.filter((session) => session.agentId !== id),
+              ...next,
+            ]),
+          );
         const stateEvent = batch.find(
           (event) =>
             event.type === "response" &&
@@ -177,12 +180,14 @@ export function App() {
         .join("\0"),
     (agentIds) => {
       for (const id of agentIds.split("\0").filter(Boolean)) {
-        void api.listSessions(id).then((next) =>
-          setSessions((current) => [
-            ...current.filter((session) => session.agentId !== id),
-            ...next,
-          ]),
-        );
+        void api
+          .listSessions(id)
+          .then((next) =>
+            setSessions((current) => [
+              ...current.filter((session) => session.agentId !== id),
+              ...next,
+            ]),
+          );
         void api
           .getStatus(id)
           .then((status) => {
@@ -457,76 +462,92 @@ export function App() {
             </View>
           </View>
 
-          <MessageScroller class="flex-1 min-h-0" followEnd>
-            <MessageScrollerViewport>
-              <MessageScrollerContent class="max-w-4xl mx-auto p-5">
-                <Show
-                  when={active().state.items.length > 0}
-                  fallback={
-                    <Empty variant="plain" class="min-h-72">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon">
-                          <Icon source={bot} size={20} class="text-accent" />
-                        </EmptyMedia>
-                        <EmptyTitle>
-                          {i18n.message(m.empty_title, {})}
-                        </EmptyTitle>
-                        <EmptyDescription>
-                          {i18n.message(m.empty_detail, {})}
-                        </EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  }
-                >
-                  <MessageGroup>
-                    <For each={active().state.items}>
-                      {(item) => (
-                        <MessageScrollerItem>
-                          <ConversationItem item={item} />
-                        </MessageScrollerItem>
-                      )}
-                    </For>
-                  </MessageGroup>
-                </Show>
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
-            <MessageScrollerButton />
-          </MessageScroller>
-
-          <View class="flex-none border-t border-subtle bg-surface p-4">
-            <View class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2">
-              <TextArea
-                class="h-20 border-transparent shadow-none bg-input"
-                value={draft()}
-                disabled={active().state.connection === "running"}
-                placeholder={
-                  active().state.connection === "running"
-                    ? i18n.message(m.working, {})
-                    : i18n.message(m.prompt_placeholder, {})
-                }
-                onInput={(event) => setDraft(event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && (event.mods & 1) === 0) {
-                    event.preventDefault();
-                    void submit();
-                  }
-                }}
+          <Show
+            when={
+              active().cwd.trim() &&
+              (active().state.connection === "ready" ||
+                active().state.connection === "running")
+            }
+            fallback={
+              <WorkspaceSetup
+                path={active().cwd}
+                error={active().state.error}
+                updatePath={(cwd) => patchActive({ cwd })}
+                start={start}
               />
-              <View class="flex items-center justify-between gap-3 px-1">
-                <Text class="text-xs text-muted">
-                  {i18n.message(m.send_hint, {})}
-                </Text>
-                <Button
-                  disabled={
-                    !draft().trim() || active().state.connection === "running"
+            }
+          >
+            <MessageScroller class="flex-1 min-h-0" followEnd>
+              <MessageScrollerViewport>
+                <MessageScrollerContent class="max-w-4xl mx-auto p-5">
+                  <Show
+                    when={active().state.items.length > 0}
+                    fallback={
+                      <Empty variant="plain" class="min-h-72">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <Icon source={bot} size={20} class="text-accent" />
+                          </EmptyMedia>
+                          <EmptyTitle>
+                            {i18n.message(m.empty_title, {})}
+                          </EmptyTitle>
+                          <EmptyDescription>
+                            {i18n.message(m.empty_detail, {})}
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    }
+                  >
+                    <MessageGroup>
+                      <For each={active().state.items}>
+                        {(item) => (
+                          <MessageScrollerItem>
+                            <ConversationItem item={item} />
+                          </MessageScrollerItem>
+                        )}
+                      </For>
+                    </MessageGroup>
+                  </Show>
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+
+            <View class="flex-none border-t border-subtle bg-surface p-4">
+              <View class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2">
+                <TextArea
+                  class="h-20 border-transparent shadow-none bg-input"
+                  value={draft()}
+                  disabled={active().state.connection === "running"}
+                  placeholder={
+                    active().state.connection === "running"
+                      ? i18n.message(m.working, {})
+                      : i18n.message(m.prompt_placeholder, {})
                   }
-                  onClick={() => void submit()}
-                >
-                  <Icon source={send} size={14} /> {i18n.message(m.send, {})}
-                </Button>
+                  onInput={(event) => setDraft(event.currentTarget.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && (event.mods & 1) === 0) {
+                      event.preventDefault();
+                      void submit();
+                    }
+                  }}
+                />
+                <View class="flex items-center justify-between gap-3 px-1">
+                  <Text class="text-xs text-muted">
+                    {i18n.message(m.send_hint, {})}
+                  </Text>
+                  <Button
+                    disabled={
+                      !draft().trim() || active().state.connection === "running"
+                    }
+                    onClick={() => void submit()}
+                  >
+                    <Icon source={send} size={14} /> {i18n.message(m.send, {})}
+                  </Button>
+                </View>
               </View>
             </View>
-          </View>
+          </Show>
         </View>
       </Show>
     </View>
