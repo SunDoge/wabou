@@ -1,6 +1,29 @@
 use super::*;
 
 impl Applier {
+    pub(super) fn handle_modifiers_changed(
+        &mut self,
+        modifiers: wabou_shell::Modifiers,
+    ) -> EventResponse {
+        const PRIMARY: u8 = 1 << 4;
+        let bits = modifiers.bits()
+            | if modifiers.primary_shortcut() {
+                PRIMARY
+            } else {
+                0
+            };
+        let event = HostEvent::Application(crate::host_message::HostMessage::i32(
+            "wabou:keyboard-modifiers",
+            i32::from(bits),
+        ));
+        let handled = self.runtime.js.dispatch_host_frame(&[event]).is_ok();
+        EventResponse {
+            handled,
+            request_redraw: handled,
+            ..EventResponse::IGNORED
+        }
+    }
+
     pub(super) fn handle_app_lifecycle(
         &mut self,
         lifecycle: wabou_shell::AppLifecycleEvent,

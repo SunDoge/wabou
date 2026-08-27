@@ -1037,6 +1037,9 @@ impl FrameSource for Applier {
         if let UiEvent::AppLifecycle(event) = input {
             return self.handle_app_lifecycle(event);
         }
+        if let UiEvent::ModifiersChanged(modifiers) = input {
+            return self.handle_modifiers_changed(modifiers);
+        }
         if matches!(
             &input,
             UiEvent::Key(_) | UiEvent::TextInput(_) | UiEvent::Ime(_) | UiEvent::Paste(_)
@@ -1077,6 +1080,7 @@ impl FrameSource for Applier {
             UiEvent::Focus(focused) => self.handle_window_focus(focused),
             UiEvent::Pointer(_)
             | UiEvent::AppLifecycle(_)
+            | UiEvent::ModifiersChanged(_)
             | UiEvent::Key(_)
             | UiEvent::TextInput(_)
             | UiEvent::Ime(_)

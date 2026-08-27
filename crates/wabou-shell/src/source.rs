@@ -597,6 +597,8 @@ pub struct FileDropEvent {
 pub enum UiEvent {
     /// Operating-system application lifecycle notification.
     AppLifecycle(AppLifecycleEvent),
+    /// Authoritative physical modifier-key state changed.
+    ModifiersChanged(Modifiers),
     /// Pointer movement or button transition.
     Pointer(PointerEvent),
     /// Wheel or trackpad scrolling.

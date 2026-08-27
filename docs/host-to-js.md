@@ -166,6 +166,24 @@ Input sequences that have semantic ordering (`pointerdown`, focus changes,
 `pointerup`, `click`) are emitted in that order and never phase-sorted relative
 to one another.
 
+## Native event boundary
+
+Wabou exposes window-relative GUI facts rather than mirroring every winit enum:
+
+- pointer identity, type, pressure/tool data, wheel phase, gestures, keyboard,
+  IME, file drop, focus and window metrics reach JavaScript;
+- `ModifiersChanged` is published as the typed `wabou:keyboard-modifiers`
+  application record, including the platform-authoritative Primary shortcut;
+- application resume, suspend and memory warnings use
+  `wabou:app-lifecycle`;
+- `ActivationTokenDone` remains a Host-owned focus-stealing-prevention token;
+- `Destroyed` is Host-owned because the target JavaScript runtime is being
+  torn down;
+- raw `DeviceEvent` is intentionally not a GUI event: it has no window
+  coordinates and duplicates the accelerated window event stream. A future
+  pointer-lock/raw-input capability can expose it explicitly without changing
+  ordinary pointer semantics.
+
 ### Node event
 
 ```text

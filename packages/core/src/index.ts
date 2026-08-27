@@ -28,6 +28,7 @@ import "./glue/timers";
 import "./glue/resize-observer";
 import "./glue/host-messages";
 import "./glue/host-frame";
+import "./glue/keyboard-modifiers";
 import "./glue/window-metrics";
 import "./glue/file-drop";
 import "./glue/gesture";
@@ -51,13 +52,13 @@ export {
   resourceDir,
   tempDir,
 } from "./glue/app-dirs";
-export { type Application, application } from "./glue/application";
 export {
   type AppLifecycleEvent,
   type AppLifecycleState,
   subscribeAppLifecycle,
   useAppLifecycle,
 } from "./glue/app-lifecycle";
+export { type Application, application } from "./glue/application";
 export {
   type AsyncAction,
   AsyncActionConflictError,
@@ -91,6 +92,10 @@ export {
   useDialog,
 } from "./glue/dialog";
 export {
+  createEventEffect,
+  type EventEffectOptions,
+} from "./glue/event-effect";
+export {
   type FileDropEvent,
   type FileDropHandler,
   type FileDropPhase,
@@ -105,10 +110,6 @@ export {
   subscribeGesture,
   useGesture,
 } from "./glue/gesture";
-export {
-  createEventEffect,
-  type EventEffectOptions,
-} from "./glue/event-effect";
 export type {
   HostJsonSubscriptionOptions,
   HostMessage,
@@ -123,13 +124,13 @@ export {
 } from "./glue/host-messages";
 export {
   createRevisionedHostResource,
-  RevisionedHostWaitError,
   type RevisionedHostPatch,
   type RevisionedHostResource,
   type RevisionedHostResourceOptions,
-  type RevisionedHostWaitOptions,
-  type RevisionedHostWaitErrorReason,
   type RevisionedHostValue,
+  RevisionedHostWaitError,
+  type RevisionedHostWaitErrorReason,
+  type RevisionedHostWaitOptions,
 } from "./glue/host-resource";
 export {
   type CalendarDateFields,
@@ -143,6 +144,12 @@ export {
   type JsonCapabilityMethodName,
   type NativeJsonCapability,
 } from "./glue/json-capability";
+export {
+  type KeyboardModifiers,
+  subscribeKeyboardModifiers,
+  useKeyboardModifierChanges,
+  useKeyboardModifiers,
+} from "./glue/keyboard-modifiers";
 export {
   createLatestAsyncResource,
   type LatestAsyncResource,

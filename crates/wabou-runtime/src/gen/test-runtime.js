@@ -10724,6 +10724,49 @@ ${detail}`);
   }
   globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 
+  // packages/core/src/glue/keyboard-modifiers.ts
+  var SHIFT = 1 << 0;
+  var CONTROL = 1 << 1;
+  var ALT = 1 << 2;
+  var META = 1 << 3;
+  var PRIMARY = 1 << 4;
+  var VALID_MASK = SHIFT | CONTROL | ALT | META | PRIMARY;
+  function decodeKeyboardModifiers(value) {
+    if (!Number.isInteger(value) || value < 0 || (value & ~VALID_MASK) !== 0) {
+      throw new TypeError("keyboard modifier bits are invalid");
+    }
+    const bits = value;
+    return Object.freeze({
+      bits: bits & (SHIFT | CONTROL | ALT | META),
+      shift: (bits & SHIFT) !== 0,
+      control: (bits & CONTROL) !== 0,
+      alt: (bits & ALT) !== 0,
+      meta: (bits & META) !== 0,
+      primary: (bits & PRIMARY) !== 0
+    });
+  }
+  var empty = decodeKeyboardModifiers(0);
+  var [keyboardModifiers, setKeyboardModifiers] = createSignal2(empty, {
+    equals: (previous, next) => previous.bits === next.bits && previous.primary === next.primary,
+    ownedWrite: true
+  });
+  var subscribers = new Set;
+  subscribe("wabou:keyboard-modifiers", (payload) => {
+    try {
+      const modifiers = decodeKeyboardModifiers(payload);
+      setKeyboardModifiers(modifiers);
+      for (const subscriber of subscribers) {
+        try {
+          subscriber(modifiers);
+        } catch (error) {
+          console.error("[wabou-host] keyboard modifier subscriber threw", error);
+        }
+      }
+    } catch (error) {
+      console.error("[wabou-host] invalid keyboard modifiers", error);
+    }
+  });
+
   // packages/core/src/glue/platform-context.ts
   var PlatformContext = createContext({});
   function usePlatformServices() {

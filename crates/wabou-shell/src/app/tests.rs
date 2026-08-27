@@ -422,6 +422,7 @@ fn focus_loss_cancels_pressed_pointers_and_resets_physical_modifiers() {
                 modifiers: Modifiers::CONTROL | Modifiers::SHIFT,
                 properties: PointerProperties::default(),
             }),
+            UiEvent::ModifiersChanged(Modifiers::default()),
             UiEvent::Focus(false),
         ]
     );

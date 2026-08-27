@@ -25,6 +25,9 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     scaleFactor: 2,
     maximized: false,
     focused: true,
+    outerX: null,
+    outerY: null,
+    occluded: false,
     colorScheme: "light" as const,
   });
   const fakeWindow: WindowState = {
@@ -41,6 +44,9 @@ test("PlatformProvider injects window-scoped services into useXxx hooks", () => 
     scaleFactor: () => metrics().scaleFactor,
     maximized: () => metrics().maximized,
     focused: () => metrics().focused,
+    outerX: () => metrics().outerX,
+    outerY: () => metrics().outerY,
+    occluded: () => metrics().occluded,
     colorScheme: () => metrics().colorScheme,
   };
   const fakeDialog: Dialog = {
@@ -101,6 +107,9 @@ test("nested partial providers inherit services they do not override", () => {
     scaleFactor: 1,
     maximized: false,
     focused: false,
+    outerX: null,
+    outerY: null,
+    occluded: false,
     colorScheme: "light" as const,
   });
   const parentWindow: WindowState = {
@@ -117,6 +126,9 @@ test("nested partial providers inherit services they do not override", () => {
     scaleFactor: () => 1,
     maximized: () => false,
     focused: () => false,
+    outerX: () => null,
+    outerY: () => null,
+    occluded: () => false,
     colorScheme: () => "light",
   };
   let receivedClipboard: Clipboard | undefined;

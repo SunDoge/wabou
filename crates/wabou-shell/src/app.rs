@@ -253,9 +253,17 @@ impl App {
             // Some platforms do not send matching key/modifier releases after
             // deactivation. Never carry those physical states into the next
             // focus session.
-            self.modifiers = Modifiers::default();
+            self.set_modifiers(Modifiers::default());
         }
         self.dispatch_event(UiEvent::Focus(focused));
+    }
+
+    fn set_modifiers(&mut self, modifiers: Modifiers) {
+        if self.modifiers == modifiers {
+            return;
+        }
+        self.modifiers = modifiers;
+        self.dispatch_event(UiEvent::ModifiersChanged(modifiers));
     }
 
     /// Construct a single-window application using default window options.
@@ -1418,7 +1426,7 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::ModifiersChanged(state) => {
-                self.modifiers = Self::modifiers(state.state());
+                self.set_modifiers(Self::modifiers(state.state()));
             }
             WindowEvent::Ime(event) => {
                 let event = match event {

@@ -254,6 +254,28 @@ fn application_lifecycle_reaches_js_without_a_render_frame() {
 }
 
 #[test]
+fn modifier_changes_reach_js_as_typed_host_state() {
+    let js = JsRuntime::new().expect("runtime");
+    install_host_frame_test_hook(&js);
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let response = applier.handle_event(UiEvent::ModifiersChanged(
+        wabou_shell::Modifiers::CONTROL | wabou_shell::Modifiers::SHIFT,
+    ));
+    assert!(response.request_redraw);
+    let payload = applier
+        .runtime
+        .js
+        .with(|ctx| {
+            ctx.eval::<i32, _>(
+                "globalThis.__host_got.find((x) => x.topic === 'wabou:keyboard-modifiers').payload",
+            )
+        })
+        .unwrap();
+    assert_eq!(payload & 0b1111, 0b0011);
+    assert_eq!((payload & 0b1_0000) != 0, cfg!(not(target_os = "macos")));
+}
+
+#[test]
 fn window_bridge_is_available_during_initial_boot_and_targets_ids() {
     const CORE_FIXTURE: &str = include_str!("../../gen/test-runtime.js");
     let js = JsRuntime::new().expect("runtime");

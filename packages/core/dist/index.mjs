@@ -602,6 +602,57 @@ function __wabou_dispatch_host_frame(frame) {
 }
 globalThis.__wabou_dispatch_host_frame = __wabou_dispatch_host_frame;
 //#endregion
+//#region src/glue/keyboard-modifiers.ts
+const SHIFT = 1;
+const CONTROL = 2;
+const ALT = 4;
+const META = 8;
+const PRIMARY = 16;
+function decodeKeyboardModifiers(value) {
+	if (!Number.isInteger(value) || value < 0 || (value & -32) !== 0) throw new TypeError("keyboard modifier bits are invalid");
+	const bits = value;
+	return Object.freeze({
+		bits: bits & 15,
+		shift: (bits & SHIFT) !== 0,
+		control: (bits & CONTROL) !== 0,
+		alt: (bits & ALT) !== 0,
+		meta: (bits & META) !== 0,
+		primary: (bits & PRIMARY) !== 0
+	});
+}
+const empty = decodeKeyboardModifiers(0);
+const [keyboardModifiers, setKeyboardModifiers] = createSignal(empty, {
+	equals: (previous, next) => previous.bits === next.bits && previous.primary === next.primary,
+	ownedWrite: true
+});
+const subscribers = /* @__PURE__ */ new Set();
+subscribe("wabou:keyboard-modifiers", (payload) => {
+	try {
+		const modifiers = decodeKeyboardModifiers(payload);
+		setKeyboardModifiers(modifiers);
+		for (const subscriber of subscribers) try {
+			subscriber(modifiers);
+		} catch (error) {
+			console.error("[wabou-host] keyboard modifier subscriber threw", error);
+		}
+	} catch (error) {
+		console.error("[wabou-host] invalid keyboard modifiers", error);
+	}
+});
+/** Reactive, Host-authoritative physical modifier-key state. */
+function useKeyboardModifiers() {
+	return keyboardModifiers;
+}
+/** Subscribe to physical modifier changes without creating a Solid owner. */
+function subscribeKeyboardModifiers(handler) {
+	subscribers.add(handler);
+	return () => subscribers.delete(handler);
+}
+/** Subscribe for the lifetime of the current Solid owner. */
+function useKeyboardModifierChanges(handler) {
+	onCleanup(subscribeKeyboardModifiers(handler));
+}
+//#endregion
 //#region src/glue/platform-context.ts
 const PlatformContext = createContext({});
 /** Override native services for one Solid subtree, primarily for tests and previews. */
@@ -1684,6 +1735,6 @@ function reconcileKeyedList(current, patch, keyOf) {
 	return ordered;
 }
 //#endregion
-export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useNotification, useWindow, utilityConflictProperties, writer };
+export { AsyncActionConflictError, ColorThemeProvider, Dynamic, EVENT_CODE, GRAPHIC_SOURCE, HostProvider, INLINE_STYLE_CONTRACT, INTERACTION_POLICY, JsonCapabilityError, OP, PathBuilder, PlatformProvider, Portal, RevisionedHostWaitError, STYLE_VALUE, StyleValueKind, TEXT_BEHAVIOR, VirtualList, acquireOverlayRoot, appCacheDir, appConfigDir, appDataDir, appDirs, appLocalDataDir, appLogDir, application, applyRef, assertInlineStyleValue, auto, bindJsonCapability, bool, classes, clipboard, colorTheme, createAsyncAction, createComponent, createElement, createEventEffect, createFps, createKeyedAsyncAction, createLatestAsyncResource, createRevisionedHostResource, createTextNode, createWindow, createWindowMatch, currentWindow, currentWindowOptions, defaultHost, delegateEvents, dialog, dispatchEvent, effect, getMountRoot, getRequestEvent, hostMessages, insert, insertNode, intl, isDirectEvent, isServer, isTypedStyleValue, isVectorPath, memo, mergeClasses, mergeProps, mount, notification, number, observeGlobalPointerEvent, percent, px, reconcileKeyedList, ref, registerRoot, releaseOverlayRoot, removeNode, render, resolveAppDirectories, resourceDir, rgba, rotate2d, runSweep, scale2d, setProp, setTransform2D, shadow, showNativeMenu, spread, subscribeAll as subscribeAllHostMessages, subscribeAppLifecycle, subscribeFileDrop, subscribeGesture, subscribe as subscribeHostMessages, subscribeJson as subscribeJsonHostMessages, subscribeKeyboardModifiers, tempDir, translate2d, useAppLifecycle, useClipboard, useColorTheme, useDialog, useFileDrop, useGesture, useHost, useKeyboardModifierChanges, useKeyboardModifiers, useNotification, useWindow, utilityConflictProperties, writer };
 
 //# sourceMappingURL=index.mjs.map
