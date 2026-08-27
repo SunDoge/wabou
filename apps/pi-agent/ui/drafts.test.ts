@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
+  type AgentDraftLists,
   agentDraftKey,
   readAgentDraft,
+  readAgentDraftList,
+  removeAgentDraftLists,
   removeAgentDrafts,
   writeAgentDraft,
+  writeAgentDraftList,
 } from "./drafts";
 
 describe("Pi Agent conversation drafts", () => {
@@ -33,4 +37,16 @@ describe("Pi Agent conversation drafts", () => {
     expect(readAgentDraft(drafts, "agent-1")).toBe("");
     expect(readAgentDraft(drafts, "agent-2")).toBe("keep me");
   });
+});
+
+test("keeps attachment lists scoped to an agent session", () => {
+  let values: AgentDraftLists = {};
+  values = writeAgentDraftList(values, "agent-1", "session-a", ["src/a.ts"]);
+  values = writeAgentDraftList(values, "agent-2", undefined, ["src/b.ts"]);
+  expect(readAgentDraftList(values, "agent-1", "session-a")).toEqual([
+    "src/a.ts",
+  ]);
+  values = removeAgentDraftLists(values, "agent-1");
+  expect(readAgentDraftList(values, "agent-1", "session-a")).toEqual([]);
+  expect(readAgentDraftList(values, "agent-2")).toEqual(["src/b.ts"]);
 });

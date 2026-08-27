@@ -1,4 +1,5 @@
 export type AgentDrafts = Readonly<Record<string, string>>;
+export type AgentDraftLists = Readonly<Record<string, readonly string[]>>;
 
 const NEW_SESSION = "new";
 
@@ -42,4 +43,36 @@ export function removeAgentDrafts(
   return Object.keys(next).length === Object.keys(drafts).length
     ? drafts
     : next;
+}
+
+export function readAgentDraftList(
+  drafts: AgentDraftLists,
+  agentId: string,
+  sessionId?: string,
+): readonly string[] {
+  return drafts[agentDraftKey(agentId, sessionId)] ?? [];
+}
+
+export function writeAgentDraftList(
+  drafts: AgentDraftLists,
+  agentId: string,
+  sessionId: string | undefined,
+  value: readonly string[],
+): AgentDraftLists {
+  const key = agentDraftKey(agentId, sessionId);
+  if (value.length > 0) return { ...drafts, [key]: value };
+  if (!(key in drafts)) return drafts;
+  const next = { ...drafts };
+  delete next[key];
+  return next;
+}
+
+export function removeAgentDraftLists(
+  drafts: AgentDraftLists,
+  agentId: string,
+): AgentDraftLists {
+  const prefix = `${agentId}\0`;
+  return Object.fromEntries(
+    Object.entries(drafts).filter(([key]) => !key.startsWith(prefix)),
+  );
 }

@@ -36,6 +36,7 @@ import {
 } from "@wabou/ui";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
+import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
 import { ComposerImages } from "../../pi-agent/ui/composer-images";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
 import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
@@ -125,6 +126,20 @@ export function PiComposerImagesLayoutFixture() {
         paths={[
           "/home/user/screenshots/very-long-diagnostic-screenshot-name.png",
           "/home/user/screenshots/layout.png",
+        ]}
+        change={() => {}}
+      />
+    </View>
+  );
+}
+
+export function PiComposerContextLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-3 bg-canvas">
+      <ComposerContextFiles
+        paths={[
+          "packages/runtime/src/very/deep/module/with-a-long-file-name.ts",
+          "crates/wabou-runtime/src/host.rs",
         ]}
         change={() => {}}
       />

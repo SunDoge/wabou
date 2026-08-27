@@ -51,6 +51,7 @@ interface PiCapability extends NativeJsonCapability {
   getCommands(request: string): string | PromiseLike<string>;
   getForkMessages(request: string): string | PromiseLike<string>;
   fork(request: string): string | PromiseLike<string>;
+  listWorkspaceFiles(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
   saveAgents(request: string): string | PromiseLike<string>;
   deleteAgent(request: string): string | PromiseLike<string>;
@@ -88,12 +89,14 @@ export function usePiApi() {
       agentId: string,
       message: string,
       imagePaths: readonly string[] = [],
-    ) => call<void>("prompt", { agentId, message, imagePaths }),
+      contextPaths: readonly string[] = [],
+    ) => call<void>("prompt", { agentId, message, imagePaths, contextPaths }),
     followUp: (
       agentId: string,
       message: string,
       imagePaths: readonly string[] = [],
-    ) => call<void>("followUp", { agentId, message, imagePaths }),
+      contextPaths: readonly string[] = [],
+    ) => call<void>("followUp", { agentId, message, imagePaths, contextPaths }),
     abort: (agentId: string) => call<void>("abort", { agentId }),
     stop: (agentId: string) => call<void>("stop", { agentId }),
     newSession: (agentId: string) => call<void>("newSession", { agentId }),
@@ -109,6 +112,8 @@ export function usePiApi() {
       call<void>("getForkMessages", { agentId }),
     fork: (agentId: string, entryId: string) =>
       call<void>("fork", { agentId, entryId }),
+    listWorkspaceFiles: (cwd: string) =>
+      call<string[]>("listWorkspaceFiles", { cwd }),
     cycleModel: (agentId: string) => call<void>("cycleModel", { agentId }),
     cycleThinking: (agentId: string) =>
       call<void>("cycleThinking", { agentId }),

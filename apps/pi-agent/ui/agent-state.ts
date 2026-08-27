@@ -8,6 +8,7 @@ export type AgentItem =
       text: string;
       queued?: boolean;
       imageNames?: readonly string[];
+      contextPaths?: readonly string[];
       entryId?: string;
     }
   | {
@@ -243,6 +244,7 @@ export function appendUserMessage(
   text: string,
   queued = false,
   imageNames: readonly string[] = [],
+  contextPaths: readonly string[] = [],
 ): AgentViewState {
   return {
     ...state,
@@ -254,6 +256,7 @@ export function appendUserMessage(
         text,
         queued,
         ...(imageNames.length > 0 ? { imageNames } : {}),
+        ...(contextPaths.length > 0 ? { contextPaths } : {}),
       },
     ],
   };

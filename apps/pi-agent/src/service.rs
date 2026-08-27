@@ -8,6 +8,7 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wabou::{
@@ -34,6 +35,8 @@ const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSess
 const GET_COMMANDS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getCommands");
 const GET_FORK_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getForkMessages");
 const FORK: JsonMethod<ForkRequest, ()> = JsonMethod::new("fork");
+const LIST_WORKSPACE_FILES: JsonMethod<WorkspaceFilesRequest, Vec<String>> =
+    JsonMethod::new("listWorkspaceFiles");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
 const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
@@ -115,9 +118,14 @@ struct PromptRequest {
     message: String,
     #[serde(default)]
     image_paths: Vec<PathBuf>,
+    #[serde(default)]
+    context_paths: Vec<PathBuf>,
 }
 
 const MAX_PROMPT_IMAGE_BYTES: u64 = 20 * 1024 * 1024;
+const MAX_CONTEXT_FILES: usize = 8;
+const MAX_CONTEXT_FILE_BYTES: u64 = 512 * 1024;
+const MAX_CONTEXT_TOTAL_BYTES: usize = 2 * 1024 * 1024;
 
 async fn prompt_images(paths: Vec<PathBuf>) -> Result<Vec<Value>, String> {
     let mut images = Vec::with_capacity(paths.len());
@@ -161,6 +169,117 @@ async fn prompt_images(paths: Vec<PathBuf>) -> Result<Vec<Value>, String> {
     Ok(images)
 }
 
+fn list_workspace_files(root: &std::path::Path) -> Result<Vec<String>, String> {
+    let root = root
+        .canonicalize()
+        .map_err(|error| format!("could not open workspace {}: {error}", root.display()))?;
+    let mut builder = WalkBuilder::new(&root);
+    builder
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .require_git(false)
+        .filter_entry(|entry| {
+            !matches!(
+                entry.file_name().to_str(),
+                Some(".git" | "node_modules" | "target" | "dist")
+            )
+        });
+    let mut files = builder
+        .build()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_some_and(|kind| kind.is_file()))
+        .filter_map(|entry| {
+            entry
+                .path()
+                .strip_prefix(&root)
+                .ok()?
+                .to_str()
+                .map(str::to_owned)
+        })
+        .take(5_000)
+        .collect::<Vec<_>>();
+    files.sort_unstable();
+    Ok(files)
+}
+
+async fn append_workspace_context(
+    message: &str,
+    root: &std::path::Path,
+    paths: Vec<PathBuf>,
+) -> Result<String, String> {
+    if paths.is_empty() {
+        return Ok(message.to_owned());
+    }
+    if paths.len() > MAX_CONTEXT_FILES {
+        return Err(format!(
+            "at most {MAX_CONTEXT_FILES} context files are allowed"
+        ));
+    }
+    let root = tokio::fs::canonicalize(root)
+        .await
+        .map_err(|error| format!("could not open workspace {}: {error}", root.display()))?;
+    let mut total = 0;
+    let mut result = String::with_capacity(message.len() + 1024);
+    result.push_str(message);
+    result.push_str("\n\n<workspace_context>");
+    for relative in paths {
+        if relative.is_absolute()
+            || relative.components().any(|component| {
+                matches!(
+                    component,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+        {
+            return Err(format!(
+                "context path must stay inside the workspace: {}",
+                relative.display()
+            ));
+        }
+        let path = tokio::fs::canonicalize(root.join(&relative))
+            .await
+            .map_err(|error| format!("could not open {}: {error}", relative.display()))?;
+        if !path.starts_with(&root) {
+            return Err(format!(
+                "context path leaves the workspace: {}",
+                relative.display()
+            ));
+        }
+        let metadata = tokio::fs::metadata(&path)
+            .await
+            .map_err(|error| format!("could not inspect {}: {error}", relative.display()))?;
+        if !metadata.is_file() || metadata.len() > MAX_CONTEXT_FILE_BYTES {
+            return Err(format!(
+                "context file is not a regular text file under 512 KiB: {}",
+                relative.display()
+            ));
+        }
+        let bytes = tokio::fs::read(&path)
+            .await
+            .map_err(|error| format!("could not read {}: {error}", relative.display()))?;
+        total += bytes.len();
+        if total > MAX_CONTEXT_TOTAL_BYTES {
+            return Err("context files exceed the 2 MiB combined limit".to_owned());
+        }
+        let text = String::from_utf8(bytes)
+            .map_err(|_| format!("context file is not UTF-8 text: {}", relative.display()))?;
+        result.push_str("\n<file path=");
+        result.push_str(
+            &serde_json::to_string(&relative.to_string_lossy())
+                .map_err(|error| error.to_string())?,
+        );
+        result.push_str(">\n");
+        result.push_str(&text);
+        result.push_str("\n</file>");
+    }
+    result.push_str("\n</workspace_context>");
+    Ok(result)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AgentRequest {
@@ -187,6 +306,12 @@ struct RenameSessionRequest {
 struct ForkRequest {
     agent_id: String,
     entry_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceFilesRequest {
+    cwd: PathBuf,
 }
 
 impl PiService {
@@ -222,6 +347,15 @@ impl PiService {
             runtime: "bun",
             error: process.and_then(|process| process.last_error.clone()),
         })
+    }
+
+    fn workspace(&self, agent_id: &str) -> Result<PathBuf, String> {
+        self.state
+            .lock()
+            .map_err(|_| "Pi process lock poisoned".to_owned())?
+            .get(agent_id)
+            .and_then(|process| process.cwd.clone())
+            .ok_or_else(|| format!("agent `{agent_id}` is not running"))
     }
 
     fn start(&self, request: StartRequest) -> Result<PiStatus, String> {
@@ -587,6 +721,14 @@ impl Drop for PiProcess {
 }
 
 pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    capability.method(
+        LIST_WORKSPACE_FILES,
+        move |request: WorkspaceFilesRequest| async move {
+            tokio::task::spawn_blocking(move || list_workspace_files(&request.cwd))
+                .await
+                .map_err(|error| format!("workspace scan task failed: {error}"))?
+        },
+    )?;
     capability.method(DEFAULT_WORKSPACE, |request: AgentRequest| async move {
         default_workspace(&request.agent_id)
     })?;
@@ -669,11 +811,14 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
     capability.method(PROMPT, move |request: PromptRequest| {
         let service = prompt.clone();
         async move {
-            let message = request.message.trim();
+            let message = request.message.trim().to_owned();
             if message.is_empty() {
                 return Err("prompt cannot be empty".to_owned());
             }
             let images = prompt_images(request.image_paths).await?;
+            let workspace = service.workspace(&request.agent_id)?;
+            let message =
+                append_workspace_context(&message, &workspace, request.context_paths).await?;
             service.send(
                 &request.agent_id,
                 json!({
@@ -688,11 +833,14 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
     capability.method(FOLLOW_UP, move |request: PromptRequest| {
         let service = follow_up.clone();
         async move {
-            let message = request.message.trim();
+            let message = request.message.trim().to_owned();
             if message.is_empty() {
                 return Err("follow-up cannot be empty".to_owned());
             }
             let images = prompt_images(request.image_paths).await?;
+            let workspace = service.workspace(&request.agent_id)?;
+            let message =
+                append_workspace_context(&message, &workspace, request.context_paths).await?;
             service.send(
                 &request.agent_id,
                 json!({
@@ -809,6 +957,17 @@ pub fn stream_events(context: HostMessageContext, service: PiService) {
 mod tests {
     use super::*;
 
+    fn test_directory(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "wabou-pi-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ))
+    }
+
     #[test]
     fn status_is_stopped_before_start() {
         let status = PiService::new().status("default").expect("status");
@@ -880,14 +1039,7 @@ mod tests {
 
     #[tokio::test]
     async fn prompt_images_stay_in_rust_until_the_rpc_payload_is_built() {
-        let path = std::env::temp_dir().join(format!(
-            "wabou-pi-image-{}-{}.png",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("clock")
-                .as_nanos()
-        ));
+        let path = test_directory("image").with_extension("png");
         tokio::fs::write(&path, [0x89, b'P', b'N', b'G'])
             .await
             .expect("write fixture");
@@ -898,5 +1050,71 @@ mod tests {
         assert_eq!(images[0]["data"], "iVBORw==");
 
         tokio::fs::remove_file(path).await.expect("remove fixture");
+    }
+
+    #[tokio::test]
+    async fn workspace_context_is_gitignore_aware_and_cannot_escape() {
+        let root = test_directory("context");
+        tokio::fs::create_dir_all(root.join("src"))
+            .await
+            .expect("create fixture");
+        tokio::fs::create_dir_all(root.join("target"))
+            .await
+            .expect("create ignored fixture");
+        tokio::fs::write(root.join(".gitignore"), "secret.txt\n")
+            .await
+            .expect("write ignore file");
+        tokio::fs::write(root.join("src/main.rs"), "fn main() {}")
+            .await
+            .expect("write source");
+        tokio::fs::write(root.join("secret.txt"), "secret")
+            .await
+            .expect("write ignored source");
+        tokio::fs::write(root.join("target/output"), "build")
+            .await
+            .expect("write build output");
+
+        let files = list_workspace_files(&root).expect("workspace files");
+        assert!(files.contains(&"src/main.rs".to_owned()));
+        assert!(!files.contains(&"secret.txt".to_owned()));
+        assert!(!files.iter().any(|path| path.starts_with("target/")));
+
+        let prompt = append_workspace_context(
+            "Explain this file",
+            &root,
+            vec![PathBuf::from("src/main.rs")],
+        )
+        .await
+        .expect("context prompt");
+        assert!(prompt.contains("<file path=\"src/main.rs\">\nfn main() {}"));
+        assert!(
+            append_workspace_context("No", &root, vec![PathBuf::from("../outside")])
+                .await
+                .unwrap_err()
+                .contains("stay inside")
+        );
+
+        #[cfg(unix)]
+        {
+            let outside = test_directory("outside");
+            tokio::fs::write(&outside, "outside")
+                .await
+                .expect("write outside file");
+            std::os::unix::fs::symlink(&outside, root.join("outside-link"))
+                .expect("create symlink");
+            assert!(
+                append_workspace_context("No", &root, vec![PathBuf::from("outside-link")])
+                    .await
+                    .unwrap_err()
+                    .contains("leaves the workspace")
+            );
+            tokio::fs::remove_file(outside)
+                .await
+                .expect("remove outside file");
+        }
+
+        tokio::fs::remove_dir_all(root)
+            .await
+            .expect("remove fixture");
     }
 }

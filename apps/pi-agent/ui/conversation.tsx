@@ -22,6 +22,7 @@ import {
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import fileCode from "lucide-static/icons/file-code-2.svg?raw";
 import gitBranch from "lucide-static/icons/git-branch.svg?raw";
 import image from "lucide-static/icons/image.svg?raw";
 import terminal from "lucide-static/icons/terminal.svg?raw";
@@ -361,6 +362,32 @@ export function ConversationItem(props: {
                       {(name) => (
                         <Badge variant="secondary">
                           <Icon source={image} size={12} /> {name}
+                        </Badge>
+                      )}
+                    </For>
+                  </View>
+                </Show>
+                <Show
+                  when={
+                    props.item.kind === "user" &&
+                    props.item.contextPaths?.length
+                  }
+                >
+                  <View
+                    role="group"
+                    aria-label="Context files"
+                    class="mb-2 flex flex-row flex-wrap gap-1.5"
+                  >
+                    <For
+                      each={
+                        props.item.kind === "user"
+                          ? props.item.contextPaths
+                          : []
+                      }
+                    >
+                      {(path) => (
+                        <Badge variant="outline">
+                          <Icon source={fileCode} size={12} /> {path}
                         </Badge>
                       )}
                     </For>

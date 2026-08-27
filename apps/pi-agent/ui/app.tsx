@@ -30,6 +30,10 @@ import {
 import { type PiSession, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
 import {
+  ComposerContextFiles,
+  WorkspaceContextPicker,
+} from "./composer-context";
+import {
   ComposerImagePicker,
   ComposerImages,
   imageFileName,
@@ -37,11 +41,14 @@ import {
 import { ConversationItem } from "./conversation";
 import { ConversationWelcome } from "./conversation-welcome";
 import {
+  type AgentDraftLists,
   type AgentDrafts,
-  agentDraftKey,
   readAgentDraft,
+  readAgentDraftList,
+  removeAgentDraftLists,
   removeAgentDrafts,
   writeAgentDraft,
+  writeAgentDraftList,
 } from "./drafts";
 import { i18n, m } from "./i18n";
 import { SessionForkDialog } from "./session-fork";
@@ -75,9 +82,8 @@ export function App() {
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [drafts, setDrafts] = createSignal<AgentDrafts>({});
-  const [draftImages, setDraftImages] = createSignal<
-    Readonly<Record<string, readonly string[]>>
-  >({});
+  const [draftImages, setDraftImages] = createSignal<AgentDraftLists>({});
+  const [draftContext, setDraftContext] = createSignal<AgentDraftLists>({});
   const [searchOpen, setSearchOpen] = createSignal(false);
   const [activeSearchItem, setActiveSearchItem] = createSignal<string>();
   const [pendingFork, setPendingFork] = createSignal<{
@@ -153,16 +159,17 @@ export function App() {
       writeAgentDraft(current, activeId(), activeSessionId(), value),
     );
   const images = () =>
-    draftImages()[agentDraftKey(activeId(), activeSessionId())] ?? [];
-  const setImages = (paths: readonly string[]) => {
-    const key = agentDraftKey(activeId(), activeSessionId());
-    setDraftImages((current) => {
-      if (paths.length > 0) return { ...current, [key]: paths };
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
-  };
+    readAgentDraftList(draftImages(), activeId(), activeSessionId());
+  const setImages = (paths: readonly string[]) =>
+    setDraftImages((current) =>
+      writeAgentDraftList(current, activeId(), activeSessionId(), paths),
+    );
+  const contextFiles = () =>
+    readAgentDraftList(draftContext(), activeId(), activeSessionId());
+  const setContextFiles = (paths: readonly string[]) =>
+    setDraftContext((current) =>
+      writeAgentDraftList(current, activeId(), activeSessionId(), paths),
+    );
   createEffect(
     () => params().agentId,
     (routeId) => {
@@ -345,12 +352,14 @@ export function App() {
   const submit = async () => {
     const message = draft().trim();
     const attachedImages = images();
+    const attachedContext = contextFiles();
     const agent = active();
     if (!message) return;
     const queueing = agent.state.connection === "running";
     if (agent.state.connection !== "ready" && !(await start())) return;
     setDraft("");
     setImages([]);
+    setContextFiles([]);
     updateAgent(agent.id, (current) => ({
       ...current,
       state: appendUserMessage(
@@ -359,15 +368,17 @@ export function App() {
         message,
         queueing,
         attachedImages.map(imageFileName),
+        attachedContext,
       ),
     }));
     try {
       await (queueing
-        ? api.followUp(agent.id, message, attachedImages)
-        : api.prompt(agent.id, message, attachedImages));
+        ? api.followUp(agent.id, message, attachedImages, attachedContext)
+        : api.prompt(agent.id, message, attachedImages, attachedContext));
     } catch (error) {
       setDraft(message);
       setImages(attachedImages);
+      setContextFiles(attachedContext);
       updateAgent(agent.id, (current) => ({
         ...current,
         state: reducePiEvent(current.state, {
@@ -422,6 +433,8 @@ export function App() {
       current.filter((session) => session.agentId !== removed.id),
     );
     setDrafts((current) => removeAgentDrafts(current, removed.id));
+    setDraftImages((current) => removeAgentDraftLists(current, removed.id));
+    setDraftContext((current) => removeAgentDraftLists(current, removed.id));
     const remaining = agents().filter((agent) => agent.id !== removed.id);
     const next =
       remaining[0] ??
@@ -672,6 +685,10 @@ export function App() {
             <View class="flex-none border-t border-subtle bg-surface p-4">
               <View class="max-w-4xl mx-auto min-w-0 rounded-xl border border-strong bg-input shadow-sm p-2 gap-2">
                 <ComposerImages paths={images()} change={setImages} />
+                <ComposerContextFiles
+                  paths={contextFiles()}
+                  change={setContextFiles}
+                />
                 <TextArea
                   class="h-20 border-transparent shadow-none bg-input"
                   value={draft()}
@@ -691,6 +708,12 @@ export function App() {
                 <View class="flex items-center justify-between gap-3 px-1">
                   <View class="min-w-0 flex flex-row items-center gap-3">
                     <ComposerImagePicker paths={images()} change={setImages} />
+                    <WorkspaceContextPicker
+                      cwd={active().cwd}
+                      paths={contextFiles()}
+                      change={setContextFiles}
+                      loadFiles={api.listWorkspaceFiles}
+                    />
                     <CommandPicker
                       commands={active().state.commands}
                       choose={setDraft}

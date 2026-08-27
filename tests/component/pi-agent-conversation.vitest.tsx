@@ -156,6 +156,7 @@ test("Pi Agent keeps submitted image names visible and user messages copyable", 
         kind: "user",
         text: "Explain this screenshot",
         imageNames: ["layout.png", "error.png"],
+        contextPaths: ["src/layout.rs"],
       }}
       fork={fork}
     />
@@ -164,6 +165,9 @@ test("Pi Agent keeps submitted image names visible and user messages copyable", 
   const attachments = screen.getByRole("group", { name: "Attached images" });
   expect(attachments.text).toContain("layout.png");
   expect(attachments.text).toContain("error.png");
+  expect(screen.getByRole("group", { name: "Context files" }).text).toContain(
+    "src/layout.rs",
+  );
   expect(
     screen.getByRole("button", { name: "Copy user message" }),
   ).toBeTruthy();
