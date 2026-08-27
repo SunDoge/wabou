@@ -35,7 +35,7 @@ export function WorkspaceSetup(props: {
     <View class="min-h-0 flex-1 p-6 flex items-center justify-center bg-canvas">
       <Card class="w-full max-w-xl">
         <CardHeader class="items-center text-center">
-          <View class="w-12 h-12 rounded-xl bg-accent-subtle flex items-center justify-center">
+          <View class="w-12 h-12 rounded-xl bg-selected flex items-center justify-center">
             <Icon source={bot} size={24} class="text-accent" />
           </View>
           <CardTitle>{i18n.message(m.setup_title, {})}</CardTitle>
