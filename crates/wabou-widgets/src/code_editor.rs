@@ -341,6 +341,11 @@ impl CodeEditor {
                 "Backspace" => Some(Command::Edit(EditCommand::DeleteGraphemeBack)),
                 "Delete" => Some(Command::Edit(EditCommand::DeleteGraphemeForward)),
                 "Enter" => Some(Command::Edit(EditCommand::InsertText { text: "\n".into() })),
+                "Tab" if shift => Some(Command::Edit(EditCommand::Outdent)),
+                "Tab" if self.selected_offsets().is_some() => {
+                    Some(Command::Edit(EditCommand::Indent))
+                }
+                "Tab" => Some(Command::Edit(EditCommand::InsertTab)),
                 _ => None,
             }
         };
@@ -501,6 +506,13 @@ impl Default for CodeEditor {
 fn floor_char_boundary(text: &str, mut offset: usize) -> usize {
     while !text.is_char_boundary(offset) {
         offset -= 1;
+    }
+    offset
+}
+
+fn ceil_char_boundary(text: &str, mut offset: usize) -> usize {
+    while offset < text.len() && !text.is_char_boundary(offset) {
+        offset += 1;
     }
     offset
 }
@@ -736,7 +748,8 @@ impl Widget for CodeEditor {
             }
             UiEvent::Ime(ImeEvent::Preedit { text, cursor }) if !self.read_only => {
                 if self.update_composition(text, *cursor) {
-                    WidgetEventResult::VALUE_CHANGED
+                    // Preedit is transient IME state, not an application value.
+                    WidgetEventResult::HANDLED
                 } else {
                     WidgetEventResult::IGNORED
                 }
@@ -748,11 +761,49 @@ impl Widget for CodeEditor {
                     WidgetEventResult::HANDLED
                 }
             }
+            UiEvent::Ime(ImeEvent::DeleteSurrounding {
+                before_bytes,
+                after_bytes,
+            }) if !self.read_only => {
+                if self.composition.is_some() {
+                    self.update_composition("", None);
+                }
+                let cursor_char = self.cursor_offset();
+                let cursor_byte = self
+                    .cached_value
+                    .char_indices()
+                    .nth(cursor_char)
+                    .map_or(self.cached_value.len(), |(offset, _)| offset);
+                let start_byte = floor_char_boundary(
+                    &self.cached_value,
+                    cursor_byte.saturating_sub(*before_bytes),
+                );
+                let end_byte = ceil_char_boundary(
+                    &self.cached_value,
+                    cursor_byte
+                        .saturating_add(*after_bytes)
+                        .min(self.cached_value.len()),
+                );
+                let start = self.cached_value[..start_byte].chars().count();
+                let length = self.cached_value[start_byte..end_byte].chars().count();
+                if length == 0 {
+                    WidgetEventResult::HANDLED
+                } else if self.execute(Command::Edit(EditCommand::Replace {
+                    start,
+                    length,
+                    text: String::new(),
+                })) {
+                    WidgetEventResult::VALUE_CHANGED
+                } else {
+                    WidgetEventResult::IGNORED
+                }
+            }
             UiEvent::Ime(ImeEvent::Disabled) if self.composition.is_some() => {
                 self.update_composition("", None);
                 let _ = self.execute(Command::Edit(EditCommand::EndUndoGroup));
-                WidgetEventResult::VALUE_CHANGED
+                WidgetEventResult::HANDLED
             }
+            UiEvent::Ime(ImeEvent::Enabled | ImeEvent::Disabled) => WidgetEventResult::HANDLED,
             UiEvent::Focus(focused) => {
                 self.focused = *focused;
                 WidgetEventResult::HANDLED
@@ -1086,6 +1137,54 @@ mod tests {
         assert_eq!(editor.cached_value, "你");
         editor.execute(Command::Edit(EditCommand::Undo));
         assert_eq!(editor.cached_value, "");
+    }
+
+    #[test]
+    fn ime_preedit_is_transient_and_chinese_commit_publishes_once() {
+        let mut editor = CodeEditor::from_text("");
+
+        let preedit = editor.handle_event(&UiEvent::Ime(ImeEvent::Preedit {
+            text: "ni".into(),
+            cursor: Some((2, 2)),
+        }));
+        assert!(preedit.is_handled());
+        assert!(!preedit.value_changed());
+        assert_eq!(editor.cached_value, "ni");
+
+        let commit = editor.handle_event(&UiEvent::Ime(ImeEvent::Commit("你".into())));
+        assert!(commit.value_changed());
+        assert_eq!(editor.cached_value, "你");
+    }
+
+    #[test]
+    fn ime_delete_surrounding_respects_utf8_character_boundaries() {
+        let mut editor = CodeEditor::from_text("A你B");
+        editor.execute(Command::Cursor(CursorCommand::MoveTo {
+            line: 0,
+            column: 2,
+        }));
+
+        let result = editor.handle_event(&UiEvent::Ime(ImeEvent::DeleteSurrounding {
+            before_bytes: 3,
+            after_bytes: 1,
+        }));
+
+        assert!(result.value_changed());
+        assert_eq!(editor.cached_value, "A");
+    }
+
+    #[test]
+    fn tab_indents_and_shift_tab_outdents() {
+        let mut editor = CodeEditor::from_text("value");
+
+        let indent = editor.key_down("Tab", false, false);
+        assert!(indent.value_changed());
+        assert!(indent.consumes_key_text());
+        assert!(editor.cached_value.starts_with(' '));
+
+        let outdent = editor.key_down("Tab", true, false);
+        assert!(outdent.value_changed());
+        assert_eq!(editor.cached_value, "value");
     }
 
     #[test]
