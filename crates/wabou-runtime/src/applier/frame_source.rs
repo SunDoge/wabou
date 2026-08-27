@@ -277,6 +277,16 @@ impl FrameSource for Applier {
             return Vec::new();
         }
 
+        // Vite evaluates the regenerated virtual stylesheet while applying an
+        // HMR module inside the JavaScript tick. Drain that update before
+        // inheritance and layout so the refreshed component and its Style IR
+        // become visible atomically in this frame. Waiting for another frame
+        // can leave newly introduced classes on engine defaults indefinitely
+        // when the stylesheet module itself emits no renderer operations.
+        self.drain_pending_stylesheet();
+        self.drain_pending_color_theme();
+        self.drain_pending_color_palette();
+
         let selection_scrolled = self.tick_text_selection_autoscroll();
         // Only re-inherit when a change can affect inherited content styles.
         // Per-frame non-inherited animation sets LAYOUT but not INHERIT, so

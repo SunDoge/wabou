@@ -45,6 +45,66 @@ fn queue_stylesheet(applier: &Applier, rules: Vec<crate::style_ir::StyleRule>) {
 }
 
 #[test]
+fn stylesheet_pushed_during_javascript_tick_applies_in_the_same_frame() {
+    let style = serde_json::json!({
+        "version": crate::style_ir::VERSION,
+        "rules": [{
+            "className": "hmr-color",
+            "declarations": [{
+                "property": "color",
+                "value": { "type": "color", "value": { "kind": "literal", "rgba": 0x3366ccff_u32 } }
+            }],
+            "specificity": 10,
+            "sourceOrder": 0
+        }]
+    });
+    let encoded = serde_json::to_string(&style.to_string()).unwrap();
+    let js = JsRuntime::new().expect("runtime");
+    js.with(|ctx| {
+        ctx.eval::<(), _>(format!(
+            r#"
+            let first = true;
+            globalThis.__wabou_tick = () => {{
+              if (first) {{ first = false; __wabou_set_stylesheet({encoded}); }}
+              return true;
+            }};
+            globalThis.__wabou_has_raf = () => false;
+            "#,
+        ))
+    })
+    .unwrap();
+
+    let mut applier = Applier::from_runtime(js, Color::BLACK);
+    let (tag, class) = {
+        let mut atoms = applier.document.atoms.borrow_mut();
+        (atoms.intern("text"), atoms.intern("hmr-color"))
+    };
+    let id = NodeKey::new(2, 1);
+    applier.apply_frame(&Frame {
+        seq: 1,
+        ops: vec![
+            Op::CreateElement { id, tag },
+            Op::SetClassName {
+                id,
+                classes: vec![class],
+            },
+            Op::AppendChild {
+                parent: NodeKey::ROOT,
+                child: id,
+            },
+        ],
+    });
+
+    applier.build_frame(&mut wabou_shell::TextContext::new(), 800, 600);
+
+    assert_eq!(
+        applier.computed_node_snapshot(id).unwrap().text_color,
+        Color::from_rgba8(0x33, 0x66, 0xcc, 0xff),
+        "HMR stylesheet and refreshed component must commit atomically",
+    );
+}
+
+#[test]
 fn growing_regions_shrink_by_default_without_changing_intrinsic_controls() {
     let mut applier = Applier::from_runtime(idle_runtime(), Color::BLACK);
     let (div, grow, control, constrained) = {
