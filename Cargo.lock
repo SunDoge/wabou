@@ -10118,6 +10118,7 @@ name = "wabou-runtime"
 version = "0.1.0-alpha.1"
 dependencies = [
  "anyrender",
+ "arc-swap",
  "bitflags 2.13.1",
  "bon",
  "flume",

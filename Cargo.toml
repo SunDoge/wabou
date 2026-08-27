@@ -28,6 +28,7 @@ wabou-tray = { path = "crates/wabou-tray" }
 wabou-widgets = { path = "crates/wabou-widgets" }
 
 arboard = { version = "3.6.1", default-features = false, features = ["wayland-data-control"] }
+arc-swap = "1.9.2"
 gosh-dl = { version = "0.5.0", default-features = false, features = ["http", "torrent", "storage"] }
 bitflags = "2.10.0"
 bon = "3.9.3"

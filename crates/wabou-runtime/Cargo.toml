@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyrender.workspace = true
+arc-swap = { workspace = true }
 bitflags = { workspace = true }
 bon = { workspace = true }
 foyer = "0.22.3"

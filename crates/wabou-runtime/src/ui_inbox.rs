@@ -1,14 +1,17 @@
 //! Background-producer queues drained at safe points on the UI thread.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use arc_swap::ArcSwapOption;
 use wabou_shell::WakeCallback;
+
+struct StoredWakeCallback(WakeCallback);
 
 struct WakeState {
     pending: AtomicBool,
-    callback: Mutex<Option<WakeCallback>>,
+    callback: ArcSwapOption<StoredWakeCallback>,
 }
 
 /// Cloneable producer for work owned and applied by the UI thread.
@@ -54,10 +57,9 @@ impl<T> UiInboxSender<T> {
 
     fn notify(&self) {
         self.wake.pending.store(true, Ordering::Release);
-        if let Ok(callback) = self.wake.callback.lock()
-            && let Some(callback) = callback.as_ref()
-        {
-            callback();
+        let callback = self.wake.callback.load();
+        if let Some(callback) = callback.as_ref() {
+            (callback.0)();
         }
     }
 }
@@ -76,9 +78,9 @@ impl<T> UiInbox<T> {
 
     /// Install or replace the event-loop callback used by producers.
     pub(crate) fn set_wake(&self, callback: WakeCallback) {
-        if let Ok(mut slot) = self.wake.callback.lock() {
-            *slot = Some(callback);
-        }
+        self.wake
+            .callback
+            .store(Some(Arc::new(StoredWakeCallback(callback))));
     }
 
     /// Drain every message that is immediately available.
@@ -110,7 +112,7 @@ fn channel<T>(
 ) -> (UiInboxSender<T>, UiInbox<T>) {
     let wake = Arc::new(WakeState {
         pending: AtomicBool::new(false),
-        callback: Mutex::new(None),
+        callback: ArcSwapOption::empty(),
     });
     (
         UiInboxSender {
@@ -152,6 +154,28 @@ mod tests {
         assert_eq!(wakes.load(Ordering::Relaxed), 1);
         assert_eq!(inbox.drain(), [7]);
         assert!(!inbox.has_pending());
+    }
+
+    #[test]
+    fn replacing_wake_callback_changes_the_next_notification() {
+        let (sender, inbox) = unbounded();
+        let first = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let first_wakes = first.clone();
+        inbox.set_wake(Arc::new(move || {
+            first_wakes.fetch_add(1, Ordering::Relaxed);
+        }));
+        sender.try_send(1).unwrap();
+
+        let second = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let second_wakes = second.clone();
+        inbox.set_wake(Arc::new(move || {
+            second_wakes.fetch_add(1, Ordering::Relaxed);
+        }));
+        sender.try_send(2).unwrap();
+
+        assert_eq!(first.load(Ordering::Relaxed), 1);
+        assert_eq!(second.load(Ordering::Relaxed), 1);
+        assert_eq!(inbox.drain(), [1, 2]);
     }
 
     #[test]
