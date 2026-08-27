@@ -36,6 +36,7 @@ import {
 } from "./drafts";
 import { i18n, m } from "./i18n";
 import { SessionTitle } from "./session-title";
+import { SessionUsage } from "./session-usage";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
 import {
@@ -166,6 +167,7 @@ export function App() {
         )
       ) {
         void api.getMessages(id);
+        void api.getSessionStats(id);
         void api
           .listSessions(id)
           .then((next) =>
@@ -191,6 +193,9 @@ export function App() {
         ) {
           void navigate({ to: `/agents/${id}/sessions/${data.sessionId}` });
         }
+      }
+      if (batch.some((event) => event.type === "agent_end")) {
+        void api.getSessionStats(id);
       }
     }
   });
@@ -579,9 +584,12 @@ export function App() {
                   }}
                 />
                 <View class="flex items-center justify-between gap-3 px-1">
-                  <Text class="text-xs text-muted">
-                    {i18n.message(m.send_hint, {})}
-                  </Text>
+                  <View class="min-w-0 flex flex-row items-center gap-3">
+                    <Text class="flex-none text-xs text-muted">
+                      {i18n.message(m.send_hint, {})}
+                    </Text>
+                    <SessionUsage stats={active().state.stats} />
+                  </View>
                   <Button
                     disabled={!draft().trim()}
                     onClick={() => void submit()}

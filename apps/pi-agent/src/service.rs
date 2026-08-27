@@ -29,6 +29,7 @@ const CYCLE_THINKING: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleThink
 const SET_MODEL: JsonMethod<SetModelRequest, ()> = JsonMethod::new("setModel");
 const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new("listSessions");
 const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
+const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSessionStats");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
 const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
@@ -566,6 +567,16 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
     capability.method(GET_MESSAGES, move |request: AgentRequest| {
         let service = get_messages.clone();
         async move { service.send(&request.agent_id, json!({"type":"get_messages"})) }
+    })?;
+    let get_session_stats = service.clone();
+    capability.method(GET_SESSION_STATS, move |request: AgentRequest| {
+        let service = get_session_stats.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-session-stats","type":"get_session_stats"}),
+            )
+        }
     })?;
     let prompt = service.clone();
     capability.method(PROMPT, move |request: PromptRequest| {

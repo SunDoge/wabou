@@ -162,4 +162,39 @@ describe("Pi agent event projection", () => {
     });
     expect(state.error).toBe("model unavailable");
   });
+
+  test("projects authoritative session and context usage", () => {
+    const state = reducePiEvent(initialAgentState, {
+      type: "response",
+      command: "get_session_stats",
+      success: true,
+      data: {
+        userMessages: 3,
+        assistantMessages: 2,
+        toolCalls: 4,
+        toolResults: 4,
+        totalMessages: 9,
+        tokens: {
+          input: 10_000,
+          output: 2_000,
+          cacheRead: 8_000,
+          cacheWrite: 500,
+          total: 20_500,
+        },
+        cost: 0.1234,
+        contextUsage: {
+          tokens: 24_000,
+          contextWindow: 128_000,
+          percent: 18.75,
+        },
+      },
+    });
+
+    expect(state.stats).toMatchObject({
+      totalMessages: 9,
+      tokens: { total: 20_500 },
+      cost: 0.1234,
+      contextUsage: { percent: 18.75 },
+    });
+  });
 });

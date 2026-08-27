@@ -21,6 +21,26 @@ export type AgentItem =
     }
   | { id: string; kind: "notice"; text: string; tone?: "default" | "error" };
 
+export interface AgentSessionStats {
+  userMessages: number;
+  assistantMessages: number;
+  toolCalls: number;
+  totalMessages: number;
+  tokens: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+  cost: number;
+  contextUsage?: {
+    tokens: number | null;
+    contextWindow: number;
+    percent: number | null;
+  };
+}
+
 export interface AgentViewState {
   connection: AgentConnection;
   items: readonly AgentItem[];
@@ -31,6 +51,7 @@ export interface AgentViewState {
   sessionId?: string;
   sessionFile?: string;
   sessionName?: string;
+  stats?: AgentSessionStats;
 }
 
 export const initialAgentState: AgentViewState = {
@@ -87,6 +108,70 @@ const restoredItems = (value: unknown): readonly AgentItem[] => {
   });
 };
 
+const finiteNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const sessionStats = (value: unknown): AgentSessionStats | undefined => {
+  const data = record(value);
+  const tokens = record(data?.tokens);
+  if (!data || !tokens) return undefined;
+  const userMessages = finiteNumber(data.userMessages);
+  const assistantMessages = finiteNumber(data.assistantMessages);
+  const toolCalls = finiteNumber(data.toolCalls);
+  const totalMessages = finiteNumber(data.totalMessages);
+  const input = finiteNumber(tokens.input);
+  const output = finiteNumber(tokens.output);
+  const cacheRead = finiteNumber(tokens.cacheRead);
+  const cacheWrite = finiteNumber(tokens.cacheWrite);
+  const total = finiteNumber(tokens.total);
+  const cost = finiteNumber(data.cost);
+  if (
+    userMessages === undefined ||
+    assistantMessages === undefined ||
+    toolCalls === undefined ||
+    totalMessages === undefined ||
+    input === undefined ||
+    output === undefined ||
+    cacheRead === undefined ||
+    cacheWrite === undefined ||
+    total === undefined ||
+    cost === undefined
+  )
+    return undefined;
+  const context = record(data.contextUsage);
+  const contextWindow = finiteNumber(context?.contextWindow);
+  const contextTokens =
+    context?.tokens === null ? null : finiteNumber(context?.tokens);
+  const contextPercent =
+    context?.percent === null ? null : finiteNumber(context?.percent);
+  return {
+    userMessages,
+    assistantMessages,
+    toolCalls,
+    totalMessages,
+    tokens: {
+      input,
+      output,
+      cacheRead,
+      cacheWrite,
+      total,
+    },
+    cost,
+    ...(context &&
+    contextWindow !== undefined &&
+    (contextTokens === null || contextTokens !== undefined) &&
+    (contextPercent === null || contextPercent !== undefined)
+      ? {
+          contextUsage: {
+            tokens: contextTokens,
+            contextWindow,
+            percent: contextPercent,
+          },
+        }
+      : {}),
+  };
+};
+
 const replaceItem = (
   items: readonly AgentItem[],
   id: string,
@@ -125,7 +210,12 @@ export function reducePiEvent(
         return { ...state, error: message };
       }
       if (event.command === "new_session") {
-        return { ...state, items: [], activeAssistantId: undefined };
+        return {
+          ...state,
+          items: [],
+          activeAssistantId: undefined,
+          stats: undefined,
+        };
       }
       const data = record(event.data);
       if (event.command === "get_messages") {
@@ -134,6 +224,9 @@ export function reducePiEvent(
           items: restoredItems(data),
           activeAssistantId: undefined,
         };
+      }
+      if (event.command === "get_session_stats") {
+        return { ...state, stats: sessionStats(event.data) ?? state.stats };
       }
       const model = record(
         event.command === "set_model" ? event.data : data?.model,
