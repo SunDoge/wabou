@@ -37,7 +37,7 @@
 use snafu::ResultExt;
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
@@ -49,7 +49,7 @@ use wabou_bindgen::JsonMethod;
 use crate::applier::Applier;
 use crate::asset_cache::ResourceCache;
 use crate::bundle;
-use crate::headless_test::HeadlessViewport;
+use crate::headless_test::run_headless_test;
 use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
 use crate::native_capability::NativeCapability;
@@ -61,8 +61,6 @@ use wabou_widgets::{SecretStore, builtin_factories, password_input_factory};
 
 type CapabilityInstaller = Arc<dyn Fn(&JsRuntime) -> rquickjs::Result<()>>;
 type HostMessageProducer = Arc<dyn Fn(HostMessageContext) + Send + Sync>;
-type WindowSource = (Box<dyn crate::FrameSource>, WindowOptions);
-
 const IMAGE_RESOURCES: JsonCapabilityContract = JsonCapabilityContract::new("imageResources", 1);
 const CREATE_FILE_IMAGE: JsonMethod<CreateFileImageRequest, ImageResourceDescriptor> =
     JsonMethod::new("createFile");
@@ -498,7 +496,7 @@ fn init_tracing() -> Option<tracing_chrome::FlushGuard> {
         Err(error) => {
             eprintln!(
                 "failed to create Wabou profile trace {}: {error}",
-                Path::new(&path).display()
+                std::path::Path::new(&path).display()
             );
             tracing_subscriber::fmt()
                 .with_env_filter(env_filter)
@@ -1254,236 +1252,6 @@ fn install_host_message_producers(
     for producer in producers {
         producer(applier.host_message_context(window_key));
     }
-}
-
-fn run_headless_test(
-    controller: &crate::test_driver::TestController,
-    sources: &mut [WindowSource],
-    base_color: Color,
-    #[cfg(feature = "devtools")] debug_state: Option<&wabou_devtools::SharedDebugState>,
-) -> crate::Result<()> {
-    let viewport = HeadlessViewport::from_environment()?;
-
-    controller.initialize_headless(
-        (0..sources.len()).map(wabou_shell::initial_window_resource_key),
-        viewport.width,
-        viewport.height,
-    );
-    // JavaScript reports individual test timeouts with the test name. This is
-    // only a final safety net for a broken runtime or runner that cannot
-    // produce a report at all.
-    // The longest JavaScript test/replay budget is 60 seconds. Keep the host
-    // deadline later so JavaScript can serialize its named failure first.
-    let deadline = Instant::now() + Duration::from_secs(65);
-    let mut text = crate::TextContext::new();
-    let mut last_nodes = vec![Vec::new(); sources.len()];
-    let mut profilers = (0..sources.len())
-        .map(|_| wabou_shell::headless::HeadlessFrameProfiler::default())
-        .collect::<Vec<_>>();
-    while !controller.has_report() && Instant::now() < deadline {
-        for (index, (source, _)) in sources.iter_mut().enumerate() {
-            let window_key = wabou_shell::initial_window_resource_key(index);
-            let (width, height) = controller
-                .headless_viewport(window_key)
-                .unwrap_or((viewport.width, viewport.height));
-            source.set_semantics_enabled(true);
-            source.handle_event(wabou_shell::UiEvent::WindowMetrics(crate::WindowMetrics {
-                window_key,
-                logical_width: width,
-                logical_height: height,
-                physical_width: viewport.physical_width_for(width),
-                physical_height: viewport.physical_height_for(height),
-                scale_factor: viewport.scale_factor,
-                maximized: false,
-                focused: true,
-                color_scheme: Some(wabou_shell::ColorScheme::Light),
-            }));
-            last_nodes[index] = profilers[index].build(
-                source.as_mut(),
-                &mut text,
-                width,
-                height,
-                viewport.scale_factor,
-                base_color,
-            );
-            controller.poll_headless_source(window_key, source.as_mut());
-            drain_headless_effects(source.as_mut());
-        }
-        std::thread::sleep(Duration::from_millis(1));
-    }
-    // A test can finish while its final JS mutation still needs projection.
-    // Capture only after two additional host frames have settled that work.
-    for _ in 0..2 {
-        for (index, (source, _)) in sources.iter_mut().enumerate() {
-            let window_key = wabou_shell::initial_window_resource_key(index);
-            let (width, height) = controller
-                .headless_viewport(window_key)
-                .unwrap_or((viewport.width, viewport.height));
-            last_nodes[index] = source.build_frame(&mut text, width, height);
-        }
-    }
-    let capture_window = wabou_shell::initial_window_resource_key(viewport.window_index);
-    let capture_viewport = controller
-        .headless_viewport(capture_window)
-        .map(|(width, height)| viewport.with_logical_size(width, height))
-        .unwrap_or(viewport);
-    // Every source publishes into the shared DevTools state. Build the selected
-    // window last so its tree and the PNG below describe the same final frame.
-    if let Some((source, _)) = sources.get_mut(viewport.window_index) {
-        last_nodes[viewport.window_index] =
-            source.build_frame(&mut text, capture_viewport.width, capture_viewport.height);
-    }
-    let source_count = sources.len();
-    let capture_source = sources
-        .get_mut(viewport.window_index)
-        .map(|(source, _)| source.as_mut())
-        .ok_or_else(|| crate::Error::TestScenario {
-            message: format!(
-                "capture requested window {} but the application has {} window(s)",
-                viewport.window_index + 1,
-                source_count
-            ),
-        })?;
-    if controller.report_passed() == Some(false) {
-        render_headless_failure(
-            capture_source,
-            &last_nodes,
-            &mut text,
-            base_color,
-            capture_viewport,
-        )?;
-    }
-    if let Some(output) = std::env::var_os("WABOU_TEST_CAPTURE_PATH") {
-        render_headless_capture(
-            capture_source,
-            &last_nodes,
-            &mut text,
-            base_color,
-            capture_viewport,
-            Path::new(&output),
-        )?;
-    }
-    #[cfg(feature = "devtools")]
-    if let (Some(output), Some(state)) = (std::env::var_os("WABOU_TEST_SNAPSHOT_PATH"), debug_state)
-    {
-        write_headless_snapshot(state, Path::new(&output))?;
-    }
-    finish_test_report(controller.clone())
-}
-
-#[cfg(feature = "devtools")]
-fn write_headless_snapshot(
-    state: &wabou_devtools::SharedDebugState,
-    output: &Path,
-) -> crate::Result<()> {
-    let failure = |message: String| crate::error::Error::HeadlessSnapshot {
-        path: output.to_owned(),
-        message,
-    };
-    if let Some(parent) = output
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-    {
-        std::fs::create_dir_all(parent).map_err(|error| failure(error.to_string()))?;
-    }
-    let snapshot = state
-        .read()
-        .map_err(|_| failure("DevTools snapshot lock was poisoned".to_owned()))?
-        .snapshot()
-        .clone();
-    let bytes = serde_json::to_vec_pretty(&snapshot).map_err(|error| failure(error.to_string()))?;
-    std::fs::write(output, bytes).map_err(|error| failure(error.to_string()))?;
-    Ok(())
-}
-
-fn drain_headless_effects(source: &mut dyn crate::FrameSource) {
-    while let Some(request) = source.take_effect() {
-        source.complete_effect(wabou_shell::EffectCompletion {
-            id: request.id,
-            op: request.payload.op(),
-            result: wabou_shell::EffectResult::Error {
-                code: wabou_shell::EffectErrorCode::Unsupported,
-                message: format!(
-                    "native effect {:?} has no deterministic test fixture",
-                    request.payload.op()
-                ),
-            },
-        });
-    }
-}
-
-fn render_headless_failure(
-    source: &mut dyn crate::FrameSource,
-    last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
-    text: &mut crate::TextContext,
-    base_color: Color,
-    viewport: HeadlessViewport,
-) -> crate::Result<()> {
-    if !std::env::var("WABOU_TEST_FAILURE_SCREENSHOT").is_ok_and(|value| value != "0") {
-        return Ok(());
-    }
-    let Some(directory) = std::env::var_os("WABOU_TEST_ARTIFACT_DIR").map(PathBuf::from) else {
-        return Ok(());
-    };
-    std::fs::create_dir_all(&directory).map_err(|error| crate::Error::TestScenario {
-        message: format!("cannot create failure artifact directory: {error}"),
-    })?;
-    render_headless_capture(
-        source,
-        last_nodes,
-        text,
-        base_color,
-        viewport,
-        &directory.join("failure.png"),
-    )
-}
-
-fn render_headless_capture(
-    source: &mut dyn crate::FrameSource,
-    last_nodes: &[Vec<wabou_shell::layout::PlacedNode>],
-    text: &mut crate::TextContext,
-    base_color: Color,
-    viewport: HeadlessViewport,
-    output: &Path,
-) -> crate::Result<()> {
-    let Some(nodes) = last_nodes.get(viewport.window_index) else {
-        return Err(crate::Error::TestScenario {
-            message: format!(
-                "capture requested window {} but the application has {} window(s)",
-                viewport.window_index + 1,
-                last_nodes.len()
-            ),
-        });
-    };
-    if let Some(parent) = output.parent().filter(|path| !path.as_os_str().is_empty()) {
-        std::fs::create_dir_all(parent).map_err(|error| crate::Error::TestScenario {
-            message: format!(
-                "cannot create capture directory {}: {error}",
-                parent.display()
-            ),
-        })?;
-    }
-    let mut scene = anyrender::Scene::new();
-    wabou_shell::scene::build_scene_scaled(
-        &mut scene,
-        nodes,
-        text,
-        viewport.width,
-        viewport.height,
-        base_color,
-        viewport.scale_factor,
-    );
-    source.paint_debug_overlay(&mut scene, nodes, text, viewport.scale_factor);
-    wabou_shell::renderer::render_to_png(
-        &scene,
-        viewport.physical_width(),
-        viewport.physical_height(),
-        base_color,
-        output.to_string_lossy().as_ref(),
-    )
-    .map_err(|error| crate::Error::TestScenario {
-        message: format!("cannot render headless screenshot: {error:?}"),
-    })
 }
 
 #[cfg(test)]
