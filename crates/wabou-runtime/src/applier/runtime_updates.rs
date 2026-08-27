@@ -281,9 +281,32 @@ impl Applier {
         #[cfg(feature = "vite")]
         {
             if let Some(entry) = self.runtime.reload.vite_entry().map(str::to_owned) {
-                match self.runtime.js.reboot_vite_entry(&entry) {
+                // Vite can announce a full reload before every changed module in the
+                // graph has finished transforming. An editor's atomic save can therefore
+                // produce a short-lived 500 for a dependency even though the next fetch
+                // is valid. Once the native scene is reset, abandoning that first failure
+                // leaves a permanently blank window, so retry the entry import briefly.
+                let mut attempts = 0;
+                let reload = loop {
+                    attempts += 1;
+                    match self.runtime.js.reboot_vite_entry(&entry) {
+                        Ok(()) => break Ok(()),
+                        Err(error) if attempts < 6 => {
+                            tracing::warn!(
+                                target: "hmr",
+                                %entry,
+                                attempts,
+                                error = ?error,
+                                "vite entry is not ready; retrying full reload"
+                            );
+                            std::thread::sleep(std::time::Duration::from_millis(120));
+                        }
+                        Err(error) => break Err(error),
+                    }
+                };
+                match reload {
                     Ok(()) => {
-                        tracing::info!(target: "hmr", %entry, "vite entry re-imported after full reload");
+                        tracing::info!(target: "hmr", %entry, attempts, "vite entry re-imported after full reload");
                         self.document
                             .invalidation
                             .insert(InvalidationFlags::LAYOUT | InvalidationFlags::INHERIT);
