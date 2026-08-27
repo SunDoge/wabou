@@ -49,6 +49,7 @@ use wabou_bindgen::JsonMethod;
 use crate::applier::Applier;
 use crate::asset_cache::ResourceCache;
 use crate::bundle;
+use crate::headless_test::HeadlessViewport;
 use crate::json_capability::JsonCapability;
 use crate::jsrt::JsRuntime;
 use crate::native_capability::NativeCapability;
@@ -1393,88 +1394,6 @@ fn write_headless_snapshot(
     let bytes = serde_json::to_vec_pretty(&snapshot).map_err(|error| failure(error.to_string()))?;
     std::fs::write(output, bytes).map_err(|error| failure(error.to_string()))?;
     Ok(())
-}
-
-#[derive(Clone, Copy)]
-struct HeadlessViewport {
-    width: u32,
-    height: u32,
-    scale_factor: f64,
-    window_index: usize,
-}
-
-impl HeadlessViewport {
-    fn with_logical_size(self, width: u32, height: u32) -> Self {
-        Self {
-            width,
-            height,
-            ..self
-        }
-    }
-
-    fn from_environment() -> crate::Result<Self> {
-        fn parse<T>(name: &'static str, default: T) -> crate::Result<T>
-        where
-            T: std::str::FromStr,
-            T::Err: std::fmt::Display,
-        {
-            let Some(value) = std::env::var_os(name) else {
-                return Ok(default);
-            };
-            value
-                .to_string_lossy()
-                .parse()
-                .map_err(|error| crate::Error::TestScenario {
-                    message: format!("invalid {name}: {error}"),
-                })
-        }
-
-        let width = parse("WABOU_TEST_VIEWPORT_WIDTH", 1100_u32)?;
-        let height = parse("WABOU_TEST_VIEWPORT_HEIGHT", 720_u32)?;
-        let scale_factor = parse("WABOU_TEST_SCALE_FACTOR", 1.0_f64)?;
-        let window_id = parse("WABOU_TEST_CAPTURE_WINDOW_ID", 1_u32)?;
-        if width == 0 || height == 0 {
-            return Err(crate::Error::TestScenario {
-                message: "headless viewport dimensions must be greater than zero".into(),
-            });
-        }
-        if !scale_factor.is_finite() || scale_factor <= 0.0 {
-            return Err(crate::Error::TestScenario {
-                message: "headless scale factor must be finite and greater than zero".into(),
-            });
-        }
-        let window_index = window_id
-            .checked_sub(1)
-            .ok_or_else(|| crate::Error::TestScenario {
-                message: "headless capture window id must be greater than zero".into(),
-            })? as usize;
-        Ok(Self {
-            width,
-            height,
-            scale_factor,
-            window_index,
-        })
-    }
-
-    fn physical_width(self) -> u32 {
-        self.physical_width_for(self.width)
-    }
-
-    fn physical_width_for(self, width: u32) -> u32 {
-        (f64::from(width) * self.scale_factor)
-            .round()
-            .clamp(1.0, f64::from(u32::MAX)) as u32
-    }
-
-    fn physical_height(self) -> u32 {
-        self.physical_height_for(self.height)
-    }
-
-    fn physical_height_for(self, height: u32) -> u32 {
-        (f64::from(height) * self.scale_factor)
-            .round()
-            .clamp(1.0, f64::from(u32::MAX)) as u32
-    }
 }
 
 fn drain_headless_effects(source: &mut dyn crate::FrameSource) {

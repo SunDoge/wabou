@@ -15,6 +15,7 @@ mod clock;
 mod config;
 mod effect_trace;
 mod error;
+mod headless_test;
 mod host;
 #[cfg(test)]
 pub(crate) mod host_abi;
