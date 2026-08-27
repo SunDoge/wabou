@@ -123,7 +123,6 @@ pub struct CodeEditor {
     cached_value: String,
     /// CodeMirror/Lezer ranges in JavaScript UTF-16 document offsets.
     highlight_ranges: Vec<HighlightRange>,
-    highlight_document_utf16_len: usize,
     /// Maps editor-core Unicode scalar offsets to JavaScript UTF-16 offsets.
     char_to_utf16: Vec<usize>,
     scroll_row: usize,
@@ -150,7 +149,6 @@ impl CodeEditor {
             state: EditorStateManager::new(text, 80),
             cached_value: text.to_owned(),
             highlight_ranges: Vec::new(),
-            highlight_document_utf16_len: 0,
             char_to_utf16: Vec::new(),
             scroll_row: 0,
             viewport: [0.0, 0.0],
@@ -196,6 +194,16 @@ impl CodeEditor {
 
     fn visible_rows(&self) -> usize {
         self.geometry.visible_rows(self.viewport[1])
+    }
+
+    fn max_scroll_row(&self) -> usize {
+        self.state
+            .total_visual_lines()
+            .saturating_sub(self.visible_rows())
+    }
+
+    fn clamp_scroll_row(&mut self) {
+        self.scroll_row = self.scroll_row.min(self.max_scroll_row());
     }
 
     fn reveal_cursor(&mut self) {
@@ -378,9 +386,6 @@ impl CodeEditor {
     }
 
     fn color_at_char_offset(&self, offset: usize) -> Color {
-        if self.highlight_document_utf16_len != self.char_to_utf16.last().copied().unwrap_or(0) {
-            return self.text_color;
-        }
         let utf16 = self
             .char_to_utf16
             .get(offset)
@@ -524,6 +529,7 @@ impl Widget for CodeEditor {
                 width: columns,
             }));
         self.state.set_viewport_height(rows);
+        self.clamp_scroll_row();
         self.state.set_scroll_top(self.scroll_row);
 
         let grid = self
@@ -676,8 +682,7 @@ impl Widget for CodeEditor {
                 if local_y < 0.0 {
                     self.scroll_row = self.scroll_row.saturating_sub(1);
                 } else if local_y > self.viewport[1] {
-                    self.scroll_row = (self.scroll_row + 1)
-                        .min(self.state.total_visual_lines().saturating_sub(1));
+                    self.scroll_row = (self.scroll_row + 1).min(self.max_scroll_row());
                 }
                 let position = self
                     .position_from_pointer(local_x, local_y.clamp(0.0, self.viewport[1].max(0.0)));
@@ -706,7 +711,7 @@ impl Widget for CodeEditor {
                 self.scroll_row = self
                     .scroll_row
                     .saturating_add_signed(lines)
-                    .min(self.state.total_visual_lines().saturating_sub(1));
+                    .min(self.max_scroll_row());
                 if previous == self.scroll_row {
                     WidgetEventResult::IGNORED
                 } else {
@@ -761,7 +766,6 @@ impl Widget for CodeEditor {
             "value" if value != self.cached_value => {
                 let mut replacement = Self::from_text(value);
                 replacement.highlight_ranges = std::mem::take(&mut self.highlight_ranges);
-                replacement.highlight_document_utf16_len = self.highlight_document_utf16_len;
                 replacement.viewport = self.viewport;
                 replacement.geometry = self.geometry;
                 replacement.focused = self.focused;
@@ -772,7 +776,10 @@ impl Widget for CodeEditor {
                 *self = replacement;
                 CONTENT_CHANGED
             }
-            "value" => CONTENT_CHANGED,
+            // Native edits already mutated the widget and requested redraw.
+            // A controlled Solid owner echoing that same value must not cause
+            // another invalidation (or a visibly separate unhighlighted frame).
+            "value" => wabou_shell::WidgetChanges::empty(),
             "disabled" => {
                 self.disabled = value != "false";
                 CONTENT_CHANGED
@@ -811,7 +818,6 @@ impl Widget for CodeEditor {
         let config: CodeEditorConfig = decode_widget_config(json)?;
         let Some(syntax) = config.syntax else {
             self.highlight_ranges.clear();
-            self.highlight_document_utf16_len = 0;
             return Ok(wabou_shell::WidgetChanges::REDRAW);
         };
         if syntax.language != "json" {
@@ -840,14 +846,12 @@ impl Widget for CodeEditor {
         {
             return Err("CodeEditor highlight ranges overlap or are not sorted".into());
         }
-        self.highlight_document_utf16_len = syntax.document_length;
         self.highlight_ranges = syntax.ranges;
         Ok(wabou_shell::WidgetChanges::REDRAW)
     }
 
     fn config_removed(&mut self) -> wabou_shell::WidgetChanges {
         self.highlight_ranges.clear();
-        self.highlight_document_utf16_len = 0;
         wabou_shell::WidgetChanges::REDRAW
     }
 
@@ -903,7 +907,7 @@ impl Widget for CodeEditor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wabou_shell::{Modifiers, Point, PointerButton, PointerEvent};
+    use wabou_shell::{GesturePhase, Modifiers, Point, PointerButton, PointerEvent, WheelEvent};
 
     fn pointer(phase: PointerPhase, x: f64, y: f64, buttons: u32) -> UiEvent {
         UiEvent::Pointer(PointerEvent {
@@ -991,6 +995,59 @@ mod tests {
             editor.color_at_char_offset(1),
             Color::from_rgb8(0xc6, 0x9d, 0xf7)
         );
+    }
+
+    #[test]
+    fn native_edit_keeps_previous_highlights_until_the_next_syntax_update() {
+        let mut editor = CodeEditor::from_text("true");
+        editor
+            .config_changed(
+                r#"{"syntax":{"language":"json","offsetEncoding":"utf16","documentLength":4,"ranges":[{"from":0,"to":4,"kind":"boolean"}]}}"#,
+            )
+            .unwrap();
+        editor.execute(Command::Cursor(CursorCommand::MoveTo {
+            line: 0,
+            column: 4,
+        }));
+        editor.execute(Command::Edit(EditCommand::InsertText { text: " ".into() }));
+
+        assert_eq!(
+            editor.color_at_char_offset(0),
+            Color::from_rgb8(0xc6, 0x9d, 0xf7)
+        );
+    }
+
+    #[test]
+    fn controlled_value_echo_does_not_reinvalidate_native_state() {
+        let mut editor = CodeEditor::from_text("true");
+        editor.execute(Command::Cursor(CursorCommand::MoveTo {
+            line: 0,
+            column: 4,
+        }));
+        editor.execute(Command::Edit(EditCommand::InsertText { text: "!".into() }));
+        let cursor = editor.state.editor().cursor_position();
+
+        let changes = editor.attribute_changed("value", "true!");
+
+        assert!(changes.is_empty());
+        assert_eq!(editor.state.editor().cursor_position(), cursor);
+    }
+
+    #[test]
+    fn short_document_cannot_scroll_inside_a_taller_viewport() {
+        let mut editor = CodeEditor::from_text("one\ntwo");
+        editor.viewport = [640.0, 88.0];
+
+        let result = editor.handle_event(&UiEvent::Wheel(WheelEvent {
+            position: Point { x: 10.0, y: 10.0 },
+            delta_x: 0.0,
+            delta_y: 10_000.0,
+            phase: GesturePhase::Changed,
+            modifiers: Modifiers::default(),
+        }));
+
+        assert!(!result.is_handled());
+        assert_eq!(editor.scroll_row, 0);
     }
 
     #[test]
