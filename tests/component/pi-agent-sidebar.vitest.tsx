@@ -33,5 +33,10 @@ test("returns to an existing agent after creating a new one", () => {
 
   screen.getByRole("button", { name: "Agent 1" }).click();
   expect(activeId()).toBe("agent-1");
-  expect(screen.getByRole("button", { name: "Agent 1" }).selected).toBe(true);
+  const first = screen.getByRole("button", { name: "Agent 1" });
+  const second = screen.getByRole("button", { name: "Agent 2" });
+  expect(first.selected).toBe(true);
+  expect(first.className).toContain("bg-selected");
+  expect(second.selected).toBe(false);
+  expect(second.className).not.toContain("bg-selected");
 });

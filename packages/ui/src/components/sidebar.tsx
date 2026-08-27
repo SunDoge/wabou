@@ -1,3 +1,4 @@
+import { mergeClasses } from "@wabou/core/style";
 import { type JSX, omit } from "solid-js";
 import {
   Button as HeadlessButton,
@@ -9,7 +10,6 @@ import {
   View,
   type ViewProps,
 } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { SearchField, type SearchFieldProps } from "./search-field";
 import {
   type ComponentsElevation,

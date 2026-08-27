@@ -16,6 +16,7 @@ import {
   TextArea,
   useLocation,
   useNavigate,
+  useParams,
   View,
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
@@ -41,6 +42,7 @@ export function App() {
   const api = usePiApi();
   const navigate = useNavigate();
   const location = useLocation();
+  const params = useParams<{ agentId?: string }>();
   const [defaults, setDefaults] = createSignal<AgentDefaults>({
     proxy: "",
     noProxy: "127.0.0.1,localhost",
@@ -50,13 +52,26 @@ export function App() {
   const [agents, setAgents] = createSignal<readonly AgentWorkspace[]>([
     createAgentWorkspace(1),
   ]);
-  const [activeId, setActiveId] = createSignal("agent-1");
+  const [lastActiveId, setLastActiveId] = createSignal("agent-1");
   const [draft, setDraft] = createSignal("");
-  let nextAgent = 2;
   let nextMessage = 1;
 
+  const activeId = () => {
+    const routeId = params().agentId;
+    return routeId && agents().some((agent) => agent.id === routeId)
+      ? routeId
+      : lastActiveId();
+  };
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
+  createEffect(
+    () => params().agentId,
+    (routeId) => {
+      if (routeId && agents().some((agent) => agent.id === routeId)) {
+        setLastActiveId(routeId);
+      }
+    },
+  );
   const updateAgent = (
     id: string,
     update: (agent: AgentWorkspace) => AgentWorkspace,
@@ -174,10 +189,24 @@ export function App() {
   };
 
   const addAgent = () => {
-    const agent = { ...createAgentWorkspace(nextAgent++), ...defaults() };
+    const nextIndex =
+      Math.max(
+        0,
+        ...agents().map(
+          (agent) => Number(agent.id.match(/^agent-(\d+)$/)?.[1]) || 0,
+        ),
+      ) + 1;
+    const agent = { ...createAgentWorkspace(nextIndex), ...defaults() };
     setAgents((current) => [...current, agent]);
-    setActiveId(agent.id);
+    setLastActiveId(agent.id);
+    void navigate({ to: `/agents/${agent.id}` });
     setDraft("");
+  };
+
+  const selectAgent = (id: string) => {
+    setLastActiveId(id);
+    setDraft("");
+    void navigate({ to: `/agents/${id}` });
   };
 
   const setConfiguredModel = async () => {
@@ -190,11 +219,8 @@ export function App() {
     <View class="w-full h-full min-w-0 min-h-0 flex bg-canvas text-primary">
       <Sidebar
         agents={agents()}
-        activeId={active().id}
-        select={(id) => {
-          setActiveId(id);
-          setDraft("");
-        }}
+        activeId={activeId()}
+        select={selectAgent}
         add={addAgent}
         openSettings={() => navigate({ to: "/settings" })}
       />
@@ -209,7 +235,7 @@ export function App() {
               setDefaults((current) => ({ ...current, ...patch }))
             }
             updateAgent={patchActive}
-            close={() => navigate({ to: "/" })}
+            close={() => navigate({ to: `/agents/${activeId()}` })}
           />
         }
       >

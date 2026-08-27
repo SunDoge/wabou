@@ -11,12 +11,16 @@ import { App } from "./app";
 
 const root = new BaseRootRoute({ component: App });
 const index = new BaseRoute({ getParentRoute: () => root, path: "/" });
+const agent = new BaseRoute({
+  getParentRoute: () => root,
+  path: "agents/$agentId",
+});
 const settings = new BaseRoute({
   getParentRoute: () => root,
   path: "settings",
 });
 const router = createDataRouter({
-  routeTree: root.addChildren([index, settings]),
+  routeTree: root.addChildren([index, agent, settings]),
   context: {},
 });
 
