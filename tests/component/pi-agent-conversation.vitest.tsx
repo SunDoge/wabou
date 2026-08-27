@@ -146,3 +146,23 @@ test("Pi Agent distinguishes a queued follow-up from a sent message", () => {
     "Queued",
   );
 });
+
+test("Pi Agent keeps submitted image names visible and user messages copyable", () => {
+  const screen = renderComponent(() => (
+    <ConversationItem
+      item={{
+        id: "image-1",
+        kind: "user",
+        text: "Explain this screenshot",
+        imageNames: ["layout.png", "error.png"],
+      }}
+    />
+  ));
+
+  const attachments = screen.getByRole("group", { name: "Attached images" });
+  expect(attachments.text).toContain("layout.png");
+  expect(attachments.text).toContain("error.png");
+  expect(
+    screen.getByRole("button", { name: "Copy user message" }),
+  ).toBeTruthy();
+});

@@ -17,6 +17,7 @@ import { i18n, m } from "./i18n";
 function searchableText(item: AgentItem): string {
   switch (item.kind) {
     case "user":
+      return `${item.text}\n${item.imageNames?.join("\n") ?? ""}`;
     case "assistant":
       return `${item.text}\n${item.thinkingText ?? ""}`;
     case "tool":

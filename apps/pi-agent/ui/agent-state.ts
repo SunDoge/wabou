@@ -4,12 +4,18 @@ export type AgentConnection = "stopped" | "ready" | "running" | "failed";
 export type AgentItem =
   | {
       id: string;
-      kind: "user" | "assistant";
+      kind: "user";
+      text: string;
+      queued?: boolean;
+      imageNames?: readonly string[];
+    }
+  | {
+      id: string;
+      kind: "assistant";
       text: string;
       /** Model reasoning is kept separate from the user-facing answer. */
       thinkingText?: string;
       streaming?: boolean;
-      queued?: boolean;
     }
   | {
       id: string;
@@ -211,10 +217,20 @@ export function appendUserMessage(
   id: string,
   text: string,
   queued = false,
+  imageNames: readonly string[] = [],
 ): AgentViewState {
   return {
     ...state,
-    items: [...state.items, { id, kind: "user", text, queued }],
+    items: [
+      ...state.items,
+      {
+        id,
+        kind: "user",
+        text,
+        queued,
+        ...(imageNames.length > 0 ? { imageNames } : {}),
+      },
+    ],
   };
 }
 

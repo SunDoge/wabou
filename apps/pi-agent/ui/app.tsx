@@ -29,7 +29,11 @@ import {
 } from "./agent-state";
 import { type PiSession, usePiApi } from "./api";
 import { CommandPicker } from "./command-picker";
-import { ComposerImagePicker, ComposerImages } from "./composer-images";
+import {
+  ComposerImagePicker,
+  ComposerImages,
+  imageFileName,
+} from "./composer-images";
 import { ConversationItem } from "./conversation";
 import { ConversationWelcome } from "./conversation-welcome";
 import {
@@ -325,6 +329,7 @@ export function App() {
         `user-${nextMessage++}`,
         message,
         queueing,
+        attachedImages.map(imageFileName),
       ),
     }));
     try {

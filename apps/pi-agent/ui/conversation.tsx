@@ -22,9 +22,17 @@ import {
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
 import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
+import image from "lucide-static/icons/image.svg?raw";
 import terminal from "lucide-static/icons/terminal.svg?raw";
 import user from "lucide-static/icons/user.svg?raw";
-import { createEffect, createSignal, type JSX, Show, untrack } from "solid-js";
+import {
+  createEffect,
+  createSignal,
+  For,
+  type JSX,
+  Show,
+  untrack,
+} from "solid-js";
 import { match } from "ts-pattern";
 import type { AgentItem } from "./agent-state";
 
@@ -243,15 +251,27 @@ export function ConversationItem(props: { item: AgentItem }) {
             <Show
               when={props.item.kind === "assistant"}
               fallback={
-                <View class="flex flex-row items-center gap-2">
-                  <MessageHeader>
-                    {props.item.kind === "user" ? "You" : "System"}
-                  </MessageHeader>
-                  <Show when={props.item.kind === "user" && props.item.queued}>
-                    <View role="status" aria-label="Queued follow-up">
-                      <Badge variant="secondary">Queued</Badge>
-                    </View>
-                  </Show>
+                <View class="flex flex-row items-center justify-between gap-2">
+                  <View class="flex flex-row items-center gap-2">
+                    <MessageHeader>
+                      {props.item.kind === "user" ? "You" : "System"}
+                    </MessageHeader>
+                    <Show
+                      when={props.item.kind === "user" && props.item.queued}
+                    >
+                      <View role="status" aria-label="Queued follow-up">
+                        <Badge variant="secondary">Queued</Badge>
+                      </View>
+                    </Show>
+                  </View>
+                  <CopyButton
+                    value={messageText()}
+                    variant="ghost"
+                    size="sm"
+                    idleLabel="Copy"
+                    copiedLabel="Copied"
+                    aria-label="Copy user message"
+                  />
                 </View>
               }
             >
@@ -309,6 +329,29 @@ export function ConversationItem(props: { item: AgentItem }) {
             </Show>
             <Bubble variant={messageVariant()}>
               <BubbleContent>
+                <Show
+                  when={
+                    props.item.kind === "user" && props.item.imageNames?.length
+                  }
+                >
+                  <View
+                    role="group"
+                    aria-label="Attached images"
+                    class="mb-2 flex flex-row flex-wrap gap-1.5"
+                  >
+                    <For
+                      each={
+                        props.item.kind === "user" ? props.item.imageNames : []
+                      }
+                    >
+                      {(name) => (
+                        <Badge variant="secondary">
+                          <Icon source={image} size={12} /> {name}
+                        </Badge>
+                      )}
+                    </For>
+                  </View>
+                </Show>
                 <Show
                   when={props.item.kind === "assistant"}
                   fallback={

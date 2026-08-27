@@ -17,7 +17,7 @@ import x from "lucide-static/icons/x.svg?raw";
 import { For, Show } from "solid-js";
 import { i18n, m } from "./i18n";
 
-function fileName(path: string): string {
+export function imageFileName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
 }
 
@@ -40,7 +40,7 @@ export function ComposerImages(props: ComposerImagesProps) {
                 <Icon source={image} size={14} />
               </AttachmentMedia>
               <AttachmentContent>
-                <AttachmentTitle>{fileName(path)}</AttachmentTitle>
+                <AttachmentTitle>{imageFileName(path)}</AttachmentTitle>
                 <AttachmentDescription>
                   {i18n.message(m.image_attachment, {})}
                 </AttachmentDescription>
@@ -49,7 +49,7 @@ export function ComposerImages(props: ComposerImagesProps) {
                 <AttachmentAction
                   size="icon"
                   aria-label={i18n.message(m.remove_attachment, {
-                    name: fileName(path),
+                    name: imageFileName(path),
                   })}
                   onClick={() =>
                     props.change(props.paths.filter((item) => item !== path))
