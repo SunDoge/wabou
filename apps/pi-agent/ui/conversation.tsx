@@ -5,6 +5,7 @@ import {
   Button,
   CodeBlock,
   Icon,
+  Markdown,
   Message,
   MessageAvatar,
   MessageContent,
@@ -95,7 +96,18 @@ export function ConversationItem(props: { item: AgentItem }) {
             }
           >
             <BubbleContent>
-              <Text class="whitespace-normal text-sm">{messageText()}</Text>
+              <Show
+                when={props.item.kind === "assistant"}
+                fallback={
+                  <Text class="whitespace-normal text-sm">{messageText()}</Text>
+                }
+              >
+                <Markdown
+                  source={messageText()}
+                  aria-label="Assistant response"
+                  class="gap-3"
+                />
+              </Show>
             </BubbleContent>
           </Bubble>
         </MessageContent>

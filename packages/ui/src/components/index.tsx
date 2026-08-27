@@ -1,4 +1,5 @@
 import { createFps } from "@wabou/core/renderer";
+import { mergeClasses } from "@wabou/core/style";
 import { createSignal, type JSX } from "solid-js";
 import { match, P } from "ts-pattern";
 import { createTransition, useReducedMotion } from "../animation";
@@ -14,7 +15,6 @@ import {
   View,
 } from "../primitives";
 import { Badge, type BadgeProps } from "./badge";
-import { mergeClasses } from "@wabou/core/style";
 
 export * from "./alert";
 export * from "./alert-dialog";
@@ -61,6 +61,7 @@ export * from "./input-otp";
 export * from "./item";
 export * from "./label";
 export * from "./layout";
+export * from "./markdown";
 export * from "./menubar";
 export * from "./message";
 export * from "./message-scroller";
