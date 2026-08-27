@@ -3,6 +3,7 @@ import { Markdown } from "@wabou/ui";
 import { createSignal } from "solid-js";
 import { expect, test } from "vitest";
 import {
+  MarkdownDocument,
   parseMarkdown,
   reconcileMarkdownBlocks,
 } from "../../packages/ui/src/components/markdown-model";
@@ -68,6 +69,42 @@ test("reuses settled blocks while a streaming tail grows", () => {
   expect(reconciled[2].runs[0]).toBe(initial[2].runs[0]);
   expect(reconciled[2].runs[1]?.text).toBe(" answer");
   expect(reconcileMarkdownBlocks(reconciled, next)).toBe(reconciled);
+});
+
+test("incremental document retains the stable prefix across streaming appends", () => {
+  const document = new MarkdownDocument();
+  const initial = document.setSource(
+    "# Result\n\nStable one.\n\nStable two.\n\nPartial",
+    true,
+  );
+  const next = document.setSource(
+    "# Result\n\nStable one.\n\nStable two.\n\nPartial answer",
+    true,
+  );
+
+  expect(next[0]).toBe(initial[0]);
+  expect(next[1]).toBe(initial[1]);
+  expect(next[2]).toBe(initial[2]);
+  expect(next.at(-1)).not.toBe(initial.at(-1));
+  expect(document.lastParse.incremental).toBe(true);
+  expect(document.lastParse.parsedBytes).toBeLessThan(
+    document.lastParse.sourceBytes,
+  );
+});
+
+test("incremental document reparses non-local reference definitions", () => {
+  const document = new MarkdownDocument();
+  document.setSource("[Wabou][site]\n\nA stable paragraph.", true);
+  const next = document.setSource(
+    "[Wabou][site]\n\nA stable paragraph.\n\n[site]: https://wabou.dev",
+    true,
+  );
+
+  expect(next[0]).toMatchObject({
+    kind: "paragraph",
+    runs: [{ text: "Wabou", style: { href: "https://wabou.dev" } }],
+  });
+  expect(document.lastParse.incremental).toBe(false);
 });
 
 test("marks only text appended after mount for a streaming reveal", () => {

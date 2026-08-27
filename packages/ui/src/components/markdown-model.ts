@@ -39,6 +39,22 @@ export type MarkdownBlock =
   | { kind: "rule" }
   | { kind: "literal"; text: string };
 
+interface ParsedTopLevelToken {
+  start: number;
+  end: number;
+  blockCount: number;
+}
+
+interface ParsedMarkdown {
+  blocks: MarkdownBlock[];
+  tokens: ParsedTopLevelToken[];
+}
+
+// Link reference definitions can change links in already-parsed blocks. Keep
+// this deliberately conservative: falling back to a full parse is cheap and
+// preserves CommonMark semantics for the uncommon non-local construct.
+const LINK_REFERENCE_DEFINITION = /^ {0,3}\[[^\]\n]+\]:/m;
+
 function sameRuns(left: readonly MarkdownRun[], right: readonly MarkdownRun[]) {
   return (
     left.length === right.length &&
@@ -389,6 +405,108 @@ function blocks(tokens: readonly Token[]): MarkdownBlock[] {
   return result;
 }
 
+function parseWithOffsets(source: string): ParsedMarkdown {
+  const parsedBlocks: MarkdownBlock[] = [];
+  const parsedTokens: ParsedTopLevelToken[] = [];
+  let offset = 0;
+  for (const token of lexer(source, { gfm: true })) {
+    const start = offset;
+    offset += token.raw.length;
+    const tokenBlocks = blocks([token]);
+    parsedBlocks.push(...tokenBlocks);
+    parsedTokens.push({ start, end: offset, blockCount: tokenBlocks.length });
+  }
+  return { blocks: parsedBlocks, tokens: parsedTokens };
+}
+
+/**
+ * Stateful Markdown parse adapter for append-heavy streams.
+ *
+ * Like Waku's MarkdownView, it treats the last two top-level source tokens as
+ * volatile. Appends retain everything before that boundary and only lex the
+ * tail. Parser-specific tokens never escape this module.
+ */
+export class MarkdownDocument {
+  #source = "";
+  #streaming = false;
+  #blocks: MarkdownBlock[] = [];
+  #tokens: ParsedTopLevelToken[] = [];
+  #lastParse = { incremental: false, parsedBytes: 0, sourceBytes: 0 };
+
+  get blocks(): readonly MarkdownBlock[] {
+    return this.#blocks;
+  }
+
+  /** Diagnostics for benchmarks and streaming regression tests. */
+  get lastParse(): Readonly<{
+    incremental: boolean;
+    parsedBytes: number;
+    sourceBytes: number;
+  }> {
+    return this.#lastParse;
+  }
+
+  setSource(source: string, streaming = false): MarkdownBlock[] {
+    if (source === this.#source && streaming === this.#streaming) {
+      return this.#blocks;
+    }
+
+    const displaySource = streaming ? remend(source) : source;
+    const canAppend =
+      streaming &&
+      this.#streaming &&
+      source.startsWith(this.#source) &&
+      !LINK_REFERENCE_DEFINITION.test(source) &&
+      this.#tokens.length > 2;
+
+    let next: ParsedMarkdown;
+    let parsedBytes = displaySource.length;
+    let incremental = false;
+    if (canAppend) {
+      const stableTokenCount = this.#tokens.length - 2;
+      const stableTokens = this.#tokens.slice(0, stableTokenCount);
+      const boundary = stableTokens.at(-1)?.end ?? 0;
+      // A streaming repair only appends synthetic closers. The stable boundary
+      // must still point into the canonical source before it can be reused.
+      if (boundary <= source.length && boundary <= displaySource.length) {
+        const stableBlockCount = stableTokens.reduce(
+          (count, token) => count + token.blockCount,
+          0,
+        );
+        const tail = parseWithOffsets(displaySource.slice(boundary));
+        parsedBytes = displaySource.length - boundary;
+        incremental = true;
+        next = {
+          blocks: [...this.#blocks.slice(0, stableBlockCount), ...tail.blocks],
+          tokens: [
+            ...stableTokens,
+            ...tail.tokens.map((token) => ({
+              ...token,
+              start: token.start + boundary,
+              end: token.end + boundary,
+            })),
+          ],
+        };
+      } else {
+        next = parseWithOffsets(displaySource);
+      }
+    } else {
+      next = parseWithOffsets(displaySource);
+    }
+
+    this.#blocks = reconcileMarkdownBlocks(this.#blocks, next.blocks);
+    this.#tokens = next.tokens;
+    this.#source = source;
+    this.#streaming = streaming;
+    this.#lastParse = {
+      incremental,
+      parsedBytes,
+      sourceBytes: displaySource.length,
+    };
+    return this.#blocks;
+  }
+}
+
 /**
  * Parse GFM into Wabou-owned render data. Marked is deliberately kept behind
  * this adapter so native components never depend on a parser-specific AST.
@@ -397,6 +515,5 @@ export function parseMarkdown(
   source: string,
   streaming = false,
 ): MarkdownBlock[] {
-  const repaired = streaming ? remend(source) : source;
-  return blocks(lexer(repaired, { gfm: true }));
+  return new MarkdownDocument().setSource(source, streaming);
 }

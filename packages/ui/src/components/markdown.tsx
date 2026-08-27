@@ -5,9 +5,8 @@ import { RichText, RichTextSpan, Text, View } from "../primitives";
 import { CodeBlock } from "./code-block";
 import {
   type MarkdownBlock as MarkdownBlockModel,
+  MarkdownDocument,
   type MarkdownRun,
-  parseMarkdown,
-  reconcileMarkdownBlocks,
 } from "./markdown-model";
 import { Separator } from "./separator";
 
@@ -356,21 +355,18 @@ function visitMarkdownRuns(
 
 /** Parses GFM in JavaScript and renders native Wabou components, without HTML or a DOM. */
 export function Markdown(props: MarkdownProps): JSX.Element {
-  let previous: MarkdownBlockModel[] = [];
+  const document = new MarkdownDocument();
   let initialized = false;
   const knownRuns = new WeakSet<MarkdownRun>();
   const blocks = createMemo(() => {
-    previous = reconcileMarkdownBlocks(
-      previous,
-      parseMarkdown(props.source, props.streaming),
-    );
+    const parsed = document.setSource(props.source, props.streaming);
     if (!initialized) {
-      visitMarkdownRuns(previous, (run) => {
+      visitMarkdownRuns(parsed, (run) => {
         knownRuns.add(run);
       });
       initialized = true;
     }
-    return previous;
+    return parsed;
   });
   const variant = () => props.variant ?? "document";
   const animateRun = (run: MarkdownRun) => {
