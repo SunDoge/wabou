@@ -627,13 +627,6 @@ pub fn build_scene_scaled(
 mod tests {
     use super::*;
     use crate::style::{Paint, PaintTransform, Shadow};
-    use std::sync::Mutex;
-
-    // wgpu's Linux software/EGL backend is not safe to initialize concurrently
-    // in the same test process. Keep pixel tests parallel with the rest of the
-    // suite while serializing only renderer creation.
-    static OFFSCREEN_RENDER_LOCK: Mutex<()> = Mutex::new(());
-
     fn placed_node(paint: Paint) -> PlacedNode {
         PlacedNode {
             node_id: taffy::tree::NodeId::from(0_u64),
@@ -763,7 +756,6 @@ mod tests {
 
     #[test]
     fn overlay_scrollbar_pixels_scale_once_at_one_and_two_x() {
-        let _render_guard = OFFSCREEN_RENDER_LOCK.lock().expect("offscreen render lock");
         let mut node = placed_node(Paint::default());
         node.rect = [0.0, 0.0, 100.0, 100.0];
         node.content_origin = [0.0, 0.0];
@@ -829,7 +821,6 @@ mod tests {
     }
 
     fn render_nodes(nodes: &[PlacedNode], name: &str) -> image::RgbaImage {
-        let _render_guard = OFFSCREEN_RENDER_LOCK.lock().expect("offscreen render lock");
         let mut scene = Scene::new();
         build_scene_scaled(
             &mut scene,
