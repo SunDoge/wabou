@@ -6,6 +6,8 @@ export type AgentItem =
       id: string;
       kind: "user" | "assistant";
       text: string;
+      /** Model reasoning is kept separate from the user-facing answer. */
+      thinkingText?: string;
       streaming?: boolean;
     }
   | {
@@ -42,16 +44,25 @@ const record = (value: unknown): JsonRecord | undefined =>
     ? (value as JsonRecord)
     : undefined;
 
-const textContent = (value: unknown): string => {
+const contentByType = (
+  value: unknown,
+  accepted: ReadonlySet<string>,
+): string => {
   const source = record(value)?.content;
   if (!Array.isArray(source)) return "";
   return source
     .map((part) => record(part))
     .filter((part): part is JsonRecord => Boolean(part))
-    .filter((part) => part.type === "text" || part.type === "thinking")
+    .filter((part) => accepted.has(String(part.type)))
     .map((part) => (typeof part.text === "string" ? part.text : ""))
     .join("");
 };
+
+const textContent = (value: unknown): string =>
+  contentByType(value, new Set(["text"]));
+
+const thinkingContent = (value: unknown): string =>
+  contentByType(value, new Set(["thinking"]));
 
 const restoredItems = (value: unknown): readonly AgentItem[] => {
   const messages = record(value)?.messages;
@@ -62,7 +73,16 @@ const restoredItems = (value: unknown): readonly AgentItem[] => {
     if (role !== "user" && role !== "assistant") return [];
     const text = textContent(message);
     if (!text) return [];
-    return [{ id: `restored-${index}`, kind: role, text }];
+    return [
+      {
+        id: `restored-${index}`,
+        kind: role,
+        text,
+        ...(role === "assistant"
+          ? { thinkingText: thinkingContent(message) || undefined }
+          : {}),
+      },
+    ];
   });
 };
 
@@ -171,6 +191,7 @@ export function reducePiEvent(
             id,
             kind: "assistant" as const,
             text: textContent(message),
+            thinkingText: thinkingContent(message) || undefined,
             streaming: true,
           },
         ],
@@ -186,7 +207,9 @@ export function reducePiEvent(
         ...state,
         items: replaceItem(state.items, state.activeAssistantId, (item) =>
           item.kind === "assistant"
-            ? { ...item, text: item.text + delta }
+            ? update.type === "thinking_delta"
+              ? { ...item, thinkingText: (item.thinkingText ?? "") + delta }
+              : { ...item, text: item.text + delta }
             : item,
         ),
       };

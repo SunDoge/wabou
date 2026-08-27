@@ -35,6 +35,7 @@ import {
 } from "@wabou/ui";
 import imageIcon from "lucide-static/icons/image.svg?raw";
 import { For } from "solid-js";
+import { ConversationItem } from "../../pi-agent/ui/conversation";
 import { MangaPageMock } from "./pages/image-viewport";
 import { MarkdownPreview } from "./pages/markdown";
 
@@ -55,6 +56,22 @@ export function MarkdownConversationLayoutFixture() {
         source={
           "## Change\n\nUpdated the request path and kept `healthz` backward compatible.\n\n- Added validation\n- Preserved existing callers\n\n| Check | Result |\n| --- | --- |\n| Types | Passed |\n| Layout | Passed |\n\n```sh\ncargo test -p server\n```"
         }
+      />
+    </View>
+  );
+}
+
+export function PiConversationLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 bg-canvas">
+      <ConversationItem
+        item={{
+          id: "fixture-assistant",
+          kind: "assistant",
+          thinkingText: "Inspect the router and verify the active session.",
+          text: "## Change\n\nThe active session now remains selected.\n\n- Preserved navigation state\n- Added a regression test",
+          streaming: true,
+        }}
       />
     </View>
   );

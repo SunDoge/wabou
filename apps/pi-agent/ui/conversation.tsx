@@ -5,6 +5,8 @@ import {
   BubbleContent,
   Button,
   CodeBlock,
+  CollapsiblePresence,
+  CopyButton,
   createKeyframeAnimation,
   Icon,
   Markdown,
@@ -19,9 +21,10 @@ import {
   View,
 } from "@wabou/ui";
 import bot from "lucide-static/icons/bot.svg?raw";
+import chevronRight from "lucide-static/icons/chevron-right.svg?raw";
 import terminal from "lucide-static/icons/terminal.svg?raw";
 import user from "lucide-static/icons/user.svg?raw";
-import { createSignal, type JSX, Show } from "solid-js";
+import { createEffect, createSignal, type JSX, Show, untrack } from "solid-js";
 import { match } from "ts-pattern";
 import type { AgentItem } from "./agent-state";
 
@@ -82,6 +85,61 @@ function ToolCall(props: { item: Extract<AgentItem, { kind: "tool" }> }) {
   );
 }
 
+function Reasoning(props: { text: string; streaming: boolean }) {
+  const initiallyStreaming = untrack(() => props.streaming);
+  const [open, setOpen] = createSignal(initiallyStreaming);
+  let wasStreaming = initiallyStreaming;
+  createEffect(
+    () => props.streaming,
+    (streaming) => {
+      if (streaming) setOpen(true);
+      else if (wasStreaming) setOpen(false);
+      wasStreaming = streaming;
+    },
+  );
+  return (
+    <View class="w-full min-w-0 overflow-hidden rounded-lg border border-subtle bg-surface-muted">
+      <Button
+        variant="ghost"
+        size="sm"
+        class="w-full min-w-0 justify-start gap-2 px-3"
+        aria-expanded={open()}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon
+          source={chevronRight}
+          size={13}
+          class={open() ? "rotate-90 text-muted" : "text-muted"}
+        />
+        <Text class="min-w-0 flex-1 text-left text-xs font-medium text-secondary">
+          {props.streaming ? "Thinking" : "Reasoning"}
+        </Text>
+        <Show when={props.streaming}>
+          <Pulse
+            aria-hidden="true"
+            class="w-1.5 h-1.5 rounded-full bg-accent"
+            from={0.3}
+            to={1}
+            duration={0.8}
+          />
+        </Show>
+      </Button>
+      <CollapsiblePresence
+        open={open()}
+        duration={0.16}
+        contentClass="min-w-0 border-t border-subtle px-3 py-2"
+      >
+        <Markdown
+          source={props.text}
+          variant="conversation"
+          aria-label="Model reasoning"
+          class="gap-2"
+        />
+      </CollapsiblePresence>
+    </View>
+  );
+}
+
 function MessageEntrance(props: { children: JSX.Element }) {
   const reducedMotion = useReducedMotion();
   const entrance = createKeyframeAnimation([0, 1], {
@@ -135,30 +193,57 @@ export function ConversationItem(props: { item: AgentItem }) {
                 </MessageHeader>
               }
             >
-              <View class="h-6 px-1 flex flex-row items-center gap-2">
-                <View class="w-5 h-5 flex-none rounded-md bg-selected flex items-center justify-center text-accent">
-                  <Icon source={bot} size={13} />
-                </View>
-                <Text class="text-xs font-semibold text-secondary">Pi</Text>
-                <Show
-                  when={props.item.kind === "assistant" && props.item.streaming}
-                >
-                  <View
-                    role="status"
-                    aria-label="Pi is writing"
-                    class="flex flex-row items-center gap-1.5"
-                  >
-                    <Pulse
-                      aria-hidden="true"
-                      class="w-1.5 h-1.5 rounded-full bg-accent"
-                      from={0.3}
-                      to={1}
-                      duration={0.8}
-                    />
-                    <Text class="text-xs text-muted">Writing</Text>
+              <View class="h-7 w-full px-1 flex flex-row items-center justify-between gap-2">
+                <View class="min-w-0 flex flex-row items-center gap-2">
+                  <View class="w-5 h-5 flex-none rounded-md bg-selected flex items-center justify-center text-accent">
+                    <Icon source={bot} size={13} />
                   </View>
-                </Show>
+                  <Text class="text-xs font-semibold text-secondary">Pi</Text>
+                  <Show
+                    when={
+                      props.item.kind === "assistant" && props.item.streaming
+                    }
+                  >
+                    <View
+                      role="status"
+                      aria-label="Pi is writing"
+                      class="flex flex-row items-center gap-1.5"
+                    >
+                      <Pulse
+                        aria-hidden="true"
+                        class="w-1.5 h-1.5 rounded-full bg-accent"
+                        from={0.3}
+                        to={1}
+                        duration={0.8}
+                      />
+                      <Text class="text-xs text-muted">Writing</Text>
+                    </View>
+                  </Show>
+                </View>
+                <CopyButton
+                  value={messageText()}
+                  variant="ghost"
+                  size="sm"
+                  idleLabel="Copy"
+                  copiedLabel="Copied"
+                  aria-label="Copy assistant response"
+                />
               </View>
+            </Show>
+            <Show
+              when={props.item.kind === "assistant" && props.item.thinkingText}
+            >
+              <Reasoning
+                text={
+                  props.item.kind === "assistant"
+                    ? (props.item.thinkingText ?? "")
+                    : ""
+                }
+                streaming={
+                  props.item.kind === "assistant" &&
+                  props.item.streaming === true
+                }
+              />
             </Show>
             <Bubble variant={messageVariant()}>
               <BubbleContent>

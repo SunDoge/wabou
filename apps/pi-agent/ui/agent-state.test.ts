@@ -31,6 +31,30 @@ describe("Pi agent event projection", () => {
     });
   });
 
+  test("keeps model reasoning separate from the user-facing answer", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "message_start",
+      message: { role: "assistant", content: [] },
+    });
+    state = reducePiEvent(state, {
+      type: "message_update",
+      assistantMessageEvent: {
+        type: "thinking_delta",
+        delta: "Inspecting files…",
+      },
+    });
+    state = reducePiEvent(state, {
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", delta: "Found it." },
+    });
+
+    expect(state.items[0]).toMatchObject({
+      kind: "assistant",
+      thinkingText: "Inspecting files…",
+      text: "Found it.",
+    });
+  });
+
   test("tracks tool execution by call id", () => {
     let state = reducePiEvent(initialAgentState, {
       type: "tool_execution_start",
@@ -101,7 +125,10 @@ describe("Pi agent event projection", () => {
           { role: "user", content: [{ type: "text", text: "Fix it" }] },
           {
             role: "assistant",
-            content: [{ type: "text", text: "Done" }],
+            content: [
+              { type: "thinking", text: "Checked the repository" },
+              { type: "text", text: "Done" },
+            ],
           },
           { role: "toolResult", content: [{ type: "text", text: "ignored" }] },
         ],
@@ -109,7 +136,12 @@ describe("Pi agent event projection", () => {
     });
     expect(state.items).toEqual([
       { id: "restored-0", kind: "user", text: "Fix it" },
-      { id: "restored-1", kind: "assistant", text: "Done" },
+      {
+        id: "restored-1",
+        kind: "assistant",
+        text: "Done",
+        thinkingText: "Checked the repository",
+      },
     ]);
   });
 

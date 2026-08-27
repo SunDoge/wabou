@@ -69,3 +69,30 @@ test("Pi Agent messages enter with finite native motion", async () => {
   expect(message?.transform?.[5]).toBe(0);
   expect(message?.style("opacity")).toEqual({ kind: 3, value: 1 });
 });
+
+test("Pi Agent keeps reasoning in an independently collapsible process detail", () => {
+  const screen = renderComponent(() => (
+    <ConversationItem
+      item={{
+        id: "assistant-reasoning",
+        kind: "assistant",
+        thinkingText: "I should inspect `src/main.rs` first.",
+        text: "The issue is fixed.",
+        streaming: false,
+      }}
+    />
+  ));
+
+  const toggle = screen.getByRole("button", { name: "Reasoning" });
+  expect(toggle.expanded).toBe(false);
+  expect(
+    screen.getByRole("region", { name: "Assistant response" }).text,
+  ).toContain("The issue is fixed.");
+  expect(screen.queryByRole("region", { name: "Model reasoning" })).toBeNull();
+
+  toggle.click();
+  expect(toggle.expanded).toBe(true);
+  expect(
+    screen.getByRole("region", { name: "Model reasoning" }).text,
+  ).toContain("I should inspect src/main.rs first.");
+});
