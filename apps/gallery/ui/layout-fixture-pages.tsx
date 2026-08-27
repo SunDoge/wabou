@@ -15,6 +15,7 @@ import {
   MarkdownConversationLayoutFixture,
   MarkdownInlineLayoutFixture,
   MessageLayoutFixture,
+  PiAgentHeaderLayoutFixture,
   PiComposerContextLayoutFixture,
   PiComposerDeliveryLayoutFixture,
   PiComposerImagesLayoutFixture,
@@ -135,6 +136,11 @@ export const galleryLayoutFixtures: LayoutFixtureRegistry = {
         height: 480,
         render: PiConversationLayoutFixture,
         waitMs: 220,
+      },
+      "component/PiAgentHeader": {
+        width: 720,
+        height: 56,
+        render: PiAgentHeaderLayoutFixture,
       },
       "component/PiComposerImages": {
         width: 420,

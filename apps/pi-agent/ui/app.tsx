@@ -1,4 +1,4 @@
-import { currentWindow } from "@wabou/core";
+import { currentWindow, useDialog } from "@wabou/core";
 import type { Handle } from "@wabou/core/renderer";
 import {
   Button,
@@ -70,6 +70,7 @@ import {
 } from "./extension-ui";
 import { i18n, m } from "./i18n";
 import { ModelControls } from "./model-controls";
+import { SessionActions } from "./session-actions";
 import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
@@ -126,6 +127,7 @@ function dispatchExtensionUiEffect(
 
 export function App() {
   const api = usePiApi();
+  const dialog = useDialog();
   const toasts = createToasts();
   const navigate = useNavigate();
   const location = useLocation();
@@ -328,7 +330,8 @@ export function App() {
             | null
             | undefined;
           if (
-            stateEvent?.id === "wabou-new-session-state" &&
+            (stateEvent?.id === "wabou-new-session-state" ||
+              stateEvent?.id === "wabou-clone-state") &&
             id === activeId() &&
             typeof data?.sessionId === "string"
           ) {
@@ -337,6 +340,33 @@ export function App() {
         }
         if (batch.some((event) => event.type === "agent_settled")) {
           void api.getSessionStats(id);
+        }
+        if (
+          batch.some(
+            (event) =>
+              event.type === "response" &&
+              event.command === "compact" &&
+              event.success === true,
+          )
+        ) {
+          void api.getMessages(id);
+          void api.getSessionStats(id);
+        }
+        const exportEvent = batch.find(
+          (event) =>
+            event.type === "response" &&
+            event.command === "export_html" &&
+            event.success === true,
+        );
+        const exported = exportEvent?.data as
+          | Record<string, unknown>
+          | undefined;
+        if (typeof exported?.path === "string") {
+          toasts.success(i18n.message(m.export_complete, {}), {
+            description: i18n.message(m.export_complete_detail, {
+              path: exported.path,
+            }),
+          });
         }
         if (
           batch.some(
@@ -685,6 +715,16 @@ export function App() {
     }
   };
 
+  const exportActiveSession = async () => {
+    const agent = active();
+    const path = await dialog.save({
+      title: i18n.message(m.export_session, {}),
+      defaultName: `${activeSession()?.name ?? agent.state.sessionName ?? "pi-session"}.html`,
+      filters: [{ name: "HTML", extensions: ["html"] }],
+    });
+    if (path) await api.exportSession(agent.id, path);
+  };
+
   return (
     <View class="w-full h-full min-w-0 min-h-0 flex bg-canvas text-primary">
       <Sidebar
@@ -775,6 +815,15 @@ export function App() {
               >
                 <Icon source={filePlus} size={15} />
               </Button>
+              <SessionActions
+                disabled={
+                  active().state.connection !== "ready" ||
+                  !active().state.sessionId
+                }
+                compact={() => void api.compactSession(active().id)}
+                clone={() => void api.cloneSession(active().id)}
+                exportHtml={() => void exportActiveSession()}
+              />
               <Show when={active().state.connection === "running"}>
                 <Button
                   variant="outline"

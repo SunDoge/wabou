@@ -38,6 +38,9 @@ const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSess
 const GET_COMMANDS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getCommands");
 const GET_FORK_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getForkMessages");
 const FORK: JsonMethod<ForkRequest, ()> = JsonMethod::new("fork");
+const CLONE_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("cloneSession");
+const COMPACT_SESSION: JsonMethod<AgentRequest, ()> = JsonMethod::new("compactSession");
+const EXPORT_SESSION: JsonMethod<ExportSessionRequest, ()> = JsonMethod::new("exportSession");
 const LIST_WORKSPACE_FILES: JsonMethod<WorkspaceFilesRequest, Vec<String>> =
     JsonMethod::new("listWorkspaceFiles");
 const RESPOND_EXTENSION_UI: JsonMethod<ExtensionUiResponseRequest, ()> =
@@ -329,6 +332,13 @@ struct RenameSessionRequest {
 struct ForkRequest {
     agent_id: String,
     entry_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ExportSessionRequest {
+    agent_id: String,
+    output_path: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -870,6 +880,44 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
             service.send(
                 &request.agent_id,
                 json!({"id":"wabou-fork","type":"fork","entryId":request.entry_id}),
+            )
+        }
+    })?;
+    let clone_session = service.clone();
+    capability.method(CLONE_SESSION, move |request: AgentRequest| {
+        let service = clone_session.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-clone","type":"clone"}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-clone-state","type":"get_state"}),
+            )
+        }
+    })?;
+    let compact_session = service.clone();
+    capability.method(COMPACT_SESSION, move |request: AgentRequest| {
+        let service = compact_session.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-compact","type":"compact"}),
+            )
+        }
+    })?;
+    let export_session = service.clone();
+    capability.method(EXPORT_SESSION, move |request: ExportSessionRequest| {
+        let service = export_session.clone();
+        async move {
+            let output_path = request.output_path.trim();
+            if output_path.is_empty() {
+                return Err("export path cannot be empty".to_owned());
+            }
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-export","type":"export_html","outputPath":output_path}),
             )
         }
     })?;

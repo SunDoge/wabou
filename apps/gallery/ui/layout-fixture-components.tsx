@@ -42,6 +42,7 @@ import { ComposerImages } from "../../pi-agent/ui/composer-images";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
 import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
 import { ModelControls } from "../../pi-agent/ui/model-controls";
+import { SessionActions } from "../../pi-agent/ui/session-actions";
 import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
 import { MarkdownPreview } from "./pages/markdown";
@@ -114,6 +115,43 @@ export function PiModelControlsLayoutFixture() {
         chooseModel={() => {}}
         chooseThinking={() => {}}
       />
+    </View>
+  );
+}
+
+export function PiAgentHeaderLayoutFixture() {
+  return (
+    <View class="w-full h-14 min-w-0 px-5 border-b border-subtle bg-surface flex flex-row items-center justify-between gap-3">
+      <View class="min-w-0 flex-1">
+        <Text class="font-semibold truncate">Implement session controls</Text>
+        <Text class="text-xs text-muted truncate">
+          Claude Sonnet 4.5 · medium thinking
+        </Text>
+      </View>
+      <View class="flex-none flex flex-row items-center gap-1">
+        <ModelControls
+          models={[
+            {
+              provider: "anthropic",
+              id: "claude-sonnet-4-5",
+              name: "Claude Sonnet 4.5",
+              reasoning: true,
+              contextWindow: 200_000,
+            },
+          ]}
+          modelProvider="anthropic"
+          modelId="claude-sonnet-4-5"
+          thinking="medium"
+          thinkingLevels={["off", "medium", "high"]}
+          chooseModel={() => {}}
+          chooseThinking={() => {}}
+        />
+        <SessionActions
+          compact={() => {}}
+          clone={() => {}}
+          exportHtml={() => {}}
+        />
+      </View>
     </View>
   );
 }

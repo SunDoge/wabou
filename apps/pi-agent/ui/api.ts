@@ -54,6 +54,9 @@ interface PiCapability extends NativeJsonCapability {
   getCommands(request: string): string | PromiseLike<string>;
   getForkMessages(request: string): string | PromiseLike<string>;
   fork(request: string): string | PromiseLike<string>;
+  cloneSession(request: string): string | PromiseLike<string>;
+  compactSession(request: string): string | PromiseLike<string>;
+  exportSession(request: string): string | PromiseLike<string>;
   listWorkspaceFiles(request: string): string | PromiseLike<string>;
   respondExtensionUi(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
@@ -122,6 +125,11 @@ export function usePiApi() {
       call<void>("getForkMessages", { agentId }),
     fork: (agentId: string, entryId: string) =>
       call<void>("fork", { agentId, entryId }),
+    cloneSession: (agentId: string) => call<void>("cloneSession", { agentId }),
+    compactSession: (agentId: string) =>
+      call<void>("compactSession", { agentId }),
+    exportSession: (agentId: string, outputPath: string) =>
+      call<void>("exportSession", { agentId, outputPath }),
     listWorkspaceFiles: (cwd: string) =>
       call<string[]>("listWorkspaceFiles", { cwd }),
     respondExtensionUi: (
