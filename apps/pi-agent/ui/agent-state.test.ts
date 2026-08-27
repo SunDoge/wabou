@@ -226,6 +226,43 @@ describe("Pi agent event projection", () => {
     ]);
   });
 
+  test("projects available models and supported thinking levels", () => {
+    let state = reducePiEvent(initialAgentState, {
+      type: "response",
+      command: "get_available_models",
+      success: true,
+      data: {
+        models: [
+          {
+            provider: "openai",
+            id: "gpt-5.6",
+            name: "GPT-5.6",
+            reasoning: true,
+            contextWindow: 400_000,
+          },
+          { provider: "broken", name: "Missing id" },
+        ],
+      },
+    });
+    state = reducePiEvent(state, {
+      type: "response",
+      command: "get_available_thinking_levels",
+      success: true,
+      data: { levels: ["off", "medium", "max", "invalid"] },
+    });
+
+    expect(state.models).toEqual([
+      {
+        provider: "openai",
+        id: "gpt-5.6",
+        name: "GPT-5.6",
+        reasoning: true,
+        contextWindow: 400_000,
+      },
+    ]);
+    expect(state.availableThinkingLevels).toEqual(["off", "medium", "max"]);
+  });
+
   test("associates stable fork ids with repeated user messages in order", () => {
     let state = appendUserMessage(initialAgentState, "first", "Retry");
     state = appendUserMessage(state, "second", "Retry");

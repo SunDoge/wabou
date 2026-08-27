@@ -18,8 +18,6 @@ import {
   useParams,
   View,
 } from "@wabou/ui";
-import brain from "lucide-static/icons/brain.svg?raw";
-import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
 import search from "lucide-static/icons/search.svg?raw";
 import send from "lucide-static/icons/send.svg?raw";
@@ -67,6 +65,7 @@ import {
   reduceExtensionUiWidgets,
 } from "./extension-ui";
 import { i18n, m } from "./i18n";
+import { ModelControls } from "./model-controls";
 import { SessionForkDialog } from "./session-fork";
 import { SessionTitle } from "./session-title";
 import { SessionUsage } from "./session-usage";
@@ -303,6 +302,7 @@ export function App() {
           void api.getMessages(id);
           void api.getSessionStats(id);
           void api.getCommands(id);
+          void api.getModelOptions(id);
           void api
             .listSessions(id)
             .then((next) =>
@@ -651,12 +651,6 @@ export function App() {
     },
   );
 
-  const setConfiguredModel = async () => {
-    const agent = active();
-    if (!agent.provider.trim() || !agent.model.trim()) return;
-    await api.setModel(agent.id, agent.provider.trim(), agent.model.trim());
-  };
-
   const respondToExtension = async (
     request: ExtensionUiDialogRequest,
     answer: ExtensionUiAnswer,
@@ -740,6 +734,20 @@ export function App() {
               </Show>
             </View>
             <View class="flex items-center gap-1">
+              <ModelControls
+                models={active().state.models}
+                modelProvider={active().state.modelProvider}
+                modelId={active().state.modelId}
+                thinking={active().state.thinking}
+                thinkingLevels={active().state.availableThinkingLevels}
+                disabled={active().state.connection !== "ready"}
+                chooseModel={(provider, modelId) =>
+                  void api.setModel(active().id, provider, modelId)
+                }
+                chooseThinking={(level) =>
+                  void api.setThinking(active().id, level)
+                }
+              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -749,36 +757,6 @@ export function App() {
                 onClick={() => setSearchOpen((open) => !open)}
               >
                 <Icon source={search} size={15} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={
-                  active().state.connection !== "ready" ||
-                  !active().provider.trim() ||
-                  !active().model.trim()
-                }
-                onClick={() => void setConfiguredModel()}
-              >
-                {i18n.message(m.apply_model, {})}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={i18n.message(m.cycle_model, {})}
-                disabled={active().state.connection !== "ready"}
-                onClick={() => void api.cycleModel(active().id)}
-              >
-                <Icon source={chevronsUpDown} size={15} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={i18n.message(m.cycle_thinking, {})}
-                disabled={active().state.connection !== "ready"}
-                onClick={() => void api.cycleThinking(active().id)}
-              >
-                <Icon source={brain} size={15} />
               </Button>
               <Button
                 variant="ghost"

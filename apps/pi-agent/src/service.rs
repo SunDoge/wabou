@@ -29,6 +29,8 @@ const RENAME_SESSION: JsonMethod<RenameSessionRequest, ()> = JsonMethod::new("re
 const CYCLE_MODEL: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleModel");
 const CYCLE_THINKING: JsonMethod<AgentRequest, ()> = JsonMethod::new("cycleThinking");
 const SET_MODEL: JsonMethod<SetModelRequest, ()> = JsonMethod::new("setModel");
+const GET_MODEL_OPTIONS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getModelOptions");
+const SET_THINKING: JsonMethod<SetThinkingRequest, ()> = JsonMethod::new("setThinking");
 const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new("listSessions");
 const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
 const GET_SESSION_STATS: JsonMethod<AgentRequest, ()> = JsonMethod::new("getSessionStats");
@@ -294,6 +296,24 @@ struct SetModelRequest {
     agent_id: String,
     provider: String,
     model_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SetThinkingRequest {
+    agent_id: String,
+    level: String,
+}
+
+fn validate_thinking_level(level: &str) -> Result<(), String> {
+    if matches!(
+        level,
+        "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+    ) {
+        Ok(())
+    } else {
+        Err(format!("unsupported thinking level `{level}`"))
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -945,12 +965,49 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
         let service = cycle_thinking.clone();
         async move { service.send(&request.agent_id, json!({"type":"cycle_thinking_level"})) }
     })?;
+    let model_options = service.clone();
+    capability.method(GET_MODEL_OPTIONS, move |request: AgentRequest| {
+        let service = model_options.clone();
+        async move {
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-models","type":"get_available_models"}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-thinking-levels","type":"get_available_thinking_levels"}),
+            )
+        }
+    })?;
+    let set_thinking = service.clone();
+    capability.method(SET_THINKING, move |request: SetThinkingRequest| {
+        let service = set_thinking.clone();
+        async move {
+            validate_thinking_level(&request.level)?;
+            service.send(
+                &request.agent_id,
+                json!({"type":"set_thinking_level","level":request.level}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-thinking-state","type":"get_state"}),
+            )
+        }
+    })?;
     capability.method(SET_MODEL, move |request: SetModelRequest| {
         let service = service.clone();
         async move {
             service.send(
                 &request.agent_id,
                 json!({"type":"set_model","provider":request.provider,"modelId":request.model_id}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-model-state","type":"get_state"}),
+            )?;
+            service.send(
+                &request.agent_id,
+                json!({"id":"wabou-thinking-levels","type":"get_available_thinking_levels"}),
             )
         }
     })
@@ -1018,6 +1075,17 @@ mod tests {
         let status = PiService::new().status("default").expect("status");
         assert!(!status.running);
         assert_eq!(status.runtime, "bun");
+    }
+
+    #[test]
+    fn thinking_levels_are_restricted_to_pi_rpc_values() {
+        for level in ["off", "minimal", "low", "medium", "high", "xhigh", "max"] {
+            assert!(validate_thinking_level(level).is_ok());
+        }
+        assert_eq!(
+            validate_thinking_level("ultra").unwrap_err(),
+            "unsupported thinking level `ultra`"
+        );
     }
 
     #[test]

@@ -45,6 +45,8 @@ interface PiCapability extends NativeJsonCapability {
   cycleModel(request: string): string | PromiseLike<string>;
   cycleThinking(request: string): string | PromiseLike<string>;
   setModel(request: string): string | PromiseLike<string>;
+  getModelOptions(request: string): string | PromiseLike<string>;
+  setThinking(request: string): string | PromiseLike<string>;
   listSessions(request: string): string | PromiseLike<string>;
   getMessages(request: string): string | PromiseLike<string>;
   getSessionStats(request: string): string | PromiseLike<string>;
@@ -127,6 +129,10 @@ export function usePiApi() {
       call<void>("cycleThinking", { agentId }),
     setModel: (agentId: string, provider: string, modelId: string) =>
       call<void>("setModel", { agentId, provider, modelId }),
+    getModelOptions: (agentId: string) =>
+      call<void>("getModelOptions", { agentId }),
+    setThinking: (agentId: string, level: string) =>
+      call<void>("setThinking", { agentId, level }),
     subscribe: (
       listener: (events: readonly Record<string, unknown>[]) => void,
     ) => hostMessages.subscribeJson("pi.event", listener),

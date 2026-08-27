@@ -55,13 +55,44 @@ export interface AgentCommand {
   source: "extension" | "prompt" | "skill" | string;
 }
 
+export interface AgentModel {
+  provider: string;
+  id: string;
+  name: string;
+  reasoning: boolean;
+  contextWindow?: number;
+}
+
+export type AgentThinkingLevel =
+  | "off"
+  | "minimal"
+  | "low"
+  | "medium"
+  | "high"
+  | "xhigh"
+  | "max";
+
+const thinkingLevels = new Set<AgentThinkingLevel>([
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+]);
+
 export interface AgentViewState {
   connection: AgentConnection;
   items: readonly AgentItem[];
   activeAssistantId?: string;
   error?: string;
   model?: string;
-  thinking?: string;
+  modelId?: string;
+  modelProvider?: string;
+  models: readonly AgentModel[];
+  thinking?: AgentThinkingLevel;
+  availableThinkingLevels: readonly AgentThinkingLevel[];
   sessionId?: string;
   sessionFile?: string;
   sessionName?: string;
@@ -73,6 +104,8 @@ export const initialAgentState: AgentViewState = {
   connection: "stopped",
   items: [],
   commands: [],
+  models: [],
+  availableThinkingLevels: [],
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -207,6 +240,45 @@ const commands = (value: unknown): readonly AgentCommand[] => {
   });
 };
 
+const model = (value: unknown): AgentModel | undefined => {
+  const candidate = record(value);
+  if (
+    typeof candidate?.provider !== "string" ||
+    typeof candidate.id !== "string"
+  )
+    return undefined;
+  return {
+    provider: candidate.provider,
+    id: candidate.id,
+    name: typeof candidate.name === "string" ? candidate.name : candidate.id,
+    reasoning: candidate.reasoning === true,
+    ...(finiteNumber(candidate.contextWindow) !== undefined
+      ? { contextWindow: finiteNumber(candidate.contextWindow) }
+      : {}),
+  };
+};
+
+const models = (value: unknown): readonly AgentModel[] => {
+  const values = record(value)?.models;
+  if (!Array.isArray(values)) return [];
+  return values.flatMap((value) => {
+    const parsed = model(value);
+    return parsed ? [parsed] : [];
+  });
+};
+
+const availableThinkingLevels = (
+  value: unknown,
+): readonly AgentThinkingLevel[] => {
+  const values = record(value)?.levels;
+  if (!Array.isArray(values)) return [];
+  return values.filter(
+    (value): value is AgentThinkingLevel =>
+      typeof value === "string" &&
+      thinkingLevels.has(value as AgentThinkingLevel),
+  );
+};
+
 function attachForkEntryIds(
   items: readonly AgentItem[],
   value: unknown,
@@ -302,17 +374,29 @@ export function reducePiEvent(
       if (event.command === "get_commands") {
         return { ...state, commands: commands(event.data) };
       }
+      if (event.command === "get_available_models") {
+        return { ...state, models: models(event.data) };
+      }
+      if (event.command === "get_available_thinking_levels") {
+        return {
+          ...state,
+          availableThinkingLevels: availableThinkingLevels(event.data),
+        };
+      }
       if (event.command === "get_fork_messages") {
         return { ...state, items: attachForkEntryIds(state.items, event.data) };
       }
-      const model = record(
+      const selectedModel = record(
         event.command === "set_model" ? event.data : data?.model,
       );
       if (event.command === "cycle_thinking_level") {
         return {
           ...state,
           thinking:
-            typeof data?.level === "string" ? data.level : state.thinking,
+            typeof data?.level === "string" &&
+            thinkingLevels.has(data.level as AgentThinkingLevel)
+              ? (data.level as AgentThinkingLevel)
+              : state.thinking,
         };
       }
       if (
@@ -324,10 +408,22 @@ export function reducePiEvent(
       }
       return {
         ...state,
-        model: typeof model?.name === "string" ? model.name : state.model,
+        model:
+          typeof selectedModel?.name === "string"
+            ? selectedModel.name
+            : state.model,
+        modelId:
+          typeof selectedModel?.id === "string"
+            ? selectedModel.id
+            : state.modelId,
+        modelProvider:
+          typeof selectedModel?.provider === "string"
+            ? selectedModel.provider
+            : state.modelProvider,
         thinking:
-          typeof data?.thinkingLevel === "string"
-            ? data.thinkingLevel
+          typeof data?.thinkingLevel === "string" &&
+          thinkingLevels.has(data.thinkingLevel as AgentThinkingLevel)
+            ? (data.thinkingLevel as AgentThinkingLevel)
             : state.thinking,
         sessionId:
           typeof data?.sessionId === "string"

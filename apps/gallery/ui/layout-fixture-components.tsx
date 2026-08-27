@@ -40,6 +40,7 @@ import { ComposerContextFiles } from "../../pi-agent/ui/composer-context";
 import { ComposerImages } from "../../pi-agent/ui/composer-images";
 import { ConversationItem } from "../../pi-agent/ui/conversation";
 import { ExtensionUiChrome } from "../../pi-agent/ui/extension-ui";
+import { ModelControls } from "../../pi-agent/ui/model-controls";
 import { TranscriptSearch } from "../../pi-agent/ui/transcript-search";
 import { MangaPageMock } from "./pages/image-viewport";
 import { MarkdownPreview } from "./pages/markdown";
@@ -87,6 +88,30 @@ export function PiConversationLayoutFixture() {
           input: JSON.stringify({ command: "cargo test -p wabou-runtime" }),
           output: "running 245 tests",
         }}
+      />
+    </View>
+  );
+}
+
+export function PiModelControlsLayoutFixture() {
+  return (
+    <View class="w-full h-full min-w-0 p-5 flex items-start bg-canvas">
+      <ModelControls
+        models={[
+          {
+            provider: "anthropic",
+            id: "claude-sonnet-4-5-with-a-deliberately-long-model-id",
+            name: "Claude Sonnet 4.5 with an unusually long display name",
+            reasoning: true,
+            contextWindow: 200_000,
+          },
+        ]}
+        modelProvider="anthropic"
+        modelId="claude-sonnet-4-5-with-a-deliberately-long-model-id"
+        thinking="medium"
+        thinkingLevels={["off", "medium", "high", "xhigh"]}
+        chooseModel={() => {}}
+        chooseThinking={() => {}}
       />
     </View>
   );
