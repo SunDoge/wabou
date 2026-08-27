@@ -542,11 +542,29 @@ export function reducePiEvent(
         ),
       };
     })
-    .with(P.union("bridge_error", "extension_error"), () => {
+    .with("bridge_error", () => {
       const message = String(event.message ?? "Pi reported an error");
       return {
         ...state,
         connection: "failed" as const,
+        error: message,
+        items: [
+          ...state.items,
+          {
+            id: `notice-${state.items.length + 1}`,
+            kind: "notice" as const,
+            text: message,
+            tone: "error" as const,
+          },
+        ],
+      };
+    })
+    .with("extension_error", () => {
+      const message = String(
+        event.message ?? "A Pi extension reported an error",
+      );
+      return {
+        ...state,
         error: message,
         items: [
           ...state.items,

@@ -169,6 +169,22 @@ describe("Pi agent event projection", () => {
     expect(state.error).toBe("model unavailable");
   });
 
+  test("reports extension failures without stopping a healthy agent", () => {
+    const running = reducePiEvent(initialAgentState, { type: "agent_start" });
+    const state = reducePiEvent(running, {
+      type: "extension_error",
+      message: "broken status extension",
+    });
+
+    expect(state.connection).toBe("running");
+    expect(state.error).toBe("broken status extension");
+    expect(state.items.at(-1)).toMatchObject({
+      kind: "notice",
+      tone: "error",
+      text: "broken status extension",
+    });
+  });
+
   test("projects authoritative session and context usage", () => {
     const state = reducePiEvent(initialAgentState, {
       type: "response",
