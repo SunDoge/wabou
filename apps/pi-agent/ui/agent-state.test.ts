@@ -115,11 +115,17 @@ describe("Pi agent event projection", () => {
     expect(state.model).toBe("GPT-5.5");
   });
 
-  test("marks follow-ups as queued until the active turn ends", () => {
-    const queued = appendUserMessage(initialAgentState, "user-1", "Next", true);
+  test("marks follow-ups as queued until the agent fully settles", () => {
+    const running = reducePiEvent(initialAgentState, { type: "agent_start" });
+    const queued = appendUserMessage(running, "user-1", "Next", true);
     expect(queued.items[0]).toMatchObject({ kind: "user", queued: true });
 
-    const ready = reducePiEvent(queued, { type: "agent_end" });
+    const betweenRuns = reducePiEvent(queued, { type: "agent_end" });
+    expect(betweenRuns.connection).toBe("running");
+    expect(betweenRuns.items[0]).toMatchObject({ queued: true });
+
+    const ready = reducePiEvent(betweenRuns, { type: "agent_settled" });
+    expect(ready.connection).toBe("ready");
     expect(ready.items[0]).toMatchObject({ kind: "user", queued: false });
   });
 

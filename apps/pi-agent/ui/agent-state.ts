@@ -441,14 +441,19 @@ export function reducePiEvent(
     })
     .with("agent_end", () => ({
       ...state,
-      connection: "ready" as const,
       activeAssistantId: undefined,
       items: state.items.map((item) =>
         item.kind === "assistant" && item.streaming
           ? { ...item, streaming: false }
-          : item.kind === "user" && item.queued
-            ? { ...item, queued: false }
-            : item,
+          : item,
+      ),
+    }))
+    .with("agent_settled", () => ({
+      ...state,
+      connection: "ready" as const,
+      activeAssistantId: undefined,
+      items: state.items.map((item) =>
+        item.kind === "user" && item.queued ? { ...item, queued: false } : item,
       ),
     }))
     .with("message_start", () => {

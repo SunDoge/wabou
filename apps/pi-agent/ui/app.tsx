@@ -335,7 +335,7 @@ export function App() {
             void navigate({ to: `/agents/${id}/sessions/${data.sessionId}` });
           }
         }
-        if (batch.some((event) => event.type === "agent_end")) {
+        if (batch.some((event) => event.type === "agent_settled")) {
           void api.getSessionStats(id);
         }
         if (
