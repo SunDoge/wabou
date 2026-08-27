@@ -33,6 +33,7 @@ mod serial_worker;
 mod source_map;
 mod style_ir;
 mod test_driver;
+mod test_report;
 
 #[cfg(test)]
 mod css_support_matrix_test;
