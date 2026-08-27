@@ -7,16 +7,14 @@ use anyrender::{PaintScene, Scene};
 use editor_core::{
     Command, CursorCommand, EditCommand, EditorStateManager, Position, Selection, ViewCommand,
 };
-use editor_core_highlight_simple::{
-    RegexHighlightProcessor, SIMPLE_STYLE_BOOLEAN, SIMPLE_STYLE_NULL, SIMPLE_STYLE_NUMBER,
-    SIMPLE_STYLE_STRING, SimpleJsonStyles,
-};
+use serde::Deserialize;
 use vello::{
     kurbo::{Affine, Rect},
     peniko::{Color, Fill},
 };
 use wabou_shell::{
-    ImeEvent, KeyPhase, PaintContext, PointerPhase, UiEvent, Widget, WidgetEventResult, WidgetStyle,
+    ImeEvent, KeyPhase, PaintContext, PointerPhase, UiEvent, Widget, WidgetEventResult,
+    WidgetStyle, decode_widget_config,
 };
 use wabou_shell::{
     style::TextAlign,
@@ -30,6 +28,39 @@ const GUTTER_WIDTH: f32 = 58.0;
 const TEXT_INSET: f32 = 10.0;
 const CONTENT_CHANGED: wabou_shell::WidgetChanges =
     wabou_shell::WidgetChanges::REDRAW.union(wabou_shell::WidgetChanges::SEMANTICS);
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+enum HighlightKind {
+    Property,
+    String,
+    Number,
+    Boolean,
+    Null,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HighlightRange {
+    from: usize,
+    to: usize,
+    kind: HighlightKind,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct SyntaxConfig {
+    language: String,
+    offset_encoding: String,
+    document_length: usize,
+    ranges: Vec<HighlightRange>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CodeEditorConfig {
+    syntax: Option<SyntaxConfig>,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct EditorGeometry {
@@ -82,14 +113,19 @@ impl EditorGeometry {
     }
 }
 
-/// Native multiline code editor backed by `editor-core`.
+/// Native multiline editor viewport backed by `editor-core` input state.
 ///
-/// The current implementation provides JSON highlighting, Unicode-aware
-/// selection/editing, IME, clipboard copy/paste, undo/redo, and soft wrapping.
+/// Syntax ranges come from the headless JavaScript language service; this
+/// widget owns Unicode-aware selection/editing, IME, clipboard operations,
+/// undo/redo, soft wrapping, and native painting.
 pub struct CodeEditor {
     state: EditorStateManager,
-    highlighter: RegexHighlightProcessor,
     cached_value: String,
+    /// CodeMirror/Lezer ranges in JavaScript UTF-16 document offsets.
+    highlight_ranges: Vec<HighlightRange>,
+    highlight_document_utf16_len: usize,
+    /// Maps editor-core Unicode scalar offsets to JavaScript UTF-16 offsets.
+    char_to_utf16: Vec<usize>,
     scroll_row: usize,
     viewport: [f32; 2],
     geometry: EditorGeometry,
@@ -112,9 +148,10 @@ impl CodeEditor {
     fn from_text(text: &str) -> Self {
         let mut editor = Self {
             state: EditorStateManager::new(text, 80),
-            highlighter: RegexHighlightProcessor::json_default(SimpleJsonStyles::default())
-                .expect("built-in JSON highlighting regexes are valid"),
             cached_value: text.to_owned(),
+            highlight_ranges: Vec::new(),
+            highlight_document_utf16_len: 0,
+            char_to_utf16: Vec::new(),
             scroll_row: 0,
             viewport: [0.0, 0.0],
             geometry: EditorGeometry::default(),
@@ -148,7 +185,13 @@ impl CodeEditor {
     }
 
     fn refresh_derived_state(&mut self) {
-        let _ = self.state.apply_processor(&mut self.highlighter);
+        self.char_to_utf16.clear();
+        self.char_to_utf16.push(0);
+        let mut utf16 = 0;
+        for ch in self.cached_value.chars() {
+            utf16 += ch.len_utf16();
+            self.char_to_utf16.push(utf16);
+        }
     }
 
     fn visible_rows(&self) -> usize {
@@ -253,6 +296,9 @@ impl CodeEditor {
                 .selected_text()
                 .map_or(WidgetEventResult::IGNORED, WidgetEventResult::copy);
         }
+        if primary && key.eq_ignore_ascii_case("v") && !self.read_only {
+            return WidgetEventResult::paste();
+        }
         let command = if primary && key.eq_ignore_ascii_case("z") {
             Some(Command::Edit(if shift {
                 EditCommand::Redo
@@ -331,17 +377,29 @@ impl CodeEditor {
         )
     }
 
-    fn color_for_styles(&self, styles: &[u32]) -> Color {
-        if styles.contains(&SIMPLE_STYLE_STRING) {
-            Color::from_rgb8(0xa6, 0xe3, 0xa1)
-        } else if styles.contains(&SIMPLE_STYLE_NUMBER) {
-            Color::from_rgb8(0xfa, 0xb3, 0x87)
-        } else if styles.contains(&SIMPLE_STYLE_BOOLEAN) {
-            Color::from_rgb8(0xc6, 0x9d, 0xf7)
-        } else if styles.contains(&SIMPLE_STYLE_NULL) {
-            Color::from_rgb8(0x7f, 0x84, 0x9c)
-        } else {
-            self.text_color
+    fn color_at_char_offset(&self, offset: usize) -> Color {
+        if self.highlight_document_utf16_len != self.char_to_utf16.last().copied().unwrap_or(0) {
+            return self.text_color;
+        }
+        let utf16 = self
+            .char_to_utf16
+            .get(offset)
+            .copied()
+            .unwrap_or(usize::MAX);
+        let index = self
+            .highlight_ranges
+            .partition_point(|range| range.to <= utf16);
+        let kind = self
+            .highlight_ranges
+            .get(index)
+            .and_then(|range| (range.from <= utf16 && utf16 < range.to).then_some(range.kind));
+        match kind {
+            Some(HighlightKind::Property) => Color::from_rgb8(0x89, 0xb4, 0xfa),
+            Some(HighlightKind::String) => Color::from_rgb8(0xa6, 0xe3, 0xa1),
+            Some(HighlightKind::Number) => Color::from_rgb8(0xfa, 0xb3, 0x87),
+            Some(HighlightKind::Boolean) => Color::from_rgb8(0xc6, 0x9d, 0xf7),
+            Some(HighlightKind::Null) => Color::from_rgb8(0x7f, 0x84, 0x9c),
+            None => self.text_color,
         }
     }
 
@@ -355,8 +413,8 @@ impl CodeEditor {
         let mut text = String::new();
         let mut style_ranges = Vec::new();
         let mut current_run: Option<(usize, Color)> = None;
-        for cell in &line.cells {
-            let color = self.color_for_styles(&cell.styles);
+        for (index, cell) in line.cells.iter().enumerate() {
+            let color = self.color_at_char_offset(line.char_offset_start + index);
             if current_run.is_none_or(|(_, previous)| previous != color) {
                 if let Some((start, previous)) = current_run.take() {
                     style_ranges.push((start..text.len(), previous));
@@ -702,6 +760,8 @@ impl Widget for CodeEditor {
         match name {
             "value" if value != self.cached_value => {
                 let mut replacement = Self::from_text(value);
+                replacement.highlight_ranges = std::mem::take(&mut self.highlight_ranges);
+                replacement.highlight_document_utf16_len = self.highlight_document_utf16_len;
                 replacement.viewport = self.viewport;
                 replacement.geometry = self.geometry;
                 replacement.focused = self.focused;
@@ -745,6 +805,50 @@ impl Widget for CodeEditor {
             }
             _ => wabou_shell::WidgetChanges::empty(),
         }
+    }
+
+    fn config_changed(&mut self, json: &str) -> Result<wabou_shell::WidgetChanges, String> {
+        let config: CodeEditorConfig = decode_widget_config(json)?;
+        let Some(syntax) = config.syntax else {
+            self.highlight_ranges.clear();
+            self.highlight_document_utf16_len = 0;
+            return Ok(wabou_shell::WidgetChanges::REDRAW);
+        };
+        if syntax.language != "json" {
+            return Err(format!(
+                "unsupported CodeEditor language `{}`",
+                syntax.language
+            ));
+        }
+        if syntax.offset_encoding != "utf16" {
+            return Err(format!(
+                "unsupported CodeEditor offset encoding `{}`",
+                syntax.offset_encoding
+            ));
+        }
+        if syntax
+            .ranges
+            .iter()
+            .any(|range| range.from > range.to || range.to > syntax.document_length)
+        {
+            return Err("CodeEditor highlight range lies outside the document".into());
+        }
+        if syntax
+            .ranges
+            .windows(2)
+            .any(|pair| pair[0].to > pair[1].from)
+        {
+            return Err("CodeEditor highlight ranges overlap or are not sorted".into());
+        }
+        self.highlight_document_utf16_len = syntax.document_length;
+        self.highlight_ranges = syntax.ranges;
+        Ok(wabou_shell::WidgetChanges::REDRAW)
+    }
+
+    fn config_removed(&mut self) -> wabou_shell::WidgetChanges {
+        self.highlight_ranges.clear();
+        self.highlight_document_utf16_len = 0;
+        wabou_shell::WidgetChanges::REDRAW
     }
 
     fn style_changed(&mut self, style: &WidgetStyle) -> wabou_shell::WidgetChanges {
@@ -874,14 +978,29 @@ mod tests {
     }
 
     #[test]
-    fn json_styles_reach_the_headless_snapshot() {
-        let editor = CodeEditor::from_text("{\"port\": 9090, \"ok\": true}");
-        let grid = editor.state.get_viewport_content_styled(0, 10);
-        assert!(
-            grid.lines[0]
-                .cells
-                .iter()
-                .any(|cell| !cell.styles.is_empty())
+    fn codemirror_highlight_config_uses_utf16_offsets() {
+        let mut editor = CodeEditor::from_text("😀true");
+        editor
+            .config_changed(
+                r#"{"syntax":{"language":"json","offsetEncoding":"utf16","documentLength":6,"ranges":[{"from":2,"to":6,"kind":"boolean"}]}}"#,
+            )
+            .unwrap();
+
+        assert_eq!(editor.color_at_char_offset(0), editor.text_color);
+        assert_eq!(
+            editor.color_at_char_offset(1),
+            Color::from_rgb8(0xc6, 0x9d, 0xf7)
+        );
+    }
+
+    #[test]
+    fn clipboard_paste_shortcut_requests_host_text() {
+        let mut editor = CodeEditor::from_text("");
+        let result = editor.key_down("V", false, true);
+
+        assert_eq!(
+            result.clipboard_request(),
+            Some(&wabou_shell::ClipboardRequest::Read)
         );
     }
 

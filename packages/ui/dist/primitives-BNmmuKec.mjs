@@ -5,6 +5,10 @@ import { animateValue, interpolate } from "motion-dom";
 import { For, Show, createComponent, createContext, createEffect, createMemo, createSignal, omit, onCleanup, untrack, useContext } from "solid-js";
 import { Portal, TEXT_BEHAVIOR, applyRef, createComponent as createComponent$1, createElement, memo, mergeProps, observeGlobalPointerEvent, spread, useHost as useHost$1 } from "@wabou/core/renderer";
 import { match } from "ts-pattern";
+import { EditorState } from "@codemirror/state";
+import { TreeFragment } from "@lezer/common";
+import { highlightTree, tagHighlighter, tags } from "@lezer/highlight";
+import { parser } from "@lezer/json";
 import { arrow, autoPlacement, computePosition, flip, offset, shift, size } from "@floating-ui/core";
 import { formatNodeKey } from "@wabou/core/protocol";
 //#region src/animation/config.tsx
@@ -396,6 +400,109 @@ function createActive(disabled) {
 	};
 }
 //#endregion
+//#region src/primitives/code-editor-state.ts
+const jsonHighlighter = tagHighlighter([
+	{
+		tag: tags.propertyName,
+		class: "property"
+	},
+	{
+		tag: tags.string,
+		class: "string"
+	},
+	{
+		tag: tags.number,
+		class: "number"
+	},
+	{
+		tag: tags.bool,
+		class: "boolean"
+	},
+	{
+		tag: tags.null,
+		class: "null"
+	}
+]);
+function changedRange(previous, next) {
+	let prefix = 0;
+	const shared = Math.min(previous.length, next.length);
+	while (prefix < shared && previous.charCodeAt(prefix) === next.charCodeAt(prefix)) prefix += 1;
+	let previousEnd = previous.length;
+	let nextEnd = next.length;
+	while (previousEnd > prefix && nextEnd > prefix && previous.charCodeAt(previousEnd - 1) === next.charCodeAt(nextEnd - 1)) {
+		previousEnd -= 1;
+		nextEnd -= 1;
+	}
+	return {
+		prefix,
+		previousEnd,
+		nextEnd
+	};
+}
+/**
+* Headless CodeMirror document state used by the native CodeEditor viewport.
+*
+* This deliberately has no DOM/View dependency. Native input may report the
+* complete value today, while this adapter turns it back into one incremental
+* CodeMirror transaction and an incremental Lezer parse.
+*/
+var CodeEditorDocument = class {
+	#state;
+	#tree = null;
+	#language;
+	constructor(value = "", language) {
+		this.#state = EditorState.create({ doc: value });
+		this.setLanguage(language);
+	}
+	get value() {
+		return this.#state.doc.toString();
+	}
+	setLanguage(language) {
+		if (language === this.#language) return;
+		this.#language = language;
+		this.#tree = language === "json" ? parser.parse(this.value) : null;
+	}
+	update(value, language = this.#language) {
+		this.setLanguage(language);
+		if (value !== this.value) {
+			const previous = this.value;
+			const { prefix, previousEnd, nextEnd } = changedRange(previous, value);
+			const transaction = this.#state.update({ changes: {
+				from: prefix,
+				to: previousEnd,
+				insert: value.slice(prefix, nextEnd)
+			} });
+			const changedRanges = [];
+			transaction.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+				changedRanges.push({
+					fromA,
+					toA,
+					fromB,
+					toB
+				});
+			});
+			const fragments = this.#tree ? TreeFragment.applyChanges(TreeFragment.addTree(this.#tree), changedRanges) : void 0;
+			this.#state = transaction.state;
+			this.#tree = this.#language === "json" ? parser.parse(this.value, fragments) : null;
+		}
+		if (!this.#tree || !this.#language) return { syntax: null };
+		const ranges = [];
+		highlightTree(this.#tree, jsonHighlighter, (from, to, kind) => {
+			ranges.push({
+				from,
+				to,
+				kind
+			});
+		});
+		return { syntax: {
+			language: this.#language,
+			offsetEncoding: "utf16",
+			documentLength: this.#state.doc.length,
+			ranges
+		} };
+	}
+};
+//#endregion
 //#region src/primitives/view.ts
 const ICON_SIZE_UNITLESS_RE = /^-?\d*\.?\d+$/;
 function normalizeIconSize(size) {
@@ -572,7 +679,23 @@ function PasswordInput(props) {
 }
 /** Experimental native editor for config and script-sized documents. */
 function CodeEditor(props) {
-	return editorPrimitive("code-editor", props);
+	const initialValue = untrack(() => props.value ?? "");
+	const document = new CodeEditorDocument(initialValue, untrack(() => props.language ?? "json"));
+	const [nativeValue, setNativeValue] = createSignal(initialValue);
+	createEffect(() => props.value, (controlledValue) => {
+		if (controlledValue !== void 0) setNativeValue(controlledValue);
+	});
+	const widgetConfig = createMemo(() => document.update(nativeValue(), props.language ?? "json"));
+	const nativeProps = omit(props, "language", "onInput");
+	return editorPrimitive("code-editor", mergeProps(nativeProps, {
+		get widgetConfig() {
+			return widgetConfig();
+		},
+		onInput(event) {
+			setNativeValue(event.currentTarget.value);
+			props.onInput?.(event);
+		}
+	}));
 }
 //#endregion
 //#region src/primitives/button.tsx
@@ -2508,4 +2631,4 @@ var primitives_exports = /* @__PURE__ */ __exportAll({
 //#endregion
 export { Svg as $, isSelected as A, createContainerMatch as B, OverlayPlaneProvider as C, useMotionConfig as Ct, Column as D, Center as E, createNetworkImageResource as F, CodeEditor as G, Button as H, createOwnedImageResource as I, PasswordInput as J, Icon as K, releaseImageResource as L, FORM_ERROR as M, createFormDraft as N, Row as O, createFileImageResource as P, RichTextSpan as Q, CollapsiblePresence as R, createTransitionPresence as S, MotionConfigProvider as St, useOverlayPlane as T, Link as U, createMeasuredSize as V, createButton as W, PathBuilder as X, Path as Y, RichText as Z, createRetainedItems as _, createPulse as _t, ScrollArea as a, translate2d$1 as at, Spin as b, createTransition as bt, autoPlacement as c, createHover as ct, flip as d, createAnimationFrame as dt, Text as et, offset as f, animate as ft, createNotifications as g, createLoop as gt, NotificationRegion as h, createKeyframeAnimation as ht, createScrollReset as i, rotate2d$1 as it, toggleSelection as j, createKeyedSelection as k, computeFloatingPosition as l, createFocus as lt, size as m, createInterpolation as mt, createTabs as n, TextInput as nt, Popover as o, createActive as ot, shift as p, animateKeyframes as pt, Image as q, createShortcuts as r, View as rt, arrow as s, createPress as st, primitives_exports as t, TextArea as tt, computeHostFloatingPosition as u, createFocusWithin as ut, Pulse as v, createRotation as vt, createOverlayLayer as w, useReducedMotion as wt, Modal as x, normalizeSweepGeometry as xt, Ripple as y, createSweep as yt, createPresence as z };
 
-//# sourceMappingURL=primitives-DhbVPI7L.mjs.map
+//# sourceMappingURL=primitives-BNmmuKec.mjs.map

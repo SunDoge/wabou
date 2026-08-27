@@ -2380,16 +2380,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "editor-core-highlight-simple"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8dc3ca91ea7d784001e14a982fc8d7ef0f8690ee2ade30065cc695da6c95cc2c"
-dependencies = [
- "editor-core",
- "regex",
-]
-
-[[package]]
 name = "editor-core-lang"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10238,9 +10228,9 @@ version = "0.1.0-alpha.3"
 dependencies = [
  "anyrender",
  "editor-core",
- "editor-core-highlight-simple",
  "image",
  "parley",
+ "serde",
  "tracing",
  "vello",
  "wabou-shell",

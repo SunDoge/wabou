@@ -45,12 +45,16 @@
     "build": "bun run ../../scripts/build-packages.ts ui"
   },
   "dependencies": {
+    "@codemirror/state": "^6.5.2",
     "@floating-ui/core": "^1.8.0",
     "@internationalized/date": "^3.12.3",
     "@internationalized/number": "^3.5.3",
     "@tanstack/history": "1.162.1",
     "@tanstack/router-core": "1.171.24",
     "@tanstack/table-core": "^8.21.3",
+    "@lezer/common": "^1.2.3",
+    "@lezer/highlight": "^1.2.1",
+    "@lezer/json": "^1.0.3",
     "@wabou/core": "workspace:*",
     "lucide-static": "1.31.0",
     "motion-dom": "13.1.1",

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { GRAPHIC_SOURCE } from "@wabou/core/protocol";
-import { writer } from "@wabou/core/renderer";
+import { EVENT_CODE, GRAPHIC_SOURCE } from "@wabou/core/protocol";
+import { dispatchEvent, writer } from "@wabou/core/renderer";
 import { createRoot, createSignal, flush } from "solid-js";
 import { resolveButtonFocusOrder } from "./button";
 import {
@@ -462,6 +462,38 @@ describe("host primitives", () => {
     ]);
     expect(focusOrders).toEqual([0, 0, 4, -1]);
   });
+
+  test("feeds native edits through headless CodeMirror syntax state", () =>
+    createRoot((dispose) => {
+      const configs: string[] = [];
+      const setWidgetConfig = writer.setWidgetConfig.bind(writer);
+      writer.setWidgetConfig = (_id, json) => configs.push(json);
+      try {
+        const editor = CodeEditor({
+          "aria-label": "Config",
+          value: '{"enabled":true}',
+        }) as unknown as import("@wabou/core/renderer").Handle;
+        flush();
+        dispatchEvent(
+          editor.id,
+          EVENT_CODE.input,
+          JSON.stringify({ value: '{"enabled":false,"port":9090}' }),
+        );
+        flush();
+      } finally {
+        writer.setWidgetConfig = setWidgetConfig;
+        dispose();
+      }
+
+      const syntax = JSON.parse(configs.at(-1) ?? "null").syntax;
+      expect(syntax).toMatchObject({
+        language: "json",
+        offsetEncoding: "utf16",
+      });
+      expect(
+        syntax.ranges.map((range: { kind: string }) => range.kind),
+      ).toContain("number");
+    }));
 
   test("create explicit view, text, image, and editor host nodes", () =>
     createRoot((dispose) => {

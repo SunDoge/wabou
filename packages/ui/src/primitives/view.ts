@@ -13,7 +13,19 @@ import type { Affine2D, Shadow, WabouStyle } from "@wabou/core/style";
 export type { VectorPath, VectorPathPaint } from "@wabou/core";
 export { PathBuilder } from "@wabou/core";
 
-import { type JSX, omit, untrack } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  type JSX,
+  omit,
+  untrack,
+} from "solid-js";
+
+import {
+  CodeEditorDocument,
+  type CodeEditorLanguage,
+} from "./code-editor-state";
 
 export type { Affine2D, WabouStyle } from "@wabou/core/style";
 export { rotate2d, translate2d } from "@wabou/core/style";
@@ -140,8 +152,8 @@ export interface PasswordInputProps extends Omit<PrimitiveProps, "children"> {
 
 export interface CodeEditorProps extends Omit<PrimitiveProps, "children"> {
   value?: string;
-  /** The initial experimental adapter supports JSON highlighting. */
-  language?: "json";
+  /** Headless CodeMirror/Lezer language service. */
+  language?: CodeEditorLanguage;
   disabled?: boolean;
   readOnly?: boolean;
   "aria-label": string;
@@ -398,5 +410,30 @@ export function PasswordInput(props: PasswordInputProps): JSX.Element {
 
 /** Experimental native editor for config and script-sized documents. */
 export function CodeEditor(props: CodeEditorProps): JSX.Element {
-  return editorPrimitive("code-editor", props);
+  const initialValue = untrack(() => props.value ?? "");
+  const initialLanguage = untrack(() => props.language ?? "json");
+  const document = new CodeEditorDocument(initialValue, initialLanguage);
+  const [nativeValue, setNativeValue] = createSignal(initialValue);
+  createEffect(
+    () => props.value,
+    (controlledValue) => {
+      if (controlledValue !== undefined) setNativeValue(controlledValue);
+    },
+  );
+  const widgetConfig = createMemo(() =>
+    document.update(nativeValue(), props.language ?? "json"),
+  );
+  const nativeProps = omit(props, "language", "onInput");
+  return editorPrimitive(
+    "code-editor",
+    mergeProps(nativeProps, {
+      get widgetConfig() {
+        return widgetConfig();
+      },
+      onInput(event: { currentTarget: { value: string } }) {
+        setNativeValue(event.currentTarget.value);
+        props.onInput?.(event);
+      },
+    }) as CodeEditorProps,
+  );
 }
