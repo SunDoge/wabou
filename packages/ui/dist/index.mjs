@@ -1396,7 +1396,8 @@ function CodeBlock(props) {
 								return props.code;
 							},
 							variant: "ghost",
-							size: "sm"
+							size: "sm",
+							"aria-label": "Copy code"
 						});
 					})];
 				}
@@ -5562,8 +5563,7 @@ function MarkdownBlock(props) {
 			},
 			get language() {
 				return block.language ?? "text";
-			},
-			copyable: false
+			}
 		});
 		case "rule": return createComponent$1(Separator, {});
 		case "literal": return createComponent$1(Text, {

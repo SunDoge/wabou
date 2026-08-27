@@ -1,6 +1,6 @@
+import { mergeClasses } from "@wabou/core/style";
 import type { JSX } from "solid-js";
 import { Text, View, type ViewProps } from "../primitives";
-import { mergeClasses } from "@wabou/core/style";
 import { CopyButton } from "./copy-button";
 
 export interface CodeBlockProps extends Omit<ViewProps, "children"> {
@@ -24,7 +24,12 @@ export function CodeBlock(props: CodeBlockProps): JSX.Element {
           {props.language ?? "text"}
         </Text>
         {props.copyable !== false && (
-          <CopyButton value={props.code} variant="ghost" size="sm" />
+          <CopyButton
+            value={props.code}
+            variant="ghost"
+            size="sm"
+            aria-label="Copy code"
+          />
         )}
       </View>
       <Text class="min-w-0 p-3 font-mono text-sm text-primary whitespace-normal">
