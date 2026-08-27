@@ -30,6 +30,7 @@ const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages"
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
 const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
+const DEFAULT_WORKSPACE: JsonMethod<AgentRequest, String> = JsonMethod::new("defaultWorkspace");
 
 #[derive(Clone)]
 pub struct PiService {
@@ -164,8 +165,13 @@ impl PiService {
             .filter(|value| !value.trim().is_empty())
             .map(PathBuf::from)
             .unwrap_or(env::current_dir().map_err(|error| error.to_string())?);
-        if !cwd.is_dir() {
+        if cwd.exists() && !cwd.is_dir() {
             return Err(format!("workspace does not exist: {}", cwd.display()));
+        }
+        if !cwd.exists() {
+            std::fs::create_dir_all(&cwd).map_err(|error| {
+                format!("could not create workspace {}: {error}", cwd.display())
+            })?;
         }
         let explicit_pi = env::var_os("WABOU_PI_BIN");
         let mut command = match explicit_pi {
@@ -486,6 +492,17 @@ fn validate_agent_id(agent_id: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn default_workspace(agent_id: &str) -> Result<String, String> {
+    validate_agent_id(agent_id)?;
+    let user = directories::UserDirs::new()
+        .ok_or_else(|| "could not resolve the user home directory".to_owned())?;
+    let root = user
+        .document_dir()
+        .unwrap_or_else(|| user.home_dir())
+        .join("Pi Agent");
+    Ok(root.join(agent_id).display().to_string())
+}
+
 fn tag_event(agent_id: &str, mut event: Value) -> Value {
     if let Some(object) = event.as_object_mut() {
         object.insert("agentId".to_owned(), Value::String(agent_id.to_owned()));
@@ -503,6 +520,9 @@ impl Drop for PiProcess {
 }
 
 pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Result<()> {
+    capability.method(DEFAULT_WORKSPACE, |request: AgentRequest| async move {
+        default_workspace(&request.agent_id)
+    })?;
     let list_agents = service.clone();
     capability.method(LIST_AGENTS, move |(): ()| {
         let service = list_agents.clone();
@@ -690,5 +710,22 @@ mod tests {
             validate_agent_profiles(&[profile.clone(), profile]).unwrap_err(),
             "duplicate agent id `agent-1`"
         );
+    }
+
+    #[test]
+    fn default_workspace_is_scoped_to_a_valid_agent_directory() {
+        let workspace = PathBuf::from(default_workspace("agent-2").expect("workspace"));
+        assert_eq!(
+            workspace.file_name().and_then(|name| name.to_str()),
+            Some("agent-2")
+        );
+        assert_eq!(
+            workspace
+                .parent()
+                .and_then(|path| path.file_name())
+                .and_then(|name| name.to_str()),
+            Some("Pi Agent")
+        );
+        assert!(default_workspace("../escape").is_err());
     }
 }

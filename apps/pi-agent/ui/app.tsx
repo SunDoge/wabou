@@ -1,10 +1,5 @@
 import {
   Button,
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
   Icon,
   MessageGroup,
   MessageScroller,
@@ -19,7 +14,6 @@ import {
   useParams,
   View,
 } from "@wabou/ui";
-import bot from "lucide-static/icons/bot.svg?raw";
 import brain from "lucide-static/icons/brain.svg?raw";
 import chevronsUpDown from "lucide-static/icons/chevrons-up-down.svg?raw";
 import filePlus from "lucide-static/icons/file-plus-2.svg?raw";
@@ -33,6 +27,7 @@ import {
 } from "./agent-state";
 import { type PiSession, usePiApi } from "./api";
 import { ConversationItem } from "./conversation";
+import { ConversationWelcome } from "./conversation-welcome";
 import { i18n, m } from "./i18n";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -67,12 +62,24 @@ export function App() {
 
   void api
     .listAgents()
-    .then((profiles) => {
+    .then(async (profiles) => {
       if (profiles.length > 0) {
         const restored = profiles.map(restoreAgentWorkspace);
         setAgents(restored);
         setLastActiveId(restored[0].id);
+      } else {
+        const cwd = await api.defaultWorkspace("agent-1");
+        setAgents((current) =>
+          current.map((agent) =>
+            agent.id === "agent-1" && !agent.cwd ? { ...agent, cwd } : agent,
+          ),
+        );
       }
+    })
+    .catch((error) => {
+      console.error(
+        `[pi-agent] could not prepare the default workspace: ${String(error)}`,
+      );
     })
     .finally(() => {
       profilesHydrated = true;
@@ -284,6 +291,18 @@ export function App() {
     setLastActiveId(agent.id);
     void navigate({ to: `/agents/${agent.id}` });
     setDraft("");
+    void api
+      .defaultWorkspace(agent.id)
+      .then((cwd) => {
+        updateAgent(agent.id, (current) =>
+          current.cwd ? current : { ...current, cwd },
+        );
+      })
+      .catch((error) => {
+        console.error(
+          `[pi-agent] could not prepare the default workspace: ${String(error)}`,
+        );
+      });
   };
 
   const deleteActiveAgent = async () => {
@@ -472,8 +491,12 @@ export function App() {
               <WorkspaceSetup
                 path={active().cwd}
                 error={active().state.error}
+                provider={active().provider}
+                model={active().model}
+                proxy={active().proxy}
                 updatePath={(cwd) => patchActive({ cwd })}
                 start={start}
+                openSettings={() => void navigate({ to: "/settings" })}
               />
             }
           >
@@ -482,21 +505,7 @@ export function App() {
                 <MessageScrollerContent class="max-w-4xl mx-auto p-5">
                   <Show
                     when={active().state.items.length > 0}
-                    fallback={
-                      <Empty variant="plain" class="min-h-72">
-                        <EmptyHeader>
-                          <EmptyMedia variant="icon">
-                            <Icon source={bot} size={20} class="text-accent" />
-                          </EmptyMedia>
-                          <EmptyTitle>
-                            {i18n.message(m.empty_title, {})}
-                          </EmptyTitle>
-                          <EmptyDescription>
-                            {i18n.message(m.empty_detail, {})}
-                          </EmptyDescription>
-                        </EmptyHeader>
-                      </Empty>
-                    }
+                    fallback={<ConversationWelcome choosePrompt={setDraft} />}
                   >
                     <MessageGroup>
                       <For each={active().state.items}>
