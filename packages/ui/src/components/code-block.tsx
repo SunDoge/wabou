@@ -7,6 +7,8 @@ export interface CodeBlockProps extends Omit<ViewProps, "children"> {
   code: string;
   language?: string;
   copyable?: boolean;
+  copyLabel?: string;
+  copiedLabel?: string;
 }
 
 export function CodeBlock(props: CodeBlockProps): JSX.Element {
@@ -28,7 +30,9 @@ export function CodeBlock(props: CodeBlockProps): JSX.Element {
             value={props.code}
             variant="ghost"
             size="sm"
-            aria-label="Copy code"
+            idleLabel={props.copyLabel}
+            copiedLabel={props.copiedLabel}
+            aria-label={props.copyLabel}
           />
         )}
       </View>

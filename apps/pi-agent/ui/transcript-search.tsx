@@ -1,6 +1,6 @@
-import type { Handle } from "@wabou/core/renderer";
 import {
   Button,
+  type Handle,
   Icon,
   SearchField,
   Text,

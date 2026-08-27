@@ -1,8 +1,8 @@
-import { currentWindow, useDialog } from "@wabou/core";
-import type { Handle } from "@wabou/core/renderer";
 import {
   Button,
   createToasts,
+  currentWindow,
+  type Handle,
   Icon,
   MessageGroup,
   MessageScroller,
@@ -13,6 +13,7 @@ import {
   Text,
   TextArea,
   Toaster,
+  useDialog,
   useLocation,
   useNavigate,
   useParams,

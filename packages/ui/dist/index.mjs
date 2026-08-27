@@ -1397,7 +1397,15 @@ function CodeBlock(props) {
 							},
 							variant: "ghost",
 							size: "sm",
-							"aria-label": "Copy code"
+							get idleLabel() {
+								return props.copyLabel;
+							},
+							get copiedLabel() {
+								return props.copiedLabel;
+							},
+							get ["aria-label"]() {
+								return props.copyLabel;
+							}
 						});
 					})];
 				}
@@ -5563,7 +5571,8 @@ function MarkdownBlock(props) {
 			},
 			get language() {
 				return block.language ?? "text";
-			}
+			},
+			copyLabel: "Copy code"
 		});
 		case "rule": return createComponent$1(Separator, {});
 		case "literal": return createComponent$1(Text, {

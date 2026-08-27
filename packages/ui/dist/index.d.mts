@@ -264,6 +264,8 @@ interface CodeBlockProps extends Omit<ViewProps, "children"> {
   code: string;
   language?: string;
   copyable?: boolean;
+  copyLabel?: string;
+  copiedLabel?: string;
 }
 declare function CodeBlock(props: CodeBlockProps): JSX.Element;
 //#endregion

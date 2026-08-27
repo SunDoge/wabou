@@ -1,4 +1,3 @@
-import { number } from "@wabou/core/style";
 import {
   Badge,
   Bubble,
@@ -14,6 +13,7 @@ import {
   MessageAvatar,
   MessageContent,
   MessageHeader,
+  number,
   Pulse,
   Text,
   translate2d,

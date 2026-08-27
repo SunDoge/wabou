@@ -294,7 +294,11 @@ function MarkdownBlock(props: {
       );
     case "code":
       return (
-        <CodeBlock code={block.code} language={block.language ?? "text"} />
+        <CodeBlock
+          code={block.code}
+          language={block.language ?? "text"}
+          copyLabel="Copy code"
+        />
       );
     case "rule":
       return <Separator />;
