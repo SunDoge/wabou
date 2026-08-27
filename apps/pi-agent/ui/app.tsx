@@ -28,6 +28,12 @@ import {
 import { type PiSession, usePiApi } from "./api";
 import { ConversationItem } from "./conversation";
 import { ConversationWelcome } from "./conversation-welcome";
+import {
+  type AgentDrafts,
+  readAgentDraft,
+  removeAgentDrafts,
+  writeAgentDraft,
+} from "./drafts";
 import { i18n, m } from "./i18n";
 import { type AgentDefaults, SettingsPage } from "./settings";
 import { Sidebar } from "./sidebar";
@@ -55,7 +61,7 @@ export function App() {
   ]);
   const [sessions, setSessions] = createSignal<readonly PiSession[]>([]);
   const [lastActiveId, setLastActiveId] = createSignal("agent-1");
-  const [draft, setDraft] = createSignal("");
+  const [drafts, setDrafts] = createSignal<AgentDrafts>({});
   let nextMessage = 1;
   let profilesHydrated = false;
   let saveProfilesTimer: ReturnType<typeof setTimeout> | undefined;
@@ -105,6 +111,12 @@ export function App() {
   };
   const active = () =>
     agents().find((agent) => agent.id === activeId()) ?? agents()[0];
+  const activeSessionId = () => params().sessionId;
+  const draft = () => readAgentDraft(drafts(), activeId(), activeSessionId());
+  const setDraft = (value: string) =>
+    setDrafts((current) =>
+      writeAgentDraft(current, activeId(), activeSessionId(), value),
+    );
   createEffect(
     () => params().agentId,
     (routeId) => {
@@ -290,7 +302,6 @@ export function App() {
     setAgents((current) => [...current, agent]);
     setLastActiveId(agent.id);
     void navigate({ to: `/agents/${agent.id}` });
-    setDraft("");
     void api
       .defaultWorkspace(agent.id)
       .then((cwd) => {
@@ -322,6 +333,7 @@ export function App() {
     setSessions((current) =>
       current.filter((session) => session.agentId !== removed.id),
     );
+    setDrafts((current) => removeAgentDrafts(current, removed.id));
     const remaining = agents().filter((agent) => agent.id !== removed.id);
     const next =
       remaining[0] ??
@@ -335,19 +347,16 @@ export function App() {
       );
     setAgents(remaining.length > 0 ? remaining : [next]);
     setLastActiveId(next.id);
-    setDraft("");
     await navigate({ to: `/agents/${next.id}` });
   };
 
   const selectAgent = (id: string) => {
     setLastActiveId(id);
-    setDraft("");
     void navigate({ to: `/agents/${id}` });
   };
 
   const selectSession = async (agentId: string, sessionId: string) => {
     setLastActiveId(agentId);
-    setDraft("");
     await navigate({ to: `/agents/${agentId}/sessions/${sessionId}` });
   };
 
