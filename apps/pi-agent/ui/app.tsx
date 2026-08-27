@@ -281,6 +281,40 @@ export function App() {
     setDraft("");
   };
 
+  const deleteActiveAgent = async () => {
+    const removed = active();
+    try {
+      await api.deleteAgent(removed.id);
+    } catch (error) {
+      updateAgent(removed.id, (agent) => ({
+        ...agent,
+        state: reducePiEvent(agent.state, {
+          type: "bridge_error",
+          message: String(error),
+        }),
+      }));
+      return;
+    }
+    setSessions((current) =>
+      current.filter((session) => session.agentId !== removed.id),
+    );
+    const remaining = agents().filter((agent) => agent.id !== removed.id);
+    const next =
+      remaining[0] ??
+      createAgentWorkspace(
+        Math.max(
+          0,
+          ...agents().map(
+            (agent) => Number(agent.id.match(/^agent-(\d+)$/)?.[1]) || 0,
+          ),
+        ) + 1,
+      );
+    setAgents(remaining.length > 0 ? remaining : [next]);
+    setLastActiveId(next.id);
+    setDraft("");
+    await navigate({ to: `/agents/${next.id}` });
+  };
+
   const selectAgent = (id: string) => {
     setLastActiveId(id);
     setDraft("");
@@ -354,6 +388,7 @@ export function App() {
               setDefaults((current) => ({ ...current, ...patch }))
             }
             updateAgent={patchActive}
+            deleteAgent={() => void deleteActiveAgent()}
             close={() => navigate({ to: `/agents/${activeId()}` })}
           />
         }

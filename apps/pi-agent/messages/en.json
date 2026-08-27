@@ -5,6 +5,7 @@
   "add_agent": "Add agent",
   "new_agent": "New agent",
   "agents": "Agents",
+  "agent_name": "Agent name",
   "workspace": "Workspace",
   "choose_repository": "Choose a repository",
   "browse": "Browse",
@@ -49,5 +50,11 @@
   "working": "Pi is working…",
   "prompt_placeholder": "Ask this agent to work in its repository…",
   "send_hint": "Enter to send · Shift+Enter for newline",
-  "send": "Send"
+  "send": "Send",
+  "danger_zone": "Danger zone",
+  "delete_agent": "Delete agent",
+  "delete_agent_detail": "Remove this agent and its session references from the desktop workspace.",
+  "delete_agent_confirm": "Delete {name}?",
+  "delete_agent_files_safe": "The running process will stop. Original Pi session files and repository files will not be deleted.",
+  "cancel": "Cancel"
 }

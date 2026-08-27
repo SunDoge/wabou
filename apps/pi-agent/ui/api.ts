@@ -47,6 +47,7 @@ interface PiCapability extends NativeJsonCapability {
   getMessages(request: string): string | PromiseLike<string>;
   listAgents(request?: string): string | PromiseLike<string>;
   saveAgents(request: string): string | PromiseLike<string>;
+  deleteAgent(request: string): string | PromiseLike<string>;
 }
 
 interface PiHost extends Host {
@@ -63,6 +64,7 @@ export function usePiApi() {
     listAgents: () => call<PersistedAgentProfile[]>("listAgents"),
     saveAgents: (agents: readonly PersistedAgentProfile[]) =>
       call<void>("saveAgents", agents),
+    deleteAgent: (agentId: string) => call<void>("deleteAgent", { agentId }),
     getStatus: (agentId: string) => call<PiStatus>("getStatus", { agentId }),
     start: (options: {
       agentId: string;

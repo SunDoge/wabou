@@ -1,4 +1,11 @@
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   Button,
   Card,
   CardContent,
@@ -31,6 +38,7 @@ export function SettingsPage(props: {
   agent: AgentWorkspace;
   updateAgent: (patch: Partial<AgentWorkspace>) => void;
   close: () => void;
+  deleteAgent: () => void;
 }) {
   return (
     <PageViewport class="bg-canvas" contentClass="p-8">
@@ -55,6 +63,16 @@ export function SettingsPage(props: {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <Field>
+              <FieldLabel>{i18n.message(m.agent_name, {})}</FieldLabel>
+              <Input
+                aria-label={i18n.message(m.agent_name, {})}
+                value={props.agent.name}
+                onInput={(event) =>
+                  props.updateAgent({ name: event.currentTarget.value })
+                }
+              />
+            </Field>
             <Field>
               <FieldLabel>{i18n.message(m.workspace, {})}</FieldLabel>
               <DirectoryPicker
@@ -197,6 +215,47 @@ export function SettingsPage(props: {
             <Text class="text-sm text-muted whitespace-normal">
               {i18n.message(m.runtime_detail, {})}
             </Text>
+          </CardContent>
+        </Card>
+
+        <Card class="border-danger">
+          <CardHeader>
+            <CardTitle>{i18n.message(m.danger_zone, {})}</CardTitle>
+            <CardDescription>
+              {i18n.message(m.delete_agent_detail, {})}
+            </CardDescription>
+          </CardHeader>
+          <CardContent class="items-start">
+            <AlertDialog
+              aria-label={i18n.message(m.delete_agent, {})}
+              trigger={(trigger) => (
+                <Button variant="destructive" {...trigger}>
+                  {i18n.message(m.delete_agent, {})}
+                </Button>
+              )}
+            >
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {i18n.message(m.delete_agent_confirm, {
+                    name: props.agent.name,
+                  })}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {i18n.message(m.delete_agent_files_safe, {})}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>
+                  {i18n.message(m.cancel, {})}
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={props.deleteAgent}
+                >
+                  {i18n.message(m.delete_agent, {})}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialog>
           </CardContent>
         </Card>
       </View>

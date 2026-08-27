@@ -5,6 +5,7 @@
   "add_agent": "添加 Agent",
   "new_agent": "新建 Agent",
   "agents": "Agent 列表",
+  "agent_name": "Agent 名称",
   "workspace": "工作区",
   "choose_repository": "选择代码仓库",
   "browse": "浏览",
@@ -49,5 +50,11 @@
   "working": "Pi 正在工作…",
   "prompt_placeholder": "让这个 Agent 在当前仓库中完成任务…",
   "send_hint": "Enter 发送 · Shift+Enter 换行",
-  "send": "发送"
+  "send": "发送",
+  "danger_zone": "危险操作",
+  "delete_agent": "删除 Agent",
+  "delete_agent_detail": "从桌面工作区中移除这个 Agent 及其会话引用。",
+  "delete_agent_confirm": "删除 {name}？",
+  "delete_agent_files_safe": "对应进程会停止，但不会删除 Pi 原始会话文件或仓库文件。",
+  "cancel": "取消"
 }

@@ -29,6 +29,7 @@ const LIST_SESSIONS: JsonMethod<AgentRequest, Vec<PiSession>> = JsonMethod::new(
 const GET_MESSAGES: JsonMethod<AgentRequest, ()> = JsonMethod::new("getMessages");
 const LIST_AGENTS: JsonMethod<(), Vec<AgentProfile>> = JsonMethod::no_request("listAgents");
 const SAVE_AGENTS: JsonMethod<Vec<AgentProfile>, ()> = JsonMethod::new("saveAgents");
+const DELETE_AGENT: JsonMethod<AgentRequest, ()> = JsonMethod::new("deleteAgent");
 
 #[derive(Clone)]
 pub struct PiService {
@@ -368,6 +369,20 @@ impl PiService {
         catalog.agents = agents;
         persist_catalog(&catalog)
     }
+
+    fn delete_agent(&self, agent_id: &str) -> Result<(), String> {
+        validate_agent_id(agent_id)?;
+        self.stop(agent_id)?;
+        let mut catalog = self
+            .sessions
+            .lock()
+            .map_err(|_| "Pi session catalog lock poisoned".to_owned())?;
+        catalog.agents.retain(|agent| agent.id != agent_id);
+        catalog
+            .sessions
+            .retain(|session| session.agent_id != agent_id);
+        persist_catalog(&catalog)
+    }
 }
 
 fn validate_agent_profiles(agents: &[AgentProfile]) -> Result<(), String> {
@@ -497,6 +512,11 @@ pub fn mount(capability: JsonCapability<'_>, service: PiService) -> rquickjs::Re
     capability.method(SAVE_AGENTS, move |agents: Vec<AgentProfile>| {
         let service = save_agents.clone();
         async move { service.save_agents(agents) }
+    })?;
+    let delete_agent = service.clone();
+    capability.method(DELETE_AGENT, move |request: AgentRequest| {
+        let service = delete_agent.clone();
+        async move { service.delete_agent(&request.agent_id) }
     })?;
     let status = service.clone();
     capability.method(GET_STATUS, move |request: AgentRequest| {
